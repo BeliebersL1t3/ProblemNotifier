@@ -80,7 +80,7 @@ class GoogleService
         $this->sheets->spreadsheets_values->batchUpdate($this->spreadsheetId, $body);
     }
 
-    /** Upload image to ImgBB cloud storage and return permanent HTTPS URL. */
+    /** Upload image to ImgBB cloud storage and return permanent short HTTPS URL. */
     public function uploadImage(UploadedFile $file, string $prefix = 'img'): string
     {
         $apiKey = config('services.imgbb.key') ?: '06edfc5b9a00cb0ef375813f3d44c9f9';
@@ -97,14 +97,17 @@ class GoogleService
             ]);
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
             curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-            curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 20);
 
             $response = curl_exec($ch);
             curl_close($ch);
 
             if ($response) {
                 $json = json_decode($response, true);
-                if (isset($json['data']['url'])) {
+                if (!empty($json['data']['display_url'])) {
+                    return $json['data']['display_url'];
+                }
+                if (!empty($json['data']['url'])) {
                     return $json['data']['url'];
                 }
             }
@@ -112,7 +115,7 @@ class GoogleService
             \Illuminate\Support\Facades\Log::warning('ImgBB upload exception: ' . $e->getMessage());
         }
 
-        // Fallback to local storage if internet request fails
+        // Fallback to local uploads if ImgBB fails
         $uploadsDir = public_path('uploads');
         if (!file_exists($uploadsDir)) {
             mkdir($uploadsDir, 0755, true);
@@ -120,21 +123,12 @@ class GoogleService
 
         $extension = strtolower($file->getClientOriginalExtension() ?: 'png');
         $filename  = "{$prefix}-" . time() . '-' . \Illuminate\Support\Str::random(6) . '.' . $extension;
-
         $file->move($uploadsDir, $filename);
 
-        $host = request()->getHost();
-        $scheme = request()->getScheme();
-        $port = request()->getPort();
-        $portStr = ($port && $port != 80 && $port != 443) ? ":{$port}" : '';
-
-        if (in_array($host, ['localhost', '127.0.0.1', 'campusfix.test']) || str_ends_with($host, '.test')) {
-            $host = '25.15.16.106';
-        }
-
-        return "{$scheme}://{$host}{$portStr}/uploads/{$filename}";
+        return asset('uploads/' . $filename);
     }
 }
+
 
 
 
