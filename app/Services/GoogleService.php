@@ -93,7 +93,7 @@ class GoogleService
 
         $file->move($uploadsDir, $filename);
 
-        return asset('uploads/' . $filename);
+        return request()->getSchemeAndHttpHost() . '/uploads/' . $filename;
     }
 }
 

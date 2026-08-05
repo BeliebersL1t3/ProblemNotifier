@@ -29,8 +29,8 @@ export function SheetContent({ children, side = 'right', className, ...props }) 
     if (!open) return null;
 
     const sideClass = {
-        right: 'right-0 top-0 h-full border-l translate-x-full data-open:translate-x-0',
-        left: 'left-0 top-0 h-full border-r -translate-x-full data-open:translate-x-0',
+        right: 'right-0 top-0 h-full border-l animate-in slide-in-from-right duration-300',
+        left: 'left-0 top-0 h-full border-r animate-in slide-in-from-left duration-300',
     }[side];
 
     return createPortal(
@@ -38,11 +38,11 @@ export function SheetContent({ children, side = 'right', className, ...props }) 
             <div
                 ref={overlayRef}
                 onClick={() => onOpenChange(false)}
-                className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
+                className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm animate-in fade-in-0"
             />
             <div
                 className={cn(
-                    'fixed z-50 bg-surface shadow-xl transition-transform duration-300 w-full sm:max-w-md',
+                    'fixed z-50 bg-surface shadow-2xl w-full sm:max-w-md border-border',
                     sideClass,
                     className,
                 )}
