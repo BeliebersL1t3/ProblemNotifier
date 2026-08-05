@@ -80,42 +80,9 @@ class GoogleService
         $this->sheets->spreadsheets_values->batchUpdate($this->spreadsheetId, $body);
     }
 
-    /** Upload image to ImgBB cloud storage and return permanent short HTTPS URL. */
+    /** Save image locally on dedicated server host and return local network URL for Google Sheets. */
     public function uploadImage(UploadedFile $file, string $prefix = 'img'): string
     {
-        $apiKey = config('services.imgbb.key') ?: '06edfc5b9a00cb0ef375813f3d44c9f9';
-
-        try {
-            $base64 = base64_encode(file_get_contents($file->getRealPath()));
-
-            $ch = curl_init();
-            curl_setopt($ch, CURLOPT_URL, 'https://api.imgbb.com/1/upload?key=' . $apiKey);
-            curl_setopt($ch, CURLOPT_POST, true);
-            curl_setopt($ch, CURLOPT_POSTFIELDS, [
-                'image' => $base64,
-                'name'  => "{$prefix}-" . time(),
-            ]);
-            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-            curl_setopt($ch, CURLOPT_TIMEOUT, 20);
-
-            $response = curl_exec($ch);
-            curl_close($ch);
-
-            if ($response) {
-                $json = json_decode($response, true);
-                if (!empty($json['data']['display_url'])) {
-                    return $json['data']['display_url'];
-                }
-                if (!empty($json['data']['url'])) {
-                    return $json['data']['url'];
-                }
-            }
-        } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::warning('ImgBB upload exception: ' . $e->getMessage());
-        }
-
-        // Fallback to local uploads if ImgBB fails
         $uploadsDir = public_path('uploads');
         if (!file_exists($uploadsDir)) {
             mkdir($uploadsDir, 0755, true);
@@ -123,11 +90,14 @@ class GoogleService
 
         $extension = strtolower($file->getClientOriginalExtension() ?: 'png');
         $filename  = "{$prefix}-" . time() . '-' . \Illuminate\Support\Str::random(6) . '.' . $extension;
+
         $file->move($uploadsDir, $filename);
 
-        return asset('uploads/' . $filename);
+        // Dynamically returns http://<server-ip>/uploads/<filename> based on the request host
+        return request()->getSchemeAndHttpHost() . '/uploads/' . $filename;
     }
 }
+
 
 
 
