@@ -75,8 +75,8 @@ export function IssuesProvider({ children }) {
     }, [fetchIssues]);
 
     const claimIssue = useCallback(async (issue, taker) => {
-        const rowIndex = issue.rowIndex;
-        const response = await axios.post(`/api/issues/${rowIndex}/claim`, { taker });
+        const target = issue.id || issue.rowIndex;
+        const response = await axios.post(`/api/issues/${target}/claim`, { taker });
 
         if (response.data?.success) {
             await fetchIssues();
@@ -86,7 +86,7 @@ export function IssuesProvider({ children }) {
     }, [fetchIssues]);
 
     const resolveIssue = useCallback(async (issue, input) => {
-        const rowIndex = issue.rowIndex;
+        const target = issue.id || issue.rowIndex;
         const formData = new FormData();
         formData.append('solver', input.solver);
         formData.append('fixDescription', input.fixDescription);
@@ -94,7 +94,7 @@ export function IssuesProvider({ children }) {
             formData.append('proofImage', input.proofImageFile);
         }
 
-        const response = await axios.post(`/api/issues/${rowIndex}/resolve`, formData, {
+        const response = await axios.post(`/api/issues/${target}/resolve`, formData, {
             headers: { 'Content-Type': 'multipart/form-data' },
         });
 

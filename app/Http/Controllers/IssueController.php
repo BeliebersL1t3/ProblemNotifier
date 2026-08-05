@@ -132,7 +132,7 @@ class IssueController extends Controller
         }
     }
 
-    public function claim(Request $request, int $rowIndex)
+    public function claim(Request $request, $idOrRowIndex)
     {
         try {
             $request->validate([
@@ -147,16 +147,25 @@ class IssueController extends Controller
 
         try {
             $rows = $this->googleService->getRows();
-            $targetIndex = $rowIndex - 2;
+            $targetRowIndex = null;
+            $currentRow = null;
 
-            if (!isset($rows[$targetIndex])) {
+            foreach ($rows as $index => $row) {
+                $actualRowIndex = $index + 2;
+                if (($row[0] ?? '') === (string)$idOrRowIndex || (string)$actualRowIndex === (string)$idOrRowIndex) {
+                    $targetRowIndex = $actualRowIndex;
+                    $currentRow = $row;
+                    break;
+                }
+            }
+
+            if (!$targetRowIndex || !$currentRow) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Issue not found.',
                 ], 404);
             }
 
-            $currentRow = $rows[$targetIndex];
             $currentStatus = $currentRow[5] ?? 'open';
 
             if ($currentStatus !== 'open') {
@@ -168,7 +177,7 @@ class IssueController extends Controller
 
             $takenAt = Carbon::now()->toIso8601String();
 
-            $this->googleService->updateRow($rowIndex, [
+            $this->googleService->updateRow($targetRowIndex, [
                 'F' => 'progress',
                 'J' => $request->taker,
                 'K' => $takenAt,
@@ -191,7 +200,7 @@ class IssueController extends Controller
         }
     }
 
-    public function resolve(Request $request, int $rowIndex)
+    public function resolve(Request $request, $idOrRowIndex)
     {
         try {
             $request->validate([
@@ -208,16 +217,25 @@ class IssueController extends Controller
 
         try {
             $rows = $this->googleService->getRows();
-            $targetIndex = $rowIndex - 2;
+            $targetRowIndex = null;
+            $currentRow = null;
 
-            if (!isset($rows[$targetIndex])) {
+            foreach ($rows as $index => $row) {
+                $actualRowIndex = $index + 2;
+                if (($row[0] ?? '') === (string)$idOrRowIndex || (string)$actualRowIndex === (string)$idOrRowIndex) {
+                    $targetRowIndex = $actualRowIndex;
+                    $currentRow = $row;
+                    break;
+                }
+            }
+
+            if (!$targetRowIndex || !$currentRow) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Issue not found.',
                 ], 404);
             }
 
-            $currentRow = $rows[$targetIndex];
             $submittedAtRaw = $currentRow[7] ?? null;
 
             $proofUrl = '';
@@ -246,7 +264,7 @@ class IssueController extends Controller
                 }
             }
 
-            $this->googleService->updateRow($rowIndex, [
+            $this->googleService->updateRow($targetRowIndex, [
                 'F' => 'solved',
                 'L' => $request->solver,
                 'M' => $solvedAt,
