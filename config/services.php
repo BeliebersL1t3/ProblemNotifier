@@ -41,4 +41,8 @@ return [
         'drive_folder_id'  => env('GOOGLE_DRIVE_FOLDER_ID'),
     ],
 
+    'imgbb' => [
+        'key' => env('IMGBB_API_KEY'),
+    ],
+
 ];

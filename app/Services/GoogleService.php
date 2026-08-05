@@ -80,9 +80,30 @@ class GoogleService
         $this->sheets->spreadsheets_values->batchUpdate($this->spreadsheetId, $body);
     }
 
-    /** Save image locally and return public URL to store in Google Sheets. */
+    /** Upload image to ImgBB cloud storage and return permanent HTTPS URL. */
     public function uploadImage(UploadedFile $file, string $prefix = 'img'): string
     {
+        $apiKey = config('services.imgbb.key');
+
+        if ($apiKey) {
+            try {
+                $base64Image = base64_encode(file_get_contents($file->getRealPath()));
+                $response = \Illuminate\Support\Facades\Http::asForm()
+                    ->withoutVerifying()
+                    ->post('https://api.imgbb.com/1/upload?key=' . $apiKey, [
+                        'image' => $base64Image,
+                        'name'  => "{$prefix}-" . time(),
+                    ]);
+
+                if ($response->successful() && isset($response->json()['data']['url'])) {
+                    return $response->json()['data']['url'];
+                }
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('ImgBB upload failed, falling back to local: ' . $e->getMessage());
+            }
+        }
+
+        // Fallback to local storage
         $uploadsDir = public_path('uploads');
         if (!file_exists($uploadsDir)) {
             mkdir($uploadsDir, 0755, true);
@@ -90,11 +111,11 @@ class GoogleService
 
         $extension = $file->getClientOriginalExtension() ?: 'jpg';
         $filename  = "{$prefix}-" . time() . '-' . \Illuminate\Support\Str::random(6) . '.' . $extension;
-
         $file->move($uploadsDir, $filename);
 
         return request()->getSchemeAndHttpHost() . '/uploads/' . $filename;
     }
 }
+
 
 
