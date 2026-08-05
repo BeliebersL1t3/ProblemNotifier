@@ -18,6 +18,8 @@
 /public/fonts-manifest.dev.json
 /public/hot
 /public/storage
+/public/uploads/*
+!/public/uploads/.gitkeep
 /storage/*.key
 /storage/app/google-credentials.json
 /uni-fix-connect/

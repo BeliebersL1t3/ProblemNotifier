@@ -80,29 +80,21 @@ class GoogleService
         $this->sheets->spreadsheets_values->batchUpdate($this->spreadsheetId, $body);
     }
 
-    /** Upload an image file to Drive and return its public view URL. */
+    /** Save image locally and return public URL to store in Google Sheets. */
     public function uploadImage(UploadedFile $file, string $prefix = 'img'): string
     {
-        $metadata = new DriveFile([
-            'name'    => "{$prefix}-" . time() . '.' . ($file->getClientOriginalExtension() ?: 'png'),
-            'parents' => [$this->folderId],
-        ]);
+        $uploadsDir = public_path('uploads');
+        if (!file_exists($uploadsDir)) {
+            mkdir($uploadsDir, 0755, true);
+        }
 
-        $created = $this->drive->files->create($metadata, [
-            'data'              => file_get_contents($file->getRealPath()),
-            'mimeType'          => $file->getMimeType(),
-            'uploadType'        => 'multipart',
-            'fields'            => 'id',
-            'supportsAllDrives' => true,
-        ]);
+        $extension = $file->getClientOriginalExtension() ?: 'jpg';
+        $filename  = "{$prefix}-" . time() . '-' . \Illuminate\Support\Str::random(6) . '.' . $extension;
 
-        // Make the file publicly readable so <img src="..."> works
-        $permission = new Permission(['type' => 'anyone', 'role' => 'reader']);
-        $this->drive->permissions->create($created->getId(), $permission, [
-            'supportsAllDrives' => true,
-        ]);
+        $file->move($uploadsDir, $filename);
 
-        return 'https://drive.google.com/uc?export=view&id=' . $created->getId();
+        return asset('uploads/' . $filename);
     }
 }
+
 
