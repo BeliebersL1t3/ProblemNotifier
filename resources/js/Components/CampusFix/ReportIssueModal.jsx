@@ -159,42 +159,50 @@ export function ReportIssueModal({ open, onOpenChange }) {
                                     <SelectItem value={ADD_NEW}>+ New category…</SelectItem>
                                 </SelectContent>
                             </Select>
-                            {addingCategory && (
-                                <div className="flex gap-2">
-                                    <Input
-                                        autoFocus
-                                        value={newCategory}
-                                        onChange={(e) => setNewCategory(e.target.value)}
-                                        onKeyDown={(e) => {
-                                            if (e.key === 'Enter') {
-                                                e.preventDefault();
-                                                createCategory();
-                                            }
-                                        }}
-                                        placeholder="e.g. Network & Wi-Fi"
-                                    />
-                                    <Button
-                                        type="button"
-                                        variant="secondary"
-                                        onClick={createCategory}
-                                        disabled={!newCategory.trim()}
-                                    >
-                                        Add
-                                    </Button>
-                                    <Button
-                                        type="button"
-                                        variant="ghost"
-                                        onClick={() => {
-                                            setAddingCategory(false);
-                                            setNewCategory('');
-                                        }}
-                                    >
-                                        Cancel
-                                    </Button>
-                                </div>
-                            )}
                         </div>
                     </div>
+
+                    {addingCategory && (
+                        <div className="rounded-lg border border-border bg-muted/40 p-3 space-y-2 transition-all">
+                            <Label htmlFor="newCategory" className="text-xs font-medium text-foreground">
+                                Create New Category
+                            </Label>
+                            <div className="flex items-center gap-2">
+                                <Input
+                                    id="newCategory"
+                                    autoFocus
+                                    className="flex-1"
+                                    value={newCategory}
+                                    onChange={(e) => setNewCategory(e.target.value)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                            e.preventDefault();
+                                            createCategory();
+                                        }
+                                    }}
+                                    placeholder="e.g. Network & Wi-Fi"
+                                />
+                                <Button
+                                    type="button"
+                                    variant="secondary"
+                                    onClick={createCategory}
+                                    disabled={!newCategory.trim()}
+                                >
+                                    Add
+                                </Button>
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    onClick={() => {
+                                        setAddingCategory(false);
+                                        setNewCategory('');
+                                    }}
+                                >
+                                    Cancel
+                                </Button>
+                            </div>
+                        </div>
+                    )}
                     <div className="grid gap-2">
                         <Label htmlFor="description">Problem description</Label>
                         <Textarea
