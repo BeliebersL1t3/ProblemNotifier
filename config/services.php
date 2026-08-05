@@ -35,4 +35,10 @@ return [
         ],
     ],
 
+    'google' => [
+        'credentials_path' => env('GOOGLE_CREDENTIALS_PATH', 'app/google-credentials.json'),
+        'spreadsheet_id'   => env('GOOGLE_SPREADSHEET_ID'),
+        'drive_folder_id'  => env('GOOGLE_DRIVE_FOLDER_ID'),
+    ],
+
 ];

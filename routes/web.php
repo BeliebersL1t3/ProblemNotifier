@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\IssueController;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
@@ -24,4 +25,13 @@ Route::middleware('auth')->group(function () {
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 });
 
+// CampusFix API Endpoints
+Route::prefix('api')->group(function () {
+    Route::get('/issues', [IssueController::class, 'index']);
+    Route::post('/issues', [IssueController::class, 'store']);
+    Route::post('/issues/{rowIndex}/claim', [IssueController::class, 'claim']);
+    Route::post('/issues/{rowIndex}/resolve', [IssueController::class, 'resolve']);
+});
+
 require __DIR__.'/auth.php';
+
