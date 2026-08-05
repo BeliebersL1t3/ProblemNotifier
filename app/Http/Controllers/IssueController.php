@@ -104,8 +104,8 @@ class IssueController extends Controller
         }
 
         try {
-            $imageUrl = $this->googleService->uploadImage($request->file('image'), 'problem');
             $id = 'issue-' . time();
+            $imageUrl = $this->googleService->uploadImage($request->file('image'), "{$id}-problem");
             $submittedAt = Carbon::now()->toIso8601String();
 
             $newRow = [
@@ -260,7 +260,7 @@ class IssueController extends Controller
 
             $proofUrl = '';
             if ($request->hasFile('proofImage')) {
-                $proofUrl = $this->googleService->uploadImage($request->file('proofImage'), 'proof');
+                $proofUrl = $this->googleService->uploadImage($request->file('proofImage'), "{$idOrRowIndex}-proof");
             }
 
             $solvedAtCarbon = Carbon::now();

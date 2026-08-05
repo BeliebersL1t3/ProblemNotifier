@@ -80,8 +80,8 @@ class GoogleService
         $this->sheets->spreadsheets_values->batchUpdate($this->spreadsheetId, $body);
     }
 
-    /** Save image locally with hashed token filename and return token for Google Sheets. */
-    public function uploadImage(UploadedFile $file, string $prefix = 'img'): string
+    /** Save image locally named after the Issue ID and return filename for Google Sheets. */
+    public function uploadImage(UploadedFile $file, string $customName = ''): string
     {
         $uploadsDir = public_path('uploads');
         if (!file_exists($uploadsDir)) {
@@ -89,15 +89,16 @@ class GoogleService
         }
 
         $extension = strtolower($file->getClientOriginalExtension() ?: 'png');
-        $token     = md5(microtime() . \Illuminate\Support\Str::random(12));
-        $filename  = "{$prefix}_{$token}.{$extension}";
+        $baseName  = $customName ?: ('img_' . md5(microtime() . \Illuminate\Support\Str::random(6)));
+        $filename  = "{$baseName}.{$extension}";
 
         $file->move($uploadsDir, $filename);
 
-        // Store clean hashed filename in Google Sheets cell (no IP addresses exposed!)
+        // Return clean filename matching the Issue ID for Google Sheets
         return $filename;
     }
 }
+
 
 
 
