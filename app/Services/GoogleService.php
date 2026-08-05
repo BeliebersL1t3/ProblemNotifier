@@ -84,21 +84,25 @@ class GoogleService
     public function uploadImage(UploadedFile $file, string $prefix = 'img'): string
     {
         $metadata = new DriveFile([
-            'name'    => "{$prefix}-" . time() . '.' . $file->getClientOriginalExtension(),
+            'name'    => "{$prefix}-" . time() . '.' . ($file->getClientOriginalExtension() ?: 'png'),
             'parents' => [$this->folderId],
         ]);
 
         $created = $this->drive->files->create($metadata, [
-            'data'       => file_get_contents($file->getRealPath()),
-            'mimeType'   => $file->getMimeType(),
-            'uploadType' => 'multipart',
-            'fields'     => 'id',
+            'data'              => file_get_contents($file->getRealPath()),
+            'mimeType'          => $file->getMimeType(),
+            'uploadType'        => 'multipart',
+            'fields'            => 'id',
+            'supportsAllDrives' => true,
         ]);
 
         // Make the file publicly readable so <img src="..."> works
         $permission = new Permission(['type' => 'anyone', 'role' => 'reader']);
-        $this->drive->permissions->create($created->getId(), $permission);
+        $this->drive->permissions->create($created->getId(), $permission, [
+            'supportsAllDrives' => true,
+        ]);
 
         return 'https://drive.google.com/uc?export=view&id=' . $created->getId();
     }
 }
+
