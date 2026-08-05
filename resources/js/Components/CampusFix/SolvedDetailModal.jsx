@@ -34,6 +34,9 @@ export function SolvedDetailModal({ issue, onClose }) {
                                 <figcaption className="text-center text-xs font-medium text-status-open">
                                     Before fix
                                 </figcaption>
+                                <span className="block text-center font-mono text-[10px] text-muted-foreground">
+                                    ID: {issue.id}-problem
+                                </span>
                             </figure>
                             <figure className="space-y-1.5">
                                 <img
@@ -44,6 +47,9 @@ export function SolvedDetailModal({ issue, onClose }) {
                                 <figcaption className="text-center text-xs font-medium text-status-solved">
                                     After fix
                                 </figcaption>
+                                <span className="block text-center font-mono text-[10px] text-muted-foreground">
+                                    ID: {issue.id}-proof
+                                </span>
                             </figure>
                         </div>
 

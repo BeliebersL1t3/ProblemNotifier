@@ -69,7 +69,12 @@ export function ResolveIssueSheet({ issue, onClose }) {
                         <div className="overflow-hidden rounded-lg border border-border bg-muted/40">
                             <img src={issue.imageUrl} alt={issue.title} className="h-32 w-full object-cover" />
                             <div className="p-3">
-                                <p className="text-sm font-semibold text-foreground">{issue.title}</p>
+                                <div className="flex items-center justify-between gap-2">
+                                    <p className="text-sm font-semibold text-foreground">{issue.title}</p>
+                                    <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+                                        ID: {issue.id}-problem
+                                    </span>
+                                </div>
                                 <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
                                     <MapPin className="h-3.5 w-3.5" aria-hidden />
                                     {issue.location}

@@ -35,7 +35,12 @@ export function IssueCard({ issue, onSelect }) {
             </div>
 
             <div className="flex flex-1 flex-col gap-2 p-4">
-                <h3 className="text-base font-semibold leading-snug text-foreground">{issue.title}</h3>
+                <div className="flex items-center justify-between gap-2">
+                    <h3 className="text-base font-semibold leading-snug text-foreground">{issue.title}</h3>
+                    <span className="shrink-0 rounded bg-muted/80 px-1.5 py-0.5 font-mono text-[10px] font-medium text-muted-foreground">
+                        {issue.id}
+                    </span>
+                </div>
                 <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
                     <MapPin className="h-3.5 w-3.5 shrink-0" aria-hidden />
                     {issue.location}
