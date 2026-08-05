@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Services\GoogleService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 
 class IssueController extends Controller
 {
@@ -22,12 +23,11 @@ class IssueController extends Controller
             $issues = [];
 
             foreach ($rows as $index => $row) {
-                // Skip empty rows or rows missing an ID
                 if (empty($row[0])) {
                     continue;
                 }
 
-                $rowIndex = $index + 2; // Row 1 is header
+                $rowIndex = $index + 2;
 
                 $issues[] = [
                     'id'             => $row[0],
@@ -38,7 +38,7 @@ class IssueController extends Controller
                     'category'       => $row[4] ?? 'other',
                     'status'         => $row[5] ?? 'open',
                     'reporter'       => $row[6] ?? 'Anonymous',
-                    'reportedAt'     => $row[7] ? strtotime($row[7]) * 1000 : time() * 1000,
+                    'reportedAt'     => !empty($row[7]) ? strtotime($row[7]) * 1000 : time() * 1000,
                     'reportedAtIso'  => $row[7] ?? '',
                     'imageUrl'       => $row[8] ?? '',
                     'taker'          => $row[9] ?? null,
@@ -55,7 +55,7 @@ class IssueController extends Controller
                 'success' => true,
                 'data'    => $issues,
             ]);
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to fetch issues: ' . $e->getMessage(),
@@ -65,14 +65,23 @@ class IssueController extends Controller
 
     public function store(Request $request)
     {
-        $request->validate([
-            'title'       => 'required|string|max:255',
-            'description' => 'required|string',
-            'location'    => 'required|string|max:255',
-            'category'    => 'required|string',
-            'reporter'    => 'required|string|max:255',
-            'image'       => 'required|image|max:10240', // Max 10MB
-        ]);
+        try {
+            $request->validate([
+                'title'       => 'required|string|max:255',
+                'description' => 'required|string',
+                'location'    => 'required|string|max:255',
+                'category'    => 'required|string',
+                'reporter'    => 'required|string|max:255',
+                'image'       => 'required|file|mimes:jpg,jpeg,png,gif,webp,svg|max:10240',
+            ]);
+        } catch (ValidationException $ve) {
+            $firstError = collect($ve->errors())->flatten()->first();
+            return response()->json([
+                'success' => false,
+                'message' => $firstError ?: 'Invalid form input.',
+                'errors'  => $ve->errors(),
+            ], 422);
+        }
 
         try {
             $imageUrl = $this->googleService->uploadImage($request->file('image'), 'problem');
@@ -104,18 +113,18 @@ class IssueController extends Controller
                 'success' => true,
                 'message' => 'Issue reported successfully!',
                 'data'    => [
-                    'id'            => $id,
-                    'title'         => $request->title,
-                    'description'   => $request->description,
-                    'location'      => $request->location,
-                    'category'      => $request->category,
-                    'status'        => 'open',
-                    'reporter'      => $request->reporter,
-                    'reportedAt'    => strtotime($submittedAt) * 1000,
-                    'imageUrl'      => $imageUrl,
+                    'id'          => $id,
+                    'title'       => $request->title,
+                    'description' => $request->description,
+                    'location'    => $request->location,
+                    'category'    => $request->category,
+                    'status'      => 'open',
+                    'reporter'    => $request->reporter,
+                    'reportedAt'  => strtotime($submittedAt) * 1000,
+                    'imageUrl'    => $imageUrl,
                 ],
             ]);
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to report issue: ' . $e->getMessage(),
@@ -125,9 +134,16 @@ class IssueController extends Controller
 
     public function claim(Request $request, int $rowIndex)
     {
-        $request->validate([
-            'taker' => 'required|string|max:255',
-        ]);
+        try {
+            $request->validate([
+                'taker' => 'required|string|max:255',
+            ]);
+        } catch (ValidationException $ve) {
+            return response()->json([
+                'success' => false,
+                'message' => collect($ve->errors())->flatten()->first() ?: 'Name required.',
+            ], 422);
+        }
 
         try {
             $rows = $this->googleService->getRows();
@@ -143,7 +159,6 @@ class IssueController extends Controller
             $currentRow = $rows[$targetIndex];
             $currentStatus = $currentRow[5] ?? 'open';
 
-            // Flowchart check: Is status still 'open'?
             if ($currentStatus !== 'open') {
                 return response()->json([
                     'success' => false,
@@ -168,7 +183,7 @@ class IssueController extends Controller
                     'takenAt' => strtotime($takenAt) * 1000,
                 ],
             ]);
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to claim job: ' . $e->getMessage(),
@@ -178,11 +193,18 @@ class IssueController extends Controller
 
     public function resolve(Request $request, int $rowIndex)
     {
-        $request->validate([
-            'solver'         => 'required|string|max:255',
-            'fixDescription' => 'required|string',
-            'proofImage'     => 'nullable|image|max:10240',
-        ]);
+        try {
+            $request->validate([
+                'solver'         => 'required|string|max:255',
+                'fixDescription' => 'required|string',
+                'proofImage'     => 'nullable|file|mimes:jpg,jpeg,png,gif,webp,svg|max:10240',
+            ]);
+        } catch (ValidationException $ve) {
+            return response()->json([
+                'success' => false,
+                'message' => collect($ve->errors())->flatten()->first() ?: 'Invalid input.',
+            ], 422);
+        }
 
         try {
             $rows = $this->googleService->getRows();
@@ -206,7 +228,6 @@ class IssueController extends Controller
             $solvedAtCarbon = Carbon::now();
             $solvedAt = $solvedAtCarbon->toIso8601String();
 
-            // Calculate duration using Carbon
             $durationLabel = 'Solved';
             if ($submittedAtRaw) {
                 $submittedCarbon = Carbon::parse($submittedAtRaw);
@@ -246,7 +267,7 @@ class IssueController extends Controller
                     'durationLabel'  => $durationLabel,
                 ],
             ]);
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to resolve issue: ' . $e->getMessage(),
@@ -254,3 +275,4 @@ class IssueController extends Controller
         }
     }
 }
+

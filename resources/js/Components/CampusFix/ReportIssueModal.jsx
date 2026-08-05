@@ -80,7 +80,7 @@ export function ReportIssueModal({ open, onOpenChange }) {
             onOpenChange(false);
         } catch (err) {
             console.error(err);
-            setErrorMsg(err.message || 'Display Error: Upload Failed');
+            setErrorMsg(err.response?.data?.message || err.message || 'Display Error: Upload Failed');
         } finally {
             setIsSubmitting(false);
         }

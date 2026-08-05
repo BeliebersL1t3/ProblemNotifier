@@ -42,7 +42,7 @@ export function TakeJobModal({ issue, onClose }) {
             onClose();
         } catch (err) {
             console.error(err);
-            setErrorMsg(err.message || 'Display Error: Job Already Taken');
+            setErrorMsg(err.response?.data?.message || err.message || 'Display Error: Job Already Taken');
         } finally {
             setIsSubmitting(false);
         }
