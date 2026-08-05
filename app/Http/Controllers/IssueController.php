@@ -16,6 +16,26 @@ class IssueController extends Controller
         $this->googleService = $googleService;
     }
 
+    private function resolveImageUrl(?string $raw): string
+    {
+        if (empty($raw)) {
+            return '';
+        }
+
+        if (str_starts_with($raw, 'http://') || str_starts_with($raw, 'https://') || str_starts_with($raw, 'data:')) {
+            // Handle legacy rows where an IP address URL was saved
+            if (str_contains($raw, '/uploads/')) {
+                $path = parse_url($raw, PHP_URL_PATH);
+                $filename = basename($path);
+                return asset('uploads/' . $filename);
+            }
+            return $raw;
+        }
+
+        // Hashed filename token stored in Sheets -> resolve to current active server asset URL!
+        return asset('uploads/' . ltrim($raw, '/'));
+    }
+
     public function index()
     {
         try {
@@ -40,13 +60,13 @@ class IssueController extends Controller
                     'reporter'       => $row[6] ?? 'Anonymous',
                     'reportedAt'     => !empty($row[7]) ? strtotime($row[7]) * 1000 : time() * 1000,
                     'reportedAtIso'  => $row[7] ?? '',
-                    'imageUrl'       => $row[8] ?? '',
+                    'imageUrl'       => $this->resolveImageUrl($row[8] ?? ''),
                     'taker'          => $row[9] ?? null,
                     'takenAt'        => !empty($row[10]) ? strtotime($row[10]) * 1000 : null,
                     'solver'         => $row[11] ?? null,
                     'solvedAt'       => !empty($row[12]) ? strtotime($row[12]) * 1000 : null,
                     'fixDescription' => $row[13] ?? null,
-                    'proofImageUrl'  => $row[14] ?? null,
+                    'proofImageUrl'  => $this->resolveImageUrl($row[14] ?? ''),
                     'durationLabel'  => $row[15] ?? null,
                 ];
             }
@@ -121,7 +141,7 @@ class IssueController extends Controller
                     'status'      => 'open',
                     'reporter'    => $request->reporter,
                     'reportedAt'  => strtotime($submittedAt) * 1000,
-                    'imageUrl'    => $imageUrl,
+                    'imageUrl'    => $this->resolveImageUrl($imageUrl),
                 ],
             ]);
         } catch (\Throwable $e) {
@@ -281,7 +301,7 @@ class IssueController extends Controller
                     'solver'         => $request->solver,
                     'solvedAt'       => strtotime($solvedAt) * 1000,
                     'fixDescription' => $request->fixDescription,
-                    'proofImageUrl'  => $proofUrl,
+                    'proofImageUrl'  => $this->resolveImageUrl($proofUrl),
                     'durationLabel'  => $durationLabel,
                 ],
             ]);

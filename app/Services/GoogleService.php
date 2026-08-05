@@ -80,7 +80,7 @@ class GoogleService
         $this->sheets->spreadsheets_values->batchUpdate($this->spreadsheetId, $body);
     }
 
-    /** Save image locally on dedicated server host and return local network URL for Google Sheets. */
+    /** Save image locally with hashed token filename and return token for Google Sheets. */
     public function uploadImage(UploadedFile $file, string $prefix = 'img'): string
     {
         $uploadsDir = public_path('uploads');
@@ -89,14 +89,16 @@ class GoogleService
         }
 
         $extension = strtolower($file->getClientOriginalExtension() ?: 'png');
-        $filename  = "{$prefix}-" . time() . '-' . \Illuminate\Support\Str::random(6) . '.' . $extension;
+        $token     = md5(microtime() . \Illuminate\Support\Str::random(12));
+        $filename  = "{$prefix}_{$token}.{$extension}";
 
         $file->move($uploadsDir, $filename);
 
-        // Dynamically returns http://<server-ip>/uploads/<filename> based on the request host
-        return request()->getSchemeAndHttpHost() . '/uploads/' . $filename;
+        // Store clean hashed filename in Google Sheets cell (no IP addresses exposed!)
+        return $filename;
     }
 }
+
 
 
 
