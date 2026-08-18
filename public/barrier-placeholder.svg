@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="450" viewBox="0 0 600 450" fill="none">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1A1815" />
+      <stop offset="50%" stop-color="#2A2620" />
+      <stop offset="100%" stop-color="#141210" />
+    </linearGradient>
+    
+    <pattern id="hazardStripes" width="40" height="40" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <rect width="20" height="40" fill="#D97706" />
+      <rect x="20" width="20" height="40" fill="#1C1917" />
+    </pattern>
+
+    <radialGradient id="glowGrad" cx="50%" cy="45%" r="50%">
+      <stop offset="0%" stop-color="#D97706" stop-opacity="0.35" />
+      <stop offset="100%" stop-color="#1C1917" stop-opacity="0" />
+    </radialGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="600" height="450" fill="url(#bgGrad)" />
+
+  <!-- Top & Bottom Warning Barrier Tape Lines -->
+  <rect x="0" y="0" width="600" height="14" fill="url(#hazardStripes)" />
+  <rect x="0" y="436" width="600" height="14" fill="url(#hazardStripes)" />
+
+  <!-- Subtle Glow Effect -->
+  <circle cx="300" cy="200" r="180" fill="url(#glowGrad)" />
+
+  <!-- Construction Barrier Illustration -->
+  <g transform="translate(300, 195)">
+    <!-- Legs of the Barrier -->
+    <path d="M-65 45 L-85 95 M65 45 L85 95 M-45 45 L-55 95 M45 45 L55 95" stroke="#92400E" stroke-width="7" stroke-linecap="round" />
+    <path d="M-90 85 L-50 85 M50 85 L90 85" stroke="#78350F" stroke-width="4" stroke-linecap="round" />
+
+    <!-- Barrier Main Planks -->
+    <rect x="-110" y="-60" width="220" height="32" rx="6" fill="#26221D" stroke="#D97706" stroke-width="2.5" />
+    <rect x="-102" y="-54" width="204" height="20" rx="3" fill="url(#hazardStripes)" />
+
+    <rect x="-110" y="-5" width="220" height="32" rx="6" fill="#26221D" stroke="#D97706" stroke-width="2.5" />
+    <rect x="-102" y="1" width="204" height="20" rx="3" fill="url(#hazardStripes)" />
+
+    <!-- Connecting Side Posts -->
+    <rect x="-95" y="-70" width="12" height="115" rx="3" fill="#B45309" stroke="#78350F" stroke-width="1.5" />
+    <rect x="83" y="-70" width="12" height="115" rx="3" fill="#B45309" stroke="#78350F" stroke-width="1.5" />
+
+    <!-- Flashing Yellow Warning Light on Top -->
+    <rect x="-12" y="-95" width="24" height="25" rx="4" fill="#F59E0B" stroke="#B45309" stroke-width="2" />
+    <circle cx="0" cy="-83" r="6" fill="#FEF08A" />
+
+    <!-- Center Caution Triangle Sign -->
+    <polygon points="0,-26 -28,18 28,18" fill="#F59E0B" stroke="#78350F" stroke-width="2.5" />
+    <text x="0" y="12" text-anchor="middle" fill="#1C1917" font-family="system-ui, sans-serif" font-weight="900" font-size="22">!</text>
+  </g>
+
+  <!-- Label Text -->
+  <text x="300" y="355" text-anchor="middle" fill="#F3F4F6" font-family="system-ui, sans-serif" font-weight="800" font-size="17" letter-spacing="1.5">NO IMAGE ATTACHED</text>
+  <text x="300" y="380" text-anchor="middle" fill="#D97706" font-family="system-ui, sans-serif" font-weight="700" font-size="12" letter-spacing="2">TELUNAS ISSUE TRACKER</text>
+</svg>

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Services\GoogleService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\ValidationException;
 
 class IssueController extends Controller
@@ -36,50 +37,219 @@ class IssueController extends Controller
         return asset('uploads/' . ltrim($raw, '/'));
     }
 
-    public function index()
+    private static function parsePendingTimeline($rawData, $legacyBy, $legacyImage)
+    {
+        if (empty($rawData)) {
+            return [];
+        }
+
+        $decoded = json_decode($rawData, true);
+        if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+            return $decoded;
+        }
+
+        // Fallback for legacy plain text reason
+        return [
+            [
+                'date'   => '',
+                'by'     => $legacyBy ?: 'Staff',
+                'reason' => $rawData,
+                'image'  => $legacyImage,
+            ]
+        ];
+    }
+
+    private static function formatParagraphText(?string $text, int $width = 70): string
+    {
+        if (empty($text)) return '';
+        $trimmed = trim($text);
+        if (str_contains($trimmed, "\n")) return $trimmed;
+        if (strlen($trimmed) > $width) {
+            return wordwrap($trimmed, $width, "\n");
+        }
+        return $trimmed;
+    }
+
+    /** Resolve the active sheet: use ?sheet= param, else the newest sheet tab. */
+    private function resolveSheet(?string $sheetParam = null): string
+    {
+        $allSheets = $this->googleService->listSheets();
+        if ($sheetParam && in_array($sheetParam, $allSheets)) {
+            $this->googleService->setSheet($sheetParam);
+            return $sheetParam;
+        }
+        // Default to the LAST (newest) sheet, or fallback to Sheet1
+        $newest = !empty($allSheets) ? end($allSheets) : 'Sheet1';
+        $this->googleService->setSheet($newest);
+        return $newest;
+    }
+
+    public function listSheets()
     {
         try {
-            $rows = $this->googleService->getRows();
+            $sheets = $this->googleService->listSheets();
+            return response()->json([
+                'success' => true,
+                'data'    => $sheets,
+                'newest'  => !empty($sheets) ? end($sheets) : 'Sheet1',
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to list sheets: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function createSheet(Request $request)
+    {
+        try {
+            $name = trim($request->input('name', (string) date('Y')));
+            $existing = $this->googleService->listSheets();
+            if (in_array($name, $existing)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "A sheet named '{$name}' already exists.",
+                ], 422);
+            }
+            $this->googleService->createYearSheet($name);
+            return response()->json([
+                'success' => true,
+                'message' => "Sheet '{$name}' created successfully.",
+                'data'    => ['name' => $name],
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to create sheet: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function deleteSheet(Request $request)
+    {
+        try {
+            $name = trim($request->input('name', ''));
+            if (empty($name)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Sheet name is required.',
+                ], 422);
+            }
+
+            $existing = $this->googleService->listSheets(true);
+            if (!in_array($name, $existing)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "Sheet '{$name}' does not exist.",
+                ], 404);
+            }
+
+            if (count($existing) <= 1) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Cannot delete the only sheet in the spreadsheet.',
+                ], 422);
+            }
+
+            $this->googleService->deleteSheet($name);
+
+            // Fetch updated list of sheets
+            $remaining = $this->googleService->listSheets(true);
+            $newActive = !empty($remaining) ? end($remaining) : 'Sheet1';
+
+            return response()->json([
+                'success' => true,
+                'message' => "Sheet '{$name}' deleted successfully.",
+                'data'    => [
+                    'remaining' => $remaining,
+                    'newActive' => $newActive
+                ],
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to delete sheet: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function index(Request $request)
+    {
+        try {
+            $sheetParam = $request->query('sheet');
+            $forceRefresh = $request->boolean('refresh') || $request->boolean('sync');
+
+            $allAvailableSheets = $this->googleService->listSheets($forceRefresh);
+            
+            $sheetsToFetch = [];
+            if ($sheetParam === 'all') {
+                $sheetsToFetch = $allAvailableSheets;
+            } else {
+                $sheetsToFetch = [$this->resolveSheet($sheetParam)];
+            }
+
             $issues = [];
 
-            foreach ($rows as $index => $row) {
-                if (empty($row[0])) {
-                    continue;
+            foreach ($sheetsToFetch as $currentSheet) {
+                $this->googleService->setSheet($currentSheet);
+                $rows = $this->googleService->getRows($forceRefresh);
+
+                foreach ($rows as $index => $row) {
+                    if (empty($row[0])) {
+                        continue;
+                    }
+
+                    $rowIndex = $index + 2;
+
+                    $issues[] = [
+                        'id'             => $row[0],
+                        'rowIndex'       => $rowIndex,
+                        'sheet'          => $currentSheet,
+                        'title'          => $row[1] ?? '',
+                        'description'    => $row[2] ?? '',
+                        'location'       => $row[3] ?? '',
+                        'category'       => $row[4] ?? '',
+                        'department'     => $row[22] ?? '', // Origin department
+                        'taggedDepartments' => !empty($row[21]) ? array_map('trim', explode(',', $row[21])) : [],
+                        'status'         => $row[5] ?? 'open',
+                        'reporter'       => $row[6] ?? 'Anonymous',
+                        'reportedAt'     => !empty($row[7]) ? strtotime($row[7]) * 1000 : time() * 1000,
+                        'reportedAtIso'  => $row[7] ?? '',
+                        'imageUrl'       => $this->resolveImageUrl($row[8] ?? ''),
+                        'taker'          => $row[9] ?? null,
+                        'takenAt'        => !empty($row[10]) ? strtotime($row[10]) * 1000 : null,
+                        'solver'         => $row[11] ?? '',
+                        'solvedAt'       => $row[12] ?? '',
+                        'fixDescription' => $row[13] ?? '',
+                        'proofImageUrl'  => $this->resolveImageUrl($row[14] ?? ''),
+                        'durationLabel'  => $row[15] ?? '',
+                        'priority'       => $row[16] ?? 'low',
+                        'deadline'       => $row[17] ?? '',
+                        'pendingReason'  => $row[18] ?? '',
+                        'pendingTimeline'=> self::parsePendingTimeline($row[18] ?? '', $row[19] ?? '', $this->resolveImageUrl($row[20] ?? '')),
+                        'pendingBy'      => $row[19] ?? '',
+                        'pendingImageUrl'=> $this->resolveImageUrl($row[20] ?? ''),
+                    ];
                 }
-
-                $rowIndex = $index + 2;
-
-                $issues[] = [
-                    'id'             => $row[0],
-                    'rowIndex'       => $rowIndex,
-                    'title'          => $row[1] ?? '',
-                    'description'    => $row[2] ?? '',
-                    'location'       => $row[3] ?? '',
-                    'category'       => $row[4] ?? 'other',
-                    'status'         => $row[5] ?? 'open',
-                    'reporter'       => $row[6] ?? 'Anonymous',
-                    'reportedAt'     => !empty($row[7]) ? strtotime($row[7]) * 1000 : time() * 1000,
-                    'reportedAtIso'  => $row[7] ?? '',
-                    'imageUrl'       => $this->resolveImageUrl($row[8] ?? ''),
-                    'taker'          => $row[9] ?? null,
-                    'takenAt'        => !empty($row[10]) ? strtotime($row[10]) * 1000 : null,
-                    'solver'         => $row[11] ?? null,
-                    'solvedAt'       => !empty($row[12]) ? strtotime($row[12]) * 1000 : null,
-                    'fixDescription' => $row[13] ?? null,
-                    'proofImageUrl'  => $this->resolveImageUrl($row[14] ?? ''),
-                    'durationLabel'  => $row[15] ?? null,
-                ];
             }
 
             return response()->json([
                 'success' => true,
                 'data'    => $issues,
+                'sheet'   => $sheetParam === 'all' ? 'all' : $sheetsToFetch[0],
             ]);
         } catch (\Throwable $e) {
+            $msg = $e->getMessage();
+            $isQuota = str_contains($msg, '429') || str_contains($msg, 'Quota exceeded') || str_contains($msg, 'RESOURCE_EXHAUSTED');
+
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to fetch issues: ' . $e->getMessage(),
-            ], 500);
+                'message' => $isQuota 
+                    ? 'Google Sheets API rate limit reached (60 req/min). Retrying automatically shortly...' 
+                    : 'Failed to fetch issues: ' . $msg,
+                'isRateLimit' => $isQuota,
+            ], $isQuota ? 429 : 500);
         }
     }
 
@@ -91,8 +261,10 @@ class IssueController extends Controller
                 'description' => 'required|string',
                 'location'    => 'required|string|max:255',
                 'category'    => 'required|string',
+                'department'  => 'required|string',
+                'taggedDepartments' => 'nullable|string',
                 'reporter'    => 'required|string|max:255',
-                'image'       => 'required|file|mimes:jpg,jpeg,png,gif,webp,svg|max:10240',
+                'image'       => 'nullable|file|mimes:jpg,jpeg,png,gif,webp,svg|max:10240',
             ]);
         } catch (ValidationException $ve) {
             $firstError = collect($ve->errors())->flatten()->first();
@@ -104,14 +276,56 @@ class IssueController extends Controller
         }
 
         try {
-            $id = 'issue-' . time();
-            $imageUrl = $this->googleService->uploadImage($request->file('image'), "{$id}-problem");
+            // Always write new issues to the NEWEST sheet
+            $this->resolveSheet(null);
+
+            // Get total rows to determine sequential index
+            $rows = $this->googleService->getRows();
+            $sequentialIndex = count($rows) + 2; 
+
+            // Map full department name to 3-letter code if provided, else use first 3 chars
+            $deptCodes = [
+                'Engineer' => 'Eng',
+                'Tekong' => 'Tkg',
+                'Pest Control' => 'Pst',
+                'Security' => 'Scy',
+                'Fasilitas' => 'Fas',
+                'HK' => 'HK',
+                'F&B' => 'FnB',
+                'Service' => 'Svc',
+                'Bar' => 'Bar',
+                'GR' => 'GR',
+                'Spa' => 'Spa',
+                'TiRek' => 'TRK',
+                'OE' => 'OE',
+                'IT' => 'IT',
+                'Procurement' => 'PRc',
+                'Sales/Marketing' => 'Sls',
+                'Reservasi' => 'Res',
+                'Finance' => 'Fin'
+            ];
+            
+            $dept = $request->department;
+            $deptCode = $deptCodes[$dept] ?? strtoupper(substr($dept, 0, 3));
+            $dateMonth = Carbon::now()->format('dmy'); // e.g. 070826
+            
+            $id = "{$deptCode}-{$dateMonth}-{$sequentialIndex}";
+            
+            $imageUrl = '';
+            if ($request->hasFile('image')) {
+                $imageUrl = $this->googleService->uploadImage($request->file('image'), "{$id}-problem");
+            } else if ($request->priority === 'critical') {
+                // Fallback to urgent placeholder for critical issues without images
+                $imageUrl = url('/urgent.png');
+            }
+            
             $submittedAt = Carbon::now()->toIso8601String();
+            $formattedDesc = self::formatParagraphText($request->description);
 
             $newRow = [
                 $id,
                 $request->title,
-                $request->description,
+                $formattedDesc,
                 $request->location,
                 $request->category,
                 'open',
@@ -125,9 +339,50 @@ class IssueController extends Controller
                 '', // fixDescription
                 '', // proofImageUrl
                 '', // durationLabel
+                $request->priority ?? 'low',
+                $request->deadline ?? '',
+                '', // 18 pendingReason
+                '', // 19 pendingBy
+                '', // 20 pendingImageUrl
+                $request->taggedDepartments ?? '', // 21 tagged_departments
+                $request->department, // 22 origin_department
             ];
 
-            $this->googleService->appendRow($newRow);
+            $rowIndex = $this->googleService->appendRow($newRow);
+            if ($rowIndex) {
+                $this->googleService->colorRowByCategory($rowIndex, $request->category);
+            }
+
+            $resolvedImageUrl = $this->resolveImageUrl($imageUrl);
+
+            $priorityStr = "";
+            if ($request->priority === 'critical') {
+                $priorityStr = "\n\n🚨 *PRIORITY: CRITICAL* 🚨";
+                if (!empty($request->deadline)) {
+                    $minutes = (int) ceil(($request->deadline / 1000 - time()) / 60);
+                    if ($minutes <= 0) {
+                        $priorityStr .= "\n⏱️ *TIME LIMIT: NOW (IMMEDIATE ACTION REQUIRED)*";
+                    } else {
+                        $priorityStr .= "\n⏱️ *TIME LIMIT: {$minutes} Minutes*";
+                    }
+                }
+                $priorityStr .= "\n";
+            }
+            // Send Notification to WhatsApp Group
+            $taggedStr = '';
+            if (!empty($request->taggedDepartments)) {
+                $tags = array_map('trim', explode(',', $request->taggedDepartments));
+                $taggedStr = "\n*Tags:* " . implode(' ', array_map(function($t) { return "@{$t}"; }, $tags));
+            }
+            
+            try {
+                Http::timeout(3)->post('http://localhost:3000/notify', [
+                    'message' => "🚨 *New Issue Submitted!*{$priorityStr}\n*Title:* {$request->title}\n*Location:* {$request->location}\n*Origin:* {$request->department}{$taggedStr}\n*Category:* {$request->category}\n*Reporter:* {$request->reporter}\n*ID:* {$id}\n*Link:* " . url('/dashboard'),
+                    'imageUrl' => $resolvedImageUrl
+                ]);
+            } catch (\Exception $e) {
+                // Ignore if bot is offline
+            }
 
             return response()->json([
                 'success' => true,
@@ -141,7 +396,7 @@ class IssueController extends Controller
                     'status'      => 'open',
                     'reporter'    => $request->reporter,
                     'reportedAt'  => strtotime($submittedAt) * 1000,
-                    'imageUrl'    => $this->resolveImageUrl($imageUrl),
+                    'imageUrl'    => $resolvedImageUrl,
                 ],
             ]);
         } catch (\Throwable $e) {
@@ -166,7 +421,21 @@ class IssueController extends Controller
         }
 
         try {
-            $rows = $this->googleService->getRows();
+            // Cross-sheet lookup: find which sheet this issue belongs to
+            $crossYear = false;
+            $foundLocation = $this->googleService->findIssueAcrossSheets((string)$idOrRowIndex);
+            if ($foundLocation) {
+                $allSheets = $this->googleService->listSheets();
+                $newestSheet = end($allSheets);
+                if ($foundLocation['sheet'] !== $newestSheet) {
+                    $crossYear = true;
+                }
+                $this->googleService->setSheet($foundLocation['sheet']);
+                $rows = $this->googleService->getRows();
+            } else {
+                $this->resolveSheet(null);
+                $rows = $this->googleService->getRows();
+            }
             $targetRowIndex = null;
             $currentRow = null;
 
@@ -203,9 +472,17 @@ class IssueController extends Controller
                 'K' => $takenAt,
             ]);
 
+            try {
+                $crossYearNotice = $crossYear ? "\n📋 *Note: This issue is from a previous period ({$foundLocation['sheet']}).*" : '';
+                Http::timeout(3)->post('http://localhost:3000/notify', [
+                    'message' => "👷 *Issue Claimed!*{$crossYearNotice}\n*Title:* {$currentRow[1]}\n*Location:* {$currentRow[3]}\n*Taken by:* {$request->taker}\n*Link:* " . url('/dashboard'),
+                ]);
+            } catch (\Exception $e) {}
+
             return response()->json([
-                'success' => true,
-                'message' => 'Job claimed successfully!',
+                'success'   => true,
+                'message'   => 'Job claimed successfully!',
+                'crossYear' => $crossYear,
                 'data'    => [
                     'status'  => 'progress',
                     'taker'   => $request->taker,
@@ -236,7 +513,21 @@ class IssueController extends Controller
         }
 
         try {
-            $rows = $this->googleService->getRows();
+            // Cross-sheet lookup
+            $crossYear = false;
+            $foundLocation = $this->googleService->findIssueAcrossSheets((string)$idOrRowIndex);
+            if ($foundLocation) {
+                $allSheets = $this->googleService->listSheets();
+                $newestSheet = end($allSheets);
+                if ($foundLocation['sheet'] !== $newestSheet) {
+                    $crossYear = true;
+                }
+                $this->googleService->setSheet($foundLocation['sheet']);
+                $rows = $this->googleService->getRows();
+            } else {
+                $this->resolveSheet(null);
+                $rows = $this->googleService->getRows();
+            }
             $targetRowIndex = null;
             $currentRow = null;
 
@@ -269,7 +560,7 @@ class IssueController extends Controller
             $durationLabel = 'Solved';
             if ($submittedAtRaw) {
                 $submittedCarbon = Carbon::parse($submittedAtRaw);
-                $diffInMinutes = max(1, $submittedCarbon->diffInMinutes($solvedAtCarbon));
+                $diffInMinutes = max(1, intval($submittedCarbon->diffInMinutes($solvedAtCarbon)));
 
                 if ($diffInMinutes < 60) {
                     $durationLabel = "Solved in {$diffInMinutes} minute" . ($diffInMinutes === 1 ? '' : 's');
@@ -284,14 +575,25 @@ class IssueController extends Controller
                 }
             }
 
+            $formattedFix = self::formatParagraphText($request->fixDescription);
+
             $this->googleService->updateRow($targetRowIndex, [
                 'F' => 'solved',
                 'L' => $request->solver,
                 'M' => $solvedAt,
-                'N' => $request->fixDescription,
+                'N' => $formattedFix,
                 'O' => $proofUrl,
                 'P' => $durationLabel,
             ]);
+
+            $resolvedProofUrl = $this->resolveImageUrl($proofUrl);
+
+            try {
+                Http::timeout(3)->post('http://localhost:3000/notify', [
+                    'message' => "✅ *Issue Resolved!*\n*Title:* {$currentRow[1]}\n*Solved by:* {$request->solver}\n*Notes:* {$request->fixDescription}",
+                    'imageUrl' => $resolvedProofUrl
+                ]);
+            } catch (\Exception $e) {}
 
             return response()->json([
                 'success' => true,
@@ -301,7 +603,7 @@ class IssueController extends Controller
                     'solver'         => $request->solver,
                     'solvedAt'       => strtotime($solvedAt) * 1000,
                     'fixDescription' => $request->fixDescription,
-                    'proofImageUrl'  => $this->resolveImageUrl($proofUrl),
+                    'proofImageUrl'  => $resolvedProofUrl,
                     'durationLabel'  => $durationLabel,
                 ],
             ]);
@@ -310,6 +612,148 @@ class IssueController extends Controller
                 'success' => false,
                 'message' => 'Failed to resolve issue: ' . $e->getMessage(),
             ], 500);
+        }
+    }
+
+    public function pending(Request $request, $idOrRowIndex)
+    {
+        try {
+            $request->validate([
+                'pendingBy'     => 'required|string|max:255',
+                'pendingReason' => 'required|string',
+                'pendingImage'  => 'nullable|file|mimes:jpg,jpeg,png,gif,webp,svg|max:10240',
+            ]);
+        } catch (ValidationException $ve) {
+            return response()->json([
+                'success' => false,
+                'message' => collect($ve->errors())->flatten()->first() ?: 'Invalid input.',
+            ], 422);
+        }
+
+        try {
+            // Cross-sheet lookup
+            $crossYear = false;
+            $foundLocation = $this->googleService->findIssueAcrossSheets((string)$idOrRowIndex);
+            if ($foundLocation) {
+                $allSheets = $this->googleService->listSheets();
+                $newestSheet = end($allSheets);
+                if ($foundLocation['sheet'] !== $newestSheet) {
+                    $crossYear = true;
+                }
+                $this->googleService->setSheet($foundLocation['sheet']);
+                $rows = $this->googleService->getRows();
+            } else {
+                $this->resolveSheet(null);
+                $rows = $this->googleService->getRows();
+            }
+            $targetRowIndex = null;
+            $currentRow = null;
+
+            foreach ($rows as $index => $row) {
+                $actualRowIndex = $index + 2;
+                if (($row[0] ?? '') === (string)$idOrRowIndex || (string)$actualRowIndex === (string)$idOrRowIndex) {
+                    $targetRowIndex = $actualRowIndex;
+                    $currentRow = $row;
+                    break;
+                }
+            }
+
+            if (!$targetRowIndex || !$currentRow) {
+                return response()->json(['success' => false, 'message' => 'Issue not found.'], 404);
+            }
+
+
+
+            $pendingDataRaw = $currentRow[18] ?? '';
+            $pendingTimeline = self::parsePendingTimeline($pendingDataRaw, $currentRow[19] ?? '', $this->resolveImageUrl($currentRow[20] ?? ''));
+
+            $date = \Carbon\Carbon::now()->format('M d, H:i');
+            
+            $pendingUrl = '';
+            if ($request->hasFile('pendingImage')) {
+                // Generate a unique name for each delay photo so they don't overwrite each other in the uploads folder
+                $pendingUrl = $this->googleService->uploadImage($request->file('pendingImage'), "{$idOrRowIndex}-pending-" . time());
+            }
+
+            $pendingTimeline[] = [
+                'date'   => $date,
+                'by'     => $request->pendingBy,
+                'reason' => $request->pendingReason,
+                'image'  => $this->resolveImageUrl($pendingUrl),
+            ];
+
+            $newJson = json_encode($pendingTimeline);
+
+            $this->googleService->updateRow($targetRowIndex, [
+                'F' => 'pending',
+                'S' => $newJson,
+                'T' => $request->pendingBy,
+                'U' => $pendingUrl,
+            ]);
+
+            $resolvedPendingUrl = $this->resolveImageUrl($pendingUrl);
+
+            try {
+                Http::timeout(3)->post('http://localhost:3000/notify', [
+                    'message' => "⏸️ *Issue Pending!*\n*Title:* {$currentRow[1]}\n*Pending By:* {$request->pendingBy}\n*Reason:* {$request->pendingReason}",
+                    'imageUrl' => $resolvedPendingUrl
+                ]);
+            } catch (\Exception $e) {}
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Issue marked as pending!',
+                'data'    => [
+                    'status'          => 'pending',
+                    'pendingBy'       => $request->pendingBy,
+                    'pendingReason'   => $newJson,
+                    'pendingTimeline' => $pendingTimeline,
+                    'pendingImageUrl' => $resolvedPendingUrl,
+                ],
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to mark pending: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function updateCategory(Request $request, $idOrRowIndex)
+    {
+        $request->validate([
+            'category' => 'required|string',
+        ]);
+        
+        try {
+            $foundLocation = $this->googleService->findIssueAcrossSheets((string)$idOrRowIndex);
+            if ($foundLocation) {
+                $this->googleService->setSheet($foundLocation['sheet']);
+                $targetRowIndex = $foundLocation['rowIndex'];
+            } else {
+                $this->resolveSheet(null);
+                $rows = $this->googleService->getRows();
+                $targetRowIndex = null;
+                foreach ($rows as $index => $row) {
+                    $actualRowIndex = $index + 2;
+                    if (($row[0] ?? '') === (string)$idOrRowIndex || (string)$actualRowIndex === (string)$idOrRowIndex) {
+                        $targetRowIndex = $actualRowIndex;
+                        break;
+                    }
+                }
+            }
+
+            if (!$targetRowIndex) {
+                return response()->json(['success' => false, 'message' => 'Issue not found.'], 404);
+            }
+
+            $this->googleService->updateRow($targetRowIndex, [
+                'E' => $request->category
+            ]);
+
+            return response()->json(['success' => true]);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => 'Failed to update category: ' . $e->getMessage()], 500);
         }
     }
 }

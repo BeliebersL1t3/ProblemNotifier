@@ -7,41 +7,245 @@
 @layer base {
   :root {
     --radius: 0.625rem;
-    --background: oklch(0.985 0.002 250);
-    --foreground: oklch(0.22 0.045 264);
-    --surface: oklch(1 0 0);
-    --card: oklch(1 0 0);
-    --card-foreground: oklch(0.22 0.045 264);
-    --popover: oklch(1 0 0);
-    --popover-foreground: oklch(0.22 0.045 264);
-    --primary: oklch(0.32 0.096 265);
-    --primary-foreground: oklch(0.99 0.003 248);
-    --secondary: oklch(0.968 0.007 247.896);
-    --secondary-foreground: oklch(0.32 0.096 265);
-    --muted: oklch(0.968 0.007 247.896);
-    --muted-foreground: oklch(0.532 0.04 257);
-    --accent: oklch(0.968 0.007 247.896);
-    --accent-foreground: oklch(0.208 0.042 265.755);
-    --destructive: oklch(0.577 0.245 27.325);
-    --destructive-foreground: oklch(0.984 0.003 247.858);
-    --border: oklch(0.929 0.013 255.508);
-    --input: oklch(0.929 0.013 255.508);
-    --ring: oklch(0.704 0.04 256.788);
-    --status-open: oklch(0.628 0.221 26.4);
-    --status-open-foreground: oklch(1 0 0);
-    --status-progress: oklch(0.79 0.163 86.2);
-    --status-progress-foreground: oklch(0.26 0.06 80);
-    --status-solved: oklch(0.723 0.192 149.6);
-    --status-solved-foreground: oklch(1 0 0);
+    --background: #1C1B0E;
+    --foreground: #FAFAFA;
+    --surface: #2A281E;
+    --card: #2A281E;
+    --card-foreground: #FAFAFA;
+    --popover: #2A281E;
+    --popover-foreground: #FAFAFA;
+    --primary: #C9AA71; /* A warm sandy gold to match Telunas vibe */
+    --primary-foreground: #1C1B0E;
+    --secondary: #3B3929;
+    --secondary-foreground: #FAFAFA;
+    --muted: #3B3929;
+    --muted-foreground: #A19F8D;
+    --accent: #3B3929;
+    --accent-foreground: #FAFAFA;
+    --destructive: #EF4444;
+    --destructive-foreground: #FAFAFA;
+    --border: #3B3929;
+    --input: #3B3929;
+    --ring: #C9AA71;
+    --status-open: #F59E0B;
+    --status-open-foreground: #1C1B0E;
+    --status-progress: #3B82F6;
+    --status-progress-foreground: #FAFAFA;
+    --status-solved: #10B981;
+    --status-solved-foreground: #1C1B0E;
   }
 
   * {
     border-color: theme('colors.border');
   }
 
+  @font-face {
+    font-family: 'Resort';
+    src: url('/fonts/Resort/Demo_Fonts/Fontspring-DEMO-resort-sansregular.otf') format('opentype');
+    font-weight: normal;
+    font-style: normal;
+  }
+
+  @font-face {
+    font-family: 'Resort';
+    src: url('/fonts/Resort/Demo_Fonts/Fontspring-DEMO-resort-sansbold.otf') format('opentype');
+    font-weight: bold;
+    font-style: normal;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Resort', sans-serif;
+  }
+
   body {
     background-color: theme('colors.background');
     color: theme('colors.foreground');
     font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+    position: relative;
+    z-index: 0;
+  }
+
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background-image: url('/bg-lineart.png');
+    background-repeat: repeat;
+    background-size: 600px; 
+    opacity: 0.25;
+    filter: blur(1px);
+    z-index: -1;
   }
 }
+
+/* ─── Custom Brown & Cream Sliders & Scrollbars ────────────────────────────── */
+
+/* Webkit Scrollbars (Chrome, Safari, Edge) */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #2A281E; /* Rich Dark Brown */
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #C9AA71; /* Warm Cream Gold */
+  border-radius: 9999px;
+  border: 2px solid #2A281E; /* Dark Brown padding border */
+  transition: background-color 0.2s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #E3D1AA; /* Soft Light Cream on Hover */
+}
+
+::-webkit-scrollbar-corner {
+  background: #1C1B0E;
+}
+
+/* Firefox Scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #C9AA71 #2A281E;
+}
+
+/* Range Input Sliders */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  background: #2A281E;
+  height: 8px;
+  border-radius: 9999px;
+  outline: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #E3D1AA;
+  border: 2px solid #3B3929;
+  cursor: pointer;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.4);
+  transition: transform 0.15s ease, background-color 0.15s ease;
+}
+
+input[type="range"]::-webkit-slider-thumb:hover {
+  background: #FFF5E1;
+  transform: scale(1.15);
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #E3D1AA;
+  border: 2px solid #3B3929;
+  cursor: pointer;
+}
+
+/* Slash & Screen Fall Page Transition Animations */
+@keyframes slashLineAnim {
+  0% {
+    transform: scaleX(0) rotate(-22deg);
+    opacity: 0;
+  }
+  25% {
+    transform: scaleX(1.4) rotate(-22deg);
+    opacity: 1;
+  }
+  100% {
+    transform: scaleX(2.2) rotate(-22deg);
+    opacity: 0;
+  }
+}
+
+@keyframes fallTopRightPureBlack {
+  0% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(140vw, -140vh, 0) rotate(-25deg);
+    opacity: 1;
+  }
+}
+
+@keyframes fallBottomLeftPureBlack {
+  0% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(-140vw, 140vh, 0) rotate(25deg);
+    opacity: 1;
+  }
+}
+
+/* Phase 2: Combine / Slice Merge Reveal from Pure Black */
+@keyframes combineTopRight {
+  0% {
+    transform: translate3d(120vw, -120vh, 0) rotate(-15deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+    opacity: 0;
+  }
+}
+
+@keyframes combineBottomLeft {
+  0% {
+    transform: translate3d(-120vw, 120vh, 0) rotate(15deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+    opacity: 0;
+  }
+}
+
+@keyframes seamFlashAnim {
+  0% {
+    opacity: 0;
+    transform: scaleX(0) rotate(-22deg);
+  }
+  50% {
+    opacity: 1;
+    transform: scaleX(1.5) rotate(-22deg);
+  }
+  100% {
+    opacity: 0;
+    transform: scaleX(2) rotate(-22deg);
+  }
+}
+
+.animate-slash-line {
+  animation: slashLineAnim 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-fall-top-right {
+  animation: fallTopRightPureBlack 0.9s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+.animate-fall-bottom-left {
+  animation: fallBottomLeftPureBlack 0.9s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+.animate-combine-top-right {
+  animation: combineTopRight 0.9s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-combine-bottom-left {
+  animation: combineBottomLeft 0.9s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-seam-flash {
+  animation: seamFlashAnim 0.6s ease-out forwards;
+}
+

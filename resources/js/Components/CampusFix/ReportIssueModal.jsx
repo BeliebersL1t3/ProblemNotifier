@@ -22,44 +22,59 @@ import { ImageDropzone } from './ImageDropzone';
 import { useIssues } from '@/context/IssuesContext';
 import { Loader2 } from 'lucide-react';
 
-const ADD_NEW = '__add_new__';
+const DEPARTMENTS = [
+    'Engineer', 'Tekong', 'Pest Control', 'Security', 'Fasilitas', 
+    'HK', 'F&B', 'Service', 'Bar', 'GR', 'Spa', 'TiRek', 'OE', 
+    'IT', 'Procurement', 'Sales/Marketing', 'Reservasi', 'Finance'
+];
 
 export function ReportIssueModal({ open, onOpenChange }) {
-    const { addIssue, categories, addCategory } = useIssues();
+    const { addIssue } = useIssues();
     const [reporter, setReporter] = useState('');
     const [title, setTitle] = useState('');
-    const [location, setLocation] = useState('');
+    const [locMain, setLocMain] = useState('');      // 'TPI' | 'TBR' | 'Kantor' | ''
+    const [locDetail, setLocDetail] = useState('');  // Optional specifics
     const [category, setCategory] = useState('broken');
-    const [addingCategory, setAddingCategory] = useState(false);
-    const [newCategory, setNewCategory] = useState('');
     const [description, setDescription] = useState('');
+    const [priority, setPriority] = useState('low');
+    const [deadline, setDeadline] = useState('15');
+    const [originDept, setOriginDept] = useState('');
+    const [taggedDepts, setTaggedDepts] = useState([]);
     const [imageFile, setImageFile] = useState(null);
     const [imageUrl, setImageUrl] = useState(undefined);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [errorMsg, setErrorMsg] = useState('');
 
-    const valid = reporter.trim() && title.trim() && location.trim() && description.trim() && imageFile;
+    // Build the full location string: "TBR - Room 12" or just "TBR"
+    const location = locMain
+        ? (locDetail.trim() ? `${locMain} - ${locDetail.trim()}` : locMain)
+        : locDetail.trim();
 
-    const createCategory = () => {
-        if (!newCategory.trim()) return;
-        const id = addCategory(newCategory);
-        setCategory(id);
-        setNewCategory('');
-        setAddingCategory(false);
-    };
+    const MAIN_LOCATIONS = ['TPI', 'TBR', 'Kantor'];
+
+    const valid = reporter.trim() && title.trim() && location.trim() && description.trim() && originDept && taggedDepts.length > 0 && imageFile;
 
     const reset = () => {
         setReporter('');
         setTitle('');
-        setLocation('');
+        setLocMain('');
+        setLocDetail('');
         setCategory('broken');
-        setAddingCategory(false);
-        setNewCategory('');
         setDescription('');
+        setPriority('low');
+        setDeadline('15');
+        setOriginDept('');
+        setTaggedDepts([]);
         setImageFile(null);
         setImageUrl(undefined);
         setErrorMsg('');
         setIsSubmitting(false);
+    };
+
+    const toggleTag = (dept) => {
+        setTaggedDepts(prev => 
+            prev.includes(dept) ? prev.filter(d => d !== dept) : [...prev, dept]
+        );
     };
 
     const submit = async () => {
@@ -73,8 +88,12 @@ export function ReportIssueModal({ open, onOpenChange }) {
                 title: title.trim(),
                 location: location.trim(),
                 category,
+                department: originDept,
+                taggedDepartments: taggedDepts.join(', '),
                 description: description.trim(),
                 imageFile,
+                priority,
+                deadline: priority === 'critical' ? (Date.now() + parseInt(deadline) * 60000).toString() : '',
             });
             reset();
             onOpenChange(false);
@@ -125,12 +144,31 @@ export function ReportIssueModal({ open, onOpenChange }) {
                     </div>
                     <div className="grid gap-4 sm:grid-cols-2">
                         <div className="grid gap-2">
-                            <Label htmlFor="location">Location</Label>
+                            <Label>Location</Label>
+                            {/* Main location quick-select */}
+                            <div className="flex gap-2">
+                                {MAIN_LOCATIONS.map(loc => (
+                                    <button
+                                        key={loc}
+                                        type="button"
+                                        disabled={isSubmitting}
+                                        onClick={() => setLocMain(prev => prev === loc ? '' : loc)}
+                                        className={`flex-1 py-2 text-sm font-semibold rounded-lg border transition-colors ${
+                                            locMain === loc
+                                                ? 'bg-primary text-primary-foreground border-primary'
+                                                : 'bg-surface text-muted-foreground border-border hover:border-primary/50'
+                                        }`}
+                                    >
+                                        {loc}
+                                    </button>
+                                ))}
+                            </div>
+                            {/* Optional detail/specific location */}
                             <Input
                                 id="location"
-                                value={location}
-                                onChange={(e) => setLocation(e.target.value)}
-                                placeholder="e.g. Engineering Block B"
+                                value={locDetail}
+                                onChange={(e) => setLocDetail(e.target.value)}
+                                placeholder={locMain ? `More specific in ${locMain}… (optional)` : 'Or just type a location…'}
                                 disabled={isSubmitting}
                             />
                         </div>
@@ -139,70 +177,98 @@ export function ReportIssueModal({ open, onOpenChange }) {
                             <Select
                                 value={category}
                                 disabled={isSubmitting}
-                                onValueChange={(v) => {
-                                    if (v === ADD_NEW) {
-                                        setAddingCategory(true);
-                                        return;
-                                    }
-                                    setCategory(v);
-                                }}
+                                onValueChange={setCategory}
                             >
                                 <SelectTrigger id="category">
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {categories.map((c) => (
-                                        <SelectItem key={c.id} value={c.id}>
-                                            {c.label}
-                                        </SelectItem>
-                                    ))}
-                                    <SelectItem value={ADD_NEW}>+ New category…</SelectItem>
+                                    <SelectItem value="broken">Broken Equipment</SelectItem>
+                                    <SelectItem value="plumbing">Plumbing</SelectItem>
+                                    <SelectItem value="electrical">Electrical</SelectItem>
+                                    <SelectItem value="structural">Structural / Building</SelectItem>
+                                    <SelectItem value="pest-hygiene">Pest &amp; Hygiene</SelectItem>
+                                    <SelectItem value="it-technology">IT &amp; Technology</SelectItem>
+                                    <SelectItem value="marine-outdoor">Marine &amp; Outdoor</SelectItem>
+                                    <SelectItem value="safety-hazard">Safety Hazard</SelectItem>
+                                    <SelectItem value="guest-issues">Guest Issues</SelectItem>
+                                    <SelectItem value="other">Other</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
                     </div>
 
-                    {addingCategory && (
-                        <div className="rounded-lg border border-border bg-muted/40 p-3 space-y-2 transition-all">
-                            <Label htmlFor="newCategory" className="text-xs font-medium text-foreground">
-                                Create New Category
-                            </Label>
-                            <div className="flex items-center gap-2">
-                                <Input
-                                    id="newCategory"
-                                    autoFocus
-                                    className="flex-1"
-                                    value={newCategory}
-                                    onChange={(e) => setNewCategory(e.target.value)}
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter') {
-                                            e.preventDefault();
-                                            createCategory();
-                                        }
-                                    }}
-                                    placeholder="e.g. Network & Wi-Fi"
-                                />
-                                <Button
-                                    type="button"
-                                    variant="secondary"
-                                    onClick={createCategory}
-                                    disabled={!newCategory.trim()}
-                                >
-                                    Add
-                                </Button>
-                                <Button
-                                    type="button"
-                                    variant="ghost"
-                                    onClick={() => {
-                                        setAddingCategory(false);
-                                        setNewCategory('');
-                                    }}
-                                >
-                                    Cancel
-                                </Button>
-                            </div>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="grid gap-2">
+                            <Label htmlFor="originDept">Origin Department</Label>
+                            <Select value={originDept} onValueChange={setOriginDept} disabled={isSubmitting}>
+                                <SelectTrigger id="originDept">
+                                    <SelectValue placeholder="Select Origin" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {DEPARTMENTS.map((dept) => (
+                                        <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
                         </div>
-                    )}
+                    </div>
+
+                    <div className="grid gap-2">
+                        <Label>Tagged Departments (Who should fix this?)</Label>
+                        <div className="flex flex-wrap gap-2">
+                            {DEPARTMENTS.map(dept => (
+                                <button
+                                    key={dept}
+                                    type="button"
+                                    disabled={isSubmitting}
+                                    onClick={() => toggleTag(dept)}
+                                    className={`px-3 py-1.5 text-xs font-semibold rounded-full border transition-colors ${
+                                        taggedDepts.includes(dept) 
+                                            ? 'bg-primary text-primary-foreground border-primary' 
+                                            : 'bg-surface text-muted-foreground border-border hover:border-primary/50'
+                                    }`}
+                                >
+                                    {dept}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="grid gap-2">
+                            <Label htmlFor="priority">Priority Level</Label>
+                            <Select value={priority} onValueChange={setPriority} disabled={isSubmitting}>
+                                <SelectTrigger id="priority">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="low">Low Priority</SelectItem>
+                                    <SelectItem value="medium">Medium Priority</SelectItem>
+                                    <SelectItem value="high">High Priority</SelectItem>
+                                    <SelectItem value="critical">🚨 Critical</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        {priority === 'critical' && (
+                            <div className="grid gap-2">
+                                <Label htmlFor="deadline">Time Limit</Label>
+                                <Select value={deadline} onValueChange={setDeadline} disabled={isSubmitting}>
+                                    <SelectTrigger id="deadline">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="0">🚨 NOW</SelectItem>
+                                        <SelectItem value="15">15 Minutes</SelectItem>
+                                        <SelectItem value="30">30 Minutes</SelectItem>
+                                        <SelectItem value="60">1 Hour</SelectItem>
+                                        <SelectItem value="120">2 Hours</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        )}
+                    </div>
+
                     <div className="grid gap-2">
                         <Label htmlFor="description">Problem description</Label>
                         <Textarea

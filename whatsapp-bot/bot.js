@@ -9,6 +9,14 @@ const fs = require('fs');
 const app = express();
 app.use(express.json());
 
+// ─── Server URL ────────────────────────────────────────────────────────────────
+// Dev (Laragon):   http://TelunasIssueTracker.test
+// Production:      http://telunas.local
+const BASE_URL = 'http://TelunasIssueTracker.test';
+// ───────────────────────────────────────────────────────────────────────────────
+
+
+
 const userStates = new Map();
 let linkedGroupId = null;
 
@@ -49,6 +57,8 @@ const STEPS = {
     STATUS_AWAITING_DEPT: 24,
     STATUS_AWAITING_STATUS: 25,
     STATUS_AWAITING_CAT: 26,
+    AWAITING_LOC_DETAIL: 27,  // Entered when user picks "Other" in location step
+    SOS_AWAITING_DESC: 28,    // Optional details in SOS emergency flow
 };
 
 const DEPARTMENTS = [
@@ -57,36 +67,22 @@ const DEPARTMENTS = [
     'IT', 'Procurement', 'Sales/Marketing', 'Reservasi', 'Finance'
 ];
 
-const CORE_CATEGORIES = ['broken items', 'plumbing', 'electrical'];
+// Fixed 10-category system: no custom/dynamic categories
 const CORE_DISPLAY = {
-    '1': 'Broken items',
+    '1': 'Broken Equipment',
     '2': 'Plumbing',
     '3': 'Electrical',
-    '4': 'Other'
+    '4': 'Structural / Building',
+    '5': 'Pest & Hygiene',
+    '6': 'IT & Technology',
+    '7': 'Marine & Outdoor',
+    '8': 'Safety Hazard',
+    '9': 'Guest Issues',
+    '10': 'Other'
 };
 
-async function getCustomCategories() {
-    try {
-        const res = await axios.get('http://TelunasIssueTracker.test/api/categories');
-        if (res.data && res.data.success) {
-            const catMap = {};
-            let i = 1;
-            for (const cat of res.data.data) {
-                // Skip defaults, or include them?
-                // The bot currently expects ONLY custom categories to be added here.
-                const catLower = cat.id.toLowerCase();
-                if (!CORE_CATEGORIES.includes(catLower) && catLower !== 'other') {
-                    catMap[i.toString()] = cat.label;
-                    i++;
-                }
-            }
-            return catMap;
-        }
-    } catch (e) {
-        console.error("Failed to fetch custom categories:", e.message);
-    }
-    return {};
-}
+// All categories as a flat array for the status filter flow
+const ALL_CATEGORIES = ['broken equipment', 'plumbing', 'electrical', 'structural / building', 'pest & hygiene', 'it & technology', 'marine & outdoor', 'safety hazard', 'guest issues', 'other'];
 
 let globalSock = null;
 
@@ -140,7 +136,7 @@ async function startSock() {
                 if (text.toLowerCase() === '!setgroup') {
                     linkedGroupId = from;
                     fs.writeFileSync('config.json', JSON.stringify({ groupId: from }));
-                    await reply('âœ… This group has been successfully linked! I will now send all Telunas Resort notifications here.');
+                    await reply('✅ This group has been successfully linked! I will now send all Telunas Resort notifications here.');
                 } else if (text.toLowerCase().startsWith('!claim ')) {
                     const takerName = text.substring(7).trim();
                     
@@ -160,7 +156,7 @@ async function startSock() {
                     
                     const issueId = idMatch[1];
                     try {
-                        const getRes = await axios.get('http://TelunasIssueTracker.test/api/issues');
+                        const getRes = await axios.get(`${BASE_URL}/api/issues`);
                         if (!getRes.data.success) throw new Error("Failed to fetch issues");
                         
                         const issue = getRes.data.data.find(i => i.id === issueId);
@@ -170,11 +166,11 @@ async function startSock() {
                         }
                         
                         if (issue.status.toLowerCase() === 'solved' || issue.status.toLowerCase() === 'resolved') {
-                            await reply(`âŒ This issue (${issueId}) has already been solved! It cannot be claimed or modified.`);
+                            await reply(`❌ This issue (${issueId}) has already been solved! It cannot be claimed or modified.`);
                             continue;
                         }
                         
-                        const claimRes = await axios.post(`http://TelunasIssueTracker.test/api/issues/${issue.rowIndex}/claim`, {
+                        const claimRes = await axios.post(`${BASE_URL}/api/issues/${issue.rowIndex}/claim`, {
                             taker: takerName + " (via WhatsApp)"
                         });
                         
@@ -202,27 +198,44 @@ async function startSock() {
             // --- USER DM OR ACTIVE GROUP FLOW ---
             const participant = msg.key.participant || from;
             const stateKey = from.endsWith('@g.us') ? `${from}_${participant}` : from;
-            let state = userStates.get(stateKey) || { step: STEPS.IDLE, data: {} };
+            let state = userStates.get(stateKey) || { step: STEPS.IDLE, data: {}, lang: 'en' };
 
-            if (text.toLowerCase() === 'cancel' || text.toLowerCase() === 'reset' || text.toLowerCase() === 'batal') {
+            const lowerText = text.toLowerCase();
+
+            // Language detection helper function
+            const getMsg = (enText, idText) => (state.lang === 'id' ? idText : enText);
+
+            // Detect language from user input
+            const idKeywords = ['lapor', 'rusak', 'ada masalah', 'bocor', 'patah', 'mati', 'darurat', 'tolong', 'bantu', 'perbaiki', 'diperbaiki', 'selesai', 'sudah bener', 'udah', 'tunda', 'tertunda', 'batal', 'bantuan', 'masalah', 'daftar'];
+            if (idKeywords.some(kw => lowerText.includes(kw))) {
+                state.lang = 'id';
+            } else if (['report', 'sos', 'emergency', 'urgent', 'help', 'solve', 'fix', 'pending', 'delay', 'cancel', 'reset', 'status', 'issues'].some(kw => lowerText.includes(kw))) {
+                state.lang = 'en';
+            }
+
+            if (lowerText === 'cancel' || lowerText === 'reset' || lowerText === 'batal') {
                 userStates.delete(stateKey);
-                await reply('Operation cancelled. You can type keywords like "mau lapor" to report an issue, or "sudah diperbaiki" to resolve one.');
+                await reply(getMsg(
+                    '❌ Operation cancelled. You can type "report" to report an issue, "sos" for emergency, or "solve" to resolve one.',
+                    '❌ Operasi dibatalkan. Anda dapat mengetik "lapor" untuk melaporkan masalah, "darurat" untuk SOS, atau "perbaiki" untuk menyelesaikannya.'
+                ));
                 continue;
             }
 
             if (state.step === STEPS.IDLE) {
-                const lowerText = text.toLowerCase();
-                
                 // Keyword lists for intent detection
-                const reportKeywords = ['!report', 'report', 'lapor', 'rusak', 'ada masalah', 'bocor', 'patah', 'mati'];
-                const solveKeywords = ['!solve', 'solve', 'perbaiki', 'diperbaiki', 'sudah bener', 'selesai', 'fix', 'udah'];
-                const sosKeywords = ['!sos', 'sos', 'emergency', 'urgent', 'help'];
-                const pendingKeywords = ['!pending', 'pending', 'tunda', 'delay', 'masalah'];
-                const statusKeywords = ['!status', '!issues'];
-                
+                const reportKeywords = ['!report', 'report', '!lapor', 'lapor', 'rusak', 'ada masalah', 'bocor', 'patah', 'mati'];
+                const solveKeywords  = ['!solve', 'solve', '!perbaiki', 'perbaiki', 'diperbaiki', 'sudah bener', 'selesai', 'fix', 'udah'];
+                const sosKeywords    = ['!sos', 'sos', '!darurat', 'darurat', 'emergency', 'urgent', 'help', 'tolong', 'bantu'];
+                const pendingKeywords= ['!pending', 'pending', '!tunda', 'tunda', 'delay', 'tertunda'];
+                const statusKeywords = ['!status', '!issues', '!masalah', '!daftar'];
+                const helpKeywords   = ['!help', 'help', '!bantuan', 'bantuan', 'menu'];
+
                 let intent = 'UNKNOWN';
-                
-                if (sosKeywords.some(kw => lowerText.includes(kw))) {
+
+                if (helpKeywords.some(kw => lowerText === kw)) {
+                    intent = 'HELP';
+                } else if (sosKeywords.some(kw => lowerText.includes(kw))) {
                     intent = 'SOS';
                 } else if (reportKeywords.some(kw => lowerText.includes(kw))) {
                     intent = 'REPORT';
@@ -234,55 +247,115 @@ async function startSock() {
                     intent = 'STATUS';
                 }
 
-                if (intent === 'SOS') {
-                    await reply('🚨 EMERGENCY MODE ACTIVATED 🚨\n\nFirst, what is your name?');
-                    userStates.set(stateKey, { step: STEPS.SOS_AWAITING_NAME, data: {} });
+                if (intent === 'HELP') {
+                    const helpMsg = state.lang === 'id' ?
+                        `📱 *TELUNAS RESORT ISSUE TRACKER — PANDUAN BOT* 📱\n\n` +
+                        `Berikut adalah daftar perintah WhatsApp:\n\n` +
+                        `1. 🚨 *!darurat* / *darurat* / *sos* / *tolong*\n   → Laporan cepat mode darurat SOS (deadline kritis otomatis).\n\n` +
+                        `2. 📋 *!lapor* / *lapor* / *rusak*\n   → Laporkan masalah fasilitas resort step-by-step.\n\n` +
+                        `3. 🔧 *!perbaiki* / *perbaiki* / *selesai*\n   → Selesaikan masalah dengan deskripsi & foto bukti.\n\n` +
+                        `4. ⏳ *!tunda* / *tunda* / *tertunda*\n   → Tandai pekerjaan sebagai tertunda dengan foto alasan.\n\n` +
+                        `5. 🤝 *!klaim <Nama>* (di Grup)\n   → Balas notifikasi masalah di grup untuk mengambil pekerjaan.\n\n` +
+                        `6. 📊 *!status* / *!masalah*\n   → Cek status masalah berdasarkan departemen.\n\n` +
+                        `7. ❌ *batal* / *reset*\n   → Batalkan percakapan & kembali ke awal.`
+                        :
+                        `📱 *TELUNAS RESORT ISSUE TRACKER — BOT HELP GUIDE* 📱\n\n` +
+                        `Here is the complete list of WhatsApp commands:\n\n` +
+                        `1. 🚨 *!sos* / *sos* / *emergency* / *help*\n   → Fast-track emergency report (automatic critical deadline).\n\n` +
+                        `2. 📋 *!report* / *report* / *broken*\n   → Step-by-step issue reporting flow.\n\n` +
+                        `3. 🔧 *!solve* / *solve* / *fix*\n   → Resolve an issue with fix description & proof photo.\n\n` +
+                        `4. ⏳ *!pending* / *pending* / *delay*\n   → Mark a job as pending with reason & proof photo.\n\n` +
+                        `5. 🤝 *!claim <Your Name>* (in Group)\n   → Reply directly to an issue notification to claim it.\n\n` +
+                        `6. 📊 *!status* / *!issues*\n   → Check active/solved issue status by department.\n\n` +
+                        `7. ❌ *cancel* / *reset*\n   → Cancel current operation & reset to menu.`;
+
+                    await reply(helpMsg);
+                    continue;
+                } else if (intent === 'SOS') {
+                    await reply(getMsg(
+                        '🚨 EMERGENCY MODE ACTIVATED 🚨\n\nFirst, what is your name?',
+                        '🚨 MODE DARURAT DIAKTIFKAN 🚨\n\nPertama, siapa nama Anda?'
+                    ));
+                    userStates.set(stateKey, { step: STEPS.SOS_AWAITING_NAME, data: {}, lang: state.lang });
                 } else if (intent === 'REPORT') {
-                    await reply('Welcome to the Telunas Resort Issue Tracker! Let\'s report an issue.\n\nFirst, what is your name?');
-                    userStates.set(stateKey, { step: STEPS.AWAITING_NAME, data: {} });
+                    await reply(getMsg(
+                        'Welcome to the Telunas Resort Issue Tracker! Let\'s report an issue.\n\nFirst, what is your name?',
+                        'Selamat datang di Telunas Resort Issue Tracker! Mari laporkan masalah.\n\nPertama, siapa nama Anda?'
+                    ));
+                    userStates.set(stateKey, { step: STEPS.AWAITING_NAME, data: {}, lang: state.lang });
                 } else if (intent === 'SOLVE') {
-                    await reply('Great! Please provide the Issue ID you want to resolve (e.g., 1785995410):');
-                    userStates.set(stateKey, { step: STEPS.AWAITING_SOLVE_ID, data: {} });
+                    await reply(getMsg(
+                        'Great! Please provide the Issue ID you want to resolve (e.g., 1785995410):',
+                        'Bagus! Harap masukkan ID Masalah yang ingin Anda selesaikan (contoh: 1785995410):'
+                    ));
+                    userStates.set(stateKey, { step: STEPS.AWAITING_SOLVE_ID, data: {}, lang: state.lang });
                 } else if (intent === 'PENDING') {
-                    await reply('You want to mark a job as Pending. Please provide the Issue ID (e.g., 1785995410):');
-                    userStates.set(stateKey, { step: STEPS.AWAITING_PENDING_ID, data: {} });
+                    await reply(getMsg(
+                        'You want to mark a job as Pending. Please provide the Issue ID (e.g., 1785995410):',
+                        'Anda ingin menandai pekerjaan sebagai Tertunda. Harap masukkan ID Masalah (contoh: 1785995410):'
+                    ));
+                    userStates.set(stateKey, { step: STEPS.AWAITING_PENDING_ID, data: {}, lang: state.lang });
                 } else if (intent === 'STATUS') {
-                    let deptMsg = 'Please reply with the number of the department to check, or type "all":\n';
+                    let deptMsg = getMsg(
+                        'Please reply with the number of the department to check, or type "all":\n',
+                        'Harap balas dengan nomor departemen yang ingin dicek, atau ketik "all":\n'
+                    );
                     DEPARTMENTS.forEach((d, idx) => {
                         deptMsg += `${idx + 1}. ${d}\n`;
                     });
                     await reply(deptMsg.trim());
-                    userStates.set(stateKey, { step: STEPS.STATUS_AWAITING_DEPT, data: {} });
+                    userStates.set(stateKey, { step: STEPS.STATUS_AWAITING_DEPT, data: {}, lang: state.lang });
                 }
-                
-                // If UNKNOWN, silently ignore so it doesn't disturb normal chats
-                continue;
-            }
 
-            // --- SOS FAST-TRACK FLOW ---
-            if (state.step === STEPS.SOS_AWAITING_NAME) {
-                state.data.reporter = text + " (via WhatsApp)";
-                await reply(`Thanks, ${text}. What is the emergency?`);
-                state.step = STEPS.SOS_AWAITING_TITLE;
+                // If UNKNOWN, silently ignore so it doesn't disturb normal chats
                 continue;
             }
 
             if (state.step === STEPS.SOS_AWAITING_TITLE) {
                 state.data.title = text;
-                await reply('Where are you located right now?');
+                await reply(getMsg(
+                    'Where are you located right now? Reply with a number or type your location:\n' +
+                    '1. TPI\n2. TBR\n3. Kantor\n4. Other (type location)',
+                    'Di mana lokasi Anda saat ini? Balas dengan nomor atau ketik lokasi Anda:\n' +
+                    '1. TPI\n2. TBR\n3. Kantor\n4. Lainnya (ketik lokasi)'
+                ));
                 state.step = STEPS.SOS_AWAITING_LOC;
                 continue;
             }
 
             if (state.step === STEPS.SOS_AWAITING_LOC) {
-                state.data.location = text;
-                
+                const LOCATION_QUICK = { '1': 'TPI', '2': 'TBR', '3': 'Kantor' };
+                if (LOCATION_QUICK[text]) {
+                    state.data.location = LOCATION_QUICK[text];
+                } else if (text === '4') {
+                    state.data.location = 'Telunas Resort';
+                } else {
+                    state.data.location = text;
+                }
+
+                await reply(getMsg(
+                    'Any more specific details or description of the problem? (Type details, or type *skip* to submit immediately)',
+                    'Ada rincian atau deskripsi masalah yang lebih spesifik? (Ketik rincian, atau ketik *skip* untuk langsung kirim)'
+                ));
+                state.step = STEPS.SOS_AWAITING_DESC;
+                continue;
+            }
+
+            if (state.step === STEPS.SOS_AWAITING_DESC) {
+                let description = '[EMERGENCY FAST-TRACK]';
+                if (text.toLowerCase() !== 'skip' && text.trim() !== '') {
+                    description = `${text.trim()} [EMERGENCY FAST-TRACK]`;
+                }
+
                 try {
-                    await reply('🚨 Submitting emergency report immediately... please wait.');
+                    await reply(getMsg(
+                        '🚨 Submitting emergency report immediately... please wait.',
+                        '🚨 Mengirim laporan darurat sekarang... mohon tunggu.'
+                    ));
 
                     const formData = new FormData();
                     formData.append('title', state.data.title);
-                    formData.append('description', '[EMERGENCY FAST-TRACK]');
+                    formData.append('description', description);
                     formData.append('location', state.data.location);
                     formData.append('category', 'emergency');
                     formData.append('department', 'Security');
@@ -290,56 +363,112 @@ async function startSock() {
                     formData.append('reporter', state.data.reporter);
                     formData.append('priority', 'critical');
                     formData.append('deadline', Date.now().toString());
-                    // NO IMAGE APPENDED!
 
-                    const res = await axios.post('http://TelunasIssueTracker.test/api/issues', formData, {
+                    const res = await axios.post(`${BASE_URL}/api/issues`, formData, {
                         headers: formData.getHeaders()
                     });
 
                     if (res.data.success) {
-                        await reply('✅ Emergency reported successfully! The team has been alerted.');
+                        await reply(getMsg(
+                            '✅ Emergency reported successfully! The team has been alerted.',
+                            '✅ Laporan darurat berhasil dikirim! Tim telah diberitahu.'
+                        ));
                     } else {
-                        await reply('❌ Failed to report emergency. Please try again or seek help directly.');
+                        await reply(getMsg(
+                            '❌ Failed to report emergency. Please try again or seek help directly.',
+                            '❌ Gagal melaporkan darurat. Silakan coba lagi atau minta bantuan langsung.'
+                        ));
                     }
                 } catch (err) {
                     console.error("API Error:", err.response ? err.response.data : err.message);
                     const errorMessage = err.response?.data?.message || err.message;
                     await reply(`❌ Display Error: ${errorMessage}`);
                 }
-                
+
                 userStates.delete(stateKey);
                 continue;
             }
 
             if (state.step === STEPS.AWAITING_NAME) {
                 state.data.reporter = text + " (via WhatsApp)";
-                await reply(`Thanks, ${text}. What is the title of the issue? (e.g., Broken lab door handle)`);
+                await reply(getMsg(
+                    `Thanks, ${text}. What is the title of the issue? (e.g., Broken lab door handle)`,
+                    `Terima kasih, ${text}. Apa judul masalahnya? (contoh: Gagang pintu rusak)`
+                ));
                 state.step = STEPS.AWAITING_TITLE;
                 continue;
             }
 
             if (state.step === STEPS.AWAITING_TITLE) {
                 state.data.title = text;
-                await reply('Got it. Please describe the problem in a few words.');
+                await reply(getMsg(
+                    'Got it. Please describe the problem in a few words.',
+                    'Paham. Harap jelaskan masalahnya secara singkat.'
+                ));
                 state.step = STEPS.AWAITING_DESC;
                 continue;
             }
 
             if (state.step === STEPS.AWAITING_DESC) {
                 state.data.description = text;
-                await reply('Where is this located? (e.g., Engineering Block B)');
+                await reply(getMsg(
+                    'Where is this located? Reply with a number for quick-select, or just type your location:\n' +
+                    '1. TPI\n2. TBR\n3. Kantor\n4. Other (type location)',
+                    'Di mana lokasinya? Balas dengan nomor pilihan cepat, atau ketik lokasi Anda:\n' +
+                    '1. TPI\n2. TBR\n3. Kantor\n4. Lainnya (ketik lokasi)'
+                ));
                 state.step = STEPS.AWAITING_LOC;
                 continue;
             }
 
             if (state.step === STEPS.AWAITING_LOC) {
-                state.data.location = text;
-                
-                let deptMenu = 'Great. What department is this issue originating from? Reply with the number:\n';
+                const LOCATION_QUICK = { '1': 'TPI', '2': 'TBR', '3': 'Kantor' };
+
+                if (LOCATION_QUICK[text]) {
+                    state.data.location = LOCATION_QUICK[text];
+                    await reply(getMsg(
+                        `📍 Location set to *${LOCATION_QUICK[text]}*. Any more specific area within ${LOCATION_QUICK[text]}? (e.g. "Room 12") — or type *skip* to continue.`,
+                        `📍 Lokasi diatur ke *${LOCATION_QUICK[text]}*. Ada area lebih spesifik di ${LOCATION_QUICK[text]}? (contoh: "Kamar 12") — atau ketik *skip* untuk lanjut.`
+                    ));
+                    state.step = STEPS.AWAITING_LOC_DETAIL;
+                    continue;
+                } else if (text === '4') {
+                    await reply(getMsg('Please type the location:', 'Harap ketik lokasinya:'));
+                    state.step = STEPS.AWAITING_LOC_DETAIL;
+                    state.data.location = '';
+                    continue;
+                } else {
+                    state.data.location = text;
+                }
+
+                let deptMenu = getMsg(
+                    'Great. What department is this issue originating from? Reply with the number:\n',
+                    'Bagus. Departemen mana asal masalah ini? Balas dengan nomornya:\n'
+                );
                 DEPARTMENTS.forEach((dept, index) => {
                     deptMenu += `${index + 1}. ${dept}\n`;
                 });
-                
+
+                await reply(deptMenu.trim());
+                state.step = STEPS.AWAITING_ORIGIN_DEPT;
+                continue;
+            }
+
+            if (state.step === STEPS.AWAITING_LOC_DETAIL) {
+                if (text.toLowerCase() !== 'skip' && text !== '') {
+                    state.data.location = state.data.location
+                        ? `${state.data.location} - ${text}`
+                        : text;
+                }
+
+                let deptMenu = getMsg(
+                    'Great. What department is this issue originating from? Reply with the number:\n',
+                    'Bagus. Departemen mana asal masalah ini? Balas dengan nomornya:\n'
+                );
+                DEPARTMENTS.forEach((dept, index) => {
+                    deptMenu += `${index + 1}. ${dept}\n`;
+                });
+
                 await reply(deptMenu.trim());
                 state.step = STEPS.AWAITING_ORIGIN_DEPT;
                 continue;
@@ -348,13 +477,19 @@ async function startSock() {
             if (state.step === STEPS.AWAITING_ORIGIN_DEPT) {
                 const idx = parseInt(text) - 1;
                 if (isNaN(idx) || idx < 0 || idx >= DEPARTMENTS.length) {
-                    await reply('Invalid selection. Please reply with a valid number from the list.');
+                    await reply(getMsg(
+                        'Invalid selection. Please reply with a valid number from the list.',
+                        'Pilihan tidak valid. Harap balas dengan nomor yang sesuai dari daftar.'
+                    ));
                     continue;
                 }
                 
                 state.data.department = DEPARTMENTS[idx];
                 
-                let tagMenu = 'Which departments are responsible for fixing this? You can select multiple by separating with spaces (e.g., "1 14 15"):\n';
+                let tagMenu = getMsg(
+                    'Which departments are responsible for fixing this? You can select multiple by separating with spaces (e.g., "1 14 15"):\n',
+                    'Departemen mana saja yang bertanggung jawab memperbaiki ini? Bisa pilih beberapa dengan spasi (contoh: "1 14 15"):\n'
+                );
                 DEPARTMENTS.forEach((dept, index) => {
                     tagMenu += `${index + 1}. ${dept}\n`;
                 });
@@ -375,13 +510,19 @@ async function startSock() {
                 }
                 
                 if (selectedTags.length === 0) {
-                    await reply('Invalid selection. Please reply with at least one valid number from the list (e.g. "1" or "1 2").');
+                    await reply(getMsg(
+                        'Invalid selection. Please reply with at least one valid number from the list (e.g. "1" or "1 2").',
+                        'Pilihan tidak valid. Harap balas dengan setidaknya satu nomor valid dari daftar (contoh: "1" atau "1 2").'
+                    ));
                     continue;
                 }
                 
                 state.data.taggedDepartments = selectedTags.join(', ');
                 
-                let categoryMenu = 'Almost done! Please select a category by replying with the number:\n';
+                let categoryMenu = getMsg(
+                    'Almost done! Please select a category by replying with the number:\n',
+                    'Hampir selesai! Pilih kategori dengan membalas nomornya:\n'
+                );
                 for (const [key, val] of Object.entries(CORE_DISPLAY)) {
                     categoryMenu += `${key}. ${val}\n`;
                 }
@@ -393,60 +534,18 @@ async function startSock() {
 
             if (state.step === STEPS.AWAITING_CAT) {
                 if (!CORE_DISPLAY[text]) {
-                    await reply('Invalid selection. Please reply with a valid number (1-4).');
+                    await reply(getMsg(
+                        'Invalid selection. Please reply with a valid number (1-10).',
+                        'Pilihan tidak valid. Harap balas dengan nomor valid (1-10).'
+                    ));
                     continue;
                 }
                 
-                if (text === '4') { // Other
-                    const customCats = await getCustomCategories();
-                    state.data.catMap = customCats;
-                    
-                    let otherMenu = 'Here are the other available categories:\n';
-                    let nextIndex = 1;
-                    for (const [key, val] of Object.entries(customCats)) {
-                        otherMenu += `${key}. ${val}\n`;
-                        nextIndex++;
-                    }
-                    otherMenu += `${nextIndex}. \u2795 Create New Category\n`;
-                    state.data.createNewIndex = nextIndex.toString();
-                    
-                    await reply(otherMenu.trim());
-                    state.step = STEPS.AWAITING_CAT_OTHER;
-                    continue;
-                }
-
-                state.data.category = CORE_DISPLAY[text].toLowerCase();
-                await reply('Got it. What is the priority of this issue? Reply with the number:\n1. Low\n2. Medium\n3. High\n4. 🚨 Critical');
-                state.step = STEPS.AWAITING_PRIORITY;
-                continue;
-            }
-            
-            if (state.step === STEPS.AWAITING_CAT_OTHER) {
-                if (text === state.data.createNewIndex) {
-                    await reply('Please type the name of your new category:');
-                    state.step = STEPS.AWAITING_CAT_CUSTOM;
-                    continue;
-                }
-                
-                const customCats = state.data.catMap;
-                if (!customCats[text]) {
-                    await reply('Invalid selection. Please reply with a valid number.');
-                    continue;
-                }
-                
-                state.data.category = customCats[text].toLowerCase();
-                await reply('Got it. What is the priority of this issue? Reply with the number:\n1. Low\n2. Medium\n3. High\n4. 🚨 Critical');
-                state.step = STEPS.AWAITING_PRIORITY;
-                continue;
-            }
-            
-            if (state.step === STEPS.AWAITING_CAT_CUSTOM) {
-                if (text.length < 2) {
-                    await reply('Category name too short. Please try again.');
-                    continue;
-                }
-                state.data.category = text.trim();
-                await reply(`Got it, added category "${state.data.category}". What is the priority of this issue? Reply with the number:\n1. Low\n2. Medium\n3. High\n4. 🚨 Critical`);
+                state.data.category = text === '10' ? 'other' : CORE_DISPLAY[text].toLowerCase();
+                await reply(getMsg(
+                    'Got it. What is the priority of this issue? Reply with the number:\n1. Low\n2. Medium\n3. High\n4. 🚨 Critical',
+                    'Paham. Apa prioritas masalah ini? Balas dengan nomor:\n1. Rendah (Low)\n2. Sedang (Medium)\n3. Tinggi (High)\n4. 🚨 Kritis (Critical)'
+                ));
                 state.step = STEPS.AWAITING_PRIORITY;
                 continue;
             }
@@ -454,16 +553,25 @@ async function startSock() {
             if (state.step === STEPS.AWAITING_PRIORITY) {
                 const priorityMap = { '1': 'low', '2': 'medium', '3': 'high', '4': 'critical' };
                 if (!priorityMap[text]) {
-                    await reply('Invalid selection. Please reply with a valid number (1-4).');
+                    await reply(getMsg(
+                        'Invalid selection. Please reply with a valid number (1-4).',
+                        'Pilihan tidak valid. Harap balas dengan nomor (1-4).'
+                    ));
                     continue;
                 }
                 
                 state.data.priority = priorityMap[text];
                 if (state.data.priority === 'critical') {
-                    await reply('🚨 Critical Priority selected. How much time do we have to fix this? Reply with the number:\n1. NOW\n2. 15 Minutes\n3. 30 Minutes\n4. 1 Hour\n5. 2 Hours');
+                    await reply(getMsg(
+                        '🚨 Critical Priority selected. How much time do we have to fix this? Reply with the number:\n1. NOW\n2. 15 Minutes\n3. 30 Minutes\n4. 1 Hour\n5. 2 Hours',
+                        '🚨 Prioritas Kritis dipilih. Berapa lama waktu penanganan? Balas dengan nomor:\n1. SEKARANG (NOW)\n2. 15 Menit\n3. 30 Menit\n4. 1 Jam\n5. 2 Jam'
+                    ));
                     state.step = STEPS.AWAITING_CRITICAL_TIME;
                 } else {
-                    await reply('Great. Finally, please upload a photo of the problem as proof. (Send an image here)');
+                    await reply(getMsg(
+                        'Great. Finally, please upload a photo of the problem as proof. (Send an image here)',
+                        'Bagus. Terakhir, harap unggah foto bukti masalah. (Kirim gambar di sini)'
+                    ));
                     state.step = STEPS.AWAITING_PHOTO;
                 }
                 continue;
@@ -514,19 +622,30 @@ async function startSock() {
                     if (state.data.deadline) formData.append('deadline', state.data.deadline);
                     formData.append('image', buffer, { filename: 'upload.jpg', contentType: 'image/jpeg' });
 
-                    const res = await axios.post('http://TelunasIssueTracker.test/api/issues', formData, {
+                    const res = await axios.post(`${BASE_URL}/api/issues`, formData, {
                         headers: formData.getHeaders()
                     });
 
                     if (res.data.success) {
-                        await reply('âœ… Issue reported successfully! You can track it on the dashboard.');
+                        const issueData = res.data.data || {};
+                        const issueId = issueData.id || '';
+                        const idStr = issueId ? `\n🆔 *Issue ID:* ${issueId}` : '';
+                        await reply(
+                            `✅ *Issue Reported Successfully!*${idStr}\n\n` +
+                            `📋 *Title:* ${state.data.title}\n` +
+                            `📍 *Location:* ${state.data.location}\n` +
+                            `🏷️ *Category:* ${state.data.category}\n` +
+                            `🏠 *Origin:* ${state.data.department}\n` +
+                            `👥 *Tagged:* ${state.data.taggedDepartments || 'None'}\n\n` +
+                            `Thank you! You can track this issue on the dashboard.`
+                        );
                     } else {
-                        await reply('âŒ Failed to report issue. Please try again later.');
+                        await reply('❌ Failed to report issue. Please try again later.');
                     }
                 } catch (err) {
                     console.error("API Error:", err.response ? err.response.data : err.message);
                     const errorMessage = err.response?.data?.message || err.message;
-                    await reply(`âŒ Display Error: ${errorMessage}`);
+                    await reply(`❌ Display Error: ${errorMessage}`);
                 }
                 
                 userStates.delete(stateKey);
@@ -538,15 +657,15 @@ async function startSock() {
                 let queryId = text.trim();
                 
                 try {
-                    const getRes = await axios.get('http://TelunasIssueTracker.test/api/issues');
+                    const getRes = await axios.get(`${BASE_URL}/api/issues`);
                     if (getRes.data && getRes.data.success) {
                         const issue = getRes.data.data.find(i => i.id === queryId);
                         if (!issue) {
-                            await reply(`âŒ Could not find issue ${queryId} in the database. Please try again or type "batal" to cancel.`);
+                            await reply(`❌ Could not find issue ${queryId} in the database. Please try again or type "batal" to cancel.`);
                             continue;
                         }
                         if (issue.status.toLowerCase() === 'solved' || issue.status.toLowerCase() === 'resolved') {
-                            await reply(`âŒ This issue (${queryId}) has already been solved! You cannot modify it. Type "batal" to exit or provide a different ID.`);
+                            await reply(`❌ This issue (${queryId}) has already been solved! You cannot modify it. Type "batal" to exit or provide a different ID.`);
                             continue;
                         }
                     }
@@ -591,12 +710,12 @@ async function startSock() {
                     );
 
                     // Fetch issues to find the rowIndex for this ID
-                    const getRes = await axios.get('http://TelunasIssueTracker.test/api/issues');
+                    const getRes = await axios.get(`${BASE_URL}/api/issues`);
                     if (!getRes.data.success) throw new Error("Failed to fetch issues");
                     
                     const issue = getRes.data.data.find(i => i.id === state.data.issueId);
                     if (!issue) {
-                        await reply(`âŒ Could not find issue ${state.data.issueId} in the database.`);
+                        await reply(`❌ Could not find issue ${state.data.issueId} in the database.`);
                         userStates.delete(stateKey);
                         continue;
                     }
@@ -606,19 +725,19 @@ async function startSock() {
                     formData.append('fixDescription', state.data.fixDescription);
                     formData.append('proofImage', buffer, { filename: 'proof.jpg', contentType: 'image/jpeg' });
 
-                    const res = await axios.post(`http://TelunasIssueTracker.test/api/issues/${issue.rowIndex}/resolve`, formData, {
+                    const res = await axios.post(`${BASE_URL}/api/issues/${issue.rowIndex}/resolve`, formData, {
                         headers: formData.getHeaders()
                     });
 
                     if (res.data.success) {
-                        await reply('âœ… Issue resolved successfully! The dashboard and group have been updated.');
+                        await reply('✅ Issue resolved successfully! The dashboard and group have been updated.');
                     } else {
-                        await reply('âŒ Failed to resolve issue.');
+                        await reply('❌ Failed to resolve issue.');
                     }
                 } catch (err) {
                     console.error("API Error:", err.response ? err.response.data : err.message);
                     const errorMessage = err.response?.data?.message || err.message;
-                    await reply(`âŒ API Error: ${errorMessage}`);
+                    await reply(`❌ API Error: ${errorMessage}`);
                 }
                 
                 userStates.delete(stateKey);
@@ -630,7 +749,7 @@ async function startSock() {
                 let queryId = text.trim();
                 
                 try {
-                    const getRes = await axios.get('http://TelunasIssueTracker.test/api/issues');
+                    const getRes = await axios.get(`${BASE_URL}/api/issues`);
                     if (getRes.data && getRes.data.success) {
                         const issue = getRes.data.data.find(i => i.id === queryId);
                         if (!issue) {
@@ -682,7 +801,7 @@ async function startSock() {
                         }
                     );
 
-                    const getRes = await axios.get('http://TelunasIssueTracker.test/api/issues');
+                    const getRes = await axios.get(`${BASE_URL}/api/issues`);
                     if (!getRes.data.success) throw new Error("Failed to fetch issues");
                     
                     const issue = getRes.data.data.find(i => i.id === state.data.issueId);
@@ -697,7 +816,7 @@ async function startSock() {
                     formData.append('pendingReason', state.data.pendingReason);
                     formData.append('pendingImage', buffer, { filename: 'pending.jpg', contentType: 'image/jpeg' });
 
-                    const res = await axios.post(`http://TelunasIssueTracker.test/api/issues/${issue.rowIndex}/pending`, formData, {
+                    const res = await axios.post(`${BASE_URL}/api/issues/${issue.rowIndex}/pending`, formData, {
                         headers: formData.getHeaders()
                     });
 
@@ -750,48 +869,36 @@ async function startSock() {
                 }
                 
                 let catMsg = "Finally, what category?\n";
-                let idx = 1;
-                const catArray = [];
-                
-                CORE_CATEGORIES.forEach(c => {
-                    catMsg += `${idx}. ${c.charAt(0).toUpperCase() + c.slice(1)}\n`;
-                    catArray.push(c);
-                    idx++;
+                ALL_CATEGORIES.forEach((c, idx) => {
+                    catMsg += `${idx + 1}. ${c.charAt(0).toUpperCase() + c.slice(1)}\n`;
                 });
-
-                const customCats = await getCustomCategories();
-                for (const val of Object.values(customCats)) {
-                    catMsg += `${idx}. ${val}\n`;
-                    catArray.push(val.toLowerCase());
-                    idx++;
-                }
-                
-                catMsg += "\nReply with a number, type the name, or type 'all':";
+                catMsg += "\nReply with a number or type 'all':";
                 await reply(catMsg);
                 
-                state.data.catArray = catArray;
                 state.step = STEPS.STATUS_AWAITING_CAT;
                 continue;
             }
 
             if (state.step === STEPS.STATUS_AWAITING_CAT) {
                 const lowerText = text.toLowerCase().trim();
-                const catArray = state.data.catArray || CORE_CATEGORIES;
                 
                 if (lowerText === 'all') {
                     state.data.category = 'all';
                 } else {
                     const idx = parseInt(lowerText) - 1;
-                    if (!isNaN(idx) && idx >= 0 && idx < catArray.length) {
-                        state.data.category = catArray[idx];
+                    if (!isNaN(idx) && idx >= 0 && idx < ALL_CATEGORIES.length) {
+                        state.data.category = ALL_CATEGORIES[idx];
+                    } else if (ALL_CATEGORIES.includes(lowerText)) {
+                        state.data.category = lowerText;
                     } else {
-                        state.data.category = lowerText; // Fallback to raw text if they typed something custom
+                        await reply('Invalid selection. Please reply with a number (1-10) or \'all\'.');
+                        continue;
                     }
                 }
                 
                 try {
                     await reply('Fetching active issues... Please wait.');
-                    const res = await axios.get('http://TelunasIssueTracker.test/api/issues');
+                    const res = await axios.get(`${BASE_URL}/api/issues`);
                     if (res.data && res.data.success) {
                         const issues = res.data.data;
                         
@@ -878,37 +985,84 @@ app.post('/notify', async (req, res) => {
 });
 
 // --- BACKGROUND ESCALATION LOOP ---
-// Tracks when each issue was LAST alerted so we can re-alert every 5 minutes
-const lastAlertedAt = new Map();
+// Tracks alerted milestones per issue to ensure NO rapid-fire spam
+const triggeredMilestones = new Set(); // Stores 'issueId-milestone' keys
 
 setInterval(async () => {
     if (!linkedGroupId || !globalSock) return;
     try {
-        const res = await axios.get('http://TelunasIssueTracker.test/api/issues');
+        const res = await axios.get(`${BASE_URL}/api/issues`);
         if (res.data && res.data.success) {
             const issues = res.data.data;
             const now = Date.now();
-            const REPEAT_INTERVAL_MS = 5 * 60 * 1000; // Re-alert every 5 minutes
-            const GRACE_PERIOD_MS    = 60 * 1000;      // 60s grace after deadline to avoid double-ping on submit
+            const TARGET_MILESTONES = [5, 10, 15, 30, 60]; // Strict milestone minutes
+
+            let alertSentThisCycle = false;
 
             for (const issue of issues) {
-                // Alert if: critical + has deadline + not yet solved/pending + deadline passed
+                if (alertSentThisCycle) break; // Rate-limit: Max 1 WhatsApp alert per 15-second check!
+
                 const isUnresolved = issue.status === 'open' || issue.status === 'progress';
                 if (!isUnresolved || issue.priority !== 'critical' || !issue.deadline) continue;
 
-                const deadlineTime = parseInt(issue.deadline);
-                if (now < deadlineTime + GRACE_PERIOD_MS) continue; // Not yet past deadline
+                let deadlineTime = parseInt(issue.deadline, 10);
+                if (isNaN(deadlineTime) || deadlineTime <= 0) continue;
 
-                const lastAlert = lastAlertedAt.get(issue.id) || 0;
-                if (now - lastAlert < REPEAT_INTERVAL_MS) continue; // Too soon to re-alert
+                if (deadlineTime < 10000000000) {
+                    deadlineTime = deadlineTime * 1000;
+                }
 
-                lastAlertedAt.set(issue.id, now);
+                if (now < deadlineTime) continue; // Deadline not reached yet
 
                 const overdueMins = Math.floor((now - deadlineTime) / 60000);
-                const overdueStr  = overdueMins <= 0 ? 'just now' : `${overdueMins} minute${overdueMins !== 1 ? 's' : ''} ago`;
-                const statusLabel = issue.status === 'progress' ? '🔧 In Progress (NOT YET RESOLVED)' : '⚠️ Unclaimed';
 
-                const msg = `🚨 *OVERDUE CRITICAL ISSUE!* 🚨\n\nThis issue has breached its time limit and is still unresolved!\n\n*Title:* ${issue.title}\n*Location:* ${issue.location}\n*Reporter:* ${issue.reporter}\n*Status:* ${statusLabel}\n*Deadline passed:* ${overdueStr}\n*ID:* ${issue.id}\n\n*PLEASE RESOLVE OR ESCALATE IMMEDIATELY!*\n🔗 ${process.env.APP_URL || 'http://telunasissuetracker.test'}/dashboard`;
+                // Ignore legacy seed items or items overdue by > 24 hours (1440 mins) to prevent spam
+                if (overdueMins > 1440) continue;
+
+                // Determine matching milestone
+                let matchingMilestone = null;
+                for (const m of TARGET_MILESTONES) {
+                    // Match if overdueMins is currently within 1 min of milestone
+                    if (overdueMins === m || overdueMins === m + 1) {
+                        matchingMilestone = m;
+                        break;
+                    }
+                }
+
+                // If overdue > 60m, check hourly milestones (120m, 180m, etc.)
+                if (overdueMins > 60 && overdueMins % 60 <= 1) {
+                    matchingMilestone = Math.floor(overdueMins / 60) * 60;
+                }
+
+                if (matchingMilestone === null) continue; // Not at a milestone minute right now!
+
+                const mKey = `${issue.id}-${matchingMilestone}`;
+                if (triggeredMilestones.has(mKey)) continue; // Already alerted for this milestone!
+
+                triggeredMilestones.add(mKey);
+                alertSentThisCycle = true;
+
+                const milestoneNotice = issue.status === 'progress'
+                    ? `⏰ *In-Progress Milestone:* Overdue by ${matchingMilestone} minutes!`
+                    : `⚠️ *Unclaimed Milestone:* Overdue by ${matchingMilestone} minutes (Unclaimed)!`;
+
+                const overdueStr  = `${overdueMins} minute${overdueMins !== 1 ? 's' : ''} ago`;
+                const statusLabel = issue.status === 'progress' ? '🔧 In Progress (STILL UNRESOLVED)' : '⚠️ UNCLAIMED & OPEN';
+                const workerStr   = issue.status === 'progress' && issue.taker
+                    ? `\n*Assigned Worker:* ${issue.taker}`
+                    : '\n*Assigned Worker:* ⚠️ *UNCLAIMED — NO ONE IS HANDLING THIS YET!*';
+                const taggedStr   = issue.taggedDepartments ? `\n*Tagged Departments:* ${issue.taggedDepartments}` : '';
+
+                const msg = `🚨 *OVERDUE CRITICAL ISSUE ALERT!* 🚨\n\n` +
+                    `${milestoneNotice}\n\n` +
+                    `*Title:* ${issue.title}\n` +
+                    `*Location:* ${issue.location}\n` +
+                    `*Reporter:* ${issue.reporter}\n` +
+                    `*Status:* ${statusLabel}${workerStr}${taggedStr}\n` +
+                    `*Overdue by:* ${overdueStr}\n` +
+                    `*ID:* ${issue.id}\n\n` +
+                    `❗ *PLEASE RESOLVE OR UPDATE IMMEDIATELY!*\n` +
+                    `🔗 ${BASE_URL}/dashboard`;
 
                 if (issue.imageUrl) {
                     await globalSock.sendMessage(linkedGroupId, {
@@ -920,18 +1074,19 @@ setInterval(async () => {
                 }
             }
 
-            // Clean up resolved issues from tracking map to free memory
-            for (const [id] of lastAlertedAt) {
+            // Cleanup solved/deleted issues from milestone memory
+            for (const key of triggeredMilestones) {
+                const [id] = key.split('-');
                 const found = issues.find(i => i.id === id);
                 if (!found || (found.status !== 'open' && found.status !== 'progress')) {
-                    lastAlertedAt.delete(id);
+                    triggeredMilestones.delete(key);
                 }
             }
         }
     } catch (e) {
         console.error("Escalation loop error:", e.message);
     }
-}, 30000); // Check every 30 seconds
+}, 15000); // Check every 15 seconds
 
 const PORT = 3000;
 app.listen(PORT, () => {

@@ -31,6 +31,7 @@ export function SheetContent({ children, side = 'right', className, ...props }) 
     const sideClass = {
         right: 'right-0 top-0 h-full border-l animate-in slide-in-from-right duration-300',
         left: 'left-0 top-0 h-full border-r animate-in slide-in-from-left duration-300',
+        bottom: 'bottom-0 left-0 right-0 w-full border-t animate-in slide-in-from-bottom duration-300',
     }[side];
 
     return createPortal(
@@ -42,7 +43,8 @@ export function SheetContent({ children, side = 'right', className, ...props }) 
             />
             <div
                 className={cn(
-                    'fixed z-50 bg-surface shadow-2xl w-full sm:max-w-md border-border',
+                    'fixed z-50 bg-surface shadow-2xl border-border',
+                    side !== 'bottom' && 'w-full sm:max-w-md',
                     sideClass,
                     className,
                 )}

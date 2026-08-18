@@ -1,30 +1,36 @@
 import { AlertTriangle, CheckCircle2, ClipboardList, Clock } from 'lucide-react';
 import { useIssues } from '@/context/IssuesContext';
+import { useLanguage } from '@/context/LanguageContext';
 
 export function AnalyticsBar() {
     const { stats } = useIssues();
+    const { t } = useLanguage();
 
     const cards = [
         {
-            label: 'Total Reports',
+            key: 'total_reports',
+            label: t('total_reports'),
             value: stats.total,
             Icon: ClipboardList,
             accent: 'bg-primary/10 text-primary',
         },
         {
-            label: 'Needs Fixing',
+            key: 'needs_fixing',
+            label: t('needs_fixing'),
             value: stats.open,
             Icon: AlertTriangle,
             accent: 'bg-[var(--status-open)]/15 text-status-open',
         },
         {
-            label: 'In Progress',
+            key: 'in_progress',
+            label: t('in_progress'),
             value: stats.progress,
             Icon: Clock,
             accent: 'bg-[var(--status-progress)]/20 text-status-progress',
         },
         {
-            label: 'Resolved',
+            key: 'resolved',
+            label: t('resolved'),
             value: stats.solved,
             Icon: CheckCircle2,
             accent: 'bg-[var(--status-solved)]/15 text-status-solved',

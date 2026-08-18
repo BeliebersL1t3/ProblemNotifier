@@ -1,21 +1,24 @@
-import { AlertTriangle, CheckCircle2, Clock } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Clock, PauseCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const STATUS_LABEL = {
     open: 'Needs Fixing',
     progress: 'In Progress',
+    pending: 'Pending',
     solved: 'Solved',
 };
 
 const STATUS_CLASS = {
     open: 'bg-status-open text-status-open-foreground',
     progress: 'bg-status-progress text-status-progress-foreground',
+    pending: 'bg-orange-500 text-white',
     solved: 'bg-status-solved text-status-solved-foreground',
 };
 
 const STATUS_ICON = {
     open: AlertTriangle,
     progress: Clock,
+    pending: PauseCircle,
     solved: CheckCircle2,
 };
 
