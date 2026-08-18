@@ -59,6 +59,11 @@ const STEPS = {
     STATUS_AWAITING_CAT: 26,
     AWAITING_LOC_DETAIL: 27,  // Entered when user picks "Other" in location step
     SOS_AWAITING_DESC: 28,    // Optional details in SOS emergency flow
+    // Out-of-order confirmation flows
+    CONFIRM_CLAIM_THEN_PENDING: 29, // Issue is open; ask if user wants claim+pending
+    CONFIRM_CLAIM_THEN_SOLVE: 30,   // Issue is open; ask if user wants claim+solve
+    CONFIRM_CLAIM_PENDING_NAME: 31, // Collect worker name after yes-confirm for claim+pending
+    CONFIRM_CLAIM_SOLVE_NAME: 32,   // Collect solver name after yes-confirm for claim+solve
 };
 
 const DEPARTMENTS = [
@@ -161,12 +166,21 @@ async function startSock() {
                         
                         const issue = getRes.data.data.find(i => i.id === issueId);
                         if (!issue) {
-                            await reply(`Could not find issue ${issueId} in the database.`);
+                            await reply(`❌ Could not find issue ${issueId} in the database.`);
                             continue;
                         }
                         
-                        if (issue.status.toLowerCase() === 'solved' || issue.status.toLowerCase() === 'resolved') {
-                            await reply(`❌ This issue (${issueId}) has already been solved! It cannot be claimed or modified.`);
+                        // Status-specific guard messages
+                        if (issue.status === 'solved') {
+                            await reply(`✅ This issue (ID: ${issueId}) has already been *solved*. No further action needed.`);
+                            continue;
+                        }
+                        if (issue.status === 'progress') {
+                            await reply(`⚠️ Issue *${issueId}* has already been claimed by *${issue.taker || 'someone'}* and is currently *In Progress*. You cannot claim it again.\n\nIf they need to mark it pending, they can DM the bot with \`pending\`.`);
+                            continue;
+                        }
+                        if (issue.status === 'pending') {
+                            await reply(`⏸️ Issue *${issueId}* is currently *Pending* (delayed by ${issue.pendingBy || 'someone'}). It cannot be claimed until it's back In Progress.\n\nIf this is now resolved, the worker should DM the bot with \`solve\`.`);
                             continue;
                         }
                         
@@ -175,9 +189,9 @@ async function startSock() {
                         });
                         
                         if (claimRes.data.success) {
-                            await reply(`✅ Issue ${issueId} claimed successfully by ${takerName}!`);
+                            await reply(`✅ Issue ${issueId} claimed successfully by *${takerName}*! The dashboard has been updated.`);
                         } else {
-                            await reply(`❌ Failed to claim issue.`);
+                            await reply(`❌ Failed to claim issue: ${claimRes.data.message || 'Unknown error'}`);
                         }
                     } catch (e) {
                         const errMsg = e.response?.data?.message || e.message;
@@ -661,21 +675,37 @@ async function startSock() {
                     if (getRes.data && getRes.data.success) {
                         const issue = getRes.data.data.find(i => i.id === queryId);
                         if (!issue) {
-                            await reply(`❌ Could not find issue ${queryId} in the database. Please try again or type "batal" to cancel.`);
+                            await reply(`❌ Could not find issue *${queryId}* in the database. Please check the ID and try again, or type "cancel" to exit.`);
                             continue;
                         }
-                        if (issue.status.toLowerCase() === 'solved' || issue.status.toLowerCase() === 'resolved') {
-                            await reply(`❌ This issue (${queryId}) has already been solved! You cannot modify it. Type "batal" to exit or provide a different ID.`);
+                        if (issue.status === 'solved') {
+                            await reply(`✅ Issue *${queryId}* has already been marked as *Solved*. No further action needed. Type "cancel" to exit.`);
                             continue;
                         }
+                        if (issue.status === 'open') {
+                            // Out-of-order: issue hasn't been claimed yet
+                            await reply(
+                                `⚠️ Issue *${queryId}* has not been claimed yet — it is currently *Open (unclaimed)*. ` +
+                                `The normal flow is: claim first → then solve.\n\n` +
+                                `Do you want to *claim this job and immediately resolve it* in one step?\n\n` +
+                                `Reply *yes* to claim + solve now, or *no* to cancel.`
+                            );
+                            state.data.issueId = queryId;
+                            state.data.issueRowIndex = issue.rowIndex;
+                            state.step = STEPS.CONFIRM_CLAIM_THEN_SOLVE;
+                            userStates.set(stateKey, state);
+                            continue;
+                        }
+                        // status is 'progress' or 'pending' — allowed to proceed
                     }
                 } catch (e) {
                     console.error("Validation error:", e.message);
                 }
 
                 state.data.issueId = queryId;
-                await reply('What is your name? (Solver Name)');
+                await reply(getMsg('What is your name? (Solver Name)', 'Siapa nama Anda? (Nama Penyelesai)'));
                 state.step = STEPS.AWAITING_SOLVE_NAME;
+                userStates.set(stateKey, state);
                 continue;
             }
             if (state.step === STEPS.AWAITING_SOLVE_NAME) {
@@ -753,21 +783,42 @@ async function startSock() {
                     if (getRes.data && getRes.data.success) {
                         const issue = getRes.data.data.find(i => i.id === queryId);
                         if (!issue) {
-                            await reply(`❌ Could not find issue ${queryId} in the database. Please try again or type "batal" to cancel.`);
+                            await reply(`❌ Could not find issue *${queryId}* in the database. Please check the ID and try again, or type "cancel" to exit.`);
                             continue;
                         }
-                        if (issue.status.toLowerCase() !== 'progress') {
-                            await reply(`❌ This issue (${queryId}) is not currently "In Progress". Only active jobs can be marked pending!`);
+                        if (issue.status === 'solved') {
+                            await reply(`✅ Issue *${queryId}* is already *Solved* — no pending needed. Type "cancel" to exit.`);
                             continue;
                         }
+                        if (issue.status === 'open') {
+                            // Out-of-order: issue hasn't been claimed yet
+                            await reply(
+                                `⚠️ Issue *${queryId}* has not been claimed yet — it is currently *Open (unclaimed)*.\n\n` +
+                                `To mark a job as pending, someone must first claim it.\n\n` +
+                                `Do you want to *claim this job AND immediately mark it as pending*?\n\n` +
+                                `Reply *yes* to claim + pending, or *no* to cancel and keep the issue Open.`
+                            );
+                            state.data.issueId = queryId;
+                            state.data.issueRowIndex = issue.rowIndex;
+                            state.step = STEPS.CONFIRM_CLAIM_THEN_PENDING;
+                            userStates.set(stateKey, state);
+                            continue;
+                        }
+                        if (issue.status !== 'progress') {
+                            // Catch any other unexpected status (e.g. future states)
+                            await reply(`❌ Issue *${queryId}* is currently *${issue.status}* — only issues that are *In Progress* can be marked as pending.`);
+                            continue;
+                        }
+                        // status === 'progress' — allowed
                     }
                 } catch (e) {
                     console.error("Validation error:", e.message);
                 }
 
                 state.data.issueId = queryId;
-                await reply('What is your name? (Worker Name)');
+                await reply(getMsg('What is your name? (Worker Name)', 'Siapa nama Anda? (Nama Pekerja)'));
                 state.step = STEPS.AWAITING_PENDING_NAME;
+                userStates.set(stateKey, state);
                 continue;
             }
             if (state.step === STEPS.AWAITING_PENDING_NAME) {
@@ -832,6 +883,85 @@ async function startSock() {
                 }
                 
                 userStates.delete(stateKey);
+                continue;
+            }
+
+            // --- OUT-OF-ORDER CONFIRMATION FLOWS ---
+
+            // CONFIRM: Claim + Pending (user said "pending" but issue is still open)
+            if (state.step === STEPS.CONFIRM_CLAIM_THEN_PENDING) {
+                const ans = lowerText.trim();
+                if (ans === 'yes' || ans === 'ya' || ans === 'y') {
+                    await reply(getMsg(
+                        'Got it! What is your name? You will be recorded as both the claimer and the person marking it pending.',
+                        'Baik! Siapa nama Anda? Anda akan dicatat sebagai peng-klaim dan yang menandai tertunda.'
+                    ));
+                    state.step = STEPS.CONFIRM_CLAIM_PENDING_NAME;
+                    userStates.set(stateKey, state);
+                } else {
+                    userStates.delete(stateKey);
+                    await reply(getMsg(
+                        '✅ No problem. The issue remains *Open (unclaimed)*. No changes were made.',
+                        '✅ Tidak apa-apa. Masalah tetap *Terbuka (belum diklaim)*. Tidak ada perubahan.'
+                    ));
+                }
+                continue;
+            }
+
+            if (state.step === STEPS.CONFIRM_CLAIM_PENDING_NAME) {
+                const workerName = text.trim() + ' (via WhatsApp)';
+                // Silently auto-claim first
+                try {
+                    await axios.post(`${BASE_URL}/api/issues/${state.data.issueRowIndex}/claim`, {
+                        taker: workerName
+                    });
+                } catch (e) {
+                    console.error('Auto-claim failed:', e.message);
+                }
+                state.data.pendingBy = workerName;
+                await reply(getMsg('What is the reason for the delay?', 'Apa alasan keterlambatannya?'));
+                state.step = STEPS.AWAITING_PENDING_REASON;
+                userStates.set(stateKey, state);
+                continue;
+            }
+
+            // CONFIRM: Claim + Solve (user said "solve" but issue is still open)
+            if (state.step === STEPS.CONFIRM_CLAIM_THEN_SOLVE) {
+                const ans = lowerText.trim();
+                if (ans === 'yes' || ans === 'ya' || ans === 'y') {
+                    await reply(getMsg(
+                        'Got it! What is your name? You will be recorded as both the claimer and the solver.',
+                        'Baik! Siapa nama Anda? Anda akan dicatat sebagai peng-klaim dan penyelesai.'
+                    ));
+                    state.step = STEPS.CONFIRM_CLAIM_SOLVE_NAME;
+                    userStates.set(stateKey, state);
+                } else {
+                    userStates.delete(stateKey);
+                    await reply(getMsg(
+                        '✅ No problem. The issue remains *Open (unclaimed)*. No changes were made.',
+                        '✅ Tidak apa-apa. Masalah tetap *Terbuka (belum diklaim)*. Tidak ada perubahan.'
+                    ));
+                }
+                continue;
+            }
+
+            if (state.step === STEPS.CONFIRM_CLAIM_SOLVE_NAME) {
+                const workerName = text.trim() + ' (via WhatsApp)';
+                state.data.solverName = workerName;
+                // Silently auto-claim first
+                try {
+                    await axios.post(`${BASE_URL}/api/issues/${state.data.issueRowIndex}/claim`, {
+                        taker: workerName
+                    });
+                } catch (e) {
+                    console.error('Auto-claim failed:', e.message);
+                }
+                await reply(getMsg(
+                    `✅ Job claimed by *${text.trim()}*! Please describe how you fixed it.`,
+                    `✅ Pekerjaan diklaim oleh *${text.trim()}*! Jelaskan cara Anda memperbaikinya.`
+                ));
+                state.step = STEPS.AWAITING_SOLVE_DESC;
+                userStates.set(stateKey, state);
                 continue;
             }
 
