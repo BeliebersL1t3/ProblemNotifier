@@ -439,17 +439,110 @@ async function startSock() {
                 }
 
                 await reply(getMsg(
-                    'Any more specific details or description of the problem? (Type details, or type *skip* to submit immediately)',
-                    'Ada rincian atau deskripsi masalah yang lebih spesifik? (Ketik rincian, atau ketik *skip* untuk langsung kirim)'
+                    'Any more specific details or description of the problem? (Type details, or reply *skip* / *no* to proceed to photo):',
+                    'Ada rincian atau deskripsi masalah yang lebih spesifik? (Ketik rincian, atau balas *skip* / *tidak* untuk lanjut ke foto):'
                 ));
                 state.step = STEPS.SOS_AWAITING_DESC;
+                userStates.set(stateKey, state);
                 continue;
             }
 
             if (state.step === STEPS.SOS_AWAITING_DESC) {
+                // If user sends an image directly at this step, capture and submit immediately!
+                if (msg.message?.imageMessage) {
+                    let photoBuffer = null;
+                    try {
+                        photoBuffer = await downloadMediaMessage(
+                            msg,
+                            'buffer',
+                            { },
+                            { 
+                                logger: pino({ level: 'silent' }),
+                                reuploadRequest: sock.updateMediaMessage
+                            }
+                        );
+                    } catch (e) {
+                        console.error('Failed to download SOS image:', e.message);
+                    }
+
+                    try {
+                        await reply(getMsg(
+                            '🚨 Photo received! Submitting emergency report immediately... please wait.',
+                            '🚨 Foto diterima! Mengirim laporan darurat sekarang... mohon tunggu.'
+                        ));
+
+                        const formData = new FormData();
+                        formData.append('title', state.data.title);
+                        formData.append('description', '[EMERGENCY FAST-TRACK]');
+                        formData.append('location', state.data.location);
+                        formData.append('category', 'emergency');
+                        formData.append('department', 'Emergency');
+                        formData.append('taggedDepartments', 'Security');
+                        formData.append('reporter', state.data.reporter);
+                        formData.append('priority', 'critical');
+                        formData.append('deadline', Date.now().toString());
+                        if (photoBuffer) {
+                            formData.append('image', photoBuffer, { filename: 'sos.jpg', contentType: 'image/jpeg' });
+                        }
+
+                        const res = await axios.post(`${BASE_URL}/api/issues`, formData, {
+                            headers: formData.getHeaders()
+                        });
+
+                        if (res.data.success) {
+                            await reply(getMsg(
+                                '✅ Emergency reported successfully with photo! The team has been alerted.',
+                                '✅ Laporan darurat dengan foto berhasil dikirim! Tim telah diberitahu.'
+                            ));
+                        } else {
+                            await reply(getMsg(
+                                '❌ Failed to report emergency. Please try again or seek help directly.',
+                                '❌ Gagal melaporkan darurat. Silakan coba lagi atau minta bantuan langsung.'
+                            ));
+                        }
+                    } catch (err) {
+                        console.error("API Error:", err.response ? err.response.data : err.message);
+                        const errorMessage = err.response?.data?.message || err.message;
+                        await reply(`❌ Display Error: ${errorMessage}`);
+                    }
+
+                    userStates.delete(stateKey);
+                    continue;
+                }
+
                 let description = '[EMERGENCY FAST-TRACK]';
-                if (text.toLowerCase() !== 'skip' && text.trim() !== '') {
+                const lower = text.toLowerCase();
+                if (lower !== 'skip' && lower !== 'no' && lower !== 'tidak' && text.trim() !== '') {
                     description = `${text.trim()} [EMERGENCY FAST-TRACK]`;
+                }
+                state.data.description = description;
+
+                await reply(getMsg(
+                    '📸 Almost done! Do you have a photo of the emergency? (Send an image, or reply with "no" / "skip" to submit without photo):',
+                    '📸 Hampir selesai! Apakah ada foto bukti darurat? (Kirim gambar di sini, atau balas "no" / "skip" / "tidak" untuk kirim tanpa foto):'
+                ));
+                state.step = STEPS.SOS_AWAITING_PHOTO;
+                userStates.set(stateKey, state);
+                continue;
+            }
+
+            if (state.step === STEPS.SOS_AWAITING_PHOTO) {
+                let buffer = null;
+
+                if (msg.message?.imageMessage) {
+                    try {
+                        buffer = await downloadMediaMessage(
+                            msg,
+                            'buffer',
+                            { },
+                            { 
+                                logger: pino({ level: 'silent' }),
+                                reuploadRequest: sock.updateMediaMessage
+                            }
+                        );
+                    } catch (e) {
+                        console.error('Failed to download SOS image:', e.message);
+                    }
                 }
 
                 try {
@@ -460,7 +553,7 @@ async function startSock() {
 
                     const formData = new FormData();
                     formData.append('title', state.data.title);
-                    formData.append('description', description);
+                    formData.append('description', state.data.description);
                     formData.append('location', state.data.location);
                     formData.append('category', 'emergency');
                     formData.append('department', 'Emergency');
@@ -468,6 +561,9 @@ async function startSock() {
                     formData.append('reporter', state.data.reporter);
                     formData.append('priority', 'critical');
                     formData.append('deadline', Date.now().toString());
+                    if (buffer) {
+                        formData.append('image', buffer, { filename: 'sos.jpg', contentType: 'image/jpeg' });
+                    }
 
                     const res = await axios.post(`${BASE_URL}/api/issues`, formData, {
                         headers: formData.getHeaders()
@@ -475,8 +571,8 @@ async function startSock() {
 
                     if (res.data.success) {
                         await reply(getMsg(
-                            '✅ Emergency reported successfully! The team has been alerted.',
-                            '✅ Laporan darurat berhasil dikirim! Tim telah diberitahu.'
+                            buffer ? '✅ Emergency reported successfully with photo! The team has been alerted.' : '✅ Emergency reported successfully! The team has been alerted.',
+                            buffer ? '✅ Laporan darurat dengan foto berhasil dikirim! Tim telah diberitahu.' : '✅ Laporan darurat berhasil dikirim! Tim telah diberitahu.'
                         ));
                     } else {
                         await reply(getMsg(
