@@ -275,16 +275,17 @@ async function startSock() {
 
             if (state.step === STEPS.IDLE) {
                 // Keyword lists for intent detection
+                // NOTE: "menu" is strictly for opening the guide. "help", "bantuan", "tolong", "sos", "darurat" are all routed to EMERGENCY SOS!
+                const menuKeywords   = ['!menu', 'menu'];
+                const sosKeywords    = ['!sos', 'sos', '!darurat', 'darurat', 'emergency', 'urgent', '!help', 'help', '!bantuan', 'bantuan', 'tolong', 'bantu'];
                 const reportKeywords = ['!report', 'report', '!lapor', 'lapor', 'rusak', 'ada masalah', 'bocor', 'patah', 'mati'];
                 const solveKeywords  = ['!solve', 'solve', '!perbaiki', 'perbaiki', 'diperbaiki', 'sudah bener', 'selesai', 'fix', 'udah'];
-                const sosKeywords    = ['!sos', 'sos', '!darurat', 'darurat', 'emergency', 'urgent', 'help', 'tolong', 'bantu'];
                 const pendingKeywords= ['!pending', 'pending', '!tunda', 'tunda', 'delay', 'tertunda'];
                 const statusKeywords = ['!status', '!issues', '!masalah', '!daftar'];
-                const helpKeywords   = ['!help', 'help', '!bantuan', 'bantuan', 'menu'];
 
                 let intent = 'UNKNOWN';
 
-                if (helpKeywords.some(kw => lowerText === kw)) {
+                if (menuKeywords.some(kw => lowerText === kw)) {
                     intent = 'HELP';
                 } else if (sosKeywords.some(kw => lowerText.includes(kw))) {
                     intent = 'SOS';
@@ -300,25 +301,27 @@ async function startSock() {
 
                 if (intent === 'HELP') {
                     const helpMsg = state.lang === 'id' ?
-                        `📱 *TELUNAS RESORT ISSUE TRACKER — PANDUAN BOT* 📱\n\n` +
+                        `📱 *TELUNAS RESORT ISSUE TRACKER — MENU UTAMA* 📱\n\n` +
                         `Berikut adalah daftar perintah WhatsApp:\n\n` +
-                        `1. 🚨 *!darurat* / *darurat* / *sos* / *tolong*\n   → Laporan cepat mode darurat SOS (deadline kritis otomatis).\n\n` +
+                        `1. 🚨 *!darurat* / *sos* / *tolong* / *bantuan* / *help*\n   → Laporan cepat mode darurat SOS (deadline kritis otomatis).\n\n` +
                         `2. 📋 *!lapor* / *lapor* / *rusak*\n   → Laporkan masalah fasilitas resort step-by-step.\n\n` +
-                        `3. 🔧 *!perbaiki* / *perbaiki* / *selesai*\n   → Selesaikan masalah dengan deskripsi & foto bukti.\n\n` +
-                        `4. ⏳ *!tunda* / *tunda* / *tertunda*\n   → Tandai pekerjaan sebagai tertunda dengan foto alasan.\n\n` +
-                        `5. 🤝 *!klaim <Nama>* (di Grup)\n   → Balas notifikasi masalah di grup untuk mengambil pekerjaan.\n\n` +
+                        `3. 🔧 *!perbaiki* / *perbaiki* / *selesai* / *fix*\n   → Selesaikan masalah dengan deskripsi & foto bukti.\n\n` +
+                        `4. ⏳ *!tunda* / *tunda* / *tertunda* / *pending*\n   → Tandai pekerjaan sebagai tertunda dengan foto alasan.\n\n` +
+                        `5. 🤝 *!claim <Nama>* (di Grup)\n   → Balas notifikasi masalah di grup untuk mengambil pekerjaan.\n\n` +
                         `6. 📊 *!status* / *!masalah*\n   → Cek status masalah berdasarkan departemen.\n\n` +
-                        `7. ❌ *batal* / *reset*\n   → Batalkan percakapan & kembali ke awal.`
+                        `7. 📖 *menu* / *!menu*\n   → Buka menu panduan ini.\n\n` +
+                        `8. ❌ *batal* / *reset*\n   → Batalkan percakapan & kembali ke awal.`
                         :
-                        `📱 *TELUNAS RESORT ISSUE TRACKER — BOT HELP GUIDE* 📱\n\n` +
+                        `📱 *TELUNAS RESORT ISSUE TRACKER — MAIN MENU* 📱\n\n` +
                         `Here is the complete list of WhatsApp commands:\n\n` +
-                        `1. 🚨 *!sos* / *sos* / *emergency* / *help*\n   → Fast-track emergency report (automatic critical deadline).\n\n` +
+                        `1. 🚨 *!sos* / *sos* / *emergency* / *help* / *darurat*\n   → Fast-track emergency report (automatic critical deadline).\n\n` +
                         `2. 📋 *!report* / *report* / *broken*\n   → Step-by-step issue reporting flow.\n\n` +
                         `3. 🔧 *!solve* / *solve* / *fix*\n   → Resolve an issue with fix description & proof photo.\n\n` +
                         `4. ⏳ *!pending* / *pending* / *delay*\n   → Mark a job as pending with reason & proof photo.\n\n` +
                         `5. 🤝 *!claim <Your Name>* (in Group)\n   → Reply directly to an issue notification to claim it.\n\n` +
                         `6. 📊 *!status* / *!issues*\n   → Check active/solved issue status by department.\n\n` +
-                        `7. ❌ *cancel* / *reset*\n   → Cancel current operation & reset to menu.`;
+                        `7. 📖 *menu* / *!menu*\n   → Open this guide menu.\n\n` +
+                        `8. ❌ *cancel* / *reset*\n   → Cancel current operation & reset to menu.`;
 
                     await reply(helpMsg);
                     continue;
