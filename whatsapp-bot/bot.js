@@ -15,19 +15,39 @@ app.use(express.json());
 const BASE_URL = 'http://TelunasIssueTracker.test';
 // ───────────────────────────────────────────────────────────────────────────────
 
-
-
 const userStates = new Map();
+
+// Multi-group & Community Configuration
+let botConfig = {
+    generalGroupId: null,
+    departmentGroups: {}
+};
 let linkedGroupId = null;
 
-try {
-    if (fs.existsSync('config.json')) {
-        linkedGroupId = JSON.parse(fs.readFileSync('config.json')).groupId;
-        console.log(`Loaded linked group ID: ${linkedGroupId}`);
+function loadConfig() {
+    try {
+        if (fs.existsSync('config.json')) {
+            const data = JSON.parse(fs.readFileSync('config.json', 'utf8'));
+            botConfig.generalGroupId = data.generalGroupId || data.groupId || null;
+            botConfig.departmentGroups = data.departmentGroups || {};
+            linkedGroupId = botConfig.generalGroupId;
+            console.log(`Loaded General Group ID: ${botConfig.generalGroupId}`);
+            console.log(`Loaded ${Object.keys(botConfig.departmentGroups).length} Department Groups`);
+        }
+    } catch (e) {
+        console.error("Could not load config.json:", e);
     }
-} catch (e) {
-    console.error("Could not load config.json:", e);
 }
+
+function saveConfig() {
+    try {
+        fs.writeFileSync('config.json', JSON.stringify(botConfig, null, 2), 'utf8');
+    } catch (e) {
+        console.error("Could not save config.json:", e);
+    }
+}
+
+loadConfig();
 
 const STEPS = {
     IDLE: 0,
