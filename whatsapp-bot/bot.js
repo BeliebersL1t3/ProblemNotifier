@@ -404,6 +404,17 @@ async function startSock() {
                 continue;
             }
 
+            if (state.step === STEPS.SOS_AWAITING_NAME) {
+                state.data.reporter = text + " (via WhatsApp)";
+                await reply(getMsg(
+                    `Stay calm, ${text}. What is the emergency situation? (e.g., Fire in kitchen, Guest medical emergency)`,
+                    `Tetap tenang, ${text}. Apa situasi daruratnya? (contoh: Kebakaran di dapur, Tamu butuh bantuan medis)`
+                ));
+                state.step = STEPS.SOS_AWAITING_TITLE;
+                userStates.set(stateKey, state);
+                continue;
+            }
+
             if (state.step === STEPS.SOS_AWAITING_TITLE) {
                 state.data.title = text;
                 await reply(getMsg(
