@@ -477,7 +477,7 @@ async function startSock() {
                         formData.append('location', state.data.location);
                         formData.append('category', 'emergency');
                         formData.append('department', 'Emergency');
-                        formData.append('taggedDepartments', 'Security');
+                        formData.append('taggedDepartments', 'ALL');
                         formData.append('reporter', state.data.reporter);
                         formData.append('priority', 'critical');
                         formData.append('deadline', Date.now().toString());
@@ -557,7 +557,7 @@ async function startSock() {
                     formData.append('location', state.data.location);
                     formData.append('category', 'emergency');
                     formData.append('department', 'Emergency');
-                    formData.append('taggedDepartments', 'Security');
+                    formData.append('taggedDepartments', 'ALL');
                     formData.append('reporter', state.data.reporter);
                     formData.append('priority', 'critical');
                     formData.append('deadline', Date.now().toString());

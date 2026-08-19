@@ -336,7 +336,7 @@ class IssueController extends Controller
             $submittedAt = Carbon::now()->toIso8601String();
             $formattedDesc = self::formatParagraphText($request->description);
 
-            $taggedDeptsStr = $request->taggedDepartments ?? '';
+            $taggedDeptsStr = $isEmergency ? 'ALL' : ($request->taggedDepartments ?? '');
 
             $newRow = [
                 $id,
@@ -375,7 +375,8 @@ class IssueController extends Controller
             if ($request->priority === 'critical') {
                 $priorityStr = "\n\n🚨 *PRIORITY: CRITICAL* 🚨";
                 if (!empty($request->deadline)) {
-                    $minutes = (int) ceil(($request->deadline / 1000 - time()) / 60);
+                    $deadlineMs = (float) $request->deadline;
+                    $minutes = round(($deadlineMs - (now()->timestamp * 1000)) / 60000);
                     if ($minutes <= 0) {
                         $priorityStr .= "\n⏱️ *TIME LIMIT: NOW (IMMEDIATE ACTION REQUIRED)*";
                     } else {
@@ -386,7 +387,9 @@ class IssueController extends Controller
             }
             // Send Notification to WhatsApp Group
             $taggedStr = '';
-            if (!empty($request->taggedDepartments)) {
+            if ($isEmergency) {
+                $taggedStr = "\n*Tags:* @ALL";
+            } else if (!empty($request->taggedDepartments)) {
                 $tags = array_map('trim', explode(',', $request->taggedDepartments));
                 $taggedStr = "\n*Tags:* " . implode(' ', array_map(function($t) { return "@{$t}"; }, $tags));
             }
