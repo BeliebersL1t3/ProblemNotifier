@@ -64,6 +64,7 @@ const STEPS = {
     CONFIRM_CLAIM_THEN_SOLVE: 30,   // Issue is open; ask if user wants claim+solve
     CONFIRM_CLAIM_PENDING_NAME: 31, // Collect worker name after yes-confirm for claim+pending
     CONFIRM_CLAIM_SOLVE_NAME: 32,   // Collect solver name after yes-confirm for claim+solve
+    AWAITING_MENU_LANG: 33,         // User typed "menu" and needs to choose ID or EN
 };
 
 const DEPARTMENTS = [
@@ -88,6 +89,31 @@ const CORE_DISPLAY = {
 
 // All categories as a flat array for the status filter flow
 const ALL_CATEGORIES = ['broken equipment', 'plumbing', 'electrical', 'structural / building', 'pest & hygiene', 'it & technology', 'marine & outdoor', 'safety hazard', 'guest issues', 'other'];
+
+const MENU_TEXT_ID = 
+`📱 *TELUNAS RESORT ISSUE TRACKER — MENU UTAMA* 📱\n\n` +
+`Berikut adalah daftar perintah WhatsApp:\n\n` +
+`1. 🚨 *!darurat* / *sos* / *tolong* / *bantuan* / *help*\n   → Laporan cepat mode darurat SOS (deadline kritis otomatis).\n\n` +
+`2. 📋 *!lapor* / *lapor* / *rusak*\n   → Laporkan masalah fasilitas resort step-by-step.\n\n` +
+`3. 🔧 *!perbaiki* / *perbaiki* / *selesai* / *fix*\n   → Selesaikan masalah dengan deskripsi & foto bukti.\n\n` +
+`4. ⏳ *!tunda* / *tunda* / *tertunda* / *pending*\n   → Tandai pekerjaan sebagai tertunda dengan foto alasan.\n\n` +
+`5. 🤝 *!claim <Nama>* (di Grup)\n   → Balas notifikasi masalah di grup untuk mengambil pekerjaan.\n\n` +
+`6. 📊 *!status* / *!masalah*\n   → Cek status masalah berdasarkan departemen.\n\n` +
+`7. 📖 *menu id* / *menu en*\n   → Buka menu panduan Bahasa Indonesia / English.\n\n` +
+`8. ❌ *batal* / *reset*\n   → Batalkan percakapan & kembali ke awal.`;
+
+const MENU_TEXT_EN = 
+`📱 *TELUNAS RESORT ISSUE TRACKER — MAIN MENU* 📱\n\n` +
+`Here is the complete list of WhatsApp commands:\n\n` +
+`1. 🚨 *!sos* / *sos* / *emergency* / *help* / *darurat*\n   → Fast-track emergency report (automatic critical deadline).\n\n` +
+`2. 📋 *!report* / *report* / *broken*\n   → Step-by-step issue reporting flow.\n\n` +
+`3. 🔧 *!solve* / *solve* / *fix*\n   → Resolve an issue with fix description & proof photo.\n\n` +
+`4. ⏳ *!pending* / *pending* / *delay*\n   → Mark a job as pending with reason & proof photo.\n\n` +
+`5. 🤝 *!claim <Your Name>* (in Group)\n   → Reply directly to an issue notification to claim it.\n\n` +
+`6. 📊 *!status* / *!issues*\n   → Check active/solved issue status by department.\n\n` +
+`7. 📖 *menu en* / *menu id*\n   → Open English / Indonesian guide menu.\n\n` +
+`8. ❌ *cancel* / *reset*\n   → Cancel current operation & reset to menu.`;
+
 
 // Helper: Clean command prefixes from issue ID input
 function cleanIssueIdInput(input) {
@@ -285,8 +311,24 @@ async function startSock() {
 
                 let intent = 'UNKNOWN';
 
-                if (menuKeywords.some(kw => lowerText === kw)) {
-                    intent = 'HELP';
+                // Direct language-specific menu requests
+                if (lowerText === 'menu id' || lowerText === '!menu id') {
+                    state.lang = 'id';
+                    await reply(MENU_TEXT_ID);
+                    continue;
+                } else if (lowerText === 'menu en' || lowerText === '!menu en') {
+                    state.lang = 'en';
+                    await reply(MENU_TEXT_EN);
+                    continue;
+                } else if (menuKeywords.some(kw => lowerText === kw)) {
+                    await reply(
+                        `🌐 *PILIH BAHASA / SELECT LANGUAGE* 🌐\n\n` +
+                        `Silakan balas dengan angka / ketik perintah:\n` +
+                        `1️⃣ Balas *1* atau ketik *menu EN* → English Menu\n` +
+                        `2️⃣ Balas *2* atau ketik *menu ID* → Menu Bahasa Indonesia`
+                    );
+                    userStates.set(stateKey, { step: STEPS.AWAITING_MENU_LANG, data: {}, lang: state.lang });
+                    continue;
                 } else if (sosKeywords.some(kw => lowerText.includes(kw))) {
                     intent = 'SOS';
                 } else if (reportKeywords.some(kw => lowerText.includes(kw))) {
@@ -297,34 +339,6 @@ async function startSock() {
                     intent = 'PENDING';
                 } else if (statusKeywords.some(kw => lowerText.includes(kw))) {
                     intent = 'STATUS';
-                }
-
-                if (intent === 'HELP') {
-                    const helpMsg = state.lang === 'id' ?
-                        `📱 *TELUNAS RESORT ISSUE TRACKER — MENU UTAMA* 📱\n\n` +
-                        `Berikut adalah daftar perintah WhatsApp:\n\n` +
-                        `1. 🚨 *!darurat* / *sos* / *tolong* / *bantuan* / *help*\n   → Laporan cepat mode darurat SOS (deadline kritis otomatis).\n\n` +
-                        `2. 📋 *!lapor* / *lapor* / *rusak*\n   → Laporkan masalah fasilitas resort step-by-step.\n\n` +
-                        `3. 🔧 *!perbaiki* / *perbaiki* / *selesai* / *fix*\n   → Selesaikan masalah dengan deskripsi & foto bukti.\n\n` +
-                        `4. ⏳ *!tunda* / *tunda* / *tertunda* / *pending*\n   → Tandai pekerjaan sebagai tertunda dengan foto alasan.\n\n` +
-                        `5. 🤝 *!claim <Nama>* (di Grup)\n   → Balas notifikasi masalah di grup untuk mengambil pekerjaan.\n\n` +
-                        `6. 📊 *!status* / *!masalah*\n   → Cek status masalah berdasarkan departemen.\n\n` +
-                        `7. 📖 *menu* / *!menu*\n   → Buka menu panduan ini.\n\n` +
-                        `8. ❌ *batal* / *reset*\n   → Batalkan percakapan & kembali ke awal.`
-                        :
-                        `📱 *TELUNAS RESORT ISSUE TRACKER — MAIN MENU* 📱\n\n` +
-                        `Here is the complete list of WhatsApp commands:\n\n` +
-                        `1. 🚨 *!sos* / *sos* / *emergency* / *help* / *darurat*\n   → Fast-track emergency report (automatic critical deadline).\n\n` +
-                        `2. 📋 *!report* / *report* / *broken*\n   → Step-by-step issue reporting flow.\n\n` +
-                        `3. 🔧 *!solve* / *solve* / *fix*\n   → Resolve an issue with fix description & proof photo.\n\n` +
-                        `4. ⏳ *!pending* / *pending* / *delay*\n   → Mark a job as pending with reason & proof photo.\n\n` +
-                        `5. 🤝 *!claim <Your Name>* (in Group)\n   → Reply directly to an issue notification to claim it.\n\n` +
-                        `6. 📊 *!status* / *!issues*\n   → Check active/solved issue status by department.\n\n` +
-                        `7. 📖 *menu* / *!menu*\n   → Open this guide menu.\n\n` +
-                        `8. ❌ *cancel* / *reset*\n   → Cancel current operation & reset to menu.`;
-
-                    await reply(helpMsg);
-                    continue;
                 } else if (intent === 'SOS') {
                     await reply(getMsg(
                         '🚨 EMERGENCY MODE ACTIVATED 🚨\n\nFirst, what is your name?',
@@ -362,6 +376,22 @@ async function startSock() {
                 }
 
                 // If UNKNOWN, silently ignore so it doesn't disturb normal chats
+                continue;
+            }
+
+            if (state.step === STEPS.AWAITING_MENU_LANG) {
+                const choice = lowerText.trim();
+                if (choice === '1' || choice === 'en' || choice === 'menu en' || choice === '!menu en' || choice === 'english') {
+                    state.lang = 'en';
+                    userStates.delete(stateKey);
+                    await reply(MENU_TEXT_EN);
+                } else if (choice === '2' || choice === 'id' || choice === 'menu id' || choice === '!menu id' || choice === 'indonesia' || choice === 'bahasa') {
+                    state.lang = 'id';
+                    userStates.delete(stateKey);
+                    await reply(MENU_TEXT_ID);
+                } else {
+                    await reply(`Silakan balas *1* (English) atau *2* (Bahasa Indonesia), atau ketik *cancel* untuk keluar.`);
+                }
                 continue;
             }
 
