@@ -149,6 +149,42 @@ function findIssueByIdOrPartial(issues, inputId) {
 }
 
 
+
+// Helper: Auto-Discover & Map Community Groups
+async function syncCommunityGroups(sock) {
+    try {
+        const allGroups = await sock.groupFetchAllParticipating();
+        const groupList = Object.values(allGroups);
+        let matched = [];
+
+        for (const group of groupList) {
+            const subject = group.subject.trim();
+            const lowerSubject = subject.toLowerCase();
+
+            // Match General / Main Community Group
+            if (lowerSubject.includes('general') || lowerSubject.includes('pengumuman') || lowerSubject === 'telunas resort issue report') {
+                botConfig.generalGroupId = group.id;
+                matched.push(`📌 *General*: "${subject}"`);
+            }
+
+            // Match each department
+            for (const dept of DEPARTMENTS) {
+                const deptKey = dept.toLowerCase();
+                if (lowerSubject === deptKey || lowerSubject.startsWith(deptKey + ' ') || lowerSubject.endsWith(' ' + deptKey) || lowerSubject.includes(deptKey)) {
+                    botConfig.departmentGroups[deptKey] = group.id;
+                    matched.push(`🏷️ *${dept}*: "${subject}"`);
+                }
+            }
+        }
+
+        saveConfig();
+        return { success: true, count: matched.length, summary: matched.join('\n') };
+    } catch (err) {
+        console.error('Group sync error:', err);
+        return { success: false, error: err.message };
+    }
+}
+
 let globalSock = null;
 
 async function startSock() {
@@ -180,6 +216,7 @@ async function startSock() {
             }
         } else if (connection === 'open') {
             console.log('Client is ready!');
+            syncCommunityGroups(sock).then(res => { if (res.success) console.log(`Auto-synced ${res.count} community groups.`); });
         }
     });
 
@@ -1306,7 +1343,7 @@ app.post('/notify', async (req, res) => {
 const triggeredMilestones = new Set(); // Stores 'issueId-milestone' keys
 
 setInterval(async () => {
-    if (!linkedGroupId || !globalSock) return;
+    if ((!botConfig.generalGroupId && Object.keys(botConfig.departmentGroups).length === 0) || !globalSock) return;
     try {
         const res = await axios.get(`${BASE_URL}/api/issues`);
         if (res.data && res.data.success) {
