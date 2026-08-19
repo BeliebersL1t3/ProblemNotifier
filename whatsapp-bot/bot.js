@@ -312,6 +312,7 @@ async function startSock() {
                 let intent = 'UNKNOWN';
 
                 // Direct language-specific menu requests
+                // Direct language-specific menu requests
                 if (lowerText === 'menu id' || lowerText === '!menu id') {
                     state.lang = 'id';
                     await reply(MENU_TEXT_ID);
@@ -339,30 +340,37 @@ async function startSock() {
                     intent = 'PENDING';
                 } else if (statusKeywords.some(kw => lowerText.includes(kw))) {
                     intent = 'STATUS';
-                } else if (intent === 'SOS') {
+                }
+
+                // Dispatch detected intent
+                if (intent === 'SOS') {
                     await reply(getMsg(
                         '🚨 EMERGENCY MODE ACTIVATED 🚨\n\nFirst, what is your name?',
                         '🚨 MODE DARURAT DIAKTIFKAN 🚨\n\nPertama, siapa nama Anda?'
                     ));
                     userStates.set(stateKey, { step: STEPS.SOS_AWAITING_NAME, data: {}, lang: state.lang });
+                    continue;
                 } else if (intent === 'REPORT') {
                     await reply(getMsg(
                         'Welcome to the Telunas Resort Issue Tracker! Let\'s report an issue.\n\nFirst, what is your name?',
                         'Selamat datang di Telunas Resort Issue Tracker! Mari laporkan masalah.\n\nPertama, siapa nama Anda?'
                     ));
                     userStates.set(stateKey, { step: STEPS.AWAITING_NAME, data: {}, lang: state.lang });
+                    continue;
                 } else if (intent === 'SOLVE') {
                     await reply(getMsg(
                         'Great! Please provide the Issue ID you want to resolve (e.g., Sec-190826-1 or 190826-4):',
                         'Bagus! Harap masukkan ID Masalah yang ingin Anda selesaikan (contoh: Sec-190826-1 atau 190826-4):'
                     ));
                     userStates.set(stateKey, { step: STEPS.AWAITING_SOLVE_ID, data: {}, lang: state.lang });
+                    continue;
                 } else if (intent === 'PENDING') {
                     await reply(getMsg(
                         'You want to mark a job as Pending. Please provide the Issue ID (e.g., Sec-190826-1 or 190826-4):',
                         'Anda ingin menandai pekerjaan sebagai Tertunda. Harap masukkan ID Masalah (contoh: Sec-190826-1 atau 190826-4):'
                     ));
                     userStates.set(stateKey, { step: STEPS.AWAITING_PENDING_ID, data: {}, lang: state.lang });
+                    continue;
                 } else if (intent === 'STATUS') {
                     let deptMsg = getMsg(
                         'Please reply with the number of the department to check, or type "all":\n',
@@ -373,6 +381,7 @@ async function startSock() {
                     });
                     await reply(deptMsg.trim());
                     userStates.set(stateKey, { step: STEPS.STATUS_AWAITING_DEPT, data: {}, lang: state.lang });
+                    continue;
                 }
 
                 // If UNKNOWN, silently ignore so it doesn't disturb normal chats
