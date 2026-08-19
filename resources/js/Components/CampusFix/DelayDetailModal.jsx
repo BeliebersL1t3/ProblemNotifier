@@ -7,7 +7,12 @@ import {
     DialogDescription,
 } from '@/Components/ui/Dialog';
 
+import { ImageLightboxModal } from './ImageLightboxModal';
+import { useState } from 'react';
+import { ZoomIn } from 'lucide-react';
+
 export default function DelayDetailModal({ open, onOpenChange, delayItem }) {
+    const [previewImage, setPreviewImage] = useState(null);
     if (!delayItem) return null;
 
     return (
@@ -22,12 +27,17 @@ export default function DelayDetailModal({ open, onOpenChange, delayItem }) {
                 
                 <div className="flex flex-col gap-4 py-4">
                     {delayItem.image && (
-                        <div className="overflow-hidden rounded-md border border-border/50 bg-muted">
+                        <div className="overflow-hidden rounded-md border border-border/50 bg-muted group cursor-pointer relative" onClick={() => setPreviewImage(delayItem.image)}>
                             <img 
                                 src={delayItem.image} 
                                 alt="Delay Proof" 
-                                className="w-full object-contain max-h-[300px]"
+                                className="w-full object-contain max-h-[300px] transition-transform duration-200 group-hover:scale-105"
                             />
+                            <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                <span className="p-1.5 rounded-full bg-black/80 text-white border border-white/20">
+                                    <ZoomIn className="w-4 h-4 text-[#C9AA71]" />
+                                </span>
+                            </div>
                         </div>
                     )}
                     
@@ -46,6 +56,13 @@ export default function DelayDetailModal({ open, onOpenChange, delayItem }) {
                         </div>
                     </div>
                 </div>
+            <ImageLightboxModal 
+                    open={!!previewImage} 
+                    onClose={() => setPreviewImage(null)} 
+                    src={previewImage} 
+                    title="Foto Penundaan / Delay" 
+                    subtitle={delayItem?.by ? `Ditunda oleh ${delayItem.by}` : 'Bukti Penundaan'} 
+                />
             </DialogContent>
         </Dialog>
     );

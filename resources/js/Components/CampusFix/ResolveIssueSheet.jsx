@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Loader2, MapPin } from 'lucide-react';
+import { Loader2, MapPin, ZoomIn } from 'lucide-react';
 import { Button } from '@/Components/UI/Button';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/Components/UI/Sheet';
 import { Input } from '@/Components/UI/Input';
@@ -8,6 +8,7 @@ import { Textarea } from '@/Components/UI/Textarea';
 import { ImageDropzone } from './ImageDropzone';
 import { useIssues } from '@/context/IssuesContext';
 import DelayDetailModal from './DelayDetailModal';
+import { ImageLightboxModal } from './ImageLightboxModal';
 import { CriticalTimer } from './CriticalTimer';
 
 export function ResolveIssueSheet({ issue, onClose }) {
@@ -21,6 +22,7 @@ export function ResolveIssueSheet({ issue, onClose }) {
     const [isUpdatingCategory, setIsUpdatingCategory] = useState(false);
     const [errorMsg, setErrorMsg] = useState('');
     const [selectedDelay, setSelectedDelay] = useState(null);
+    const [previewImage, setPreviewImage] = useState(null);
 
     useEffect(() => {
         if (issue) {
@@ -31,6 +33,7 @@ export function ResolveIssueSheet({ issue, onClose }) {
             setProofImageUrl(undefined);
             setErrorMsg('');
             setIsSubmitting(false);
+            setPreviewImage(null);
         }
     }, [issue]);
 
@@ -97,13 +100,26 @@ export function ResolveIssueSheet({ issue, onClose }) {
 
                     {issue && (
                         <div className="overflow-hidden rounded-lg border border-border bg-muted/40">
-                            <div className="relative">
+                            <div 
+                                className="relative group cursor-pointer"
+                                onClick={() => setPreviewImage({
+                                    src: issue.imageUrl || '/barrier-placeholder.svg',
+                                    title: issue.title,
+                                    subtitle: 'Foto Kerusakan / Masalah Awal (Full Preview)'
+                                })}
+                            >
                                 <img
                                     src={issue.imageUrl || '/barrier-placeholder.svg'}
                                     alt={issue.title}
                                     onError={(e) => { e.currentTarget.src = '/barrier-placeholder.svg'; }}
-                                    className="h-32 w-full object-cover"
+                                    className="h-52 sm:h-64 w-full object-cover bg-black/40 rounded-t-lg transition-transform duration-300 group-hover:scale-[1.02]"
                                 />
+                                <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/80 text-white font-medium text-xs border border-white/20 shadow-lg backdrop-blur-sm">
+                                        <ZoomIn className="w-4 h-4 text-[#C9AA71]" />
+                                        Klik untuk Full Preview
+                                    </span>
+                                </div>
                                 <CriticalTimer
                                     deadline={issue.deadline}
                                     status={issue.status}
@@ -179,7 +195,11 @@ export function ResolveIssueSheet({ issue, onClose }) {
                                                 src={item.image} 
                                                 alt="delay proof" 
                                                 className="w-12 h-12 object-cover rounded shadow-sm shrink-0 cursor-pointer hover:opacity-80 transition-opacity" 
-                                                onClick={() => setSelectedDelay(item)}
+                                                onClick={() => setPreviewImage({
+                                                    src: item.image,
+                                                    title: 'Bukti Penundaan / Delay Proof',
+                                                    subtitle: item.by ? `Oleh: ${item.by} (${item.date || ''})` : 'Delay Proof'
+                                                })}
                                             />
                                         )}
                                         <div className="flex flex-col">
@@ -259,7 +279,14 @@ export function ResolveIssueSheet({ issue, onClose }) {
                 onOpenChange={(open) => !open && setSelectedDelay(null)} 
                 delayItem={selectedDelay} 
             />
+
+            <ImageLightboxModal
+                open={!!previewImage}
+                onClose={() => setPreviewImage(null)}
+                src={previewImage?.src || previewImage}
+                title={previewImage?.title || issue?.title}
+                subtitle={previewImage?.subtitle || 'Foto Laporan Kerusakan (Full Resolution)'}
+            />
         </Sheet>
     );
 }
-

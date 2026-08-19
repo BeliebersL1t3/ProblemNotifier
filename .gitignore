@@ -1,8 +1,8 @@
 *.log
 .DS_Store
 .env
-.env.backup
-.env.production
+.env.*
+!.env.example
 .phpactor.json
 .phpunit.result.cache
 /.codex
@@ -21,11 +21,22 @@
 /public/uploads/*
 !/public/uploads/.gitkeep
 /storage/*.key
+/storage/*.pem
+/storage/*.php
 /storage/app/google-credentials.json
-/uni-fix-connect/
+/storage/app/*credentials*.json
 /storage/pail
+/uni-fix-connect/
 /vendor
 _ide_helper.php
 Homestead.json
 Homestead.yaml
 Thumbs.db
+Resort.zip
+
+# WhatsApp Bot Security & Sessions
+/whatsapp-bot/auth_info_baileys/
+/whatsapp-bot/config.json
+/whatsapp-bot/node_modules/
+/whatsapp-bot/.env*
+!/whatsapp-bot/.env.example

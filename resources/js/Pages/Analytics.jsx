@@ -15,6 +15,12 @@ import { useLanguage } from '@/context/LanguageContext';
 import { CampusFixHeader } from '@/Components/CampusFix/CampusFixHeader';
 import { ScrollToTop } from '@/Components/CampusFix/ScrollToTop';
 import { ExportPdfModal } from '@/Components/CampusFix/ExportPdfModal';
+import { ActivityDetailModal } from '@/Components/CampusFix/ActivityDetailModal';
+import { TakeJobModal } from '@/Components/CampusFix/TakeJobModal';
+import { ResolveIssueSheet } from '@/Components/CampusFix/ResolveIssueSheet';
+import { SolvedDetailModal } from '@/Components/CampusFix/SolvedDetailModal';
+import { Eye } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 
 export default function Analytics() {
     return (
@@ -173,10 +179,17 @@ const CustomDepartmentBar = (props) => {
 
 function AnalyticsInner() {
     const { issues, loading } = useIssues();
-    const { t } = useLanguage();
+    const { t, lang } = useLanguage();
     const [timelineLimit, setTimelineLimit] = useState(20);
     const [searchQuery, setSearchQuery] = useState('');
     const [exportOpen, setExportOpen] = useState(false);
+    const [selectedActivityIssue, setSelectedActivityIssue] = useState(null);
+    const [cardModalTarget, setCardModalTarget] = useState(null);
+
+    const handleOpenIssueCard = (issue) => {
+        setCardModalTarget(issue);
+    };
+    const [selectedStatusFilters, setSelectedStatusFilters] = useState([]);
     const timelineRef = useRef(null);
     const chartsContainerRef = useRef(null);
     const recentActivityRef = useRef(null);
@@ -239,37 +252,136 @@ function AnalyticsInner() {
     }, [issues]);
 
     // Timeline Data
-    const timelineData = useMemo(() => {
+        // Timeline Data -> Activity Log
+    const activityLog = useMemo(() => {
         if (!issues || issues.length === 0) return [];
         
-        // Sort by most recent first
-        const sorted = [...issues].sort((a, b) => {
-            const aDate = a.reportedAt || (a.reportedAtIso ? new Date(a.reportedAtIso).getTime() : 0);
-            const bDate = b.reportedAt || (b.reportedAtIso ? new Date(b.reportedAtIso).getTime() : 0);
-            return bDate - aDate;
-        });
+        let events = [];
+        
+        issues.forEach(issue => {
+            const rawTime = issue.reportedAt || (issue.reportedAtIso ? new Date(issue.reportedAtIso).getTime() : 0);
+            
+            // 1. Created
+            if (rawTime) {
+                events.push({
+                    id: `${issue.id}-created`,
+                    issueId: issue.id,
+                    title: issue.title,
+                    type: 'create',
+                    date: rawTime,
+                    person: issue.reporter || 'Anonymous',
+                    originalIssue: issue
+                });
+            }
+            
+            // 2. Claimed (progress)
+            if (issue.taker && issue.takenAt) {
+                events.push({
+                    id: `${issue.id}-claimed`,
+                    issueId: issue.id,
+                    title: issue.title,
+                    type: 'claim',
+                    date: issue.takenAt,
+                    person: issue.taker,
+                    originalIssue: issue
+                });
+            }
+            
+            // 3. Pending Timeline
+            if (issue.pendingTimeline && issue.pendingTimeline.length > 0) {
+                issue.pendingTimeline.forEach((pt, idx) => {
+                    let pd = Date.parse(`${new Date().getFullYear()} ${pt.date}`);
+                    if (isNaN(pd)) pd = rawTime + idx * 1000;
 
-        const filtered = sorted.filter(issue => {
-            if (!searchQuery.trim()) return true;
-            const q = searchQuery.toLowerCase();
-            return (
-                (issue.title && issue.title.toLowerCase().includes(q)) ||
-                (issue.description && issue.description.toLowerCase().includes(q)) ||
-                (issue.location && issue.location.toLowerCase().includes(q)) ||
-                (issue.reporter && issue.reporter.toLowerCase().includes(q)) ||
-                (issue.department && issue.department.toLowerCase().includes(q)) ||
-                (issue.category && issue.category.toLowerCase().includes(q)) ||
-                (issue.status && issue.status.toLowerCase().includes(q)) ||
-                (issue.priority && issue.priority.toLowerCase().includes(q))
-            );
+                    events.push({
+                        id: `${issue.id}-pending-${idx}`,
+                        issueId: issue.id,
+                        title: issue.title,
+                        type: 'pending',
+                        date: pd,
+                        person: pt.by || issue.pendingBy || 'Unknown',
+                        reason: pt.reason,
+                        originalIssue: issue
+                    });
+                });
+            } else if (issue.status === 'pending' && issue.pendingBy) {
+                 events.push({
+                    id: `${issue.id}-pending-fb`,
+                    issueId: issue.id,
+                    title: issue.title,
+                    type: 'pending',
+                    date: rawTime + 1000, 
+                    person: issue.pendingBy || 'Unknown',
+                    reason: issue.pendingReason,
+                    originalIssue: issue
+                 });
+            }
+            
+            // 4. Solved
+            if (issue.status === 'solved' && issue.solvedAt) {
+                const sDate = new Date(issue.solvedAt).getTime();
+                events.push({
+                    id: `${issue.id}-solved`,
+                    issueId: issue.id,
+                    title: issue.title,
+                    type: 'solve',
+                    date: isNaN(sDate) ? rawTime + 2000 : sDate,
+                    person: issue.solver || 'Unknown',
+                    originalIssue: issue
+                });
+            }
+        });
+        
+        events.sort((a, b) => b.date - a.date);
+
+        const typeMap = {
+            'create': 'open',
+            'claim': 'progress',
+            'pending': 'pending',
+            'solve': 'solved'
+        };
+        
+        const filtered = events.filter(ev => {
+            // Search Query Filter
+            if (searchQuery.trim()) {
+                const q = searchQuery.toLowerCase();
+                const matchesQuery = (
+                    (ev.title && ev.title.toLowerCase().includes(q)) ||
+                    (ev.person && ev.person.toLowerCase().includes(q)) ||
+                    (ev.issueId && ev.issueId.toLowerCase().includes(q)) ||
+                    (ev.type && ev.type.toLowerCase().includes(q)) ||
+                    (ev.reason && ev.reason.toLowerCase().includes(q)) ||
+                    (ev.originalIssue?.department && ev.originalIssue.department.toLowerCase().includes(q))
+                );
+                if (!matchesQuery) return false;
+            }
+
+            // Combinable Status & Priority Filters
+            if (selectedStatusFilters.length > 0) {
+                const isCriticalSelected = selectedStatusFilters.includes('critical');
+                const selectedTypes = selectedStatusFilters.filter(f => f !== 'critical');
+                const evType = typeMap[ev.type];
+
+                const isCriticalIssue = ev.originalIssue?.priority === 'critical';
+
+                if (selectedTypes.length > 0 && isCriticalSelected) {
+                    return selectedTypes.includes(evType) || isCriticalIssue;
+                } else if (selectedTypes.length > 0) {
+                    return selectedTypes.includes(evType);
+                } else if (isCriticalSelected) {
+                    return isCriticalIssue;
+                }
+            }
+
+            return true;
         });
 
         return timelineLimit === 'all' ? filtered : filtered.slice(0, timelineLimit);
-    }, [issues, timelineLimit, searchQuery]);
+    }, [issues, timelineLimit, searchQuery, selectedStatusFilters]);
 
     // Scroll-Linked Animation for Timeline Items
     useEffect(() => {
-        if (loading || timelineData.length === 0) return;
+        if (loading || activityLog.length === 0) return;
 
         const observer = new IntersectionObserver(
             (entries) => {
@@ -300,7 +412,7 @@ function AnalyticsInner() {
         return () => {
             observer.disconnect();
         };
-    }, [timelineData.length, loading]);
+    }, [activityLog.length, loading]);
 
     if (loading) {
         return (
@@ -425,23 +537,108 @@ function AnalyticsInner() {
                         <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6">
                             <h2 className="text-lg font-bold text-foreground">{t('recent_activity')}</h2>
                             
-                            {/* Color Legend */}
-                            <div className="flex items-center gap-3 text-xs flex-wrap bg-muted/20 px-3 py-1.5 rounded-lg border border-border/40">
-                                <span className="flex items-center gap-1.5 text-muted-foreground font-medium">
-                                    <span className="h-2.5 w-2.5 rounded-full bg-blue-500 shrink-0" /> {t('open')}
-                                </span>
-                                <span className="flex items-center gap-1.5 text-muted-foreground font-medium">
-                                    <span className="h-2.5 w-2.5 rounded-full bg-amber-500 shrink-0" /> {t('in_progress')}
-                                </span>
-                                <span className="flex items-center gap-1.5 text-muted-foreground font-medium">
-                                    <span className="h-2.5 w-2.5 rounded-full bg-orange-500 shrink-0" /> {t('pending')}
-                                </span>
-                                <span className="flex items-center gap-1.5 text-muted-foreground font-medium">
-                                    <span className="h-2.5 w-2.5 rounded-full bg-green-500 shrink-0" /> {t('solved')}
-                                </span>
-                                <span className="flex items-center gap-1.5 text-muted-foreground font-medium">
-                                    <span className="h-2.5 w-2.5 rounded-full bg-red-500 animate-pulse shrink-0" /> {t('critical')}
-                                </span>
+                            {/* Interactive Combinable Filters */}
+                            <div className="flex items-center gap-1.5 text-xs flex-wrap bg-[#1E1D16] p-1.5 rounded-xl border border-[#3B3929]/80 shadow-inner">
+                                {/* Open Filter */}
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setSelectedStatusFilters(prev => 
+                                            prev.includes('open') ? prev.filter(k => k !== 'open') : [...prev, 'open']
+                                        );
+                                    }}
+                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold transition-all duration-200 cursor-pointer border ${
+                                        selectedStatusFilters.includes('open')
+                                            ? 'bg-blue-500/25 text-blue-300 border-blue-400/90 shadow-[0_0_12px_rgba(59,130,246,0.45)]'
+                                            : 'bg-[#2A281E]/60 text-muted-foreground border-transparent hover:border-[#3B3929] hover:text-foreground opacity-60 hover:opacity-100'
+                                    }`}
+                                >
+                                    <span className={`h-2.5 w-2.5 rounded-full bg-blue-500 shrink-0 transition-transform ${selectedStatusFilters.includes('open') ? 'scale-125 shadow-[0_0_8px_rgba(59,130,246,1)]' : ''}`} />
+                                    <span>{t('open')}</span>
+                                </button>
+
+                                {/* In Progress Filter */}
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setSelectedStatusFilters(prev => 
+                                            prev.includes('progress') ? prev.filter(k => k !== 'progress') : [...prev, 'progress']
+                                        );
+                                    }}
+                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold transition-all duration-200 cursor-pointer border ${
+                                        selectedStatusFilters.includes('progress')
+                                            ? 'bg-amber-500/25 text-amber-300 border-amber-400/90 shadow-[0_0_12px_rgba(245,158,11,0.45)]'
+                                            : 'bg-[#2A281E]/60 text-muted-foreground border-transparent hover:border-[#3B3929] hover:text-foreground opacity-60 hover:opacity-100'
+                                    }`}
+                                >
+                                    <span className={`h-2.5 w-2.5 rounded-full bg-amber-500 shrink-0 transition-transform ${selectedStatusFilters.includes('progress') ? 'scale-125 shadow-[0_0_8px_rgba(245,158,11,1)]' : ''}`} />
+                                    <span>{t('in_progress')}</span>
+                                </button>
+
+                                {/* Pending Filter */}
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setSelectedStatusFilters(prev => 
+                                            prev.includes('pending') ? prev.filter(k => k !== 'pending') : [...prev, 'pending']
+                                        );
+                                    }}
+                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold transition-all duration-200 cursor-pointer border ${
+                                        selectedStatusFilters.includes('pending')
+                                            ? 'bg-orange-500/25 text-orange-300 border-orange-400/90 shadow-[0_0_12px_rgba(249,115,22,0.45)]'
+                                            : 'bg-[#2A281E]/60 text-muted-foreground border-transparent hover:border-[#3B3929] hover:text-foreground opacity-60 hover:opacity-100'
+                                    }`}
+                                >
+                                    <span className={`h-2.5 w-2.5 rounded-full bg-orange-500 shrink-0 transition-transform ${selectedStatusFilters.includes('pending') ? 'scale-125 shadow-[0_0_8px_rgba(249,115,22,1)]' : ''}`} />
+                                    <span>{t('pending')}</span>
+                                </button>
+
+                                {/* Solved Filter */}
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setSelectedStatusFilters(prev => 
+                                            prev.includes('solved') ? prev.filter(k => k !== 'solved') : [...prev, 'solved']
+                                        );
+                                    }}
+                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold transition-all duration-200 cursor-pointer border ${
+                                        selectedStatusFilters.includes('solved')
+                                            ? 'bg-green-500/25 text-green-300 border-green-400/90 shadow-[0_0_12px_rgba(34,197,94,0.45)]'
+                                            : 'bg-[#2A281E]/60 text-muted-foreground border-transparent hover:border-[#3B3929] hover:text-foreground opacity-60 hover:opacity-100'
+                                    }`}
+                                >
+                                    <span className={`h-2.5 w-2.5 rounded-full bg-green-500 shrink-0 transition-transform ${selectedStatusFilters.includes('solved') ? 'scale-125 shadow-[0_0_8px_rgba(34,197,94,1)]' : ''}`} />
+                                    <span>{t('solved')}</span>
+                                </button>
+
+                                {/* Critical Filter */}
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setSelectedStatusFilters(prev => 
+                                            prev.includes('critical') ? prev.filter(k => k !== 'critical') : [...prev, 'critical']
+                                        );
+                                    }}
+                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold transition-all duration-200 cursor-pointer border ${
+                                        selectedStatusFilters.includes('critical')
+                                            ? 'bg-red-500/25 text-red-300 border-red-400/90 shadow-[0_0_14px_rgba(239,68,68,0.6)] animate-pulse'
+                                            : 'bg-[#2A281E]/60 text-muted-foreground border-transparent hover:border-[#3B3929] hover:text-foreground opacity-60 hover:opacity-100'
+                                    }`}
+                                >
+                                    <span className={`h-2.5 w-2.5 rounded-full bg-red-500 shrink-0 ${selectedStatusFilters.includes('critical') ? 'scale-125 shadow-[0_0_8px_rgba(239,68,68,1)]' : ''}`} />
+                                    <span>{t('critical')}</span>
+                                </button>
+
+                                {/* Clear Filter Button if active */}
+                                {selectedStatusFilters.length > 0 && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setSelectedStatusFilters([])}
+                                        className="text-[11px] font-semibold text-[#C9AA71] hover:text-[#FAFAFA] px-2 py-1 rounded hover:bg-[#2A281E] transition-colors ml-1 cursor-pointer"
+                                    >
+                                        ✕ {lang === 'id' ? 'Reset' : 'Clear'}
+                                    </button>
+                                )}
                             </div>
                         </div>
                         
@@ -461,104 +658,125 @@ function AnalyticsInner() {
                     </div>
 
                     <div className="relative pl-4 border-l-2 border-border ml-2" ref={timelineRef}>
-                        {timelineData.length > 0 ? (
-                            timelineData.map((issue, idx) => {
-                                const rawTime = issue.reportedAt || issue.reportedAtIso;
-                                let dateFormatted = t('date_na');
-                                if (rawTime) {
-                                    const dateObj = new Date(rawTime);
+                        {activityLog.length > 0 ? (
+                            <div className="flex flex-col gap-3">
+                                {activityLog.map((ev, idx) => {
+                                    const dateObj = new Date(ev.date);
+                                    const locale = lang === 'id' ? 'id-ID' : 'en-US';
+                                    let dateStr = t('date_na');
+                                    let timeStr = '';
                                     if (!isNaN(dateObj.getTime())) {
-                                        const dateStr = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-                                        const timeStr = dateObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-                                        dateFormatted = `${dateStr} at ${timeStr}`;
-                                    } else if (issue.reportedAtIso) {
-                                        dateFormatted = issue.reportedAtIso;
+                                        dateStr = dateObj.toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric' });
+                                        timeStr = dateObj.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
                                     }
-                                }
+                                    
+                                    let actionBadge = null;
+                                    let dotColor = 'bg-blue-500';
+                                    
+                                    switch(ev.type) {
+                                        case 'create':
+                                            dotColor = 'bg-blue-500';
+                                            actionBadge = (
+                                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-500/15 text-blue-400 border border-blue-500/30">
+                                                    {lang === 'id' ? 'Laporan Dibuat' : 'Report Created'}
+                                                </span>
+                                            );
+                                            break;
+                                        case 'claim':
+                                            dotColor = 'bg-amber-500';
+                                            actionBadge = (
+                                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                                                    {lang === 'id' ? 'Diambil (Claim)' : 'Claimed'}
+                                                </span>
+                                            );
+                                            break;
+                                        case 'pending':
+                                            dotColor = 'bg-orange-500';
+                                            actionBadge = (
+                                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-orange-500/15 text-orange-400 border border-orange-500/30">
+                                                    {lang === 'id' ? 'Ditunda (Pending)' : 'Pending'}
+                                                </span>
+                                            );
+                                            break;
+                                        case 'solve':
+                                            dotColor = 'bg-green-500';
+                                            actionBadge = (
+                                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-green-500/15 text-green-400 border border-green-500/30">
+                                                    {lang === 'id' ? 'Selesai (Solved)' : 'Solved'}
+                                                </span>
+                                            );
+                                            break;
+                                    }
 
-                                // Assign color based on status
-                                let dotColor = 'bg-blue-500';
-                                if (issue.status === 'solved') dotColor = 'bg-green-500';
-                                if (issue.status === 'progress') dotColor = 'bg-amber-500';
-                                if (issue.status === 'pending') dotColor = 'bg-orange-500';
-                                if (issue.priority === 'critical' && issue.status !== 'solved') dotColor = 'bg-red-500 animate-pulse';
-
-                                // Determine background image:
-                                // - If pending, use the newest pending image
-                                // - Otherwise use the original report image
-                                let bgImage = null;
-                                if (issue.status === 'pending' && issue.pendingTimeline?.length > 0) {
-                                    const lastPending = issue.pendingTimeline[issue.pendingTimeline.length - 1];
-                                    bgImage = lastPending?.image || issue.pendingImageUrl || issue.imageUrl;
-                                } else if (issue.status === 'solved' && issue.proofImageUrl) {
-                                    bgImage = issue.proofImageUrl;
-                                } else {
-                                    bgImage = issue.imageUrl || '/barrier-placeholder.svg';
-                                }
-
-                                const hasImage = !!bgImage;
-
-                                return (
-                                    <div key={issue.id || idx} className="timeline-item mb-4 relative">
-                                        <div className={`absolute -left-[21px] top-3 h-3.5 w-3.5 rounded-full border-2 border-surface shadow-sm z-10 ${dotColor}`} />
-                                        
-                                        {/* Card with optional image background */}
-                                        <div
-                                            className="relative rounded-xl overflow-hidden border border-border/60 min-h-[90px]"
-                                            style={{
-                                                backgroundImage: `url('${bgImage}')`,
-                                                backgroundSize: 'cover',
-                                                backgroundPosition: 'center',
-                                            }}
-                                        >
-                                            {/* Vignette overlay */}
-                                            <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/65 to-black/40" />
-
-                                            {/* Content */}
-                                            <div className="relative z-10 p-4 min-w-0 w-full">
-                                                <div className="flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-3 mb-2 min-w-0">
-                                                    <h3 className="font-bold text-base leading-tight text-white drop-shadow-sm break-words min-w-0">
-                                                        {issue.title}
-                                                    </h3>
-                                                    <span className="text-xs font-medium text-white/70 whitespace-nowrap">
-                                                        {dateFormatted}
-                                                    </span>
+                                    return (
+                                        <div key={ev.id} className="timeline-item relative">
+                                            <div className={`absolute -left-[21px] top-4 h-3.5 w-3.5 rounded-full border-2 border-surface shadow-sm z-10 ${dotColor}`} />
+                                            
+                                            <div 
+                                                onClick={() => setSelectedActivityIssue(ev.originalIssue)}
+                                                className="group flex flex-col gap-2 p-4 rounded-xl border border-border/80 bg-[#1E1D16] shadow-sm hover:border-primary/60 hover:bg-[#25241B] cursor-pointer transition-all duration-200"
+                                            >
+                                                {/* Header Row: Title + Department + ID + Click Indicator */}
+                                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                                    <div className="flex items-center gap-2 flex-wrap min-w-0">
+                                                        <span className="text-base font-bold text-foreground group-hover:text-primary transition-colors truncate max-w-md">
+                                                            {ev.title}
+                                                        </span>
+                                                        {ev.originalIssue?.department && (
+                                                            <span className="text-xs px-2 py-0.5 rounded bg-muted/40 text-muted-foreground border border-border/40 font-medium">
+                                                                {ev.originalIssue.department}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-xs font-mono font-bold text-[#C9AA71] bg-[#2A281E] px-2.5 py-1 rounded-md border border-[#3B3929] shadow-inner">
+                                                            {ev.issueId}
+                                                        </span>
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleOpenIssueCard(ev.originalIssue);
+                                                            }}
+                                                            className="flex items-center gap-1 px-2.5 py-1 rounded-md bg-[#2A281E] hover:bg-[#3B3929] text-[#C9AA71] hover:text-[#FAFAFA] border border-[#3B3929] text-xs font-semibold transition-all shadow-sm cursor-pointer z-10"
+                                                            title={lang === 'id' ? 'Buka Kartu Isu (Foto & Detail)' : 'Open Issue Card'}
+                                                        >
+                                                            <Eye className="w-3.5 h-3.5" />
+                                                            <span>Detail</span>
+                                                        </button>
+                                                        <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
+                                                    </div>
                                                 </div>
 
-                                                {issue.description && (
-                                                    <p className="text-xs text-white/75 mb-2 line-clamp-2 leading-relaxed break-words min-w-0">
-                                                        {issue.description}
-                                                    </p>
+                                                {/* Detail Row: Action + Person + Date/Time */}
+                                                <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-border/30 text-xs text-muted-foreground">
+                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                        {actionBadge}
+                                                        <span className="text-muted-foreground">{t('by_reporter')}</span>
+                                                        <span className="font-bold text-foreground bg-surface px-2 py-0.5 rounded border border-border/50">
+                                                            {ev.person}
+                                                        </span>
+                                                    </div>
+
+                                                    <div className="font-medium text-muted-foreground flex items-center gap-1.5 ml-auto">
+                                                        <span>📅 {dateStr}</span>
+                                                        <span>•</span>
+                                                        <span>⏰ {timeStr}</span>
+                                                    </div>
+                                                </div>
+
+                                                {/* Optional Reason / Details */}
+                                                {ev.reason && (
+                                                    <div className="text-xs text-muted-foreground bg-black/20 p-2.5 rounded-lg border border-border/40 italic">
+                                                        💬 <span className="font-semibold text-foreground/80">{lang === 'id' ? 'Alasan/Catatan: ' : 'Reason/Notes: '}</span>
+                                                        "{ev.reason}"
+                                                    </div>
                                                 )}
-
-                                                <div className="flex items-center gap-2 flex-wrap">
-                                                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-white/15 border border-white/20 text-white backdrop-blur-sm">
-                                                        {issue.department || 'No Dept'}
-                                                    </span>
-                                                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border backdrop-blur-sm ${
-                                                        issue.status === 'solved'   ? 'bg-green-500/30 border-green-400/40 text-green-200' :
-                                                        issue.status === 'progress' ? 'bg-amber-500/30 border-amber-400/40 text-amber-200' :
-                                                        issue.status === 'pending'  ? 'bg-orange-500/30 border-orange-400/40 text-orange-200' :
-                                                        'bg-blue-500/30 border-blue-400/40 text-blue-200'
-                                                    }`}>
-                                                        {issue.status === 'progress' ? t('in_progress') : issue.status === 'solved' ? t('solved') : issue.status === 'pending' ? t('pending') : t('open')}
-                                                    </span>
-                                                    {issue.reporter && (
-                                                        <span className="text-xs text-white/60">
-                                                            {t('by_reporter')} {issue.reporter}
-                                                        </span>
-                                                    )}
-                                                    {hasImage && (
-                                                        <span className="text-xs text-white/50 italic ml-auto">
-                                                            {issue.status === 'pending' ? t('photo_pending') : t('photo_report')}
-                                                        </span>
-                                                    )}
-                                                </div>
                                             </div>
                                         </div>
-                                    </div>
-                                );
-                            })
+                                    );
+                                })}
+                            </div>
                         ) : (
                             <div className="text-muted-foreground italic">{t('no_recent_activity')}</div>
                         )}
@@ -567,6 +785,30 @@ function AnalyticsInner() {
             </main>
             <ScrollToTop />
             <ExportPdfModal open={exportOpen} onOpenChange={setExportOpen} />
+            <ActivityDetailModal 
+                issue={selectedActivityIssue} 
+                onClose={() => setSelectedActivityIssue(null)} 
+                onOpenCardModal={(issue) => setCardModalTarget(issue)}
+            />
+
+            {cardModalTarget?.status === 'open' && (
+                <TakeJobModal 
+                    issue={cardModalTarget} 
+                    onClose={() => setCardModalTarget(null)} 
+                />
+            )}
+            {cardModalTarget?.status === 'progress' && (
+                <ResolveIssueSheet 
+                    issue={cardModalTarget} 
+                    onClose={() => setCardModalTarget(null)} 
+                />
+            )}
+            {(cardModalTarget?.status === 'pending' || cardModalTarget?.status === 'solved') && (
+                <SolvedDetailModal 
+                    issue={cardModalTarget} 
+                    onClose={() => setCardModalTarget(null)} 
+                />
+            )}
         </div>
     );
 }

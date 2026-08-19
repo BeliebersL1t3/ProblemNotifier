@@ -13,6 +13,8 @@ import { Input } from '@/Components/UI/Input';
 import { Label } from '@/Components/UI/Label';
 import { useIssues } from '@/context/IssuesContext';
 import { CriticalTimer } from './CriticalTimer';
+import { ImageLightboxModal } from './ImageLightboxModal';
+import { ZoomIn } from 'lucide-react';
 
 export function TakeJobModal({ issue, onClose }) {
     const { claimIssue, categories, updateIssueCategory } = useIssues();
@@ -20,6 +22,7 @@ export function TakeJobModal({ issue, onClose }) {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isUpdatingCategory, setIsUpdatingCategory] = useState(false);
     const [errorMsg, setErrorMsg] = useState('');
+    const [previewImage, setPreviewImage] = useState(null);
 
     useEffect(() => {
         if (issue) {
@@ -64,7 +67,7 @@ export function TakeJobModal({ issue, onClose }) {
 
     return (
         <Dialog open={!!issue} onOpenChange={(o) => { if (!o && !isSubmitting) onClose(); }}>
-            <DialogContent className="sm:max-w-md">
+            <DialogContent className="sm:max-w-lg">
                 <DialogHeader>
                     <DialogTitle>Take this job</DialogTitle>
                     <DialogDescription>
@@ -85,7 +88,7 @@ export function TakeJobModal({ issue, onClose }) {
                                 src={issue.imageUrl || '/barrier-placeholder.svg'}
                                 alt={issue.title}
                                 onError={(e) => { e.currentTarget.src = '/barrier-placeholder.svg'; }}
-                                className="h-32 w-full object-cover"
+                                className="h-60 sm:h-72 w-full object-cover bg-black/40 rounded-t-lg transition-transform duration-300 hover:scale-105"
                             />
                             <CriticalTimer
                                 deadline={issue.deadline}
@@ -176,6 +179,13 @@ export function TakeJobModal({ issue, onClose }) {
                         )}
                     </Button>
                 </DialogFooter>
+            <ImageLightboxModal 
+                    open={!!previewImage} 
+                    onClose={() => setPreviewImage(null)} 
+                    src={previewImage} 
+                    title={issue?.title} 
+                    subtitle="Foto Laporan Kerusakan (Full Size)" 
+                />
             </DialogContent>
         </Dialog>
     );

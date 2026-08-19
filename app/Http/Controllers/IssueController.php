@@ -264,7 +264,7 @@ class IssueController extends Controller
                 'department'  => 'required|string',
                 'taggedDepartments' => 'nullable|string',
                 'reporter'    => 'required|string|max:255',
-                'image'       => 'nullable|file|mimes:jpg,jpeg,png,gif,webp,svg|max:10240',
+                'image'       => 'nullable|file|image|mimes:jpg,jpeg,png,webp|max:5120',
             ]);
         } catch (ValidationException $ve) {
             $firstError = collect($ve->errors())->flatten()->first();
@@ -503,7 +503,7 @@ class IssueController extends Controller
             $request->validate([
                 'solver'         => 'required|string|max:255',
                 'fixDescription' => 'required|string',
-                'proofImage'     => 'nullable|file|mimes:jpg,jpeg,png,gif,webp,svg|max:10240',
+                'proofImage'     => 'nullable|file|image|mimes:jpg,jpeg,png,webp|max:5120',
             ]);
         } catch (ValidationException $ve) {
             return response()->json([
@@ -621,7 +621,7 @@ class IssueController extends Controller
             $request->validate([
                 'pendingBy'     => 'required|string|max:255',
                 'pendingReason' => 'required|string',
-                'pendingImage'  => 'nullable|file|mimes:jpg,jpeg,png,gif,webp,svg|max:10240',
+                'pendingImage'  => 'nullable|file|image|mimes:jpg,jpeg,png,webp|max:5120',
             ]);
         } catch (ValidationException $ve) {
             return response()->json([

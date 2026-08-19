@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { ImageIcon, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-export function ImageDropzone({ previewUrl, onChange, label = 'Upload a photo', className, maxMb = 10 }) {
+export function ImageDropzone({ previewUrl, onChange, label = 'Upload a photo', className, maxMb = 5 }) {
     const inputRef = useRef(null);
     const [dragging, setDragging] = useState(false);
     const [error, setError] = useState(null);
@@ -11,8 +11,9 @@ export function ImageDropzone({ previewUrl, onChange, label = 'Upload a photo', 
         if (!file) return;
         setError(null);
 
-        if (!file.type.startsWith('image/')) {
-            setError('File must be an image.');
+        const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
+        if (!allowedTypes.includes(file.type.toLowerCase())) {
+            setError('Only JPG, PNG, and WebP images are allowed.');
             return;
         }
 
@@ -82,7 +83,7 @@ export function ImageDropzone({ previewUrl, onChange, label = 'Upload a photo', 
             <input
                 ref={inputRef}
                 type="file"
-                accept="image/*"
+                accept="image/jpeg,image/png,image/webp,image/jpg"
                 className="hidden"
                 onChange={(e) => handleFile(e.target.files?.[0])}
             />

@@ -515,8 +515,16 @@ class GoogleService
             mkdir($uploadsDir, 0755, true);
         }
 
+        // Whitelist allowed image extensions only
+        $allowedExtensions = ['jpg', 'jpeg', 'png', 'webp'];
         $extension = strtolower($file->getClientOriginalExtension() ?: 'png');
-        $baseName  = $customName ?: ('img_' . md5(microtime() . \Illuminate\Support\Str::random(6)));
+        if (!in_array($extension, $allowedExtensions)) {
+            $extension = 'jpg';
+        }
+
+        // Sanitize customName to prevent path traversal or special characters
+        $safeCustomName = preg_replace('/[^a-zA-Z0-9_\-]/', '_', $customName);
+        $baseName  = $safeCustomName ?: ('img_' . md5(microtime() . \Illuminate\Support\Str::random(6)));
         $filename  = "{$baseName}.{$extension}";
 
         $file->move($uploadsDir, $filename);

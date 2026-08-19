@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { CalendarClock, CheckCircle2, MapPin, User, Loader2 } from 'lucide-react';
+import { CalendarClock, CheckCircle2, MapPin, User, Loader2, ZoomIn } from 'lucide-react';
 import {
     Dialog,
     DialogContent,
@@ -11,12 +11,14 @@ import { StatusBadge } from './StatusBadge';
 import { cn } from '@/lib/utils';
 import { useIssues } from '@/context/IssuesContext';
 import DelayDetailModal from './DelayDetailModal';
+import { ImageLightboxModal } from './ImageLightboxModal';
 
 export function SolvedDetailModal({ issue, onClose }) {
     const { categories, updateIssueCategory } = useIssues();
     const [isUpdatingCategory, setIsUpdatingCategory] = useState(false);
     const [errorMsg, setErrorMsg] = useState('');
     const [selectedDelay, setSelectedDelay] = useState(null);
+    const [previewImage, setPreviewImage] = useState(null);
 
     const handleCategoryChange = async (e) => {
         setIsUpdatingCategory(true);
@@ -32,7 +34,7 @@ export function SolvedDetailModal({ issue, onClose }) {
 
     return (
         <Dialog open={!!issue} onOpenChange={(o) => !o && onClose()}>
-            <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+            <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
                 <DialogHeader>
                     <DialogTitle>{issue?.title ?? 'Issue'}</DialogTitle>
                     <DialogDescription>
@@ -56,29 +58,58 @@ export function SolvedDetailModal({ issue, onClose }) {
                             className="w-fit"
                         />
                         <div className="grid grid-cols-2 gap-3">
-                            <figure className="space-y-1.5">
-                                <img
-                                    src={issue.imageUrl || '/barrier-placeholder.svg'}
-                                    alt={`${issue.title} before the fix`}
-                                    onError={(e) => { e.currentTarget.src = '/barrier-placeholder.svg'; }}
-                                    className="h-36 w-full rounded-lg border border-border object-cover"
-                                />
-                                <figcaption className="text-center text-xs font-medium text-status-open">
-                                    Before fix
+                            <figure 
+                                className="space-y-1.5 group cursor-pointer"
+                                onClick={() => setPreviewImage({
+                                    src: issue.imageUrl || '/barrier-placeholder.svg',
+                                    title: issue.title,
+                                    subtitle: 'Foto Sebelum Perbaikan (Before Fix)'
+                                })}
+                            >
+                                <div className="relative overflow-hidden rounded-lg border border-border bg-black/30">
+                                    <img
+                                        src={issue.imageUrl || '/barrier-placeholder.svg'}
+                                        alt={`${issue.title} before the fix`}
+                                        onError={(e) => { e.currentTarget.src = '/barrier-placeholder.svg'; }}
+                                        className="h-48 sm:h-60 w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                                    />
+                                    <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                                        <span className="p-2 rounded-full bg-black/80 text-white border border-white/20 shadow-lg">
+                                            <ZoomIn className="w-5 h-5 text-[#C9AA71]" />
+                                        </span>
+                                    </div>
+                                </div>
+                                <figcaption className="text-center text-xs font-medium text-status-open flex items-center justify-center gap-1">
+                                    <ZoomIn className="w-3.5 h-3.5" /> Before fix (Klik Full)
                                 </figcaption>
                                 <span className="block text-center font-mono text-[10px] text-muted-foreground">
                                     ID: {issue.id}-problem
                                 </span>
                             </figure>
-                            <figure className="space-y-1.5">
-                                <img
-                                    src={(issue.status === 'pending' ? issue.pendingImageUrl : (issue.proofImageUrl ?? issue.imageUrl)) || '/barrier-placeholder.svg'}
-                                    alt={`${issue.title} after update`}
-                                    onError={(e) => { e.currentTarget.src = '/barrier-placeholder.svg'; }}
-                                    className="h-36 w-full rounded-lg border border-border object-cover"
-                                />
-                                <figcaption className={cn("text-center text-xs font-medium", issue.status === 'pending' ? 'text-orange-500' : 'text-status-solved')}>
-                                    {issue.status === 'pending' ? 'Reason for delay' : 'After fix'}
+
+                            <figure 
+                                className="space-y-1.5 group cursor-pointer"
+                                onClick={() => setPreviewImage({
+                                    src: (issue.status === 'pending' ? issue.pendingImageUrl : (issue.proofImageUrl ?? issue.imageUrl)) || '/barrier-placeholder.svg',
+                                    title: issue.title,
+                                    subtitle: issue.status === 'pending' ? 'Foto Alasan Penundaan (Delay Reason)' : 'Foto Setelah Perbaikan (After Fix)'
+                                })}
+                            >
+                                <div className="relative overflow-hidden rounded-lg border border-border bg-black/30">
+                                    <img
+                                        src={(issue.status === 'pending' ? issue.pendingImageUrl : (issue.proofImageUrl ?? issue.imageUrl)) || '/barrier-placeholder.svg'}
+                                        alt={`${issue.title} after update`}
+                                        onError={(e) => { e.currentTarget.src = '/barrier-placeholder.svg'; }}
+                                        className="h-48 sm:h-60 w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                                    />
+                                    <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                                        <span className="p-2 rounded-full bg-black/80 text-white border border-white/20 shadow-lg">
+                                            <ZoomIn className="w-5 h-5 text-[#C9AA71]" />
+                                        </span>
+                                    </div>
+                                </div>
+                                <figcaption className={cn("text-center text-xs font-medium flex items-center justify-center gap-1", issue.status === 'pending' ? 'text-orange-500' : 'text-status-solved')}>
+                                    <ZoomIn className="w-3.5 h-3.5" /> {issue.status === 'pending' ? 'Reason for delay (Klik Full)' : 'After fix (Klik Full)'}
                                 </figcaption>
                                 <span className="block text-center font-mono text-[10px] text-muted-foreground">
                                     ID: {issue.id}-{issue.status === 'pending' ? 'pending' : 'proof'}
@@ -172,7 +203,11 @@ export function SolvedDetailModal({ issue, onClose }) {
                                                             className="w-10 h-10 object-cover rounded shadow-sm shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
-                                                                setSelectedDelay(item);
+                                                                setPreviewImage({
+                                                                    src: item.image,
+                                                                    title: 'Bukti Penundaan / Delay Proof',
+                                                                    subtitle: item.by ? `Oleh: ${item.by} (${item.date || ''})` : 'Delay Proof'
+                                                                });
                                                             }}
                                                         />
                                                     )}
@@ -206,6 +241,14 @@ export function SolvedDetailModal({ issue, onClose }) {
                 open={!!selectedDelay}
                 onOpenChange={(open) => !open && setSelectedDelay(null)}
                 delayItem={selectedDelay}
+            />
+
+            <ImageLightboxModal
+                open={!!previewImage}
+                onClose={() => setPreviewImage(null)}
+                src={previewImage?.src}
+                title={previewImage?.title}
+                subtitle={previewImage?.subtitle}
             />
         </Dialog>
     );

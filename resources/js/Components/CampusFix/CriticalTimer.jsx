@@ -15,13 +15,7 @@ export function CriticalTimer({ deadline, status, className, variant = 'badge' }
 
     if (!deadline || status === 'solved') return null;
 
-    let targetTime = parseInt(deadline, 10);
-    if (isNaN(targetTime) || targetTime <= 0) return null;
-
-    // Convert 10-digit Unix timestamps (in seconds) to 13-digit milliseconds
-    if (targetTime < 10000000000) {
-        targetTime = targetTime * 1000;
-    }
+    let targetTime; if (/^\d+$/.test(deadline)) { targetTime = parseInt(deadline, 10); if (targetTime < 10000000000) targetTime *= 1000; } else { targetTime = Date.parse(deadline); } if (isNaN(targetTime) || targetTime <= 0) return null;
 
     const diff = targetTime - now;
     const isOverdue = diff <= 0;
@@ -111,3 +105,4 @@ export function CriticalTimer({ deadline, status, className, variant = 'badge' }
         </div>
     );
 }
+// trigger HMR

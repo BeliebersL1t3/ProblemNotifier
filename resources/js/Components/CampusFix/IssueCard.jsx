@@ -3,6 +3,8 @@ import { MapPin } from 'lucide-react';
 import { StatusBadge } from './StatusBadge';
 import { cn } from '@/lib/utils';
 import DelayDetailModal from './DelayDetailModal';
+import { ImageLightboxModal } from './ImageLightboxModal';
+import { ZoomIn } from 'lucide-react';
 
 import { CriticalTimer } from './CriticalTimer';
 
@@ -19,6 +21,7 @@ function formatDate(ts) {
 
 export function IssueCard({ issue, onSelect }) {
     const [selectedDelay, setSelectedDelay] = useState(null);
+    const [previewImage, setPreviewImage] = useState(null);
 
     return (
         <button
@@ -35,7 +38,7 @@ export function IssueCard({ issue, onSelect }) {
                         : "border-border bg-surface shadow-card hover:shadow-card-hover focus-visible:ring-ring"
             )}
         >
-            <div className="relative aspect-[4/3] overflow-hidden bg-muted">
+            <div className="relative aspect-[4/3] overflow-hidden bg-muted group/img">
                 <img
                     src={(issue.status === 'pending' && issue.pendingImageUrl) ? issue.pendingImageUrl : (issue.imageUrl || FALLBACK_IMAGE)}
                     alt={issue.title}
@@ -43,6 +46,17 @@ export function IssueCard({ issue, onSelect }) {
                     onError={(e) => { e.currentTarget.src = FALLBACK_IMAGE; }}
                     className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                 />
+                <button
+                    type="button"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        setPreviewImage((issue.status === 'pending' && issue.pendingImageUrl) ? issue.pendingImageUrl : (issue.imageUrl || FALLBACK_IMAGE));
+                    }}
+                    className="absolute bottom-2.5 right-2.5 p-1.5 rounded-lg bg-black/70 hover:bg-black text-white opacity-0 group-hover/img:opacity-100 transition-all duration-200 border border-white/20 shadow-md cursor-pointer hover:scale-110 z-10"
+                    title="Lihat Foto Ukuran Penuh"
+                >
+                    <ZoomIn className="w-4 h-4 text-[#C9AA71]" />
+                </button>
                 <StatusBadge
                     status={issue.status}
                     label={issue.status === 'solved' ? issue.durationLabel : undefined}
@@ -148,6 +162,13 @@ export function IssueCard({ issue, onSelect }) {
                 open={!!selectedDelay} 
                 onOpenChange={(open) => !open && setSelectedDelay(null)} 
                 delayItem={selectedDelay} 
+            />
+            <ImageLightboxModal
+                open={!!previewImage}
+                onClose={() => setPreviewImage(null)}
+                src={previewImage}
+                title={issue.title}
+                subtitle="Foto Laporan (Full Resolution Preview)"
             />
         </button>
     );
