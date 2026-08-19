@@ -65,6 +65,7 @@ const STEPS = {
     CONFIRM_CLAIM_PENDING_NAME: 31, // Collect worker name after yes-confirm for claim+pending
     CONFIRM_CLAIM_SOLVE_NAME: 32,   // Collect solver name after yes-confirm for claim+solve
     AWAITING_MENU_LANG: 33,         // User typed "menu" and needs to choose ID or EN
+    SOS_AWAITING_PHOTO: 34,         // Optional photo upload in SOS flow
 };
 
 const DEPARTMENTS = [
