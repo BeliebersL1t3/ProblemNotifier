@@ -89,6 +89,39 @@ const CORE_DISPLAY = {
 // All categories as a flat array for the status filter flow
 const ALL_CATEGORIES = ['broken equipment', 'plumbing', 'electrical', 'structural / building', 'pest & hygiene', 'it & technology', 'marine & outdoor', 'safety hazard', 'guest issues', 'other'];
 
+// Helper: Clean command prefixes from issue ID input
+function cleanIssueIdInput(input) {
+    if (!input) return '';
+    let cleaned = String(input).trim();
+    cleaned = cleaned.replace(/^(!?pending|!?solve|!?tunda|!?perbaiki|!?lapor|!?report|!claim|claim|id:?)s+/i, '');
+    cleaned = cleaned.replace(/^(ids*:s*)/i, '');
+    return cleaned.trim();
+}
+
+// Helper: Match full or partial issue ID
+function findIssueByIdOrPartial(issues, inputId) {
+    if (!inputId || !issues || !issues.length) return null;
+    const cleanId = cleanIssueIdInput(inputId).toLowerCase();
+    if (!cleanId) return null;
+    
+    // 1. Exact match
+    let found = issues.find(i => String(i.id).toLowerCase() === cleanId);
+    if (found) return found;
+
+    // 2. Suffix match (e.g. "190826-4" matches "UND-190826-4" or "Sec-190826-4")
+    found = issues.find(i => String(i.id).toLowerCase().endsWith('-' + cleanId) || String(i.id).toLowerCase().endsWith(cleanId));
+    if (found) return found;
+
+    // 3. Substring match
+    if (cleanId.length >= 4) {
+        found = issues.find(i => String(i.id).toLowerCase().includes(cleanId));
+        if (found) return found;
+    }
+
+    return null;
+}
+
+
 let globalSock = null;
 
 async function startSock() {
@@ -142,8 +175,11 @@ async function startSock() {
                     linkedGroupId = from;
                     fs.writeFileSync('config.json', JSON.stringify({ groupId: from }));
                     await reply('✅ This group has been successfully linked! I will now send all Telunas Resort notifications here.');
-                } else if (text.toLowerCase().startsWith('!claim ')) {
-                    const takerName = text.substring(7).trim();
+                } else if (text.toLowerCase().startsWith('!claim')) {
+                    let takerName = text.substring(6).trim();
+                    if (!takerName) {
+                        takerName = msg.pushName || 'Staff';
+                    }
                     
                     const quotedMsg = msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
                     const quotedText = quotedMsg?.conversation || quotedMsg?.imageMessage?.caption || quotedMsg?.extendedTextMessage?.text;
@@ -153,7 +189,8 @@ async function startSock() {
                         continue;
                     }
                     
-                    const idMatch = quotedText.match(/ID:\s*\*?\s*(\d+)/i);
+                    // Match alphanumeric ID with hyphens (e.g. "UND-190826-4", "Eng-190826-1", "123")
+                    const idMatch = quotedText.match(/ID:\s*\*?\s*([A-Za-z0-9\-_]+)/i);
                     if (!idMatch) {
                         await reply('Could not find the Issue ID in the message you replied to. Please make sure you reply to a new issue notification.');
                         continue;
@@ -299,14 +336,14 @@ async function startSock() {
                     userStates.set(stateKey, { step: STEPS.AWAITING_NAME, data: {}, lang: state.lang });
                 } else if (intent === 'SOLVE') {
                     await reply(getMsg(
-                        'Great! Please provide the Issue ID you want to resolve (e.g., 1785995410):',
-                        'Bagus! Harap masukkan ID Masalah yang ingin Anda selesaikan (contoh: 1785995410):'
+                        'Great! Please provide the Issue ID you want to resolve (e.g., Sec-190826-1 or 190826-4):',
+                        'Bagus! Harap masukkan ID Masalah yang ingin Anda selesaikan (contoh: Sec-190826-1 atau 190826-4):'
                     ));
                     userStates.set(stateKey, { step: STEPS.AWAITING_SOLVE_ID, data: {}, lang: state.lang });
                 } else if (intent === 'PENDING') {
                     await reply(getMsg(
-                        'You want to mark a job as Pending. Please provide the Issue ID (e.g., 1785995410):',
-                        'Anda ingin menandai pekerjaan sebagai Tertunda. Harap masukkan ID Masalah (contoh: 1785995410):'
+                        'You want to mark a job as Pending. Please provide the Issue ID (e.g., Sec-190826-1 or 190826-4):',
+                        'Anda ingin menandai pekerjaan sebagai Tertunda. Harap masukkan ID Masalah (contoh: Sec-190826-1 atau 190826-4):'
                     ));
                     userStates.set(stateKey, { step: STEPS.AWAITING_PENDING_ID, data: {}, lang: state.lang });
                 } else if (intent === 'STATUS') {
@@ -372,7 +409,7 @@ async function startSock() {
                     formData.append('description', description);
                     formData.append('location', state.data.location);
                     formData.append('category', 'emergency');
-                    formData.append('department', 'Security');
+                    formData.append('department', 'Emergency');
                     formData.append('taggedDepartments', 'Security');
                     formData.append('reporter', state.data.reporter);
                     formData.append('priority', 'critical');

@@ -56,6 +56,8 @@ export function EmergencyIssueModal({ open, onOpenChange }) {
                 reporter: reporter.trim(),
                 title: title.trim(),
                 location: location.trim(),
+                department: 'Security',
+                taggedDepartments: ['Security'],
                 category: 'emergency',
                 description: finalDesc,
                 imageFile: null,

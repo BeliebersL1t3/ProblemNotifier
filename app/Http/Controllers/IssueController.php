@@ -306,21 +306,37 @@ class IssueController extends Controller
             ];
             
             $dept = $request->department;
-            $deptCode = $deptCodes[$dept] ?? strtoupper(substr($dept, 0, 3));
-            $dateMonth = Carbon::now()->format('dmy'); // e.g. 070826
+            $isEmergency = strtolower($request->category ?? '') === 'emergency' 
+                || strtolower($request->priority ?? '') === 'sos' 
+                || !empty($request->is_emergency) 
+                || strtolower($dept ?? '') === 'emergency' 
+                || strtolower($dept ?? '') === 'sos';
+
+            if ($isEmergency) {
+                $deptCode = 'SOS';
+                if (empty($dept) || strtolower($dept) === 'undefined') {
+                    $dept = 'Emergency';
+                }
+            } else {
+                $deptCode = $deptCodes[$dept] ?? (!empty($dept) ? strtoupper(substr($dept, 0, 3)) : 'GEN');
+            }
+
+            $dateMonth = Carbon::now()->format('dmy'); // e.g. 190826
             
             $id = "{$deptCode}-{$dateMonth}-{$sequentialIndex}";
             
             $imageUrl = '';
             if ($request->hasFile('image')) {
                 $imageUrl = $this->googleService->uploadImage($request->file('image'), "{$id}-problem");
-            } else if ($request->priority === 'critical') {
+            } else if ($request->priority === 'critical' || $isEmergency) {
                 // Fallback to urgent placeholder for critical issues without images
                 $imageUrl = url('/urgent.png');
             }
             
             $submittedAt = Carbon::now()->toIso8601String();
             $formattedDesc = self::formatParagraphText($request->description);
+
+            $taggedDeptsStr = $request->taggedDepartments ?? '';
 
             $newRow = [
                 $id,
@@ -344,8 +360,8 @@ class IssueController extends Controller
                 '', // 18 pendingReason
                 '', // 19 pendingBy
                 '', // 20 pendingImageUrl
-                $request->taggedDepartments ?? '', // 21 tagged_departments
-                $request->department, // 22 origin_department
+                $taggedDeptsStr, // 21 tagged_departments
+                $dept ?: ($isEmergency ? 'Emergency' : 'General'), // 22 origin_department
             ];
 
             $rowIndex = $this->googleService->appendRow($newRow);
@@ -374,10 +390,10 @@ class IssueController extends Controller
                 $tags = array_map('trim', explode(',', $request->taggedDepartments));
                 $taggedStr = "\n*Tags:* " . implode(' ', array_map(function($t) { return "@{$t}"; }, $tags));
             }
-            
             try {
+                $originName = $dept ?: ($isEmergency ? 'Emergency (SOS)' : 'General');
                 Http::timeout(3)->post('http://localhost:3000/notify', [
-                    'message' => "🚨 *New Issue Submitted!*{$priorityStr}\n*Title:* {$request->title}\n*Location:* {$request->location}\n*Origin:* {$request->department}{$taggedStr}\n*Category:* {$request->category}\n*Reporter:* {$request->reporter}\n*ID:* {$id}\n*Link:* " . url('/dashboard'),
+                    'message' => "🚨 *New Issue Submitted!*{$priorityStr}\n*Title:* {$request->title}\n*Location:* {$request->location}\n*Origin:* {$originName}{$taggedStr}\n*Category:* {$request->category}\n*Reporter:* {$request->reporter}\n*ID:* {$id}\n*Link:* " . url('/dashboard'),
                     'imageUrl' => $resolvedImageUrl
                 ]);
             } catch (\Exception $e) {
