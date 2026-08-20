@@ -2,7 +2,7 @@ import { Head } from '@inertiajs/react';
 import { useMemo, useState, useEffect, useRef } from 'react';
 import { 
     Loader2, Wrench, Sparkles, Laptop, Anchor, ShieldAlert, Utensils, Building, Hammer, Zap,
-    Droplets, Building2, Bug, User, HelpCircle, Download
+    Droplets, Building2, Bug, User, HelpCircle, Download, AlertTriangle
 } from 'lucide-react';
 import anime from 'animejs';
 import {
@@ -37,19 +37,21 @@ const COLORS = [
 ];
 
 const CATEGORY_COLORS = {
-    'broken': '#EF4444',         // Red — Broken Equipment
+    'emergency': '#EF4444',      // Vivid Crimson Red — Emergency
+    'broken': '#F97316',         // Warm Orange — Broken Equipment
     'plumbing': '#3B82F6',       // Blue — Plumbing
     'electrical': '#F59E0B',     // Amber/Gold — Electrical
     'structural': '#D97706',     // Warm Bronze/Orange — Structural / Building
     'pest-hygiene': '#10B981',   // Emerald Green — Pest & Hygiene
     'it-technology': '#8B5CF6',  // Violet — IT & Technology
     'marine-outdoor': '#06B6D4', // Ocean Cyan — Marine & Outdoor
-    'safety-hazard': '#DC2626',  // Deep Red — Safety Hazard
+    'safety-hazard': '#DC2626',  // Deep Crimson — Safety Hazard
     'guest-issues': '#EC4899',   // Rose Pink — Guest Issues
     'other': '#6B7280',          // Slate Gray — Other
 };
 
 const CATEGORY_ICONS = {
+    'emergency': AlertTriangle,
     'broken': Wrench,
     'plumbing': Droplets,
     'electrical': Zap,
@@ -63,6 +65,13 @@ const CATEGORY_ICONS = {
 };
 
 const getCategoryColor = (catId, index) => {
+    const key = (catId || '').toLowerCase().trim();
+    if (key === 'emergency' || key.includes('emergency')) {
+        return '#EF4444'; // Red for Emergency
+    }
+    if (CATEGORY_COLORS[key]) {
+        return CATEGORY_COLORS[key];
+    }
     if (CATEGORY_COLORS[catId]) {
         return CATEGORY_COLORS[catId];
     }
@@ -78,7 +87,7 @@ const CustomCategoryPieLabel = (props) => {
     const x = cx + radius * Math.cos(-midAngle * RADIAN);
     const y = cy + radius * Math.sin(-midAngle * RADIAN);
 
-    const catId = payload?.id || 'other';
+    const catId = (payload?.id || 'other').toLowerCase().trim();
     const IconComponent = CATEGORY_ICONS[catId] || HelpCircle;
     const iconSize = Math.min(Math.max((outerRadius - innerRadius) * 0.55, 14), 22);
 
@@ -226,14 +235,18 @@ function AnalyticsInner() {
         if (!issues || issues.length === 0) return [];
         const counts = {};
         issues.forEach(issue => {
-            const cat = issue.category || 'other';
+            const cat = (issue.category || 'other').toLowerCase().trim();
             counts[cat] = (counts[cat] || 0) + 1;
         });
 
         return Object.keys(counts)
             .map(catKey => {
-                const def = DEFAULT_CATEGORIES.find(c => c.id === catKey);
-                return { id: catKey, name: def ? def.label : catKey, value: counts[catKey] };
+                const def = DEFAULT_CATEGORIES.find(c => c.id.toLowerCase() === catKey);
+                let name = def ? def.label : (catKey.charAt(0).toUpperCase() + catKey.slice(1));
+                if (catKey === 'emergency') {
+                    name = 'Emergency';
+                }
+                return { id: catKey, name, value: counts[catKey] };
             })
             .sort((a, b) => b.value - a.value);
     }, [issues]);
