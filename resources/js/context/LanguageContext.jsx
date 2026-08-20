@@ -83,6 +83,12 @@ const translations = {
         by_reporter: 'by',
         photo_pending: '📷 Pending photo',
         photo_report: '📷 Report photo',
+        select_sheets: 'Select Data Sheets',
+        combine_sheets_desc: 'Select one or more sheets to view combined analytics across multiple periods.',
+        all_sheets: 'All Sheets',
+        combining_sheets: 'Combining',
+        sheets_label: 'sheets',
+        active_issues_count: 'issues loaded',
     },
     id: {
         // Header & Nav
@@ -166,6 +172,12 @@ const translations = {
         by_reporter: 'oleh',
         photo_pending: '📷 Foto tertunda',
         photo_report: '📷 Foto laporan',
+        select_sheets: 'Pilih Sheet Data',
+        combine_sheets_desc: 'Pilih satu atau beberapa sheet untuk melihat analistik gabungan dari berbagai periode.',
+        all_sheets: 'Semua Sheet',
+        combining_sheets: 'Menggabungkan',
+        sheets_label: 'sheet',
+        active_issues_count: 'laporan dimuat',
     }
 };
 

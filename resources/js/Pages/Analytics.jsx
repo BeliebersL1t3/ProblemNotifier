@@ -1,3 +1,4 @@
+import axios from 'axios';
 import { Head } from '@inertiajs/react';
 import { useMemo, useState, useEffect, useRef } from 'react';
 import { 
@@ -187,7 +188,92 @@ const CustomDepartmentBar = (props) => {
 };
 
 function AnalyticsInner() {
-    const { issues, loading } = useIssues();
+    const { issues, loading: contextLoading, availableSheets, currentSheet } = useIssues();
+    const [selectedSheets, setSelectedSheets] = useState(() => {
+        return currentSheet ? [currentSheet] : (availableSheets && availableSheets.length > 0 ? [availableSheets[0]] : ['2026']);
+    });
+    const [sheetDataMap, setSheetDataMap] = useState({});
+    const [fetchingSheets, setFetchingSheets] = useState({});
+
+    // Populate cache with currentSheet data when available
+    useEffect(() => {
+        if (currentSheet && issues && issues.length >= 0) {
+            setSheetDataMap(prev => ({ ...prev, [currentSheet]: issues }));
+        }
+    }, [currentSheet, issues]);
+
+    // Ensure selectedSheets initializes when availableSheets or currentSheet becomes ready
+    useEffect(() => {
+        if (selectedSheets.length === 0) {
+            if (currentSheet) {
+                setSelectedSheets([currentSheet]);
+            } else if (availableSheets && availableSheets.length > 0) {
+                setSelectedSheets([availableSheets[0]]);
+            }
+        }
+    }, [availableSheets, currentSheet, selectedSheets.length]);
+
+    // Fetch missing sheets dynamically when selectedSheets changes
+    useEffect(() => {
+        const fetchMissing = async () => {
+            for (const sheet of selectedSheets) {
+                if (!sheetDataMap[sheet] && !fetchingSheets[sheet]) {
+                    setFetchingSheets(prev => ({ ...prev, [sheet]: true }));
+                    try {
+                        const res = await axios.get('/api/issues', { params: { sheet } });
+                        if (res.data?.success) {
+                            setSheetDataMap(prev => ({ ...prev, [sheet]: res.data.data }));
+                        }
+                    } catch (e) {
+                        console.error('Failed to fetch sheet data for:', sheet, e);
+                    } finally {
+                        setFetchingSheets(prev => ({ ...prev, [sheet]: false }));
+                    }
+                }
+            }
+        };
+        fetchMissing();
+    }, [selectedSheets, sheetDataMap, fetchingSheets]);
+
+    // Combined issues from all selected sheets (with deduplication)
+    const combinedIssues = useMemo(() => {
+        if (!selectedSheets || selectedSheets.length === 0) return issues || [];
+        let all = [];
+        const seenIds = new Set();
+        selectedSheets.forEach(sheetName => {
+            const list = sheetDataMap[sheetName] || (sheetName === currentSheet ? issues : []);
+            list.forEach(item => {
+                const uniqueKey = `${sheetName}-${item.id}`;
+                if (!seenIds.has(uniqueKey)) {
+                    seenIds.add(uniqueKey);
+                    all.push({ ...item, _sheet: sheetName });
+                }
+            });
+        });
+        return all;
+    }, [selectedSheets, sheetDataMap, currentSheet, issues]);
+
+    const isFetchingAnySheet = Object.values(fetchingSheets).some(Boolean);
+    const loading = contextLoading && combinedIssues.length === 0;
+
+    const toggleSheet = (sheetName) => {
+        if (selectedSheets.includes(sheetName)) {
+            // Keep at least one sheet selected
+            if (selectedSheets.length === 1) return;
+            setSelectedSheets(prev => prev.filter(s => s !== sheetName));
+        } else {
+            setSelectedSheets(prev => [...prev, sheetName]);
+        }
+    };
+
+    const toggleAllSheets = () => {
+        const allList = availableSheets && availableSheets.length > 0 ? availableSheets : [currentSheet || '2026'];
+        if (selectedSheets.length === allList.length) {
+            setSelectedSheets(currentSheet ? [currentSheet] : [allList[0]]);
+        } else {
+            setSelectedSheets([...allList]);
+        }
+    };
     const { t, lang } = useLanguage();
     const [timelineLimit, setTimelineLimit] = useState(20);
     const [searchQuery, setSearchQuery] = useState('');
@@ -232,9 +318,9 @@ function AnalyticsInner() {
 
     // Chart Data Precomputation
     const categoryData = useMemo(() => {
-        if (!issues || issues.length === 0) return [];
+        if (!combinedIssues || combinedIssues.length === 0) return [];
         const counts = {};
-        issues.forEach(issue => {
+        combinedIssues.forEach(issue => {
             const cat = (issue.category || 'other').toLowerCase().trim();
             counts[cat] = (counts[cat] || 0) + 1;
         });
@@ -249,12 +335,12 @@ function AnalyticsInner() {
                 return { id: catKey, name, value: counts[catKey] };
             })
             .sort((a, b) => b.value - a.value);
-    }, [issues]);
+    }, [combinedIssues]);
 
     const departmentData = useMemo(() => {
-        if (!issues || issues.length === 0) return [];
+        if (!combinedIssues || combinedIssues.length === 0) return [];
         const counts = {};
-        issues.forEach(issue => {
+        combinedIssues.forEach(issue => {
             const rawDept = (issue.department || '').trim();
             const lowerDept = rawDept.toLowerCase();
             // Exclude Emergency, undefined, unknown, and empty from department breakdown
@@ -267,16 +353,16 @@ function AnalyticsInner() {
         return Object.keys(counts)
             .map(dept => ({ name: dept, Issues: counts[dept] }))
             .sort((a, b) => b.Issues - a.Issues);
-    }, [issues]);
+    }, [combinedIssues]);
 
     // Timeline Data
         // Timeline Data -> Activity Log
     const activityLog = useMemo(() => {
-        if (!issues || issues.length === 0) return [];
+        if (!combinedIssues || combinedIssues.length === 0) return [];
         
         let events = [];
         
-        issues.forEach(issue => {
+        combinedIssues.forEach(issue => {
             const rawTime = issue.reportedAt || (issue.reportedAtIso ? new Date(issue.reportedAtIso).getTime() : 0);
             
             // 1. Created
@@ -451,6 +537,88 @@ function AnalyticsInner() {
 
             <main className="mx-auto max-w-7xl p-4 sm:p-6 lg:p-8 flex flex-col gap-8">
                 
+                {/* Multi-Sheet Selection Bar for Consolidated Analytics */}
+                <div className="bg-surface/90 backdrop-blur-md p-4 sm:p-5 rounded-2xl shadow-sm border border-border/60 flex flex-col gap-3.5 transition-all">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2.5 rounded-xl bg-primary/10 text-primary border border-primary/20 shrink-0">
+                                <Layers className="h-5 w-5 text-[#C9AA71]" />
+                            </div>
+                            <div>
+                                <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+                                    {t('select_sheets')}
+                                    {isFetchingAnySheet && <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />}
+                                </h3>
+                                <p className="text-xs text-muted-foreground">
+                                    {t('combine_sheets_desc')}
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Summary Pill Badge */}
+                        <div className="flex items-center gap-2 text-xs font-semibold px-3.5 py-1.5 rounded-full bg-[#1C1B0E]/60 border border-[#3B3929] text-[#C9AA71] shrink-0 self-start sm:self-auto">
+                            <Database className="h-3.5 w-3.5" />
+                            <span>
+                                {selectedSheets.length === (availableSheets?.length || 1)
+                                    ? `${t('all_sheets')} (${combinedIssues.length} ${t('total_issues')})`
+                                    : `${selectedSheets.length} ${t('sheets_label')} (${combinedIssues.length} ${t('total_issues')})`
+                                }
+                            </span>
+                        </div>
+                    </div>
+
+                    {/* Sheet Pills / Checkboxes */}
+                    <div className="flex flex-wrap items-center gap-2 pt-1">
+                        {availableSheets && availableSheets.length > 1 && (
+                            <button
+                                type="button"
+                                onClick={toggleAllSheets}
+                                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 flex items-center gap-1.5 border ${
+                                    selectedSheets.length === availableSheets.length
+                                        ? 'bg-primary text-primary-foreground border-primary shadow-sm'
+                                        : 'bg-surface hover:bg-muted text-muted-foreground border-border/80'
+                                }`}
+                            >
+                                <CheckSquare className="h-3.5 w-3.5" />
+                                {t('all_sheets')}
+                            </button>
+                        )}
+
+                        {(availableSheets && availableSheets.length > 0 ? availableSheets : [currentSheet || '2026']).map(sheetName => {
+                            const isSelected = selectedSheets.includes(sheetName);
+                            const count = sheetDataMap[sheetName]?.length;
+                            const isFetching = fetchingSheets[sheetName];
+
+                            return (
+                                <button
+                                    key={sheetName}
+                                    type="button"
+                                    onClick={() => toggleSheet(sheetName)}
+                                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 flex items-center gap-2 border ${
+                                        isSelected
+                                            ? 'bg-[#C9AA71] text-[#1C1B0E] border-[#C9AA71] shadow-md font-extrabold ring-1 ring-[#C9AA71]/40'
+                                            : 'bg-surface hover:bg-muted text-muted-foreground border-border/80 hover:text-foreground'
+                                    }`}
+                                >
+                                    <span className="flex items-center gap-1.5">
+                                        {isSelected ? <Check className="h-3.5 w-3.5" /> : <div className="h-3.5 w-3.5 rounded-sm border border-muted-foreground/40" />}
+                                        {sheetName}
+                                    </span>
+                                    {isFetching ? (
+                                        <Loader2 className="h-3 w-3 animate-spin" />
+                                    ) : count !== undefined ? (
+                                        <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-mono font-bold ${
+                                            isSelected ? 'bg-[#1C1B0E]/20 text-[#1C1B0E]' : 'bg-muted text-muted-foreground'
+                                        }`}>
+                                            {count}
+                                        </span>
+                                    ) : null}
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+
                 {/* Charts Section */}
                 <div ref={chartsContainerRef} className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     {/* Category Chart */}
