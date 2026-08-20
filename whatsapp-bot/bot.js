@@ -1467,15 +1467,30 @@ app.post('/notify', async (req, res) => {
                     } catch (e) {}
                 }
 
+                // Determine department for this group to tailor the tag
+                let deptForGid = null;
+                for (const [dKey, dGid] of Object.entries(botConfig.departmentGroups)) {
+                    if (dGid === gid) {
+                        deptForGid = DEPARTMENTS.find(d => d.toLowerCase() === dKey) || dKey;
+                        break;
+                    }
+                }
+
+                let targetMsg = message;
+                // If it's a specific department group (not General and not @ALL), show ONLY their own tag
+                if (deptForGid && gid !== botConfig.generalGroupId && !isAll) {
+                    targetMsg = targetMsg.replace(/\*Tags:\*[^\n]*/i, `*Tags:* @${deptForGid}`);
+                }
+
                 if (imageUrl) {
                     await globalSock.sendMessage(gid, { 
                         image: { url: imageUrl }, 
-                        caption: message,
+                        caption: targetMsg,
                         mentions
                     });
                 } else {
                     await globalSock.sendMessage(gid, { 
-                        text: message,
+                        text: targetMsg,
                         mentions
                     });
                 }
@@ -1571,13 +1586,47 @@ setInterval(async () => {
                     `❗ *PLEASE RESOLVE OR UPDATE IMMEDIATELY!*\n` +
                     `🔗 ${BASE_URL}/dashboard`;
 
-                if (issue.imageUrl) {
-                    await globalSock.sendMessage(linkedGroupId, {
-                        image: { url: issue.imageUrl },
-                        caption: msg
-                    });
-                } else {
-                    await globalSock.sendMessage(linkedGroupId, { text: msg });
+                // Targets for escalation
+                const escalationTargets = new Set();
+                if (botConfig.generalGroupId) escalationTargets.add(botConfig.generalGroupId);
+                
+                if (issue.taggedDepartments) {
+                    const isAllEsc = issue.taggedDepartments.toLowerCase().includes('all');
+                    if (isAllEsc) {
+                        Object.values(botConfig.departmentGroups).forEach(gid => escalationTargets.add(gid));
+                    } else {
+                        for (const d of DEPARTMENTS) {
+                            if (issue.taggedDepartments.toLowerCase().includes(d.toLowerCase()) && botConfig.departmentGroups[d.toLowerCase()]) {
+                                escalationTargets.add(botConfig.departmentGroups[d.toLowerCase()]);
+                            }
+                        }
+                    }
+                }
+
+                for (const gid of escalationTargets) {
+                    try {
+                        let deptForGid = null;
+                        for (const [dKey, dGid] of Object.entries(botConfig.departmentGroups)) {
+                            if (dGid === gid) {
+                                deptForGid = DEPARTMENTS.find(d => d.toLowerCase() === dKey) || dKey;
+                                break;
+                            }
+                        }
+
+                        let targetMsg = msg;
+                        if (deptForGid && gid !== botConfig.generalGroupId && !issue.taggedDepartments?.toLowerCase().includes('all')) {
+                            targetMsg = targetMsg.replace(/\*Tagged Departments:\*[^\n]*/i, `*Tagged Departments:* ${deptForGid}`);
+                        }
+
+                        if (issue.imageUrl) {
+                            await globalSock.sendMessage(gid, {
+                                image: { url: issue.imageUrl },
+                                caption: targetMsg
+                            });
+                        } else {
+                            await globalSock.sendMessage(gid, { text: targetMsg });
+                        }
+                    } catch (e) {}
                 }
             }
 
