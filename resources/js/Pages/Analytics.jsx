@@ -30,6 +30,12 @@ export default function Analytics() {
     );
 }
 
+const ALL_DEPARTMENTS = [
+    'Engineer', 'Tekong', 'Pest Control', 'Security', 'Fasilitas', 
+    'HK', 'F&B', 'Service', 'Bar', 'GR', 'Spa', 'TiRek', 'OE', 
+    'IT', 'Procurement', 'Sales/Marketing', 'Reservasi', 'Finance'
+];
+
 const TIME_RANGES = [
     { id: 'all', labelKey: 'all_time', label: 'All Time' },
     { id: 'today', labelKey: 'today', label: 'Today' },
@@ -340,6 +346,7 @@ function AnalyticsInner() {
         setCardModalTarget(issue);
     };
     const [selectedStatusFilters, setSelectedStatusFilters] = useState([]);
+    const [selectedDepartmentFilters, setSelectedDepartmentFilters] = useState([]);
     const timelineRef = useRef(null);
     const chartsContainerRef = useRef(null);
     const recentActivityRef = useRef(null);
@@ -821,11 +828,12 @@ function AnalyticsInner() {
 
                 {/* Animated Timeline Section */}
                 <div ref={recentActivityRef} className="bg-surface p-6 rounded-2xl shadow-sm border border-border/50">
-                    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between mb-8">
+                    <div className="flex flex-col gap-4 mb-6">
+                    <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
                         <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6">
                             <h2 className="text-lg font-bold text-foreground">{t('recent_activity')}</h2>
                             
-                            {/* Interactive Combinable Filters */}
+                            {/* Interactive Combinable Status Filters */}
                             <div className="flex items-center gap-1.5 text-xs flex-wrap bg-[#1E1D16] p-1.5 rounded-xl border border-[#3B3929]/80 shadow-inner">
                                 {/* Open Filter */}
                                 <button
@@ -944,6 +952,59 @@ function AnalyticsInner() {
                             </select>
                         </div>
                     </div>
+
+                    {/* Combinable Department Filter Pills for Timeline Activity */}
+                    <div className="flex items-center gap-1.5 text-xs flex-wrap bg-[#1E1D16] p-2 rounded-xl border border-[#3B3929]/80 shadow-inner">
+                        <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider px-2 shrink-0 flex items-center gap-1.5">
+                            <Building2 className="h-3.5 w-3.5 text-[#C9AA71]" />
+                            {t('department')}:
+                        </span>
+
+                        <button
+                            type="button"
+                            onClick={() => setSelectedDepartmentFilters([])}
+                            className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all duration-200 cursor-pointer border ${
+                                selectedDepartmentFilters.length === 0
+                                    ? 'bg-[#C9AA71] text-[#1C1B0E] border-[#C9AA71] font-extrabold shadow-sm'
+                                    : 'bg-[#2A281E]/60 text-muted-foreground border-transparent hover:border-[#3B3929] hover:text-foreground opacity-70 hover:opacity-100'
+                            }`}
+                        >
+                            {t('all_departments')}
+                        </button>
+
+                        {ALL_DEPARTMENTS.map(dept => {
+                            const isSelected = selectedDepartmentFilters.includes(dept);
+                            return (
+                                <button
+                                    key={dept}
+                                    type="button"
+                                    onClick={() => {
+                                        setSelectedDepartmentFilters(prev => 
+                                            prev.includes(dept) ? prev.filter(d => d !== dept) : [...prev, dept]
+                                        );
+                                    }}
+                                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all duration-200 cursor-pointer border ${
+                                        isSelected
+                                            ? 'bg-primary/25 text-[#C9AA71] border-[#C9AA71]/80 shadow-sm font-bold ring-1 ring-[#C9AA71]/40'
+                                            : 'bg-[#2A281E]/60 text-muted-foreground border-transparent hover:border-[#3B3929] hover:text-foreground opacity-60 hover:opacity-100'
+                                    }`}
+                                >
+                                    {dept}
+                                </button>
+                            );
+                        })}
+
+                        {selectedDepartmentFilters.length > 0 && (
+                            <button
+                                type="button"
+                                onClick={() => setSelectedDepartmentFilters([])}
+                                className="text-[11px] font-semibold text-[#C9AA71] hover:text-[#FAFAFA] px-2 py-1 rounded hover:bg-[#2A281E] transition-colors ml-1 cursor-pointer"
+                            >
+                                ✕ {lang === 'id' ? 'Reset Dept' : 'Reset Dept'}
+                            </button>
+                        )}
+                    </div>
+                </div>
 
                     <div className="relative pl-4 border-l-2 border-border ml-2" ref={timelineRef}>
                         {activityLog.length > 0 ? (
