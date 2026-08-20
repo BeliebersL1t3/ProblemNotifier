@@ -3,7 +3,7 @@ import { Head } from '@inertiajs/react';
 import { useMemo, useState, useEffect, useRef } from 'react';
 import { 
     Loader2, Wrench, Sparkles, Laptop, Anchor, ShieldAlert, Utensils, Building, Hammer, Zap,
-    Droplets, Building2, Bug, User, HelpCircle, Download, AlertTriangle
+    Droplets, Building2, Bug, User, HelpCircle, Download, AlertTriangle, Layers, Database, CheckSquare, Check, Eye, ChevronRight
 } from 'lucide-react';
 import anime from 'animejs';
 import {
@@ -20,8 +20,6 @@ import { ActivityDetailModal } from '@/Components/CampusFix/ActivityDetailModal'
 import { TakeJobModal } from '@/Components/CampusFix/TakeJobModal';
 import { ResolveIssueSheet } from '@/Components/CampusFix/ResolveIssueSheet';
 import { SolvedDetailModal } from '@/Components/CampusFix/SolvedDetailModal';
-import { Eye } from 'lucide-react';
-import { ChevronRight } from 'lucide-react';
 
 export default function Analytics() {
     return (
