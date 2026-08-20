@@ -347,6 +347,7 @@ function AnalyticsInner() {
     };
     const [selectedStatusFilters, setSelectedStatusFilters] = useState([]);
     const [selectedDepartmentFilters, setSelectedDepartmentFilters] = useState([]);
+    const [deptFilterMode, setDeptFilterMode] = useState('both'); // 'both' | 'origin' | 'tagged'
     const [selectedCategoryFilters, setSelectedCategoryFilters] = useState([]);
     const timelineRef = useRef(null);
     const chartsContainerRef = useRef(null);
@@ -542,7 +543,7 @@ function AnalyticsInner() {
                 if (!matchesStatus) return false;
             }
 
-            // 2. Combinable Department Filters
+            // 2. Combinable Department Filters with Mode (both | origin | tagged)
             if (selectedDepartmentFilters.length > 0) {
                 const issueDept = (ev.originalIssue?.department || '').toLowerCase().trim();
                 let tagged = [];
@@ -554,7 +555,17 @@ function AnalyticsInner() {
 
                 const matchesDept = selectedDepartmentFilters.some(selDept => {
                     const s = selDept.toLowerCase().trim();
-                    return issueDept === s || tagged.includes(s);
+                    const isOrigin = (issueDept === s);
+                    const isTagged = tagged.includes(s);
+
+                    if (deptFilterMode === 'origin') {
+                        return isOrigin;
+                    } else if (deptFilterMode === 'tagged') {
+                        return isTagged;
+                    } else {
+                        // 'both'
+                        return isOrigin || isTagged;
+                    }
                 });
 
                 if (!matchesDept) return false;
@@ -574,7 +585,7 @@ function AnalyticsInner() {
         });
 
         return timelineLimit === 'all' ? filtered : filtered.slice(0, timelineLimit);
-    }, [timeFilteredIssues, timelineLimit, searchQuery, selectedStatusFilters, selectedDepartmentFilters, selectedCategoryFilters]);
+    }, [timeFilteredIssues, timelineLimit, searchQuery, selectedStatusFilters, selectedDepartmentFilters, deptFilterMode, selectedCategoryFilters]);
 
     // Scroll-Linked Animation for Timeline Items
     useEffect(() => {
@@ -985,55 +996,97 @@ function AnalyticsInner() {
                     </div>
 
                     {/* Combinable Department Filter Pills for Timeline Activity */}
-                    <div className="flex items-center gap-1.5 text-xs flex-wrap bg-[#1E1D16] p-2 rounded-xl border border-[#3B3929]/80 shadow-inner">
-                        <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider px-2 shrink-0 flex items-center gap-1.5">
-                            <Building2 className="h-3.5 w-3.5 text-[#C9AA71]" />
-                            {t('department')}:
-                        </span>
+                    <div className="flex flex-col gap-2.5 bg-[#1E1D16] p-2.5 rounded-xl border border-[#3B3929]/80 shadow-inner">
+                        <div className="flex items-center justify-between gap-2 flex-wrap pb-1 border-b border-[#3B3929]/40">
+                            <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider px-1 flex items-center gap-1.5">
+                                <Building2 className="h-3.5 w-3.5 text-[#C9AA71]" />
+                                {t('department')}:
+                            </span>
 
-                        <button
-                            type="button"
-                            onClick={() => setSelectedDepartmentFilters([])}
-                            className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all duration-200 cursor-pointer border ${
-                                selectedDepartmentFilters.length === 0
-                                    ? 'bg-[#C9AA71] text-[#1C1B0E] border-[#C9AA71] font-extrabold shadow-sm'
-                                    : 'bg-[#2A281E]/60 text-muted-foreground border-transparent hover:border-[#3B3929] hover:text-foreground opacity-70 hover:opacity-100'
-                            }`}
-                        >
-                            {t('all_departments')}
-                        </button>
-
-                        {ALL_DEPARTMENTS.map(dept => {
-                            const isSelected = selectedDepartmentFilters.includes(dept);
-                            return (
+                            {/* Origin / Tagged / Both Mode Selector */}
+                            <div className="flex items-center rounded-lg bg-[#2A281E] p-0.5 border border-[#3B3929] text-xs">
                                 <button
-                                    key={dept}
                                     type="button"
-                                    onClick={() => {
-                                        setSelectedDepartmentFilters(prev => 
-                                            prev.includes(dept) ? prev.filter(d => d !== dept) : [...prev, dept]
-                                        );
-                                    }}
-                                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all duration-200 cursor-pointer border ${
-                                        isSelected
-                                            ? 'bg-primary/25 text-[#C9AA71] border-[#C9AA71]/80 shadow-sm font-bold ring-1 ring-[#C9AA71]/40'
-                                            : 'bg-[#2A281E]/60 text-muted-foreground border-transparent hover:border-[#3B3929] hover:text-foreground opacity-60 hover:opacity-100'
+                                    onClick={() => setDeptFilterMode('both')}
+                                    className={`px-2.5 py-1 rounded-md font-semibold transition-all cursor-pointer ${
+                                        deptFilterMode === 'both'
+                                            ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-sm font-bold'
+                                            : 'text-muted-foreground hover:text-foreground'
                                     }`}
                                 >
-                                    {dept}
+                                    {t('dept_mode_both')}
                                 </button>
-                            );
-                        })}
+                                <button
+                                    type="button"
+                                    onClick={() => setDeptFilterMode('origin')}
+                                    className={`px-2.5 py-1 rounded-md font-semibold transition-all cursor-pointer ${
+                                        deptFilterMode === 'origin'
+                                            ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-sm font-bold'
+                                            : 'text-muted-foreground hover:text-foreground'
+                                    }`}
+                                >
+                                    {t('dept_mode_origin')}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setDeptFilterMode('tagged')}
+                                    className={`px-2.5 py-1 rounded-md font-semibold transition-all cursor-pointer ${
+                                        deptFilterMode === 'tagged'
+                                            ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-sm font-bold'
+                                            : 'text-muted-foreground hover:text-foreground'
+                                    }`}
+                                >
+                                    {t('dept_mode_tagged')}
+                                </button>
+                            </div>
+                        </div>
 
-                        {selectedDepartmentFilters.length > 0 && (
+                        {/* Department Pills */}
+                        <div className="flex items-center gap-1.5 text-xs flex-wrap pt-0.5">
                             <button
                                 type="button"
                                 onClick={() => setSelectedDepartmentFilters([])}
-                                className="text-[11px] font-semibold text-[#C9AA71] hover:text-[#FAFAFA] px-2 py-1 rounded hover:bg-[#2A281E] transition-colors ml-1 cursor-pointer"
+                                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all duration-200 cursor-pointer border ${
+                                    selectedDepartmentFilters.length === 0
+                                        ? 'bg-[#C9AA71] text-[#1C1B0E] border-[#C9AA71] font-extrabold shadow-sm'
+                                        : 'bg-[#2A281E]/60 text-muted-foreground border-transparent hover:border-[#3B3929] hover:text-foreground opacity-70 hover:opacity-100'
+                                }`}
                             >
-                                ✕ {t('reset_dept')}
+                                {t('all_departments')}
                             </button>
-                        )}
+
+                            {ALL_DEPARTMENTS.map(dept => {
+                                const isSelected = selectedDepartmentFilters.includes(dept);
+                                return (
+                                    <button
+                                        key={dept}
+                                        type="button"
+                                        onClick={() => {
+                                            setSelectedDepartmentFilters(prev => 
+                                                prev.includes(dept) ? prev.filter(d => d !== dept) : [...prev, dept]
+                                            );
+                                        }}
+                                        className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all duration-200 cursor-pointer border ${
+                                            isSelected
+                                                ? 'bg-primary/25 text-[#C9AA71] border-[#C9AA71]/80 shadow-sm font-bold ring-1 ring-[#C9AA71]/40'
+                                                : 'bg-[#2A281E]/60 text-muted-foreground border-transparent hover:border-[#3B3929] hover:text-foreground opacity-60 hover:opacity-100'
+                                        }`}
+                                    >
+                                        {dept}
+                                    </button>
+                                );
+                            })}
+
+                            {selectedDepartmentFilters.length > 0 && (
+                                <button
+                                    type="button"
+                                    onClick={() => setSelectedDepartmentFilters([])}
+                                    className="text-[11px] font-semibold text-[#C9AA71] hover:text-[#FAFAFA] px-2 py-1 rounded hover:bg-[#2A281E] transition-colors ml-1 cursor-pointer"
+                                >
+                                    ✕ {t('reset_dept')}
+                                </button>
+                            )}
+                        </div>
                     </div>
 
                     {/* Combinable Category Filter Pills for Timeline Activity */}
