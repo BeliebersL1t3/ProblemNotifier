@@ -30,6 +30,38 @@ export default function Analytics() {
     );
 }
 
+const DEPT_ABBREVIATIONS = {
+    'engineer': 'ENG',
+    'tekong': 'TKG',
+    'pest control': 'PC',
+    'security': 'SEC',
+    'fasilitas': 'FAS',
+    'hk': 'HK',
+    'housekeeping': 'HK',
+    'f&b': 'F&B',
+    'service': 'SRV',
+    'bar': 'BAR',
+    'gr': 'GR',
+    'guest relations': 'GR',
+    'spa': 'SPA',
+    'tirek': 'TRK',
+    'oe': 'OE',
+    'it': 'IT',
+    'procurement': 'PROC',
+    'sales/marketing': 'S/M',
+    'sales marketing': 'S/M',
+    'reservasi': 'RSV',
+    'finance': 'FIN'
+};
+
+const getDeptAbbreviation = (deptName) => {
+    if (!deptName) return '';
+    const key = deptName.toLowerCase().trim();
+    if (DEPT_ABBREVIATIONS[key]) return DEPT_ABBREVIATIONS[key];
+    if (deptName.length > 5) return deptName.slice(0, 4).toUpperCase();
+    return deptName.toUpperCase();
+};
+
 const ALL_DEPARTMENTS = [
     'Engineer', 'Tekong', 'Pest Control', 'Security', 'Fasilitas', 
     'HK', 'F&B', 'Service', 'Bar', 'GR', 'Spa', 'TiRek', 'OE', 
@@ -295,6 +327,7 @@ function AnalyticsInner() {
 
     // Time Range Filter State ('all' | 'today' | '3d' | '1w' | '2w' | '3w' | '4w' | '1m' | '3m' | '6m' | '1y')
     const [timeRange, setTimeRange] = useState('all');
+    const [deptLimit, setDeptLimit] = useState(10); // 5 | 10 | 15 | 20 | 'all'
 
     const timeFilteredIssues = useMemo(() => {
         if (!combinedIssues || combinedIssues.length === 0) return [];
@@ -414,10 +447,23 @@ function AnalyticsInner() {
             counts[rawDept] = (counts[rawDept] || 0) + 1;
         });
 
-        return Object.keys(counts)
-            .map(dept => ({ name: dept, Issues: counts[dept] }))
+        const totalDepts = Object.keys(counts).length;
+        const sorted = Object.keys(counts)
+            .map(dept => {
+                const shortName = getDeptAbbreviation(dept);
+                return { 
+                    name: dept, 
+                    shortName: shortName,
+                    // If more than 6 departments are displayed, use abbreviation on XAxis
+                    displayName: totalDepts > 6 ? shortName : dept,
+                    Issues: counts[dept] 
+                };
+            })
             .sort((a, b) => b.Issues - a.Issues);
-    }, [timeFilteredIssues]);
+
+        if (deptLimit === 'all') return sorted;
+        return sorted.slice(0, Number(deptLimit));
+    }, [timeFilteredIssues, deptLimit]);
 
     // Timeline Data
         // Timeline Data -> Activity Log
@@ -832,14 +878,38 @@ function AnalyticsInner() {
 
                     {/* Department Chart */}
                     <div className="chart-card bg-surface p-6 rounded-2xl shadow-sm border border-border/50 flex flex-col items-center">
-                        <h2 className="text-lg font-bold mb-4 w-full text-left text-foreground">{t('issues_by_department')}</h2>
+                        <div className="flex items-center justify-between w-full mb-4 gap-2 flex-wrap">
+                            <h2 className="text-lg font-bold text-foreground">{t('issues_by_department')}</h2>
+                            
+                            {/* Department Amount Selector (5, 10, 15, 20, All) */}
+                            <div className="flex items-center gap-1.5 text-xs">
+                                <span className="text-muted-foreground font-medium">{t('show')}:</span>
+                                <select
+                                    value={deptLimit}
+                                    onChange={(e) => setDeptLimit(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+                                    className="appearance-none px-2.5 py-1 text-xs font-bold rounded-lg border border-[#3B3929] bg-[#2A281E] text-[#C9AA71] cursor-pointer focus:outline-none focus:ring-1 focus:ring-primary shadow-sm"
+                                >
+                                    <option value={5} className="bg-[#2A281E] text-[#FAFAFA]">Top 5</option>
+                                    <option value={10} className="bg-[#2A281E] text-[#FAFAFA]">Top 10</option>
+                                    <option value={15} className="bg-[#2A281E] text-[#FAFAFA]">Top 15</option>
+                                    <option value={20} className="bg-[#2A281E] text-[#FAFAFA]">Top 20</option>
+                                    <option value="all" className="bg-[#2A281E] text-[#FAFAFA]">{t('all_items')}</option>
+                                </select>
+                            </div>
+                        </div>
+
                         <div className="w-full h-[300px]">
                             {departmentData.length > 0 ? (
                                 chartsVisible && (
                                     <ResponsiveContainer width="100%" height="100%">
                                         <BarChart data={departmentData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#3B3929" />
-                                            <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#A19F8D' }} />
+                                            <XAxis 
+                                                dataKey="displayName" 
+                                                axisLine={false} 
+                                                tickLine={false} 
+                                                tick={{ fontSize: 11, fill: '#A19F8D', fontWeight: 600 }} 
+                                            />
                                             <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#A19F8D' }} />
                                             <RechartsTooltip 
                                                 cursor={false}
@@ -852,6 +922,8 @@ function AnalyticsInner() {
                                                 }}
                                                 itemStyle={{ color: '#FAFAFA' }}
                                                 labelStyle={{ color: '#C9AA71', fontWeight: 'bold' }}
+                                                labelFormatter={(label, payload) => payload?.[0]?.payload?.name || label}
+                                                formatter={(value, name, item) => [`${value} issue${value !== 1 ? 's' : ''}`, item?.payload?.name || name]}
                                             />
                                             <Bar 
                                                 dataKey="Issues" 
