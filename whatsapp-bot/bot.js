@@ -240,6 +240,14 @@ async function startSock() {
         }
     });
 
+    sock.ev.on('groups.update', async () => {
+        await syncCommunityGroups(sock);
+    });
+
+    sock.ev.on('group-participants.update', async () => {
+        await syncCommunityGroups(sock);
+    });
+
     sock.ev.on('messages.upsert', async m => {
         if (m.type !== 'notify') return;
 
@@ -255,11 +263,90 @@ async function startSock() {
 
             // Group messages handler
             if (from.endsWith('@g.us')) {
-                if (text.toLowerCase() === '!setgroup') {
-                    linkedGroupId = from;
-                    fs.writeFileSync('config.json', JSON.stringify({ groupId: from }));
-                    await reply('✅ This group has been successfully linked! I will now send all Telunas Resort notifications here.');
-                } else if (text.toLowerCase().startsWith('!claim')) {
+                // Auto-map this group on-the-fly if not already mapped
+                try {
+                    const groupMeta = await sock.groupMetadata(from);
+                    if (groupMeta && groupMeta.subject) {
+                        const subject = groupMeta.subject.trim().toLowerCase();
+                        if (subject === 'general' || subject.includes('pengumuman') || subject === 'telunas resort issue report') {
+                            if (botConfig.generalGroupId !== from) {
+                                botConfig.generalGroupId = from;
+                                saveConfig();
+                            }
+                        }
+                        for (const dept of DEPARTMENTS) {
+                            const deptKey = dept.toLowerCase();
+                            if (subject === deptKey || subject.startsWith(deptKey + ' ') || subject.endsWith(' ' + deptKey) || subject.includes(deptKey)) {
+                                if (botConfig.departmentGroups[deptKey] !== from) {
+                                    botConfig.departmentGroups[deptKey] = from;
+                                    saveConfig();
+                                    console.log(`Auto-mapped group "${groupMeta.subject}" to department ${dept}`);
+                                }
+                            }
+                        }
+                    }
+                } catch (e) {}
+
+                const lower = text.toLowerCase().trim();
+
+                // 1. Leave testing/old group
+                if (lower === '!leavegroup' || lower === '!leave') {
+                    await reply('👋 Goodbye! Leaving this group now...');
+                    try {
+                        await sock.groupLeave(from);
+                    } catch (e) {
+                        console.error('Failed to leave group:', e.message);
+                    }
+                    continue;
+                }
+
+                // 2. Auto-sync community groups
+                if (lower === '!syncgroups' || lower === '!sync') {
+                    await reply('🔄 Scanning all WhatsApp Community groups... Please wait.');
+                    const res = await syncCommunityGroups(sock);
+                    if (res.success) {
+                        await reply(`✅ *Community Groups Synced Successfully!* (${res.count} groups mapped)\n\n${res.summary || 'No department groups found.'}`);
+                    } else {
+                        await reply(`❌ Failed to sync groups: ${res.error}`);
+                    }
+                    continue;
+                }
+
+                // 3. Manual group link: !setgroup or !setgroup <DeptName>
+                if (lower.startsWith('!setgroup')) {
+                    const arg = text.substring(9).trim();
+                    if (!arg || arg.toLowerCase() === 'general') {
+                        botConfig.generalGroupId = from;
+                        saveConfig();
+                        await reply('✅ This group is now set as the *General Announcement Group*! All notifications and @ALL emergencies will be sent here.');
+                    } else {
+                        const matchedDept = DEPARTMENTS.find(d => d.toLowerCase() === arg.toLowerCase());
+                        if (matchedDept) {
+                            botConfig.departmentGroups[matchedDept.toLowerCase()] = from;
+                            saveConfig();
+                            await reply(`✅ This group is now linked to the *${matchedDept}* department! Notifications tagged with @${matchedDept} will be routed here.`);
+                        } else {
+                            await reply(`❓ Department "${arg}" not recognized. Available departments:\n${DEPARTMENTS.join(', ')}\n\nOr use !syncgroups to automatically map all groups!`);
+                        }
+                    }
+                    continue;
+                }
+
+                // 4. View currently linked groups
+                if (lower === '!groups' || lower === '!groupinfo') {
+                    let msgInfo = '📋 *LINKED TELUNAS GROUPS* 📋\n\n';
+                    msgInfo += `📌 *General Group:* ${botConfig.generalGroupId ? '✅ Configured' : '❌ Not set'}\n\n`;
+                    msgInfo += '*Department Groups:*\n';
+                    DEPARTMENTS.forEach(d => {
+                        const isSet = botConfig.departmentGroups[d.toLowerCase()] ? '✅' : '❌';
+                        msgInfo += `• ${d}: ${isSet}\n`;
+                    });
+                    msgInfo += '\n💡 Type !syncgroups to auto-detect all community groups, or !setgroup <Department> in any group.';
+                    await reply(msgInfo);
+                    continue;
+                }
+
+                if (text.toLowerCase().startsWith('!claim')) {
                     let takerName = text.substring(6).trim();
                     if (!takerName) {
                         takerName = msg.pushName || 'Staff';
@@ -1254,14 +1341,12 @@ async function startSock() {
             }
 
             if (state.step === STEPS.STATUS_AWAITING_CAT) {
-                const lowerText = text.toLowerCase().trim();
-                
-                if (lowerText === 'all') {
+                const lowerText = text.toLowerCase();
+                if (lowerText === 'all' || lowerText === 'semua') {
                     state.data.category = 'all';
                 } else {
-                    const idx = parseInt(lowerText) - 1;
-                    if (!isNaN(idx) && idx >= 0 && idx < ALL_CATEGORIES.length) {
-                        state.data.category = ALL_CATEGORIES[idx];
+                    if (CORE_DISPLAY[text]) {
+                        state.data.category = CORE_DISPLAY[text].toLowerCase();
                     } else if (ALL_CATEGORIES.includes(lowerText)) {
                         state.data.category = lowerText;
                     } else {
@@ -1328,7 +1413,7 @@ async function startSock() {
         }
     });
 }
-
+// --- EXPRESS SERVER FOR NOTIFICATIONS (MULTI-GROUP ROUTING) ---
 // --- EXPRESS SERVER FOR NOTIFICATIONS (MULTI-GROUP ROUTING) ---
 app.post('/notify', async (req, res) => {
     try {
@@ -1338,16 +1423,76 @@ app.post('/notify', async (req, res) => {
             return res.status(500).json({ error: 'Socket not initialized.' });
         }
 
-        if (imageUrl) {
-            await globalSock.sendMessage(linkedGroupId, { 
-                image: { url: imageUrl }, 
-                caption: message 
+        // Collect all target group JIDs
+        const targetGroupIds = new Set();
+
+        // 1. Always send to General announcement group if configured
+        if (botConfig.generalGroupId) {
+            targetGroupIds.add(botConfig.generalGroupId);
+        } else if (linkedGroupId) {
+            targetGroupIds.add(linkedGroupId);
+        }
+
+        // 2. Check if Emergency / @ALL
+        const lowerMsg = (message || '').toLowerCase();
+        const isAll = lowerMsg.includes('@all') || 
+                      (taggedDepartments && String(taggedDepartments).toLowerCase().includes('all')) || 
+                      lowerMsg.includes('priority: critical') ||
+                      priority === 'critical';
+
+        if (isAll) {
+            // Broadcast to ALL connected department groups
+            Object.values(botConfig.departmentGroups).forEach(gid => {
+                if (gid) targetGroupIds.add(gid);
             });
         } else {
-            await globalSock.sendMessage(linkedGroupId, { text: message });
+            // Specific department matching from taggedDepartments or text
+            for (const dept of DEPARTMENTS) {
+                const deptKey = dept.toLowerCase();
+                if (lowerMsg.includes(`@${deptKey}`) || (taggedDepartments && String(taggedDepartments).toLowerCase().includes(deptKey))) {
+                    if (botConfig.departmentGroups[deptKey]) {
+                        targetGroupIds.add(botConfig.departmentGroups[deptKey]);
+                    }
+                }
+            }
+        }
+
+        if (targetGroupIds.size === 0) {
+            return res.status(400).json({ error: 'No groups linked. Type !syncgroups or !setgroup in WhatsApp.' });
+        }
+
+        console.log(`Dispatching notification to ${targetGroupIds.size} groups...`);
+
+        // Send to all target groups
+        for (const gid of targetGroupIds) {
+            try {
+                let mentions = [];
+                // Ping all members if it's an @ALL emergency in the General group
+                if (isAll && gid === botConfig.generalGroupId) {
+                    try {
+                        const meta = await globalSock.groupMetadata(gid);
+                        mentions = (meta.participants || []).map(p => p.id);
+                    } catch (e) {}
+                }
+
+                if (imageUrl) {
+                    await globalSock.sendMessage(gid, { 
+                        image: { url: imageUrl }, 
+                        caption: message,
+                        mentions
+                    });
+                } else {
+                    await globalSock.sendMessage(gid, { 
+                        text: message,
+                        mentions
+                    });
+                }
+            } catch (errSend) {
+                console.error(`Failed sending to group ${gid}:`, errSend.message);
+            }
         }
         
-        res.json({ success: true });
+        res.json({ success: true, sentToCount: targetGroupIds.size });
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: err.message });
