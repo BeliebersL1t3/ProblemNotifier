@@ -3,7 +3,7 @@ import { Head } from '@inertiajs/react';
 import { useMemo, useState, useEffect, useRef } from 'react';
 import { 
     Loader2, Wrench, Sparkles, Laptop, Anchor, ShieldAlert, Utensils, Building, Hammer, Zap,
-    Droplets, Building2, Bug, User, HelpCircle, Download, AlertTriangle, Layers, Database, CheckSquare, Check, Eye, ChevronRight
+    Droplets, Building2, Bug, User, HelpCircle, Download, AlertTriangle, Layers, Database, Clock, CheckSquare, Check, Eye, ChevronRight
 } from 'lucide-react';
 import anime from 'animejs';
 import {
@@ -29,6 +29,20 @@ export default function Analytics() {
         </IssuesProvider>
     );
 }
+
+const TIME_RANGES = [
+    { id: 'all', labelKey: 'all_time', label: 'All Time' },
+    { id: 'today', labelKey: 'today', label: 'Today' },
+    { id: '3d', labelKey: 'days_3', label: '3 Days' },
+    { id: '1w', labelKey: 'week_1', label: '1 Week' },
+    { id: '2w', labelKey: 'weeks_2', label: '2 Weeks' },
+    { id: '3w', labelKey: 'weeks_3', label: '3 Weeks' },
+    { id: '4w', labelKey: 'weeks_4', label: '4 Weeks' },
+    { id: '1m', labelKey: 'month_1', label: '1 Month' },
+    { id: '3m', labelKey: 'months_3', label: '3 Months' },
+    { id: '6m', labelKey: 'months_6', label: '6 Months' },
+    { id: '1y', labelKey: 'year_1', label: '1 Year' },
+];
 
 const COLORS = [
     '#f59e0b', '#3b82f6', '#eab308', '#57534e', '#15803d', 
@@ -272,6 +286,49 @@ function AnalyticsInner() {
             setSelectedSheets([...allList]);
         }
     };
+
+    // Time Range Filter State ('all' | 'today' | '3d' | '1w' | '2w' | '3w' | '4w' | '1m' | '3m' | '6m' | '1y')
+    const [timeRange, setTimeRange] = useState('all');
+
+    const timeFilteredIssues = useMemo(() => {
+        if (!combinedIssues || combinedIssues.length === 0) return [];
+        if (timeRange === 'all') return combinedIssues;
+
+        const now = Date.now();
+        const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+        let cutoff = 0;
+
+        if (timeRange === 'today') {
+            const startOfToday = new Date();
+            startOfToday.setHours(0, 0, 0, 0);
+            cutoff = startOfToday.getTime();
+        } else if (timeRange === '3d') {
+            cutoff = now - 3 * MS_PER_DAY;
+        } else if (timeRange === '1w') {
+            cutoff = now - 7 * MS_PER_DAY;
+        } else if (timeRange === '2w') {
+            cutoff = now - 14 * MS_PER_DAY;
+        } else if (timeRange === '3w') {
+            cutoff = now - 21 * MS_PER_DAY;
+        } else if (timeRange === '4w') {
+            cutoff = now - 28 * MS_PER_DAY;
+        } else if (timeRange === '1m') {
+            cutoff = now - 30 * MS_PER_DAY;
+        } else if (timeRange === '3m') {
+            cutoff = now - 90 * MS_PER_DAY;
+        } else if (timeRange === '6m') {
+            cutoff = now - 180 * MS_PER_DAY;
+        } else if (timeRange === '1y') {
+            cutoff = now - 365 * MS_PER_DAY;
+        }
+
+        return combinedIssues.filter(issue => {
+            const rawTime = issue.reportedAt || (issue.reportedAtIso ? new Date(issue.reportedAtIso).getTime() : 0);
+            if (!rawTime) return true; // Keep if date is unspecified
+            return rawTime >= cutoff;
+        });
+    }, [combinedIssues, timeRange]);
     const { t, lang } = useLanguage();
     const [timelineLimit, setTimelineLimit] = useState(20);
     const [searchQuery, setSearchQuery] = useState('');
@@ -316,9 +373,9 @@ function AnalyticsInner() {
 
     // Chart Data Precomputation
     const categoryData = useMemo(() => {
-        if (!combinedIssues || combinedIssues.length === 0) return [];
+        if (!timeFilteredIssues || timeFilteredIssues.length === 0) return [];
         const counts = {};
-        combinedIssues.forEach(issue => {
+        timeFilteredIssues.forEach(issue => {
             const cat = (issue.category || 'other').toLowerCase().trim();
             counts[cat] = (counts[cat] || 0) + 1;
         });
@@ -333,12 +390,12 @@ function AnalyticsInner() {
                 return { id: catKey, name, value: counts[catKey] };
             })
             .sort((a, b) => b.value - a.value);
-    }, [combinedIssues]);
+    }, [timeFilteredIssues]);
 
     const departmentData = useMemo(() => {
-        if (!combinedIssues || combinedIssues.length === 0) return [];
+        if (!timeFilteredIssues || timeFilteredIssues.length === 0) return [];
         const counts = {};
-        combinedIssues.forEach(issue => {
+        timeFilteredIssues.forEach(issue => {
             const rawDept = (issue.department || '').trim();
             const lowerDept = rawDept.toLowerCase();
             // Exclude Emergency, undefined, unknown, and empty from department breakdown
@@ -351,16 +408,16 @@ function AnalyticsInner() {
         return Object.keys(counts)
             .map(dept => ({ name: dept, Issues: counts[dept] }))
             .sort((a, b) => b.Issues - a.Issues);
-    }, [combinedIssues]);
+    }, [timeFilteredIssues]);
 
     // Timeline Data
         // Timeline Data -> Activity Log
     const activityLog = useMemo(() => {
-        if (!combinedIssues || combinedIssues.length === 0) return [];
+        if (!timeFilteredIssues || timeFilteredIssues.length === 0) return [];
         
         let events = [];
         
-        combinedIssues.forEach(issue => {
+        timeFilteredIssues.forEach(issue => {
             const rawTime = issue.reportedAt || (issue.reportedAtIso ? new Date(issue.reportedAtIso).getTime() : 0);
             
             // 1. Created
@@ -535,96 +592,132 @@ function AnalyticsInner() {
             <main className="mx-auto max-w-7xl p-4 sm:p-6 lg:p-8 flex flex-col gap-8">
                 
                 {/* Multi-Sheet Selection Bar for Consolidated Analytics */}
-                <div className="bg-surface/90 backdrop-blur-md p-4 sm:p-5 rounded-2xl shadow-sm border border-border/60 flex flex-col gap-3.5 transition-all">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                        <div className="flex items-center gap-3">
-                            <div className="p-2.5 rounded-xl bg-primary/10 text-primary border border-primary/20 shrink-0">
-                                <Layers className="h-5 w-5 text-[#C9AA71]" />
+                <div className="bg-surface/90 backdrop-blur-md p-5 rounded-2xl shadow-sm border border-border/60 flex flex-col gap-4.5 transition-all">
+                    {/* Row 1: Sheet Selection & Export Action */}
+                    <div className="flex flex-col gap-3 pb-3.5 border-b border-border/40">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2.5 rounded-xl bg-primary/10 text-primary border border-primary/20 shrink-0">
+                                    <Layers className="h-5 w-5 text-[#C9AA71]" />
+                                </div>
+                                <div>
+                                    <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+                                        {t('select_sheets')}
+                                        {isFetchingAnySheet && <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />}
+                                    </h3>
+                                    <p className="text-xs text-muted-foreground">
+                                        {t('combine_sheets_desc')}
+                                    </p>
+                                </div>
                             </div>
-                            <div>
-                                <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
-                                    {t('select_sheets')}
-                                    {isFetchingAnySheet && <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />}
-                                </h3>
-                                <p className="text-xs text-muted-foreground">
-                                    {t('combine_sheets_desc')}
-                                </p>
+
+                            {/* Right Actions: Summary Pill Badge + In-Page Export PDF Button */}
+                            <div className="flex items-center gap-2.5 shrink-0 self-start sm:self-auto flex-wrap">
+                                <div className="flex items-center gap-2 text-xs font-semibold px-3.5 py-2 rounded-full bg-[#1C1B0E]/60 border border-[#3B3929] text-[#C9AA71]">
+                                    <Database className="h-3.5 w-3.5" />
+                                    <span>
+                                        {selectedSheets.length === (availableSheets?.length || 1)
+                                            ? `${t('all_sheets')} (${timeFilteredIssues.length} / ${combinedIssues.length} ${t('total_issues')})`
+                                            : `${selectedSheets.length} ${t('sheets_label')} (${timeFilteredIssues.length} / ${combinedIssues.length} ${t('total_issues')})`
+                                        }
+                                    </span>
+                                </div>
+
+                                <button
+                                    type="button"
+                                    onClick={() => setExportOpen(true)}
+                                    className="px-3.5 py-2 rounded-xl text-xs font-bold transition-all duration-200 flex items-center gap-2 bg-[#1C1B0E] text-[#E3D1AA] border border-[#3B3929] hover:bg-[#2A281E] hover:border-[#C9AA71]/40 shadow-sm hover:shadow-md active:scale-95 cursor-pointer"
+                                    title={t('export_pdf')}
+                                >
+                                    <Download className="h-4 w-4 text-[#C9AA71]" />
+                                    <span>{t('export_pdf')}</span>
+                                </button>
                             </div>
                         </div>
 
-                        {/* Right Actions: Summary Pill Badge + In-Page Export PDF Button */}
-                        <div className="flex items-center gap-2.5 shrink-0 self-start sm:self-auto flex-wrap">
-                            <div className="flex items-center gap-2 text-xs font-semibold px-3.5 py-2 rounded-full bg-[#1C1B0E]/60 border border-[#3B3929] text-[#C9AA71]">
-                                <Database className="h-3.5 w-3.5" />
-                                <span>
-                                    {selectedSheets.length === (availableSheets?.length || 1)
-                                        ? `${t('all_sheets')} (${combinedIssues.length} ${t('total_issues')})`
-                                        : `${selectedSheets.length} ${t('sheets_label')} (${combinedIssues.length} ${t('total_issues')})`
-                                    }
-                                </span>
-                            </div>
+                        {/* Sheet Pills / Checkboxes */}
+                        <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                            {availableSheets && availableSheets.length > 1 && (
+                                <button
+                                    type="button"
+                                    onClick={toggleAllSheets}
+                                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 flex items-center gap-1.5 border ${
+                                        selectedSheets.length === availableSheets.length
+                                            ? 'bg-primary text-primary-foreground border-primary shadow-sm'
+                                            : 'bg-surface hover:bg-muted text-muted-foreground border-border/80'
+                                    }`}
+                                >
+                                    <CheckSquare className="h-3.5 w-3.5" />
+                                    {t('all_sheets')}
+                                </button>
+                            )}
 
-                            <button
-                                type="button"
-                                onClick={() => setExportOpen(true)}
-                                className="px-3.5 py-2 rounded-xl text-xs font-bold transition-all duration-200 flex items-center gap-2 bg-[#1C1B0E] text-[#E3D1AA] border border-[#3B3929] hover:bg-[#2A281E] hover:border-[#C9AA71]/40 shadow-sm hover:shadow-md active:scale-95 cursor-pointer"
-                                title={t('export_pdf')}
-                            >
-                                <Download className="h-4 w-4 text-[#C9AA71]" />
-                                <span>{t('export_pdf')}</span>
-                            </button>
+                            {(availableSheets && availableSheets.length > 0 ? availableSheets : [currentSheet || '2026']).map(sheetName => {
+                                const isSelected = selectedSheets.includes(sheetName);
+                                const count = sheetDataMap[sheetName]?.length;
+                                const isFetching = fetchingSheets[sheetName];
+
+                                return (
+                                    <button
+                                        key={sheetName}
+                                        type="button"
+                                        onClick={() => toggleSheet(sheetName)}
+                                        className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 flex items-center gap-2 border ${
+                                            isSelected
+                                                ? 'bg-[#C9AA71] text-[#1C1B0E] border-[#C9AA71] shadow-md font-extrabold ring-1 ring-[#C9AA71]/40'
+                                                : 'bg-surface hover:bg-muted text-muted-foreground border-border/80 hover:text-foreground'
+                                        }`}
+                                    >
+                                        <span className="flex items-center gap-1.5">
+                                            {isSelected ? <Check className="h-3.5 w-3.5" /> : <div className="h-3.5 w-3.5 rounded-sm border border-muted-foreground/40" />}
+                                            {sheetName}
+                                        </span>
+                                        {isFetching ? (
+                                            <Loader2 className="h-3 w-3 animate-spin" />
+                                        ) : count !== undefined ? (
+                                            <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-mono font-bold ${
+                                                isSelected ? 'bg-[#1C1B0E]/20 text-[#1C1B0E]' : 'bg-muted text-muted-foreground'
+                                            }`}>
+                                                {count}
+                                            </span>
+                                        ) : null}
+                                    </button>
+                                );
+                            })}
                         </div>
                     </div>
 
-                    {/* Sheet Pills / Checkboxes */}
-                    <div className="flex flex-wrap items-center gap-2 pt-1">
-                        {availableSheets && availableSheets.length > 1 && (
-                            <button
-                                type="button"
-                                onClick={toggleAllSheets}
-                                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 flex items-center gap-1.5 border ${
-                                    selectedSheets.length === availableSheets.length
-                                        ? 'bg-primary text-primary-foreground border-primary shadow-sm'
-                                        : 'bg-surface hover:bg-muted text-muted-foreground border-border/80'
-                                }`}
-                            >
-                                <CheckSquare className="h-3.5 w-3.5" />
-                                {t('all_sheets')}
-                            </button>
-                        )}
+                    {/* Row 2: Time Range Filter (Days, 1, 2, 3, 4 Weeks, Months, Year) */}
+                    <div className="flex flex-col gap-2.5">
+                        <div className="flex items-center gap-2 text-xs font-bold text-foreground">
+                            <Clock className="h-4 w-4 text-[#C9AA71]" />
+                            <span>{t('time_range')}</span>
+                            {timeRange !== 'all' && (
+                                <span className="text-[11px] font-normal text-muted-foreground">
+                                    • {t('showing_filtered_range')}: <strong className="text-[#C9AA71]">{t(TIME_RANGES.find(r => r.id === timeRange)?.labelKey) || timeRange}</strong> ({timeFilteredIssues.length} {t('items')})
+                                </span>
+                            )}
+                        </div>
 
-                        {(availableSheets && availableSheets.length > 0 ? availableSheets : [currentSheet || '2026']).map(sheetName => {
-                            const isSelected = selectedSheets.includes(sheetName);
-                            const count = sheetDataMap[sheetName]?.length;
-                            const isFetching = fetchingSheets[sheetName];
-
-                            return (
-                                <button
-                                    key={sheetName}
-                                    type="button"
-                                    onClick={() => toggleSheet(sheetName)}
-                                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 flex items-center gap-2 border ${
-                                        isSelected
-                                            ? 'bg-[#C9AA71] text-[#1C1B0E] border-[#C9AA71] shadow-md font-extrabold ring-1 ring-[#C9AA71]/40'
-                                            : 'bg-surface hover:bg-muted text-muted-foreground border-border/80 hover:text-foreground'
-                                    }`}
-                                >
-                                    <span className="flex items-center gap-1.5">
-                                        {isSelected ? <Check className="h-3.5 w-3.5" /> : <div className="h-3.5 w-3.5 rounded-sm border border-muted-foreground/40" />}
-                                        {sheetName}
-                                    </span>
-                                    {isFetching ? (
-                                        <Loader2 className="h-3 w-3 animate-spin" />
-                                    ) : count !== undefined ? (
-                                        <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-mono font-bold ${
-                                            isSelected ? 'bg-[#1C1B0E]/20 text-[#1C1B0E]' : 'bg-muted text-muted-foreground'
-                                        }`}>
-                                            {count}
-                                        </span>
-                                    ) : null}
-                                </button>
-                            );
-                        })}
+                        <div className="flex flex-wrap items-center gap-1.5">
+                            {TIME_RANGES.map(range => {
+                                const isActive = timeRange === range.id;
+                                return (
+                                    <button
+                                        key={range.id}
+                                        type="button"
+                                        onClick={() => setTimeRange(range.id)}
+                                        className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all duration-200 border cursor-pointer ${
+                                            isActive
+                                                ? 'bg-[#C9AA71] text-[#1C1B0E] border-[#C9AA71] font-extrabold shadow-sm ring-1 ring-[#C9AA71]/40'
+                                                : 'bg-surface/80 hover:bg-muted text-muted-foreground border-border/60 hover:text-foreground'
+                                        }`}
+                                    >
+                                        {t(range.labelKey) || range.label}
+                                    </button>
+                                );
+                            })}
+                        </div>
                     </div>
                 </div>
 
