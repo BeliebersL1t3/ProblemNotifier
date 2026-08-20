@@ -523,28 +523,58 @@ function AnalyticsInner() {
                 if (!matchesQuery) return false;
             }
 
-            // Combinable Status & Priority Filters
+            // 1. Combinable Status & Priority Filters
             if (selectedStatusFilters.length > 0) {
                 const isCriticalSelected = selectedStatusFilters.includes('critical');
                 const selectedTypes = selectedStatusFilters.filter(f => f !== 'critical');
                 const evType = typeMap[ev.type];
-
                 const isCriticalIssue = ev.originalIssue?.priority === 'critical';
 
+                let matchesStatus = true;
                 if (selectedTypes.length > 0 && isCriticalSelected) {
-                    return selectedTypes.includes(evType) || isCriticalIssue;
+                    matchesStatus = selectedTypes.includes(evType) || isCriticalIssue;
                 } else if (selectedTypes.length > 0) {
-                    return selectedTypes.includes(evType);
+                    matchesStatus = selectedTypes.includes(evType);
                 } else if (isCriticalSelected) {
-                    return isCriticalIssue;
+                    matchesStatus = isCriticalIssue;
                 }
+
+                if (!matchesStatus) return false;
+            }
+
+            // 2. Combinable Department Filters
+            if (selectedDepartmentFilters.length > 0) {
+                const issueDept = (ev.originalIssue?.department || '').toLowerCase().trim();
+                let tagged = [];
+                if (Array.isArray(ev.originalIssue?.taggedDepartments)) {
+                    tagged = ev.originalIssue.taggedDepartments.map(d => String(d).toLowerCase().trim());
+                } else if (typeof ev.originalIssue?.taggedDepartments === 'string') {
+                    tagged = ev.originalIssue.taggedDepartments.toLowerCase().split(',').map(s => s.trim());
+                }
+
+                const matchesDept = selectedDepartmentFilters.some(selDept => {
+                    const s = selDept.toLowerCase().trim();
+                    return issueDept === s || tagged.includes(s);
+                });
+
+                if (!matchesDept) return false;
+            }
+
+            // 3. Combinable Category Filters
+            if (selectedCategoryFilters.length > 0) {
+                const issueCat = (ev.originalIssue?.category || 'other').toLowerCase().trim();
+                const matchesCat = selectedCategoryFilters.some(selCat => {
+                    return issueCat === selCat.toLowerCase().trim();
+                });
+
+                if (!matchesCat) return false;
             }
 
             return true;
         });
 
         return timelineLimit === 'all' ? filtered : filtered.slice(0, timelineLimit);
-    }, [issues, timelineLimit, searchQuery, selectedStatusFilters]);
+    }, [timeFilteredIssues, timelineLimit, searchQuery, selectedStatusFilters, selectedDepartmentFilters, selectedCategoryFilters]);
 
     // Scroll-Linked Animation for Timeline Items
     useEffect(() => {
