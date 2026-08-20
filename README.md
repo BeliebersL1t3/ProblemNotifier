@@ -6,7 +6,7 @@
 
 <p align="center">
   <b>A comprehensive, real-time facility maintenance & incident tracking system built specifically for Telunas Resorts.</b><br>
-  Combines a modern web application, native desktop client, Google Sheets two-way cloud synchronization, and an intelligent WhatsApp bot integration.
+  Combines a modern web application, native desktop client, Google Sheets two-way cloud synchronization, comprehensive multi-sheet analytics, and an intelligent WhatsApp Community Bot integration.
 </p>
 
 <p align="center">
@@ -24,42 +24,70 @@
 
 **Telunas Resort Issue Tracker** is designed to streamline facility maintenance, guest issue reporting, and cross-departmental task escalation across **Telunas Private Island (TPI)**, **Telunas Beach Resort (TBR)**, and the **Main Office (Kantor)**.
 
-Staff members can report, claim, delay (*pending*), and resolve maintenance tickets either through the **Interactive Web Dashboard** or directly from their mobile phones via **WhatsApp Group / Private Chat Bot**.
+Staff members can report, claim, delay (*pending*), and resolve maintenance tickets either through the **Interactive Web Dashboard** or directly from their mobile phones via **WhatsApp Community Sub-Group Chats**.
 
 ---
 
 ## ✨ Key Features
 
-### 🖥️ 1. Interactive Web Dashboard (React + Inertia.js)
-- **Live Kanban / Task Columns**: Grouped by `Open (Unclaimed)`, `In Progress`, `Pending (Delayed)`, and `Solved`.
-- **Interactive Analytics Bar**: Real-time metrics, breakdown charts by Department, Category, Duration, and Month-over-Month comparison.
+### 🖥️ 1. Interactive Web Dashboard (`/dashboard`)
+- **Live Kanban / Task Columns**: Real-time task board divided into `Open (Unclaimed)`, `In Progress`, `Pending (Delayed)`, and `Solved`.
 - **Emergency Fast-Track (SOS)**: Instant emergency trigger with pulsing audio alarms, priority countdown timers, and auto-generated `SOS-` ticket IDs.
-- **Full Ticket Lifecycle**:
-  - Claim tickets with staff identity tagging.
-  - Mark as *Pending* with required reason and delay photo proof.
-  - Mark as *Solved* with fix description and completion photo proof.
-  - Reassign / Edit Categories on the fly.
-- **Enhanced Image Lightbox**: High-resolution image preview with interactive zoom magnifier for inspecting damage and proof photos.
-- **Multi-Language Support**: Complete bilingual interface (**Bahasa Indonesia** & **English**).
-- **Sheet Period Management**: Dynamically switch between monthly / custom period sheets or generate new archive sheets directly from the UI.
-- **Native Desktop Client**: Packaged with Electron for seamless desktop operation.
+- **Full Ticket Lifecycle Management**:
+  - **Claim Job**: Tag staff identity and update state to in-progress.
+  - **Mark Pending**: Specify postponement reason and attach delay photo proof.
+  - **Mark Solved**: Submit resolution notes and final completion photo proof.
+  - **Edit & Categorize**: Update department, location, and issue category on the fly.
+- **Interactive Lightbox & Magnifier**: High-resolution image preview with interactive zoom magnifier for inspecting damage and proof photos.
+- **Bilingual Interface**: Seamlessly switch between **Bahasa Indonesia (ID)** and **English (EN)**.
+- **Sheet Period Selector**: Switch between operational years/periods or generate new archive sheets directly from the header.
 
 ---
 
-### 🤖 2. WhatsApp Bot Integration (`whatsapp-bot/bot.js`)
-Powered by `@whiskeysockets/baileys`, the bot runs alongside the system:
-- **Instant Group Broadcasts**: Sends new issue notifications with photo attachments, priority badges, location, origin department, and tagged department mentions (`@Engineering`, `@Security`, etc.).
-- **One-Touch Reply Claiming**: Staff can reply directly to any notification in the group with `!claim <Name>` or just `!claim` to claim the ticket.
+### 📊 2. Advanced Performance Analytics (`/analytics`)
+Dedicated analytical engine designed for operational reviews, monthly reporting, and cross-departmental KPI tracking:
+
+- **Multi-Sheet Consolidated Analytics**:
+  - Select and combine multiple Google Sheets data periods (e.g. `2025` + `2026`) with one click to view consolidated multi-year reports.
+  - Fully isolated from Dashboard and Bot operations.
+- **Comprehensive Time Range Filter**:
+  - Filter analytics dynamically by *All Time, Today (24h), 3 Days, 1 Week, 2 Weeks, 3 Weeks, 4 Weeks, 1 Month, 3 Months, 6 Months, or 1 Year*.
+- **Category Distribution (Pie Chart)**:
+  - Interactive donut/pie chart displaying the distribution across 10 resort categories.
+  - Distinct **Vibrant Red (`#EF4444`)** slice with `AlertTriangle` icon for Emergency (SOS) tickets.
+- **Department Breakdown (Bar Chart)**:
+  - **Display Limit Selector**: Filter bars by `Top 5`, `Top 10`, `Top 15`, `Top 20`, or `All`.
+  - **Smart Department Abbreviations**: Automatically switches to clean short codes (`ENG`, `IT`, `PC`, `SEC`, `FAS`, `HK`, `F&B`, `SRV`, `BAR`, `GR`, `SPA`, `TRK`, `OE`, `PROC`, `S/M`, `RSV`, `FIN`) when viewing many departments to prevent label clutter.
+  - **Full Name Tooltips**: Hover over any bar to view the exact department name and issue count.
+  - Excludes Emergency and undefined entries to maintain pure operational metrics.
+- **Recent Issue Activity (Timeline Log)**:
+  - **Status & Priority Filters**: Multi-select `Open`, `In Progress`, `Pending`, `Solved`, and `Critical`.
+  - **Combinable Department Filter with 3 Scope Modes**:
+    - `Both (Origin & Tagged)`: Shows issues originating from OR tagging the department.
+    - `Reported by (Origin Only)`: Shows issues reported by that department only.
+    - `Tagged Only`: Shows issues where the department was tagged/assigned by others.
+  - **Combinable Category Filter**: Multi-select categories with corresponding color badges.
+  - **In-Page PDF Exporter**: Download comprehensive printable PDF reports directly from the analytics layout.
+
+---
+
+### 🤖 3. WhatsApp Community Bot (`whatsapp-bot/bot.js`)
+Powered by `@whiskeysockets/baileys`, the bot runs alongside the web platform with multi-group intelligent routing:
+
+- **18 Department Sub-Group Routing**: Automatically detects and routes notifications to the appropriate department sub-group chats (`Engineer`, `IT`, `Security`, `Housekeeping`, `F&B`, `Pest Control`, `Fasilitas`, `Service`, `Bar`, `GR`, `Spa`, `TiRek`, `OE`, `Procurement`, `Sales/Marketing`, `Reservasi`, `Finance`, `Tekong`) plus the **General Announcement Group**.
+- **Per-Group Tag Customization**:
+  - **General Group**: Receives full department tags (e.g. `*Tags:* @Engineer @IT` or `*Tags:* @ALL`).
+  - **Department Sub-Group**: Receives only its relevant tag (e.g. `*Tags:* @Engineer` in the Engineer group chat).
+- **One-Touch Reply Claiming**: Staff can reply directly to any notification in the group with `!claim <Name>` or `!claim` to claim the task.
 - **Step-by-Step Reporting**: Conversational questionnaire to report issues directly from WhatsApp.
-- **Emergency SOS Fast-Track**: Commands like `sos`, `darurat`, `tolong`, `help`, `bantuan`, or `emergency` trigger high-priority emergency reporting with countdown deadlines.
+- **Emergency SOS Fast-Track**: Commands like `sos`, `darurat`, `tolong`, `help`, `bantuan`, or `emergency` trigger high-priority emergency broadcasts across all 19 community groups.
 - **DM Issue Resolution & Delay**: Resolve (`!solve`) or mark pending (`!pending`) by sending the Issue ID, description, and photo proof in WhatsApp DM.
 - **Smart Partial ID Matcher**: Accepts partial IDs (e.g. typing `190826-4` automatically resolves to `SOS-190826-4` or `Eng-190826-4`).
-- **Dual-Language Menu**: Open guide with `menu`, `menu ID`, or `menu EN`.
-- **Auto-Escalation Engine**: Periodically checks for overdue or unhandled critical tickets and notifies the linked group.
+- **Auto-Escalation Engine**: Periodically checks for overdue or unhandled critical tickets and notifies the relevant groups.
 
 ---
 
-### 🗄️ 3. Hybrid Storage Architecture
+### 🗄️ 4. Hybrid Storage Architecture
 - **Tabular Data**: Synced with **Google Sheets API v4** for real-time collaborative cloud access, reporting, and backup.
 - **Image Storage**: **100% Local Storage** (`public/uploads/`) with strict MIME validation (`jpg`, `jpeg`, `png`, `webp`), 5MB file size limit, and automatic filename sanitization. Eliminates third-party image hosting dependency and rate limits.
 
@@ -69,7 +97,7 @@ Powered by `@whiskeysockets/baileys`, the bot runs alongside the system:
 
 | Command (ID) | Command (EN) | Description |
 | :--- | :--- | :--- |
-| `!darurat` / `darurat` / `sos` / `tolong` / `bantuan` / `help` | `!sos` / `sos` / `emergency` / `help` | 🚨 Trigger emergency SOS report (sets critical deadline) |
+| `!darurat` / `darurat` / `sos` / `tolong` / `bantuan` / `help` | `!sos` / `sos` / `emergency` / `help` | 🚨 Trigger emergency SOS report (broadcasts to all 19 groups) |
 | `!lapor` / `lapor` / `rusak` | `!report` / `report` / `broken` | 📋 Start step-by-step issue reporting flow |
 | `!perbaiki` / `perbaiki` / `selesai` | `!solve` / `solve` / `fix` | 🔧 Resolve an issue with fix description & photo proof |
 | `!tunda` / `tunda` / `tertunda` | `!pending` / `pending` / `delay` | ⏳ Mark job as pending with reason & delay photo proof |
@@ -85,6 +113,7 @@ Powered by `@whiskeysockets/baileys`, the bot runs alongside the system:
 
 - **Backend Framework**: [Laravel 11](https://laravel.com/) (PHP 8.2+)
 - **Frontend Framework**: [React 18](https://react.dev/) via [Inertia.js v2](https://inertiajs.com/)
+- **Charts & Data Visualization**: [Recharts](https://recharts.org/), [Anime.js](https://animejs.com/)
 - **Styling & UI**: [Tailwind CSS](https://tailwindcss.com/), [Lucide React Icons](https://lucide.dev/), [Shadcn UI components](https://ui.shadcn.com/)
 - **WhatsApp Integration**: [@whiskeysockets/baileys](https://github.com/WhiskeySockets/Baileys), Axios, Pino, Form-Data
 - **Desktop Wrapper**: [Electron 34](https://www.electronjs.org/)
@@ -127,7 +156,7 @@ php artisan key:generate
 # 6. Configure .env with your Google Sheet ID:
 # GOOGLE_SHEET_ID=your_google_spreadsheet_id_here
 
-# 7. Run SQLite migrations
+# 7. Run database migrations
 php artisan migrate
 
 # 8. Build frontend assets
@@ -167,8 +196,8 @@ node bot.js
 
 1. On initial startup, a **QR Code** will appear in the terminal.
 2. Open WhatsApp on your device -> **Linked Devices** -> **Link a Device** -> Scan the QR code.
-3. Once linked, add the bot number to your Telunas Staff WhatsApp Group.
-4. Type **`!setgroup`** in the group chat. The bot will save the group ID to `config.json` and begin broadcasting all incoming tickets.
+3. Once linked, add the bot number to your Telunas Staff WhatsApp Groups.
+4. Type **`!setgroup`** in the main announcement group chat. The bot will automatically map all 18 sub-groups and save the configuration to `config.json`.
 
 ---
 
