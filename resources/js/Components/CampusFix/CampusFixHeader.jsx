@@ -171,8 +171,8 @@ export function CampusFixHeader({ mode = 'dashboard', query, onQueryChange, onRe
                         </Button>
                     )}
 
-                    {/* Export PDF Button (Available in both Dashboard & Analytics) */}
-                    {onExport && (
+                    {/* Export PDF Button — Only on Dashboard */}
+                    {mode === 'dashboard' && onExport && (
                         <Button 
                             onClick={onExport} 
                             variant="outline" 

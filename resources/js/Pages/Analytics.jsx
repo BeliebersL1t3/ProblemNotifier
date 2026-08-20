@@ -530,7 +530,6 @@ function AnalyticsInner() {
                 mode="analytics" 
                 query={searchQuery} 
                 onQueryChange={handleSearchChange} 
-                onExport={() => setExportOpen(true)}
             />
 
             <main className="mx-auto max-w-7xl p-4 sm:p-6 lg:p-8 flex flex-col gap-8">
@@ -553,15 +552,27 @@ function AnalyticsInner() {
                             </div>
                         </div>
 
-                        {/* Summary Pill Badge */}
-                        <div className="flex items-center gap-2 text-xs font-semibold px-3.5 py-1.5 rounded-full bg-[#1C1B0E]/60 border border-[#3B3929] text-[#C9AA71] shrink-0 self-start sm:self-auto">
-                            <Database className="h-3.5 w-3.5" />
-                            <span>
-                                {selectedSheets.length === (availableSheets?.length || 1)
-                                    ? `${t('all_sheets')} (${combinedIssues.length} ${t('total_issues')})`
-                                    : `${selectedSheets.length} ${t('sheets_label')} (${combinedIssues.length} ${t('total_issues')})`
-                                }
-                            </span>
+                        {/* Right Actions: Summary Pill Badge + In-Page Export PDF Button */}
+                        <div className="flex items-center gap-2.5 shrink-0 self-start sm:self-auto flex-wrap">
+                            <div className="flex items-center gap-2 text-xs font-semibold px-3.5 py-2 rounded-full bg-[#1C1B0E]/60 border border-[#3B3929] text-[#C9AA71]">
+                                <Database className="h-3.5 w-3.5" />
+                                <span>
+                                    {selectedSheets.length === (availableSheets?.length || 1)
+                                        ? `${t('all_sheets')} (${combinedIssues.length} ${t('total_issues')})`
+                                        : `${selectedSheets.length} ${t('sheets_label')} (${combinedIssues.length} ${t('total_issues')})`
+                                    }
+                                </span>
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={() => setExportOpen(true)}
+                                className="px-3.5 py-2 rounded-xl text-xs font-bold transition-all duration-200 flex items-center gap-2 bg-[#1C1B0E] text-[#E3D1AA] border border-[#3B3929] hover:bg-[#2A281E] hover:border-[#C9AA71]/40 shadow-sm hover:shadow-md active:scale-95 cursor-pointer"
+                                title={t('export_pdf')}
+                            >
+                                <Download className="h-4 w-4 text-[#C9AA71]" />
+                                <span>{t('export_pdf')}</span>
+                            </button>
                         </div>
                     </div>
 
