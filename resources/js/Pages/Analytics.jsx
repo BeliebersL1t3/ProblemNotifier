@@ -3,7 +3,7 @@ import { Head } from '@inertiajs/react';
 import { useMemo, useState, useEffect, useRef } from 'react';
 import { 
     Loader2, Wrench, Sparkles, Laptop, Anchor, ShieldAlert, Utensils, Building, Hammer, Zap,
-    Droplets, Building2, Bug, User, HelpCircle, Download, AlertTriangle, Layers, Database, Clock, CheckSquare, Check, Eye, ChevronRight
+    Droplets, Building2, Bug, Tag, User, HelpCircle, Download, AlertTriangle, Layers, Database, Clock, CheckSquare, Check, Eye, ChevronRight
 } from 'lucide-react';
 import anime from 'animejs';
 import {
@@ -347,6 +347,7 @@ function AnalyticsInner() {
     };
     const [selectedStatusFilters, setSelectedStatusFilters] = useState([]);
     const [selectedDepartmentFilters, setSelectedDepartmentFilters] = useState([]);
+    const [selectedCategoryFilters, setSelectedCategoryFilters] = useState([]);
     const timelineRef = useRef(null);
     const chartsContainerRef = useRef(null);
     const recentActivityRef = useRef(null);
@@ -1000,7 +1001,64 @@ function AnalyticsInner() {
                                 onClick={() => setSelectedDepartmentFilters([])}
                                 className="text-[11px] font-semibold text-[#C9AA71] hover:text-[#FAFAFA] px-2 py-1 rounded hover:bg-[#2A281E] transition-colors ml-1 cursor-pointer"
                             >
-                                ✕ {lang === 'id' ? 'Reset Dept' : 'Reset Dept'}
+                                ✕ {t('reset_dept')}
+                            </button>
+                        )}
+                    </div>
+
+                    {/* Combinable Category Filter Pills for Timeline Activity */}
+                    <div className="flex items-center gap-1.5 text-xs flex-wrap bg-[#1E1D16] p-2 rounded-xl border border-[#3B3929]/80 shadow-inner">
+                        <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider px-2 shrink-0 flex items-center gap-1.5">
+                            <Tag className="h-3.5 w-3.5 text-[#C9AA71]" />
+                            {t('category')}:
+                        </span>
+
+                        <button
+                            type="button"
+                            onClick={() => setSelectedCategoryFilters([])}
+                            className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all duration-200 cursor-pointer border ${
+                                selectedCategoryFilters.length === 0
+                                    ? 'bg-[#C9AA71] text-[#1C1B0E] border-[#C9AA71] font-extrabold shadow-sm'
+                                    : 'bg-[#2A281E]/60 text-muted-foreground border-transparent hover:border-[#3B3929] hover:text-foreground opacity-70 hover:opacity-100'
+                            }`}
+                        >
+                            {t('all_categories')}
+                        </button>
+
+                        {DEFAULT_CATEGORIES.map(cat => {
+                            const isSelected = selectedCategoryFilters.includes(cat.id);
+                            const catColor = CATEGORY_COLORS[cat.id] || '#6B7280';
+                            return (
+                                <button
+                                    key={cat.id}
+                                    type="button"
+                                    onClick={() => {
+                                        setSelectedCategoryFilters(prev => 
+                                            prev.includes(cat.id) ? prev.filter(c => c !== cat.id) : [...prev, cat.id]
+                                        );
+                                    }}
+                                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all duration-200 cursor-pointer border ${
+                                        isSelected
+                                            ? 'bg-primary/25 text-[#C9AA71] border-[#C9AA71]/80 shadow-sm font-bold ring-1 ring-[#C9AA71]/40'
+                                            : 'bg-[#2A281E]/60 text-muted-foreground border-transparent hover:border-[#3B3929] hover:text-foreground opacity-60 hover:opacity-100'
+                                    }`}
+                                >
+                                    <span 
+                                        className="h-2 w-2 rounded-full shrink-0" 
+                                        style={{ backgroundColor: catColor }}
+                                    />
+                                    <span>{t(cat.id) || cat.label}</span>
+                                </button>
+                            );
+                        })}
+
+                        {selectedCategoryFilters.length > 0 && (
+                            <button
+                                type="button"
+                                onClick={() => setSelectedCategoryFilters([])}
+                                className="text-[11px] font-semibold text-[#C9AA71] hover:text-[#FAFAFA] px-2 py-1 rounded hover:bg-[#2A281E] transition-colors ml-1 cursor-pointer"
+                            >
+                                ✕ {t('reset_category')}
                             </button>
                         )}
                     </div>
