@@ -156,18 +156,20 @@ export function CampusFixHeader({ mode = 'dashboard', query, onQueryChange, onRe
                             EN
                         </button>
                     </div>
-                    {/* Unified Period Button (Select, Create, Delete sheets) */}
-                    <Button
-                        onClick={handlePeriodOpen}
-                        variant="outline"
-                        className="group gap-0 border-[#1C1B0E]/40 text-[#1C1B0E] hover:bg-[#1C1B0E] hover:text-[#E3D1AA] transition-all duration-300 px-3.5"
-                        title={`${t('period')}: ${currentSheet === 'all' ? 'All Sheets' : (currentSheet || 'Default')}`}
-                    >
-                        <CalendarPlus className="h-4 w-4 shrink-0" aria-hidden />
-                        <span className="max-w-0 opacity-0 group-hover:max-w-[100px] group-hover:opacity-100 transition-all duration-300 ease-out overflow-hidden whitespace-nowrap ml-0 group-hover:ml-2">
-                            {t('period')}
-                        </span>
-                    </Button>
+                    {/* Unified Period Button (Select, Create, Delete sheets) — Only on Dashboard */}
+                    {mode === 'dashboard' && (
+                        <Button
+                            onClick={handlePeriodOpen}
+                            variant="outline"
+                            className="group gap-0 border-[#1C1B0E]/40 text-[#1C1B0E] hover:bg-[#1C1B0E] hover:text-[#E3D1AA] transition-all duration-300 px-3.5"
+                            title={`${t('period')}: ${currentSheet === 'all' ? 'All Sheets' : (currentSheet || 'Default')}`}
+                        >
+                            <CalendarPlus className="h-4 w-4 shrink-0" aria-hidden />
+                            <span className="max-w-0 opacity-0 group-hover:max-w-[100px] group-hover:opacity-100 transition-all duration-300 ease-out overflow-hidden whitespace-nowrap ml-0 group-hover:ml-2">
+                                {t('period')}
+                            </span>
+                        </Button>
+                    )}
 
                     {/* Export PDF Button (Available in both Dashboard & Analytics) */}
                     {onExport && (
