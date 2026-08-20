@@ -1329,15 +1329,11 @@ async function startSock() {
     });
 }
 
-// --- EXPRESS SERVER FOR NOTIFICATIONS ---
+// --- EXPRESS SERVER FOR NOTIFICATIONS (MULTI-GROUP ROUTING) ---
 app.post('/notify', async (req, res) => {
     try {
-        const { message, imageUrl } = req.body;
+        const { message, imageUrl, taggedDepartments, priority } = req.body;
         
-        if (!linkedGroupId) {
-            return res.status(400).json({ error: 'No group linked. Send !setgroup in a WhatsApp group first.' });
-        }
-
         if (!globalSock) {
             return res.status(500).json({ error: 'Socket not initialized.' });
         }

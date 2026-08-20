@@ -397,7 +397,10 @@ class IssueController extends Controller
                 $originName = $dept ?: ($isEmergency ? 'Emergency (SOS)' : 'General');
                 Http::timeout(3)->post('http://localhost:3000/notify', [
                     'message' => "🚨 *New Issue Submitted!*{$priorityStr}\n*Title:* {$request->title}\n*Location:* {$request->location}\n*Origin:* {$originName}{$taggedStr}\n*Category:* {$request->category}\n*Reporter:* {$request->reporter}\n*ID:* {$id}\n*Link:* " . url('/dashboard'),
-                    'imageUrl' => $resolvedImageUrl
+                    'imageUrl' => $resolvedImageUrl,
+                    'taggedDepartments' => $taggedDeptsStr,
+                    'department' => $originName,
+                    'priority' => $request->priority ?? 'low'
                 ]);
             } catch (\Exception $e) {
                 // Ignore if bot is offline
