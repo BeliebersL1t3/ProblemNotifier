@@ -240,14 +240,6 @@ async function startSock() {
         }
     });
 
-    sock.ev.on('groups.update', async () => {
-        await syncCommunityGroups(sock);
-    });
-
-    sock.ev.on('group-participants.update', async () => {
-        await syncCommunityGroups(sock);
-    });
-
     sock.ev.on('messages.upsert', async m => {
         if (m.type !== 'notify') return;
 
