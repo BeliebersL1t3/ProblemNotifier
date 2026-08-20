@@ -255,8 +255,13 @@ function AnalyticsInner() {
         if (!issues || issues.length === 0) return [];
         const counts = {};
         issues.forEach(issue => {
-            const dept = issue.department || 'Unknown';
-            counts[dept] = (counts[dept] || 0) + 1;
+            const rawDept = (issue.department || '').trim();
+            const lowerDept = rawDept.toLowerCase();
+            // Exclude Emergency, undefined, unknown, and empty from department breakdown
+            if (!rawDept || lowerDept === 'emergency' || lowerDept === 'undefined' || lowerDept === 'unknown') {
+                return;
+            }
+            counts[rawDept] = (counts[rawDept] || 0) + 1;
         });
 
         return Object.keys(counts)

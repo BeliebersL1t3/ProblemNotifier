@@ -3,6 +3,7 @@ import axios from 'axios';
 
 // Fixed 10-category system — no custom categories
 export const DEFAULT_CATEGORIES = [
+    { id: 'emergency', label: 'Emergency' },
     { id: 'broken', label: 'Broken Equipment' },
     { id: 'plumbing', label: 'Plumbing' },
     { id: 'electrical', label: 'Electrical' },
