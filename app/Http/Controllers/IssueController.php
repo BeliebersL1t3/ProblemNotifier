@@ -211,6 +211,9 @@ class IssueController extends Controller
                         'location'       => $row[3] ?? '',
                         'category'       => $row[4] ?? '',
                         'department'     => $row[22] ?? '', // Origin department
+                        'assignedDepartments' => !empty($row[23]) 
+                            ? array_map('trim', explode(',', $row[23])) 
+                            : (!empty($row[21]) ? array_map('trim', explode(',', $row[21])) : []),
                         'taggedDepartments' => !empty($row[21]) ? array_map('trim', explode(',', $row[21])) : [],
                         'status'         => $row[5] ?? 'open',
                         'reporter'       => $row[6] ?? 'Anonymous',
@@ -262,7 +265,8 @@ class IssueController extends Controller
                 'location'    => 'required|string|max:255',
                 'category'    => 'required|string',
                 'department'  => 'required|string',
-                'taggedDepartments' => 'nullable|string',
+                'assignedDepartments' => 'nullable|string',
+                'taggedDepartments'   => 'nullable|string',
                 'reporter'    => 'required|string|max:255',
                 'image'       => 'nullable|file|image|mimes:jpg,jpeg,png,webp|max:5120',
             ]);
@@ -301,8 +305,10 @@ class IssueController extends Controller
                 'IT' => 'IT',
                 'Procurement' => 'PRc',
                 'Sales/Marketing' => 'Sls',
-                'Reservasi' => 'Res',
-                'Finance' => 'Fin'
+                'Reservasi'       => 'Res',
+                'Finance'         => 'Fin',
+                'Legal'           => 'LGL',
+                'HR'              => 'HR',
             ];
             
             $dept = $request->department;
@@ -336,7 +342,8 @@ class IssueController extends Controller
             $submittedAt = Carbon::now()->toIso8601String();
             $formattedDesc = self::formatParagraphText($request->description);
 
-            $taggedDeptsStr = $isEmergency ? 'ALL' : ($request->taggedDepartments ?? '');
+            $assignedDeptsStr = $isEmergency ? 'ALL' : ($request->assignedDepartments ?? ($request->taggedDepartments ?? ''));
+            $taggedDeptsStr   = $isEmergency ? 'ALL' : ($request->taggedDepartments ?? '');
 
             $newRow = [
                 $id,
@@ -360,8 +367,9 @@ class IssueController extends Controller
                 '', // 18 pendingReason
                 '', // 19 pendingBy
                 '', // 20 pendingImageUrl
-                $taggedDeptsStr, // 21 tagged_departments
+                $taggedDeptsStr, // 21 tagged_departments (info only)
                 $dept ?: ($isEmergency ? 'Emergency' : 'General'), // 22 origin_department
+                $assignedDeptsStr, // 23 assigned_department (responsible to fix)
             ];
 
             $rowIndex = $this->googleService->appendRow($newRow);
@@ -385,19 +393,30 @@ class IssueController extends Controller
                 }
                 $priorityStr .= "\n";
             }
-            // Send Notification to WhatsApp Group
-            $taggedStr = '';
-            if ($isEmergency) {
-                $taggedStr = "\n*Tags:* @ALL";
-            } else if (!empty($request->taggedDepartments)) {
-                $tags = array_map('trim', explode(',', $request->taggedDepartments));
-                $taggedStr = "\n*Tags:* " . implode(' ', array_map(function($t) { return "@{$t}"; }, $tags));
+
+            // Formatting tags and assignments for WhatsApp Notification
+            $assignedStr = '';
+            if ($isEmergency || $assignedDeptsStr === 'ALL') {
+                $assignedStr = "\n🎯 *Assigned to:* @ALL (ACTION REQUIRED)";
+            } else if (!empty($assignedDeptsStr)) {
+                $assignedTags = array_map('trim', explode(',', $assignedDeptsStr));
+                $assignedStr = "\n🎯 *Assigned to:* " . implode(' ', array_map(fn($t) => "@{$t}", $assignedTags)) . " *(Action Required)*";
             }
+
+            $taggedStr = '';
+            if ($isEmergency || $taggedDeptsStr === 'ALL') {
+                $taggedStr = "\n📢 *Tagged:* @ALL (Info Only)";
+            } else if (!empty($taggedDeptsStr)) {
+                $tags = array_map('trim', explode(',', $taggedDeptsStr));
+                $taggedStr = "\n📢 *Tagged:* " . implode(' ', array_map(fn($t) => "@{$t}", $tags)) . " *(Info Only)*";
+            }
+
             try {
                 $originName = $dept ?: ($isEmergency ? 'Emergency (SOS)' : 'General');
                 Http::timeout(3)->post('http://localhost:3000/notify', [
-                    'message' => "🚨 *New Issue Submitted!*{$priorityStr}\n*Title:* {$request->title}\n*Location:* {$request->location}\n*Origin:* {$originName}{$taggedStr}\n*Category:* {$request->category}\n*Reporter:* {$request->reporter}\n*ID:* {$id}\n*Link:* " . url('/dashboard'),
+                    'message' => "🚨 *New Issue Submitted!*{$priorityStr}\n*Title:* {$request->title}\n*Location:* {$request->location}\n*Origin:* {$originName}{$assignedStr}{$taggedStr}\n*Category:* {$request->category}\n*Reporter:* {$request->reporter}\n*ID:* {$id}\n*Link:* " . url('/dashboard'),
                     'imageUrl' => $resolvedImageUrl,
+                    'assignedDepartments' => $assignedDeptsStr,
                     'taggedDepartments' => $taggedDeptsStr,
                     'department' => $originName,
                     'priority' => $request->priority ?? 'low'
@@ -684,24 +703,23 @@ class IssueController extends Controller
                 return response()->json(['success' => false, 'message' => 'Issue not found.'], 404);
             }
 
-
-
             $pendingDataRaw = $currentRow[18] ?? '';
             $pendingTimeline = self::parsePendingTimeline($pendingDataRaw, $currentRow[19] ?? '', $this->resolveImageUrl($currentRow[20] ?? ''));
 
             $date = \Carbon\Carbon::now()->format('M d, H:i');
             
-            $pendingUrl = '';
+            $pendingImageUrl = '';
             if ($request->hasFile('pendingImage')) {
                 // Generate a unique name for each delay photo so they don't overwrite each other in the uploads folder
-                $pendingUrl = $this->googleService->uploadImage($request->file('pendingImage'), "{$idOrRowIndex}-pending-" . time());
+                $timestamp = time();
+                $pendingImageUrl = $this->googleService->uploadImage($request->file('pendingImage'), "{$idOrRowIndex}-pending-{$timestamp}");
             }
 
             $pendingTimeline[] = [
                 'date'   => $date,
                 'by'     => $request->pendingBy,
                 'reason' => $request->pendingReason,
-                'image'  => $this->resolveImageUrl($pendingUrl),
+                'image'  => $pendingImageUrl,
             ];
 
             $newJson = json_encode($pendingTimeline);
@@ -710,10 +728,10 @@ class IssueController extends Controller
                 'F' => 'pending',
                 'S' => $newJson,
                 'T' => $request->pendingBy,
-                'U' => $pendingUrl,
+                'U' => $pendingImageUrl,
             ]);
 
-            $resolvedPendingUrl = $this->resolveImageUrl($pendingUrl);
+            $resolvedPendingUrl = $this->resolveImageUrl($pendingImageUrl);
 
             try {
                 Http::timeout(3)->post('http://localhost:3000/notify', [

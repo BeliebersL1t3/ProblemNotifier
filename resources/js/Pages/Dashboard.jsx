@@ -205,8 +205,11 @@ function DashboardInner() {
                 : issue.status === statusFilter;
 
             const matchesDept = deptFilter === 'all' ? true : (
+                (Array.isArray(issue.assignedDepartments) && issue.assignedDepartments.includes(deptFilter)) ||
+                issue.assignedDepartments === deptFilter ||
                 issue.department === deptFilter || 
-                (issue.taggedDepartments && issue.taggedDepartments.includes(deptFilter))
+                (Array.isArray(issue.taggedDepartments) && issue.taggedDepartments.includes(deptFilter)) ||
+                issue.taggedDepartments === deptFilter
             );
 
             return matchesQuery && matchesCategory && matchesStatus && matchesDept;

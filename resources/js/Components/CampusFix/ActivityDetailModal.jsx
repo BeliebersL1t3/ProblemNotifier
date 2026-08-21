@@ -140,6 +140,18 @@ export function ActivityDetailModal({ issue, onClose, onOpenCardModal }) {
                                 </div>
                             </div>
 
+                            <div className="flex items-start gap-2 bg-[#2A281E]/60 p-2.5 rounded-lg border border-amber-500/30">
+                                <span className="text-sm shrink-0 mt-0.5">🎯</span>
+                                <div>
+                                    <p className="text-muted-foreground">{lang === 'id' ? 'Departemen Ditugaskan' : 'Assigned Department(s)'}</p>
+                                    <p className="font-bold text-amber-400 text-sm">
+                                        {Array.isArray(issue.assignedDepartments) && issue.assignedDepartments.length > 0 
+                                            ? issue.assignedDepartments.join(', ') 
+                                            : (issue.assignedDepartments || 'Not Specified')}
+                                    </p>
+                                </div>
+                            </div>
+
                             <div className="flex items-start gap-2 bg-[#2A281E]/60 p-2.5 rounded-lg border border-[#3B3929]/50">
                                 <Building className="w-4 h-4 text-[#C9AA71] shrink-0 mt-0.5" />
                                 <div>
@@ -172,16 +184,29 @@ export function ActivityDetailModal({ issue, onClose, onOpenCardModal }) {
                             </div>
                         )}
 
-                        {issue.taggedDepartments && issue.taggedDepartments.length > 0 && (
-                            <div className="mt-3 flex items-center gap-1.5 flex-wrap text-xs">
-                                <span className="text-muted-foreground">{lang === 'id' ? 'Departemen Ditandai:' : 'Tagged Departments:'}</span>
-                                {issue.taggedDepartments.map((dept, i) => (
-                                    <span key={i} className="px-2 py-0.5 rounded bg-primary/10 text-primary border border-primary/20 font-medium">
-                                        {dept}
-                                    </span>
-                                ))}
-                            </div>
-                        )}
+                        <div className="mt-3 flex flex-col gap-2 text-xs">
+                            {issue.assignedDepartments && (Array.isArray(issue.assignedDepartments) ? issue.assignedDepartments.length > 0 : !!issue.assignedDepartments) && (
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span className="text-amber-400 font-medium">{lang === 'id' ? '🎯 Ditugaskan ke:' : '🎯 Assigned to:'}</span>
+                                    {(Array.isArray(issue.assignedDepartments) ? issue.assignedDepartments : [issue.assignedDepartments]).map((dept, i) => (
+                                        <span key={i} className="px-2 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 font-medium font-mono text-[11px]">
+                                            {dept}
+                                        </span>
+                                    ))}
+                                </div>
+                            )}
+
+                            {issue.taggedDepartments && issue.taggedDepartments.length > 0 && (
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span className="text-purple-400 font-medium">{lang === 'id' ? '📢 Ditandai (Info):' : '📢 Tagged (Info):'}</span>
+                                    {issue.taggedDepartments.map((dept, i) => (
+                                        <span key={i} className="px-2 py-0.5 rounded bg-purple-500/15 text-purple-300 border border-purple-500/30 font-medium font-mono text-[11px]">
+                                            @{dept}
+                                        </span>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
                     </div>
 
                     {/* ================= STAGE 2: CLAIM / IN-PROGRESS ================= */}

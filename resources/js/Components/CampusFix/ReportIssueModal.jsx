@@ -22,11 +22,7 @@ import { ImageDropzone } from './ImageDropzone';
 import { useIssues } from '@/context/IssuesContext';
 import { Loader2 } from 'lucide-react';
 
-const DEPARTMENTS = [
-    'Engineer', 'Tekong', 'Pest Control', 'Security', 'Fasilitas', 
-    'HK', 'F&B', 'Service', 'Bar', 'GR', 'Spa', 'TiRek', 'OE', 
-    'IT', 'Procurement', 'Sales/Marketing', 'Reservasi', 'Finance'
-];
+import { ALL_DEPARTMENTS } from '@/constants/staff';
 
 export function ReportIssueModal({ open, onOpenChange }) {
     const { addIssue } = useIssues();
@@ -39,6 +35,7 @@ export function ReportIssueModal({ open, onOpenChange }) {
     const [priority, setPriority] = useState('low');
     const [deadline, setDeadline] = useState('15');
     const [originDept, setOriginDept] = useState('');
+    const [assignedDepts, setAssignedDepts] = useState([]);
     const [taggedDepts, setTaggedDepts] = useState([]);
     const [imageFile, setImageFile] = useState(null);
     const [imageUrl, setImageUrl] = useState(undefined);
@@ -52,7 +49,7 @@ export function ReportIssueModal({ open, onOpenChange }) {
 
     const MAIN_LOCATIONS = ['TPI', 'TBR', 'Kantor'];
 
-    const valid = reporter.trim() && title.trim() && location.trim() && description.trim() && originDept && taggedDepts.length > 0 && imageFile;
+    const valid = reporter.trim() && title.trim() && location.trim() && description.trim() && originDept && assignedDepts.length > 0 && imageFile;
 
     const reset = () => {
         setReporter('');
@@ -64,11 +61,18 @@ export function ReportIssueModal({ open, onOpenChange }) {
         setPriority('low');
         setDeadline('15');
         setOriginDept('');
+        setAssignedDepts([]);
         setTaggedDepts([]);
         setImageFile(null);
         setImageUrl(undefined);
         setErrorMsg('');
         setIsSubmitting(false);
+    };
+
+    const toggleAssigned = (dept) => {
+        setAssignedDepts(prev =>
+            prev.includes(dept) ? prev.filter(d => d !== dept) : [...prev, dept]
+        );
     };
 
     const toggleTag = (dept) => {
@@ -89,6 +93,7 @@ export function ReportIssueModal({ open, onOpenChange }) {
                 location: location.trim(),
                 category,
                 department: originDept,
+                assignedDepartments: assignedDepts.join(', '),
                 taggedDepartments: taggedDepts.join(', '),
                 description: description.trim(),
                 imageFile,
@@ -198,38 +203,73 @@ export function ReportIssueModal({ open, onOpenChange }) {
                         </div>
                     </div>
 
-                    <div className="grid gap-4 sm:grid-cols-2">
-                        <div className="grid gap-2">
-                            <Label htmlFor="originDept">Origin Department</Label>
-                            <Select value={originDept} onValueChange={setOriginDept} disabled={isSubmitting}>
-                                <SelectTrigger id="originDept">
-                                    <SelectValue placeholder="Select Origin" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {DEPARTMENTS.map((dept) => (
-                                        <SelectItem key={dept} value={dept}>{dept}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                    <div className="grid gap-2">
+                        <Label htmlFor="originDept">🏠 Origin Department (Discovered By)</Label>
+                        <Select value={originDept} onValueChange={setOriginDept} disabled={isSubmitting}>
+                            <SelectTrigger id="originDept">
+                                <SelectValue placeholder="Select Origin Department" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {ALL_DEPARTMENTS.map((dept) => (
+                                    <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    {/* Assigned Department(s) - Required & Multi-Select */}
+                    <div className="grid gap-2 p-3 rounded-lg border border-amber-500/30 bg-amber-500/5">
+                        <div className="flex flex-col gap-0.5">
+                            <Label className="text-amber-600 dark:text-amber-400 font-semibold flex items-center gap-1.5">
+                                🎯 Assigned Department(s) <span className="text-xs text-destructive">*</span>
+                            </Label>
+                            <span className="text-xs text-muted-foreground">
+                                Select department(s) <strong>responsible for fixing / acting</strong> on this issue.
+                            </span>
+                        </div>
+                        <div className="flex flex-wrap gap-2 pt-1">
+                            {ALL_DEPARTMENTS.map(dept => (
+                                <button
+                                    key={dept}
+                                    type="button"
+                                    disabled={isSubmitting}
+                                    onClick={() => toggleAssigned(dept)}
+                                    className={`px-3 py-1.5 text-xs font-semibold rounded-full border transition-all ${
+                                        assignedDepts.includes(dept) 
+                                            ? 'bg-amber-600 text-white border-amber-600 shadow-sm ring-2 ring-amber-500/20' 
+                                            : 'bg-surface text-muted-foreground border-border hover:border-amber-500/50 hover:bg-amber-500/10'
+                                    }`}
+                                >
+                                    {assignedDepts.includes(dept) ? `✓ ${dept}` : dept}
+                                </button>
+                            ))}
                         </div>
                     </div>
 
-                    <div className="grid gap-2">
-                        <Label>Tagged Departments (Who should fix this?)</Label>
-                        <div className="flex flex-wrap gap-2">
-                            {DEPARTMENTS.map(dept => (
+                    {/* Tagged Department(s) - Optional Info/FYI */}
+                    <div className="grid gap-2 p-3 rounded-lg border border-indigo-500/30 bg-indigo-500/5">
+                        <div className="flex flex-col gap-0.5">
+                            <Label className="text-indigo-600 dark:text-indigo-400 font-semibold flex items-center gap-1.5">
+                                📢 Tagged Department(s) <span className="text-xs font-normal text-muted-foreground">(Info / Awareness only - Optional)</span>
+                            </Label>
+                            <span className="text-xs text-muted-foreground">
+                                Notify other departments for situational awareness (e.g. tag GR if villa is under repair).
+                            </span>
+                        </div>
+                        <div className="flex flex-wrap gap-2 pt-1">
+                            {ALL_DEPARTMENTS.map(dept => (
                                 <button
                                     key={dept}
                                     type="button"
                                     disabled={isSubmitting}
                                     onClick={() => toggleTag(dept)}
-                                    className={`px-3 py-1.5 text-xs font-semibold rounded-full border transition-colors ${
+                                    className={`px-3 py-1.5 text-xs font-semibold rounded-full border transition-all ${
                                         taggedDepts.includes(dept) 
-                                            ? 'bg-primary text-primary-foreground border-primary' 
-                                            : 'bg-surface text-muted-foreground border-border hover:border-primary/50'
+                                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm ring-2 ring-indigo-500/20' 
+                                            : 'bg-surface text-muted-foreground border-border hover:border-indigo-500/50 hover:bg-indigo-500/10'
                                     }`}
                                 >
-                                    {dept}
+                                    {taggedDepts.includes(dept) ? `✓ ${dept}` : dept}
                                 </button>
                             ))}
                         </div>

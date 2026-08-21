@@ -56,6 +56,9 @@ const STEPS = {
     AWAITING_DESC: 3,
     AWAITING_LOC: 4,
     AWAITING_CAT: 5,
+    AWAITING_DESC: 3,
+    AWAITING_LOC: 4,
+    AWAITING_CAT: 5,
     AWAITING_PHOTO: 6,
     AWAITING_SOLVE_ID: 7,
     AWAITING_SOLVE_NAME: 8,
@@ -73,7 +76,7 @@ const STEPS = {
     AWAITING_PENDING_REASON: 20,
     AWAITING_PENDING_PHOTO: 21,
     AWAITING_ORIGIN_DEPT: 22,
-    AWAITING_TAG_DEPT: 23,
+    AWAITING_ASSIGNED_DEPTS: 23,
     STATUS_AWAITING_DEPT: 24,
     STATUS_AWAITING_STATUS: 25,
     STATUS_AWAITING_CAT: 26,
@@ -83,16 +86,51 @@ const STEPS = {
     CONFIRM_CLAIM_THEN_PENDING: 29, // Issue is open; ask if user wants claim+pending
     CONFIRM_CLAIM_THEN_SOLVE: 30,   // Issue is open; ask if user wants claim+solve
     CONFIRM_CLAIM_PENDING_NAME: 31, // Collect worker name after yes-confirm for claim+pending
-    CONFIRM_CLAIM_SOLVE_NAME: 32,   // Collect solver name after yes-confirm for claim+solve
     AWAITING_MENU_LANG: 33,         // User typed "menu" and needs to choose ID or EN
     SOS_AWAITING_PHOTO: 34,         // Optional photo upload in SOS flow
+    AWAITING_TAG_DEPT: 35,          // Multi-selection or skip for informational tags
 };
 
 const DEPARTMENTS = [
-    'Engineer', 'Tekong', 'Pest Control', 'Security', 'Fasilitas', 
-    'HK', 'F&B', 'Service', 'Bar', 'GR', 'Spa', 'TiRek', 'OE', 
-    'IT', 'Procurement', 'Sales/Marketing', 'Reservasi', 'Finance'
+    'Engineer', 'Tekong', 'Pest Control', 'Security', 'Fasilitas',
+    'HK', 'F&B', 'Service', 'Bar', 'GR', 'Spa', 'TiRek', 'OE',
+    'IT', 'Procurement', 'Sales/Marketing', 'Reservasi', 'Finance',
+    'Legal', 'HR'
 ];
+
+// Staff rosters keyed by lowercase department name
+const DEPARTMENT_STAFF = {
+    'engineer':         ['Dimas Pratama', 'Budi Santoso', 'Ahmad Fauzi', 'Hendra Wijaya', 'Joko Susilo'],
+    'tekong':           ['Captain Arif', 'Rudi Hartono', 'Surya Saputra', 'Bambang Irawan'],
+    'pest control':     ['Wahyu Hidayat', 'Rian Kurniawan', 'Pest Control Team'],
+    'security':         ['Pak Joko (Security)', 'Agus Setiawan', 'Doni Prasetyo', 'Security Lead'],
+    'fasilitas':        ['Anto (Fasilitas)', 'Dedi Kusuma', 'Eko Purnomo', 'Fasilitas Team'],
+    'hk':               ['Siti Rahma', 'Dewi Lestari', 'Sri Wahyuni', 'Nurul Aini', 'Fitri Handayani'],
+    'f&b':              ['Chef Ricky', 'Bayu Pratama', 'Putri Ayu', 'F&B Kitchen Team'],
+    'service':          ['Andi Kurnia', 'Rina Marlina', 'Dian Anggraini', 'Service Captain'],
+    'bar':              ['Lia (Bar)', 'Kevin Sanjaya', 'Bar Team Lead'],
+    'gr':               ['Wawan (GR)', 'Nadia Safitri', 'Indah Permata', 'GR Reception Team'],
+    'spa':              ['Nurse Maya', 'Sari Wulandari', 'Yanti Komala', 'Spa Therapist Lead'],
+    'tirek':            ['TiRek Coordinator', 'Fajar Ramadhan', 'Activity Guide Team'],
+    'oe':               ['Dimas (OE)', 'OE Operations Lead', 'Taufik Hidayat'],
+    'it':               ['Reza (IT)', 'Dani (IT)', 'IT Support Team'],
+    'procurement':      ['Procurement Team', 'Budi Purchasing', 'Ratna Dewi'],
+    'sales/marketing':  ['Clarissa Tan', 'Sales Lead', 'Marketing Coordinator'],
+    'reservasi':        ['Maya Putri', 'Reservasi Lead', 'Res Staff'],
+    'finance':          ['Iwan Accountant', 'Finance Lead', 'Finance Officer'],
+    'legal':            ['Advokat Hendro', 'Ratna SH (Legal)', 'Legal Team Lead'],
+    'hr':               ['Pak Bambang (HR)', 'Siti HR Specialist', 'HR Officer'],
+};
+
+/**
+ * Get the department key for a WhatsApp group JID (reverse-lookup).
+ */
+function getDeptKeyForGroup(groupJid) {
+    for (const [deptKey, gid] of Object.entries(botConfig.departmentGroups || {})) {
+        if (gid === groupJid) return deptKey;
+    }
+    return null;
+}
 
 // Fixed 10-category system: no custom/dynamic categories
 const CORE_DISPLAY = {
@@ -338,66 +376,120 @@ async function startSock() {
                     continue;
                 }
 
+
                 if (text.toLowerCase().startsWith('!claim')) {
-                    let takerName = text.substring(6).trim();
-                    if (!takerName) {
-                        takerName = msg.pushName || 'Staff';
-                    }
-                    
                     const quotedMsg = msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
                     const quotedText = quotedMsg?.conversation || quotedMsg?.imageMessage?.caption || quotedMsg?.extendedTextMessage?.text;
 
                     if (!quotedText) {
-                        await reply('Please reply directly to an issue notification to claim it.');
+                        await reply('Please reply directly to an issue notification to claim it. Example: reply the notification and type *!claim*');
                         continue;
                     }
-                    
-                    // Match alphanumeric ID with hyphens (e.g. "UND-190826-4", "Eng-190826-1", "123")
+
+                    // Match alphanumeric ID with hyphens
                     const idMatch = quotedText.match(/ID:\s*\*?\s*([A-Za-z0-9\-_]+)/i);
                     if (!idMatch) {
                         await reply('Could not find the Issue ID in the message you replied to. Please make sure you reply to a new issue notification.');
                         continue;
                     }
-                    
+
                     const issueId = idMatch[1];
                     try {
                         const getRes = await axios.get(`${BASE_URL}/api/issues`);
-                        if (!getRes.data.success) throw new Error("Failed to fetch issues");
-                        
+                        if (!getRes.data.success) throw new Error('Failed to fetch issues');
+
                         const issue = getRes.data.data.find(i => i.id === issueId);
                         if (!issue) {
-                            await reply(`❌ Could not find issue ${issueId} in the database.`);
+                            await reply(`❌ Could not find issue *${issueId}* in the system.`);
                             continue;
                         }
-                        
-                        // Status-specific guard messages
+
+                        // Status guards
                         if (issue.status === 'solved') {
-                            await reply(`✅ This issue (ID: ${issueId}) has already been *solved*. No further action needed.`);
+                            await reply(`✅ Issue *${issueId}* has already been *solved*. No further action needed.`);
                             continue;
                         }
                         if (issue.status === 'progress') {
-                            await reply(`⚠️ Issue *${issueId}* has already been claimed by *${issue.taker || 'someone'}* and is currently *In Progress*. You cannot claim it again.\n\nIf they need to mark it pending, they can DM the bot with \`pending\`.`);
+                            await reply(`⚠️ Issue *${issueId}* has already been claimed by *${issue.taker || 'someone'}* and is currently *In Progress*.`);
                             continue;
                         }
                         if (issue.status === 'pending') {
-                            await reply(`⏸️ Issue *${issueId}* is currently *Pending* (delayed by ${issue.pendingBy || 'someone'}). It cannot be claimed until it's back In Progress.\n\nIf this is now resolved, the worker should DM the bot with \`solve\`.`);
+                            await reply(`⏸️ Issue *${issueId}* is currently *Pending* (delayed by ${issue.pendingBy || 'someone'}). It cannot be re-claimed until it's back In Progress.`);
                             continue;
                         }
-                        
+
+                        // Determine which department this WhatsApp group belongs to
+                        const groupDeptKey = getDeptKeyForGroup(from);
+
+                        // Build authorized dept keys (assigned + tagged)
+                        const assignedDepts = (Array.isArray(issue.assignedDepartments) ? issue.assignedDepartments : (issue.assignedDepartments || '').split(',').map(d => d.trim())).filter(Boolean);
+                        const taggedDepts  = (Array.isArray(issue.taggedDepartments) ? issue.taggedDepartments : (issue.taggedDepartments || '').split(',').map(d => d.trim())).filter(Boolean);
+                        const authorizedKeys = [...assignedDepts, ...taggedDepts].map(d => d.toLowerCase());
+
+                        // --- GROUP AUTHORIZATION CHECK ---
+                        const isAllDepts = assignedDepts.includes('ALL');
+                        const isAuthorized = isAllDepts || !groupDeptKey || authorizedKeys.includes(groupDeptKey);
+
+                        if (!isAuthorized && groupDeptKey) {
+                            // Outside group — give supportive redirect message
+                            const assignedList = assignedDepts.filter(d => d !== 'ALL').join(', ') || 'the assigned team';
+                            const taggedList   = taggedDepts.filter(d => d !== 'ALL').join(', ');
+                            let routingMsg = `ℹ️ *Issue ${issueId}* is not assigned to your department.\n\n`;
+                            routingMsg += `🎯 *Assigned to:* ${assignedList}\n`;
+                            if (taggedList) routingMsg += `📢 *Also notified:* ${taggedList}\n`;
+                            routingMsg += `\nPlease contact the assigned team directly so they can handle it. You can forward this notification to their group!`;
+                            await reply(routingMsg);
+                            continue;
+                        }
+
+                        // --- ROSTER CLAIM FLOW ---
+                        // Get roster for this group's department
+                        const roster = groupDeptKey ? (DEPARTMENT_STAFF[groupDeptKey] || []) : [];
+                        const takerArg = text.substring(6).trim(); // anything after !claim
+
+                        if (!takerArg && roster.length > 0) {
+                            // No name provided — show roster for user to pick
+                            let rosterMsg = `🤝 *Claiming Issue ${issueId}*\n`;
+                            rosterMsg += `📍 *${issue.title}* — ${issue.location}\n\n`;
+                            rosterMsg += `Reply *!claim <your name>* or pick your number:\n\n`;
+                            roster.forEach((name, idx) => {
+                                rosterMsg += `${idx + 1}. ${name}\n`;
+                            });
+                            rosterMsg += `\nExample: *!claim 2* or *!claim Budi Santoso*`;
+                            await reply(rosterMsg);
+                            continue;
+                        }
+
+                        // Resolve name: could be a number (roster index) or a full name
+                        let takerName = takerArg || (msg.pushName || 'Staff');
+                        if (roster.length > 0) {
+                            const numIdx = parseInt(takerName, 10);
+                            if (!isNaN(numIdx) && numIdx >= 1 && numIdx <= roster.length) {
+                                takerName = roster[numIdx - 1];
+                            } else {
+                                // Check if name partially matches roster
+                                const matched = roster.find(n => n.toLowerCase().includes(takerName.toLowerCase()));
+                                if (matched) takerName = matched;
+                            }
+                        }
+
+                        const deptLabel = groupDeptKey ? groupDeptKey.charAt(0).toUpperCase() + groupDeptKey.slice(1) : '';
                         const claimRes = await axios.post(`${BASE_URL}/api/issues/${issue.rowIndex}/claim`, {
-                            taker: takerName + " (via WhatsApp)"
+                            taker: takerName + (deptLabel ? ` (${deptLabel})` : '') + ' via WhatsApp',
+                            ...(groupDeptKey ? { department: deptLabel || groupDeptKey } : {}),
                         });
-                        
+
                         if (claimRes.data.success) {
-                            await reply(`✅ Issue ${issueId} claimed successfully by *${takerName}*! The dashboard has been updated.`);
+                            await reply(`✅ Issue *${issueId}* claimed by *${takerName}*! Dashboard updated.`);
                         } else {
-                            await reply(`❌ Failed to claim issue: ${claimRes.data.message || 'Unknown error'}`);
+                            await reply(`❌ Failed to claim: ${claimRes.data.message || 'Unknown error'}`);
                         }
                     } catch (e) {
                         const errMsg = e.response?.data?.message || e.message;
                         await reply(`❌ API Error: ${errMsg}`);
                     }
                 }
+
                 // Allow state machine for this user if they are in an active flow, or triggering one
                 const p = msg.key.participant || from;
                 const sk = `${from}_${p}`;
@@ -681,115 +773,117 @@ async function startSock() {
                     }
                 }
 
-                try {
-                    await reply(getMsg(
-                        '🚨 Submitting emergency report immediately... please wait.',
-                        '🚨 Mengirim laporan darurat sekarang... mohon tunggu.'
-                    ));
+                    try {
+                        await reply(getMsg(
+                            '🚨 Submitting emergency report immediately... please wait.',
+                            '🚨 Mengirim laporan darurat sekarang... mohon tunggu.'
+                        ));
 
-                    const formData = new FormData();
-                    formData.append('title', state.data.title);
-                    formData.append('description', state.data.description);
-                    formData.append('location', state.data.location);
-                    formData.append('category', 'emergency');
-                    formData.append('department', 'Emergency');
-                    formData.append('taggedDepartments', 'ALL');
-                    formData.append('reporter', state.data.reporter);
-                    formData.append('priority', 'critical');
-                    formData.append('deadline', Date.now().toString());
-                    if (buffer) {
-                        formData.append('image', buffer, { filename: 'sos.jpg', contentType: 'image/jpeg' });
+                        const formData = new FormData();
+                        formData.append('title', state.data.title);
+                        formData.append('description', state.data.description);
+                        formData.append('location', state.data.location);
+                        formData.append('category', 'emergency');
+                        formData.append('department', 'Emergency');
+                        formData.append('assignedDepartments', 'ALL');
+                        formData.append('taggedDepartments', 'ALL');
+                        formData.append('reporter', state.data.reporter);
+                        formData.append('priority', 'critical');
+                        formData.append('deadline', Date.now().toString());
+                        if (buffer) {
+                            formData.append('image', buffer, { filename: 'sos.jpg', contentType: 'image/jpeg' });
+                        }
+
+                        const res = await axios.post(`${BASE_URL}/api/issues`, formData, {
+                            headers: formData.getHeaders()
+                        });
+
+                        if (res.data.success) {
+                            await reply(getMsg(
+                                buffer ? '✅ Emergency reported successfully with photo! The team has been alerted.' : '✅ Emergency reported successfully! The team has been alerted.',
+                                buffer ? '✅ Laporan darurat dengan foto berhasil dikirim! Tim telah diberitahu.' : '✅ Laporan darurat berhasil dikirim! Tim telah diberitahu.'
+                            ));
+                        } else {
+                            await reply(getMsg(
+                                '❌ Failed to report emergency. Please try again or seek help directly.',
+                                '❌ Gagal melaporkan darurat. Silakan coba lagi atau minta bantuan langsung.'
+                            ));
+                        }
+                    } catch (err) {
+                        console.error("API Error:", err.response ? err.response.data : err.message);
+                        const errorMessage = err.response?.data?.message || err.message;
+                        await reply(`❌ Display Error: ${errorMessage}`);
+                    }
+                    
+                    userStates.delete(stateKey);
+                    continue;
+                }
+
+                // --- NORMAL ISSUE REPORTING FLOW ---
+                if (state.step === STEPS.AWAITING_NAME) {
+                    state.data.reporter = text + " (via WhatsApp)";
+                    await reply(getMsg(
+                        `Thanks, ${text}. What is the title of the issue? (e.g., Broken lab door handle)`,
+                        `Terima kasih, ${text}. Apa judul masalahnya? (contoh: Gagang pintu rusak)`
+                    ));
+                    state.step = STEPS.AWAITING_TITLE;
+                    continue;
+                }
+
+                if (state.step === STEPS.AWAITING_TITLE) {
+                    state.data.title = text;
+                    await reply(getMsg(
+                        'Got it. Please describe the problem in a few words.',
+                        'Paham. Harap jelaskan masalahnya secara singkat.'
+                    ));
+                    state.step = STEPS.AWAITING_DESC;
+                    continue;
+                }
+
+                if (state.step === STEPS.AWAITING_DESC) {
+                    state.data.description = text;
+                    await reply(getMsg(
+                        'Where is this located? Reply with a number for quick-select, or just type your location:\n' +
+                        '1. TPI\n2. TBR\n3. Kantor\n4. Other (type location)',
+                        'Di mana lokasinya? Balas dengan nomor pilihan cepat, atau ketik lokasi Anda:\n' +
+                        '1. TPI\n2. TBR\n3. Kantor\n4. Lainnya (ketik lokasi)'
+                    ));
+                    state.step = STEPS.AWAITING_LOC;
+                    continue;
+                }
+
+                if (state.step === STEPS.AWAITING_LOC) {
+                    const LOCATION_QUICK = { '1': 'TPI', '2': 'TBR', '3': 'Kantor' };
+
+                    if (LOCATION_QUICK[text]) {
+                        state.data.location = LOCATION_QUICK[text];
+                        await reply(getMsg(
+                            `📍 Location set to *${LOCATION_QUICK[text]}*. Any more specific area within ${LOCATION_QUICK[text]}? (e.g. "Room 12") — or type *skip* to continue.`,
+                            `📍 Lokasi diatur ke *${LOCATION_QUICK[text]}*. Ada area lebih spesifik di ${LOCATION_QUICK[text]}? (contoh: "Kamar 12") — atau ketik *skip* untuk lanjut.`
+                        ));
+                        state.step = STEPS.AWAITING_LOC_DETAIL;
+                        continue;
+                    } else if (text === '4') {
+                        await reply(getMsg('Please type the location:', 'Harap ketik lokasinya:'));
+                        state.step = STEPS.AWAITING_LOC_DETAIL;
+                        state.data.location = '';
+                        continue;
+                    } else {
+                        state.data.location = text;
                     }
 
-                    const res = await axios.post(`${BASE_URL}/api/issues`, formData, {
-                        headers: formData.getHeaders()
+                    let deptMenu = getMsg(
+                        'Great. What department is this issue originating from? Reply with the number:\n',
+                        'Bagus. Departemen mana asal masalah ini? Balas dengan nomornya:\n'
+                    );
+                    DEPARTMENTS.forEach((dept, index) => {
+                        deptMenu += `${index + 1}. ${dept}\n`;
                     });
 
-                    if (res.data.success) {
-                        await reply(getMsg(
-                            buffer ? '✅ Emergency reported successfully with photo! The team has been alerted.' : '✅ Emergency reported successfully! The team has been alerted.',
-                            buffer ? '✅ Laporan darurat dengan foto berhasil dikirim! Tim telah diberitahu.' : '✅ Laporan darurat berhasil dikirim! Tim telah diberitahu.'
-                        ));
-                    } else {
-                        await reply(getMsg(
-                            '❌ Failed to report emergency. Please try again or seek help directly.',
-                            '❌ Gagal melaporkan darurat. Silakan coba lagi atau minta bantuan langsung.'
-                        ));
-                    }
-                } catch (err) {
-                    console.error("API Error:", err.response ? err.response.data : err.message);
-                    const errorMessage = err.response?.data?.message || err.message;
-                    await reply(`❌ Display Error: ${errorMessage}`);
-                }
-
-                userStates.delete(stateKey);
-                continue;
-            }
-
-            if (state.step === STEPS.AWAITING_NAME) {
-                state.data.reporter = text + " (via WhatsApp)";
-                await reply(getMsg(
-                    `Thanks, ${text}. What is the title of the issue? (e.g., Broken lab door handle)`,
-                    `Terima kasih, ${text}. Apa judul masalahnya? (contoh: Gagang pintu rusak)`
-                ));
-                state.step = STEPS.AWAITING_TITLE;
-                continue;
-            }
-
-            if (state.step === STEPS.AWAITING_TITLE) {
-                state.data.title = text;
-                await reply(getMsg(
-                    'Got it. Please describe the problem in a few words.',
-                    'Paham. Harap jelaskan masalahnya secara singkat.'
-                ));
-                state.step = STEPS.AWAITING_DESC;
-                continue;
-            }
-
-            if (state.step === STEPS.AWAITING_DESC) {
-                state.data.description = text;
-                await reply(getMsg(
-                    'Where is this located? Reply with a number for quick-select, or just type your location:\n' +
-                    '1. TPI\n2. TBR\n3. Kantor\n4. Other (type location)',
-                    'Di mana lokasinya? Balas dengan nomor pilihan cepat, atau ketik lokasi Anda:\n' +
-                    '1. TPI\n2. TBR\n3. Kantor\n4. Lainnya (ketik lokasi)'
-                ));
-                state.step = STEPS.AWAITING_LOC;
-                continue;
-            }
-
-            if (state.step === STEPS.AWAITING_LOC) {
-                const LOCATION_QUICK = { '1': 'TPI', '2': 'TBR', '3': 'Kantor' };
-
-                if (LOCATION_QUICK[text]) {
-                    state.data.location = LOCATION_QUICK[text];
-                    await reply(getMsg(
-                        `📍 Location set to *${LOCATION_QUICK[text]}*. Any more specific area within ${LOCATION_QUICK[text]}? (e.g. "Room 12") — or type *skip* to continue.`,
-                        `📍 Lokasi diatur ke *${LOCATION_QUICK[text]}*. Ada area lebih spesifik di ${LOCATION_QUICK[text]}? (contoh: "Kamar 12") — atau ketik *skip* untuk lanjut.`
-                    ));
-                    state.step = STEPS.AWAITING_LOC_DETAIL;
+                    await reply(deptMenu.trim());
+                    state.step = STEPS.AWAITING_ORIGIN_DEPT;
                     continue;
-                } else if (text === '4') {
-                    await reply(getMsg('Please type the location:', 'Harap ketik lokasinya:'));
-                    state.step = STEPS.AWAITING_LOC_DETAIL;
-                    state.data.location = '';
-                    continue;
-                } else {
-                    state.data.location = text;
                 }
-
-                let deptMenu = getMsg(
-                    'Great. What department is this issue originating from? Reply with the number:\n',
-                    'Bagus. Departemen mana asal masalah ini? Balas dengan nomornya:\n'
-                );
-                DEPARTMENTS.forEach((dept, index) => {
-                    deptMenu += `${index + 1}. ${dept}\n`;
-                });
-
-                await reply(deptMenu.trim());
-                state.step = STEPS.AWAITING_ORIGIN_DEPT;
-                continue;
-            }
 
             if (state.step === STEPS.AWAITING_LOC_DETAIL) {
                 if (text.toLowerCase() !== 'skip' && text !== '') {
@@ -823,10 +917,44 @@ async function startSock() {
                 
                 state.data.department = DEPARTMENTS[idx];
                 
-                let tagMenu = getMsg(
-                    'Which departments are responsible for fixing this? You can select multiple by separating with spaces (e.g., "1 14 15"):\n',
-                    'Departemen mana saja yang bertanggung jawab memperbaiki ini? Bisa pilih beberapa dengan spasi (contoh: "1 14 15"):\n'
+                let assignMenu = getMsg(
+                    '🎯 Which department(s) are RESPONSIBLE for fixing this? You can select multiple by separating with spaces (e.g. "1" or "1 5"):\n',
+                    '🎯 Departemen mana saja yang BERTANGGUNG JAWAB memperbaiki ini? Bisa pilih beberapa dengan spasi (contoh: "1" atau "1 5"):\n'
                 );
+                DEPARTMENTS.forEach((dept, index) => {
+                    assignMenu += `${index + 1}. ${dept}\n`;
+                });
+                
+                await reply(assignMenu.trim());
+                state.step = STEPS.AWAITING_ASSIGNED_DEPTS;
+                continue;
+            }
+
+            if (state.step === STEPS.AWAITING_ASSIGNED_DEPTS) {
+                const parts = text.split(/\s+/);
+                const selectedAssigns = [];
+                for (const part of parts) {
+                    const idx = parseInt(part) - 1;
+                    if (!isNaN(idx) && idx >= 0 && idx < DEPARTMENTS.length) {
+                        selectedAssigns.push(DEPARTMENTS[idx]);
+                    }
+                }
+                
+                if (selectedAssigns.length === 0) {
+                    await reply(getMsg(
+                        'Invalid selection. Please reply with at least one valid department number (e.g. "1" or "1 5").',
+                        'Pilihan tidak valid. Harap balas dengan setidaknya satu nomor departemen yang valid (contoh: "1" atau "1 5").'
+                    ));
+                    continue;
+                }
+                
+                state.data.assignedDepartments = selectedAssigns.join(', ');
+                
+                let tagMenu = getMsg(
+                    '📢 Tag other departments for INFORMATION / NOTIFICATION only? Select numbers (e.g. "6 10") or reply with "0" to skip:\n',
+                    '📢 Tandai departemen lain HANYA UNTUK INFO / NOTIFIKASI? Pilih nomor (contoh: "6 10") atau balas "0" untuk lewati:\n'
+                );
+                tagMenu += getMsg('0. (Skip / None)\n', '0. (Lewati / Tidak ada)\n');
                 DEPARTMENTS.forEach((dept, index) => {
                     tagMenu += `${index + 1}. ${dept}\n`;
                 });
@@ -837,24 +965,20 @@ async function startSock() {
             }
             
             if (state.step === STEPS.AWAITING_TAG_DEPT) {
-                const parts = text.split(/\s+/);
-                const selectedTags = [];
-                for (const part of parts) {
-                    const idx = parseInt(part) - 1;
-                    if (!isNaN(idx) && idx >= 0 && idx < DEPARTMENTS.length) {
-                        selectedTags.push(DEPARTMENTS[idx]);
+                const trimmed = text.trim().toLowerCase();
+                if (trimmed === '0' || trimmed === 'skip' || trimmed === 'none' || trimmed === 'tidak' || trimmed === 'pass') {
+                    state.data.taggedDepartments = '';
+                } else {
+                    const parts = text.split(/\s+/);
+                    const selectedTags = [];
+                    for (const part of parts) {
+                        const idx = parseInt(part) - 1;
+                        if (!isNaN(idx) && idx >= 0 && idx < DEPARTMENTS.length) {
+                            selectedTags.push(DEPARTMENTS[idx]);
+                        }
                     }
+                    state.data.taggedDepartments = selectedTags.join(', ');
                 }
-                
-                if (selectedTags.length === 0) {
-                    await reply(getMsg(
-                        'Invalid selection. Please reply with at least one valid number from the list (e.g. "1" or "1 2").',
-                        'Pilihan tidak valid. Harap balas dengan setidaknya satu nomor valid dari daftar (contoh: "1" atau "1 2").'
-                    ));
-                    continue;
-                }
-                
-                state.data.taggedDepartments = selectedTags.join(', ');
                 
                 let categoryMenu = getMsg(
                     'Almost done! Please select a category by replying with the number:\n',
@@ -929,7 +1053,7 @@ async function startSock() {
             }
 
             if (state.step === STEPS.AWAITING_PHOTO) {
-                if (!msg.message.imageMessage) {
+                if (!msg.message?.imageMessage) {
                     await reply('Please send a valid photo. Or type "cancel" to restart.');
                     continue;
                 }
@@ -953,6 +1077,7 @@ async function startSock() {
                     formData.append('location', state.data.location);
                     formData.append('category', state.data.category);
                     formData.append('department', state.data.department);
+                    if (state.data.assignedDepartments) formData.append('assignedDepartments', state.data.assignedDepartments);
                     if (state.data.taggedDepartments) formData.append('taggedDepartments', state.data.taggedDepartments);
                     formData.append('reporter', state.data.reporter);
                     if (state.data.priority) formData.append('priority', state.data.priority);
@@ -973,7 +1098,8 @@ async function startSock() {
                             `📍 *Location:* ${state.data.location}\n` +
                             `🏷️ *Category:* ${state.data.category}\n` +
                             `🏠 *Origin:* ${state.data.department}\n` +
-                            `👥 *Tagged:* ${state.data.taggedDepartments || 'None'}\n\n` +
+                            `🎯 *Assigned:* ${state.data.assignedDepartments || 'None'}\n` +
+                            `📢 *Tagged (Info):* ${state.data.taggedDepartments || 'None'}\n\n` +
                             `Thank you! You can track this issue on the dashboard.`
                         );
                     } else {
@@ -1020,6 +1146,28 @@ async function startSock() {
                             continue;
                         }
                         // status is 'progress' or 'pending' — allowed to proceed
+
+                        // Roster prompt if in a group that matches an authorized dept
+                        const solveGroupDeptKey = getDeptKeyForGroup(from);
+                        const solveAssigned = (Array.isArray(issue.assignedDepartments) ? issue.assignedDepartments : (issue.assignedDepartments || '').split(',').map(d => d.trim())).filter(Boolean);
+                        const solveTagged   = (Array.isArray(issue.taggedDepartments) ? issue.taggedDepartments : (issue.taggedDepartments || '').split(',').map(d => d.trim())).filter(Boolean);
+                        const solveAuthKeys = [...solveAssigned, ...solveTagged].map(d => d.toLowerCase());
+                        const isSolveGroupAuth = !solveGroupDeptKey || solveAssigned.includes('ALL') || solveAuthKeys.includes(solveGroupDeptKey);
+
+                        if (solveGroupDeptKey && isSolveGroupAuth) {
+                            const solveRoster = DEPARTMENT_STAFF[solveGroupDeptKey] || [];
+                            if (solveRoster.length > 0) {
+                                let rMsg = `🔧 *Resolving Issue ${queryId}*\n\nSelect your name:\n\n`;
+                                solveRoster.forEach((n, i) => { rMsg += `${i + 1}. ${n}\n`; });
+                                rMsg += `\nExample: *2* or your full name.`;
+                                state.data.rosterList = solveRoster;
+                                state.data.issueId = queryId;
+                                state.step = STEPS.AWAITING_SOLVE_NAME;
+                                userStates.set(stateKey, state);
+                                await reply(rMsg);
+                                continue;
+                            }
+                        }
                     }
                 } catch (e) {
                     console.error("Validation error:", e.message);
@@ -1031,20 +1179,36 @@ async function startSock() {
                 userStates.set(stateKey, state);
                 continue;
             }
+
+
             if (state.step === STEPS.AWAITING_SOLVE_NAME) {
-                state.data.solverName = text + " (via WhatsApp)";
+                let solverInput = text.trim();
+                // If we have a roster context stored, try to resolve by number
+                const solveRoster = state.data.rosterList || [];
+                if (solveRoster.length > 0) {
+                    const numIdx = parseInt(solverInput, 10);
+                    if (!isNaN(numIdx) && numIdx >= 1 && numIdx <= solveRoster.length) {
+                        solverInput = solveRoster[numIdx - 1];
+                    } else {
+                        const matched = solveRoster.find(n => n.toLowerCase().includes(solverInput.toLowerCase()));
+                        if (matched) solverInput = matched;
+                    }
+                }
+                state.data.solverName = solverInput + ' (via WhatsApp)';
                 await reply('Please provide a brief description of how you fixed it.');
                 state.step = STEPS.AWAITING_SOLVE_DESC;
                 continue;
             }
+
             if (state.step === STEPS.AWAITING_SOLVE_DESC) {
                 state.data.fixDescription = text;
                 await reply('Finally, please upload a photo of the completed work as proof. (Send an image here)');
                 state.step = STEPS.AWAITING_SOLVE_PHOTO;
                 continue;
             }
+
             if (state.step === STEPS.AWAITING_SOLVE_PHOTO) {
-                if (!msg.message.imageMessage) {
+                if (!msg.message?.imageMessage) {
                     await reply('Please send a valid photo. Or type "cancel" to restart.');
                     continue;
                 }
@@ -1097,59 +1261,96 @@ async function startSock() {
                 continue;
             }
 
-            // --- PENDING FLOW ---
-            if (state.step === STEPS.AWAITING_PENDING_ID) {
-                let queryId = text.trim();
-                
-                try {
-                    const getRes = await axios.get(`${BASE_URL}/api/issues`);
-                    if (getRes.data && getRes.data.success) {
-                        const issue = getRes.data.data.find(i => i.id === queryId);
-                        if (!issue) {
-                            await reply(`❌ Could not find issue *${queryId}* in the database. Please check the ID and try again, or type "cancel" to exit.`);
-                            continue;
-                        }
-                        if (issue.status === 'solved') {
-                            await reply(`✅ Issue *${queryId}* is already *Solved* — no pending needed. Type "cancel" to exit.`);
-                            continue;
-                        }
-                        if (issue.status === 'open') {
-                            // Out-of-order: issue hasn't been claimed yet
-                            await reply(
-                                `⚠️ Issue *${queryId}* has not been claimed yet — it is currently *Open (unclaimed)*.\n\n` +
-                                `To mark a job as pending, someone must first claim it.\n\n` +
-                                `Do you want to *claim this job AND immediately mark it as pending*?\n\n` +
-                                `Reply *yes* to claim + pending, or *no* to cancel and keep the issue Open.`
-                            );
-                            state.data.issueId = queryId;
-                            state.data.issueRowIndex = issue.rowIndex;
-                            state.step = STEPS.CONFIRM_CLAIM_THEN_PENDING;
-                            userStates.set(stateKey, state);
-                            continue;
-                        }
-                        if (issue.status !== 'progress') {
-                            // Catch any other unexpected status (e.g. future states)
-                            await reply(`❌ Issue *${queryId}* is currently *${issue.status}* — only issues that are *In Progress* can be marked as pending.`);
-                            continue;
-                        }
-                        // status === 'progress' — allowed
-                    }
-                } catch (e) {
-                    console.error("Validation error:", e.message);
-                }
 
-                state.data.issueId = queryId;
-                await reply(getMsg('What is your name? (Worker Name)', 'Siapa nama Anda? (Nama Pekerja)'));
-                state.step = STEPS.AWAITING_PENDING_NAME;
-                userStates.set(stateKey, state);
-                continue;
-            }
-            if (state.step === STEPS.AWAITING_PENDING_NAME) {
-                state.data.pendingBy = text + " (via WhatsApp)";
-                await reply('What is the reason for the delay?');
-                state.step = STEPS.AWAITING_PENDING_REASON;
-                continue;
-            }
+            // --- PENDING FLOW ---
+            if (state.step === STEPS.AWAITING_PENDING_ID) {
+                let queryId = text.trim();
+
+                try {
+                    const getRes = await axios.get(`${BASE_URL}/api/issues`);
+                    if (getRes.data && getRes.data.success) {
+                        const issue = getRes.data.data.find(i => i.id === queryId);
+                        if (!issue) {
+                            await reply(`❌ Could not find issue *${queryId}* in the database. Please check the ID and try again, or type "cancel" to exit.`);
+                            continue;
+                        }
+                        if (issue.status === 'solved') {
+                            await reply(`✅ Issue *${queryId}* is already *Solved* — no pending needed. Type "cancel" to exit.`);
+                            continue;
+                        }
+                        if (issue.status === 'open') {
+                            await reply(
+                                `⚠️ Issue *${queryId}* has not been claimed yet — it is currently *Open (unclaimed)*.
+
+To mark a job as pending, someone must first claim it.
+
+Do you want to *claim this job AND immediately mark it as pending*?
+
+Reply *yes* to claim + pending, or *no* to cancel.`
+                            );
+                            state.data.issueId = queryId;
+                            state.data.issueRowIndex = issue.rowIndex;
+                            state.step = STEPS.CONFIRM_CLAIM_THEN_PENDING;
+                            userStates.set(stateKey, state);
+                            continue;
+                        }
+                        if (issue.status !== 'progress') {
+                            await reply(`❌ Issue *${queryId}* is currently *${issue.status}* — only In Progress issues can be marked pending.`);
+                            continue;
+                        }
+                        // status === 'progress' — allowed
+                        const pendGroupDeptKey = getDeptKeyForGroup(from);
+                        const pendAssigned = (Array.isArray(issue.assignedDepartments) ? issue.assignedDepartments : (issue.assignedDepartments || '').split(',').map(d => d.trim())).filter(Boolean);
+                        const pendTagged   = (Array.isArray(issue.taggedDepartments) ? issue.taggedDepartments : (issue.taggedDepartments || '').split(',').map(d => d.trim())).filter(Boolean);
+                        const pendAuthKeys = [...pendAssigned, ...pendTagged].map(d => d.toLowerCase());
+                        const isPendGroupAuth = !pendGroupDeptKey || pendAssigned.includes('ALL') || pendAuthKeys.includes(pendGroupDeptKey);
+                        if (pendGroupDeptKey && isPendGroupAuth) {
+                            const pendRoster = DEPARTMENT_STAFF[pendGroupDeptKey] || [];
+                            if (pendRoster.length > 0) {
+                                let rMsg = `⏸️ *Marking Issue ${queryId} as Pending*
+
+Select your name:
+
+`;
+                                pendRoster.forEach((n, i) => { rMsg += `${i + 1}. ${n}
+`; });
+                                rMsg += `
+Example: *2* or your full name.`;
+                                state.data.rosterList = pendRoster;
+                                state.data.issueId = queryId;
+                                state.step = STEPS.AWAITING_PENDING_NAME;
+                                userStates.set(stateKey, state);
+                                await reply(rMsg);
+                                continue;
+                            }
+                        }
+                    }
+                } catch (e) {
+                    console.error('Validation error:', e.message);
+                }
+                state.data.issueId = queryId;
+                await reply(getMsg('What is your name? (Worker Name)', 'Siapa nama Anda? (Nama Pekerja)'));
+                state.step = STEPS.AWAITING_PENDING_NAME;
+                userStates.set(stateKey, state);
+                continue;
+            }
+            if (state.step === STEPS.AWAITING_PENDING_NAME) {
+                let pendingInput = text.trim();
+                const pendRoster = state.data.rosterList || [];
+                if (pendRoster.length > 0) {
+                    const numIdx = parseInt(pendingInput, 10);
+                    if (!isNaN(numIdx) && numIdx >= 1 && numIdx <= pendRoster.length) {
+                        pendingInput = pendRoster[numIdx - 1];
+                    } else {
+                        const matched = pendRoster.find(n => n.toLowerCase().includes(pendingInput.toLowerCase()));
+                        if (matched) pendingInput = matched;
+                    }
+                }
+                state.data.pendingBy = pendingInput + ' (via WhatsApp)';
+                await reply('What is the reason for the delay?');
+                state.step = STEPS.AWAITING_PENDING_REASON;
+                continue;
+            }
             if (state.step === STEPS.AWAITING_PENDING_REASON) {
                 state.data.pendingReason = text;
                 await reply('Finally, please upload a photo as proof of the delay. (Send an image here)');

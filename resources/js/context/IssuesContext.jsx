@@ -135,9 +135,12 @@ export function IssuesProvider({ children }) {
         }
     }, [fetchIssues]);
 
-    const claimIssue = useCallback(async (issue, taker) => {
+    const claimIssue = useCallback(async (issue, taker, department) => {
         const target = issue.id || issue.rowIndex;
-        const response = await axios.post(`/api/issues/${target}/claim`, { taker });
+        const response = await axios.post(`/api/issues/${target}/claim`, {
+            taker,
+            ...(department ? { department } : {}),
+        });
 
         if (response.data?.success) {
             await fetchIssues();

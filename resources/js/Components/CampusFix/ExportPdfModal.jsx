@@ -212,6 +212,7 @@ export function ExportPdfModal({ open, onOpenChange }) {
             // Only filter by dept when user has explicitly deselected some (but not all)
             if (selectedDepartments.length > 0 && selectedDepartments.length < DEPARTMENTS.length) {
                 const deptMatch = selectedDepartments.includes(issue.department) || 
+                                  (Array.isArray(issue.assignedDepartments) && issue.assignedDepartments.some(d => selectedDepartments.includes(d))) ||
                                   (Array.isArray(issue.taggedDepartments) && issue.taggedDepartments.some(d => selectedDepartments.includes(d)));
                 if (!deptMatch) return false;
             }
@@ -238,15 +239,17 @@ export function ExportPdfModal({ open, onOpenChange }) {
         
         // Address block (moved below the logo)
         doc.setFont('helvetica', 'normal');
-        doc.setFontSize(10);
-        doc.setTextColor(80, 80, 80);
-        doc.text('PT Island Connections International - Ruko Imperium Superblok Blok B No 35&36,', 10, 60);
-        doc.text('Jl. Sudirman, Taman Baloi, Batam Kota, Batam City, Riau Islands 29432', 10, 65);
+        doc.setFontSize(8);
+        doc.setTextColor(100, 100, 100);
+        doc.text('PT. Telunas Resort Indonesia', 10, 60);
+        doc.text('Pulau Sugi, Sugie, Kec. Moro, Kabupaten Karimun, Kepulauan Riau 29663', 10, 64);
+        doc.text('Telunas Resorts Issue Tracking & Resolution Report', 10, 68);
 
+        // Document Title
         doc.setFont('helvetica', 'bold');
-        doc.setFontSize(12);
-        doc.setTextColor(28, 27, 14); // Telunas dark
-        const selectedTitle = selectedSheets.length > 0 ? selectedSheets.join(', ') : 'All';
+        doc.setFontSize(10);
+        doc.setTextColor(28, 27, 14); // #1c1b0e (Telunas charcoal)
+        const selectedTitle = selectedSheets.length === 1 ? selectedSheets[0] : `Multiple (${selectedSheets.join(', ')})`;
         doc.text(`Issue Tracking Report — Period: ${selectedTitle}`, 10, 74);
 
         const formatDateTime = (val) => {
@@ -277,6 +280,14 @@ export function ExportPdfModal({ open, onOpenChange }) {
                 ]);
             }
 
+            const assignedStr = Array.isArray(i.assignedDepartments) && i.assignedDepartments.length > 0
+                ? `🎯 ${i.assignedDepartments.join(', ')}`
+                : (i.assignedDepartments ? `🎯 ${i.assignedDepartments}` : '');
+            const taggedStr = Array.isArray(i.taggedDepartments) && i.taggedDepartments.length > 0
+                ? `📢 ${i.taggedDepartments.join(', ')}`
+                : (i.taggedDepartments ? `📢 ${i.taggedDepartments}` : '');
+            const combinedDeptTags = [assignedStr, taggedStr].filter(Boolean).join('\n') || '-';
+
             tableData.push([
                 i.id.replace('TEL-', ''),
                 formatDateTime(i.reportedAt),
@@ -285,7 +296,7 @@ export function ExportPdfModal({ open, onOpenChange }) {
                 cleanDuration(i.durationLabel),
                 i.title,
                 i.location,
-                Array.isArray(i.taggedDepartments) && i.taggedDepartments.length > 0 ? i.taggedDepartments.join('\n') : '-',
+                combinedDeptTags,
                 categories.find(c => c.id === i.category)?.label || i.category,
                 i.reporter,
                 i.status.toUpperCase(),

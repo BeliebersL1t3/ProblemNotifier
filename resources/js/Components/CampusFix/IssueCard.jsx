@@ -80,14 +80,19 @@ export function IssueCard({ issue, onSelect }) {
                 <div className="flex flex-col gap-1.5 min-w-0 w-full">
                     <h3 className="text-base font-semibold leading-snug text-foreground break-words min-w-0">{issue.title}</h3>
                     <div className="flex gap-1.5 items-center flex-wrap w-full">
+                        {issue.assignedDepartments && issue.assignedDepartments.length > 0 && issue.assignedDepartments.map((dept, idx) => (
+                            <span key={'assign-' + idx} className="shrink-0 rounded bg-amber-500/15 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 font-mono text-[10px] font-semibold border border-amber-500/30 flex items-center gap-1" title="Assigned Department (Responsible to fix)">
+                                <span>🎯</span> {dept}
+                            </span>
+                        ))}
                         {issue.department && (
-                            <span className="shrink-0 rounded bg-blue-500/10 text-blue-600 px-1.5 py-0.5 font-mono text-[10px] font-medium border border-blue-500/20" title="Origin Department">
-                                🏠 {issue.department}
+                            <span className="shrink-0 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 font-mono text-[10px] font-medium border border-blue-500/20 flex items-center gap-1" title="Origin Department (Discovered / Reported by)">
+                                <span>🏠</span> {issue.department}
                             </span>
                         )}
-                        {issue.taggedDepartments && issue.taggedDepartments.map((tag, idx) => (
-                            <span key={idx} className="shrink-0 rounded bg-purple-500/10 text-purple-600 px-1.5 py-0.5 font-mono text-[10px] font-medium border border-purple-500/20" title="Tagged Department">
-                                @{tag}
+                        {issue.taggedDepartments && issue.taggedDepartments.length > 0 && issue.taggedDepartments.map((tag, idx) => (
+                            <span key={'tag-' + idx} className="shrink-0 rounded bg-purple-500/10 text-purple-600 dark:text-purple-400 px-1.5 py-0.5 font-mono text-[10px] font-medium border border-purple-500/20 flex items-center gap-1" title="Tagged Department (Info / Notification only)">
+                                <span>📢</span> @{tag}
                             </span>
                         ))}
                         <span className="shrink-0 rounded bg-muted/80 px-1.5 py-0.5 font-mono text-[10px] font-medium text-muted-foreground ml-auto">

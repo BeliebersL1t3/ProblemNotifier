@@ -106,13 +106,13 @@ class GoogleService
             'Taker', 'Taken At', 'Solver', 'Solved At',
             'Fix Description', 'Proof Image URL', 'Duration',
             'Priority', 'Deadline', 'Pending Reason', 'Pending By',
-            'Pending Image URL', 'Tagged Departments', 'Origin Department'
+            'Pending Image URL', 'Tagged Departments', 'Origin Department', 'Assigned Department'
         ]];
 
         $body = new ValueRange(['values' => $headers]);
         $this->sheets->spreadsheets_values->update(
             $this->spreadsheetId,
-            "{$name}!A1:W1",
+            "{$name}!A1:X1",
             $body,
             ['valueInputOption' => 'RAW']
         );
@@ -134,6 +134,31 @@ class GoogleService
         $this->clearCache();
 
         return true;
+    }
+
+    /**
+     * Ensure Column X1 header is 'Assigned Department' across all sheets in the spreadsheet.
+     */
+    public function ensureAssignedDepartmentHeader(): void
+    {
+        $allSheets = $this->listSheets(true);
+        foreach ($allSheets as $sheetName) {
+            $res = $this->sheets->spreadsheets_values->get(
+                $this->spreadsheetId,
+                "{$sheetName}!X1"
+            );
+            $val = $res->getValues();
+            if (empty($val) || empty($val[0][0]) || $val[0][0] !== 'Assigned Department') {
+                $body = new ValueRange(['values' => [['Assigned Department']]]);
+                $this->sheets->spreadsheets_values->update(
+                    $this->spreadsheetId,
+                    "{$sheetName}!X1",
+                    $body,
+                    ['valueInputOption' => 'RAW']
+                );
+            }
+        }
+        $this->clearCache();
     }
 
     /**
@@ -162,7 +187,7 @@ class GoogleService
             }
         } catch (\Throwable $e) {}
 
-        // 1. Set Text Wrap and Top Vertical Alignment for all cells
+        // 1. Set Text Wrap and Top Vertical Alignment for all cells (24 columns: A to X)
         $requests[] = new \Google\Service\Sheets\Request([
             'repeatCell' => [
                 'range' => [
@@ -170,7 +195,7 @@ class GoogleService
                     'startRowIndex'    => 0,
                     'endRowIndex'      => 1000,
                     'startColumnIndex' => 0,
-                    'endColumnIndex'   => 23,
+                    'endColumnIndex'   => 24,
                 ],
                 'cell' => [
                     'userEnteredFormat' => [
@@ -182,7 +207,7 @@ class GoogleService
             ]
         ]);
 
-        // 2. Bold header row
+        // 2. Bold header row (24 columns: A to X)
         $requests[] = new \Google\Service\Sheets\Request([
             'repeatCell' => [
                 'range' => [
@@ -190,7 +215,7 @@ class GoogleService
                     'startRowIndex'    => 0,
                     'endRowIndex'      => 1,
                     'startColumnIndex' => 0,
-                    'endColumnIndex'   => 23,
+                    'endColumnIndex'   => 24,
                 ],
                 'cell'   => ['userEnteredFormat' => ['textFormat' => ['bold' => true]]],
                 'fields' => 'userEnteredFormat.textFormat.bold',
@@ -333,7 +358,7 @@ class GoogleService
         return null;
     }
 
-    /** Return all issue rows (skips header row 1), each padded to 23 columns. */
+    /** Return all issue rows (skips header row 1), each padded to 24 columns. */
     public function getRows(bool $forceRefresh = false): array
     {
         $cacheKey = "google_sheet_rows_{$this->sheetName}";
@@ -345,13 +370,13 @@ class GoogleService
             return Cache::remember($cacheKey, 20, function () {
                 $response = $this->sheets->spreadsheets_values->get(
                     $this->spreadsheetId,
-                    "{$this->sheetName}!A2:W"
+                    "{$this->sheetName}!A2:X"
                 );
 
                 $values = $response->getValues() ?? [];
 
-                // Pad every row to 23 columns so missing trailing cells don't cause errors
-                return array_map(fn($row) => array_pad($row, 23, ''), $values);
+                // Pad every row to 24 columns so missing trailing cells don't cause errors
+                return array_map(fn($row) => array_pad($row, 24, ''), $values);
             });
         } catch (\Throwable $e) {
             if (Cache::has($cacheKey)) {
@@ -365,10 +390,10 @@ class GoogleService
     public function appendRow(array $values): ?int
     {
         $this->clearCache();
-        $body = new ValueRange(['values' => [array_pad($values, 23, '')]]);
+        $body = new ValueRange(['values' => [array_pad($values, 24, '')]]);
         $response = $this->sheets->spreadsheets_values->append(
             $this->spreadsheetId,
-            "{$this->sheetName}!A:W",
+            "{$this->sheetName}!A:X",
             $body,
             ['valueInputOption' => 'RAW', 'insertDataOption' => 'INSERT_ROWS']
         );
@@ -390,11 +415,11 @@ class GoogleService
             return null;
         }
         $this->clearCache();
-        $padded = array_map(fn($row) => array_pad($row, 23, ''), $rowsOfValues);
+        $padded = array_map(fn($row) => array_pad($row, 24, ''), $rowsOfValues);
         $body = new ValueRange(['values' => $padded]);
         $response = $this->sheets->spreadsheets_values->append(
             $this->spreadsheetId,
-            "{$this->sheetName}!A:W",
+            "{$this->sheetName}!A:X",
             $body,
             ['valueInputOption' => 'RAW', 'insertDataOption' => 'INSERT_ROWS']
         );
@@ -458,7 +483,7 @@ class GoogleService
                         'startRowIndex'    => $rowIndex - 1, // 0-based
                         'endRowIndex'      => $rowIndex,
                         'startColumnIndex' => 0,
-                        'endColumnIndex'   => 23
+                        'endColumnIndex'   => 24
                     ],
                     'cell' => [
                         'userEnteredFormat' => [
@@ -523,7 +548,7 @@ class GoogleService
                         'startRowIndex' => $rowIndex - 1, // 0-based
                         'endRowIndex' => $rowIndex,
                         'startColumnIndex' => 0,
-                        'endColumnIndex' => 23 // A to W
+                        'endColumnIndex' => 24 // A to X
                     ],
                     'cell' => [
                         'userEnteredFormat' => [
@@ -562,7 +587,7 @@ class GoogleService
                         'startRowIndex'    => 0,
                         'endRowIndex'      => 1000,
                         'startColumnIndex' => 0,
-                        'endColumnIndex'   => 23,
+                        'endColumnIndex'   => 24,
                     ],
                     'cell' => [
                         'userEnteredFormat' => [

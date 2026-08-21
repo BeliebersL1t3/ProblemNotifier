@@ -55,9 +55,9 @@ export function EmergencyIssueModal({ open, onOpenChange }) {
             await addIssue({
                 reporter: reporter.trim(),
                 title: title.trim(),
-                location: location.trim(),
                 department: 'Emergency',
-                taggedDepartments: ['ALL'],
+                assignedDepartments: 'ALL',
+                taggedDepartments: 'ALL',
                 category: 'emergency',
                 description: finalDesc,
                 imageFile: null,

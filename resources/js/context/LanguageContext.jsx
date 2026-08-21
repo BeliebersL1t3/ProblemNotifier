@@ -102,8 +102,22 @@ const translations = {
         month_1: '1 Month',
         months_3: '3 Months',
         months_6: '6 Months',
-        year_1: '1 Year',
         showing_filtered_range: 'Showing data for',
+
+        // Departments & Assignment
+        origin_department: 'Origin Department',
+        assigned_departments: 'Assigned Department(s)',
+        assigned_to: 'Assigned To',
+        responsible_to_fix: 'Responsible to fix',
+        tagged_departments: 'Tagged Department(s)',
+        tagged_info_only: 'Tagged (Info / Notification only)',
+        select_assigned_depts: 'Select department(s) responsible for fixing this issue',
+        select_tagged_depts: 'Select department(s) to notify for awareness / FYI only',
+        dept_filter_mode: 'Filter Mode',
+        dept_mode_assigned: 'Assigned Dept',
+        dept_mode_origin: 'Origin Dept',
+        dept_mode_tagged: 'Tagged Dept',
+        dept_mode_all: 'All Related',
     },
     id: {
         // Header & Nav
@@ -124,13 +138,13 @@ const translations = {
         total_reports: 'Total Laporan',
         needs_fixing: 'Perlu Perbaikan',
         in_progress: 'Dalam Proses',
-        resolved: 'Selesai',
+        resolved: 'Terselesaikan',
 
         // Overdue Alert
         overdue_alert: 'LAPORAN KRITIS TERLAMBAT',
-        unclaimed: 'Belum Diklaim',
-        unmute_alarm: 'Nyalakan Suara Alarm',
-        sound_active: 'Suara Aktif (Klik untuk Matikan)',
+        unclaimed: 'Belum Diambil',
+        unmute_alarm: 'Nyalakan Alarm',
+        sound_active: 'Suara Aktif (Klik untuk Mute)',
 
         // Filters
         category: 'Kategori',
@@ -141,21 +155,21 @@ const translations = {
         solved: 'Selesai',
         all_categories: 'Semua Kategori',
         all_departments: 'Semua Departemen',
-        filter_by_category: 'Filter Berdasarkan Kategori',
-        filter_by_dept: 'Filter Berdasarkan Departemen',
+        filter_by_category: 'Filter berdasarkan Kategori',
+        filter_by_dept: 'Filter berdasarkan Departemen',
 
         // Issue Card
         original_problem: 'Masalah Awal',
         reported_by: 'Dilaporkan oleh',
-        currently_pending: 'Saat ini tertunda oleh',
-        claim_job: 'Klaim Pekerjaan',
-        resolve_issue: 'Selesaikan Laporan',
+        currently_pending: 'Sedang ditunda oleh',
+        claim_job: 'Ambil Pekerjaan',
+        resolve_issue: 'Selesaikan Masalah',
         view_details: 'Lihat Detail',
         solved_details: 'Detail Penyelesaian',
 
         // Modals
         report_new_issue: 'Buat Laporan Baru',
-        report_emergency: 'Buat Laporan DARURAT',
+        report_emergency: 'Laporkan Masalah DARURAT',
         location: 'Lokasi',
         title: 'Judul / Deskripsi',
         priority: 'Prioritas',
@@ -164,12 +178,12 @@ const translations = {
         cancel: 'Batal',
 
         // Analytics
-        performance_analytics: 'Analistik Kinerja & Penyelesaian',
-        analytics_desc: 'Rincian komprehensif metrik pemeliharaan resort, waktu respon, dan kinerja tim.',
-        response_time: 'Rata-rata Waktu Respon',
+        performance_analytics: 'Analisis Kinerja & Penyelesaian',
+        analytics_desc: 'Rincian metrik pemeliharaan resort, waktu respons, dan kinerja tim.',
+        response_time: 'Rata-rata Waktu Respons',
         resolution_rate: 'Tingkat Penyelesaian',
-        critical_issues: 'Laporan Kritis',
-        department_breakdown: 'Rincian Per Departemen',
+        critical_issues: 'Masalah Kritis',
+        department_breakdown: 'Rincian Departemen',
         category_distribution: 'Distribusi Kategori',
 
         // Analytics Page
@@ -178,17 +192,17 @@ const translations = {
         total_issues: 'Total Laporan',
         no_data: 'Tidak ada data',
         recent_activity: 'Aktivitas Laporan Terbaru',
-        no_recent_activity: 'Belum ada aktivitas.',
+        no_recent_activity: 'Belum ada aktivitas terbaru.',
         show: 'Tampilkan',
         items: 'Item',
         all_items: 'Semua',
         date_na: 'Tanggal N/A',
         critical: 'Kritis',
         by_reporter: 'oleh',
-        photo_pending: '📷 Foto tertunda',
+        photo_pending: '📷 Foto penundaan',
         photo_report: '📷 Foto laporan',
         select_sheets: 'Pilih Sheet Data',
-        combine_sheets_desc: 'Pilih satu atau beberapa sheet untuk melihat analistik gabungan dari berbagai periode.',
+        combine_sheets_desc: 'Pilih satu atau lebih sheet untuk melihat analisis gabungan lintas periode.',
         all_sheets: 'Semua Sheet',
         combining_sheets: 'Menggabungkan',
         sheets_label: 'sheet',
@@ -205,9 +219,23 @@ const translations = {
         weeks_4: '4 Minggu',
         month_1: '1 Bulan',
         months_3: '3 Bulan',
-        months_6: '6 Bulan',
         year_1: '1 Tahun',
         showing_filtered_range: 'Menampilkan data untuk',
+
+        // Departments & Assignment
+        origin_department: 'Departemen Asal',
+        assigned_departments: 'Departemen Ditugaskan',
+        assigned_to: 'Ditugaskan Ke',
+        responsible_to_fix: 'Bertanggung jawab memperbaiki',
+        tagged_departments: 'Departemen Ditandai',
+        tagged_info_only: 'Ditandai (Hanya Info / Notifikasi)',
+        select_assigned_depts: 'Pilih departemen yang bertanggung jawab memperbaiki masalah ini',
+        select_tagged_depts: 'Pilih departemen untuk diberitahu sebagai info / kewaspadaan saja',
+        dept_filter_mode: 'Mode Filter',
+        dept_mode_assigned: 'Dept Ditugaskan',
+        dept_mode_origin: 'Dept Asal',
+        dept_mode_tagged: 'Dept Ditandai',
+        dept_mode_all: 'Semua Terkait',
     }
 };
 

@@ -59,6 +59,15 @@ class SeedDummyIssues extends Command
         $allSheets = $google->listSheets(true);
         $this->info("All sheets ready: " . implode(', ', $allSheets));
 
+        // Ensure all sheets have Column X1 (Assigned Department) header
+        $this->info("Checking Column X1 (Assigned Department) header on all sheets...");
+        try {
+            $google->ensureAssignedDepartmentHeader();
+            $this->info("  ✓ Assigned Department headers verified.");
+        } catch (\Throwable $e) {
+            $this->warn("  ! Note on header check: " . $e->getMessage());
+        }
+
         $targetSheetOption = $this->option('sheet');
         $sheetsToSeed = $targetSheetOption ? [$targetSheetOption] : $allSheets;
 
@@ -81,6 +90,8 @@ class SeedDummyIssues extends Command
             'Sales/Marketing' => 'Sls',
             'Reservasi'       => 'Res',
             'Finance'         => 'Fin',
+            'Legal'           => 'LGL',
+            'HR'              => 'HR',
             'Emergency'       => 'SOS',
         ];
 
@@ -159,8 +170,9 @@ class SeedDummyIssues extends Command
                 'category'    => 'broken',
                 'status'      => 'open',
                 'priority'    => 'high',
-                'department'  => 'Engineer',
-                'tagged'      => 'Engineer, HK',
+                'department'  => 'HK',
+                'assigned'    => 'Engineer',
+                'tagged'      => 'GR, HK',
                 'reporter'    => 'Siti Rahma (HK Supervisor)',
                 'image'       => 'issue-1785991295-problem.jpg',
             ],
@@ -173,7 +185,8 @@ class SeedDummyIssues extends Command
                 'status'      => 'progress',
                 'priority'    => 'medium',
                 'department'  => 'F&B',
-                'tagged'      => 'Engineer, Fasilitas',
+                'assigned'    => 'Engineer, Fasilitas',
+                'tagged'      => 'OE',
                 'reporter'    => 'Chef Ricky',
                 'image'       => 'issue-1785992354-problem.jpg',
                 'taker'       => 'Budi Santoso (Eng)',
@@ -186,8 +199,9 @@ class SeedDummyIssues extends Command
                 'category'    => 'electrical',
                 'status'      => 'solved',
                 'priority'    => 'low',
-                'department'  => 'Fasilitas',
-                'tagged'      => 'Engineer',
+                'department'  => 'Security',
+                'assigned'    => 'Engineer',
+                'tagged'      => 'Fasilitas',
                 'reporter'    => 'Pak Joko (Security)',
                 'image'       => 'IT-070826-2-problem.jpg',
                 'taker'       => 'Ahmad Fauzi',
@@ -204,8 +218,9 @@ class SeedDummyIssues extends Command
                 'category'    => 'structural',
                 'status'      => 'pending',
                 'priority'    => 'medium',
-                'department'  => 'Fasilitas',
-                'tagged'      => 'Fasilitas, Procurement',
+                'department'  => 'GR',
+                'assigned'    => 'Fasilitas',
+                'tagged'      => 'Procurement, GR',
                 'reporter'    => 'Anto (Pool Lead)',
                 'image'       => 'issue-1785992420-problem.jpg',
                 'taker'       => 'Fasilitas Team',
@@ -222,7 +237,8 @@ class SeedDummyIssues extends Command
                 'status'      => 'progress',
                 'priority'    => 'high',
                 'department'  => 'HK',
-                'tagged'      => 'Pest Control, HK',
+                'assigned'    => 'Pest Control',
+                'tagged'      => 'GR, HK',
                 'reporter'    => 'Dewi (HK Attendant)',
                 'image'       => 'issue-1785993217-problem.jpg',
                 'taker'       => 'Pest Control Team',
@@ -236,14 +252,15 @@ class SeedDummyIssues extends Command
                 'status'      => 'solved',
                 'priority'    => 'medium',
                 'department'  => 'Bar',
-                'tagged'      => 'IT',
+                'assigned'    => 'IT',
+                'tagged'      => 'F&B, Finance',
                 'reporter'    => 'Lia (Bar Manager)',
-                'image'       => 'issue-1786006086-problem.png',
-                'taker'       => 'Dani (IT Support)',
-                'solver'      => 'Dani (IT Support)',
-                'fixDesc'     => 'Assigned static IP address lease in router DHCP table and power-cycled printer. POS test prints passing cleanly.',
-                'proofImage'  => '13-proof.jpg',
-                'duration'    => 'Solved in 25 minutes',
+                'image'       => 'issue-1785995410-problem.jpg',
+                'taker'       => 'Reza (IT Support)',
+                'solver'      => 'Reza (IT Support)',
+                'fixDesc'     => 'Assigned static IP reservation on DHCP server and replaced damaged Cat6 RJ45 patch cable behind counter.',
+                'proofImage'  => 'issue-1786002352-problem.jpeg',
+                'duration'    => 'Solved in 30 minutes',
             ],
             // 7. Marine & Outdoor (open)
             [
@@ -254,7 +271,8 @@ class SeedDummyIssues extends Command
                 'status'      => 'open',
                 'priority'    => 'high',
                 'department'  => 'Tekong',
-                'tagged'      => 'Tekong, Engineer',
+                'assigned'    => 'Engineer, Tekong',
+                'tagged'      => 'Security',
                 'reporter'    => 'Captain Arif',
                 'image'       => 'issue-1786002564-problem.png',
             ],
@@ -266,8 +284,9 @@ class SeedDummyIssues extends Command
                 'category'    => 'safety-hazard',
                 'status'      => 'progress',
                 'priority'    => 'critical',
-                'department'  => 'Engineer',
-                'tagged'      => 'Engineer, Security, OE',
+                'department'  => 'OE',
+                'assigned'    => 'Engineer',
+                'tagged'      => 'Security, OE, Fasilitas',
                 'reporter'    => 'Dimas (Chief Eng)',
                 'image'       => 'TEL-Eng-070826-42-problem.jpg',
                 'taker'       => 'Dimas Pratama',
@@ -282,7 +301,8 @@ class SeedDummyIssues extends Command
                 'status'      => 'solved',
                 'priority'    => 'critical',
                 'department'  => 'Spa',
-                'tagged'      => 'Spa, Security, OE',
+                'assigned'    => 'ALL',
+                'tagged'      => 'ALL',
                 'reporter'    => 'Nurse Maya',
                 'image'       => 'SOS-190826-9-problem.jpg',
                 'taker'       => 'Security & Safety Lead',
@@ -301,7 +321,8 @@ class SeedDummyIssues extends Command
                 'status'      => 'pending',
                 'priority'    => 'low',
                 'department'  => 'GR',
-                'tagged'      => 'Engineer, GR',
+                'assigned'    => 'Engineer',
+                'tagged'      => 'GR, Procurement',
                 'reporter'    => 'Wawan (Porter Lead)',
                 'image'       => 'issue-1786002058-problem.jpg',
                 'taker'       => 'Workshop Tech',
@@ -441,6 +462,7 @@ class SeedDummyIssues extends Command
                     $pendingImg,                     // U (20) - Pending Image URL
                     $t['tagged'] ?? '',              // V (21) - Tagged Departments
                     $dept,                           // W (22) - Origin Department
+                    $t['assigned'] ?? $dept,         // X (23) - Assigned Department
                 ];
 
                 $newRows[] = $row;

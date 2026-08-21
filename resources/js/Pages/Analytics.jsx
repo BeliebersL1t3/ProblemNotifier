@@ -51,8 +51,18 @@ const DEPT_ABBREVIATIONS = {
     'sales/marketing': 'S/M',
     'sales marketing': 'S/M',
     'reservasi': 'RSV',
-    'finance': 'FIN'
+    'finance': 'FIN',
+    'legal': 'LGL',
+    'hr': 'HR',
+    'human resources': 'HR',
 };
+
+const ALL_DEPARTMENTS = [
+    'Engineer', 'Tekong', 'Pest Control', 'Security', 'Fasilitas', 
+    'HK', 'F&B', 'Service', 'Bar', 'GR', 'Spa', 'TiRek', 'OE', 
+    'IT', 'Procurement', 'Sales/Marketing', 'Reservasi', 'Finance',
+    'Legal', 'HR'
+];
 
 const getDeptAbbreviation = (deptName) => {
     if (!deptName) return '';
@@ -61,12 +71,6 @@ const getDeptAbbreviation = (deptName) => {
     if (deptName.length > 5) return deptName.slice(0, 4).toUpperCase();
     return deptName.toUpperCase();
 };
-
-const ALL_DEPARTMENTS = [
-    'Engineer', 'Tekong', 'Pest Control', 'Security', 'Fasilitas', 
-    'HK', 'F&B', 'Service', 'Bar', 'GR', 'Spa', 'TiRek', 'OE', 
-    'IT', 'Procurement', 'Sales/Marketing', 'Reservasi', 'Finance'
-];
 
 const TIME_RANGES = [
     { id: 'all', labelKey: 'all_time', label: 'All Time' },
@@ -380,7 +384,7 @@ function AnalyticsInner() {
     };
     const [selectedStatusFilters, setSelectedStatusFilters] = useState([]);
     const [selectedDepartmentFilters, setSelectedDepartmentFilters] = useState([]);
-    const [deptFilterMode, setDeptFilterMode] = useState('both'); // 'both' | 'origin' | 'tagged'
+    const [deptFilterMode, setDeptFilterMode] = useState('assigned'); // 'assigned' | 'origin' | 'tagged' | 'all'
     const [selectedCategoryFilters, setSelectedCategoryFilters] = useState([]);
     const timelineRef = useRef(null);
     const chartsContainerRef = useRef(null);
@@ -438,13 +442,59 @@ function AnalyticsInner() {
         if (!timeFilteredIssues || timeFilteredIssues.length === 0) return [];
         const counts = {};
         timeFilteredIssues.forEach(issue => {
-            const rawDept = (issue.department || '').trim();
-            const lowerDept = rawDept.toLowerCase();
-            // Exclude Emergency, undefined, unknown, and empty from department breakdown
-            if (!rawDept || lowerDept === 'emergency' || lowerDept === 'undefined' || lowerDept === 'unknown') {
-                return;
+            if (deptFilterMode === 'origin') {
+                const rawDept = (issue.department || '').trim();
+                const lowerDept = rawDept.toLowerCase();
+                if (!rawDept || lowerDept === 'emergency' || lowerDept === 'undefined' || lowerDept === 'unknown') return;
+                counts[rawDept] = (counts[rawDept] || 0) + 1;
+            } else if (deptFilterMode === 'tagged') {
+                const tags = Array.isArray(issue.taggedDepartments) 
+                    ? issue.taggedDepartments 
+                    : (issue.taggedDepartments ? String(issue.taggedDepartments).split(',').map(s => s.trim()) : []);
+                tags.forEach(rawDept => {
+                    const trimmed = (rawDept || '').trim();
+                    const lowerDept = trimmed.toLowerCase();
+                    if (!trimmed || lowerDept === 'emergency' || lowerDept === 'all' || lowerDept === 'none') return;
+                    counts[trimmed] = (counts[trimmed] || 0) + 1;
+                });
+            } else if (deptFilterMode === 'all') {
+                const depts = new Set();
+                const rawOrigin = (issue.department || '').trim();
+                if (rawOrigin && !['emergency', 'undefined', 'unknown'].includes(rawOrigin.toLowerCase())) {
+                    depts.add(rawOrigin);
+                }
+                const assigns = Array.isArray(issue.assignedDepartments) 
+                    ? issue.assignedDepartments 
+                    : (issue.assignedDepartments ? String(issue.assignedDepartments).split(',').map(s => s.trim()) : []);
+                assigns.forEach(d => { if (d && d !== 'ALL') depts.add(d); });
+                const tags = Array.isArray(issue.taggedDepartments) 
+                    ? issue.taggedDepartments 
+                    : (issue.taggedDepartments ? String(issue.taggedDepartments).split(',').map(s => s.trim()) : []);
+                tags.forEach(d => { if (d && d !== 'ALL' && d !== 'None') depts.add(d); });
+                depts.forEach(dept => {
+                    counts[dept] = (counts[dept] || 0) + 1;
+                });
+            } else {
+                // Default: 'assigned'
+                const assigns = Array.isArray(issue.assignedDepartments) 
+                    ? issue.assignedDepartments 
+                    : (issue.assignedDepartments ? String(issue.assignedDepartments).split(',').map(s => s.trim()) : []);
+                if (assigns.length > 0) {
+                    assigns.forEach(rawDept => {
+                        const trimmed = (rawDept || '').trim();
+                        const lowerDept = trimmed.toLowerCase();
+                        if (!trimmed || lowerDept === 'emergency' || lowerDept === 'all') return;
+                        counts[trimmed] = (counts[trimmed] || 0) + 1;
+                    });
+                } else {
+                    // Fallback to origin department if older ticket has no assignedDepartments
+                    const rawDept = (issue.department || '').trim();
+                    const lowerDept = rawDept.toLowerCase();
+                    if (rawDept && lowerDept !== 'emergency' && lowerDept !== 'undefined' && lowerDept !== 'unknown') {
+                        counts[rawDept] = (counts[rawDept] || 0) + 1;
+                    }
+                }
             }
-            counts[rawDept] = (counts[rawDept] || 0) + 1;
         });
 
         const totalDepts = Object.keys(counts).length;
@@ -454,7 +504,6 @@ function AnalyticsInner() {
                 return { 
                     name: dept, 
                     shortName: shortName,
-                    // If more than 6 departments are displayed, use abbreviation on XAxis
                     displayName: totalDepts > 6 ? shortName : dept,
                     Issues: counts[dept] 
                 };
@@ -463,10 +512,9 @@ function AnalyticsInner() {
 
         if (deptLimit === 'all') return sorted;
         return sorted.slice(0, Number(deptLimit));
-    }, [timeFilteredIssues, deptLimit]);
+    }, [timeFilteredIssues, deptLimit, deptFilterMode]);
 
-    // Timeline Data
-        // Timeline Data -> Activity Log
+    // Timeline Data -> Activity Log
     const activityLog = useMemo(() => {
         if (!timeFilteredIssues || timeFilteredIssues.length === 0) return [];
         
@@ -589,9 +637,15 @@ function AnalyticsInner() {
                 if (!matchesStatus) return false;
             }
 
-            // 2. Combinable Department Filters with Mode (both | origin | tagged)
+            // 2. Combinable Department Filters with Mode (assigned | origin | tagged | all)
             if (selectedDepartmentFilters.length > 0) {
                 const issueDept = (ev.originalIssue?.department || '').toLowerCase().trim();
+                let assigned = [];
+                if (Array.isArray(ev.originalIssue?.assignedDepartments)) {
+                    assigned = ev.originalIssue.assignedDepartments.map(d => String(d).toLowerCase().trim());
+                } else if (typeof ev.originalIssue?.assignedDepartments === 'string') {
+                    assigned = ev.originalIssue.assignedDepartments.toLowerCase().split(',').map(s => s.trim());
+                }
                 let tagged = [];
                 if (Array.isArray(ev.originalIssue?.taggedDepartments)) {
                     tagged = ev.originalIssue.taggedDepartments.map(d => String(d).toLowerCase().trim());
@@ -601,6 +655,7 @@ function AnalyticsInner() {
 
                 const matchesDept = selectedDepartmentFilters.some(selDept => {
                     const s = selDept.toLowerCase().trim();
+                    const isAssigned = assigned.includes(s) || (assigned.length === 0 && issueDept === s);
                     const isOrigin = (issueDept === s);
                     const isTagged = tagged.includes(s);
 
@@ -608,9 +663,11 @@ function AnalyticsInner() {
                         return isOrigin;
                     } else if (deptFilterMode === 'tagged') {
                         return isTagged;
+                    } else if (deptFilterMode === 'all') {
+                        return isAssigned || isOrigin || isTagged;
                     } else {
-                        // 'both'
-                        return isOrigin || isTagged;
+                        // Default: 'assigned'
+                        return isAssigned;
                     }
                 });
 
@@ -879,22 +936,79 @@ function AnalyticsInner() {
                     {/* Department Chart */}
                     <div className="chart-card bg-surface p-6 rounded-2xl shadow-sm border border-border/50 flex flex-col items-center">
                         <div className="flex items-center justify-between w-full mb-4 gap-2 flex-wrap">
-                            <h2 className="text-lg font-bold text-foreground">{t('issues_by_department')}</h2>
+                            <div>
+                                <h2 className="text-lg font-bold text-foreground">{t('issues_by_department')}</h2>
+                                <p className="text-xs text-muted-foreground mt-0.5">
+                                    {deptFilterMode === 'assigned' && (lang === 'id' ? '🎯 Menampilkan menurut Departemen Ditugaskan' : '🎯 Showing by Assigned Department')}
+                                    {deptFilterMode === 'origin' && (lang === 'id' ? '🏠 Menampilkan menurut Departemen Asal' : '🏠 Showing by Origin Department')}
+                                    {deptFilterMode === 'tagged' && (lang === 'id' ? '📢 Menampilkan menurut Departemen Ditandai' : '📢 Showing by Tagged Department')}
+                                    {deptFilterMode === 'all' && (lang === 'id' ? '🌐 Menampilkan gabungan semua departemen terkait' : '🌐 Showing combined all related departments')}
+                                </p>
+                            </div>
                             
-                            {/* Department Amount Selector (5, 10, 15, 20, All) */}
-                            <div className="flex items-center gap-1.5 text-xs">
-                                <span className="text-muted-foreground font-medium">{t('show')}:</span>
-                                <select
-                                    value={deptLimit}
-                                    onChange={(e) => setDeptLimit(e.target.value === 'all' ? 'all' : Number(e.target.value))}
-                                    className="appearance-none px-2.5 py-1 text-xs font-bold rounded-lg border border-[#3B3929] bg-[#2A281E] text-[#C9AA71] cursor-pointer focus:outline-none focus:ring-1 focus:ring-primary shadow-sm"
-                                >
-                                    <option value={5} className="bg-[#2A281E] text-[#FAFAFA]">Top 5</option>
-                                    <option value={10} className="bg-[#2A281E] text-[#FAFAFA]">Top 10</option>
-                                    <option value={15} className="bg-[#2A281E] text-[#FAFAFA]">Top 15</option>
-                                    <option value={20} className="bg-[#2A281E] text-[#FAFAFA]">Top 20</option>
-                                    <option value="all" className="bg-[#2A281E] text-[#FAFAFA]">{t('all_items')}</option>
-                                </select>
+                            <div className="flex items-center gap-2 flex-wrap">
+                                {/* Mode Selector */}
+                                <div className="flex items-center rounded-lg bg-[#2A281E] p-0.5 border border-[#3B3929] text-xs">
+                                    <button
+                                        type="button"
+                                        onClick={() => setDeptFilterMode('assigned')}
+                                        className={`px-2 py-1 rounded text-[11px] font-semibold transition-all cursor-pointer ${
+                                            deptFilterMode === 'assigned'
+                                                ? 'bg-[#C9AA71] text-[#1C1B0E] font-bold shadow-sm'
+                                                : 'text-muted-foreground hover:text-foreground'
+                                        }`}
+                                    >
+                                        🎯 {t('dept_mode_assigned')}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setDeptFilterMode('origin')}
+                                        className={`px-2 py-1 rounded text-[11px] font-semibold transition-all cursor-pointer ${
+                                            deptFilterMode === 'origin'
+                                                ? 'bg-[#C9AA71] text-[#1C1B0E] font-bold shadow-sm'
+                                                : 'text-muted-foreground hover:text-foreground'
+                                        }`}
+                                    >
+                                        🏠 {t('dept_mode_origin')}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setDeptFilterMode('tagged')}
+                                        className={`px-2 py-1 rounded text-[11px] font-semibold transition-all cursor-pointer ${
+                                            deptFilterMode === 'tagged'
+                                                ? 'bg-[#C9AA71] text-[#1C1B0E] font-bold shadow-sm'
+                                                : 'text-muted-foreground hover:text-foreground'
+                                        }`}
+                                    >
+                                        📢 {t('dept_mode_tagged')}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setDeptFilterMode('all')}
+                                        className={`px-2 py-1 rounded text-[11px] font-semibold transition-all cursor-pointer ${
+                                            deptFilterMode === 'all'
+                                                ? 'bg-[#C9AA71] text-[#1C1B0E] font-bold shadow-sm'
+                                                : 'text-muted-foreground hover:text-foreground'
+                                        }`}
+                                    >
+                                        🌐 {t('dept_mode_all')}
+                                    </button>
+                                </div>
+
+                                {/* Department Amount Selector (5, 10, 15, 20, All) */}
+                                <div className="flex items-center gap-1.5 text-xs">
+                                    <select
+                                        value={deptLimit}
+                                        onChange={(e) => setDeptLimit(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+                                        className="appearance-none px-2.5 py-1 text-xs font-bold rounded-lg border border-[#3B3929] bg-[#2A281E] text-[#C9AA71] cursor-pointer focus:outline-none focus:ring-1 focus:ring-primary shadow-sm"
+                                    >
+                                        <option value={5} className="bg-[#2A281E] text-[#FAFAFA]">Top 5</option>
+                                        <option value={10} className="bg-[#2A281E] text-[#FAFAFA]">Top 10</option>
+                                        <option value={15} className="bg-[#2A281E] text-[#FAFAFA]">Top 15</option>
+                                        <option value={20} className="bg-[#2A281E] text-[#FAFAFA]">Top 20</option>
+                                        <option value="all" className="bg-[#2A281E] text-[#FAFAFA]">{t('all_items')}</option>
+                                    </select>
+                                </div>
                             </div>
                         </div>
 
@@ -1075,18 +1189,18 @@ function AnalyticsInner() {
                                 {t('department')}:
                             </span>
 
-                            {/* Origin / Tagged / Both Mode Selector */}
+                            {/* Assigned / Origin / Tagged / All Mode Selector */}
                             <div className="flex items-center rounded-lg bg-[#2A281E] p-0.5 border border-[#3B3929] text-xs">
                                 <button
                                     type="button"
-                                    onClick={() => setDeptFilterMode('both')}
+                                    onClick={() => setDeptFilterMode('assigned')}
                                     className={`px-2.5 py-1 rounded-md font-semibold transition-all cursor-pointer ${
-                                        deptFilterMode === 'both'
+                                        deptFilterMode === 'assigned'
                                             ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-sm font-bold'
                                             : 'text-muted-foreground hover:text-foreground'
                                     }`}
                                 >
-                                    {t('dept_mode_both')}
+                                    🎯 {t('dept_mode_assigned')}
                                 </button>
                                 <button
                                     type="button"
@@ -1097,7 +1211,7 @@ function AnalyticsInner() {
                                             : 'text-muted-foreground hover:text-foreground'
                                     }`}
                                 >
-                                    {t('dept_mode_origin')}
+                                    🏠 {t('dept_mode_origin')}
                                 </button>
                                 <button
                                     type="button"
@@ -1108,7 +1222,18 @@ function AnalyticsInner() {
                                             : 'text-muted-foreground hover:text-foreground'
                                     }`}
                                 >
-                                    {t('dept_mode_tagged')}
+                                    📢 {t('dept_mode_tagged')}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setDeptFilterMode('all')}
+                                    className={`px-2.5 py-1 rounded-md font-semibold transition-all cursor-pointer ${
+                                        deptFilterMode === 'all'
+                                            ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-sm font-bold'
+                                            : 'text-muted-foreground hover:text-foreground'
+                                    }`}
+                                >
+                                    🌐 {t('dept_mode_all')}
                                 </button>
                             </div>
                         </div>

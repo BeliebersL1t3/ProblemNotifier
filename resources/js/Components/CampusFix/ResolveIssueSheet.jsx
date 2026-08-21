@@ -1,8 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { Loader2, MapPin, ZoomIn } from 'lucide-react';
 import { Button } from '@/Components/UI/Button';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/Components/UI/Sheet';
-import { Input } from '@/Components/UI/Input';
 import { Label } from '@/Components/UI/Label';
 import { Textarea } from '@/Components/UI/Textarea';
 import { ImageDropzone } from './ImageDropzone';
@@ -10,11 +9,13 @@ import { useIssues } from '@/context/IssuesContext';
 import DelayDetailModal from './DelayDetailModal';
 import { ImageLightboxModal } from './ImageLightboxModal';
 import { CriticalTimer } from './CriticalTimer';
+import { getStaffForDepartment } from '@/constants/staff';
 
 export function ResolveIssueSheet({ issue, onClose }) {
     const { resolveIssue, pendingIssue, categories, updateIssueCategory } = useIssues();
     const [isPendingMode, setIsPendingMode] = useState(false);
-    const [solver, setSolver] = useState('');
+    const [selectedDept, setSelectedDept] = useState('');
+    const [selectedStaff, setSelectedStaff] = useState('');
     const [fixDescription, setFixDescription] = useState('');
     const [proofImageFile, setProofImageFile] = useState(null);
     const [proofImageUrl, setProofImageUrl] = useState(undefined);
@@ -24,10 +25,25 @@ export function ResolveIssueSheet({ issue, onClose }) {
     const [selectedDelay, setSelectedDelay] = useState(null);
     const [previewImage, setPreviewImage] = useState(null);
 
+    // Build authorized departments (assigned + tagged)
+    const authorizedDepts = useMemo(() => {
+        if (!issue) return [];
+        const assigned = Array.isArray(issue.assignedDepartments) ? issue.assignedDepartments : [];
+        const tagged = Array.isArray(issue.taggedDepartments) ? issue.taggedDepartments : [];
+        return [...new Set([...assigned, ...tagged])];
+    }, [issue]);
+
+    const staffForSelectedDept = useMemo(() => {
+        if (!selectedDept) return [];
+        return getStaffForDepartment(selectedDept);
+    }, [selectedDept]);
+
     useEffect(() => {
         if (issue) {
             setIsPendingMode(false);
-            setSolver(issue.taker ?? '');
+            // Pre-select dept if the taker has one, otherwise blank
+            setSelectedDept('');
+            setSelectedStaff(issue.taker ?? '');
             setFixDescription('');
             setProofImageFile(null);
             setProofImageUrl(undefined);
@@ -36,6 +52,10 @@ export function ResolveIssueSheet({ issue, onClose }) {
             setPreviewImage(null);
         }
     }, [issue]);
+
+    useEffect(() => {
+        setSelectedStaff('');
+    }, [selectedDept]);
 
     const handleCategoryChange = async (e) => {
         setIsUpdatingCategory(true);
@@ -49,23 +69,27 @@ export function ResolveIssueSheet({ issue, onClose }) {
         }
     };
 
-    const valid = solver.trim() && fixDescription.trim();
+    const valid = selectedStaff.trim() && fixDescription.trim();
 
     const submit = async () => {
         if (!issue || !valid || isSubmitting) return;
+        if (!selectedStaff.trim()) {
+            setErrorMsg('Please select your name.');
+            return;
+        }
         setIsSubmitting(true);
         setErrorMsg('');
 
         try {
             if (isPendingMode) {
                 await pendingIssue(issue, {
-                    pendingBy: solver.trim(),
+                    pendingBy: selectedStaff.trim(),
                     pendingReason: fixDescription.trim(),
                     pendingImageFile: proofImageFile,
                 });
             } else {
                 await resolveIssue(issue, {
-                    solver: solver.trim(),
+                    solver: selectedStaff.trim(),
                     fixDescription: fixDescription.trim(),
                     proofImageFile,
                 });
@@ -78,6 +102,8 @@ export function ResolveIssueSheet({ issue, onClose }) {
             setIsSubmitting(false);
         }
     };
+
+    const hasAuthorizedDepts = authorizedDepts.length > 0;
 
     return (
         <Sheet open={!!issue} onOpenChange={(o) => { if (!o && !isSubmitting) onClose(); }}>
@@ -144,14 +170,19 @@ export function ResolveIssueSheet({ issue, onClose }) {
                                     </div>
                                 </div>
                                 <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                                    {issue.assignedDepartments && issue.assignedDepartments.length > 0 && issue.assignedDepartments.map((dept, idx) => (
+                                        <span key={'assign-' + idx} className="shrink-0 rounded bg-amber-500/15 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 font-mono text-[10px] font-semibold border border-amber-500/30" title="Assigned Department (Responsible to fix)">
+                                            🎯 {dept}
+                                        </span>
+                                    ))}
                                     {issue.department && (
-                                        <span className="shrink-0 rounded bg-blue-500/10 text-blue-600 px-1.5 py-0.5 font-mono text-[10px] font-medium border border-blue-500/20" title="Origin Department">
+                                        <span className="shrink-0 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 font-mono text-[10px] font-medium border border-blue-500/20" title="Origin Department">
                                             🏠 {issue.department}
                                         </span>
                                     )}
                                     {issue.taggedDepartments && issue.taggedDepartments.map((tag, idx) => (
-                                        <span key={idx} className="shrink-0 rounded bg-purple-500/10 text-purple-600 px-1.5 py-0.5 font-mono text-[10px] font-medium border border-purple-500/20" title="Tagged Department">
-                                            @{tag}
+                                        <span key={'tag-' + idx} className="shrink-0 rounded bg-purple-500/10 text-purple-600 dark:text-purple-400 px-1.5 py-0.5 font-mono text-[10px] font-medium border border-purple-500/20" title="Tagged Department">
+                                            📢 @{tag}
                                         </span>
                                     ))}
                                     
@@ -216,16 +247,73 @@ export function ResolveIssueSheet({ issue, onClose }) {
                         </div>
                     )}
 
+                    {/* Step 1: Department */}
                     <div className="grid gap-2">
-                        <Label htmlFor="solver">{isPendingMode ? 'Worker name' : 'Solver name'}</Label>
-                        <Input
-                            id="solver"
-                            value={solver}
-                            onChange={(e) => setSolver(e.target.value)}
-                            placeholder={isPendingMode ? "Who is delaying this job?" : "Who fixed it?"}
-                            disabled={isSubmitting}
-                        />
+                        <Label>
+                            Step 1 — Your Department
+                            {hasAuthorizedDepts && (
+                                <span className="ml-1.5 text-xs font-normal text-muted-foreground">
+                                    (only authorized departments shown)
+                                </span>
+                            )}
+                        </Label>
+                        {hasAuthorizedDepts ? (
+                            <div className="flex flex-wrap gap-2">
+                                {authorizedDepts.map(dept => (
+                                    <button
+                                        key={dept}
+                                        type="button"
+                                        disabled={isSubmitting}
+                                        onClick={() => setSelectedDept(dept)}
+                                        className={`px-3 py-1.5 text-xs font-semibold rounded-full border transition-all ${
+                                            selectedDept === dept
+                                                ? 'bg-amber-600 text-white border-amber-600 shadow-sm ring-2 ring-amber-500/20'
+                                                : 'bg-surface text-muted-foreground border-border hover:border-amber-500/50 hover:bg-amber-500/10'
+                                        }`}
+                                    >
+                                        {selectedDept === dept ? `✓ ${dept}` : dept}
+                                    </button>
+                                ))}
+                            </div>
+                        ) : (
+                            <p className="text-xs text-muted-foreground italic">
+                                No assigned/tagged departments set on this issue.
+                            </p>
+                        )}
                     </div>
+
+                    {/* Step 2: Staff Name */}
+                    {selectedDept && (
+                        <div className="grid gap-2">
+                            <Label>
+                                Step 2 — {isPendingMode ? 'Worker Name' : 'Solver Name'}
+                                <span className="ml-1.5 text-xs font-normal text-muted-foreground">({selectedDept} staff)</span>
+                            </Label>
+                            {staffForSelectedDept.length > 0 ? (
+                                <div className="flex flex-wrap gap-2">
+                                    {staffForSelectedDept.map(name => (
+                                        <button
+                                            key={name}
+                                            type="button"
+                                            disabled={isSubmitting}
+                                            onClick={() => setSelectedStaff(name)}
+                                            className={`px-3 py-1.5 text-xs font-semibold rounded-full border transition-all ${
+                                                selectedStaff === name
+                                                    ? 'bg-primary text-primary-foreground border-primary shadow-sm ring-2 ring-primary/20'
+                                                    : 'bg-surface text-muted-foreground border-border hover:border-primary/50 hover:bg-primary/10'
+                                            }`}
+                                        >
+                                            {selectedStaff === name ? `✓ ${name}` : name}
+                                        </button>
+                                    ))}
+                                </div>
+                            ) : (
+                                <p className="text-xs text-muted-foreground italic">
+                                    No staff roster found for {selectedDept}.
+                                </p>
+                            )}
+                        </div>
+                    )}
 
                     <div className="grid gap-2">
                         <Label htmlFor="fix">{isPendingMode ? 'Reason for delay' : 'Fix description'}</Label>
