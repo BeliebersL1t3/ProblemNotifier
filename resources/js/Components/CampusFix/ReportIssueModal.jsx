@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Button } from '@/Components/UI/Button';
 import {
     Dialog,
@@ -22,10 +22,11 @@ import { ImageDropzone } from './ImageDropzone';
 import { useIssues } from '@/context/IssuesContext';
 import { Loader2 } from 'lucide-react';
 
-import { ALL_DEPARTMENTS } from '@/constants/staff';
+import { ALL_DEPARTMENTS, getStaffForDepartment } from '@/constants/staff';
 
 export function ReportIssueModal({ open, onOpenChange }) {
     const { addIssue } = useIssues();
+    const [originDept, setOriginDept] = useState('');
     const [reporter, setReporter] = useState('');
     const [title, setTitle] = useState('');
     const [locMain, setLocMain] = useState('');      // 'TPI' | 'TBR' | 'Kantor' | ''
@@ -34,13 +35,22 @@ export function ReportIssueModal({ open, onOpenChange }) {
     const [description, setDescription] = useState('');
     const [priority, setPriority] = useState('low');
     const [deadline, setDeadline] = useState('15');
-    const [originDept, setOriginDept] = useState('');
     const [assignedDepts, setAssignedDepts] = useState([]);
     const [taggedDepts, setTaggedDepts] = useState([]);
     const [imageFile, setImageFile] = useState(null);
     const [imageUrl, setImageUrl] = useState(undefined);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [errorMsg, setErrorMsg] = useState('');
+
+    const staffForOriginDept = useMemo(() => {
+        if (!originDept) return [];
+        return getStaffForDepartment(originDept);
+    }, [originDept]);
+
+    const handleOriginDeptChange = (dept) => {
+        setOriginDept(dept);
+        setReporter(''); // reset reporter when dept changes
+    };
 
     // Build the full location string: "TBR - Room 12" or just "TBR"
     const location = locMain
@@ -52,6 +62,7 @@ export function ReportIssueModal({ open, onOpenChange }) {
     const valid = reporter.trim() && title.trim() && location.trim() && description.trim() && originDept && assignedDepts.length > 0 && imageFile;
 
     const reset = () => {
+        setOriginDept('');
         setReporter('');
         setTitle('');
         setLocMain('');
@@ -60,7 +71,6 @@ export function ReportIssueModal({ open, onOpenChange }) {
         setDescription('');
         setPriority('low');
         setDeadline('15');
-        setOriginDept('');
         setAssignedDepts([]);
         setTaggedDepts([]);
         setImageFile(null);
@@ -127,16 +137,76 @@ export function ReportIssueModal({ open, onOpenChange }) {
                 )}
 
                 <div className="grid gap-4">
-                    <div className="grid gap-2">
-                        <Label htmlFor="reporter">Submitter name</Label>
-                        <Input
-                            id="reporter"
-                            value={reporter}
-                            onChange={(e) => setReporter(e.target.value)}
-                            placeholder="e.g. Aisha M."
-                            disabled={isSubmitting}
-                        />
+                    {/* Step 1: Origin Department */}
+                    <div className="grid gap-2 p-3 rounded-lg border border-blue-500/30 bg-blue-500/5">
+                        <div className="flex flex-col gap-0.5">
+                            <Label htmlFor="originDept" className="text-blue-600 dark:text-blue-400 font-semibold flex items-center gap-1.5">
+                                🏠 1. Origin Department (Discovered By) <span className="text-xs text-destructive">*</span>
+                            </Label>
+                            <span className="text-xs text-muted-foreground">
+                                Select your department to load the staff roster.
+                            </span>
+                        </div>
+                        <Select value={originDept} onValueChange={handleOriginDeptChange} disabled={isSubmitting}>
+                            <SelectTrigger id="originDept" className="bg-surface">
+                                <SelectValue placeholder="-- Select Your Department --" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {ALL_DEPARTMENTS.map((dept) => (
+                                    <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                     </div>
+
+                    {/* Step 2: Submitter Name (from Staff Roster) */}
+                    <div className="grid gap-2 p-3 rounded-lg border border-border bg-muted/30">
+                        <div className="flex items-center justify-between">
+                            <Label className="font-semibold flex items-center gap-1.5">
+                                👤 2. Submitter Name (Pelapor) <span className="text-xs text-destructive">*</span>
+                            </Label>
+                            {originDept && (
+                                <span className="text-xs text-blue-600 dark:text-blue-400 font-medium">
+                                    {originDept} Staff
+                                </span>
+                            )}
+                        </div>
+
+                        {originDept ? (
+                            staffForOriginDept.length > 0 ? (
+                                <div className="flex flex-wrap gap-2 pt-1">
+                                    {staffForOriginDept.map(name => (
+                                        <button
+                                            key={name}
+                                            type="button"
+                                            disabled={isSubmitting}
+                                            onClick={() => setReporter(name)}
+                                            className={`px-3 py-1.5 text-xs font-semibold rounded-full border transition-all ${
+                                                reporter === name
+                                                    ? 'bg-primary text-primary-foreground border-primary shadow-sm ring-2 ring-primary/20'
+                                                    : 'bg-surface text-muted-foreground border-border hover:border-primary/50 hover:bg-primary/10'
+                                            }`}
+                                        >
+                                            {reporter === name ? `✓ ${name}` : name}
+                                        </button>
+                                    ))}
+                                </div>
+                            ) : (
+                                <Input
+                                    id="reporter"
+                                    value={reporter}
+                                    onChange={(e) => setReporter(e.target.value)}
+                                    placeholder="Enter your name..."
+                                    disabled={isSubmitting}
+                                />
+                            )
+                        ) : (
+                            <p className="text-xs text-muted-foreground italic py-1">
+                                👆 Please select an Origin Department above to choose your name.
+                            </p>
+                        )}
+                    </div>
+
                     <div className="grid gap-2">
                         <Label htmlFor="title">Issue title</Label>
                         <Input
@@ -201,20 +271,6 @@ export function ReportIssueModal({ open, onOpenChange }) {
                                 </SelectContent>
                             </Select>
                         </div>
-                    </div>
-
-                    <div className="grid gap-2">
-                        <Label htmlFor="originDept">🏠 Origin Department (Discovered By)</Label>
-                        <Select value={originDept} onValueChange={setOriginDept} disabled={isSubmitting}>
-                            <SelectTrigger id="originDept">
-                                <SelectValue placeholder="Select Origin Department" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {ALL_DEPARTMENTS.map((dept) => (
-                                    <SelectItem key={dept} value={dept}>{dept}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
                     </div>
 
                     {/* Assigned Department(s) - Required & Multi-Select */}

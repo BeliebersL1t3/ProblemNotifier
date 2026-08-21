@@ -573,18 +573,60 @@ async function startSock() {
 
                 // Dispatch detected intent
                 if (intent === 'SOS') {
-                    await reply(getMsg(
-                        '🚨 EMERGENCY MODE ACTIVATED 🚨\n\nFirst, what is your name?',
-                        '🚨 MODE DARURAT DIAKTIFKAN 🚨\n\nPertama, siapa nama Anda?'
-                    ));
-                    userStates.set(stateKey, { step: STEPS.SOS_AWAITING_NAME, data: {}, lang: state.lang });
+                    const groupDeptKey = getDeptKeyForGroup(from);
+                    if (groupDeptKey) {
+                        const deptName = DEPARTMENTS.find(d => d.toLowerCase() === groupDeptKey) || (groupDeptKey.charAt(0).toUpperCase() + groupDeptKey.slice(1));
+                        const roster = DEPARTMENT_STAFF[groupDeptKey] || [];
+                        if (roster.length > 0) {
+                            let rMsg = getMsg(
+                                `🚨 EMERGENCY MODE (*${deptName}*) 🚨\n\nWho is reporting? Reply with your number:\n\n`,
+                                `🚨 MODE DARURAT (*${deptName}*) 🚨\n\nSiapa yang melaporkan? Balas dengan nomor Anda:\n\n`
+                            );
+                            roster.forEach((n, idx) => { rMsg += `${idx + 1}. ${n}\n`; });
+                            rMsg += `\n` + getMsg(`Example: *2* or type your name.`, `Contoh: *2* atau ketik nama Anda.`);
+                            userStates.set(stateKey, { step: STEPS.SOS_AWAITING_NAME, data: { department: deptName, rosterList: roster }, lang: state.lang });
+                            await reply(rMsg);
+                            continue;
+                        }
+                    }
+
+                    let deptMsg = getMsg(
+                        '🚨 EMERGENCY MODE ACTIVATED 🚨\n\nFirst, which department are you from? Reply with the number:\n\n',
+                        '🚨 MODE DARURAT DIAKTIFKAN 🚨\n\nPertama, dari departemen mana Anda? Balas dengan nomor:\n\n'
+                    );
+                    DEPARTMENTS.forEach((d, idx) => {
+                        deptMsg += `${idx + 1}. ${d}\n`;
+                    });
+                    await reply(deptMsg.trim());
+                    userStates.set(stateKey, { step: STEPS.AWAITING_ORIGIN_DEPT, data: { isEmergency: true }, lang: state.lang });
                     continue;
                 } else if (intent === 'REPORT') {
-                    await reply(getMsg(
-                        'Welcome to the Telunas Resort Issue Tracker! Let\'s report an issue.\n\nFirst, what is your name?',
-                        'Selamat datang di Telunas Resort Issue Tracker! Mari laporkan masalah.\n\nPertama, siapa nama Anda?'
-                    ));
-                    userStates.set(stateKey, { step: STEPS.AWAITING_NAME, data: {}, lang: state.lang });
+                    const groupDeptKey = getDeptKeyForGroup(from);
+                    if (groupDeptKey) {
+                        const deptName = DEPARTMENTS.find(d => d.toLowerCase() === groupDeptKey) || (groupDeptKey.charAt(0).toUpperCase() + groupDeptKey.slice(1));
+                        const roster = DEPARTMENT_STAFF[groupDeptKey] || [];
+                        if (roster.length > 0) {
+                            let rMsg = getMsg(
+                                `Welcome to Telunas Issue Tracker (*${deptName}*)!\n\nWho is reporting this issue? Reply with your number:\n\n`,
+                                `Selamat datang di Telunas Issue Tracker (*${deptName}*)!\n\nSiapa yang melaporkan masalah ini? Balas dengan nomor Anda:\n\n`
+                            );
+                            roster.forEach((n, idx) => { rMsg += `${idx + 1}. ${n}\n`; });
+                            rMsg += `\n` + getMsg(`Example: *2* or type your name.`, `Contoh: *2* atau ketik nama Anda.`);
+                            userStates.set(stateKey, { step: STEPS.AWAITING_NAME, data: { department: deptName, rosterList: roster }, lang: state.lang });
+                            await reply(rMsg);
+                            continue;
+                        }
+                    }
+
+                    let deptMenu = getMsg(
+                        'Welcome to Telunas Issue Tracker! First, what is your department (Origin Dept)? Reply with the number:\n\n',
+                        'Selamat datang di Telunas Issue Tracker! Pertama, apa departemen Anda (Dept Asal)? Balas dengan nomor:\n\n'
+                    );
+                    DEPARTMENTS.forEach((dept, index) => {
+                        deptMenu += `${index + 1}. ${dept}\n`;
+                    });
+                    await reply(deptMenu.trim());
+                    userStates.set(stateKey, { step: STEPS.AWAITING_ORIGIN_DEPT, data: {}, lang: state.lang });
                     continue;
                 } else if (intent === 'SOLVE') {
                     await reply(getMsg(
@@ -872,63 +914,38 @@ async function startSock() {
                         state.data.location = text;
                     }
 
-                    let deptMenu = getMsg(
-                        'Great. What department is this issue originating from? Reply with the number:\n',
-                        'Bagus. Departemen mana asal masalah ini? Balas dengan nomornya:\n'
+                    let assignMenu = getMsg(
+                        '🎯 Which department(s) are RESPONSIBLE for fixing this? You can select multiple by separating with spaces (e.g. "1" or "1 5"):\n\n',
+                        '🎯 Departemen mana saja yang BERTANGGUNG JAWAB memperbaiki ini? Bisa pilih beberapa dengan spasi (contoh: "1" atau "1 5"):\n\n'
                     );
                     DEPARTMENTS.forEach((dept, index) => {
-                        deptMenu += `${index + 1}. ${dept}\n`;
+                        assignMenu += `${index + 1}. ${dept}\n`;
                     });
 
-                    await reply(deptMenu.trim());
-                    state.step = STEPS.AWAITING_ORIGIN_DEPT;
+                    await reply(assignMenu.trim());
+                    state.step = STEPS.AWAITING_ASSIGNED_DEPTS;
                     continue;
                 }
 
-            if (state.step === STEPS.AWAITING_LOC_DETAIL) {
-                if (text.toLowerCase() !== 'skip' && text !== '') {
-                    state.data.location = state.data.location
-                        ? `${state.data.location} - ${text}`
-                        : text;
-                }
+                if (state.step === STEPS.AWAITING_LOC_DETAIL) {
+                    if (text.toLowerCase() !== 'skip' && text !== '') {
+                        state.data.location = state.data.location
+                            ? `${state.data.location} - ${text}`
+                            : text;
+                    }
 
-                let deptMenu = getMsg(
-                    'Great. What department is this issue originating from? Reply with the number:\n',
-                    'Bagus. Departemen mana asal masalah ini? Balas dengan nomornya:\n'
-                );
-                DEPARTMENTS.forEach((dept, index) => {
-                    deptMenu += `${index + 1}. ${dept}\n`;
-                });
+                    let assignMenu = getMsg(
+                        '🎯 Which department(s) are RESPONSIBLE for fixing this? You can select multiple by separating with spaces (e.g. "1" or "1 5"):\n\n',
+                        '🎯 Departemen mana saja yang BERTANGGUNG JAWAB memperbaiki ini? Bisa pilih beberapa dengan spasi (contoh: "1" atau "1 5"):\n\n'
+                    );
+                    DEPARTMENTS.forEach((dept, index) => {
+                        assignMenu += `${index + 1}. ${dept}\n`;
+                    });
 
-                await reply(deptMenu.trim());
-                state.step = STEPS.AWAITING_ORIGIN_DEPT;
-                continue;
-            }
-
-            if (state.step === STEPS.AWAITING_ORIGIN_DEPT) {
-                const idx = parseInt(text) - 1;
-                if (isNaN(idx) || idx < 0 || idx >= DEPARTMENTS.length) {
-                    await reply(getMsg(
-                        'Invalid selection. Please reply with a valid number from the list.',
-                        'Pilihan tidak valid. Harap balas dengan nomor yang sesuai dari daftar.'
-                    ));
+                    await reply(assignMenu.trim());
+                    state.step = STEPS.AWAITING_ASSIGNED_DEPTS;
                     continue;
                 }
-                
-                state.data.department = DEPARTMENTS[idx];
-                
-                let assignMenu = getMsg(
-                    '🎯 Which department(s) are RESPONSIBLE for fixing this? You can select multiple by separating with spaces (e.g. "1" or "1 5"):\n',
-                    '🎯 Departemen mana saja yang BERTANGGUNG JAWAB memperbaiki ini? Bisa pilih beberapa dengan spasi (contoh: "1" atau "1 5"):\n'
-                );
-                DEPARTMENTS.forEach((dept, index) => {
-                    assignMenu += `${index + 1}. ${dept}\n`;
-                });
-                
-                await reply(assignMenu.trim());
-                state.step = STEPS.AWAITING_ASSIGNED_DEPTS;
-                continue;
-            }
 
             if (state.step === STEPS.AWAITING_ASSIGNED_DEPTS) {
                 const parts = text.split(/\s+/);

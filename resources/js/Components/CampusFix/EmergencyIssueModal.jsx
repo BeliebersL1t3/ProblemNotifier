@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Button } from '@/Components/UI/Button';
 import {
     Dialog,
@@ -11,12 +11,20 @@ import {
 import { Input } from '@/Components/UI/Input';
 import { Label } from '@/Components/UI/Label';
 import { Textarea } from '@/Components/UI/Textarea';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/Components/UI/Select';
 import { useIssues } from '@/context/IssuesContext';
 import { Loader2, AlertTriangle } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { ALL_DEPARTMENTS, getStaffForDepartment } from '@/constants/staff';
 
 export function EmergencyIssueModal({ open, onOpenChange }) {
     const { addIssue } = useIssues();
+    const [originDept, setOriginDept] = useState('');
     const [reporter, setReporter] = useState('');
     const [title, setTitle] = useState('');
     const [locMain, setLocMain] = useState('');
@@ -25,14 +33,25 @@ export function EmergencyIssueModal({ open, onOpenChange }) {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [errorMsg, setErrorMsg] = useState('');
 
+    const staffForOriginDept = useMemo(() => {
+        if (!originDept) return [];
+        return getStaffForDepartment(originDept);
+    }, [originDept]);
+
+    const handleOriginDeptChange = (dept) => {
+        setOriginDept(dept);
+        setReporter('');
+    };
+
     const location = locMain
         ? (locDetail.trim() ? `${locMain} - ${locDetail.trim()}` : locMain)
         : locDetail.trim();
 
     const MAIN_LOCATIONS = ['TPI', 'TBR', 'Kantor'];
-    const valid = reporter.trim() && title.trim() && location.trim();
+    const valid = reporter.trim() && title.trim() && location.trim() && originDept;
 
     const reset = () => {
+        setOriginDept('');
         setReporter('');
         setTitle('');
         setLocMain('');
@@ -55,7 +74,7 @@ export function EmergencyIssueModal({ open, onOpenChange }) {
             await addIssue({
                 reporter: reporter.trim(),
                 title: title.trim(),
-                department: 'Emergency',
+                department: originDept || 'Emergency',
                 assignedDepartments: 'ALL',
                 taggedDepartments: 'ALL',
                 category: 'emergency',
@@ -94,16 +113,70 @@ export function EmergencyIssueModal({ open, onOpenChange }) {
                 )}
 
                 <div className="grid gap-4 mt-2">
-                    <div className="grid gap-2">
-                        <Label htmlFor="sos-reporter" className="text-red-300">Submitter name</Label>
-                        <Input
-                            id="sos-reporter"
-                            value={reporter}
-                            onChange={(e) => setReporter(e.target.value)}
-                            placeholder="e.g. Aisha M."
-                            disabled={isSubmitting}
-                            className="border-red-900/50 bg-black/50 text-white placeholder:text-red-800 focus-visible:ring-red-500"
-                        />
+                    {/* Step 1: Origin Department */}
+                    <div className="grid gap-2 p-3 rounded-lg border border-red-500/40 bg-red-950/40">
+                        <Label htmlFor="sos-originDept" className="text-red-300 font-semibold flex items-center gap-1.5">
+                            🏠 1. Origin Department (Your Dept) <span className="text-xs text-red-400">*</span>
+                        </Label>
+                        <Select value={originDept} onValueChange={handleOriginDeptChange} disabled={isSubmitting}>
+                            <SelectTrigger id="sos-originDept" className="border-red-900/50 bg-black/60 text-white focus-visible:ring-red-500">
+                                <SelectValue placeholder="-- Select Your Department --" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-zinc-900 text-white border-zinc-800">
+                                {ALL_DEPARTMENTS.map((dept) => (
+                                    <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    {/* Step 2: Submitter Name */}
+                    <div className="grid gap-2 p-3 rounded-lg border border-red-900/40 bg-black/40">
+                        <div className="flex items-center justify-between">
+                            <Label className="text-red-300 font-semibold flex items-center gap-1.5">
+                                👤 2. Submitter Name (Pelapor) <span className="text-xs text-red-400">*</span>
+                            </Label>
+                            {originDept && (
+                                <span className="text-xs text-red-400 font-medium">
+                                    {originDept} Staff
+                                </span>
+                            )}
+                        </div>
+
+                        {originDept ? (
+                            staffForOriginDept.length > 0 ? (
+                                <div className="flex flex-wrap gap-2 pt-1">
+                                    {staffForOriginDept.map(name => (
+                                        <button
+                                            key={name}
+                                            type="button"
+                                            disabled={isSubmitting}
+                                            onClick={() => setReporter(name)}
+                                            className={`px-3 py-1.5 text-xs font-bold rounded-full border transition-all ${
+                                                reporter === name
+                                                    ? 'bg-red-600 text-white border-red-400 shadow-md ring-2 ring-red-500/40'
+                                                    : 'bg-black/50 text-red-300 border-red-900/60 hover:border-red-500/50 hover:bg-red-950/40'
+                                            }`}
+                                        >
+                                            {reporter === name ? `✓ ${name}` : name}
+                                        </button>
+                                    ))}
+                                </div>
+                            ) : (
+                                <Input
+                                    id="sos-reporter"
+                                    value={reporter}
+                                    onChange={(e) => setReporter(e.target.value)}
+                                    placeholder="Enter your name..."
+                                    disabled={isSubmitting}
+                                    className="border-red-900/50 bg-black/50 text-white placeholder:text-red-800 focus-visible:ring-red-500"
+                                />
+                            )
+                        ) : (
+                            <p className="text-xs text-red-400/80 italic py-1">
+                                👆 Please select an Origin Department above to choose your name.
+                            </p>
+                        )}
                     </div>
 
                     <div className="grid gap-2">
