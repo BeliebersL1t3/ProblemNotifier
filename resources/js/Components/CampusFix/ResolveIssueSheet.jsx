@@ -225,6 +225,7 @@ export function ResolveIssueSheet({ issue, onClose }) {
                                             <img 
                                                 src={item.image} 
                                                 alt="delay proof" 
+                                                onError={(e) => { e.currentTarget.style.display = 'none'; }}
                                                 className="w-12 h-12 object-cover rounded shadow-sm shrink-0 cursor-pointer hover:opacity-80 transition-opacity" 
                                                 onClick={() => setPreviewImage({
                                                     src: item.image,

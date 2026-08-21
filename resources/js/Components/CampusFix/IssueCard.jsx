@@ -127,6 +127,7 @@ export function IssueCard({ issue, onSelect }) {
                                             <img 
                                                 src={item.image} 
                                                 alt="delay proof" 
+                                                onError={(e) => { e.currentTarget.style.display = 'none'; }}
                                                 className="w-10 h-10 object-cover rounded shadow-sm shrink-0 cursor-pointer hover:opacity-80 transition-opacity" 
                                                 onClick={(e) => {
                                                     e.stopPropagation();

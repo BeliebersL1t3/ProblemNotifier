@@ -37,7 +37,7 @@ class IssueController extends Controller
         return asset('uploads/' . ltrim($raw, '/'));
     }
 
-    private static function parsePendingTimeline($rawData, $legacyBy, $legacyImage)
+    private function parsePendingTimeline($rawData, $legacyBy = '', $legacyImage = '')
     {
         if (empty($rawData)) {
             return [];
@@ -45,7 +45,13 @@ class IssueController extends Controller
 
         $decoded = json_decode($rawData, true);
         if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
-            return $decoded;
+            return array_map(function ($item) {
+                if (is_array($item)) {
+                    $img = $item['image'] ?? ($item['pendingImageUrl'] ?? '');
+                    $item['image'] = $this->resolveImageUrl($img);
+                }
+                return $item;
+            }, $decoded);
         }
 
         // Fallback for legacy plain text reason
@@ -54,7 +60,7 @@ class IssueController extends Controller
                 'date'   => '',
                 'by'     => $legacyBy ?: 'Staff',
                 'reason' => $rawData,
-                'image'  => $legacyImage,
+                'image'  => $this->resolveImageUrl($legacyImage),
             ]
         ];
     }
@@ -230,7 +236,7 @@ class IssueController extends Controller
                         'priority'       => $row[16] ?? 'low',
                         'deadline'       => $row[17] ?? '',
                         'pendingReason'  => $row[18] ?? '',
-                        'pendingTimeline'=> self::parsePendingTimeline($row[18] ?? '', $row[19] ?? '', $this->resolveImageUrl($row[20] ?? '')),
+                        'pendingTimeline'=> $this->parsePendingTimeline($row[18] ?? '', $row[19] ?? '', $row[20] ?? ''),
                         'pendingBy'      => $row[19] ?? '',
                         'pendingImageUrl'=> $this->resolveImageUrl($row[20] ?? ''),
                     ];
@@ -704,25 +710,37 @@ class IssueController extends Controller
             }
 
             $pendingDataRaw = $currentRow[18] ?? '';
-            $pendingTimeline = self::parsePendingTimeline($pendingDataRaw, $currentRow[19] ?? '', $this->resolveImageUrl($currentRow[20] ?? ''));
+            $existingItems = [];
+            if (!empty($pendingDataRaw)) {
+                $decoded = json_decode($pendingDataRaw, true);
+                if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                    $existingItems = $decoded;
+                } else {
+                    $existingItems = [[
+                        'date'   => '',
+                        'by'     => $currentRow[19] ?? 'Staff',
+                        'reason' => $pendingDataRaw,
+                        'image'  => $currentRow[20] ?? '',
+                    ]];
+                }
+            }
 
             $date = \Carbon\Carbon::now()->format('M d, H:i');
             
             $pendingImageUrl = '';
             if ($request->hasFile('pendingImage')) {
-                // Generate a unique name for each delay photo so they don't overwrite each other in the uploads folder
                 $timestamp = time();
                 $pendingImageUrl = $this->googleService->uploadImage($request->file('pendingImage'), "{$idOrRowIndex}-pending-{$timestamp}");
             }
 
-            $pendingTimeline[] = [
+            $existingItems[] = [
                 'date'   => $date,
                 'by'     => $request->pendingBy,
                 'reason' => $request->pendingReason,
                 'image'  => $pendingImageUrl,
             ];
 
-            $newJson = json_encode($pendingTimeline);
+            $newJson = json_encode($existingItems);
 
             $this->googleService->updateRow($targetRowIndex, [
                 'F' => 'pending',
@@ -732,6 +750,7 @@ class IssueController extends Controller
             ]);
 
             $resolvedPendingUrl = $this->resolveImageUrl($pendingImageUrl);
+            $resolvedTimeline = $this->parsePendingTimeline($newJson);
 
             try {
                 Http::timeout(3)->post('http://localhost:3000/notify', [
@@ -747,7 +766,7 @@ class IssueController extends Controller
                     'status'          => 'pending',
                     'pendingBy'       => $request->pendingBy,
                     'pendingReason'   => $newJson,
-                    'pendingTimeline' => $pendingTimeline,
+                    'pendingTimeline' => $resolvedTimeline,
                     'pendingImageUrl' => $resolvedPendingUrl,
                 ],
             ]);
