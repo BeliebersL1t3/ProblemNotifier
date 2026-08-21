@@ -267,10 +267,21 @@ async function startSock() {
         }
         
         if (connection === 'close') {
-            const shouldReconnect = lastDisconnect.error?.output?.statusCode !== DisconnectReason.loggedOut;
-            console.log('Connection closed. Reconnecting...', shouldReconnect);
-            if (shouldReconnect) {
-                startSock();
+            const statusCode = lastDisconnect.error?.output?.statusCode;
+            const isLoggedOut = statusCode === DisconnectReason.loggedOut;
+            console.log(`Connection closed (Status Code: ${statusCode || 'unknown'}). Reconnecting...`, !isLoggedOut);
+            
+            if (isLoggedOut) {
+                console.log('\n⚠️ WhatsApp Session was logged out / expired.');
+                console.log('--> Resetting auth_info_baileys and generating a new QR code...\n');
+                try {
+                    fs.rmSync('auth_info_baileys', { recursive: true, force: true });
+                } catch (e) {
+                    console.error('Error resetting session files:', e.message);
+                }
+                setTimeout(() => startSock(), 1500);
+            } else {
+                setTimeout(() => startSock(), 2000);
             }
         } else if (connection === 'open') {
             console.log('Client is ready!');
