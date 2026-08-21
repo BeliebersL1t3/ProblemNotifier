@@ -8,20 +8,84 @@ use Illuminate\Console\Command;
 
 class SeedDummyIssues extends Command
 {
-    protected $signature   = 'issues:seed {--count=20 : Number of issues to add}';
-    protected $description = 'Seed dummy issues into the current active Google Sheet for demo/testing.';
+    protected $signature   = 'issues:seed {--sheet= : Target a specific sheet (default all)} {--count=10 : Issues per sheet}';
+    protected $description = 'Create 2028 & 2029 sheets (2029 newest) and seed ~10 dashboard-compliant dummy issues per sheet.';
+
+    private static function formatParagraphText(?string $text, int $width = 70): string
+    {
+        if (empty($text)) return '';
+        $trimmed = trim($text);
+        if (str_contains($trimmed, "\n")) return $trimmed;
+        if (strlen($trimmed) > $width) {
+            return wordwrap($trimmed, $width, "\n");
+        }
+        return $trimmed;
+    }
 
     public function handle(GoogleService $google): int
     {
-        $count = (int) $this->option('count');
+        $this->info("=== Starting Sheet Setup & Dummy Data Seeding ===");
 
-        // Real images that exist in public/uploads/
-        $images = [
-            'issue-1785924143-problem.png',
-            'issue-1785924729-problem.png',
-            'issue-1785924779-problem.png',
-            'issue-1785979190-problem.png',
-            'issue-1785979223-problem.jpg',
+        // 1. Ensure 2028 and 2029 sheets exist in correct order (2029 newest)
+        $existingSheets = $google->listSheets(true);
+        $this->info("Currently existing sheets: " . implode(', ', $existingSheets));
+
+        // Create 2028 if not exists
+        if (!in_array('2028', $existingSheets)) {
+            $this->info("Creating sheet [2028]...");
+            try {
+                $google->createYearSheet('2028');
+                $this->info("  ✓ Sheet [2028] created with headers and formatting.");
+            } catch (\Throwable $e) {
+                $this->warn("  ! Could not create 2028: " . $e->getMessage());
+            }
+        }
+
+        // Refresh list
+        $existingSheets = $google->listSheets(true);
+
+        // Create 2029 if not exists (created after 2028 so it's placed as the newest)
+        if (!in_array('2029', $existingSheets)) {
+            $this->info("Creating sheet [2029] (newest sheet)...");
+            try {
+                $google->createYearSheet('2029');
+                $this->info("  ✓ Sheet [2029] created with headers and formatting.");
+            } catch (\Throwable $e) {
+                $this->warn("  ! Could not create 2029: " . $e->getMessage());
+            }
+        }
+
+        // Final list of all sheets
+        $allSheets = $google->listSheets(true);
+        $this->info("All sheets ready: " . implode(', ', $allSheets));
+
+        $targetSheetOption = $this->option('sheet');
+        $sheetsToSeed = $targetSheetOption ? [$targetSheetOption] : $allSheets;
+
+        $deptCodes = [
+            'Engineer'        => 'Eng',
+            'Tekong'          => 'Tkg',
+            'Pest Control'    => 'Pst',
+            'Security'        => 'Scy',
+            'Fasilitas'       => 'Fas',
+            'HK'              => 'HK',
+            'F&B'             => 'FnB',
+            'Service'         => 'Svc',
+            'Bar'             => 'Bar',
+            'GR'              => 'GR',
+            'Spa'             => 'Spa',
+            'TiRek'           => 'TRK',
+            'OE'              => 'OE',
+            'IT'              => 'IT',
+            'Procurement'     => 'PRc',
+            'Sales/Marketing' => 'Sls',
+            'Reservasi'       => 'Res',
+            'Finance'         => 'Fin',
+            'Emergency'       => 'SOS',
+        ];
+
+        // Verified existing images in public/uploads/
+        $problemImages = [
             'issue-1785991295-problem.jpg',
             'issue-1785992056-problem.jpg',
             'issue-1785992354-problem.jpg',
@@ -46,8 +110,33 @@ class SeedDummyIssues extends Command
             'Scy-070826-3-problem.jpg',
             'TEL-Eng-070826-42-problem.jpg',
             'TEL-IT-070826-43-problem.jpg',
-            'TEL-IT-070826-45-problem.jpg',
-            'TEL-IT-070826-46-problem.jpg',
+            'Bar-190826-11-problem.png',
+            'HK-180826-26-problem.jpg',
+            'IT-190826-2-problem.png',
+        ];
+
+        $proofImages = [
+            '12-proof.jpg',
+            '13-proof.jpg',
+            '14-proof.jpg',
+            '35-proof.jpg',
+            '4-proof.jpg',
+            'Bar-190826-11-proof.png',
+            'DEMO-1040B818-proof.jpg',
+            'DEMO-15A71701-proof.png',
+            'DEMO-54ABAEB7-proof.png',
+            'DEMO-73F967F2-proof.jpg',
+            'DEMO-AC865F55-proof.png',
+            'DEMO-D524B15C-proof.png',
+            'DEMO-D551A3A7-proof.png',
+            'DEMO-D5C484CA-proof.png',
+            'Fin-180826-27-proof.png',
+            'FnB-190826-28-proof.jpg',
+            'HK-180826-26-proof.png',
+            'IT-190826-3-proof.png',
+            'SOS-190826-10-proof.jpg',
+            'SOS-190826-5-proof.jpg',
+            'issue-1785979223-proof.png',
         ];
 
         $pendingImages = [
@@ -56,317 +145,348 @@ class SeedDummyIssues extends Command
             'issue-1786077923-pending-1786077960.jpg',
             'issue-1786077923-pending-1786077999.jpg',
             'TEL-IT-070826-43-pending-1786085927.jpg',
+            'Bar-190826-11-pending-1787208356.jpg',
+            '4-pending-1787123058.jpg',
         ];
 
-        $issues = [
+        // Rich issue catalog template (10 per sheet, varied per year)
+        $issueTemplates = [
+            // 1. Broken Equipment (open)
             [
-                'title'       => 'Broken AC Unit in Bungalow 3',
-                'description' => 'The air conditioning unit has stopped working completely. Room temperature is unbearable for guests during the afternoon peak heat.',
-                'location'    => 'Bungalow 3 — Beachfront Wing',
+                'title'       => 'Air Conditioning Failure in Overwater Villa',
+                'description' => 'The main AC inverter unit stopped cooling. Temperature inside villa is rising and the outdoor compressor fan is not spinning.',
+                'location'    => 'TPI - Overwater Villa 105',
                 'category'    => 'broken',
                 'status'      => 'open',
                 'priority'    => 'high',
-                'department'  => 'Engineering',
-                'reporter'    => 'Maria Santos',
+                'department'  => 'Engineer',
+                'tagged'      => 'Engineer, HK',
+                'reporter'    => 'Siti Rahma (HK Supervisor)',
                 'image'       => 'issue-1785991295-problem.jpg',
             ],
+            // 2. Plumbing (progress)
             [
-                'title'       => 'Leaking Pipe Under Sink — Kitchen Staff Area',
-                'description' => 'Water is pooling beneath the kitchen prep sink. The leak started after last night\'s dinner service and is getting worse.',
-                'location'    => 'Main Kitchen — Staff Prep Area',
+                'title'       => 'Fresh Water Leak Under Kitchen Sink',
+                'description' => 'A pressurized PVC pipe joint under the dishwashing station has cracked, leaking water onto the preparation area floor.',
+                'location'    => 'TBR - Main Dining Clubhouse',
                 'category'    => 'plumbing',
                 'status'      => 'progress',
-                'priority'    => 'high',
-                'department'  => 'Maintenance',
+                'priority'    => 'medium',
+                'department'  => 'F&B',
+                'tagged'      => 'Engineer, Fasilitas',
                 'reporter'    => 'Chef Ricky',
                 'image'       => 'issue-1785992354-problem.jpg',
-                'taker'       => 'Budi Santoso',
+                'taker'       => 'Budi Santoso (Eng)',
             ],
+            // 3. Electrical (solved)
             [
-                'title'       => 'Power Trip — Meeting Room B Sockets Dead',
-                'description' => 'All electrical sockets in Meeting Room B are unresponsive. The circuit breaker appears to have tripped and won\'t reset.',
-                'location'    => 'Meeting Room B — Conference Center',
+                'title'       => 'Pathway Solar Light Power Cut',
+                'description' => 'Three low-voltage solar pathway lights along the mangrove boardwalk failed to illuminate after sunset.',
+                'location'    => 'TPI - Activity Jetty',
                 'category'    => 'electrical',
                 'status'      => 'solved',
-                'priority'    => 'medium',
-                'department'  => 'Engineering',
-                'reporter'    => 'Jessica Lin',
+                'priority'    => 'low',
+                'department'  => 'Fasilitas',
+                'tagged'      => 'Engineer',
+                'reporter'    => 'Pak Joko (Security)',
                 'image'       => 'IT-070826-2-problem.jpg',
+                'taker'       => 'Ahmad Fauzi',
                 'solver'      => 'Ahmad Fauzi',
-                'fixDesc'     => 'Replaced blown fuse and reset the dedicated circuit breaker. All sockets verified working.',
+                'fixDesc'     => 'Replaced depleted 12V LiFePO4 battery pack and cleaned photovoltaic solar panel surface. Illumination verified normal.',
                 'proofImage'  => '12-proof.jpg',
+                'duration'    => 'Solved in 45 minutes',
             ],
+            // 4. Structural / Building (pending)
             [
-                'title'       => 'Cracked Deck Planks Near Infinity Pool',
-                'description' => 'Three wooden deck planks adjacent to the infinity pool have split and warped. Potential safety hazard for barefoot guests.',
-                'location'    => 'Infinity Pool Deck — Level 2',
+                'title'       => 'Warped Teak Deck Planks Near Pool',
+                'description' => 'Several outdoor deck timber planks have warped from weather exposure, posing a minor tripping hazard for barefoot guests.',
+                'location'    => 'TBR - Infinity Pool & Bar Deck',
                 'category'    => 'structural',
                 'status'      => 'pending',
-                'priority'    => 'critical',
-                'department'  => 'Maintenance',
-                'reporter'    => 'Pool Supervisor Anto',
+                'priority'    => 'medium',
+                'department'  => 'Fasilitas',
+                'tagged'      => 'Fasilitas, Procurement',
+                'reporter'    => 'Anto (Pool Lead)',
                 'image'       => 'issue-1785992420-problem.jpg',
-                'pendingReason' => 'Waiting for replacement teak wood planks from supplier. ETA 3 days.',
-                'pendingBy'   => 'Warehouse Dept',
+                'taker'       => 'Fasilitas Team',
+                'pendingReason' => 'Awaiting arrival of treated ironwood replacement planks on next scheduled cargo boat from Batam.',
+                'pendingBy'   => 'Procurement Dept',
                 'pendingImage' => 'issue-1786004355-pending-1786085878.jpg',
             ],
+            // 5. Pest & Hygiene (progress)
             [
-                'title'       => 'Wasp Nest Discovered — Treehouse Cabin 7',
-                'description' => 'A large wasp nest (approx. 40cm) has been found under the eaves of Treehouse Cabin 7. The cabin is currently occupied by guests.',
-                'location'    => 'Treehouse Cabin 7 — Jungle Wing',
+                'title'       => 'Hornet Nest Removal Behind Villa Balcony',
+                'description' => 'A growing hornet nest was spotted under the roof overhang directly above the private balcony seating area.',
+                'location'    => 'TPI - Overwater Villa 101',
                 'category'    => 'pest-hygiene',
                 'status'      => 'progress',
-                'priority'    => 'critical',
-                'department'  => 'Housekeeping',
-                'reporter'    => 'Siti Rahayu',
+                'priority'    => 'high',
+                'department'  => 'HK',
+                'tagged'      => 'Pest Control, HK',
+                'reporter'    => 'Dewi (HK Attendant)',
                 'image'       => 'issue-1785993217-problem.jpg',
                 'taker'       => 'Pest Control Team',
             ],
+            // 6. IT & Technology (solved)
             [
-                'title'       => 'WiFi Dead — Entire Resort Lobby',
-                'description' => 'The main access point in the resort lobby lost connectivity. Guests are unable to connect. Primary router shows no uplink light.',
-                'location'    => 'Main Lobby — Reception Area',
+                'title'       => 'Point of Sale Receipt Printer Offline',
+                'description' => 'The thermal receipt printer at the beach bar counter disconnected from the local network and stopped printing guest bills.',
+                'location'    => 'TBR - Beach Bar Counter',
                 'category'    => 'it-technology',
                 'status'      => 'solved',
-                'priority'    => 'high',
-                'department'  => 'IT',
-                'reporter'    => 'Front Desk Team',
-                'image'       => 'IT-070826-4-problem.jpg',
-                'solver'      => 'IT Team',
-                'fixDesc'     => 'ISP fiber cable was disconnected at the junction box. Reconnected and verified full connectivity across all APs.',
+                'priority'    => 'medium',
+                'department'  => 'Bar',
+                'tagged'      => 'IT',
+                'reporter'    => 'Lia (Bar Manager)',
+                'image'       => 'issue-1786006086-problem.png',
+                'taker'       => 'Dani (IT Support)',
+                'solver'      => 'Dani (IT Support)',
+                'fixDesc'     => 'Assigned static IP address lease in router DHCP table and power-cycled printer. POS test prints passing cleanly.',
                 'proofImage'  => '13-proof.jpg',
+                'duration'    => 'Solved in 25 minutes',
             ],
+            // 7. Marine & Outdoor (open)
             [
-                'title'       => 'Kayak Storage Rack Collapsed',
-                'description' => 'The marine-grade metal rack storing 4 sea kayaks has buckled and fallen. Kayaks are undamaged but cannot be accessed safely.',
-                'location'    => 'Beach Equipment Shed',
+                'title'       => 'Speedboat Mooring Cleat Loose',
+                'description' => 'The heavy-duty stainless mooring bollard on the guest arrival jetty pontoon is wobbling under boat docking tension.',
+                'location'    => 'TPI - Main Arrival Jetty',
                 'category'    => 'marine-outdoor',
                 'status'      => 'open',
-                'priority'    => 'medium',
-                'department'  => 'Marine',
-                'reporter'    => 'Beach Activities Lead',
-                'image'       => 'Scy-070826-3-problem.jpg',
-            ],
-            [
-                'title'       => 'Slippery Floor — Spa Entrance After Rain',
-                'description' => 'The stone tile flooring at the spa entrance becomes dangerously slippery when wet. A guest almost fell this morning.',
-                'location'    => 'Spa Entrance — Wellness Wing',
-                'category'    => 'safety-hazard',
-                'status'      => 'open',
                 'priority'    => 'high',
-                'department'  => 'Maintenance',
-                'reporter'    => 'Spa Manager Dewi',
-                'image'       => 'issue-1785995410-problem.jpg',
-            ],
-            [
-                'title'       => 'Guest Complaint — Noisy Water Pump All Night',
-                'description' => 'Guests in Bungalow 5 reported extremely loud water pump noise throughout the night preventing sleep. Urgent attention needed.',
-                'location'    => 'Bungalow 5 — Pool View',
-                'category'    => 'guest-issues',
-                'status'      => 'progress',
-                'priority'    => 'high',
-                'department'  => 'Engineering',
-                'reporter'    => 'Night Manager',
-                'image'       => 'issue-1785996960-problem.jpeg',
-                'taker'       => 'Eng Team — Dimas',
-            ],
-            [
-                'title'       => 'Mold Growth — Bathroom Ceiling Bungalow 9',
-                'description' => 'Significant black mold has appeared on the bathroom ceiling of Bungalow 9. Likely caused by poor ventilation. Health concern for guests.',
-                'location'    => 'Bungalow 9 — Bathroom',
-                'category'    => 'pest-hygiene',
-                'status'      => 'open',
-                'priority'    => 'high',
-                'department'  => 'Housekeeping',
-                'reporter'    => 'Housekeeping Supervisor',
-                'image'       => 'issue-1785996993-problem.jpeg',
-            ],
-            [
-                'title'       => 'CCTV Camera Offline — Jetty Area',
-                'description' => 'The security CCTV camera covering the main jetty has gone offline. The jetty is a high-traffic area with guest boat arrivals.',
-                'location'    => 'Main Jetty — Entry Point',
-                'category'    => 'it-technology',
-                'status'      => 'solved',
-                'priority'    => 'medium',
-                'department'  => 'IT',
-                'reporter'    => 'Security Team',
-                'image'       => 'TEL-IT-070826-43-problem.jpg',
-                'solver'      => 'IT Team',
-                'fixDesc'     => 'Power cable to the camera was chewed by an animal. Replaced cable with armored sheathing and repositioned camera.',
-                'proofImage'  => '14-proof.jpg',
-            ],
-            [
-                'title'       => 'Generator Fuel Low — Risk of Night Blackout',
-                'description' => 'Backup generator fuel level is at 15%. Scheduled refill was missed. Resort may lose power backup during a grid outage tonight.',
-                'location'    => 'Generator Room — Service Block',
-                'category'    => 'electrical',
-                'status'      => 'solved',
-                'priority'    => 'critical',
-                'department'  => 'Engineering',
-                'reporter'    => 'Engineering Lead',
-                'image'       => 'TEL-Eng-070826-42-problem.jpg',
-                'solver'      => 'Procurement Yusuf',
-                'fixDesc'     => 'Emergency fuel order placed and delivered. Generator now at 95% capacity. Refill schedule updated.',
-                'proofImage'  => '35-proof.jpg',
-            ],
-            [
-                'title'       => 'Broken Lounge Chair — Restaurant Terrace',
-                'description' => 'One of the rattan lounge chairs on the restaurant terrace has a broken leg. Chair has been taped off but needs replacement.',
-                'location'    => 'Restaurant Terrace — Dining Area',
-                'category'    => 'broken',
-                'status'      => 'open',
-                'priority'    => 'low',
-                'department'  => 'F&B',
-                'reporter'    => 'Restaurant Manager',
-                'image'       => 'issue-1786002058-problem.jpg',
-            ],
-            [
-                'title'       => 'Blocked Drainage — Outdoor Shower Cabin 2',
-                'description' => 'The outdoor shower drain in Cabin 2 is completely blocked. Water is pooling and overflowing onto the wooden walkway.',
-                'location'    => 'Cabin 2 — Outdoor Shower',
-                'category'    => 'plumbing',
-                'status'      => 'pending',
-                'priority'    => 'medium',
-                'department'  => 'Maintenance',
-                'reporter'    => 'Cabin Attendant Reza',
-                'image'       => 'issue-1786002251-problem.png',
-                'pendingReason' => 'Drain snake tool is out for repair. Temporary drainage channel installed. Awaiting tool return.',
-                'pendingBy'   => 'Maintenance Lead',
-                'pendingImage' => 'issue-1786009599-pending-1786077810.jpg',
-            ],
-            [
-                'title'       => 'Sun Shade Sail Torn — Kids Pool Area',
-                'description' => 'The large shade sail over the children\'s pool has a 1.5m tear. Direct sun exposure is now unprotected during peak hours.',
-                'location'    => 'Kids Pool — Family Zone',
-                'category'    => 'structural',
-                'status'      => 'open',
-                'priority'    => 'medium',
-                'department'  => 'Maintenance',
-                'reporter'    => 'Activities Coordinator',
-                'image'       => 'issue-1786002352-problem.jpeg',
-            ],
-            [
-                'title'       => 'Speedboat Engine Stalling — Boat #2',
-                'description' => 'The resort speedboat #2 is stalling mid-journey. It has been pulled from service. Guests are waiting for transfers.',
-                'location'    => 'Marine Dock — Boat Storage',
-                'category'    => 'marine-outdoor',
-                'status'      => 'progress',
-                'priority'    => 'critical',
-                'department'  => 'Marine',
+                'department'  => 'Tekong',
+                'tagged'      => 'Tekong, Engineer',
                 'reporter'    => 'Captain Arif',
                 'image'       => 'issue-1786002564-problem.png',
-                'taker'       => 'Marine Mechanic Hadi',
             ],
+            // 8. Safety Hazard / Critical (open or progress with critical deadline)
             [
-                'title'       => 'Trail Lights Out — Forest Walkway',
-                'description' => 'All solar-powered trail lights along the 400m forest walkway are out. Evening trail walks are dangerous without lighting.',
-                'location'    => 'Forest Walkway — Nature Trail',
-                'category'    => 'electrical',
-                'status'      => 'open',
-                'priority'    => 'high',
-                'department'  => 'Engineering',
-                'reporter'    => 'Nature Guide Wawan',
-                'image'       => 'issue-1786002998-problem.png',
-            ],
-            [
-                'title'       => 'POS System Crash — Bar Counter',
-                'description' => 'The point-of-sale tablet at the pool bar is frozen and unresponsive. Transactions are being recorded manually. Revenue tracking at risk.',
-                'location'    => 'Pool Bar — Bar Counter',
-                'category'    => 'it-technology',
-                'status'      => 'solved',
-                'priority'    => 'medium',
-                'department'  => 'IT',
-                'reporter'    => 'Bar Manager Lia',
-                'image'       => 'issue-1786006086-problem.png',
-                'solver'      => 'IT Support Dani',
-                'fixDesc'     => 'Factory reset the POS tablet and reinstalled the billing app. Data synced from cloud backup. No revenue loss.',
-                'proofImage'  => 'issue-1786003238-proof.png',
-            ],
-            [
-                'title'       => 'Fire Extinguisher Expired — Dive Center',
-                'description' => 'Monthly safety check revealed 2 fire extinguishers in the dive center have passed their inspection date by 3 months.',
-                'location'    => 'Dive Center — Equipment Room',
+                'title'       => '🚨 Saltwater Ingress at Main Substation Breaker',
+                'description' => 'Heavy sea spray has reached the secondary junction box housing the beachfront distribution breaker. Sparks reported.',
+                'location'    => 'TBR - Solar Farm Inverter Room',
                 'category'    => 'safety-hazard',
                 'status'      => 'progress',
-                'priority'    => 'high',
-                'department'  => 'Safety',
-                'reporter'    => 'Dive Master Pak Bram',
-                'image'       => 'issue-1786007022-problem.jpg',
-                'taker'       => 'Safety Officer Indah',
+                'priority'    => 'critical',
+                'department'  => 'Engineer',
+                'tagged'      => 'Engineer, Security, OE',
+                'reporter'    => 'Dimas (Chief Eng)',
+                'image'       => 'TEL-Eng-070826-42-problem.jpg',
+                'taker'       => 'Dimas Pratama',
+                'isCritical'  => true,
             ],
+            // 9. Guest Issues / Critical (solved)
             [
-                'title'       => 'Sewage Smell — Near Staff Quarters Block C',
-                'description' => 'A strong sewage smell has been reported near staff quarters Block C. The smell is coming from the inspection chamber access point.',
-                'location'    => 'Staff Quarters — Block C Exterior',
-                'category'    => 'plumbing',
+                'title'       => 'Emergency Medical Oxygen Tank Low',
+                'description' => 'First responder oxygen cylinder regulator gauge reads below safety threshold. Needs immediate replacement from backup storage.',
+                'location'    => 'TPI - Spa Sanctuary Room 2',
+                'category'    => 'guest-issues',
+                'status'      => 'solved',
+                'priority'    => 'critical',
+                'department'  => 'Spa',
+                'tagged'      => 'Spa, Security, OE',
+                'reporter'    => 'Nurse Maya',
+                'image'       => 'SOS-190826-9-problem.jpg',
+                'taker'       => 'Security & Safety Lead',
+                'solver'      => 'Pak Hendra (Safety)',
+                'fixDesc'     => 'Swapped depleted oxygen tank with fresh medical-grade tank from central clinic inventory. Pressure tested at 2000 PSI.',
+                'proofImage'  => 'SOS-190826-10-proof.jpg',
+                'duration'    => 'Solved in 15 minutes',
+                'isCritical'  => true,
+            ],
+            // 10. Other (pending)
+            [
+                'title'       => 'Luggage Transport Cart Hydraulic Wheel Jam',
+                'description' => 'The heavy luggage transport trolley wheel bearing has seized due to salt water exposure during high tide transfers.',
+                'location'    => 'Kantor - Central Store Warehouse',
+                'category'    => 'other',
                 'status'      => 'pending',
-                'priority'    => 'high',
-                'department'  => 'Maintenance',
-                'reporter'    => 'Block C Resident Rep',
-                'image'       => 'issue-1786074481-problem.jpg',
-                'pendingReason' => 'Septic tank inspection requires a specialist contractor. Appointment scheduled for next week. Ventilation fans installed in the interim.',
-                'pendingBy'   => 'Maintenance Head',
-                'pendingImage' => 'issue-1786077923-pending-1786077960.jpg',
+                'priority'    => 'low',
+                'department'  => 'GR',
+                'tagged'      => 'Engineer, GR',
+                'reporter'    => 'Wawan (Porter Lead)',
+                'image'       => 'issue-1786002058-problem.jpg',
+                'taker'       => 'Workshop Tech',
+                'pendingReason' => 'New marine-grade sealed bearings ordered. Expected on Tuesday supply boat.',
+                'pendingBy'   => 'Procurement Team',
+                'pendingImage' => 'Bar-190826-11-pending-1787208356.jpg',
             ],
         ];
 
-        // Resolve current active sheet
-        $allSheets = $google->listSheets(true);
-        $active    = end($allSheets) ?: 'Sheet1';
-        $google->setSheet($active);
+        foreach ($sheetsToSeed as $sheetName) {
+            $this->newLine();
+            $this->info(">>> Processing Sheet [{$sheetName}] <<<");
+            $google->setSheet($sheetName);
 
-        $this->info("Seeding {$count} dummy issues into sheet: [{$active}]");
-
-        $added = 0;
-        foreach (array_slice($issues, 0, $count) as $data) {
-            $now     = now();
-            $issueId = 'DEMO-' . strtoupper(substr(md5($data['title'] . microtime()), 0, 8));
-
-            $row = [
-                $issueId,                                          // A — ID
-                $data['title'],                                    // B — Title
-                $data['description'],                              // C — Description
-                $data['location'],                                 // D — Location
-                $data['category'],                                 // E — Category
-                $data['status'],                                   // F — Status
-                $data['reporter'] ?? 'Demo Seeder',               // G — Reporter
-                $now->subDays(rand(1, 60))->format('Y-m-d H:i:s'), // H — Submitted At
-                $data['image'] ?? '',                              // I — Image URL
-                $data['taker']  ?? '',                             // J — Taker
-                !empty($data['taker']) ? $now->subDays(rand(0, 30))->format('Y-m-d H:i:s') : '', // K — Taken At
-                $data['solver'] ?? '',                             // L — Solver
-                !empty($data['solver']) ? $now->subDays(rand(0, 15))->format('Y-m-d H:i:s') : '', // M — Solved At
-                $data['fixDesc'] ?? '',                            // N — Fix Description
-                $data['proofImage'] ?? '',                         // O — Proof Image URL
-                !empty($data['solver']) ? rand(1, 5) . ' hours' : '', // P — Duration
-                $data['priority'] ?? 'medium',                    // Q — Priority
-                !empty($data['priority']) && $data['priority'] === 'high'
-                    ? $now->addDays(rand(1, 7))->format('Y-m-d')
-                    : '',                                           // R — Deadline
-                $data['pendingReason'] ?? '',                      // S — Pending Reason
-                $data['pendingBy'] ?? '',                          // T — Pending By
-                $data['pendingImage'] ?? '',                       // U — Pending Image URL
-                '',                                                // V — Tagged Departments
-                $data['department'] ?? '',                         // W — Origin Department
-            ];
-
-            try {
-                $rowIndex = $google->appendRow($row);
-                if ($rowIndex) {
-                    $google->colorRowByCategory($rowIndex, $data['category']);
-                }
-                $this->line("  ✓ Added: <info>{$data['title']}</info>");
-                $added++;
-                // Small sleep to avoid hitting rate limit
-                usleep(300000); // 0.3s
-            } catch (\Throwable $e) {
-                $this->warn("  ✗ Failed [{$data['title']}]: " . $e->getMessage());
+            // Determine year base for timestamps
+            $yearNum = 2026;
+            if (preg_match('/(\d{4})/', $sheetName, $m)) {
+                $yearNum = (int)$m[1];
             }
+
+            $isNewestSheet = ($sheetName === end($allSheets));
+
+            // Fetch existing rows to calculate starting sequential ID
+            $existingRows = $google->getRows(true);
+            $existingCount = count($existingRows);
+            $this->info("  Found {$existingCount} existing issues in [{$sheetName}].");
+
+            $newRows = [];
+            $rowColors = [];
+
+            foreach ($issueTemplates as $idx => $t) {
+                $seqIndex = $existingCount + $idx + 1;
+                $dept = $t['department'];
+                $deptCode = $deptCodes[$dept] ?? strtoupper(substr($dept, 0, 3));
+
+                // Date simulation
+                $month = rand(1, 12);
+                $day = rand(1, 28);
+                $hour = rand(8, 18);
+                $minute = rand(0, 59);
+
+                if ($isNewestSheet) {
+                    // For the newest sheet (2029 / current), use recent/today dates
+                    $submittedAtCarbon = Carbon::now()->subDays(rand(0, 3))->setHour($hour)->setMinute($minute);
+                } else {
+                    $submittedAtCarbon = Carbon::create($yearNum, $month, $day, $hour, $minute, 0, 'Asia/Jakarta');
+                }
+
+                $dmy = $submittedAtCarbon->format('dmy');
+                $issueId = "{$deptCode}-{$dmy}-{$seqIndex}";
+
+                $submittedAt = $submittedAtCarbon->toIso8601String();
+
+                $taker = $t['taker'] ?? '';
+                $takenAt = '';
+                if (!empty($taker)) {
+                    $takenAt = $submittedAtCarbon->copy()->addMinutes(rand(15, 60))->toIso8601String();
+                }
+
+                $solver = $t['solver'] ?? '';
+                $solvedAt = '';
+                $duration = $t['duration'] ?? '';
+                $fixDesc = $t['fixDesc'] ?? '';
+                $proofImg = $t['proofImage'] ?? '';
+
+                if ($t['status'] === 'solved') {
+                    $solvedAtCarbon = !empty($takenAt)
+                        ? Carbon::parse($takenAt)->addMinutes(rand(20, 180))
+                        : $submittedAtCarbon->copy()->addMinutes(rand(30, 240));
+                    $solvedAt = $solvedAtCarbon->toIso8601String();
+                    if (empty($duration)) {
+                        $duration = 'Solved in ' . rand(1, 3) . ' hours';
+                    }
+                }
+
+                // CRITICAL TIMER / DEADLINE HANDLING:
+                // Rule: Strictly numeric millisecond timestamp string for critical issues. Empty string for non-critical issues.
+                $deadline = '';
+                if (!empty($t['isCritical']) || $t['priority'] === 'critical') {
+                    if ($isNewestSheet) {
+                        if ($t['status'] === 'open') {
+                            // Active critical countdown: 45 minutes from now
+                            $deadline = (string)(Carbon::now()->addMinutes(45)->timestamp * 1000);
+                        } elseif ($t['status'] === 'progress') {
+                            // Overdue critical issue: 20 minutes ago (triggers critical overdue badge & banner)
+                            $deadline = (string)(Carbon::now()->subMinutes(20)->timestamp * 1000);
+                        } else {
+                            // Solved critical issue
+                            $deadline = (string)($submittedAtCarbon->copy()->addMinutes(30)->timestamp * 1000);
+                        }
+                    } else {
+                        // Historical sheets: deadline in ms relative to submission
+                        $deadline = (string)($submittedAtCarbon->copy()->addMinutes(60)->timestamp * 1000);
+                    }
+                }
+
+                // PENDING TIMELINE (JSON array for Column S)
+                $pendingJson = '';
+                $pendingBy = $t['pendingBy'] ?? '';
+                $pendingImg = $t['pendingImage'] ?? '';
+                if ($t['status'] === 'pending' && !empty($t['pendingReason'])) {
+                    $pendingDate = $submittedAtCarbon->copy()->addHours(2)->format('M d, H:i');
+                    $pendingJson = json_encode([
+                        [
+                            'date'   => $pendingDate,
+                            'by'     => $pendingBy ?: 'Staff',
+                            'reason' => $t['pendingReason'],
+                            'image'  => $pendingImg,
+                        ]
+                    ]);
+                }
+
+                $descFormatted = self::formatParagraphText($t['description']);
+                $fixFormatted = self::formatParagraphText($fixDesc);
+
+                $row = [
+                    $issueId,                        // A (0) - ID
+                    $t['title'],                     // B (1) - Title
+                    $descFormatted,                  // C (2) - Description
+                    $t['location'],                  // D (3) - Location
+                    $t['category'],                  // E (4) - Category
+                    $t['status'],                    // F (5) - Status
+                    $t['reporter'],                  // G (6) - Reporter
+                    $submittedAt,                    // H (7) - Submitted At (ISO8601)
+                    $t['image'] ?? '',               // I (8) - Image URL (filename)
+                    $taker,                          // J (9) - Taker
+                    $takenAt,                        // K (10) - Taken At (ISO8601)
+                    $solver,                         // L (11) - Solver
+                    $solvedAt,                       // M (12) - Solved At (ISO8601)
+                    $fixFormatted,                   // N (13) - Fix Description
+                    $proofImg,                       // O (14) - Proof Image URL (filename)
+                    $duration,                       // P (15) - Duration Label
+                    $t['priority'],                  // Q (16) - Priority
+                    $deadline,                       // R (17) - Deadline (Numeric MS timestamp string for critical, '' for others)
+                    $pendingJson,                    // S (18) - Pending Reason (JSON timeline)
+                    $pendingBy,                      // T (19) - Pending By
+                    $pendingImg,                     // U (20) - Pending Image URL
+                    $t['tagged'] ?? '',              // V (21) - Tagged Departments
+                    $dept,                           // W (22) - Origin Department
+                ];
+
+                $newRows[] = $row;
+                $targetRowNumber = $existingCount + count($newRows) + 1; // +1 because row 1 is header
+                $rowColors[$targetRowNumber] = $t['category'];
+            }
+
+            // Append all rows in a single batch call
+            $this->info("  Appending " . count($newRows) . " dummy issues to [{$sheetName}]...");
+            try {
+                $startIdx = $google->appendRows($newRows);
+                $this->info("  ✓ Successfully appended rows starting at row index {$startIdx}.");
+            } catch (\Throwable $e) {
+                $this->error("  ✗ Failed to append rows to [{$sheetName}]: " . $e->getMessage());
+                continue;
+            }
+
+            // Batch color rows by category
+            $this->info("  Applying pastel category colors to rows in [{$sheetName}]...");
+            try {
+                $google->batchColorRows($rowColors);
+                $this->info("  ✓ Category colors applied.");
+            } catch (\Throwable $e) {
+                $this->warn("  ! Note on row coloring: " . $e->getMessage());
+            }
+
+            // Apply sheet formatting rules (text wrap, bold headers, Column F status conditional formatting)
+            $this->info("  Applying status conditional formatting to Column F in [{$sheetName}]...");
+            try {
+                $google->setupActiveSheetFormatting($sheetName);
+                $this->info("  ✓ Sheet formatting and status rules configured.");
+            } catch (\Throwable $e) {
+                $this->warn("  ! Note on sheet formatting: " . $e->getMessage());
+            }
+
+            $google->clearCache($sheetName);
+            $this->info("  ✓ Finished seeding [{$sheetName}].");
+            
+            // Brief sleep between sheets to remain well within Google API quota limits
+            sleep(1);
         }
 
-        $google->clearCache($active);
+        $google->clearCache();
         $this->newLine();
-        $this->info("Done! Added {$added}/{$count} issues to sheet [{$active}].");
+        $this->info("=== All Sheets Processed Successfully! ===");
+        $this->info("Newest sheet is: " . end($allSheets));
 
         return Command::SUCCESS;
     }

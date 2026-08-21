@@ -383,6 +383,101 @@ class GoogleService
         return null;
     }
 
+    /** Append multiple rows in a single API call. Returns starting row index. */
+    public function appendRows(array $rowsOfValues): ?int
+    {
+        if (empty($rowsOfValues)) {
+            return null;
+        }
+        $this->clearCache();
+        $padded = array_map(fn($row) => array_pad($row, 23, ''), $rowsOfValues);
+        $body = new ValueRange(['values' => $padded]);
+        $response = $this->sheets->spreadsheets_values->append(
+            $this->spreadsheetId,
+            "{$this->sheetName}!A:W",
+            $body,
+            ['valueInputOption' => 'RAW', 'insertDataOption' => 'INSERT_ROWS']
+        );
+        
+        $updates = $response->getUpdates();
+        if ($updates) {
+            $range = $updates->getUpdatedRange();
+            if (preg_match('/A(\d+):/', $range, $matches)) {
+                return (int)$matches[1];
+            } elseif (preg_match('/(\d+)$/', $range, $matches)) {
+                return (int)$matches[1] - count($rowsOfValues) + 1;
+            }
+        }
+        return null;
+    }
+
+    /** Colors multiple rows in a single batch request */
+    public function batchColorRows(array $rowColors): void
+    {
+        if (empty($rowColors)) return;
+
+        $spreadsheet = $this->sheets->spreadsheets->get($this->spreadsheetId);
+        $sheetId = 0;
+        foreach ($spreadsheet->getSheets() as $sheet) {
+            if ($sheet->getProperties()->getTitle() === $this->sheetName) {
+                $sheetId = $sheet->getProperties()->getSheetId();
+                break;
+            }
+        }
+
+        $categoryColors = [
+            'broken'         => ['red' => 0.99, 'green' => 0.88, 'blue' => 0.88], // Pastel Red
+            'plumbing'       => ['red' => 0.86, 'green' => 0.92, 'blue' => 0.99], // Pastel Blue
+            'electrical'     => ['red' => 0.99, 'green' => 0.95, 'blue' => 0.78], // Pastel Yellow
+            'structural'     => ['red' => 1.00, 'green' => 0.93, 'blue' => 0.83], // Pastel Orange
+            'pest-hygiene'   => ['red' => 0.82, 'green' => 0.98, 'blue' => 0.90], // Pastel Emerald
+            'it-technology'  => ['red' => 0.93, 'green' => 0.91, 'blue' => 0.99], // Pastel Violet
+            'marine-outdoor' => ['red' => 0.81, 'green' => 0.98, 'blue' => 0.99], // Pastel Cyan
+            'safety-hazard'  => ['red' => 0.99, 'green' => 0.85, 'blue' => 0.85], // Soft Red
+            'guest-issues'   => ['red' => 0.99, 'green' => 0.90, 'blue' => 0.95], // Pastel Pink
+            'other'          => ['red' => 0.95, 'green' => 0.96, 'blue' => 0.97], // Pastel Gray
+        ];
+
+        $requests = [];
+        foreach ($rowColors as $rowIndex => $category) {
+            $catKey = strtolower(trim($category));
+            $bgColor = $categoryColors[$catKey] ?? null;
+
+            if (!$bgColor) {
+                $hash = md5($catKey);
+                $r = (hexdec(substr($hash, 0, 2)) / 255.0 + 1.0) / 2.0;
+                $g = (hexdec(substr($hash, 2, 2)) / 255.0 + 1.0) / 2.0;
+                $b = (hexdec(substr($hash, 4, 2)) / 255.0 + 1.0) / 2.0;
+                $bgColor = ['red' => $r, 'green' => $g, 'blue' => $b];
+            }
+
+            $requests[] = new \Google\Service\Sheets\Request([
+                'repeatCell' => [
+                    'range' => [
+                        'sheetId'          => $sheetId,
+                        'startRowIndex'    => $rowIndex - 1, // 0-based
+                        'endRowIndex'      => $rowIndex,
+                        'startColumnIndex' => 0,
+                        'endColumnIndex'   => 23
+                    ],
+                    'cell' => [
+                        'userEnteredFormat' => [
+                            'backgroundColor'   => $bgColor,
+                            'wrapStrategy'      => 'WRAP',
+                            'verticalAlignment' => 'TOP',
+                        ]
+                    ],
+                    'fields' => 'userEnteredFormat(backgroundColor,wrapStrategy,verticalAlignment)'
+                ]
+            ]);
+        }
+
+        if (!empty($requests)) {
+            $batchUpdateRequest = new \Google\Service\Sheets\BatchUpdateSpreadsheetRequest(['requests' => $requests]);
+            $this->sheets->spreadsheets->batchUpdate($this->spreadsheetId, $batchUpdateRequest);
+        }
+    }
+
     /** Colors a specific row with a consistent pastel color based on the category string */
     public function colorRowByCategory(int $rowIndex, string $category): void
     {
