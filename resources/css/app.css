@@ -31,6 +31,8 @@
     --status-open-foreground: #1C1B0E;
     --status-progress: #3B82F6;
     --status-progress-foreground: #FAFAFA;
+    --status-pending: #F97316;
+    --status-pending-foreground: #FAFAFA;
     --status-solved: #10B981;
     --status-solved-foreground: #1C1B0E;
   }
@@ -227,25 +229,127 @@ input[type="range"]::-moz-range-thumb {
 
 .animate-slash-line {
   animation: slashLineAnim 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: transform, opacity;
+  transform: translateZ(0);
 }
 
 .animate-fall-top-right {
-  animation: fallTopRightPureBlack 0.9s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  animation: fallTopRightPureBlack 0.8s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  will-change: transform;
+  backface-visibility: hidden;
+  transform: translateZ(0);
 }
 
 .animate-fall-bottom-left {
-  animation: fallBottomLeftPureBlack 0.9s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  animation: fallBottomLeftPureBlack 0.8s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  will-change: transform;
+  backface-visibility: hidden;
+  transform: translateZ(0);
 }
 
 .animate-combine-top-right {
-  animation: combineTopRight 0.9s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: combineTopRight 0.75s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+  transform: translateZ(0);
 }
 
 .animate-combine-bottom-left {
-  animation: combineBottomLeft 0.9s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: combineBottomLeft 0.75s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+  transform: translateZ(0);
 }
 
 .animate-seam-flash {
-  animation: seamFlashAnim 0.6s ease-out forwards;
+  animation: seamFlashAnim 0.5s ease-out forwards;
+  will-change: transform, opacity;
+  transform: translateZ(0);
 }
+
+@keyframes sheetItemFadeUp {
+  0% {
+    opacity: 0;
+    transform: translateY(16px) scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-sheet-item {
+  animation: sheetItemFadeUp 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+  will-change: transform, opacity;
+}
+
+/* ─── Department Evaporation & Condensation Transition ─────────────────────── */
+@keyframes evaporateDissolve {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0px) brightness(1);
+  }
+  35% {
+    opacity: 0.85;
+    transform: translateY(-8px) scale(1.02);
+    filter: blur(4px) brightness(1.3);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-28px) scale(1.05) skewY(-0.5deg);
+    filter: blur(18px) brightness(1.6);
+  }
+}
+
+@keyframes condenseMaterialize {
+  0% {
+    opacity: 0;
+    transform: translateY(22px) scale(0.96) skewY(0.5deg);
+    filter: blur(16px) brightness(1.5);
+  }
+  60% {
+    opacity: 0.9;
+    transform: translateY(-2px) scale(1.01);
+    filter: blur(2px) brightness(1.1);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0px) brightness(1);
+  }
+}
+
+@keyframes steamFloat {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.6) rotate(0deg);
+  }
+  40% {
+    opacity: 0.75;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-70px) scale(2.2) rotate(20deg);
+    filter: blur(12px);
+  }
+}
+
+.animate-evaporate {
+  animation: evaporateDissolve 0.36s cubic-bezier(0.4, 0, 0.6, 1) forwards;
+  pointer-events: none;
+  will-change: transform, opacity, filter;
+}
+
+.animate-condense {
+  animation: condenseMaterialize 0.44s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: transform, opacity, filter;
+}
+
+.animate-steam-wisp {
+  animation: steamFloat 0.75s ease-out forwards;
+  pointer-events: none;
+  will-change: transform, opacity, filter;
+}
+
 

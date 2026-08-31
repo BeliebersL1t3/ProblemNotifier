@@ -24,6 +24,229 @@ let botConfig = {
 };
 let linkedGroupId = null;
 
+// Staff Phone Directory Mapping & Anti-Impersonation Cache
+let staffPhones = {}; // { [phone]: { name, staff_name, department, role, id, source, syncedAt } }
+
+function loadStaffPhones() {
+    try {
+        if (fs.existsSync('staff_phones.json')) {
+            staffPhones = JSON.parse(fs.readFileSync('staff_phones.json', 'utf8'));
+        }
+    } catch (e) {
+        console.error("Could not load staff_phones.json:", e);
+    }
+}
+
+function saveStaffPhones() {
+    try {
+        fs.writeFileSync('staff_phones.json', JSON.stringify(staffPhones, null, 2), 'utf8');
+    } catch (e) {
+        console.error("Could not save staff_phones.json:", e);
+    }
+}
+
+loadStaffPhones();
+
+async function syncStaffDirectory() {
+    try {
+        const res = await axios.get(`${BASE_URL}/api/staff-directory`, { timeout: 4000 });
+        if (res.data.success && Array.isArray(res.data.data)) {
+            const currentDbUsers = res.data.data;
+            const currentDbPhones = new Set();
+            const currentDbMap = new Map();
+
+            currentDbUsers.forEach(user => {
+                if (user.whatsapp_number) {
+                    const cleanPhone = String(user.whatsapp_number).replace(/[^0-9]/g, '');
+                    if (cleanPhone) {
+                        currentDbPhones.add(cleanPhone);
+                        currentDbMap.set(cleanPhone, user);
+                    }
+                }
+            });
+
+            // 1. If DB has 0 users with WhatsApp numbers, reset EVERYTHING!
+            if (currentDbPhones.size === 0) {
+                staffPhones = {};
+                saveStaffPhones();
+                console.log(`Synced 0 staff WhatsApp numbers (all unlinked / reset).`);
+                return { success: true, count: 0 };
+            }
+
+            // 2. Re-build staffPhones strictly from active DB users!
+            const newStaffPhones = {};
+            currentDbUsers.forEach(user => {
+                if (user.whatsapp_number) {
+                    const cleanPhone = String(user.whatsapp_number).replace(/[^0-9]/g, '');
+                    if (cleanPhone) {
+                        newStaffPhones[cleanPhone] = {
+                            name: user.staff_name || user.name,
+                            staff_name: user.staff_name || user.name,
+                            department: user.department || '',
+                            subdivision: user.subdivision || '',
+                            role: user.role || 'department',
+                            id: user.id,
+                            source: 'dashboard_profile',
+                            realPhone: cleanPhone,
+                            syncedAt: new Date().toISOString(),
+                        };
+                    }
+                }
+            });
+
+            // 3. Attach known device LIDs ONLY if their mapped phone is in currentDbPhones!
+            for (const [lid, phone] of Object.entries(deviceMappings)) {
+                if (currentDbPhones.has(phone)) {
+                    const user = currentDbMap.get(phone);
+                    if (user) {
+                        newStaffPhones[lid] = {
+                            name: user.staff_name || user.name,
+                            staff_name: user.staff_name || user.name,
+                            department: user.department || '',
+                            subdivision: user.subdivision || '',
+                            role: user.role || 'department',
+                            id: user.id,
+                            source: 'whatsapp_lid',
+                            realPhone: phone,
+                            syncedAt: new Date().toISOString(),
+                        };
+                    }
+                }
+            }
+
+            staffPhones = newStaffPhones;
+            saveStaffPhones();
+            console.log(`Synced ${currentDbPhones.size} staff WhatsApp numbers from Laravel Dashboard.`);
+            return { success: true, count: currentDbPhones.size };
+        }
+    } catch (e) {
+        console.log(`Staff directory sync note: ${e.message}`);
+    }
+    return { success: false };
+}
+
+// Helper: Normalize name for anti-impersonation matching
+function normalizeStaffName(name) {
+    if (!name) return '';
+    return name.toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+// Find registered phone by staff name (for anti-impersonation)
+function getRegisteredPhoneByStaffName(targetName, groupDeptKey = '') {
+    const targetNorm = normalizeStaffName(targetName);
+    if (!targetNorm) return null;
+
+    const targetFirst = targetName.trim().split(/\s+/)[0].toLowerCase();
+
+    for (const [phone, data] of Object.entries(staffPhones)) {
+        const norm1 = normalizeStaffName(data.staff_name);
+        const norm2 = normalizeStaffName(data.name);
+        const phoneToReport = data.realPhone || phone;
+
+        // 1. Direct normalized name match
+        if (norm1 === targetNorm || norm2 === targetNorm || (norm1 && norm1.includes(targetNorm)) || (targetNorm && targetNorm.includes(norm1))) {
+            return { phone: phoneToReport, rawKey: phone, ...data };
+        }
+
+        // 2. First name match within the same department (e.g. "Ratna Dewi" vs "Ratna Procurement")
+        const staffFirst1 = (data.staff_name || '').trim().split(/\s+/)[0].toLowerCase();
+        const staffFirst2 = (data.name || '').trim().split(/\s+/)[0].toLowerCase();
+        const isSameDept = groupDeptKey && data.department && (data.department.toLowerCase() === groupDeptKey.toLowerCase());
+
+        if (targetFirst && targetFirst.length > 2 && (staffFirst1 === targetFirst || staffFirst2 === targetFirst)) {
+            if (isSameDept || !groupDeptKey) {
+                return { phone: phoneToReport, rawKey: phone, ...data };
+            }
+        }
+    }
+    return null;
+}
+
+// Helper: Get registered staff for a sender's phone
+function getStaffByPhone(phone) {
+    if (!phone) return null;
+    const cleanPhone = String(phone).replace(/[^0-9]/g, '');
+    return staffPhones[cleanPhone] || null;
+}
+
+// Persistent Device LID <-> Phone Mapping
+let deviceMappings = {};
+function loadDeviceMappings() {
+    try {
+        if (fs.existsSync('device_mappings.json')) {
+            deviceMappings = JSON.parse(fs.readFileSync('device_mappings.json', 'utf8'));
+        }
+    } catch (e) {
+        deviceMappings = {};
+    }
+}
+function saveDeviceMappings() {
+    try {
+        fs.writeFileSync('device_mappings.json', JSON.stringify(deviceMappings, null, 2), 'utf8');
+    } catch (e) {}
+}
+loadDeviceMappings();
+
+// Helper to resolve real phone number from WhatsApp group LID
+const lidToPhoneCache = new Map();
+
+async function resolveSenderPhone(sock, from, msg) {
+    const rawParticipant = msg.key.participant || from;
+    const cleanRaw = String(rawParticipant).replace(/[^0-9]/g, '');
+
+    // 1. Direct match in persistent deviceMappings
+    if (deviceMappings[cleanRaw]) {
+        return deviceMappings[cleanRaw];
+    }
+
+    // 2. Direct match in staffPhones
+    if (staffPhones[cleanRaw]) {
+        return cleanRaw;
+    }
+
+    // 3. Cached LID -> Phone mapping
+    if (lidToPhoneCache.has(cleanRaw)) {
+        const cached = lidToPhoneCache.get(cleanRaw);
+        deviceMappings[cleanRaw] = cached;
+        saveDeviceMappings();
+        return cached;
+    }
+
+    // 4. Auto-pair if single active user registered in DB
+    const activeDbPhones = Object.keys(staffPhones).filter(k => k.length <= 13 && staffPhones[k].source === 'dashboard_profile');
+    if (activeDbPhones.length === 1 && cleanRaw.length >= 13) {
+        const targetPhone = activeDbPhones[0];
+        deviceMappings[cleanRaw] = targetPhone;
+        saveDeviceMappings();
+        return targetPhone;
+    }
+
+    // 5. Scan all participating groups to find this participant's real phone
+    if (sock) {
+        try {
+            const allGroups = await sock.groupFetchAllParticipating();
+            for (const group of Object.values(allGroups)) {
+                if (Array.isArray(group.participants)) {
+                    for (const p of group.participants) {
+                        const pPhone = String(p.id).replace(/[^0-9]/g, '');
+                        const pLid = p.lid ? String(p.lid).replace(/[^0-9]/g, '') : null;
+                        if (pLid && pPhone) {
+                            lidToPhoneCache.set(pLid, pPhone);
+                            deviceMappings[pLid] = pPhone;
+                            saveDeviceMappings();
+                        }
+                        if (pLid === cleanRaw || pPhone === cleanRaw || p.id === rawParticipant) {
+                            return pPhone;
+                        }
+                    }
+                }
+            }
+        } catch (e) {}
+    }
+
+    return cleanRaw;
+}
+
 function loadConfig() {
     try {
         if (fs.existsSync('config.json')) {
@@ -156,10 +379,11 @@ const MENU_TEXT_ID =
 `2. 📋 *!lapor* / *lapor* / *rusak*\n   → Laporkan masalah fasilitas resort step-by-step.\n\n` +
 `3. 🔧 *!perbaiki* / *perbaiki* / *selesai* / *fix*\n   → Selesaikan masalah dengan deskripsi & foto bukti.\n\n` +
 `4. ⏳ *!tunda* / *tunda* / *tertunda* / *pending*\n   → Tandai pekerjaan sebagai tertunda dengan foto alasan.\n\n` +
-`5. 🤝 *!claim <Nama>* (di Grup)\n   → Balas notifikasi masalah di grup untuk mengambil pekerjaan.\n\n` +
-`6. 📊 *!status* / *!masalah*\n   → Cek status masalah berdasarkan departemen.\n\n` +
-`7. 📖 *menu id* / *menu en*\n   → Buka menu panduan Bahasa Indonesia / English.\n\n` +
-`8. ❌ *batal* / *reset*\n   → Batalkan percakapan & kembali ke awal.`;
+`5. 🤝 *!claim* (di Grup)\n   → Balas notifikasi masalah di grup untuk klaim instan (otomatis mengenali akun Anda).\n\n` +
+`6. 👤 *!whoami* / *!iam <Nama>*\n   → Cek status akun WA Anda atau daftarkan nama staf.\n\n` +
+`7. 📊 *!status* / *!masalah*\n   → Cek status masalah berdasarkan departemen.\n\n` +
+`8. 📖 *menu id* / *menu en*\n   → Buka menu panduan Bahasa Indonesia / English.\n\n` +
+`9. ❌ *batal* / *reset*\n   → Batalkan percakapan & kembali ke awal.`;
 
 const MENU_TEXT_EN = 
 `📱 *TELUNAS RESORT ISSUE TRACKER — MAIN MENU* 📱\n\n` +
@@ -168,10 +392,11 @@ const MENU_TEXT_EN =
 `2. 📋 *!report* / *report* / *broken*\n   → Step-by-step issue reporting flow.\n\n` +
 `3. 🔧 *!solve* / *solve* / *fix*\n   → Resolve an issue with fix description & proof photo.\n\n` +
 `4. ⏳ *!pending* / *pending* / *delay*\n   → Mark a job as pending with reason & proof photo.\n\n` +
-`5. 🤝 *!claim <Your Name>* (in Group)\n   → Reply directly to an issue notification to claim it.\n\n` +
-`6. 📊 *!status* / *!issues*\n   → Check active/solved issue status by department.\n\n` +
-`7. 📖 *menu en* / *menu id*\n   → Open English / Indonesian guide menu.\n\n` +
-`8. ❌ *cancel* / *reset*\n   → Cancel current operation & reset to menu.`;
+`5. 🤝 *!claim* (in Group)\n   → Reply directly to an issue notification to claim instantly (auto-detects your account).\n\n` +
+`6. 👤 *!whoami* / *!iam <Name>*\n   → Check your linked WA account profile or bind your staff name.\n\n` +
+`7. 📊 *!status* / *!issues*\n   → Check active/solved issue status by department.\n\n` +
+`8. 📖 *menu en* / *menu id*\n   → Open English / Indonesian guide menu.\n\n` +
+`9. ❌ *cancel* / *reset*\n   → Cancel current operation & reset to menu.`;
 
 
 // Helper: Clean command prefixes from issue ID input
@@ -225,6 +450,23 @@ async function syncCommunityGroups(sock) {
                 matched.push(`📌 *General*: "${subject}"`);
             }
 
+            // Auto-index all participants' LIDs to Phone numbers across all groups!
+            if (Array.isArray(group.participants)) {
+                for (const p of group.participants) {
+                    const pPhone = String(p.id).replace(/[^0-9]/g, '');
+                    const pLid = p.lid ? String(p.lid).replace(/[^0-9]/g, '') : null;
+                    if (pLid && pPhone) {
+                        lidToPhoneCache.set(pLid, pPhone);
+                        if (staffPhones[pPhone] && !staffPhones[pLid]) {
+                            staffPhones[pLid] = {
+                                ...staffPhones[pPhone],
+                                source: 'dashboard_profile',
+                            };
+                        }
+                    }
+                }
+            }
+
             // Match each department
             for (const dept of DEPARTMENTS) {
                 const deptKey = dept.toLowerCase();
@@ -235,6 +477,7 @@ async function syncCommunityGroups(sock) {
             }
         }
 
+        saveStaffPhones();
         saveConfig();
         return { success: true, count: matched.length, summary: matched.join('\n') };
     } catch (err) {
@@ -286,8 +529,12 @@ async function startSock() {
         } else if (connection === 'open') {
             console.log('Client is ready!');
             syncCommunityGroups(sock).then(res => { if (res.success) console.log(`Auto-synced ${res.count} community groups.`); });
+            syncStaffDirectory();
         }
     });
+
+    // Periodically sync staff WhatsApp directory every 5 minutes
+    setInterval(syncStaffDirectory, 5 * 60 * 1000);
 
     sock.ev.on('messages.upsert', async m => {
         if (m.type !== 'notify') return;
@@ -301,6 +548,148 @@ async function startSock() {
             const reply = async (replyText) => {
                 await sock.sendMessage(from, { text: replyText }, { quoted: msg });
             };
+
+            const senderJid = msg.key.participant || from;
+            const rawSenderPhone = String(senderJid).replace(/[^0-9]/g, '');
+            const senderPhone = await resolveSenderPhone(sock, from, msg);
+            const registeredUser = getStaffByPhone(senderPhone) || getStaffByPhone(rawSenderPhone);
+            const lower = text.toLowerCase().trim();
+
+            // --- 0. Global Self-Service Identity & Registration Commands (Works in DM & Groups) ---
+            if (lower === '!whoami' || lower === '!profil' || lower === '!akun' || lower === 'whoami' || lower === 'profil') {
+                if (registeredUser) {
+                    const displayPhone = registeredUser.realPhone || (senderPhone.length <= 13 ? senderPhone : (registeredUser.phone || senderPhone));
+                    let profileMsg = `📱 *PROFIL WHATSAPP TELUNAS* 📱\n\n`;
+                    profileMsg += `• *Nama Tampilan:* ${registeredUser.name || registeredUser.staff_name}\n`;
+                    profileMsg += `• *Departemen:* ${registeredUser.department || '-'}\n`;
+                    profileMsg += `• *Nomor WhatsApp:* +${displayPhone}\n`;
+                    profileMsg += `• *Status:* ✅ Terverifikasi (${registeredUser.source === 'dashboard_profile' ? 'Dashboard Profile' : 'WhatsApp Link'})\n\n`;
+                    profileMsg += `💡 _Setiap kali Anda mengetik !claim atau membuat laporan, sistem akan otomatis mencatat atas nama Anda._\n\n`;
+                    profileMsg += `🔑 _Lupa password Web Dashboard? Reply pesan ini atau ketik *!password* untuk melihat password akun Anda._`;
+                    await reply(profileMsg);
+                } else {
+                    let unregMsg = `📱 *PROFIL WHATSAPP TELUNAS* 📱\n\n`;
+                    unregMsg += `• *Nomor/ID WA:* +${rawSenderPhone}\n`;
+                    unregMsg += `• *Status:* ⚠️ Belum Terdaftar\n\n`;
+                    unregMsg += `Untuk mendaftarkan nomor ini:\n`;
+                    unregMsg += `1. Buka menu *Profile* di Web Dashboard dan masukkan nomor WA Anda, ATAU\n`;
+                    unregMsg += `2. Cukup *reply notifikasi masalah* di grup WhatsApp departemen Anda dengan mengetik *!claim*, lalu pilih nama Anda satu kali. Bot akan otomatis mengingat nomor Anda untuk seterusnya!`;
+                    await reply(unregMsg);
+                }
+                continue;
+            }
+
+            // --- Password Retrieval for Verified Linked Accounts ---
+            const passwordKeywords = ['!password', '!resetpassword', '!lupapassword', '!pass', 'password', 'reset password', 'lupa password', 'minta password', 'lupa sandi', 'lihat password'];
+            const isPasswordRequest = passwordKeywords.some(kw => lower === kw || lower.startsWith(kw + ' '));
+
+            if (isPasswordRequest) {
+                if (!registeredUser) {
+                    await reply(
+                        `🔒 *AKSES DITOLAK — NOMOR BELUM TERDAFTAR* 🔒\n\n` +
+                        `Nomor WhatsApp Anda (+${rawSenderPhone}) belum terhubung dengan akun staf manapun di Web Dashboard.\n\n` +
+                        `Fitur pengecekan password hanya dapat digunakan oleh akun staf yang sudah terverifikasi.`
+                    );
+                    continue;
+                }
+
+                try {
+                    const targetPhone = registeredUser.realPhone || senderPhone || rawSenderPhone;
+                    const resetRes = await axios.post(`${BASE_URL}/api/reset-whatsapp-password`, {
+                        user_id: registeredUser.id,
+                        whatsapp_number: targetPhone,
+                    });
+
+                    if (resetRes.data.success) {
+                        const { email, password, name, department } = resetRes.data;
+                        let credsMsg = `🔐 *KREDENSIAL LOGIN WEB TELUNAS* 🔐\n\n`;
+                        credsMsg += `Halo *${name}*, berikut adalah akun login Web Dashboard Anda:\n\n`;
+                        credsMsg += `• *Departemen:* ${department || '-'}\n`;
+                        credsMsg += `• *Email:* ${email}\n`;
+                        credsMsg += `• *Password:* *${password || 'telunas123'}*\n\n`;
+                        credsMsg += `🌐 *Link Login:* ${BASE_URL}/login\n\n`;
+                        credsMsg += `💡 _Anda dapat mengubah password ini kapan saja melalui menu Profile di Web Dashboard._`;
+
+                        if (from.endsWith('@g.us')) {
+                            // In a group: Send credentials strictly to private DM to protect password privacy!
+                            const userDmJid = `${targetPhone}@s.whatsapp.net`;
+                            try {
+                                await sock.sendMessage(userDmJid, { text: credsMsg });
+                                await reply(`🔒 *Keamanan Terjaga*\n\nPassword akun *${name}* telah dikirimkan secara rahasia ke *Chat Pribadi (DM)* WhatsApp Anda.`);
+                            } catch (dmErr) {
+                                await reply(credsMsg);
+                            }
+                        } else {
+                            // Already in private chat
+                            await reply(credsMsg);
+                        }
+                    } else {
+                        await reply(`❌ Gagal mengambil password: ${resetRes.data.message || 'Error tidak diketahui'}`);
+                    }
+                } catch (e) {
+                    const errMsg = e.response?.data?.message || e.message;
+                    await reply(`❌ Gagal mengambil password: ${errMsg}`);
+                }
+                continue;
+            }
+
+            if (lower.startsWith('!iam ') || lower.startsWith('!daftar ') || lower.startsWith('iam ')) {
+                const targetNameInput = text.substring(text.indexOf(' ') + 1).trim();
+                if (!targetNameInput) {
+                    await reply(`Format salah. Contoh: *!iam Ratna Procurement* atau *!daftar 1*`);
+                    continue;
+                }
+
+                const groupDeptKey = getDeptKeyForGroup(from);
+                const roster = groupDeptKey ? (DEPARTMENT_STAFF[groupDeptKey] || []) : [];
+                let targetName = targetNameInput;
+                const numIdx = parseInt(targetNameInput, 10);
+                if (!isNaN(numIdx) && numIdx >= 1 && numIdx <= roster.length) {
+                    targetName = roster[numIdx - 1];
+                } else if (roster.length > 0) {
+                    const matched = roster.find(n => n.toLowerCase().includes(targetNameInput.toLowerCase()));
+                    if (matched) targetName = matched;
+                }
+
+                // Anti-Impersonation Check
+                const conflictReg = getRegisteredPhoneByStaffName(targetName, groupDeptKey);
+                if (conflictReg) {
+                    const isSameSender = (conflictReg.phone === senderPhone) || 
+                                         (conflictReg.rawKey === senderPhone) || 
+                                         (conflictReg.phone === rawSenderPhone) || 
+                                         (conflictReg.rawKey === rawSenderPhone) ||
+                                         (deviceMappings[rawSenderPhone] === conflictReg.phone) ||
+                                         (deviceMappings[senderPhone] === conflictReg.phone);
+                    if (!isSameSender) {
+                        const masked = conflictReg.phone.length > 7 ? `${conflictReg.phone.substring(0, 4)}****${conflictReg.phone.slice(-3)}` : 'lain';
+                        await reply(`❌ *Peringatan Keamanan / Anti-Impersonasi* ❌\n\nNama *${targetName}* sudah terdaftar & dilindungi untuk nomor WhatsApp lain (+${masked}).\n\nAnda tidak dapat menggunakan nama ini dari nomor Anda.`);
+                        continue;
+                    }
+                }
+
+                staffPhones[senderPhone] = {
+                    name: targetName,
+                    staff_name: targetName,
+                    department: groupDeptKey ? groupDeptKey.toUpperCase() : (registeredUser?.department || ''),
+                    source: 'whatsapp_manual',
+                    syncedAt: new Date().toISOString(),
+                };
+                saveStaffPhones();
+
+                await reply(`✅ *Akun Berhasil Ditautkan!*\n\nNomor/ID +${senderPhone} kini terdaftar sebagai *${targetName}*.\n\nSekarang Anda cukup reply *!claim* pada notifikasi masalah di grup untuk mengambil pekerjaan secara instan.`);
+                continue;
+            }
+
+            if (lower === '!syncstaff' || lower === '!refreshstaff') {
+                await reply('🔄 Menyinkronkan daftar nomor WhatsApp staf dari Web Dashboard...');
+                const res = await syncStaffDirectory();
+                if (res.success) {
+                    await reply(`✅ *Sinkronisasi Berhasil!*\n\n${res.count} nomor WhatsApp staf tersinkronisasi dari Database Dashboard.`);
+                } else {
+                    await reply(`⚠️ Sinkronisasi selesai (menggunakan cache lokal ${Object.keys(staffPhones).length} staf terdaftar).`);
+                }
+                continue;
+            }
 
             // Group messages handler
             if (from.endsWith('@g.us')) {
@@ -327,8 +716,6 @@ async function startSock() {
                         }
                     }
                 } catch (e) {}
-
-                const lower = text.toLowerCase().trim();
 
                 // 1. Leave testing/old group
                 if (lower === '!leavegroup' || lower === '!leave') {
@@ -387,7 +774,6 @@ async function startSock() {
                     continue;
                 }
 
-
                 if (text.toLowerCase().startsWith('!claim')) {
                     const quotedMsg = msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
                     const quotedText = quotedMsg?.conversation || quotedMsg?.imageMessage?.caption || quotedMsg?.extendedTextMessage?.text;
@@ -432,66 +818,139 @@ async function startSock() {
                         // Determine which department this WhatsApp group belongs to
                         const groupDeptKey = getDeptKeyForGroup(from);
 
-                        // Build authorized dept keys (assigned + tagged)
+                        // Build authorized assigned dept keys (Tagged departments are INFO ONLY, cannot claim)
                         const assignedDepts = (Array.isArray(issue.assignedDepartments) ? issue.assignedDepartments : (issue.assignedDepartments || '').split(',').map(d => d.trim())).filter(Boolean);
                         const taggedDepts  = (Array.isArray(issue.taggedDepartments) ? issue.taggedDepartments : (issue.taggedDepartments || '').split(',').map(d => d.trim())).filter(Boolean);
-                        const authorizedKeys = [...assignedDepts, ...taggedDepts].map(d => d.toLowerCase());
+                        const assignedKeys = assignedDepts.map(d => d.toLowerCase());
+                        const taggedKeys   = taggedDepts.map(d => d.toLowerCase());
 
-                        // --- GROUP AUTHORIZATION CHECK ---
+                        // --- GROUP AUTHORIZATION CHECK (ASSIGNED ONLY) ---
                         const isAllDepts = assignedDepts.includes('ALL');
-                        const isAuthorized = isAllDepts || !groupDeptKey || authorizedKeys.includes(groupDeptKey);
+                        const isAssigned = isAllDepts || !groupDeptKey || assignedKeys.includes(groupDeptKey);
+                        const isTaggedOnly = !isAssigned && groupDeptKey && taggedKeys.includes(groupDeptKey);
 
-                        if (!isAuthorized && groupDeptKey) {
-                            // Outside group — give supportive redirect message
-                            const assignedList = assignedDepts.filter(d => d !== 'ALL').join(', ') || 'the assigned team';
+                        if (!isAssigned && groupDeptKey) {
+                            const assignedList = assignedDepts.filter(d => d !== 'ALL').join(', ') || 'departemen yang ditugaskan';
                             const taggedList   = taggedDepts.filter(d => d !== 'ALL').join(', ');
-                            let routingMsg = `ℹ️ *Issue ${issueId}* is not assigned to your department.\n\n`;
-                            routingMsg += `🎯 *Assigned to:* ${assignedList}\n`;
-                            if (taggedList) routingMsg += `📢 *Also notified:* ${taggedList}\n`;
-                            routingMsg += `\nPlease contact the assigned team directly so they can handle it. You can forward this notification to their group!`;
-                            await reply(routingMsg);
+
+                            if (isTaggedOnly) {
+                                let routingMsg = `📢 *Departemen Anda hanya di-Tag (Hanya Info / Pemantauan)*\n\n`;
+                                routingMsg += `Masalah *${issueId}* ini ditugaskan (*Assigned*) kepada: *${assignedList}*.\n`;
+                                routingMsg += `Departemen Anda (${groupDeptKey.toUpperCase()}) hanya menerima notifikasi info dan tidak dapat mengklaim perbaikan ini.`;
+                                await reply(routingMsg);
+                            } else {
+                                let routingMsg = `ℹ️ *Masalah ${issueId}* tidak ditugaskan ke departemen Anda.\n\n`;
+                                routingMsg += `🎯 *Ditugaskan kepada:* ${assignedList}\n`;
+                                if (taggedList) routingMsg += `📢 *Notifikasi info:* ${taggedList}\n`;
+                                routingMsg += `\nSilakan hubungi tim terkait untuk menangani masalah ini.`;
+                                await reply(routingMsg);
+                            }
                             continue;
                         }
 
-                        // --- ROSTER CLAIM FLOW ---
-                        // Get roster for this group's department
+                        // --- SENDER RESOLUTION & ANTI-IMPERSONATION ---
+                        const senderJid = msg.key.participant || from;
+                        const senderPhone = String(senderJid).replace(/[^0-9]/g, '');
+                        const registeredUser = getStaffByPhone(senderPhone);
                         const roster = groupDeptKey ? (DEPARTMENT_STAFF[groupDeptKey] || []) : [];
                         const takerArg = text.substring(6).trim(); // anything after !claim
 
-                        if (!takerArg && roster.length > 0) {
-                            // No name provided — show roster for user to pick
+                        let takerName = null;
+                        let autoSaved = false;
+
+                        // 1. Is sender already registered in Dashboard / local directory?
+                        if (registeredUser) {
+                            takerName = registeredUser.name || registeredUser.staff_name;
+                        } else if (takerArg) {
+                            // User specified name or roster index
+                            if (roster.length > 0) {
+                                const numIdx = parseInt(takerArg, 10);
+                                if (!isNaN(numIdx) && numIdx >= 1 && numIdx <= roster.length) {
+                                    takerName = roster[numIdx - 1];
+                                } else {
+                                    const matched = roster.find(n => n.toLowerCase().includes(takerArg.toLowerCase()));
+                                    takerName = matched || takerArg;
+                                }
+                            } else {
+                                takerName = takerArg;
+                            }
+
+                            // Anti-Impersonation Check
+                            const conflict = getRegisteredPhoneByStaffName(takerName, groupDeptKey);
+                            if (conflict) {
+                                const isSameSender = (conflict.phone === senderPhone) || 
+                                                     (conflict.rawKey === senderPhone) || 
+                                                     (conflict.phone === rawSenderPhone) || 
+                                                     (conflict.rawKey === rawSenderPhone) ||
+                                                     (deviceMappings[rawSenderPhone] === conflict.phone) ||
+                                                     (deviceMappings[senderPhone] === conflict.phone);
+                                if (!isSameSender) {
+                                    const masked = conflict.phone.length > 7 ? `${conflict.phone.substring(0, 4)}****${conflict.phone.slice(-3)}` : 'lain';
+                                    await reply(`❌ *Peringatan Keamanan / Anti-Impersonasi* ❌\n\nNama *${takerName}* sudah terdaftar & dilindungi untuk nomor WhatsApp lain (+${masked}).\n\nAnda tidak dapat mengklaim sebagai *${takerName}* dari nomor Anda.`);
+                                    continue;
+                                }
+                            }
+
+                            // Automatically remember this phone mapping & persist to Laravel DB!
+                            try {
+                                const linkRes = await axios.post(`${BASE_URL}/api/link-whatsapp-staff`, {
+                                    staff_name: takerName,
+                                    department: groupDeptKey ? groupDeptKey.toUpperCase() : '',
+                                    whatsapp_number: senderPhone
+                                });
+                                if (linkRes.data.success && linkRes.data.user) {
+                                    staffPhones[senderPhone] = {
+                                        name: linkRes.data.user.name || takerName,
+                                        staff_name: linkRes.data.user.name || takerName,
+                                        department: linkRes.data.user.department || (groupDeptKey ? groupDeptKey.toUpperCase() : ''),
+                                        id: linkRes.data.user.id,
+                                        source: 'whatsapp_lid',
+                                        syncedAt: new Date().toISOString(),
+                                    };
+                                    saveStaffPhones();
+                                    autoSaved = true;
+                                }
+                            } catch (e) {
+                                const errMsg = e.response?.data?.message || `Nama *${takerName}* sudah dilindungi untuk nomor WhatsApp lain.`;
+                                await reply(`❌ *Peringatan Keamanan / Anti-Impersonasi* ❌\n\n${errMsg}\n\nAnda tidak dapat mengklaim masalah ini sebagai *${takerName}*.`);
+                                continue;
+                            }
+                        } else if (roster.length > 0) {
+                            // Unregistered sender with no arguments: show roster
                             let rosterMsg = `🤝 *Claiming Issue ${issueId}*\n`;
                             rosterMsg += `📍 *${issue.title}* — ${issue.location}\n\n`;
-                            rosterMsg += `Reply *!claim <your name>* or pick your number:\n\n`;
+                            rosterMsg += `Pilih nomor roster Anda:\n\n`;
                             roster.forEach((name, idx) => {
-                                rosterMsg += `${idx + 1}. ${name}\n`;
+                                const isClaimedByOther = getRegisteredPhoneByStaffName(name, groupDeptKey);
+                                let lockIcon = '';
+                                if (isClaimedByOther) {
+                                    const isMine = (isClaimedByOther.phone === senderPhone) || 
+                                                   (isClaimedByOther.rawKey === senderPhone) || 
+                                                   (isClaimedByOther.phone === rawSenderPhone) ||
+                                                   (deviceMappings[rawSenderPhone] === isClaimedByOther.phone);
+                                    lockIcon = isMine ? ' ✅ (Akun Anda)' : ' 🔒 (Terdaftar)';
+                                }
+                                rosterMsg += `${idx + 1}. ${name}${lockIcon}\n`;
                             });
-                            rosterMsg += `\nExample: *!claim 2* or *!claim Budi Santoso*`;
+                            rosterMsg += `\n💡 Reply *!claim <nomor>* (contoh: *!claim 1*).\nNomor HP Anda (+${senderPhone}) akan otomatis tersimpan untuk klaim instan berikutnya.`;
                             await reply(rosterMsg);
                             continue;
+                        } else {
+                            takerName = msg.pushName || 'Staff';
                         }
 
-                        // Resolve name: could be a number (roster index) or a full name
-                        let takerName = takerArg || (msg.pushName || 'Staff');
-                        if (roster.length > 0) {
-                            const numIdx = parseInt(takerName, 10);
-                            if (!isNaN(numIdx) && numIdx >= 1 && numIdx <= roster.length) {
-                                takerName = roster[numIdx - 1];
-                            } else {
-                                // Check if name partially matches roster
-                                const matched = roster.find(n => n.toLowerCase().includes(takerName.toLowerCase()));
-                                if (matched) takerName = matched;
-                            }
-                        }
-
-                        const deptLabel = groupDeptKey ? groupDeptKey.charAt(0).toUpperCase() + groupDeptKey.slice(1) : '';
+                        const deptLabel = groupDeptKey ? groupDeptKey.charAt(0).toUpperCase() + groupDeptKey.slice(1) : (registeredUser?.department || '');
                         const claimRes = await axios.post(`${BASE_URL}/api/issues/${issue.rowIndex}/claim`, {
                             taker: takerName + (deptLabel ? ` (${deptLabel})` : '') + ' via WhatsApp',
-                            ...(groupDeptKey ? { department: deptLabel || groupDeptKey } : {}),
+                            ...(deptLabel ? { department: deptLabel } : {}),
                         });
 
                         if (claimRes.data.success) {
-                            await reply(`✅ Issue *${issueId}* claimed by *${takerName}*! Dashboard updated.`);
+                            let successMsg = `✅ Issue *${issueId}* berhasil diklaim oleh *${takerName}*!`;
+                            if (autoSaved) {
+                                successMsg += `\n\n💡 *Nomor Anda (+${senderPhone}) kini tersimpan.* Selanjutnya, Anda cukup reply *!claim* tanpa perlu memilih nama lagi.`;
+                            }
+                            await reply(successMsg);
                         } else {
                             await reply(`❌ Failed to claim: ${claimRes.data.message || 'Unknown error'}`);
                         }
@@ -506,8 +965,9 @@ async function startSock() {
                 const sk = `${from}_${p}`;
                 const hasActiveState = userStates.has(sk);
                 const isStatusTrigger = text.toLowerCase() === '!status' || text.toLowerCase() === '!issues';
+                const isCancelTrigger = ['cancel', 'batal', 'reset', '!cancel', '!batal'].includes(text.toLowerCase().trim());
                 
-                if (!hasActiveState && !isStatusTrigger) {
+                if (!hasActiveState && !isStatusTrigger && !isCancelTrigger) {
                     continue; // Ignore normal group chatter
                 }
             }
@@ -582,62 +1042,56 @@ async function startSock() {
                     intent = 'STATUS';
                 }
 
-                // Dispatch detected intent
-                if (intent === 'SOS') {
-                    const groupDeptKey = getDeptKeyForGroup(from);
-                    if (groupDeptKey) {
-                        const deptName = DEPARTMENTS.find(d => d.toLowerCase() === groupDeptKey) || (groupDeptKey.charAt(0).toUpperCase() + groupDeptKey.slice(1));
-                        const roster = DEPARTMENT_STAFF[groupDeptKey] || [];
-                        if (roster.length > 0) {
-                            let rMsg = getMsg(
-                                `🚨 EMERGENCY MODE (*${deptName}*) 🚨\n\nWho is reporting? Reply with your number:\n\n`,
-                                `🚨 MODE DARURAT (*${deptName}*) 🚨\n\nSiapa yang melaporkan? Balas dengan nomor Anda:\n\n`
-                            );
-                            roster.forEach((n, idx) => { rMsg += `${idx + 1}. ${n}\n`; });
-                            rMsg += `\n` + getMsg(`Example: *2* or type your name.`, `Contoh: *2* atau ketik nama Anda.`);
-                            userStates.set(stateKey, { step: STEPS.SOS_AWAITING_NAME, data: { department: deptName, rosterList: roster }, lang: state.lang });
-                            await reply(rMsg);
-                            continue;
-                        }
-                    }
+                // If UNKNOWN, silently ignore so it doesn't disturb normal chats
+                if (intent === 'UNKNOWN') {
+                    continue;
+                }
 
-                    let deptMsg = getMsg(
-                        '🚨 EMERGENCY MODE ACTIVATED 🚨\n\nFirst, which department are you from? Reply with the number:\n\n',
-                        '🚨 MODE DARURAT DIAKTIFKAN 🚨\n\nPertama, dari departemen mana Anda? Balas dengan nomor:\n\n'
+                // --- SECURITY & ACCESS GATEKEEPER ---
+                const rawSenderPhone = String(participant).replace(/[^0-9]/g, '');
+                const senderPhone = await resolveSenderPhone(sock, from, msg);
+                const registeredStaff = getStaffByPhone(senderPhone) || getStaffByPhone(rawSenderPhone);
+
+                if (!registeredStaff) {
+                    await reply(
+                        `🔒 *AKSES TERBATAS — KEAMANAN TELUNAS* 🔒\n\n` +
+                        `Nomor WhatsApp Anda (+${rawSenderPhone}) belum terdaftar atau terhubung dengan akun Telunas Issue Tracker.\n\n` +
+                        `Untuk mendaftarkan akun Anda:\n` +
+                        `1. Masukkan nomor WhatsApp Anda di menu *Profile* Web Dashboard, ATAU\n` +
+                        `2. Cukup *reply notifikasi masalah* di grup WhatsApp departemen Anda dengan mengetik *!claim*, lalu pilih nama Anda satu kali. Bot akan otomatis mengingat Anda untuk seterusnya!`
                     );
-                    DEPARTMENTS.forEach((d, idx) => {
-                        deptMsg += `${idx + 1}. ${d}\n`;
-                    });
-                    await reply(deptMsg.trim());
-                    userStates.set(stateKey, { step: STEPS.AWAITING_ORIGIN_DEPT, data: { isEmergency: true }, lang: state.lang });
+                    continue;
+                }
+
+                // Dispatch detected intent with user's locked department context
+                if (intent === 'SOS') {
+                    const userDept = registeredStaff.department || 'General';
+                    const userName = registeredStaff.name || registeredStaff.staff_name || 'Staff';
+
+                    state.data.department = userDept;
+                    state.data.reporter = userName + " (via WhatsApp)";
+                    state.data.isEmergency = true;
+                    state.step = STEPS.SOS_AWAITING_TITLE;
+                    userStates.set(stateKey, state);
+
+                    await reply(getMsg(
+                        `🚨 EMERGENCY MODE (*${userDept}* — ${userName}) 🚨\n\nStay calm. What is the emergency situation? (e.g. Fire in kitchen, Guest medical emergency):`,
+                        `🚨 MODE DARURAT (*${userDept}* — ${userName}) 🚨\n\nTetap tenang. Apa situasi darurat yang terjadi? (contoh: Kebakaran di dapur, Tamu butuh bantuan medis):`
+                    ));
                     continue;
                 } else if (intent === 'REPORT') {
-                    const groupDeptKey = getDeptKeyForGroup(from);
-                    if (groupDeptKey) {
-                        const deptName = DEPARTMENTS.find(d => d.toLowerCase() === groupDeptKey) || (groupDeptKey.charAt(0).toUpperCase() + groupDeptKey.slice(1));
-                        const roster = DEPARTMENT_STAFF[groupDeptKey] || [];
-                        if (roster.length > 0) {
-                            let rMsg = getMsg(
-                                `Welcome to Telunas Issue Tracker (*${deptName}*)!\n\nWho is reporting this issue? Reply with your number:\n\n`,
-                                `Selamat datang di Telunas Issue Tracker (*${deptName}*)!\n\nSiapa yang melaporkan masalah ini? Balas dengan nomor Anda:\n\n`
-                            );
-                            roster.forEach((n, idx) => { rMsg += `${idx + 1}. ${n}\n`; });
-                            rMsg += `\n` + getMsg(`Example: *2* or type your name.`, `Contoh: *2* atau ketik nama Anda.`);
-                            userStates.set(stateKey, { step: STEPS.AWAITING_NAME, data: { department: deptName, rosterList: roster }, lang: state.lang });
-                            await reply(rMsg);
-                            continue;
-                        }
-                    }
+                    const userDept = registeredStaff.department || 'General';
+                    const userName = registeredStaff.name || registeredStaff.staff_name || 'Staff';
 
-                    let deptMenu = getMsg(
-                        'Welcome to Telunas Issue Tracker! First, what is your department (Origin Dept)? Reply with the number:\n\n',
-                        'Selamat datang di Telunas Issue Tracker! Pertama, apa departemen Anda (Dept Asal)? Balas dengan nomor:\n\n'
-                    );
-                    DEPARTMENTS.forEach((dept, index) => {
-                        deptMenu += `${index + 1}. ${dept}\n`;
-                    });
-                    await reply(deptMenu.trim());
-                    userStates.set(stateKey, { step: STEPS.AWAITING_ORIGIN_DEPT, data: {}, lang: state.lang });
+                    state.data.department = userDept;
+                    state.data.reporter = userName + " (via WhatsApp)";
+                    state.step = STEPS.AWAITING_TITLE;
+                    userStates.set(stateKey, state);
+
+                    await reply(getMsg(
+                        `📋 *TELUNAS ISSUE REPORT* 📋\n👤 Pelapor: *${userName}* (*${userDept}*)\n\nWhat is the title/summary of the issue? (e.g. AC tidak dingin, Pipa bocor):`,
+                        `📋 *LAPORAN MASALAH TELUNAS* 📋\n👤 Pelapor: *${userName}* (*${userDept}*)\n\nApa judul/ringkasan masalah yang ingin dilaporkan? (contoh: AC tidak dingin di Villa 5, Pipa bocor):`
+                    ));
                     continue;
                 } else if (intent === 'SOLVE') {
                     await reply(getMsg(
@@ -654,9 +1108,26 @@ async function startSock() {
                     userStates.set(stateKey, { step: STEPS.AWAITING_PENDING_ID, data: {}, lang: state.lang });
                     continue;
                 } else if (intent === 'STATUS') {
+                    const isAdminUser = registeredStaff.role === 'admin';
+                    const userDept = registeredStaff.department;
+
+                    // If Department User (Non-Admin): lock department to their own and prompt for status filter!
+                    if (!isAdminUser && userDept) {
+                        state.data.department = userDept;
+                        state.step = STEPS.STATUS_AWAITING_STATUS;
+                        userStates.set(stateKey, state);
+
+                        await reply(getMsg(
+                            `📋 *Issue Status Filter — Dept ${userDept}* 📋\n\nWhat status do you want to see?\n1. 🔴 Open (Unclaimed)\n2. 🟡 In Progress\n3. ⏸️ Pending (Delayed)\n4. 🌐 All Active Statuses\n\nReply with a number (1-4) or "all":`,
+                            `📋 *Filter Status Masalah — Dept ${userDept}* 📋\n\nStatus masalah apa yang ingin Anda lihat?\n1. 🔴 Open (Belum diklaim)\n2. 🟡 In Progress (Sedang dikerjakan)\n3. ⏸️ Pending (Tertunda)\n4. 🌐 All (Semua status aktif)\n\nBalas dengan nomor (1-4) atau ketik "all":`
+                        ));
+                        continue;
+                    }
+
+                    // Admin user: can pick department or 'all'
                     let deptMsg = getMsg(
-                        'Please reply with the number of the department to check, or type "all":\n',
-                        'Harap balas dengan nomor departemen yang ingin dicek, atau ketik "all":\n'
+                        '👑 *Admin Status Overview*\nPlease reply with the number of the department to check, or type "all":\n',
+                        '👑 *Ringkasan Status Admin*\nHarap balas dengan nomor departemen yang ingin dicek, atau ketik "all":\n'
                     );
                     DEPARTMENTS.forEach((d, idx) => {
                         deptMsg += `${idx + 1}. ${d}\n`;
@@ -1539,25 +2010,29 @@ Example: *2* or your full name.`;
             if (state.step === STEPS.STATUS_AWAITING_STATUS) {
                 const lowerText = text.toLowerCase().trim();
                 const statuses = ['open', 'progress', 'pending'];
-                if (lowerText === 'all') {
+                if (lowerText === 'all' || lowerText === '4' || lowerText === 'semua') {
                     state.data.status = 'all';
                 } else {
                     const idx = parseInt(lowerText) - 1;
                     if (isNaN(idx) || idx < 0 || idx >= statuses.length) {
-                        await reply('Invalid selection. Please reply with a valid number (1-3) or "all".');
+                        await reply(getMsg(
+                            'Invalid selection. Please reply with a valid number (1-4) or "all".',
+                            'Pilihan tidak valid. Silakan balas dengan nomor (1-4) atau ketik "all".'
+                        ));
                         continue;
                     }
                     state.data.status = statuses[idx];
                 }
                 
-                let catMsg = "Finally, what category?\n";
+                let catMsg = getMsg("Finally, what category?\n", "Terakhir, kategori apa yang ingin dilihat?\n");
                 ALL_CATEGORIES.forEach((c, idx) => {
                     catMsg += `${idx + 1}. ${c.charAt(0).toUpperCase() + c.slice(1)}\n`;
                 });
-                catMsg += "\nReply with a number or type 'all':";
+                catMsg += getMsg("\nReply with a number (1-10) or type 'all':", "\nBalas dengan nomor (1-10) atau ketik 'all':");
                 await reply(catMsg);
                 
                 state.step = STEPS.STATUS_AWAITING_CAT;
+                userStates.set(stateKey, state);
                 continue;
             }
 
@@ -1634,11 +2109,21 @@ Example: *2* or your full name.`;
         }
     });
 }
-// --- EXPRESS SERVER FOR NOTIFICATIONS (MULTI-GROUP ROUTING) ---
-// --- EXPRESS SERVER FOR NOTIFICATIONS (MULTI-GROUP ROUTING) ---
+
+// --- EXPRESS SERVER FOR NOTIFICATIONS & REAL-TIME SYNC ---
+app.post('/sync-staff', async (req, res) => {
+    const result = await syncStaffDirectory();
+    res.json(result);
+});
+
+app.get('/sync-staff', async (req, res) => {
+    const result = await syncStaffDirectory();
+    res.json(result);
+});
+
 app.post('/notify', async (req, res) => {
     try {
-        const { message, imageUrl, taggedDepartments, priority } = req.body;
+        const { message, imageUrl, taggedDepartments, assignedDepartments, department, priority } = req.body;
         
         if (!globalSock) {
             return res.status(500).json({ error: 'Socket not initialized.' });
@@ -1658,6 +2143,7 @@ app.post('/notify', async (req, res) => {
         const lowerMsg = (message || '').toLowerCase();
         const isAll = lowerMsg.includes('@all') || 
                       (taggedDepartments && String(taggedDepartments).toLowerCase().includes('all')) || 
+                      (assignedDepartments && String(assignedDepartments).toLowerCase().includes('all')) || 
                       lowerMsg.includes('priority: critical') ||
                       priority === 'critical';
 
@@ -1667,10 +2153,44 @@ app.post('/notify', async (req, res) => {
                 if (gid) targetGroupIds.add(gid);
             });
         } else {
-            // Specific department matching from taggedDepartments or text
+            // Helper to safely match department name to group
+            const addDeptToTargets = (deptName) => {
+                if (!deptName) return;
+                const deptKey = String(deptName).toLowerCase().trim();
+                if (botConfig.departmentGroups[deptKey]) {
+                    targetGroupIds.add(botConfig.departmentGroups[deptKey]);
+                } else {
+                    // Try partial/alias match
+                    for (const [k, gid] of Object.entries(botConfig.departmentGroups)) {
+                        if (k === deptKey || deptKey.includes(k) || k.includes(deptKey)) {
+                            targetGroupIds.add(gid);
+                            break;
+                        }
+                    }
+                }
+            };
+
+            // 2a. Origin Department group (gets notifications for claim, pending, solved, etc.)
+            if (department) {
+                addDeptToTargets(department);
+            }
+
+            // 2b. Assigned Department groups
+            if (assignedDepartments) {
+                const assignedList = Array.isArray(assignedDepartments) ? assignedDepartments : String(assignedDepartments).split(',');
+                assignedList.forEach(d => addDeptToTargets(d));
+            }
+
+            // 2c. Tagged Department groups
+            if (taggedDepartments) {
+                const taggedList = Array.isArray(taggedDepartments) ? taggedDepartments : String(taggedDepartments).split(',');
+                taggedList.forEach(d => addDeptToTargets(d));
+            }
+
+            // 2d. Also match any @mentions or *Origin:* / *Taken by:* / *Solved by:* text inside message
             for (const dept of DEPARTMENTS) {
                 const deptKey = dept.toLowerCase();
-                if (lowerMsg.includes(`@${deptKey}`) || (taggedDepartments && String(taggedDepartments).toLowerCase().includes(deptKey))) {
+                if (lowerMsg.includes(`@${deptKey}`) || lowerMsg.includes(`origin:* ${deptKey}`) || lowerMsg.includes(`origin: ${deptKey}`)) {
                     if (botConfig.departmentGroups[deptKey]) {
                         targetGroupIds.add(botConfig.departmentGroups[deptKey]);
                     }

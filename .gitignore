@@ -38,5 +38,7 @@ Resort.zip
 /whatsapp-bot/auth_info_baileys/
 /whatsapp-bot/config.json
 /whatsapp-bot/node_modules/
+/whatsapp-bot/staff_phones.json
+/whatsapp-bot/device_mappings.json
 /whatsapp-bot/.env*
 !/whatsapp-bot/.env.example

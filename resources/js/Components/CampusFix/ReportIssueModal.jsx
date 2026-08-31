@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Button } from '@/Components/UI/Button';
 import {
     Dialog,
@@ -20,12 +20,18 @@ import {
 } from '@/Components/UI/Select';
 import { ImageDropzone } from './ImageDropzone';
 import { useIssues } from '@/context/IssuesContext';
-import { Loader2 } from 'lucide-react';
-
+import { Loader2, AlertTriangle, CalendarClock } from 'lucide-react';
 import { ALL_DEPARTMENTS, getStaffForDepartment } from '@/constants/staff';
+import { getDepartmentTheme } from '@/constants/departments';
+import { useAuth } from '@/hooks/useAuth';
+import { useLanguage } from '@/context/LanguageContext';
+import { useDepartmentScheduleConflicts } from '@/hooks/useDepartmentScheduleConflicts';
+import { DepartmentScheduleWarning } from './DepartmentScheduleWarning';
 
 export function ReportIssueModal({ open, onOpenChange }) {
+    const { t, lang } = useLanguage();
     const { addIssue } = useIssues();
+    const { isDeptUser, department, staffName } = useAuth();
     const [originDept, setOriginDept] = useState('');
     const [reporter, setReporter] = useState('');
     const [title, setTitle] = useState('');
@@ -41,6 +47,28 @@ export function ReportIssueModal({ open, onOpenChange }) {
     const [imageUrl, setImageUrl] = useState(undefined);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [errorMsg, setErrorMsg] = useState('');
+    const [showConflictConfirm, setShowConflictConfirm] = useState(false);
+
+    const selectedTargetDepts = useMemo(() => {
+        return [...new Set([...assignedDepts, ...taggedDepts])];
+    }, [assignedDepts, taggedDepts]);
+
+    const { conflicts, conflictsByDept, hasConflicts } = useDepartmentScheduleConflicts(selectedTargetDepts);
+
+    useEffect(() => {
+        if (open) {
+            if (isDeptUser && department) {
+                setOriginDept(department);
+                if (staffName) setReporter(staffName);
+            }
+            setShowConflictConfirm(false);
+        }
+    }, [open, isDeptUser, department, staffName]);
+
+    // Reset confirmation prompt if assigned or tagged depts change
+    useEffect(() => {
+        setShowConflictConfirm(false);
+    }, [assignedDepts, taggedDepts]);
 
     const staffForOriginDept = useMemo(() => {
         if (!originDept) return [];
@@ -62,8 +90,8 @@ export function ReportIssueModal({ open, onOpenChange }) {
     const valid = reporter.trim() && title.trim() && location.trim() && description.trim() && originDept && assignedDepts.length > 0 && imageFile;
 
     const reset = () => {
-        setOriginDept('');
-        setReporter('');
+        setOriginDept(isDeptUser && department ? department : '');
+        setReporter(isDeptUser && staffName ? staffName : '');
         setTitle('');
         setLocMain('');
         setLocDetail('');
@@ -76,22 +104,42 @@ export function ReportIssueModal({ open, onOpenChange }) {
         setImageFile(null);
         setImageUrl(undefined);
         setErrorMsg('');
+        setShowConflictConfirm(false);
         setIsSubmitting(false);
     };
 
     const toggleAssigned = (dept) => {
-        setAssignedDepts(prev =>
-            prev.includes(dept) ? prev.filter(d => d !== dept) : [...prev, dept]
-        );
+        setAssignedDepts(prev => {
+            const next = prev.includes(dept) ? prev.filter(d => d !== dept) : [...prev, dept];
+            return next;
+        });
+        // Mutually exclusive: cannot tag a department that is assigned
+        setTaggedDepts(prev => prev.filter(d => d !== dept));
     };
 
     const toggleTag = (dept) => {
-        setTaggedDepts(prev => 
-            prev.includes(dept) ? prev.filter(d => d !== dept) : [...prev, dept]
-        );
+        setTaggedDepts(prev => {
+            const next = prev.includes(dept) ? prev.filter(d => d !== dept) : [...prev, dept];
+            return next;
+        });
+        // Mutually exclusive: cannot assign a department that is tagged
+        setAssignedDepts(prev => prev.filter(d => d !== dept));
     };
 
-    const submit = async () => {
+    const handleSubmitClick = (e) => {
+        e?.preventDefault();
+        if (!valid || isSubmitting) return;
+
+        // If there are conflicts on today's schedule and user hasn't confirmed, trigger confirmation
+        if (hasConflicts && !showConflictConfirm) {
+            setShowConflictConfirm(true);
+            return;
+        }
+
+        executeSubmit();
+    };
+
+    const executeSubmit = async () => {
         if (!valid || isSubmitting) return;
         setIsSubmitting(true);
         setErrorMsg('');
@@ -144,19 +192,37 @@ export function ReportIssueModal({ open, onOpenChange }) {
                                 🏠 1. Origin Department (Discovered By) <span className="text-xs text-destructive">*</span>
                             </Label>
                             <span className="text-xs text-muted-foreground">
-                                Select your department to load the staff roster.
+                                {isDeptUser 
+                                    ? 'Locked to your department account.' 
+                                    : 'Select department discovering the issue.'}
                             </span>
                         </div>
-                        <Select value={originDept} onValueChange={handleOriginDeptChange} disabled={isSubmitting}>
-                            <SelectTrigger id="originDept" className="bg-surface">
-                                <SelectValue placeholder="-- Select Your Department --" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {ALL_DEPARTMENTS.map((dept) => (
-                                    <SelectItem key={dept} value={dept}>{dept}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
+
+                        {isDeptUser && originDept ? (
+                            <div className="flex items-center gap-2.5 p-2.5 rounded-lg bg-[#2A281E] border border-[#3B3929]">
+                                <span className="text-xs font-bold text-[#C9AA71]">🔒 {originDept}</span>
+                                <span 
+                                    className="px-2.5 py-0.5 rounded text-[11px] font-extrabold uppercase shadow-xs"
+                                    style={{ 
+                                        backgroundColor: getDepartmentTheme(originDept).bg, 
+                                        color: getDepartmentTheme(originDept).text 
+                                    }}
+                                >
+                                    {originDept}
+                                </span>
+                            </div>
+                        ) : (
+                            <Select value={originDept} onValueChange={handleOriginDeptChange} disabled={isSubmitting}>
+                                <SelectTrigger id="originDept" className="bg-surface">
+                                    <SelectValue placeholder="-- Select Your Department --" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {ALL_DEPARTMENTS.map((dept) => (
+                                        <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        )}
                     </div>
 
                     {/* Step 2: Submitter Name (from Staff Roster) */}
@@ -172,7 +238,16 @@ export function ReportIssueModal({ open, onOpenChange }) {
                             )}
                         </div>
 
-                        {originDept ? (
+                        {isDeptUser && (staffName || reporter) ? (
+                            <div className="flex items-center justify-between p-2.5 rounded-lg bg-[#2A281E] border border-[#3B3929]">
+                                <span className="text-xs font-bold text-[#C9AA71] flex items-center gap-1.5">
+                                    <span>🔒</span> {staffName || reporter}
+                                </span>
+                                <span className="text-[11px] text-[#A19F8D] font-medium">
+                                    {t('locked_to_your_account') || (lang === 'id' ? 'Terkunci ke akun Anda' : 'Locked to your account')}
+                                </span>
+                            </div>
+                        ) : originDept ? (
                             staffForOriginDept.length > 0 ? (
                                 <div className="flex flex-wrap gap-2 pt-1">
                                     {staffForOriginDept.map(name => (
@@ -202,7 +277,7 @@ export function ReportIssueModal({ open, onOpenChange }) {
                             )
                         ) : (
                             <p className="text-xs text-muted-foreground italic py-1">
-                                👆 Please select an Origin Department above to choose your name.
+                                👆 {t('select_origin_dept_first') || (lang === 'id' ? 'Pilih Departemen Asal di atas untuk memilih nama.' : 'Please select an Origin Department above to choose your name.')}
                             </p>
                         )}
                     </div>
@@ -284,21 +359,23 @@ export function ReportIssueModal({ open, onOpenChange }) {
                             </span>
                         </div>
                         <div className="flex flex-wrap gap-2 pt-1">
-                            {ALL_DEPARTMENTS.map(dept => (
-                                <button
-                                    key={dept}
-                                    type="button"
-                                    disabled={isSubmitting}
-                                    onClick={() => toggleAssigned(dept)}
-                                    className={`px-3 py-1.5 text-xs font-semibold rounded-full border transition-all ${
-                                        assignedDepts.includes(dept) 
-                                            ? 'bg-amber-600 text-white border-amber-600 shadow-sm ring-2 ring-amber-500/20' 
-                                            : 'bg-surface text-muted-foreground border-border hover:border-amber-500/50 hover:bg-amber-500/10'
-                                    }`}
-                                >
-                                    {assignedDepts.includes(dept) ? `✓ ${dept}` : dept}
-                                </button>
-                            ))}
+                            {ALL_DEPARTMENTS
+                                .filter(d => (!originDept || d.toLowerCase() !== originDept.toLowerCase()) && !taggedDepts.includes(d))
+                                .map(dept => (
+                                    <button
+                                        key={dept}
+                                        type="button"
+                                        disabled={isSubmitting}
+                                        onClick={() => toggleAssigned(dept)}
+                                        className={`px-3 py-1.5 text-xs font-semibold rounded-full border transition-all ${
+                                            assignedDepts.includes(dept) 
+                                                ? 'bg-amber-600 text-white border-amber-600 shadow-sm ring-2 ring-amber-500/20' 
+                                                : 'bg-surface text-muted-foreground border-border hover:border-amber-500/50 hover:bg-amber-500/10'
+                                        }`}
+                                    >
+                                        {assignedDepts.includes(dept) ? `✓ ${dept}` : dept}
+                                    </button>
+                                ))}
                         </div>
                     </div>
 
@@ -311,25 +388,32 @@ export function ReportIssueModal({ open, onOpenChange }) {
                             <span className="text-xs text-muted-foreground">
                                 Notify other departments for situational awareness (e.g. tag GR if villa is under repair).
                             </span>
-                        </div>
-                        <div className="flex flex-wrap gap-2 pt-1">
-                            {ALL_DEPARTMENTS.map(dept => (
-                                <button
-                                    key={dept}
-                                    type="button"
-                                    disabled={isSubmitting}
-                                    onClick={() => toggleTag(dept)}
-                                    className={`px-3 py-1.5 text-xs font-semibold rounded-full border transition-all ${
-                                        taggedDepts.includes(dept) 
-                                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm ring-2 ring-indigo-500/20' 
-                                            : 'bg-surface text-muted-foreground border-border hover:border-indigo-500/50 hover:bg-indigo-500/10'
-                                    }`}
-                                >
-                                    {taggedDepts.includes(dept) ? `✓ ${dept}` : dept}
-                                </button>
-                            ))}
+                            <div className="flex flex-wrap gap-2 pt-1">
+                            {ALL_DEPARTMENTS
+                                .filter(d => (!originDept || d.toLowerCase() !== originDept.toLowerCase()) && !assignedDepts.includes(d))
+                                .map(dept => (
+                                    <button
+                                        key={dept}
+                                        type="button"
+                                        disabled={isSubmitting}
+                                        onClick={() => toggleTag(dept)}
+                                        className={`px-3 py-1.5 text-xs font-semibold rounded-full border transition-all ${
+                                            taggedDepts.includes(dept) 
+                                                ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm ring-2 ring-indigo-500/20' 
+                                                : 'bg-surface text-muted-foreground border-border hover:border-indigo-500/50 hover:bg-indigo-500/10'
+                                        }`}
+                                    >
+                                        {taggedDepts.includes(dept) ? `✓ ${dept}` : dept}
+                                    </button>
+                                ))}
+                            </div>
                         </div>
                     </div>
+
+                    {/* Department Calendar / Schedule Conflict Warning */}
+                    {hasConflicts && (
+                        <DepartmentScheduleWarning conflictsByDept={conflictsByDept} className="my-1" />
+                    )}
 
                     <div className="grid gap-4 sm:grid-cols-2">
                         <div className="grid gap-2">
@@ -386,20 +470,66 @@ export function ReportIssueModal({ open, onOpenChange }) {
                             }}
                         />
                     </div>
+
+                    {/* Schedule Conflict Confirmation Banner */}
+                    {showConflictConfirm && hasConflicts && (
+                        <div className="rounded-xl border border-amber-500/60 bg-amber-500/20 p-4 space-y-3 shadow-lg ring-2 ring-amber-500/40 animate-in fade-in zoom-in-95">
+                            <div className="flex items-start gap-2.5">
+                                <AlertTriangle className="h-5 w-5 text-amber-400 shrink-0 mt-0.5" />
+                                <div>
+                                    <h4 className="text-sm font-bold text-amber-200">
+                                        {t('schedule_conflict_confirm_title')}
+                                    </h4>
+                                    <p className="text-xs text-amber-100/90 mt-1 leading-relaxed">
+                                        {t('schedule_conflict_confirm_msg')}
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center justify-end gap-2 pt-2 border-t border-amber-500/30">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setShowConflictConfirm(false)}
+                                    disabled={isSubmitting}
+                                    className="text-xs cursor-pointer"
+                                >
+                                    {t('review_assignment_btn')}
+                                </Button>
+                                <Button
+                                    type="button"
+                                    size="sm"
+                                    onClick={executeSubmit}
+                                    disabled={isSubmitting}
+                                    className="bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs cursor-pointer shadow-md"
+                                >
+                                    {isSubmitting ? (
+                                        <>
+                                            <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                                            Uploading...
+                                        </>
+                                    ) : (
+                                        t('assign_anyway_btn')
+                                    )}
+                                </Button>
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 <DialogFooter>
                     <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
-                        Cancel
+                        {t('cancel')}
                     </Button>
-                    <Button onClick={submit} disabled={!valid || isSubmitting}>
+                    <Button onClick={handleSubmitClick} disabled={!valid || isSubmitting}>
                         {isSubmitting ? (
                             <>
                                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                                 Uploading to Drive...
                             </>
                         ) : (
-                            'Submit report'
+                            t('submit') || 'Submit report'
                         )}
                     </Button>
                 </DialogFooter>

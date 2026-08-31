@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\IssueController;
 use App\Http\Controllers\CategoryController;
+use App\Http\Controllers\OperationsController;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
@@ -19,16 +20,30 @@ Route::get('/analytics', function () {
     return Inertia::render('Analytics');
 })->middleware(['auth', 'verified'])->name('analytics');
 
+Route::get('/operations', function () {
+    return redirect()->route('calendar');
+})->middleware(['auth', 'verified'])->name('operations');
+
+Route::get('/calendar', function () {
+    return Inertia::render('Calendar');
+})->middleware(['auth', 'verified'])->name('calendar');
+
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
+    Route::patch('/profile/whatsapp', [ProfileController::class, 'updateWhatsApp'])->name('profile.whatsapp');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 });
 
 // CampusFix API Endpoints
 Route::prefix('api')->group(function () {
+    Route::get('/staff-directory', [ProfileController::class, 'staffDirectory']);
+    Route::post('/link-whatsapp-staff', [ProfileController::class, 'linkStaffFromWhatsApp']);
+    Route::post('/reset-whatsapp-password', [ProfileController::class, 'resetPasswordViaWhatsApp']);
     Route::get('/issues', [IssueController::class, 'index']);
     Route::post('/issues', [IssueController::class, 'store']);
+    Route::match(['post', 'patch'], '/issues/{rowIndex}/update', [IssueController::class, 'update']);
+    Route::delete('/issues/{rowIndex}', [IssueController::class, 'destroy']);
     Route::post('/issues/{rowIndex}/claim', [IssueController::class, 'claim']);
     Route::post('/issues/{rowIndex}/pending', [IssueController::class, 'pending']);
     Route::post('/issues/{rowIndex}/resolve', [IssueController::class, 'resolve']);
@@ -41,6 +56,12 @@ Route::prefix('api')->group(function () {
     Route::get('/categories', [CategoryController::class, 'index']);
     Route::post('/categories', [CategoryController::class, 'store']);
     Route::post('/categories/delete-and-reassign', [CategoryController::class, 'destroyAndReassign']);
+    // Operations — Department Work Board
+    Route::get('/operations', [OperationsController::class, 'index']);
+    Route::post('/operations', [OperationsController::class, 'store']);
+    Route::post('/operations/sync-calendar', [OperationsController::class, 'syncCalendar']);
+    Route::match(['patch', 'post'], '/operations/{rowIndex}', [OperationsController::class, 'update']);
+    Route::delete('/operations/{rowIndex}', [OperationsController::class, 'destroy']);
 });
 
 require __DIR__.'/auth.php';

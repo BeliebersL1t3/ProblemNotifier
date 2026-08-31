@@ -9,6 +9,7 @@ const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 
 import { SlashProvider } from '@/Components/CampusFix/SlashTransition';
 import { LanguageProvider } from '@/context/LanguageContext';
+import { ErrorBoundary } from '@/Components/CampusFix/ErrorBoundary';
 
 createInertiaApp({
     title: (title) => `${title} - ${appName}`,
@@ -21,11 +22,13 @@ createInertiaApp({
         const root = createRoot(el);
 
         root.render(
-            <LanguageProvider>
-                <SlashProvider>
-                    <App {...props} />
-                </SlashProvider>
-            </LanguageProvider>
+            <ErrorBoundary>
+                <LanguageProvider>
+                    <SlashProvider>
+                        <App {...props} />
+                    </SlashProvider>
+                </LanguageProvider>
+            </ErrorBoundary>
         );
     },
     progress: {

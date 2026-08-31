@@ -1,14 +1,22 @@
 import React, { useState } from 'react';
-import { MapPin } from 'lucide-react';
+import { MapPin, Building, ZoomIn, Edit3, Trash2 } from 'lucide-react';
 import { StatusBadge } from './StatusBadge';
 import { cn } from '@/lib/utils';
 import DelayDetailModal from './DelayDetailModal';
 import { ImageLightboxModal } from './ImageLightboxModal';
-import { ZoomIn } from 'lucide-react';
-
 import { CriticalTimer } from './CriticalTimer';
+import { getDepartmentForStaff, normalizeDepartment } from '@/constants/staff';
+import { getDepartmentTheme } from '@/constants/departments';
+import { useAuth } from '@/hooks/useAuth';
 
 const FALLBACK_IMAGE = '/barrier-placeholder.svg';
+
+const safeArray = (val) => {
+    if (!val) return [];
+    if (Array.isArray(val)) return val;
+    if (typeof val === 'string') return val.split(',').map(s => s.trim()).filter(Boolean);
+    return [];
+};
 
 function formatDate(ts) {
     return new Date(ts).toLocaleDateString('en-US', {
@@ -19,10 +27,380 @@ function formatDate(ts) {
     });
 }
 
-export function IssueCard({ issue, onSelect }) {
+export function IssueCard({ issue, onSelect, onEdit, onDelete, density = '3' }) {
     const [selectedDelay, setSelectedDelay] = useState(null);
     const [previewImage, setPreviewImage] = useState(null);
+    const { isAdmin, isDeptUser, department } = useAuth();
 
+    const userDept = normalizeDepartment(department);
+    const originDept = normalizeDepartment(issue?.department);
+    const takerDept = normalizeDepartment(getDepartmentForStaff(issue?.taker, issue));
+    const pendingDept = normalizeDepartment(getDepartmentForStaff(issue?.pendingBy, issue));
+    const solverDept = normalizeDepartment(getDepartmentForStaff(issue?.solver, issue));
+    const assignedList = safeArray(issue?.assignedDepartments);
+    const assignedDeptsNormalized = assignedList.map(normalizeDepartment);
+
+    const canEditReport = isAdmin || (isDeptUser && userDept && userDept === originDept);
+    const canEditClaim = isAdmin || (isDeptUser && userDept && (
+        (takerDept && userDept === takerDept) || 
+        (!issue?.taker && assignedDeptsNormalized.includes(userDept))
+    ));
+    const canEditPending = isAdmin || (isDeptUser && userDept && (
+        (pendingDept && userDept === pendingDept) ||
+        (!issue?.pendingBy && assignedDeptsNormalized.includes(userDept))
+    ));
+    const canEditSolved = isAdmin || (isDeptUser && userDept && (
+        (solverDept && userDept === solverDept) ||
+        assignedDeptsNormalized.includes(userDept)
+    ));
+
+    const canEdit = isAdmin || canEditReport || canEditClaim || canEditPending || canEditSolved;
+    const canDelete = isAdmin || canEditReport;
+
+    const taggedList = safeArray(issue?.taggedDepartments);
+    const pendingTimelineList = safeArray(issue?.pendingTimeline)
+        .filter(Boolean)
+        .map(item => {
+            if (typeof item === 'object' && item !== null) return item;
+            return { date: '', by: 'Staff', reason: String(item || ''), image: '' };
+        });
+
+    const activeImage = (issue.status === 'pending' && issue.pendingImageUrl) 
+        ? issue.pendingImageUrl 
+        : (issue.imageUrl || FALLBACK_IMAGE);
+
+    // =========================================================================
+    // DENSITY 10 — MICRO MATRIX VIEW
+    // =========================================================================
+    if (density === '10') {
+        const isCritical = issue.priority === 'critical';
+        const isSolved = issue.status === 'solved';
+        const isPending = issue.status === 'pending';
+        const isProgress = issue.status === 'progress';
+
+        const statusColor = isSolved
+            ? 'border-emerald-500/80 bg-emerald-500/10 text-emerald-400'
+            : isPending
+                ? 'border-orange-500/80 bg-orange-500/10 text-orange-400'
+                : isProgress
+                    ? 'border-blue-500/80 bg-blue-500/10 text-blue-400'
+                    : 'border-amber-500/80 bg-amber-500/10 text-amber-400';
+
+        const statusDot = isSolved
+            ? 'bg-emerald-400'
+            : isPending
+                ? 'bg-orange-400'
+                : isProgress
+                    ? 'bg-blue-400'
+                    : 'bg-amber-400';
+
+        const primaryDept = assignedList[0] || issue.department || null;
+        const deptTheme = primaryDept ? getDepartmentTheme(primaryDept) : null;
+
+        const tooltipText = `[${issue.id}] ${issue.title}\nStatus: ${issue.status.toUpperCase()}${issue.priority === 'critical' ? ' (CRITICAL)' : ''}\nLocation: ${issue.location || '-'}\nDept: ${primaryDept || '-'}\nReported: ${issue.reporter || '-'}`;
+
+        return (
+            <button
+                type="button"
+                onClick={() => onSelect(issue)}
+                title={tooltipText}
+                className={cn(
+                    "group relative flex flex-col justify-between overflow-hidden rounded-lg border text-left transition-all duration-150 hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring min-w-0 w-full p-2 bg-surface",
+                    isCritical
+                        ? isSolved
+                            ? "border-red-500/50 bg-red-950/15 ring-1 ring-red-500/30"
+                            : "border-red-500 bg-red-950/25 border-2 animate-aura ring-1 ring-red-500"
+                        : isPending
+                            ? "border-orange-500/40 hover:border-orange-500"
+                            : "border-border hover:border-primary/50"
+                )}
+            >
+                {/* Micro Header */}
+                <div className="flex items-center justify-between gap-1 w-full text-[10px] font-mono mb-1">
+                    <span className="flex items-center gap-1 font-bold text-muted-foreground truncate">
+                        <span className={`h-2 w-2 rounded-full shrink-0 ${statusDot}`} />
+                        {issue.id}
+                    </span>
+                    {isCritical && (
+                        <span className="px-1 py-0.2 rounded bg-red-500/20 text-red-400 font-bold text-[9px] shrink-0 border border-red-500/30 animate-pulse">
+                            🚨
+                        </span>
+                    )}
+                </div>
+
+                {/* Micro Body */}
+                <div className="flex items-start gap-1.5 min-w-0 w-full mb-1.5">
+                    <img
+                        src={activeImage}
+                        alt=""
+                        loading="lazy"
+                        onError={(e) => { e.currentTarget.src = FALLBACK_IMAGE; }}
+                        className="h-9 w-9 rounded object-cover shrink-0 bg-muted border border-border/50"
+                    />
+                    <div className="flex flex-col min-w-0 flex-1">
+                        <h4 className="text-[11px] font-semibold leading-tight text-foreground line-clamp-2 break-words group-hover:text-primary transition-colors">
+                            {issue.title}
+                        </h4>
+                    </div>
+                </div>
+
+                {/* Micro Footer */}
+                <div className="flex items-center justify-between gap-1 text-[9px] pt-1 border-t border-border/40 text-muted-foreground w-full">
+                    <span className="truncate flex items-center gap-0.5 max-w-[55%]">
+                        <MapPin className="h-2.5 w-2.5 shrink-0 text-muted-foreground/70" />
+                        <span className="truncate">{issue.location || '-'}</span>
+                    </span>
+                    {primaryDept && (
+                        <span
+                            style={deptTheme ? {
+                                backgroundColor: deptTheme.bg === '#212121' ? 'rgba(255, 255, 255, 0.1)' : `${deptTheme.bg}22`,
+                                borderColor: deptTheme.bg === '#212121' ? 'rgba(255, 255, 255, 0.3)' : `${deptTheme.bg}50`,
+                                color: deptTheme.bg === '#212121' ? '#FFFFFF' : (deptTheme.text === '#14130B' ? '#FBBF24' : deptTheme.bg)
+                            } : {}}
+                            className="truncate px-1 py-0.2 rounded font-mono font-semibold text-[8.5px] border shrink-0 max-w-[45%]"
+                        >
+                            {primaryDept}
+                        </span>
+                    )}
+                </div>
+            </button>
+        );
+    }
+
+    // =========================================================================
+    // DENSITY 5 — COMPACT VIEW
+    // =========================================================================
+    if (density === '5') {
+        const isCritical = issue.priority === 'critical';
+        const isSolved = issue.status === 'solved';
+        const isPending = issue.status === 'pending';
+
+        return (
+            <button
+                type="button"
+                onClick={() => onSelect(issue)}
+                className={cn(
+                    "group flex flex-col overflow-hidden rounded-xl border text-left transition-all duration-200 hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 min-w-0 w-full bg-surface",
+                    isCritical
+                        ? isSolved
+                            ? "border-red-500/50 bg-red-950/10 shadow-[0_0_15px_rgba(239,68,68,0.2)] ring-1 ring-red-500/50"
+                            : "border-red-500 bg-red-950/20 border-2 animate-aura ring-1 ring-red-500 z-10 relative"
+                        : isPending
+                            ? "border-orange-500/50 shadow-card hover:shadow-card-hover ring-1 ring-orange-500/30"
+                            : "border-border shadow-card hover:shadow-card-hover focus-visible:ring-ring"
+                )}
+            >
+                <div className="relative aspect-[16/10] overflow-hidden bg-muted group/img">
+                    <img
+                        src={activeImage}
+                        alt={issue.title}
+                        loading="lazy"
+                        onError={(e) => { e.currentTarget.src = FALLBACK_IMAGE; }}
+                        className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                    />
+                    <button
+                        type="button"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setPreviewImage(activeImage);
+                        }}
+                        className="absolute bottom-2 right-2 p-1 rounded-md bg-black/70 hover:bg-black text-white opacity-0 group-hover/img:opacity-100 transition-all duration-200 border border-white/20 shadow-md cursor-pointer hover:scale-110 z-10"
+                        title="Lihat Foto Ukuran Penuh"
+                    >
+                        <ZoomIn className="w-3.5 h-3.5 text-[#C9AA71]" />
+                    </button>
+                    <StatusBadge
+                        status={issue.status}
+                        label={issue.status === 'solved' ? issue.durationLabel : undefined}
+                        className="absolute left-2 top-2 scale-90 origin-top-left"
+                    />
+                    {isCritical && !canEdit && !canDelete && (
+                        <CriticalTimer
+                            deadline={issue.deadline}
+                            status={issue.status}
+                            className="absolute right-2 top-2 scale-90 origin-top-right"
+                        />
+                    )}
+                    {/* Action buttons (Edit / Delete) for authorized users */}
+                    {(canEdit || canDelete) && (
+                        <div className="absolute top-2 right-2 flex items-center gap-1 z-20">
+                            {canEdit && onEdit && (
+                                <button
+                                    type="button"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onEdit(issue);
+                                    }}
+                                    className="p-1 rounded bg-black/80 hover:bg-sky-600 text-sky-300 hover:text-white border border-sky-500/40 shadow-sm transition-all cursor-pointer hover:scale-110"
+                                    title="Edit Issue"
+                                >
+                                    <Edit3 className="w-3 h-3" />
+                                </button>
+                            )}
+                            {canDelete && onDelete && (
+                                <button
+                                    type="button"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onDelete(issue);
+                                    }}
+                                    className="p-1 rounded bg-black/80 hover:bg-red-600 text-red-300 hover:text-white border border-red-500/40 shadow-sm transition-all cursor-pointer hover:scale-110"
+                                    title="Delete Issue"
+                                >
+                                    <Trash2 className="w-3 h-3" />
+                                </button>
+                            )}
+                        </div>
+                    )}
+                </div>
+
+                <div className="flex flex-1 flex-col gap-2 p-3 min-w-0 w-full">
+                    {isCritical && issue.deadline && !isSolved && (
+                        <CriticalTimer
+                            deadline={issue.deadline}
+                            status={issue.status}
+                            variant="banner"
+                        />
+                    )}
+
+                    <div className="flex flex-col gap-1 min-w-0 w-full">
+                        <div className="flex items-center justify-between gap-1">
+                            <span className="shrink-0 rounded bg-muted/80 px-1 py-0.5 font-mono text-[9px] font-medium text-muted-foreground">
+                                {issue.id}
+                            </span>
+                            <span className="flex items-center gap-1 text-[11px] text-muted-foreground truncate">
+                                <MapPin className="h-3 w-3 shrink-0" />
+                                <span className="truncate">{issue.location}</span>
+                            </span>
+                        </div>
+                        <h3 className="text-sm font-semibold leading-snug text-foreground line-clamp-2 break-words min-w-0 group-hover:text-primary transition-colors">
+                            {issue.title}
+                        </h3>
+                    </div>
+
+                    {/* Department Chips */}
+                    <div className="flex gap-1 items-center flex-wrap w-full">
+                        {assignedList.length > 0 && assignedList.map((dept, idx) => {
+                            const theme = getDepartmentTheme(dept);
+                            const isMine = isDeptUser && userDept && normalizeDepartment(dept) === userDept;
+                            return (
+                                <span
+                                    key={'assign-' + idx}
+                                    style={{
+                                        backgroundColor: theme.bg === '#212121' ? 'rgba(255, 255, 255, 0.12)' : `${theme.bg}22`,
+                                        borderColor: isMine ? '#F59E0B' : (theme.bg === '#212121' ? 'rgba(255, 255, 255, 0.35)' : `${theme.bg}70`),
+                                        color: theme.bg === '#212121' ? '#FFFFFF' : (theme.text === '#14130B' ? '#FBBF24' : theme.bg)
+                                    }}
+                                    className={`shrink-0 rounded px-1.5 py-0.5 font-mono text-[9px] font-semibold border flex items-center gap-0.5 ${
+                                        isMine ? 'ring-1.5 ring-amber-400 bg-amber-500/20 font-bold shadow-xs' : ''
+                                    }`}
+                                    title={`Assigned Department${isMine ? ' (Your Department)' : ''}`}
+                                >
+                                    <span>🎯</span> {dept} {isMine && <span className="text-[8px] uppercase tracking-wider bg-amber-500 text-black px-1 rounded-xs font-bold">You</span>}
+                                </span>
+                            );
+                        })}
+                        {issue.department && (() => {
+                            const theme = getDepartmentTheme(issue.department);
+                            const isMine = isDeptUser && userDept && normalizeDepartment(issue.department) === userDept;
+                            return (
+                                <span
+                                    style={{
+                                        backgroundColor: theme.bg === '#212121' ? 'rgba(255, 255, 255, 0.1)' : `${theme.bg}18`,
+                                        borderColor: isMine ? '#10B981' : (theme.bg === '#212121' ? 'rgba(255, 255, 255, 0.3)' : `${theme.bg}50`),
+                                        color: theme.bg === '#212121' ? '#FFFFFF' : (theme.text === '#14130B' ? '#FBBF24' : theme.bg)
+                                    }}
+                                    className={`shrink-0 rounded px-1.5 py-0.5 font-mono text-[9px] font-medium border flex items-center gap-0.5 ${
+                                        isMine ? 'ring-1.5 ring-emerald-400 bg-emerald-500/20 font-bold shadow-xs' : ''
+                                    }`}
+                                    title={`Origin Department${isMine ? ' (Your Department)' : ''}`}
+                                >
+                                    <span>🏠</span> {issue.department} {isMine && <span className="text-[8px] uppercase tracking-wider bg-emerald-500 text-black px-1 rounded-xs font-bold">You</span>}
+                                </span>
+                            );
+                        })()}
+                        {taggedList.length > 0 && taggedList.map((tag, idx) => {
+                            const theme = getDepartmentTheme(tag);
+                            const isMine = isDeptUser && userDept && normalizeDepartment(tag) === userDept;
+                            return (
+                                <span
+                                    key={'tag-' + idx}
+                                    style={{
+                                        backgroundColor: isMine ? 'rgba(99, 102, 241, 0.25)' : (theme.bg === '#212121' ? 'rgba(255, 255, 255, 0.1)' : `${theme.bg}15`),
+                                        borderColor: isMine ? '#818CF8' : (theme.bg === '#212121' ? 'rgba(255, 255, 255, 0.3)' : `${theme.bg}50`),
+                                        color: isMine ? '#EEF2FF' : (theme.bg === '#212121' ? '#FFFFFF' : (theme.text === '#14130B' ? '#FBBF24' : theme.bg))
+                                    }}
+                                    className={`shrink-0 rounded px-1.5 py-0.5 font-mono text-[9px] font-medium border flex items-center gap-0.5 ${
+                                        isMine ? 'ring-1.5 ring-indigo-400 font-bold shadow-xs' : ''
+                                    }`}
+                                    title={`Tagged Department${isMine ? ' (Mentioned to You!)' : ''}`}
+                                >
+                                    <span>📢</span> @{tag} {isMine && <span className="text-[8px] uppercase tracking-wider bg-indigo-500 text-white px-1 rounded-xs font-bold">You</span>}
+                                </span>
+                            );
+                        })}
+                    </div>
+
+                    {/* Short problem snippet */}
+                    {issue.description && (
+                        <p className="text-[11px] text-muted-foreground line-clamp-1 break-words">
+                            {issue.description}
+                        </p>
+                    )}
+
+                    {/* Delay indicator chip */}
+                    {pendingTimelineList.length > 0 && (
+                        <div className="flex items-center gap-1 text-[10px] text-orange-400 font-medium bg-orange-500/10 border border-orange-500/20 px-2 py-0.5 rounded-md w-fit">
+                            <span>⏱️</span>
+                            <span>{pendingTimelineList.length} delay history</span>
+                        </div>
+                    )}
+
+                    {/* Edit history chip (only for actual content modifications, not claims) */}
+                    {issue.editLogs && issue.editLogs.filter(l => l && l.type !== 'claim' && l.type !== 'create').length > 0 && (
+                        <div className="flex items-center gap-1 text-[10px] text-sky-400 font-medium bg-sky-500/10 border border-sky-500/20 px-2 py-0.5 rounded-md w-fit">
+                            <span>✏️</span>
+                            <span>{issue.editLogs.filter(l => l && l.type !== 'claim' && l.type !== 'create').length} edit history</span>
+                        </div>
+                    )}
+
+                    {/* Actor snippet */}
+                    {issue.status === 'progress' && issue.taker && (
+                        <div className="text-[11px] font-medium text-muted-foreground truncate">
+                            Claimed: <strong className="text-foreground">{issue.taker}</strong>
+                        </div>
+                    )}
+                    {issue.status === 'pending' && issue.pendingBy && (
+                        <div className="text-[11px] font-medium text-orange-400 truncate">
+                            Pending: <strong className="text-orange-300">{issue.pendingBy}</strong>
+                        </div>
+                    )}
+                    {issue.status === 'solved' && issue.solver && (
+                        <div className="text-[11px] font-medium text-muted-foreground truncate">
+                            Fixed: <strong className="text-foreground">{issue.solver}</strong>
+                        </div>
+                    )}
+
+                    <div className="mt-auto border-t border-border/60 pt-2 text-[10px] text-muted-foreground flex items-center justify-between">
+                        <span className="truncate">By {issue.reporter}</span>
+                        <span className="shrink-0">{formatDate(issue.reportedAt)}</span>
+                    </div>
+                </div>
+
+                <ImageLightboxModal
+                    open={!!previewImage}
+                    onClose={() => setPreviewImage(null)}
+                    src={previewImage}
+                    title={issue.title}
+                    subtitle="Foto Laporan (Full Resolution Preview)"
+                />
+            </button>
+        );
+    }
+
+    // =========================================================================
+    // DENSITY 3 — STANDARD DETAILED VIEW (DEFAULT)
+    // =========================================================================
     return (
         <button
             type="button"
@@ -62,11 +440,44 @@ export function IssueCard({ issue, onSelect }) {
                     label={issue.status === 'solved' ? issue.durationLabel : undefined}
                     className="absolute left-3 top-3"
                 />
-                <CriticalTimer
-                    deadline={issue.deadline}
-                    status={issue.status}
-                    className="absolute right-3 top-3"
-                />
+                {issue.priority === 'critical' && !canEdit && !canDelete && (
+                    <CriticalTimer
+                        deadline={issue.deadline}
+                        status={issue.status}
+                        className="absolute right-3 top-3"
+                    />
+                )}
+                {/* Action buttons (Edit / Delete) for authorized users */}
+                {(canEdit || canDelete) && (
+                    <div className="absolute top-3 right-3 flex items-center gap-1.5 z-20">
+                        {canEdit && onEdit && (
+                            <button
+                                type="button"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onEdit(issue);
+                                }}
+                                className="p-1.5 rounded-lg bg-black/80 hover:bg-sky-600 text-sky-300 hover:text-white border border-sky-500/40 shadow-md transition-all cursor-pointer hover:scale-110"
+                                title="Edit Issue"
+                            >
+                                <Edit3 className="w-3.5 h-3.5" />
+                            </button>
+                        )}
+                        {canDelete && onDelete && (
+                            <button
+                                type="button"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onDelete(issue);
+                                }}
+                                className="p-1.5 rounded-lg bg-black/80 hover:bg-red-600 text-red-300 hover:text-white border border-red-500/40 shadow-md transition-all cursor-pointer hover:scale-110"
+                                title="Delete Issue"
+                            >
+                                <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                        )}
+                    </div>
+                )}
             </div>
 
             <div className="flex flex-1 flex-col gap-2 p-4 min-w-0 w-full">
@@ -80,21 +491,68 @@ export function IssueCard({ issue, onSelect }) {
                 <div className="flex flex-col gap-1.5 min-w-0 w-full">
                     <h3 className="text-base font-semibold leading-snug text-foreground break-words min-w-0">{issue.title}</h3>
                     <div className="flex gap-1.5 items-center flex-wrap w-full">
-                        {issue.assignedDepartments && issue.assignedDepartments.length > 0 && issue.assignedDepartments.map((dept, idx) => (
-                            <span key={'assign-' + idx} className="shrink-0 rounded bg-amber-500/15 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 font-mono text-[10px] font-semibold border border-amber-500/30 flex items-center gap-1" title="Assigned Department (Responsible to fix)">
-                                <span>🎯</span> {dept}
-                            </span>
-                        ))}
-                        {issue.department && (
-                            <span className="shrink-0 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 font-mono text-[10px] font-medium border border-blue-500/20 flex items-center gap-1" title="Origin Department (Discovered / Reported by)">
-                                <span>🏠</span> {issue.department}
-                            </span>
-                        )}
-                        {issue.taggedDepartments && issue.taggedDepartments.length > 0 && issue.taggedDepartments.map((tag, idx) => (
-                            <span key={'tag-' + idx} className="shrink-0 rounded bg-purple-500/10 text-purple-600 dark:text-purple-400 px-1.5 py-0.5 font-mono text-[10px] font-medium border border-purple-500/20 flex items-center gap-1" title="Tagged Department (Info / Notification only)">
-                                <span>📢</span> @{tag}
-                            </span>
-                        ))}
+                        {assignedList.length > 0 && assignedList.map((dept, idx) => {
+                            const theme = getDepartmentTheme(dept);
+                            const isMine = isDeptUser && userDept && normalizeDepartment(dept) === userDept;
+                            return (
+                                <span 
+                                    key={'assign-' + idx} 
+                                    style={{ 
+                                        backgroundColor: theme.bg === '#212121' ? 'rgba(255, 255, 255, 0.12)' : `${theme.bg}22`, 
+                                        borderColor: isMine ? '#F59E0B' : (theme.bg === '#212121' ? 'rgba(255, 255, 255, 0.35)' : `${theme.bg}70`),
+                                        color: theme.bg === '#212121' ? '#FFFFFF' : (theme.text === '#14130B' ? '#FBBF24' : theme.bg)
+                                    }}
+                                    className={`shrink-0 rounded px-1.5 py-0.5 font-mono text-[10px] font-semibold border flex items-center gap-1 shadow-2xs ${
+                                        isMine ? 'ring-1.5 ring-amber-400 bg-amber-500/20 font-bold shadow-xs' : ''
+                                    }`}
+                                    title={`Assigned Department (Responsible to fix)${isMine ? ' - YOUR DEPARTMENT' : ''}`}
+                                >
+                                    <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: theme.bg }} />
+                                    <span>🎯</span> {dept} {isMine && <span className="text-[8px] uppercase tracking-wider bg-amber-500 text-black px-1 rounded-xs font-bold">You</span>}
+                                </span>
+                            );
+                        })}
+                        {issue.department && (() => {
+                            const theme = getDepartmentTheme(issue.department);
+                            const isMine = isDeptUser && userDept && normalizeDepartment(issue.department) === userDept;
+                            return (
+                                <span 
+                                    style={{ 
+                                        backgroundColor: theme.bg === '#212121' ? 'rgba(255, 255, 255, 0.1)' : `${theme.bg}18`, 
+                                        borderColor: isMine ? '#10B981' : (theme.bg === '#212121' ? 'rgba(255, 255, 255, 0.3)' : `${theme.bg}50`),
+                                        color: theme.bg === '#212121' ? '#FFFFFF' : (theme.text === '#14130B' ? '#FBBF24' : theme.bg)
+                                    }}
+                                    className={`shrink-0 rounded px-1.5 py-0.5 font-mono text-[10px] font-medium border flex items-center gap-1 shadow-2xs ${
+                                        isMine ? 'ring-1.5 ring-emerald-400 bg-emerald-500/20 font-bold shadow-xs' : ''
+                                    }`}
+                                    title={`Origin Department (Discovered / Reported by)${isMine ? ' - YOUR DEPARTMENT' : ''}`}
+                                >
+                                    <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: theme.bg }} />
+                                    <span>🏠</span> {issue.department} {isMine && <span className="text-[8px] uppercase tracking-wider bg-emerald-500 text-black px-1 rounded-xs font-bold">You</span>}
+                                </span>
+                            );
+                        })()}
+                        {taggedList.length > 0 && taggedList.map((tag, idx) => {
+                            const theme = getDepartmentTheme(tag);
+                            const isMine = isDeptUser && userDept && normalizeDepartment(tag) === userDept;
+                            return (
+                                <span 
+                                    key={'tag-' + idx} 
+                                    style={{ 
+                                        backgroundColor: isMine ? 'rgba(99, 102, 241, 0.25)' : (theme.bg === '#212121' ? 'rgba(255, 255, 255, 0.1)' : `${theme.bg}15`), 
+                                        borderColor: isMine ? '#818CF8' : (theme.bg === '#212121' ? 'rgba(255, 255, 255, 0.3)' : `${theme.bg}50`),
+                                        color: isMine ? '#EEF2FF' : (theme.bg === '#212121' ? '#FFFFFF' : (theme.text === '#14130B' ? '#FBBF24' : theme.bg))
+                                    }}
+                                    className={`shrink-0 rounded px-1.5 py-0.5 font-mono text-[10px] font-medium border flex items-center gap-1 shadow-2xs ${
+                                        isMine ? 'ring-1.5 ring-indigo-400 font-bold shadow-xs' : ''
+                                    }`}
+                                    title={`Tagged Department (Info / Notification only)${isMine ? ' - MENTIONED TO YOU!' : ''}`}
+                                >
+                                    <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: theme.bg }} />
+                                    <span>📢</span> @{tag} {isMine && <span className="text-[8px] uppercase tracking-wider bg-indigo-500 text-white px-1 rounded-xs font-bold">You</span>}
+                                </span>
+                            );
+                        })}
                         <span className="shrink-0 rounded bg-muted/80 px-1.5 py-0.5 font-mono text-[10px] font-medium text-muted-foreground ml-auto">
                             {issue.id}
                         </span>
@@ -110,17 +568,17 @@ export function IssueCard({ issue, onSelect }) {
                         {issue.description}
                     </div>
 
-                    {issue.pendingTimeline && issue.pendingTimeline.length > 0 && (
+                    {pendingTimelineList.length > 0 && (
                         <div className="flex flex-col gap-2 border-l-2 border-orange-500/50 pl-3 min-w-0">
                             <span className="font-semibold text-orange-500 flex items-center justify-between">
-                                <span>Delay History ({issue.pendingTimeline.length}):</span>
+                                <span>Delay History ({pendingTimelineList.length}):</span>
                                 {issue.status === 'solved' && (
                                     <span className="text-[9px] bg-orange-500/10 text-orange-500 px-1.5 py-0.5 rounded font-normal border border-orange-500/20">
                                         Delayed before fix
                                     </span>
                                 )}
                             </span>
-                            {issue.pendingTimeline.map((item, idx) => (
+                            {pendingTimelineList.map((item, idx) => (
                                 <div key={idx} className="flex flex-col gap-1.5 pb-2 border-b border-border/50 last:border-0 last:pb-0 min-w-0">
                                     <div className="flex items-start gap-2 min-w-0">
                                         {item.image && (
@@ -148,16 +606,48 @@ export function IssueCard({ issue, onSelect }) {
                             ))}
                         </div>
                     )}
+
+                    {/* Edit history chip (only for actual content modifications, not claims) */}
+                    {issue.editLogs && issue.editLogs.filter(l => l && l.type !== 'claim' && l.type !== 'create').length > 0 && (
+                        <div className="flex items-center gap-1.5 text-[10px] text-sky-400 font-medium bg-sky-500/10 border border-sky-500/20 px-2 py-0.5 rounded-md w-fit">
+                            <span>✏️</span>
+                            <span>{issue.editLogs.filter(l => l && l.type !== 'claim' && l.type !== 'create').length} edit history</span>
+                        </div>
+                    )}
                 </div>
 
                 {issue.status === 'progress' && issue.taker && (
-                    <p className="text-xs font-medium text-muted-foreground">Claimed by {issue.taker}</p>
+                    <div className="text-xs font-medium text-muted-foreground flex items-center gap-1.5 flex-wrap">
+                        <span>Claimed by <strong className="text-foreground font-semibold">{issue.taker}</strong></span>
+                        {getDepartmentForStaff(issue.taker, issue) && (
+                            <span className="px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 text-[10px] font-semibold font-mono flex items-center gap-1">
+                                <Building className="w-2.5 h-2.5" />
+                                {getDepartmentForStaff(issue.taker, issue)}
+                            </span>
+                        )}
+                    </div>
                 )}
                 {issue.status === 'pending' && issue.pendingBy && (
-                    <p className="text-xs font-medium text-orange-500">Currently pending by {issue.pendingBy}</p>
+                    <div className="text-xs font-medium text-orange-400 flex items-center gap-1.5 flex-wrap">
+                        <span>Pending by <strong className="text-orange-300 font-semibold">{issue.pendingBy}</strong></span>
+                        {getDepartmentForStaff(issue.pendingBy, issue) && (
+                            <span className="px-1.5 py-0.5 rounded bg-orange-500/15 text-orange-300 border border-orange-500/30 text-[10px] font-semibold font-mono flex items-center gap-1">
+                                <Building className="w-2.5 h-2.5" />
+                                {getDepartmentForStaff(issue.pendingBy, issue)}
+                            </span>
+                        )}
+                    </div>
                 )}
                 {issue.status === 'solved' && issue.solver && (
-                    <p className="text-xs font-medium text-muted-foreground">Fixed by {issue.solver}</p>
+                    <div className="text-xs font-medium text-muted-foreground flex items-center gap-1.5 flex-wrap">
+                        <span>Fixed by <strong className="text-foreground font-semibold">{issue.solver}</strong></span>
+                        {getDepartmentForStaff(issue.solver, issue) && (
+                            <span className="px-1.5 py-0.5 rounded bg-green-500/15 text-green-300 border border-green-500/30 text-[10px] font-semibold font-mono flex items-center gap-1">
+                                <Building className="w-2.5 h-2.5" />
+                                {getDepartmentForStaff(issue.solver, issue)}
+                            </span>
+                        )}
+                    </div>
                 )}
                 <div className="mt-auto border-t border-border pt-3 text-xs text-muted-foreground">
                     Reported by {issue.reporter} • {formatDate(issue.reportedAt)}

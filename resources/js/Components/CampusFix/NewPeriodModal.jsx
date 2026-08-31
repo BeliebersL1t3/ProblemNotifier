@@ -12,25 +12,99 @@ import {
 import { Input } from '@/Components/UI/Input';
 import { Label } from '@/Components/UI/Label';
 import { useIssues } from '@/context/IssuesContext';
+import { useAuth } from '@/hooks/useAuth';
+import { useLanguage } from '@/context/LanguageContext';
 
 export function NewPeriodModal({ open, onOpenChange, mode = 'dashboard' }) {
+    const { isAdmin } = useAuth();
+    const { lang } = useLanguage();
     const { createNewPeriod, deletePeriod, availableSheets, currentSheet, setCurrentSheet } = useIssues();
     const [name, setName] = useState(() => String(new Date().getFullYear()));
     const [isCreating, setIsCreating] = useState(false);
     const [deletingSheet, setDeletingSheet] = useState(null); // sheet name being deleted
     const [confirmDelete, setConfirmDelete] = useState(null); // sheet name awaiting confirmation
+    const [confirmWarning, setConfirmWarning] = useState(null); // date verification warning confirmation
     const [error, setError] = useState('');
     const [successMsg, setSuccessMsg] = useState('');
 
-    const handleCreate = async () => {
+    const checkDateWarning = (inputYear) => {
+        const trimmed = inputYear.trim();
+        if (!/^\d{4}$/.test(trimmed)) return null;
+
+        const targetYear = parseInt(trimmed, 10);
+        const now = new Date();
+        const currentYear = now.getFullYear();
+        const currentMonth = now.getMonth(); // 0 = Jan, 10 = Nov, 11 = Dec
+
+        const formattedToday = now.toLocaleDateString(lang === 'id' ? 'id-ID' : 'en-US', {
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric',
+        });
+
+        // Case 1: Next year (currentYear + 1), but device month is not late in the year (before Nov)
+        if (targetYear === currentYear + 1) {
+            if (currentMonth < 10) { // Jan - Oct
+                return {
+                    type: 'early_transition',
+                    targetYear,
+                    formattedToday,
+                    message: lang === 'id'
+                        ? `Tanggal perangkat Anda saat ini adalah ${formattedToday}. Saat ini belum memasuki akhir tahun (November - Desember) untuk pergantian periode ke tahun ${targetYear}.`
+                        : `Your device date is currently ${formattedToday}. It is not yet near the year-end transition period (November - December) to create period ${targetYear}.`,
+                };
+            }
+        }
+
+        // Case 2: Far future (> currentYear + 1)
+        if (targetYear > currentYear + 1) {
+            const diff = targetYear - currentYear;
+            return {
+                type: 'future_year',
+                targetYear,
+                formattedToday,
+                message: lang === 'id'
+                    ? `Tanggal perangkat Anda adalah ${formattedToday}. Periode tahun ${targetYear} berjarak ${diff} tahun di masa depan dari tahun saat ini (${currentYear}).`
+                    : `Your device date is ${formattedToday}. Period ${targetYear} is ${diff} years in the future from the current year (${currentYear}).`,
+            };
+        }
+
+        // Case 3: Past year (< currentYear)
+        if (targetYear < currentYear) {
+            return {
+                type: 'past_year',
+                targetYear,
+                formattedToday,
+                message: lang === 'id'
+                    ? `Tanggal perangkat Anda adalah ${formattedToday}. Periode tahun ${targetYear} adalah tahun yang sudah lewat dari tahun saat ini (${currentYear}).`
+                    : `Your device date is ${formattedToday}. Period ${targetYear} is in the past compared to the current year (${currentYear}).`,
+            };
+        }
+
+        return null;
+    };
+
+    const handleCreateClick = () => {
         const trimmed = name.trim();
-        if (!trimmed) return;
+        if (!trimmed || alreadyExists || isCreating) return;
+
+        const warning = checkDateWarning(trimmed);
+        if (warning) {
+            setConfirmWarning(warning);
+            return;
+        }
+
+        executeCreate(trimmed);
+    };
+
+    const executeCreate = async (periodName) => {
         setIsCreating(true);
         setError('');
         setSuccessMsg('');
+        setConfirmWarning(null);
         try {
-            await createNewPeriod(trimmed);
-            setSuccessMsg(`Period "${trimmed}" created and selected!`);
+            await createNewPeriod(periodName);
+            setSuccessMsg(`Period "${periodName}" created and selected!`);
             setTimeout(() => {
                 onOpenChange(false);
                 setSuccessMsg('');
@@ -74,15 +148,23 @@ export function NewPeriodModal({ open, onOpenChange, mode = 'dashboard' }) {
         : availableSheets;
 
     return (
-        <Dialog open={open} onOpenChange={(o) => { if (!isCreating && !deletingSheet) onOpenChange(o); }}>
+        <Dialog open={open} onOpenChange={(o) => { 
+            if (!isCreating && !deletingSheet) {
+                setConfirmWarning(null);
+                setError('');
+                onOpenChange(o); 
+            }
+        }}>
             <DialogContent className="sm:max-w-md">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
                         <Calendar className="h-5 w-5 text-primary" />
-                        Manage Periods & Sheets
+                        {isAdmin ? 'Manage Periods & Sheets' : 'Select Period & Sheets'}
                     </DialogTitle>
                     <DialogDescription>
-                        Create a new period or select/manage your active Google Sheet tabs.
+                        {isAdmin
+                            ? 'Create a new period or select/manage your active Google Sheet tabs.'
+                            : 'Select your active Google Sheet period tab.'}
                     </DialogDescription>
                 </DialogHeader>
 
@@ -100,33 +182,86 @@ export function NewPeriodModal({ open, onOpenChange, mode = 'dashboard' }) {
                         </div>
                     )}
 
-                    {/* Section 1 (TOP): Create New Period */}
-                    <div className="grid gap-2 bg-muted/20 p-4 rounded-xl border border-border/50">
-                        <Label htmlFor="periodName" className="font-bold text-sm">Create New Period</Label>
-                        <div className="flex gap-2">
-                            <Input
-                                id="periodName"
-                                value={name}
-                                onChange={(e) => setName(e.target.value)}
-                                placeholder={String(new Date().getFullYear())}
-                                disabled={isCreating || !!deletingSheet}
-                                onKeyDown={(e) => e.key === 'Enter' && !alreadyExists && handleCreate()}
-                                className="h-9"
-                            />
-                            <Button 
-                                onClick={handleCreate} 
-                                disabled={isCreating || !!deletingSheet || !name.trim() || alreadyExists} 
-                                size="sm"
-                                className="gap-1.5 shrink-0"
-                            >
-                                {isCreating ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarPlus className="h-4 w-4" />}
-                                {isCreating ? 'Creating…' : 'Create'}
-                            </Button>
+                    {/* Section 1 (TOP): Create New Period (Admins only) */}
+                    {isAdmin && (
+                        <div className="grid gap-2 bg-muted/20 p-4 rounded-xl border border-border/50">
+                            <Label htmlFor="periodName" className="font-bold text-sm">Create New Period</Label>
+                            <div className="flex gap-2">
+                                <Input
+                                    id="periodName"
+                                    value={name}
+                                    onChange={(e) => {
+                                        setName(e.target.value);
+                                        if (confirmWarning) setConfirmWarning(null);
+                                    }}
+                                    placeholder={String(new Date().getFullYear())}
+                                    disabled={isCreating || !!deletingSheet}
+                                    onKeyDown={(e) => e.key === 'Enter' && !alreadyExists && handleCreateClick()}
+                                    className="h-9"
+                                />
+                                <Button 
+                                    onClick={handleCreateClick} 
+                                    disabled={isCreating || !!deletingSheet || !name.trim() || alreadyExists} 
+                                    size="sm"
+                                    className="gap-1.5 shrink-0"
+                                >
+                                    {isCreating ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarPlus className="h-4 w-4" />}
+                                    {isCreating ? 'Creating…' : 'Create'}
+                                </Button>
+                            </div>
+                            {alreadyExists && (
+                                <p className="text-xs text-destructive">A period named "{name.trim()}" already exists.</p>
+                            )}
+
+                            {/* Date Verification / Year Transition Confirmation Box */}
+                            {confirmWarning && (
+                                <div className="mt-2 p-3.5 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-200 text-xs space-y-2.5 animate-in fade-in-50 duration-200">
+                                    <div className="flex items-start gap-2 text-amber-400 font-semibold">
+                                        <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                                        <div>
+                                            <div className="font-bold text-amber-300">
+                                                {lang === 'id' ? 'Konfirmasi Pengecekan Tanggal' : 'Date Verification Warning'}
+                                            </div>
+                                            <div className="text-[11px] text-amber-300/80 font-normal mt-0.5">
+                                                📅 {lang === 'id' ? 'Tanggal Perangkat:' : 'Device Date:'} <span className="font-semibold text-amber-200">{confirmWarning.formattedToday}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <p className="text-amber-100/90 leading-relaxed">
+                                        {confirmWarning.message}
+                                    </p>
+
+                                    <p className="text-amber-300 font-medium text-[11px]">
+                                        {lang === 'id' ? 'Apakah Anda yakin tetap ingin membuat periode tahun ini?' : 'Are you sure you still want to create this year period?'}
+                                    </p>
+
+                                    <div className="flex justify-end gap-2 pt-1">
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            variant="outline"
+                                            className="h-7 text-xs border-amber-500/30 text-amber-200 hover:bg-amber-500/20 hover:text-white"
+                                            onClick={() => setConfirmWarning(null)}
+                                            disabled={isCreating}
+                                        >
+                                            {lang === 'id' ? 'Batal' : 'Cancel'}
+                                        </Button>
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            className="h-7 text-xs bg-amber-600 hover:bg-amber-500 text-white font-bold gap-1 shadow-sm"
+                                            onClick={() => executeCreate(name.trim())}
+                                            disabled={isCreating}
+                                        >
+                                            {isCreating ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                                            {lang === 'id' ? `Tetap Buat (${confirmWarning.targetYear})` : `Create Anyway (${confirmWarning.targetYear})`}
+                                        </Button>
+                                    </div>
+                                </div>
+                            )}
                         </div>
-                        {alreadyExists && (
-                            <p className="text-xs text-destructive">A period named "{name.trim()}" already exists.</p>
-                        )}
-                    </div>
+                    )}
 
                     {/* Section 2 (BELOW): Select / Manage Existing Sheets */}
                     <div className="space-y-2">
@@ -167,7 +302,7 @@ export function NewPeriodModal({ open, onOpenChange, mode = 'dashboard' }) {
                                                 )}
                                             </button>
 
-                                            {!isAll && !isConfirmingThis && (
+                                            {!isAll && isAdmin && !isConfirmingThis && (
                                                 <Button
                                                     variant="ghost"
                                                     size="sm"
@@ -184,8 +319,8 @@ export function NewPeriodModal({ open, onOpenChange, mode = 'dashboard' }) {
                                             )}
                                         </div>
 
-                                        {/* Confirmation box when delete icon is clicked */}
-                                        {isConfirmingThis && (
+                                        {/* Confirmation box when delete icon is clicked (Admins only) */}
+                                        {isAdmin && isConfirmingThis && (
                                             <div className="mt-2 p-3 rounded-lg bg-destructive/10 border border-destructive/30 space-y-2 text-xs">
                                                 <div className="flex items-start gap-1.5 text-destructive font-medium">
                                                     <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />

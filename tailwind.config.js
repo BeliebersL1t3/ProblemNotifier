@@ -58,6 +58,10 @@ export default {
                     DEFAULT: 'var(--status-progress)',
                     foreground: 'var(--status-progress-foreground)',
                 },
+                'status-pending': {
+                    DEFAULT: 'var(--status-pending)',
+                    foreground: 'var(--status-pending-foreground)',
+                },
                 'status-solved': {
                     DEFAULT: 'var(--status-solved)',
                     foreground: 'var(--status-solved-foreground)',

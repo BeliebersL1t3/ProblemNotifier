@@ -21,9 +21,13 @@ import {
 import { useIssues } from '@/context/IssuesContext';
 import { Loader2, AlertTriangle } from 'lucide-react';
 import { ALL_DEPARTMENTS, getStaffForDepartment } from '@/constants/staff';
+import { getDepartmentTheme } from '@/constants/departments';
+import { useAuth } from '@/hooks/useAuth';
+import { useEffect } from 'react';
 
 export function EmergencyIssueModal({ open, onOpenChange }) {
     const { addIssue } = useIssues();
+    const { isDeptUser, department, staffName } = useAuth();
     const [originDept, setOriginDept] = useState('');
     const [reporter, setReporter] = useState('');
     const [title, setTitle] = useState('');
@@ -32,6 +36,15 @@ export function EmergencyIssueModal({ open, onOpenChange }) {
     const [description, setDescription] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [errorMsg, setErrorMsg] = useState('');
+
+    useEffect(() => {
+        if (open) {
+            if (isDeptUser && department) {
+                setOriginDept(department);
+                if (staffName) setReporter(staffName);
+            }
+        }
+    }, [open, isDeptUser, department, staffName]);
 
     const staffForOriginDept = useMemo(() => {
         if (!originDept) return [];
@@ -51,8 +64,8 @@ export function EmergencyIssueModal({ open, onOpenChange }) {
     const valid = reporter.trim() && title.trim() && location.trim() && originDept;
 
     const reset = () => {
-        setOriginDept('');
-        setReporter('');
+        setOriginDept(isDeptUser && department ? department : '');
+        setReporter(isDeptUser && staffName ? staffName : '');
         setTitle('');
         setLocMain('');
         setLocDetail('');
@@ -118,16 +131,31 @@ export function EmergencyIssueModal({ open, onOpenChange }) {
                         <Label htmlFor="sos-originDept" className="text-red-300 font-semibold flex items-center gap-1.5">
                             🏠 1. Origin Department (Your Dept) <span className="text-xs text-red-400">*</span>
                         </Label>
-                        <Select value={originDept} onValueChange={handleOriginDeptChange} disabled={isSubmitting}>
-                            <SelectTrigger id="sos-originDept" className="border-red-900/50 bg-black/60 text-white focus-visible:ring-red-500">
-                                <SelectValue placeholder="-- Select Your Department --" />
-                            </SelectTrigger>
-                            <SelectContent className="bg-zinc-900 text-white border-zinc-800">
-                                {ALL_DEPARTMENTS.map((dept) => (
-                                    <SelectItem key={dept} value={dept}>{dept}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
+                        {isDeptUser && originDept ? (
+                            <div className="flex items-center gap-2.5 p-2.5 rounded-lg bg-black/60 border border-red-900/50">
+                                <span className="text-xs font-bold text-red-400">🔒 {originDept}</span>
+                                <span 
+                                    className="px-2.5 py-0.5 rounded text-[11px] font-extrabold uppercase shadow-xs"
+                                    style={{ 
+                                        backgroundColor: getDepartmentTheme(originDept).bg, 
+                                        color: getDepartmentTheme(originDept).text 
+                                    }}
+                                >
+                                    {originDept}
+                                </span>
+                            </div>
+                        ) : (
+                            <Select value={originDept} onValueChange={handleOriginDeptChange} disabled={isSubmitting}>
+                                <SelectTrigger id="sos-originDept" className="border-red-900/50 bg-black/60 text-white focus-visible:ring-red-500">
+                                    <SelectValue placeholder="-- Select Your Department --" />
+                                </SelectTrigger>
+                                <SelectContent className="bg-zinc-900 text-white border-zinc-800">
+                                    {ALL_DEPARTMENTS.map((dept) => (
+                                        <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        )}
                     </div>
 
                     {/* Step 2: Submitter Name */}
@@ -143,7 +171,16 @@ export function EmergencyIssueModal({ open, onOpenChange }) {
                             )}
                         </div>
 
-                        {originDept ? (
+                        {isDeptUser && (staffName || reporter) ? (
+                            <div className="flex items-center justify-between p-2.5 rounded-lg bg-black/60 border border-red-900/50">
+                                <span className="text-xs font-bold text-red-300 flex items-center gap-1.5">
+                                    <span>🔒</span> {staffName || reporter}
+                                </span>
+                                <span className="text-[11px] text-red-400/80 font-medium">
+                                    Terkunci ke akun Anda
+                                </span>
+                            </div>
+                        ) : originDept ? (
                             staffForOriginDept.length > 0 ? (
                                 <div className="flex flex-wrap gap-2 pt-1">
                                     {staffForOriginDept.map(name => (

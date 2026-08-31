@@ -41,6 +41,178 @@ class ProfileController extends Controller
     }
 
     /**
+     * Update user's WhatsApp number.
+     */
+    public function updateWhatsApp(Request $request): RedirectResponse
+    {
+        $request->validate([
+            'whatsapp_number' => ['nullable', 'string', 'max:30'],
+        ]);
+
+        $user = $request->user();
+        $rawPhone = trim($request->input('whatsapp_number', ''));
+
+        if (!empty($rawPhone)) {
+            // Normalize: remove non-digits
+            $clean = preg_replace('/[^0-9]/', '', $rawPhone);
+            if (str_starts_with($clean, '0')) {
+                $clean = '62' . substr($clean, 1);
+            } elseif (str_starts_with($clean, '8')) {
+                $clean = '62' . $clean;
+            }
+
+            // Check if phone number is already registered to another user
+            $conflict = \App\Models\User::where('whatsapp_number', $clean)
+                ->where('id', '!=', $user->id)
+                ->first();
+
+            if ($conflict) {
+                return Redirect::back()->withErrors([
+                    'whatsapp_number' => "Nomor WhatsApp ini sudah digunakan oleh akun {$conflict->name} ({$conflict->department})."
+                ]);
+            }
+
+            $user->whatsapp_number = $clean;
+        } else {
+            $user->whatsapp_number = null;
+        }
+
+        $user->save();
+
+        // Notify WhatsApp bot to sync staff memory in real-time
+        try {
+            \Illuminate\Support\Facades\Http::timeout(1)->post('http://localhost:3000/sync-staff');
+        } catch (\Exception $e) {}
+
+        return Redirect::route('profile.edit')->with('status', 'whatsapp-updated');
+    }
+
+    /**
+     * API endpoint: Return staff directory of registered WhatsApp numbers for the bot.
+     */
+    public function staffDirectory()
+    {
+        $users = \App\Models\User::whereNotNull('whatsapp_number')
+            ->select('id', 'name', 'staff_name', 'department', 'subdivision', 'role', 'whatsapp_number')
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'data' => $users,
+        ]);
+    }
+
+    /**
+     * API endpoint: Link WhatsApp phone number to matching User from WhatsApp claiming.
+     */
+    public function linkStaffFromWhatsApp(Request $request)
+    {
+        $staffName = trim($request->input('staff_name', ''));
+        $department = trim($request->input('department', ''));
+        $rawPhone = trim($request->input('whatsapp_number', ''));
+
+        if (empty($rawPhone)) {
+            return response()->json(['success' => false, 'message' => 'Phone required'], 400);
+        }
+
+        $cleanPhone = preg_replace('/[^0-9]/', '', $rawPhone);
+        if (str_starts_with($cleanPhone, '0')) {
+            $cleanPhone = '62' . substr($cleanPhone, 1);
+        }
+
+        // First find user matching department AND staff_name
+        $query = \App\Models\User::query();
+        if (!empty($department)) {
+            $query->where(function($q) use ($department) {
+                $q->where('department', 'like', "%{$department}%")
+                  ->orWhere('name', 'like', "%{$department}%");
+            });
+        }
+
+        // Try to match staffName
+        $cleanStaff = preg_replace('/[^a-zA-Z0-9]/', '', $staffName);
+        $firstName = explode(' ', trim($staffName))[0] ?? '';
+        $matchedUser = (clone $query)->where(function($q) use ($staffName, $firstName, $cleanStaff) {
+            $q->where('staff_name', 'like', "%{$staffName}%")
+              ->orWhere('name', 'like', "%{$staffName}%")
+              ->orWhere('staff_name', 'like', "%{$firstName}%")
+              ->orWhere('name', 'like', "%{$firstName}%");
+        })->first();
+
+        // Fallback: match first user of that department if specific name not found
+        if (!$matchedUser && !empty($department)) {
+            $matchedUser = $query->first();
+        }
+
+        if ($matchedUser) {
+            // Anti-Impersonation: If account is already linked to another WhatsApp number, reject overwrite!
+            if (!empty($matchedUser->whatsapp_number) && $matchedUser->whatsapp_number !== $cleanPhone) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "Akun {$matchedUser->name} sudah terdaftar untuk nomor WhatsApp lain (+{$matchedUser->whatsapp_number})."
+                ], 403);
+            }
+
+            // Unlink any other user who had this phone number to prevent duplicates
+            \App\Models\User::where('whatsapp_number', $cleanPhone)
+                ->where('id', '!=', $matchedUser->id)
+                ->update(['whatsapp_number' => null]);
+
+            $matchedUser->whatsapp_number = $cleanPhone;
+            $matchedUser->save();
+
+            return response()->json([
+                'success' => true,
+                'message' => "Linked phone to user {$matchedUser->name} ({$matchedUser->department})",
+                'user' => [
+                    'id' => $matchedUser->id,
+                    'name' => $matchedUser->name,
+                    'department' => $matchedUser->department,
+                    'whatsapp_number' => $matchedUser->whatsapp_number,
+                ]
+            ]);
+        }
+
+        return response()->json(['success' => false, 'message' => 'No matching user found'], 404);
+    }
+
+    /**
+     * API endpoint: Reset password for a verified WhatsApp linked user.
+     */
+    public function resetPasswordViaWhatsApp(Request $request)
+    {
+        $userId = $request->input('user_id');
+        $rawPhone = trim($request->input('whatsapp_number', ''));
+        $cleanPhone = preg_replace('/[^0-9]/', '', $rawPhone);
+        if (str_starts_with($cleanPhone, '0')) {
+            $cleanPhone = '62' . substr($cleanPhone, 1);
+        }
+
+        $user = null;
+        if (!empty($userId)) {
+            $user = \App\Models\User::find($userId);
+        }
+        if (!$user && !empty($cleanPhone)) {
+            $user = \App\Models\User::where('whatsapp_number', $cleanPhone)->first();
+        }
+
+        if (!$user) {
+            return response()->json(['success' => false, 'message' => 'Akun tidak ditemukan atau nomor WhatsApp belum ditautkan.'], 404);
+        }
+
+        // Return current actual password without modifying/resetting it
+        $currentPassword = $user->raw_password ?: 'telunas123';
+
+        return response()->json([
+            'success'    => true,
+            'name'       => $user->staff_name ?: $user->name,
+            'email'      => $user->email,
+            'department' => $user->department,
+            'password'   => $currentPassword,
+        ]);
+    }
+
+    /**
      * Delete the user's account.
      */
     public function destroy(Request $request): RedirectResponse

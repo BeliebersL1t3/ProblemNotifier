@@ -3,6 +3,8 @@
 namespace App\Services;
 
 use Google\Client;
+use Google\Service\Calendar as GoogleCalendar;
+use Google\Service\Calendar\Event as GoogleCalendarEvent;
 use Google\Service\Drive;
 use Google\Service\Drive\DriveFile;
 use Google\Service\Drive\Permission;
@@ -11,32 +13,40 @@ use Google\Service\Sheets\ValueRange;
 use Google\Service\Sheets\BatchUpdateValuesRequest;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 
 class GoogleService
 {
     private Client $client;
     private Drive $drive;
     private Sheets $sheets;
+    private ?GoogleCalendar $calendar = null;
     private string $spreadsheetId;
+    private string $opsSpreadsheetId;
     private string $folderId;
+    private string $calendarId;
     private string $sheetName = 'Sheet1';
 
     public function __construct()
     {
         $this->client = new Client();
         $this->client->setAuthConfig(storage_path(config('services.google.credentials_path')));
-        $this->client->addScope([Drive::DRIVE, Sheets::SPREADSHEETS]);
+        $this->client->addScope([Drive::DRIVE, Sheets::SPREADSHEETS, GoogleCalendar::CALENDAR]);
 
-        $this->drive         = new Drive($this->client);
-        $this->sheets        = new Sheets($this->client);
-        $this->spreadsheetId = config('services.google.spreadsheet_id');
-        $this->folderId      = config('services.google.drive_folder_id');
+        $this->drive            = new Drive($this->client);
+        $this->sheets           = new Sheets($this->client);
+        $this->calendar         = new GoogleCalendar($this->client);
+        $this->spreadsheetId    = (string) (config('services.google.spreadsheet_id') ?: env('GOOGLE_SPREADSHEET_ID', ''));
+        $this->opsSpreadsheetId = (string) (config('services.google.ops_spreadsheet_id') ?: (env('GOOGLE_OPS_SPREADSHEET_ID') ?: $this->spreadsheetId));
+        $this->folderId         = (string) (config('services.google.drive_folder_id') ?: env('GOOGLE_DRIVE_FOLDER_ID', ''));
+        $this->calendarId       = (string) (config('services.google.calendar_id') ?: env('GOOGLE_CALENDAR_ID', ''));
     }
 
     /** Clear local cache for sheets list or rows. */
     public function clearCache(?string $sheetName = null): void
     {
         Cache::forget('google_sheets_list');
+        Cache::forget('google_ops_sheets_list');
         $targetSheet = $sheetName ?? $this->sheetName;
         Cache::forget("google_sheet_rows_{$targetSheet}");
     }
@@ -54,8 +64,8 @@ class GoogleService
     }
 
     /**
-     * List all sheet tab names in the spreadsheet, ordered by position.
-     * Returns an array like ['Sheet1', '2026', '2027']
+     * List all main issue sheet tab names (e.g. 'Sheet1', '2026', '2027').
+     * Strictly filters out any 'Ops_' department tabs.
      */
     public function listSheets(bool $forceRefresh = false): array
     {
@@ -68,13 +78,43 @@ class GoogleService
                 $spreadsheet = $this->sheets->spreadsheets->get($this->spreadsheetId);
                 $names = [];
                 foreach ($spreadsheet->getSheets() as $sheet) {
-                    $names[] = $sheet->getProperties()->getTitle();
+                    $title = $sheet->getProperties()->getTitle();
+                    if (str_starts_with($title, 'Ops_')) {
+                        continue;
+                    }
+                    $names[] = $title;
                 }
                 return $names;
             });
         } catch (\Throwable $e) {
             if (Cache::has('google_sheets_list')) {
                 return Cache::get('google_sheets_list');
+            }
+            throw $e;
+        }
+    }
+
+    /**
+     * List sheet tabs in the Operations spreadsheet.
+     */
+    public function listOpsSheets(bool $forceRefresh = false): array
+    {
+        if ($forceRefresh) {
+            Cache::forget('google_ops_sheets_list');
+        }
+
+        try {
+            return Cache::remember('google_ops_sheets_list', 60, function () {
+                $spreadsheet = $this->sheets->spreadsheets->get($this->opsSpreadsheetId);
+                $names = [];
+                foreach ($spreadsheet->getSheets() as $sheet) {
+                    $names[] = $sheet->getProperties()->getTitle();
+                }
+                return $names;
+            });
+        } catch (\Throwable $e) {
+            if (Cache::has('google_ops_sheets_list')) {
+                return Cache::get('google_ops_sheets_list');
             }
             throw $e;
         }
@@ -99,20 +139,20 @@ class GoogleService
 
         $this->sheets->spreadsheets->batchUpdate($this->spreadsheetId, $batchReq);
 
-        // 2. Write the header row to the new sheet
+        // 2. Write the header row to the new sheet (25 columns: A to Y)
         $headers = [[
             'ID', 'Title', 'Description', 'Location', 'Category',
             'Status', 'Reporter', 'Submitted At', 'Image URL',
             'Taker', 'Taken At', 'Solver', 'Solved At',
             'Fix Description', 'Proof Image URL', 'Duration',
             'Priority', 'Deadline', 'Pending Reason', 'Pending By',
-            'Pending Image URL', 'Tagged Departments', 'Origin Department', 'Assigned Department'
+            'Pending Image URL', 'Tagged Departments', 'Origin Department', 'Assigned Department', 'Edit Logs'
         ]];
 
         $body = new ValueRange(['values' => $headers]);
         $this->sheets->spreadsheets_values->update(
             $this->spreadsheetId,
-            "{$name}!A1:X1",
+            "{$name}!A1:Y1",
             $body,
             ['valueInputOption' => 'RAW']
         );
@@ -187,7 +227,7 @@ class GoogleService
             }
         } catch (\Throwable $e) {}
 
-        // 1. Set Text Wrap and Top Vertical Alignment for all cells (24 columns: A to X)
+        // 1. Set Text Wrap and Top Vertical Alignment for all cells (25 columns: A to Y)
         $requests[] = new \Google\Service\Sheets\Request([
             'repeatCell' => [
                 'range' => [
@@ -195,7 +235,7 @@ class GoogleService
                     'startRowIndex'    => 0,
                     'endRowIndex'      => 1000,
                     'startColumnIndex' => 0,
-                    'endColumnIndex'   => 24,
+                    'endColumnIndex'   => 25,
                 ],
                 'cell' => [
                     'userEnteredFormat' => [
@@ -207,7 +247,7 @@ class GoogleService
             ]
         ]);
 
-        // 2. Bold header row (24 columns: A to X)
+        // 2. Bold header row (25 columns: A to Y)
         $requests[] = new \Google\Service\Sheets\Request([
             'repeatCell' => [
                 'range' => [
@@ -215,7 +255,7 @@ class GoogleService
                     'startRowIndex'    => 0,
                     'endRowIndex'      => 1,
                     'startColumnIndex' => 0,
-                    'endColumnIndex'   => 24,
+                    'endColumnIndex'   => 25,
                 ],
                 'cell'   => ['userEnteredFormat' => ['textFormat' => ['bold' => true]]],
                 'fields' => 'userEnteredFormat.textFormat.bold',
@@ -358,7 +398,7 @@ class GoogleService
         return null;
     }
 
-    /** Return all issue rows (skips header row 1), each padded to 24 columns. */
+    /** Return all issue rows (skips header row 1), each padded to 25 columns. */
     public function getRows(bool $forceRefresh = false): array
     {
         $cacheKey = "google_sheet_rows_{$this->sheetName}";
@@ -370,13 +410,13 @@ class GoogleService
             return Cache::remember($cacheKey, 20, function () {
                 $response = $this->sheets->spreadsheets_values->get(
                     $this->spreadsheetId,
-                    "{$this->sheetName}!A2:X"
+                    "{$this->sheetName}!A2:Y"
                 );
 
                 $values = $response->getValues() ?? [];
 
-                // Pad every row to 24 columns so missing trailing cells don't cause errors
-                return array_map(fn($row) => array_pad($row, 24, ''), $values);
+                // Pad every row to 25 columns so missing trailing cells don't cause errors
+                return array_map(fn($row) => array_pad($row, 25, ''), $values);
             });
         } catch (\Throwable $e) {
             if (Cache::has($cacheKey)) {
@@ -390,10 +430,10 @@ class GoogleService
     public function appendRow(array $values): ?int
     {
         $this->clearCache();
-        $body = new ValueRange(['values' => [array_pad($values, 24, '')]]);
+        $body = new ValueRange(['values' => [array_pad($values, 25, '')]]);
         $response = $this->sheets->spreadsheets_values->append(
             $this->spreadsheetId,
-            "{$this->sheetName}!A:X",
+            "{$this->sheetName}!A:Y",
             $body,
             ['valueInputOption' => 'RAW', 'insertDataOption' => 'INSERT_ROWS']
         );
@@ -627,6 +667,45 @@ class GoogleService
         $this->sheets->spreadsheets_values->batchUpdate($this->spreadsheetId, $body);
     }
 
+    /**
+     * Delete an issue row by 1-based row number.
+     */
+    public function deleteRow(int $rowIndex, ?string $sheetName = null): bool
+    {
+        $targetSheet = $sheetName ?? $this->sheetName;
+        $spreadsheet = $this->sheets->spreadsheets->get($this->spreadsheetId);
+        $sheetId = null;
+        foreach ($spreadsheet->getSheets() as $sheet) {
+            if ($sheet->getProperties()->getTitle() === $targetSheet) {
+                $sheetId = $sheet->getProperties()->getSheetId();
+                break;
+            }
+        }
+
+        if ($sheetId === null) {
+            return false;
+        }
+
+        $request = new \Google\Service\Sheets\Request([
+            'deleteDimension' => [
+                'range' => [
+                    'sheetId'    => $sheetId,
+                    'dimension'  => 'ROWS',
+                    'startIndex' => $rowIndex - 1, // 0-based inclusive
+                    'endIndex'   => $rowIndex,     // 0-based exclusive
+                ]
+            ]
+        ]);
+
+        $batchReq = new \Google\Service\Sheets\BatchUpdateSpreadsheetRequest([
+            'requests' => [$request]
+        ]);
+
+        $this->sheets->spreadsheets->batchUpdate($this->spreadsheetId, $batchReq);
+        $this->clearCache($targetSheet);
+        return true;
+    }
+
     /** Save image locally named after the Issue ID and return filename for Google Sheets. */
     public function uploadImage(UploadedFile $file, string $customName = ''): string
     {
@@ -652,4 +731,568 @@ class GoogleService
         // Return clean filename matching the Issue ID for Google Sheets
         return $filename;
     }
+
+    // =========================================================================
+    // OPERATIONS — Department Work Board (per-dept sheets)
+    // =========================================================================
+
+    /**
+     * Sheet name for a department's operations board.
+     * E.g. "Engineer" → "Ops_Engineer"
+     */
+    private function opsDeptSheet(string $dept): string
+    {
+        // Sanitize department name for sheet tab name
+        $safe = preg_replace('/[^a-zA-Z0-9\-_]/', '_', trim($dept));
+        return "Ops_{$safe}";
+    }
+
+    /**
+     * Headers for an Operations sheet.
+     */
+    private function opsHeaders(): array
+    {
+        return [[
+            'ID', 'Department', 'Title', 'Description', 'Location',
+            'Photo URL', 'Start Date', 'End Date', 'Priority',
+            'Status', 'Created At', 'Completed At', 'Created By', 'Notes',
+            'Google Event ID'
+        ]];
+    }
+
+    /**
+     * Ensure an Ops_<dept> sheet tab exists; create it if not.
+     */
+    /**
+     * Ensure an Ops_<dept> sheet tab exists in the Operations spreadsheet; create it if not.
+     */
+    public function ensureOpsDeptSheet(string $dept): string
+    {
+        $sheetName = $this->opsDeptSheet($dept);
+        $existing  = $this->listOpsSheets(true);
+
+        if (!in_array($sheetName, $existing, true)) {
+            // Create tab
+            $addReq = new \Google\Service\Sheets\Request([
+                'addSheet' => ['properties' => ['title' => $sheetName]]
+            ]);
+            $batch = new \Google\Service\Sheets\BatchUpdateSpreadsheetRequest(['requests' => [$addReq]]);
+            $this->sheets->spreadsheets->batchUpdate($this->opsSpreadsheetId, $batch);
+
+            // Write header row (14 columns A–N)
+            $body = new ValueRange(['values' => $this->opsHeaders()]);
+            $this->sheets->spreadsheets_values->update(
+                $this->opsSpreadsheetId,
+                "{$sheetName}!A1:N1",
+                $body,
+                ['valueInputOption' => 'RAW']
+            );
+
+            // Bold the header and set wrap
+            $spreadsheet = $this->sheets->spreadsheets->get($this->opsSpreadsheetId);
+            $newSheetId  = null;
+            foreach ($spreadsheet->getSheets() as $sheet) {
+                if ($sheet->getProperties()->getTitle() === $sheetName) {
+                    $newSheetId = $sheet->getProperties()->getSheetId();
+                    break;
+                }
+            }
+            if ($newSheetId !== null) {
+                $boldReq = new \Google\Service\Sheets\Request([
+                    'repeatCell' => [
+                        'range' => [
+                            'sheetId'          => $newSheetId,
+                            'startRowIndex'    => 0,
+                            'endRowIndex'      => 1,
+                            'startColumnIndex' => 0,
+                            'endColumnIndex'   => 14,
+                        ],
+                        'cell'   => ['userEnteredFormat' => ['textFormat' => ['bold' => true]]],
+                        'fields' => 'userEnteredFormat.textFormat.bold',
+                    ]
+                ]);
+                $wrapReq = new \Google\Service\Sheets\Request([
+                    'repeatCell' => [
+                        'range' => [
+                            'sheetId'          => $newSheetId,
+                            'startRowIndex'    => 0,
+                            'endRowIndex'      => 1000,
+                            'startColumnIndex' => 0,
+                            'endColumnIndex'   => 14,
+                        ],
+                        'cell'   => ['userEnteredFormat' => ['wrapStrategy' => 'WRAP', 'verticalAlignment' => 'TOP']],
+                        'fields' => 'userEnteredFormat(wrapStrategy,verticalAlignment)',
+                    ]
+                ]);
+                $fmtBatch = new \Google\Service\Sheets\BatchUpdateSpreadsheetRequest(['requests' => [$boldReq, $wrapReq]]);
+                $this->sheets->spreadsheets->batchUpdate($this->opsSpreadsheetId, $fmtBatch);
+            }
+
+            Cache::forget('google_ops_sheets_list');
+        }
+
+        return $sheetName;
+    }
+
+    /**
+     * Get all work items for a department. Returns array of associative arrays.
+     */
+    public function getOpsWorkItems(string $dept, bool $forceRefresh = false): array
+    {
+        $sheetName = $this->ensureOpsDeptSheet($dept);
+        $cacheKey  = "ops_rows_{$sheetName}";
+
+        if ($forceRefresh) {
+            Cache::forget($cacheKey);
+        }
+
+        return Cache::remember($cacheKey, 15, function () use ($sheetName) {
+            try {
+                $response = $this->sheets->spreadsheets_values->get(
+                    $this->opsSpreadsheetId,
+                    "{$sheetName}!A2:O"
+                );
+                $rows = $response->getValues() ?? [];
+            } catch (\Throwable $e) {
+                return [];
+            }
+
+            $items = [];
+            foreach ($rows as $idx => $row) {
+                $row = array_pad($row, 15, '');
+                if (empty($row[0])) continue; // Skip blank rows
+                $items[] = [
+                    'rowIndex'      => $idx + 2,
+                    'id'            => $row[0],
+                    'department'    => $row[1],
+                    'title'         => $row[2],
+                    'description'   => $row[3],
+                    'location'      => $row[4],
+                    'photoUrl'      => $row[5],
+                    'startDate'     => $row[6],
+                    'endDate'       => $row[7],
+                    'priority'      => $row[8] ?: 'normal',
+                    'status'        => $row[9] ?: 'active',
+                    'createdAt'     => $row[10],
+                    'completedAt'   => $row[11],
+                    'createdBy'     => $row[12],
+                    'notes'         => $row[13],
+                    'googleEventId' => $row[14],
+                ];
+            }
+            return $items;
+        });
+    }
+
+    /**
+     * Get all work items across all department sheets in ONE single batch request (batchGet).
+     */
+    public function getAllOpsWorkItems(bool $forceRefresh = false): array
+    {
+        $cacheKey = 'ops_all_work_items';
+        if ($forceRefresh) {
+            Cache::forget($cacheKey);
+        }
+
+        return Cache::remember($cacheKey, 30, function () {
+            try {
+                $opsSheets = $this->listOpsSheets(false);
+                $deptSheets = array_values(array_filter($opsSheets, fn($s) => str_starts_with($s, 'Ops_') && $s !== 'Ops_Sheet1'));
+
+                if (empty($deptSheets)) {
+                    return [];
+                }
+
+                $ranges = array_map(fn($s) => "{$s}!A2:O", $deptSheets);
+
+                $batchResponse = $this->sheets->spreadsheets_values->batchGet(
+                    $this->opsSpreadsheetId,
+                    ['ranges' => $ranges]
+                );
+
+                $valueRanges = $batchResponse->getValueRanges() ?? [];
+                $allItems = [];
+
+                foreach ($valueRanges as $vr) {
+                    $rangeName = $vr->getRange();
+                    $sheetTitle = explode('!', $rangeName)[0];
+                    $sheetTitle = trim($sheetTitle, "'");
+                    $deptName = str_starts_with($sheetTitle, 'Ops_') ? substr($sheetTitle, 4) : $sheetTitle;
+
+                    $rows = $vr->getValues() ?? [];
+                    foreach ($rows as $idx => $row) {
+                        $row = array_pad($row, 15, '');
+                        if (empty($row[0])) continue;
+                        $allItems[] = [
+                            'rowIndex'      => $idx + 2,
+                            'id'            => $row[0],
+                            'department'    => $row[1] ?: $deptName,
+                            'title'         => $row[2],
+                            'description'   => $row[3],
+                            'location'      => $row[4],
+                            'photoUrl'      => $row[5],
+                            'startDate'     => $row[6],
+                            'endDate'       => $row[7],
+                            'priority'      => $row[8] ?: 'normal',
+                            'status'        => $row[9] ?: 'active',
+                            'createdAt'     => $row[10],
+                            'completedAt'   => $row[11],
+                            'createdBy'     => $row[12],
+                            'notes'         => $row[13],
+                            'googleEventId' => $row[14],
+                        ];
+                    }
+                }
+
+                return $allItems;
+            } catch (\Throwable $e) {
+                return Cache::get('ops_all_work_items', []);
+            }
+        });
+    }
+
+    /**
+     * Append a new work item to the department's Ops sheet and sync with Google Calendar.
+     */
+    public function appendOpsWorkItem(string $dept, array $data): string
+    {
+        $sheetName = $this->ensureOpsDeptSheet($dept);
+        $id        = 'ops-' . uniqid();
+        $now       = now()->toIso8601String();
+
+        // Attempt Google Calendar Sync
+        $taskToSync = array_merge($data, [
+            'department' => $dept,
+            'status'     => 'active',
+        ]);
+        $googleEventId = $this->syncOpsTaskToCalendar($taskToSync);
+
+        $row = [
+            $id,
+            $dept,
+            $data['title']       ?? '',
+            $data['description'] ?? '',
+            $data['location']    ?? '',
+            $data['photoUrl']    ?? '',
+            $data['startDate']   ?? '',
+            $data['endDate']     ?? '',
+            $data['priority']    ?? 'normal',
+            'active',
+            $now,
+            '',
+            $data['createdBy']   ?? 'Admin',
+            $data['notes']       ?? '',
+            $googleEventId       ?: '',
+        ];
+
+        $body = new ValueRange(['values' => [array_pad($row, 15, '')]]);
+        $this->sheets->spreadsheets_values->append(
+            $this->opsSpreadsheetId,
+            "{$sheetName}!A:O",
+            $body,
+            ['valueInputOption' => 'RAW', 'insertDataOption' => 'INSERT_ROWS']
+        );
+
+        Cache::forget("ops_rows_{$sheetName}");
+        return $id;
+    }
+
+    /**
+     * Update a work item's status and sync changes to Google Calendar.
+     */
+    public function updateOpsWorkItem(string $dept, int $rowIndex, array $fields): void
+    {
+        $sheetName = $this->ensureOpsDeptSheet($dept);
+
+        // Fetch current row to merge
+        $response = $this->sheets->spreadsheets_values->get(
+            $this->opsSpreadsheetId,
+            "{$sheetName}!A{$rowIndex}:O{$rowIndex}"
+        );
+        $existing = array_pad($response->getValues()[0] ?? [], 15, '');
+
+        // Merge changed fields
+        if (array_key_exists('title', $fields))       $existing[2]  = $fields['title'];
+        if (array_key_exists('description', $fields)) $existing[3]  = $fields['description'];
+        if (array_key_exists('location', $fields))    $existing[4]  = $fields['location'];
+        if (array_key_exists('photoUrl', $fields))    $existing[5]  = $fields['photoUrl'];
+        if (array_key_exists('startDate', $fields))   $existing[6]  = $fields['startDate'];
+        if (array_key_exists('endDate', $fields))     $existing[7]  = $fields['endDate'];
+        if (array_key_exists('priority', $fields))    $existing[8]  = $fields['priority'];
+        if (array_key_exists('status', $fields))      $existing[9]  = $fields['status'];
+        if (array_key_exists('completedAt', $fields)) $existing[11] = $fields['completedAt'];
+        if (array_key_exists('notes', $fields))       $existing[13] = $fields['notes'];
+
+        // Sync with Google Calendar
+        $taskToSync = [
+            'department'    => $existing[1] ?: $dept,
+            'title'         => $existing[2],
+            'description'   => $existing[3],
+            'location'      => $existing[4],
+            'startDate'     => $existing[6],
+            'endDate'       => $existing[7],
+            'priority'      => $existing[8],
+            'status'        => $existing[9],
+            'createdBy'     => $existing[12],
+            'notes'         => $existing[13],
+            'googleEventId' => $existing[14] ?? '',
+        ];
+
+        $syncedEventId = $this->syncOpsTaskToCalendar($taskToSync);
+        if (!empty($syncedEventId)) {
+            $existing[14] = $syncedEventId;
+        }
+
+        $body = new ValueRange(['values' => [$existing]]);
+        $this->sheets->spreadsheets_values->update(
+            $this->opsSpreadsheetId,
+            "{$sheetName}!A{$rowIndex}:O{$rowIndex}",
+            $body,
+            ['valueInputOption' => 'RAW']
+        );
+
+        Cache::forget("ops_rows_{$sheetName}");
+    }
+
+    /**
+     * Delete a work item row and remove event from Google Calendar.
+     */
+    public function deleteOpsWorkItem(string $dept, int $rowIndex): void
+    {
+        $sheetName = $this->ensureOpsDeptSheet($dept);
+
+        // Fetch row first to get googleEventId if exists
+        try {
+            $response = $this->sheets->spreadsheets_values->get(
+                $this->opsSpreadsheetId,
+                "{$sheetName}!A{$rowIndex}:O{$rowIndex}"
+            );
+            $row = array_pad($response->getValues()[0] ?? [], 15, '');
+            $googleEventId = trim($row[14] ?? '');
+            if (!empty($googleEventId)) {
+                $this->deleteCalendarEvent($googleEventId);
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Failed to fetch event ID before delete: ' . $e->getMessage());
+        }
+
+        // Get sheet numeric ID
+        $spreadsheet = $this->sheets->spreadsheets->get($this->opsSpreadsheetId);
+        $sheetId     = null;
+        foreach ($spreadsheet->getSheets() as $sheet) {
+            if ($sheet->getProperties()->getTitle() === $sheetName) {
+                $sheetId = $sheet->getProperties()->getSheetId();
+                break;
+            }
+        }
+        if ($sheetId === null) return;
+
+        $req = new \Google\Service\Sheets\Request([
+            'deleteDimension' => [
+                'range' => [
+                    'sheetId'    => $sheetId,
+                    'dimension'  => 'ROWS',
+                    'startIndex' => $rowIndex - 1, // 0-based
+                    'endIndex'   => $rowIndex,
+                ]
+            ]
+        ]);
+        $batch = new \Google\Service\Sheets\BatchUpdateSpreadsheetRequest(['requests' => [$req]]);
+        $this->sheets->spreadsheets->batchUpdate($this->opsSpreadsheetId, $batch);
+
+        Cache::forget("ops_rows_{$sheetName}");
+    }
+
+    /**
+     * Create or update an event in Google Calendar.
+     */
+    public function syncOpsTaskToCalendar(array $task): ?string
+    {
+        if (empty($this->calendarId) || !$this->calendar) {
+            return null;
+        }
+
+        try {
+            // Determine start & end date
+            $startDate = !empty($task['startDate']) ? substr($task['startDate'], 0, 10) : date('Y-m-d');
+            $endDate   = !empty($task['endDate']) ? substr($task['endDate'], 0, 10) : $startDate;
+
+            // Google Calendar all-day event end date is exclusive (so +1 day to cover all of $endDate)
+            $exclusiveEndDate = date('Y-m-d', strtotime($endDate . ' +1 day'));
+
+            $dept     = $task['department'] ?? 'Ops';
+            $title    = $task['title'] ?? 'Tugas Operasional';
+            $summary  = "[{$dept}] {$title}";
+
+            $descParts = [];
+            if (!empty($task['department']))  $descParts[] = "🏢 Department: " . $task['department'];
+            if (!empty($task['location']))    $descParts[] = "📍 Location: " . $task['location'];
+            if (!empty($task['priority']))    $descParts[] = "⚡ Priority: " . ucfirst($task['priority']);
+            if (!empty($task['status']))      $descParts[] = "📌 Status: " . ucfirst($task['status']);
+            if (!empty($task['createdBy']))   $descParts[] = "👤 Created By: " . $task['createdBy'];
+
+            if (!empty($task['description'])) {
+                $descParts[] = "\n📝 Description:\n" . $task['description'];
+            }
+
+            $parsedNotes = $this->parseNotesAndRanges($task['notes'] ?? '');
+            if (!empty($parsedNotes['formattedRanges'])) {
+                $descParts[] = "\n📅 Schedule Blocks:\n" . $parsedNotes['formattedRanges'];
+            }
+            if (!empty($parsedNotes['cleanNotes'])) {
+                $descParts[] = "\n📋 Notes:\n" . $parsedNotes['cleanNotes'];
+            }
+
+            // Department color mapping in Google Calendar (1-11)
+            $colorId = $this->getDepartmentColorId($dept);
+
+            $eventData = [
+                'summary'     => $summary,
+                'location'    => $task['location'] ?? '',
+                'description' => implode("\n", $descParts),
+                'start'       => ['date' => $startDate],
+                'end'         => ['date' => $exclusiveEndDate],
+                'colorId'     => $colorId,
+            ];
+
+            $event = new GoogleCalendarEvent($eventData);
+
+            $existingEventId = trim($task['googleEventId'] ?? '');
+            if (!empty($existingEventId)) {
+                try {
+                    $updated = $this->calendar->events->patch($this->calendarId, $existingEventId, $event);
+                    return $updated->getId();
+                } catch (\Google\Service\Exception $e) {
+                    if ($e->getCode() === 404) {
+                        // Event was deleted externally in Google Calendar, recreate it
+                        $created = $this->calendar->events->insert($this->calendarId, $event);
+                        return $created->getId();
+                    }
+                    throw $e;
+                }
+            } else {
+                $created = $this->calendar->events->insert($this->calendarId, $event);
+                return $created->getId();
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Google Calendar sync error: ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Delete an event from Google Calendar.
+     */
+    public function deleteCalendarEvent(?string $eventId): void
+    {
+        if (empty($this->calendarId) || empty($eventId) || !$this->calendar) {
+            return;
+        }
+
+        try {
+            $this->calendar->events->delete($this->calendarId, trim($eventId));
+        } catch (\Throwable $e) {
+            Log::warning('Google Calendar delete error: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Sync all existing ops tasks across all departments to Google Calendar (backfill/sync).
+     */
+    public function syncAllToGoogleCalendar(): array
+    {
+        if (empty($this->calendarId) || !$this->calendar) {
+            return ['synced' => 0, 'message' => 'GOOGLE_CALENDAR_ID not configured'];
+        }
+
+        $allTasks = $this->getAllOpsWorkItems(true);
+        $count = 0;
+
+        foreach ($allTasks as $task) {
+            if (empty($task['title']) || empty($task['department'])) continue;
+
+            $eventId = $this->syncOpsTaskToCalendar($task);
+            if (!empty($eventId) && (empty($task['googleEventId']) || $task['googleEventId'] !== $eventId)) {
+                try {
+                    $sheetName = $this->ensureOpsDeptSheet($task['department']);
+                    $rowIndex  = $task['rowIndex'];
+                    $body = new ValueRange(['values' => [[$eventId]]]);
+                    $this->sheets->spreadsheets_values->update(
+                        $this->opsSpreadsheetId,
+                        "{$sheetName}!O{$rowIndex}:O{$rowIndex}",
+                        $body,
+                        ['valueInputOption' => 'RAW']
+                    );
+                } catch (\Throwable $e) {
+                    Log::warning('Failed to update event ID in sheet: ' . $e->getMessage());
+                }
+            }
+            $count++;
+        }
+
+        Cache::forget('ops_all_work_items');
+        return ['synced' => $count, 'message' => "Successfully synchronized {$count} tasks to Google Calendar"];
+    }
+
+    /**
+     * Parse and sanitize notes field, converting raw [SCHEDULE_RANGES: ...] into clean formatted blocks.
+     */
+    private function parseNotesAndRanges(?string $rawNotes): array
+    {
+        if (empty($rawNotes)) {
+            return ['cleanNotes' => '', 'formattedRanges' => ''];
+        }
+
+        $rangesStr = '';
+        $cleanNotes = $rawNotes;
+
+        if (preg_match('/\[SCHEDULE_RANGES:\s*(\[.*?\])\s*\]/s', $rawNotes, $matches)) {
+            $json = $matches[1];
+            $cleanNotes = trim(str_replace($matches[0], '', $rawNotes));
+            $decoded = json_decode($json, true);
+            if (is_array($decoded) && count($decoded) > 1) {
+                $lines = [];
+                foreach ($decoded as $idx => $r) {
+                    $s = !empty($r['startDate']) ? date('M j, Y', strtotime($r['startDate'])) : '';
+                    $e = !empty($r['endDate']) ? date('M j, Y', strtotime($r['endDate'])) : $s;
+                    $blockNum = $idx + 1;
+                    if ($s && $e && $s !== $e) {
+                        $lines[] = "  • Block {$blockNum}: {$s} – {$e}";
+                    } elseif ($s) {
+                        $lines[] = "  • Block {$blockNum}: {$s}";
+                    }
+                }
+                if (!empty($lines)) {
+                    $rangesStr = implode("\n", $lines);
+                }
+            }
+        }
+
+        return ['cleanNotes' => $cleanNotes, 'formattedRanges' => $rangesStr];
+    }
+
+    /**
+     * Map department to Google Calendar Event colorId (1-11).
+     * 1: Lavender, 2: Sage (Mint), 3: Grape (Purple), 4: Flamingo (Coral/Salmon)
+     * 5: Banana (Yellow/Lime), 6: Tangerine (Orange), 7: Peacock (Cyan), 8: Graphite (Gray)
+     * 9: Blueberry (Navy), 10: Basil (Dark Green), 11: Tomato (Red)
+     */
+    private function getDepartmentColorId(string $dept): string
+    {
+        $d = strtolower(trim($dept));
+        return match (true) {
+            str_contains($d, 'it') || str_contains($d, 'tech')                                 => '7',  // Peacock / Cyan (IT)
+            str_contains($d, 'f&b') || str_contains($d, 'fnb') || str_contains($d, 'food')     => '11', // Tomato / Red (F&B)
+            str_contains($d, 'hr') || str_contains($d, 'human') || str_contains($d, 'legal') || str_contains($d, 'tekong') || str_contains($d, 'oe') => '3', // Grape / Dark Purple (HR)
+            str_contains($d, 'hk') || str_contains($d, 'house') || str_contains($d, 'pest')   => '2',  // Sage / Mint Green (HK)
+            str_contains($d, 'fasilitas') || str_contains($d, 'facility') || str_contains($d, 'security') => '5', // Banana / Lime Yellow (Fasilitas)
+            str_contains($d, 'engineer')                                                       => '8',  // Graphite / Slate Gray (Engineer)
+            str_contains($d, 'gr') || str_contains($d, 'guest') || str_contains($d, 'service') || str_contains($d, 'bar') || str_contains($d, 'spa') || str_contains($d, 'tirek') => '4', // Flamingo / Salmon Coral (GR)
+            str_contains($d, 'finance')                                                        => '10', // Basil / Dark Green (Finance)
+            str_contains($d, 'procure')                                                        => '9',  // Blueberry / Slate Navy (Procurement)
+            str_contains($d, 'reserva') || str_contains($d, 'sales') || str_contains($d, 'market') => '1',  // Lavender / Magenta (Reservasi/Sales)
+            default                                                                             => '6',  // Tangerine / Orange (Default Ops)
+        };
+    }
 }
+

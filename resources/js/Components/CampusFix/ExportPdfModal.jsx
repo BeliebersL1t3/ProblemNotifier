@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
+import { usePage } from '@inertiajs/react';
 import { Button } from '@/Components/UI/Button';
 import {
     Dialog,
@@ -16,7 +17,8 @@ import {
     SelectValue,
 } from '@/Components/UI/Select';
 import { useIssues } from '@/context/IssuesContext';
-import { Loader2, Download, FileText, ChevronDown } from 'lucide-react';
+import { Loader2, Download, FileText, ChevronDown, Layers, Wrench, Send, AtSign, Globe } from 'lucide-react';
+import { normalizeDepartment } from '@/constants/staff';
 
 // Mobile-friendly collapsible section
 function CollapsibleSection({ label, toggleLabel, onToggleAll, children, defaultOpen = true }) {
@@ -51,6 +53,9 @@ const LIMITS = [
 
 export function ExportPdfModal({ open, onOpenChange }) {
     const { issues, categories, currentSheet, availableSheets } = useIssues();
+    const { auth } = usePage().props;
+    const userDept = normalizeDepartment(auth?.user?.department || '');
+
     const [isExporting, setIsExporting] = useState(false);
     const [previewUrl, setPreviewUrl] = useState(null);
     const [isPreviewLoading, setIsPreviewLoading] = useState(false);
@@ -61,7 +66,15 @@ export function ExportPdfModal({ open, onOpenChange }) {
     const [selectedStatuses, setSelectedStatuses] = useState(['open', 'progress', 'pending', 'solved']);
     const [selectedCategories, setSelectedCategories] = useState([]);
     const [selectedDepartments, setSelectedDepartments] = useState([]);
+    const [deptFilterMode, setDeptFilterMode] = useState('all'); // 'all' | 'my_scope' | 'to_fix' | 'my_reports' | 'mentions'
     const [limit, setLimit] = useState('All');
+    
+    // Optional PDF details
+    const [includeAuditTrail, setIncludeAuditTrail] = useState(false);
+    const [includeAuditTime, setIncludeAuditTime] = useState(true);
+    const [includeAuditPerson, setIncludeAuditPerson] = useState(true);
+    const [includeAuditReason, setIncludeAuditReason] = useState(true);
+    const [includeDelayTimeline, setIncludeDelayTimeline] = useState(true);
 
     const DEPARTMENTS = [
         'Engineer', 'Tekong', 'Pest Control', 'Security', 'Fasilitas', 
@@ -170,6 +183,33 @@ export function ExportPdfModal({ open, onOpenChange }) {
         }
     };
 
+    const deptCounts = useMemo(() => {
+        let allIssues = [];
+        selectedSheets.forEach(sheet => {
+            if (downloadedIssues[sheet]) {
+                allIssues = allIssues.concat(downloadedIssues[sheet]);
+            }
+        });
+        const counts = {};
+        DEPARTMENTS.forEach(d => { counts[d] = 0; });
+        allIssues.forEach(i => {
+            const assigned = Array.isArray(i.assignedDepartments) ? i.assignedDepartments : [i.assignedDepartments];
+            const tagged = Array.isArray(i.taggedDepartments) ? i.taggedDepartments : [i.taggedDepartments];
+            const origin = i.department;
+            DEPARTMENTS.forEach(d => {
+                const normD = normalizeDepartment(d);
+                if (
+                    normalizeDepartment(origin) === normD ||
+                    assigned.some(a => normalizeDepartment(a) === normD) ||
+                    tagged.some(t => normalizeDepartment(t) === normD)
+                ) {
+                    counts[d] = (counts[d] || 0) + 1;
+                }
+            });
+        });
+        return counts;
+    }, [selectedSheets, downloadedIssues]);
+
     const handleDepartmentToggle = (dept) => {
         setSelectedDepartments(prev => 
             prev.includes(dept) 
@@ -205,16 +245,34 @@ export function ExportPdfModal({ open, onOpenChange }) {
                 if (!selectedStatuses.includes(sMap[issue.status])) return false;
             }
             // selectedCategories empty = not yet loaded, treat as all selected
-            // Also: issues with null/empty category always show (old data before categories were mandatory)
             if (selectedCategories.length > 0 && issue.category && !selectedCategories.includes(issue.category)) return false;
             
-            // selectedDepartments empty = not yet loaded, treat as all selected
-            // Only filter by dept when user has explicitly deselected some (but not all)
-            if (selectedDepartments.length > 0 && selectedDepartments.length < DEPARTMENTS.length) {
-                const deptMatch = selectedDepartments.includes(issue.department) || 
-                                  (Array.isArray(issue.assignedDepartments) && issue.assignedDepartments.some(d => selectedDepartments.includes(d))) ||
-                                  (Array.isArray(issue.taggedDepartments) && issue.taggedDepartments.some(d => selectedDepartments.includes(d)));
-                if (!deptMatch) return false;
+            // Department Scope Filtering
+            if (deptFilterMode === 'my_scope' && userDept) {
+                const isRelated = normalizeDepartment(issue.department) === userDept ||
+                                  (Array.isArray(issue.assignedDepartments) && issue.assignedDepartments.some(d => normalizeDepartment(d) === userDept)) ||
+                                  (Array.isArray(issue.taggedDepartments) && issue.taggedDepartments.some(d => normalizeDepartment(d) === userDept));
+                if (!isRelated) return false;
+            } else if (deptFilterMode === 'to_fix' && userDept) {
+                const isAssigned = Array.isArray(issue.assignedDepartments) && issue.assignedDepartments.some(d => normalizeDepartment(d) === userDept);
+                if (!isAssigned) return false;
+            } else if (deptFilterMode === 'my_reports' && userDept) {
+                const isOrigin = normalizeDepartment(issue.department) === userDept;
+                if (!isOrigin) return false;
+            } else if (deptFilterMode === 'mentions' && userDept) {
+                const isTagged = Array.isArray(issue.taggedDepartments) && issue.taggedDepartments.some(d => normalizeDepartment(d) === userDept);
+                if (!isTagged) return false;
+            } else {
+                // All / Custom Depts
+                if (selectedDepartments.length > 0 && selectedDepartments.length < DEPARTMENTS.length) {
+                    const deptMatch = selectedDepartments.some(d => {
+                        const normD = normalizeDepartment(d);
+                        return normalizeDepartment(issue.department) === normD || 
+                               (Array.isArray(issue.assignedDepartments) && issue.assignedDepartments.some(ad => normalizeDepartment(ad) === normD)) ||
+                               (Array.isArray(issue.taggedDepartments) && issue.taggedDepartments.some(td => normalizeDepartment(td) === normD));
+                    });
+                    if (!deptMatch) return false;
+                }
             }
             
             return true;
@@ -264,6 +322,21 @@ export function ExportPdfModal({ open, onOpenChange }) {
             return val.replace(/(\d+\.\d+)/g, (match) => Math.round(parseFloat(match)));
         };
 
+        const sanitizePdfText = (str) => {
+            if (!str || typeof str !== 'string') return '';
+            return str
+                .replace(/[\u2794\u2192\u21D2\u27A1]/g, '->') // arrow symbols to ASCII ->
+                .replace(/🎯/g, '[Assign] ')
+                .replace(/📢/g, '[Tag] ')
+                .replace(/↩️|↩/g, '[ROLLBACK] ')
+                .replace(/✏️|✏/g, '[EDIT] ')
+                .replace(/✅/g, '[SOLVED] ')
+                .replace(/⏳/g, '[PENDING] ')
+                .replace(/🔧/g, '[CLAIM] ')
+                .replace(/⚠️/g, '[!] ')
+                .replace(/[^\x20-\x7E\n\r\t]/g, ''); // strip any non-ASCII characters that corrupt standard PDF fonts
+        };
+
         // Prepare table data
         const tableData = [];
         let currentGroupSheet = null;
@@ -281,44 +354,91 @@ export function ExportPdfModal({ open, onOpenChange }) {
             }
 
             const assignedStr = Array.isArray(i.assignedDepartments) && i.assignedDepartments.length > 0
-                ? `🎯 ${i.assignedDepartments.join(', ')}`
-                : (i.assignedDepartments ? `🎯 ${i.assignedDepartments}` : '');
+                ? `[Assign] ${i.assignedDepartments.join(', ')}`
+                : (i.assignedDepartments ? `[Assign] ${i.assignedDepartments}` : '');
             const taggedStr = Array.isArray(i.taggedDepartments) && i.taggedDepartments.length > 0
-                ? `📢 ${i.taggedDepartments.join(', ')}`
-                : (i.taggedDepartments ? `📢 ${i.taggedDepartments}` : '');
-            const combinedDeptTags = [assignedStr, taggedStr].filter(Boolean).join('\n') || '-';
+                ? `[Tag] ${i.taggedDepartments.join(', ')}`
+                : (i.taggedDepartments ? `[Tag] ${i.taggedDepartments}` : '');
+            const combinedDeptTags = sanitizePdfText([assignedStr, taggedStr].filter(Boolean).join('\n')) || '-';
+
+            // Format Taken and Solved cell strings cleanly
+            let takenCell = '-';
+            if (i.takenAt) {
+                const takerName = i.taker ? `\n${i.taker.split(' ')[0]}` : '';
+                takenCell = i.status === 'pending' ? `${formatDateTime(i.takenAt)}\n[PENDING]` : `${formatDateTime(i.takenAt)}${takerName}`;
+            } else if (i.status === 'pending') {
+                takenCell = `[PENDING]`;
+            }
+
+            let solvedCell = '-';
+            if (i.status === 'solved' || i.solvedAt) {
+                const solverName = i.solver ? `\n${i.solver.split(' ')[0]}` : '';
+                solvedCell = `${formatDateTime(i.solvedAt)}${solverName}`;
+            }
 
             tableData.push([
                 i.id.replace('TEL-', ''),
                 formatDateTime(i.reportedAt),
-                i.status === 'pending' ? `${formatDateTime(i.takenAt)}\nPENDING` : formatDateTime(i.takenAt),
-                formatDateTime(i.solvedAt),
+                takenCell,
+                solvedCell,
                 cleanDuration(i.durationLabel),
-                i.title,
-                i.location,
+                sanitizePdfText(i.title),
+                sanitizePdfText(i.location),
                 combinedDeptTags,
-                categories.find(c => c.id === i.category)?.label || i.category,
-                i.reporter,
+                sanitizePdfText(categories.find(c => c.id === i.category)?.label || i.category),
+                sanitizePdfText(i.reporter),
                 i.status.toUpperCase(),
                 i.priority.toUpperCase()
             ]);
 
-            if (i.status === 'pending' && selectedStatuses.includes('pending')) {
+            if (includeDelayTimeline && i.status === 'pending' && selectedStatuses.includes('pending')) {
                 let timelineText = '';
                 if (i.pendingTimeline && i.pendingTimeline.length > 0) {
                     timelineText = i.pendingTimeline.map(item => {
-                        return `${item.date ? `[${item.date}] ` : ''}${item.by}: ${item.reason}`;
+                        return sanitizePdfText(`• ${item.date ? `[${item.date}] ` : ''}${item.by || 'Staff'}: ${item.reason}`);
                     }).join('\n');
                 } else if (i.pendingReason) {
-                    timelineText = `Delay Reason: ${i.pendingReason} (Pending by: ${i.pendingBy || 'Unknown'})`;
+                    timelineText = sanitizePdfText(`• Delay Reason: ${i.pendingReason} (Pending by: ${i.pendingBy || 'Unknown'})`);
                 }
 
                 if (timelineText) {
                     tableData.push([
                         {
-                            content: `Delay Timeline:\n${timelineText}`,
+                            content: `Pending Delay Timeline:\n${timelineText}`,
                             colSpan: 12,
                             styles: { fillColor: [255, 247, 237], textColor: [194, 65, 12], fontStyle: 'italic', cellPadding: 3 }
+                        }
+                    ]);
+                }
+            }
+
+            // Optional Append Audit & Complete Lifecycle Trail
+            if (includeAuditTrail && Array.isArray(i.editLogs) && i.editLogs.length > 0) {
+                const editLogText = i.editLogs.map(log => {
+                    let logTypeLabel = '[EDIT]';
+                    if (log.type === 'revert_status' || log.type === 'revert_and_edit') {
+                        logTypeLabel = '[ROLLBACK]';
+                    } else if (log.type === 'claim') {
+                        logTypeLabel = '[CLAIM]';
+                    } else if (log.type === 'solve') {
+                        logTypeLabel = '[SOLVED]';
+                    }
+
+                    const timeStr = includeAuditTime && log.date ? `[${log.date}] ` : '';
+                    const personStr = includeAuditPerson ? `${log.by || 'Staff'}${log.dept ? ` (${log.dept})` : ''}: ` : '';
+                    const statusChangeStr = log.statusChange ? `[${log.statusChange.replace(/[\u2794\u2192]/g, '->')}] ` : '';
+                    const cleanChanges = (log.changes || '').replace(/[\u2794\u2192]/g, '->');
+                    const reasonStr = includeAuditReason && log.reason ? ` (Reason: "${log.reason}")` : '';
+
+                    return sanitizePdfText(`• ${logTypeLabel} ${timeStr}${personStr}${statusChangeStr}${cleanChanges}${reasonStr}`);
+                }).join('\n');
+
+                if (editLogText) {
+                    tableData.push([
+                        {
+                            content: `Audit & Complete Lifecycle Trail:\n${editLogText}`,
+                            colSpan: 12,
+                            styles: { fillColor: [240, 249, 255], textColor: [3, 105, 161], fontStyle: 'italic', cellPadding: 3 }
                         }
                     ]);
                 }
@@ -460,7 +580,7 @@ export function ExportPdfModal({ open, onOpenChange }) {
         }, 300); // 300ms debounce
 
         return () => clearTimeout(debounce);
-    }, [limit, selectedStatuses, selectedCategories, selectedDepartments, selectedSheets, downloadedIssues, initialRenderComplete, open]);
+    }, [limit, selectedStatuses, selectedCategories, selectedDepartments, deptFilterMode, selectedSheets, downloadedIssues, initialRenderComplete, open, includeAuditTrail, includeAuditTime, includeAuditPerson, includeAuditReason, includeDelayTimeline]);
 
     const handleDownload = () => {
         setIsExporting(true);
@@ -597,30 +717,173 @@ export function ExportPdfModal({ open, onOpenChange }) {
                             </div>
                         </CollapsibleSection>
 
-                        {/* Departments — collapsible pill section */}
+                        {/* Departments — with Scope Presets & Active counts */}
                         <CollapsibleSection
-                            label="Include Departments"
+                            label="Department Scope & Filters"
                             toggleLabel="Toggle All"
                             onToggleAll={toggleAllDepartments}
-                            defaultOpen={false}
+                            defaultOpen={true}
                         >
-                            <div className="flex flex-wrap gap-2 pb-2">
-                                {DEPARTMENTS.map(dept => (
+                            {/* Quick Scope Presets */}
+                            {userDept && (
+                                <div className="flex flex-wrap gap-1.5 pb-1">
                                     <button
-                                        key={dept}
                                         type="button"
-                                        onClick={() => handleDepartmentToggle(dept)}
-                                        className={`px-3 py-1.5 text-xs font-semibold rounded-full border transition-colors ${
-                                            selectedDepartments.includes(dept)
-                                                ? 'bg-primary text-primary-foreground border-primary'
-                                                : 'bg-surface text-muted-foreground border-border hover:border-primary/50'
+                                        onClick={() => { setDeptFilterMode('all'); setSelectedDepartments([...DEPARTMENTS]); }}
+                                        className={`px-2.5 py-1 text-xs font-semibold rounded-lg border transition-all flex items-center gap-1 ${
+                                            deptFilterMode === 'all'
+                                                ? 'bg-[#C9AA71] text-[#1C1B0E] border-[#C9AA71] shadow-sm'
+                                                : 'bg-[#2A281E] text-muted-foreground border-[#3B3929] hover:text-foreground'
                                         }`}
                                     >
-                                        {dept}
+                                        <Globe className="w-3 h-3" />
+                                        <span>All Scope</span>
                                     </button>
-                                ))}
+                                    <button
+                                        type="button"
+                                        onClick={() => setDeptFilterMode('my_scope')}
+                                        className={`px-2.5 py-1 text-xs font-semibold rounded-lg border transition-all flex items-center gap-1 ${
+                                            deptFilterMode === 'my_scope'
+                                                ? 'bg-[#C9AA71] text-[#1C1B0E] border-[#C9AA71] shadow-sm'
+                                                : 'bg-[#2A281E] text-muted-foreground border-[#3B3929] hover:text-foreground'
+                                        }`}
+                                    >
+                                        <Layers className="w-3 h-3 text-amber-400" />
+                                        <span>My Scope ({auth?.user?.department || 'You'})</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setDeptFilterMode('to_fix')}
+                                        className={`px-2.5 py-1 text-xs font-semibold rounded-lg border transition-all flex items-center gap-1 ${
+                                            deptFilterMode === 'to_fix'
+                                                ? 'bg-[#C9AA71] text-[#1C1B0E] border-[#C9AA71] shadow-sm'
+                                                : 'bg-[#2A281E] text-muted-foreground border-[#3B3929] hover:text-foreground'
+                                        }`}
+                                    >
+                                        <Wrench className="w-3 h-3 text-blue-400" />
+                                        <span>To Fix</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setDeptFilterMode('my_reports')}
+                                        className={`px-2.5 py-1 text-xs font-semibold rounded-lg border transition-all flex items-center gap-1 ${
+                                            deptFilterMode === 'my_reports'
+                                                ? 'bg-[#C9AA71] text-[#1C1B0E] border-[#C9AA71] shadow-sm'
+                                                : 'bg-[#2A281E] text-muted-foreground border-[#3B3929] hover:text-foreground'
+                                        }`}
+                                    >
+                                        <Send className="w-3 h-3 text-purple-400" />
+                                        <span>My Reports</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setDeptFilterMode('mentions')}
+                                        className={`px-2.5 py-1 text-xs font-semibold rounded-lg border transition-all flex items-center gap-1 ${
+                                            deptFilterMode === 'mentions'
+                                                ? 'bg-[#C9AA71] text-[#1C1B0E] border-[#C9AA71] shadow-sm'
+                                                : 'bg-[#2A281E] text-muted-foreground border-[#3B3929] hover:text-foreground'
+                                        }`}
+                                    >
+                                        <AtSign className="w-3 h-3 text-pink-400" />
+                                        <span>Mentions</span>
+                                    </button>
+                                </div>
+                            )}
+
+                            {/* Individual Department Pills with live counts */}
+                            <div className="flex flex-wrap gap-1.5 pt-1 pb-2">
+                                {DEPARTMENTS.map(dept => {
+                                    const count = deptCounts[dept] || 0;
+                                    const isUser = normalizeDepartment(dept) === userDept;
+                                    const isSelected = deptFilterMode === 'all' && selectedDepartments.includes(dept);
+
+                                    return (
+                                        <button
+                                            key={dept}
+                                            type="button"
+                                            onClick={() => {
+                                                setDeptFilterMode('all');
+                                                handleDepartmentToggle(dept);
+                                            }}
+                                            className={`px-2.5 py-1 text-xs font-medium rounded-lg border transition-all flex items-center gap-1.5 ${
+                                                isSelected
+                                                    ? 'bg-primary text-primary-foreground border-primary'
+                                                    : 'bg-surface text-muted-foreground border-border hover:border-primary/50'
+                                            } ${count === 0 ? 'opacity-40' : ''}`}
+                                        >
+                                            <span>{dept}</span>
+                                            {isUser && <span className="text-[9px] px-1 py-0.2 rounded bg-amber-400/20 text-amber-300 font-bold">YOU</span>}
+                                            <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${isSelected ? 'bg-black/30 text-white' : 'bg-muted text-muted-foreground'}`}>
+                                                {count}
+                                            </span>
+                                        </button>
+                                    );
+                                })}
                             </div>
                         </CollapsibleSection>
+
+                        {/* Appendices / Detail Options */}
+                        <div className="grid gap-2.5 p-3 rounded-xl bg-[#2A281E] border border-[#3B3929]">
+                            <label className="text-xs font-bold text-[#C9AA71] uppercase tracking-wider">
+                                Table Appendices (Optional)
+                            </label>
+                            <div className="flex flex-col gap-2.5">
+                                <div className="space-y-2">
+                                    <label className="flex items-center gap-2 text-xs text-foreground font-semibold cursor-pointer select-none">
+                                        <input
+                                            type="checkbox"
+                                            checked={includeAuditTrail}
+                                            onChange={(e) => setIncludeAuditTrail(e.target.checked)}
+                                            className="rounded text-[#C9AA71] focus:ring-[#C9AA71] h-4 w-4 bg-[#1C1B0E] border-[#3B3929]"
+                                        />
+                                        <span>Include Audit & Reversion Trail</span>
+                                    </label>
+
+                                    {/* Granular Sub-options for Audit Trail */}
+                                    {includeAuditTrail && (
+                                        <div className="pl-6 space-y-1.5 border-l-2 border-[#C9AA71]/40 ml-2 py-1 text-[11px] text-muted-foreground">
+                                            <label className="flex items-center gap-2 cursor-pointer hover:text-foreground">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={includeAuditTime}
+                                                    onChange={(e) => setIncludeAuditTime(e.target.checked)}
+                                                    className="rounded text-[#C9AA71] h-3.5 w-3.5 bg-[#1C1B0E] border-[#3B3929]"
+                                                />
+                                                <span>Include Date & Time</span>
+                                            </label>
+                                            <label className="flex items-center gap-2 cursor-pointer hover:text-foreground">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={includeAuditPerson}
+                                                    onChange={(e) => setIncludeAuditPerson(e.target.checked)}
+                                                    className="rounded text-[#C9AA71] h-3.5 w-3.5 bg-[#1C1B0E] border-[#3B3929]"
+                                                />
+                                                <span>Include Staff & Department</span>
+                                            </label>
+                                            <label className="flex items-center gap-2 cursor-pointer hover:text-foreground">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={includeAuditReason}
+                                                    onChange={(e) => setIncludeAuditReason(e.target.checked)}
+                                                    className="rounded text-[#C9AA71] h-3.5 w-3.5 bg-[#1C1B0E] border-[#3B3929]"
+                                                />
+                                                <span>Include Reason / Note</span>
+                                            </label>
+                                        </div>
+                                    )}
+                                </div>
+
+                                <label className="flex items-center gap-2 text-xs text-foreground cursor-pointer select-none pt-1 border-t border-[#3B3929]/50">
+                                    <input
+                                        type="checkbox"
+                                        checked={includeDelayTimeline}
+                                        onChange={(e) => setIncludeDelayTimeline(e.target.checked)}
+                                        className="rounded text-[#C9AA71] focus:ring-[#C9AA71] h-4 w-4 bg-[#1C1B0E] border-[#3B3929]"
+                                    />
+                                    <span>Include Pending Delay Timeline</span>
+                                </label>
+                            </div>
+                        </div>
                     </div>
 
                     {/* RIGHT COLUMN: Live Preview — shown on all screen sizes */}

@@ -36,9 +36,11 @@ return [
     ],
 
     'google' => [
-        'credentials_path' => env('GOOGLE_CREDENTIALS_PATH', 'app/google-credentials.json'),
-        'spreadsheet_id'   => env('GOOGLE_SPREADSHEET_ID'),
-        'drive_folder_id'  => env('GOOGLE_DRIVE_FOLDER_ID'),
+        'credentials_path'    => env('GOOGLE_CREDENTIALS_PATH', 'app/google-credentials.json'),
+        'spreadsheet_id'      => env('GOOGLE_SPREADSHEET_ID'),
+        'ops_spreadsheet_id'  => env('GOOGLE_OPS_SPREADSHEET_ID'),
+        'drive_folder_id'     => env('GOOGLE_DRIVE_FOLDER_ID'),
+        'calendar_id'         => env('GOOGLE_CALENDAR_ID'),
     ],
 
     'imgbb' => [

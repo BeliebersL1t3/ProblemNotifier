@@ -12,6 +12,7 @@ import { cn } from '@/lib/utils';
 import { useIssues } from '@/context/IssuesContext';
 import DelayDetailModal from './DelayDetailModal';
 import { ImageLightboxModal } from './ImageLightboxModal';
+import { getDepartmentTheme } from '@/constants/departments';
 
 export function SolvedDetailModal({ issue, onClose }) {
     const { categories, updateIssueCategory } = useIssues();
@@ -118,21 +119,59 @@ export function SolvedDetailModal({ issue, onClose }) {
                         </div>
 
                         <div className="flex flex-wrap items-center gap-1.5">
-                            {issue.assignedDepartments && issue.assignedDepartments.length > 0 && issue.assignedDepartments.map((dept, idx) => (
-                                <span key={'assign-' + idx} className="shrink-0 rounded bg-amber-500/15 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 font-mono text-[10px] font-semibold border border-amber-500/30" title="Assigned Department (Responsible to fix)">
-                                    🎯 {dept}
-                                </span>
-                            ))}
-                            {issue.department && (
-                                <span className="shrink-0 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 font-mono text-[10px] font-medium border border-blue-500/20" title="Origin Department">
-                                    🏠 {issue.department}
-                                </span>
-                            )}
-                            {issue.taggedDepartments && issue.taggedDepartments.map((tag, idx) => (
-                                <span key={'tag-' + idx} className="shrink-0 rounded bg-purple-500/10 text-purple-600 dark:text-purple-400 px-1.5 py-0.5 font-mono text-[10px] font-medium border border-purple-500/20" title="Tagged Department">
-                                    📢 @{tag}
-                                </span>
-                            ))}
+                            {issue.assignedDepartments && issue.assignedDepartments.length > 0 && issue.assignedDepartments.map((dept, idx) => {
+                                const theme = getDepartmentTheme(dept);
+                                return (
+                                    <span 
+                                        key={'assign-' + idx} 
+                                        style={{ 
+                                            backgroundColor: theme.bg === '#212121' ? 'rgba(255, 255, 255, 0.12)' : `${theme.bg}22`, 
+                                            borderColor: theme.bg === '#212121' ? 'rgba(255, 255, 255, 0.35)' : `${theme.bg}70`,
+                                            color: theme.bg === '#212121' ? '#FFFFFF' : (theme.text === '#14130B' ? '#FBBF24' : theme.bg)
+                                        }}
+                                        className="shrink-0 rounded px-1.5 py-0.5 font-mono text-[10px] font-semibold border flex items-center gap-1" 
+                                        title="Assigned Department (Responsible to fix)"
+                                    >
+                                        <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: theme.bg }} />
+                                        🎯 {dept}
+                                    </span>
+                                );
+                            })}
+                            {issue.department && (() => {
+                                const theme = getDepartmentTheme(issue.department);
+                                return (
+                                    <span 
+                                        style={{ 
+                                            backgroundColor: theme.bg === '#212121' ? 'rgba(255, 255, 255, 0.1)' : `${theme.bg}18`, 
+                                            borderColor: theme.bg === '#212121' ? 'rgba(255, 255, 255, 0.3)' : `${theme.bg}50`,
+                                            color: theme.bg === '#212121' ? '#FFFFFF' : (theme.text === '#14130B' ? '#FBBF24' : theme.bg)
+                                        }}
+                                        className="shrink-0 rounded px-1.5 py-0.5 font-mono text-[10px] font-medium border flex items-center gap-1" 
+                                        title="Origin Department"
+                                    >
+                                        <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: theme.bg }} />
+                                        🏠 {issue.department}
+                                    </span>
+                                );
+                            })()}
+                            {issue.taggedDepartments && issue.taggedDepartments.map((tag, idx) => {
+                                const theme = getDepartmentTheme(tag);
+                                return (
+                                    <span 
+                                        key={'tag-' + idx} 
+                                        style={{ 
+                                            backgroundColor: theme.bg === '#212121' ? 'rgba(255, 255, 255, 0.1)' : `${theme.bg}15`, 
+                                            borderColor: theme.bg === '#212121' ? 'rgba(255, 255, 255, 0.3)' : `${theme.bg}50`,
+                                            color: theme.bg === '#212121' ? '#FFFFFF' : (theme.text === '#14130B' ? '#FBBF24' : theme.bg)
+                                        }}
+                                        className="shrink-0 rounded px-1.5 py-0.5 font-mono text-[10px] font-medium border flex items-center gap-1" 
+                                        title="Tagged Department"
+                                    >
+                                        <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: theme.bg }} />
+                                        📢 @{tag}
+                                    </span>
+                                );
+                            })}
 
                             <div className="flex items-center gap-1.5 shrink-0 ml-auto">
                                 <span className="text-[10px] text-muted-foreground font-medium">Category:</span>

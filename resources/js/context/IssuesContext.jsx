@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
+import { useAuth } from '@/hooks/useAuth';
 
 // Fixed 10-category system — no custom categories
 export const DEFAULT_CATEGORIES = [
@@ -19,9 +20,10 @@ export const DEFAULT_CATEGORIES = [
 const IssuesContext = createContext(null);
 
 export function IssuesProvider({ children }) {
-    const [issues, setIssues] = useState([]);
+    const [rawIssues, setRawIssues] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const { isDeptUser, department } = useAuth();
 
     // --- Sheet (Period/Year) state ---
     const [availableSheets, setAvailableSheets] = useState([]);
@@ -49,65 +51,72 @@ export function IssuesProvider({ children }) {
         } catch (err) {
             console.error('Failed to load sheets:', err);
         }
-    }, []); // eslint-disable-line
+    }, [currentSheet]); 
 
     useEffect(() => {
         fetchSheets();
     }, [fetchSheets]);
 
-    const fetchIssues = useCallback(async (silent = false) => {
-        if (!silent) {
-            setLoading(true);
-            setError(null);
-        }
-        try {
-            // Retry fetching sheets if availableSheets list is empty
-            if (availableSheets.length === 0) {
-                fetchSheets();
-            }
+    // Fetch issues for a specific sheet (or currentSheet if not specified)
+    const fetchIssues = useCallback(async (isSilent = false) => {
+        if (!isSilent) setLoading(true);
+        setError(null);
 
-            const sheet = localStorage.getItem('campusfix_sheet');
-            const params = sheet ? { sheet } : {};
+        try {
+            const params = {};
+            if (currentSheet && currentSheet !== 'all') {
+                params.sheet = currentSheet;
+            }
             const response = await axios.get('/api/issues', { params });
             if (response.data?.success) {
-                setError(null);
-                const fetchedIssues = response.data.data;
-                setIssues(prev => {
-                    if (prev && prev.length === fetchedIssues.length && JSON.stringify(prev) === JSON.stringify(fetchedIssues)) {
-                        return prev;
-                    }
-                    return fetchedIssues;
-                });
+                setRawIssues(response.data.data);
+            } else {
+                setError(response.data?.message || 'Failed to fetch issues');
             }
         } catch (err) {
-            console.error('Failed to load issues:', err);
-            const isRateLimit = err.response?.status === 429 || err.response?.data?.isRateLimit;
-            
-            if (isRateLimit) {
-                // If rate limited, don't throw scary raw error if we already have data loaded
-                if (!silent && issues.length === 0) {
-                    setError('Google Sheets API rate limit reached (60 req/min). Retrying in a moment...');
-                }
-            } else if (!silent) {
-                setError(err.response?.data?.message || 'Failed to load issues from server.');
-            }
+            console.error('Error fetching issues:', err);
+            setError(err.response?.data?.message || 'Failed to connect to Google Sheets.');
         } finally {
-            if (!silent) setLoading(false);
+            if (!isSilent) setLoading(false);
         }
-    }, [issues.length]);
+    }, [currentSheet]);
 
-    // Re-fetch issues whenever currentSheet changes
+    // Re-fetch issues when active sheet changes
     useEffect(() => {
-        fetchIssues();
-    }, [currentSheet, fetchIssues]);
+        fetchIssues(false);
+    }, [fetchIssues]);
 
+    // Live Auto-Sync: Poll every 8 seconds and re-fetch immediately on window focus
     useEffect(() => {
-        // Background poll every 10 seconds without triggering loader
         const interval = setInterval(() => {
             fetchIssues(true);
-        }, 10000);
-        return () => clearInterval(interval);
+        }, 8000);
+
+        const handleFocus = () => {
+            fetchIssues(true);
+        };
+
+        window.addEventListener('focus', handleFocus);
+        return () => {
+            clearInterval(interval);
+            window.removeEventListener('focus', handleFocus);
+        };
     }, [fetchIssues]);
+
+    // Scope issues for department accounts
+    const issues = useMemo(() => {
+        if (!isDeptUser || !department) return rawIssues;
+        return rawIssues.filter(issue => {
+            const assigned = Array.isArray(issue.assignedDepartments) 
+                ? issue.assignedDepartments 
+                : (issue.assignedDepartments ? String(issue.assignedDepartments).split(',').map(s => s.trim()) : []);
+            const tagged = Array.isArray(issue.taggedDepartments) 
+                ? issue.taggedDepartments 
+                : (issue.taggedDepartments ? String(issue.taggedDepartments).split(',').map(s => s.trim()) : []);
+            const orig = (issue.department || '').trim();
+            return assigned.includes(department) || tagged.includes(department) || orig === department;
+        });
+    }, [rawIssues, isDeptUser, department]);
 
     const addIssue = useCallback(async (input) => {
         const formData = new FormData();
@@ -116,6 +125,7 @@ export function IssuesProvider({ children }) {
         formData.append('location', input.location);
         formData.append('category', input.category);
         formData.append('department', input.department);
+        formData.append('assignedDepartments', input.assignedDepartments);
         if (input.taggedDepartments) formData.append('taggedDepartments', input.taggedDepartments);
         formData.append('reporter', input.reporter);
         if (input.priority) formData.append('priority', input.priority);
@@ -218,15 +228,13 @@ export function IssuesProvider({ children }) {
             const res = await axios.delete('/api/sheets', { data: { name } });
             if (res.data?.success) {
                 const remaining = res.data.data?.remaining || [];
-                const newActive = res.data.data?.newActive || 'Sheet1';
-                
                 setAvailableSheets(remaining);
 
-                // If currently viewing deleted sheet, switch to newest remaining sheet
-                const current = localStorage.getItem('campusfix_sheet');
-                if (current === name || !remaining.includes(current)) {
-                    setCurrentSheetState(newActive);
-                    localStorage.setItem('campusfix_sheet', newActive);
+                if (currentSheet === name) {
+                    const fallback = remaining[0] || null;
+                    setCurrentSheetState(fallback);
+                    if (fallback) localStorage.setItem('campusfix_sheet', fallback);
+                    else localStorage.removeItem('campusfix_sheet');
                 }
 
                 // Refetch issues from the new active sheet
@@ -236,6 +244,58 @@ export function IssuesProvider({ children }) {
         } catch (err) {
             console.error('Failed to delete period:', err);
             throw new Error(err.response?.data?.message || 'Failed to delete period');
+        }
+    }, [fetchIssues, currentSheet]);
+
+    const updateIssue = useCallback(async (issue, input) => {
+        const target = issue.id || issue.rowIndex;
+        const formData = new FormData();
+        formData.append('title', input.title);
+        formData.append('description', input.description);
+        formData.append('location', input.location);
+        formData.append('category', input.category);
+        if (input.priority) formData.append('priority', input.priority);
+        if (input.deadline) formData.append('deadline', input.deadline);
+        if (input.assignedDepartments !== undefined) formData.append('assignedDepartments', input.assignedDepartments);
+        if (input.taggedDepartments !== undefined) formData.append('taggedDepartments', input.taggedDepartments);
+        if (input.imageFile) {
+            formData.append('image', input.imageFile);
+        }
+
+        // State-specific fields
+        if (input.status !== undefined) formData.append('status', input.status);
+        if (input.statusReason !== undefined) formData.append('statusReason', input.statusReason);
+        if (input.removePending !== undefined) formData.append('removePending', input.removePending ? '1' : '0');
+        if (input.deletePendingIndex !== undefined) formData.append('deletePendingIndex', input.deletePendingIndex);
+        if (input.taker !== undefined) formData.append('taker', input.taker);
+        if (input.pendingBy !== undefined) formData.append('pendingBy', input.pendingBy);
+        if (input.pendingReason !== undefined) formData.append('pendingReason', input.pendingReason);
+        if (input.pendingImageFile) formData.append('pendingImage', input.pendingImageFile);
+        if (input.solver !== undefined) formData.append('solver', input.solver);
+        if (input.fixDescription !== undefined) formData.append('fixDescription', input.fixDescription);
+        if (input.proofImageFile) formData.append('proofImage', input.proofImageFile);
+
+        const response = await axios.post(`/api/issues/${target}/update`, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+        });
+
+        if (response.data?.success) {
+            await fetchIssues(true);
+            return response.data;
+        } else {
+            throw new Error(response.data?.message || 'Failed to update issue');
+        }
+    }, [fetchIssues]);
+
+    const deleteIssue = useCallback(async (issue) => {
+        const target = issue.id || issue.rowIndex;
+        const response = await axios.delete(`/api/issues/${target}`);
+
+        if (response.data?.success) {
+            await fetchIssues(true);
+            return response.data;
+        } else {
+            throw new Error(response.data?.message || 'Failed to delete issue');
         }
     }, [fetchIssues]);
 
@@ -249,12 +309,15 @@ export function IssuesProvider({ children }) {
         };
         return {
             issues,
+            rawIssues,
             categories: DEFAULT_CATEGORIES,
             stats,
             loading,
             error,
             fetchIssues,
             addIssue,
+            updateIssue,
+            deleteIssue,
             claimIssue,
             resolveIssue,
             pendingIssue,
@@ -267,7 +330,7 @@ export function IssuesProvider({ children }) {
             deletePeriod,
             fetchSheets,
         };
-    }, [issues, loading, error, fetchIssues, addIssue, claimIssue, resolveIssue, pendingIssue, updateIssueCategory, availableSheets, currentSheet, setCurrentSheet, createNewPeriod, deletePeriod, fetchSheets]);
+    }, [issues, rawIssues, loading, error, fetchIssues, addIssue, updateIssue, deleteIssue, claimIssue, resolveIssue, pendingIssue, updateIssueCategory, availableSheets, currentSheet, setCurrentSheet, createNewPeriod, deletePeriod, fetchSheets]);
 
     return <IssuesContext.Provider value={value}>{children}</IssuesContext.Provider>;
 }

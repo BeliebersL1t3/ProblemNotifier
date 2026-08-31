@@ -1,8 +1,11 @@
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/Components/UI/Sheet';
-import { SlidersHorizontal, Wrench, Droplets, Zap, Building2, Bug, Monitor, Anchor, ShieldAlert, UserRound, HelpCircle, LayoutGrid, Building } from 'lucide-react';
+import { SlidersHorizontal, Wrench, Droplets, Zap, Building2, Bug, Monitor, Anchor, ShieldAlert, UserRound, HelpCircle, LayoutGrid, Building, Lock } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
+import { ALL_DEPARTMENTS } from '@/constants/staff';
+import { getDepartmentTheme } from '@/constants/departments';
+import { useAuth } from '@/hooks/useAuth';
 
 const STATUS_FILTERS = [
     { id: 'open',     key: 'open' },
@@ -25,14 +28,11 @@ const CATEGORY_FILTERS = [
     { id: 'category:other',          label: 'Other',                 icon: HelpCircle,   color: 'text-muted-foreground', bg: 'bg-muted/60' },
 ];
 
-const DEPARTMENT_FILTERS = [
-    'Engineer', 'Tekong', 'Pest Control', 'Security', 'Fasilitas', 
-    'HK', 'F&B', 'Service', 'Bar', 'GR', 'Spa', 'TiRek', 'OE', 
-    'IT', 'Procurement', 'Sales/Marketing', 'Reservasi', 'Finance'
-];
+const DEPARTMENT_FILTERS = ALL_DEPARTMENTS;
 
-export function FilterChips({ categoryFilter, onCategoryChange, statusFilter, onStatusChange, deptFilter, onDeptChange }) {
+export function FilterChips({ categoryFilter, onCategoryChange, deptFilter, onDeptChange }) {
     const { t } = useLanguage();
+    const { isAdmin, isDeptUser, department: userDept } = useAuth();
     const [catSheetOpen, setCatSheetOpen] = useState(false);
     const [deptSheetOpen, setDeptSheetOpen] = useState(false);
 
@@ -44,22 +44,22 @@ export function FilterChips({ categoryFilter, onCategoryChange, statusFilter, on
         setCatSheetOpen(false);
     };
 
-    // Toggle status: clicking the active status resets to 'all'
-    const handleStatusClick = (id) => {
-        onStatusChange(statusFilter === id ? 'all' : id);
-    };
+    const hasActiveCategory = categoryFilter && categoryFilter !== 'all';
+    const hasActiveDept = isAdmin && deptFilter && deptFilter !== 'all';
+    const hasActiveFilters = hasActiveCategory || hasActiveDept;
+
+    const deptTheme = deptFilter && deptFilter !== 'all' ? getDepartmentTheme(deptFilter) : null;
 
     return (
         <>
-        <div className="w-full flex flex-col gap-2.5 sm:flex-row sm:items-center sm:gap-3">
-            {/* Mobile Row 1: Category & Department trigger buttons side by side */}
-            <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:gap-2 shrink-0">
+        <div className="w-full flex items-center justify-between gap-2.5">
+            <div className="flex items-center gap-2 flex-wrap">
                 {/* Category trigger chip */}
                 <button
                     type="button"
                     onClick={() => setCatSheetOpen(true)}
                     className={cn(
-                        'flex items-center justify-between gap-1.5 rounded-xl border px-3 py-2 text-xs font-semibold transition-all sm:rounded-full sm:py-1.5 sm:px-4',
+                        'flex items-center justify-between gap-1.5 rounded-xl border px-3 py-2 text-xs font-semibold transition-all sm:rounded-full sm:py-1.5 sm:px-4 cursor-pointer',
                         activeCategoryLabel
                             ? 'border-primary bg-primary text-primary-foreground shadow-sm'
                             : 'border-border bg-surface text-foreground hover:border-primary/40',
@@ -72,62 +72,59 @@ export function FilterChips({ categoryFilter, onCategoryChange, statusFilter, on
                     <span className="text-[10px] opacity-60">▼</span>
                 </button>
 
-                {/* Department trigger chip */}
-                <button
-                    type="button"
-                    onClick={() => setDeptSheetOpen(true)}
-                    className={cn(
-                        'flex items-center justify-between gap-1.5 rounded-xl border px-3 py-2 text-xs font-semibold transition-all sm:rounded-full sm:py-1.5 sm:px-4',
-                        deptFilter !== 'all'
-                            ? 'border-primary bg-primary text-primary-foreground shadow-sm'
-                            : 'border-border bg-surface text-foreground hover:border-primary/40',
-                    )}
-                >
-                    <div className="flex items-center gap-1.5 truncate">
-                        <Building className="h-3.5 w-3.5 shrink-0 text-blue-500" />
-                        <span className="truncate">{deptFilter !== 'all' ? deptFilter : t('department')}</span>
-                    </div>
-                    <span className="text-[10px] opacity-60">▼</span>
-                </button>
-            </div>
-
-            <div className="hidden sm:block mx-1 w-px shrink-0 self-stretch bg-border/60" />
-
-            {/* Status Filter Pills (Horizontal Scroll Strip on Mobile, Flex on Desktop) */}
-            <div className="-mx-4 px-4 sm:mx-0 sm:px-0 flex gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none items-center"
-                 style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-                {/* Status: All */}
-                <button
-                    type="button"
-                    onClick={() => onStatusChange('all')}
-                    aria-pressed={statusFilter === 'all'}
-                    className={cn(
-                        'shrink-0 rounded-full border px-3.5 py-1.5 text-xs font-semibold transition-all whitespace-nowrap',
-                        statusFilter === 'all'
-                            ? 'border-primary bg-primary text-primary-foreground shadow-sm'
-                            : 'border-border/60 bg-surface/80 text-muted-foreground hover:border-primary/40 hover:text-foreground',
-                    )}
-                >
-                    {t('all')}
-                </button>
-
-                {/* Individual status chips */}
-                {STATUS_FILTERS.map((filter) => (
+                {/* Department trigger chip — Interactive for Admin, Locked badge for Dept user */}
+                {isAdmin ? (
                     <button
-                        key={filter.id}
                         type="button"
-                        onClick={() => handleStatusClick(filter.id)}
-                        aria-pressed={statusFilter === filter.id}
+                        onClick={() => setDeptSheetOpen(true)}
                         className={cn(
-                            'shrink-0 rounded-full border px-3.5 py-1.5 text-xs font-semibold transition-all whitespace-nowrap',
-                            statusFilter === filter.id
+                            'flex items-center justify-between gap-1.5 rounded-xl border px-3 py-2 text-xs font-semibold transition-all sm:rounded-full sm:py-1.5 sm:px-4 cursor-pointer',
+                            deptFilter !== 'all'
                                 ? 'border-primary bg-primary text-primary-foreground shadow-sm'
-                                : 'border-border/60 bg-surface/80 text-muted-foreground hover:border-primary/40 hover:text-foreground',
+                                : 'border-border bg-surface text-foreground hover:border-primary/40',
                         )}
                     >
-                        {t(filter.key)}
+                        <div className="flex items-center gap-1.5 truncate">
+                            <Building className="h-3.5 w-3.5 shrink-0 text-blue-500" />
+                            <span className="truncate">{deptFilter !== 'all' ? deptFilter : t('department')}</span>
+                        </div>
+                        <span className="text-[10px] opacity-60">▼</span>
                     </button>
-                ))}
+                ) : (
+                    <div 
+                        className="flex items-center gap-1.5 rounded-xl border border-[#3B3929] bg-[#2A281E] px-3 py-1.5 text-xs font-bold sm:rounded-full shadow-xs"
+                    >
+                        <Lock className="h-3 w-3 text-[#C9AA71]" />
+                        {userDept && (
+                            <span 
+                                className="px-2 py-0.5 rounded text-[11px] font-extrabold uppercase"
+                                style={{ 
+                                    background: getDepartmentTheme(userDept).bg, 
+                                    color: getDepartmentTheme(userDept).text 
+                                }}
+                            >
+                                {userDept}
+                            </span>
+                        )}
+                        <span className="text-[10px] text-[#A19F8D] hidden sm:inline">
+                            {t('locked_to_department') || 'Cakupan Departemen'}
+                        </span>
+                    </div>
+                )}
+
+                {/* Reset button if category or admin dept filter active */}
+                {hasActiveFilters && (
+                    <button
+                        type="button"
+                        onClick={() => {
+                            onCategoryChange('all');
+                            if (isAdmin) onDeptChange('all');
+                        }}
+                        className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 ml-1 transition-colors cursor-pointer"
+                    >
+                        Reset filters
+                    </button>
+                )}
             </div>
         </div>
 
@@ -143,7 +140,7 @@ export function FilterChips({ categoryFilter, onCategoryChange, statusFilter, on
                     </SheetHeader>
 
                     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                        {CATEGORY_FILTERS.map((cat) => {
+                        {CATEGORY_FILTERS.map((cat, idx) => {
                             const Icon = cat.icon;
                             const isActive = categoryFilter === cat.id;
                             return (
@@ -151,12 +148,13 @@ export function FilterChips({ categoryFilter, onCategoryChange, statusFilter, on
                                     key={cat.id}
                                     type="button"
                                     onClick={() => handleCategorySelect(cat.id)}
+                                    style={{ animationDelay: `${idx * 45}ms` }}
                                     className={cn(
-                                        'flex flex-col items-start gap-2 rounded-xl border p-4 text-left transition-all',
+                                        'animate-sheet-item flex flex-col items-start gap-2 rounded-xl border p-4 text-left transition-all duration-200 cursor-pointer',
                                         cat.bg,
                                         isActive
                                             ? 'ring-2 ring-primary border-primary scale-[0.98]'
-                                            : 'hover:scale-[0.97] active:scale-[0.95]',
+                                            : 'hover:scale-[0.98] active:scale-[0.95]',
                                     )}
                                 >
                                     <Icon className={cn('h-5 w-5', cat.color)} />
@@ -189,11 +187,12 @@ export function FilterChips({ categoryFilter, onCategoryChange, statusFilter, on
                         <button
                             type="button"
                             onClick={() => { onDeptChange('all'); setDeptSheetOpen(false); }}
+                            style={{ animationDelay: '0ms' }}
                             className={cn(
-                                'flex flex-col items-start gap-2 rounded-xl border p-4 text-left transition-all bg-muted/60',
+                                'animate-sheet-item flex flex-col items-start gap-2 rounded-xl border p-4 text-left transition-all duration-200 bg-muted/60 cursor-pointer',
                                 deptFilter === 'all'
                                     ? 'ring-2 ring-primary border-primary scale-[0.98]'
-                                    : 'hover:scale-[0.97] active:scale-[0.95]',
+                                    : 'hover:scale-[0.98] active:scale-[0.95]',
                             )}
                         >
                             <LayoutGrid className="h-5 w-5 text-foreground" />
@@ -206,26 +205,57 @@ export function FilterChips({ categoryFilter, onCategoryChange, statusFilter, on
                                 </span>
                             )}
                         </button>
-                        {DEPARTMENT_FILTERS.map((dept) => {
+                        {DEPARTMENT_FILTERS.map((dept, idx) => {
                             const isActive = deptFilter === dept;
+                            const theme = getDepartmentTheme(dept);
                             return (
                                 <button
                                     key={dept}
                                     type="button"
                                     onClick={() => { onDeptChange(dept); setDeptSheetOpen(false); }}
+                                    style={{
+                                        animationDelay: `${(idx + 1) * 35}ms`,
+                                        ...(isActive ? {
+                                            backgroundColor: theme.bg,
+                                            color: theme.text,
+                                            borderColor: theme.bg,
+                                            boxShadow: `0 0 12px ${theme.bg}80`
+                                        } : {
+                                            backgroundColor: theme.bg === '#212121' ? 'rgba(255, 255, 255, 0.08)' : `${theme.bg}12`,
+                                            borderColor: theme.bg === '#212121' ? 'rgba(255, 255, 255, 0.25)' : `${theme.bg}30`,
+                                        })
+                                    }}
                                     className={cn(
-                                        'flex flex-col items-start gap-2 rounded-xl border p-4 text-left transition-all bg-blue-500/5 border-blue-500/10',
+                                        'animate-sheet-item flex flex-col items-start gap-2 rounded-xl border p-4 text-left transition-all duration-200 cursor-pointer',
                                         isActive
-                                            ? 'ring-2 ring-primary border-primary scale-[0.98]'
-                                            : 'hover:scale-[0.97] active:scale-[0.95]',
+                                            ? 'ring-2 ring-white/30 scale-[0.98]'
+                                            : 'hover:scale-[0.98] active:scale-[0.95] hover:border-primary/40',
                                     )}
                                 >
-                                    <Building className="h-5 w-5 text-blue-600" />
-                                    <span className="text-sm font-semibold leading-tight text-blue-600">
+                                    <div className="flex items-center gap-2">
+                                        <span 
+                                            className="h-3 w-3 rounded-full shrink-0 border border-white/20" 
+                                            style={{ backgroundColor: theme.bg }} 
+                                        />
+                                        <Building 
+                                            className="h-4 w-4" 
+                                            style={{ color: isActive ? theme.text : (theme.bg === '#212121' ? '#FFFFFF' : theme.bg) }} 
+                                        />
+                                    </div>
+                                    <span 
+                                        className="text-sm font-bold leading-tight"
+                                        style={{ color: isActive ? theme.text : (theme.bg === '#212121' ? '#FFFFFF' : theme.bg) }}
+                                    >
                                         {dept}
                                     </span>
                                     {isActive && (
-                                        <span className="mt-auto text-[10px] font-bold uppercase tracking-wider text-primary">
+                                        <span 
+                                            className="mt-auto text-[10px] font-extrabold uppercase tracking-wider px-1.5 py-0.5 rounded"
+                                            style={{ 
+                                                backgroundColor: theme.text === '#FFFFFF' ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.15)',
+                                                color: theme.text
+                                            }}
+                                        >
                                             Active ✓
                                         </span>
                                     )}
