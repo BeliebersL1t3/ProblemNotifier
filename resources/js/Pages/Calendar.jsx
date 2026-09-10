@@ -4,14 +4,16 @@ import {
     Calendar as CalendarIcon, Briefcase, RefreshCw, Plus,
     ClipboardList, Clock, CheckCircle2, Loader2, X, Building2,
     Trash2, ChevronLeft, ChevronRight, RotateCcw, CalendarCheck, Cloud,
-    Search, ArrowRight, Check
+    Search, ArrowRight, Check, FileText
 } from 'lucide-react';
 import { CampusFixHeader } from '@/Components/CampusFix/CampusFixHeader';
+import { MobileBottomNav } from '@/Components/CampusFix/MobileBottomNav';
 import { IssuesProvider } from '@/context/IssuesContext';
 import { useLanguage } from '@/context/LanguageContext';
 import { OperationsCalendarView, parseTaskRanges, formatDateShort } from '@/Components/CampusFix/OperationsCalendarView';
 import { ImageLightboxModal } from '@/Components/CampusFix/ImageLightboxModal';
 import { ImageDropzone } from '@/Components/CampusFix/ImageDropzone';
+import { ExportCalendarPdfModal } from '@/Components/CampusFix/ExportCalendarPdfModal';
 import { ALL_DEPARTMENTS, normalizeDepartment } from '@/constants/staff';
 import { getDepartmentTheme } from '@/constants/departments';
 import { useAuth } from '@/hooks/useAuth';
@@ -547,6 +549,7 @@ function CalendarAddWorkModal({ initialStartDate = '', initialEndDate = '', init
     const [form, setForm] = useState({
         title: '',
         description: '',
+        locMains: [],
         locMain: '',
         locDetail: '',
         location: '',
@@ -561,22 +564,38 @@ function CalendarAddWorkModal({ initialStartDate = '', initialEndDate = '', init
     const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
     const handleLocMainClick = (loc) => {
-        const isSelected = form.locMain === loc;
-        const newMain = isSelected ? '' : loc;
-        set('locMain', newMain);
-        
-        const detail = form.locDetail?.trim() || '';
-        const combined = newMain ? (detail ? `${newMain} - ${detail}` : newMain) : detail;
-        set('location', combined);
+        setForm(prev => {
+            const currentMains = prev.locMains || (prev.locMain ? [prev.locMain] : []);
+            const isSelected = currentMains.includes(loc);
+            const newMains = isSelected 
+                ? currentMains.filter(m => m !== loc) 
+                : [...currentMains, loc];
+            
+            const mainText = newMains.join(', ');
+            const detail = prev.locDetail?.trim() || '';
+            const combined = mainText ? (detail ? `${mainText} - ${detail}` : mainText) : detail;
+
+            return {
+                ...prev,
+                locMains: newMains,
+                locMain: newMains.length > 0 ? newMains[0] : '',
+                location: combined,
+            };
+        });
     };
 
     const handleLocDetailChange = (e) => {
         const detail = e.target.value;
-        set('locDetail', detail);
-
-        const main = form.locMain || '';
-        const combined = main ? (detail.trim() ? `${main} - ${detail.trim()}` : main) : detail.trim();
-        set('location', combined);
+        setForm(prev => {
+            const currentMains = prev.locMains || (prev.locMain ? [prev.locMain] : []);
+            const mainText = currentMains.join(', ');
+            const combined = mainText ? (detail.trim() ? `${mainText} - ${detail.trim()}` : mainText) : detail.trim();
+            return {
+                ...prev,
+                locDetail: detail,
+                location: combined,
+            };
+        });
     };
 
     const handleAddDateBlock = () => {
@@ -597,9 +616,9 @@ function CalendarAddWorkModal({ initialStartDate = '', initialEndDate = '', init
     const handleRemoveDateBlock = (id) => {
         if (dateBlocks.length <= 1) {
             setDateBlocks([{ id: dateBlocks[0].id, startDate: '', endDate: '' }]);
-        } else {
-            setDateBlocks(prev => prev.filter(b => b.id !== id));
+            return;
         }
+        setDateBlocks(prev => prev.filter(b => b.id !== id));
     };
 
     const handleClearAllDates = () => {
@@ -741,24 +760,29 @@ function CalendarAddWorkModal({ initialStartDate = '', initialEndDate = '', init
                     />
                 </div>
 
-                {/* Location selector with TPI / TBR / Kantor + specific detail */}
+                {/* Location selector with TPI / TBR / Kantor (multi-selectable) + specific detail */}
                 <div>
-                    <label className="block text-xs font-semibold text-[#FAFAFA] mb-1.5">{t('work_location') || 'Lokasi Area'}</label>
+                    <div className="flex items-center justify-between mb-1.5">
+                        <label className="block text-xs font-semibold text-[#FAFAFA]">{t('work_location') || 'Lokasi Area'}</label>
+                        <span className="text-[10px] text-[#A19F8D]">({t('select_multiple_hint') || 'Bisa pilih lebih dari 1'})</span>
+                    </div>
                     <div className="flex gap-2 mb-2">
                         {MAIN_LOCATIONS.map(loc => {
-                            const isSelected = form.locMain === loc;
+                            const currentMains = form.locMains || (form.locMain ? [form.locMain] : []);
+                            const isSelected = currentMains.includes(loc);
                             return (
                                 <button
                                     key={loc}
                                     type="button"
                                     onClick={() => handleLocMainClick(loc)}
-                                    className={`flex-1 py-2 text-xs font-bold rounded-lg border transition-all cursor-pointer ${
+                                    className={`flex-1 py-2 text-xs font-bold rounded-lg border transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
                                         isSelected
                                             ? 'bg-[#C9AA71] text-[#1C1B0E] border-[#C9AA71] shadow-md scale-[1.02]'
                                             : 'bg-[#1C1B0E] text-[#A19F8D] border-[#3B3929] hover:text-[#FAFAFA] hover:border-[#C9AA71]/50'
                                     }`}
                                 >
-                                    {loc}
+                                    {isSelected && <Check className="h-3 w-3 stroke-[3]" />}
+                                    <span>{loc}</span>
                                 </button>
                             );
                         })}
@@ -766,7 +790,11 @@ function CalendarAddWorkModal({ initialStartDate = '', initialEndDate = '', init
                     <input 
                         value={form.locDetail || ''} 
                         onChange={handleLocDetailChange}
-                        placeholder={form.locMain ? `${t('specific_location_in') || 'Detail lokasi di'} ${form.locMain}… (${t('work_location_placeholder') || 'contoh: Villa 101'})` : (t('work_location_placeholder') || 'Pilih area atau ketik lokasi…')}
+                        placeholder={
+                            (form.locMains && form.locMains.length > 0)
+                                ? `${t('specific_location_in') || 'Detail lokasi di'} ${form.locMains.join(', ')}… (${t('work_location_placeholder') || 'contoh: Villa 101, Jetty'})`
+                                : (t('work_location_placeholder') || 'Pilih area atau ketik lokasi…')
+                        }
                         className="w-full rounded-lg border border-[#3B3929] bg-[#1C1B0E] px-3 py-2 text-sm text-[#FAFAFA] placeholder:text-[#A19F8D]/60 focus:border-[#C9AA71] focus:outline-none transition-colors" 
                     />
                 </div>
@@ -927,6 +955,7 @@ function CalendarInner() {
     // Multi-Department Selection: Defaults to ALL departments for everyone
     const [selectedDepartments, setSelectedDepartments] = useState(ALL_DEPARTMENTS);
     const [addModalOpen, setAddModalOpen] = useState(false);
+    const [exportModalOpen, setExportModalOpen] = useState(false);
     const [modalDates, setModalDates] = useState({ start: '', end: '' });
     const [previewImage, setPreviewImage] = useState(null);
     const [searchQuery, setSearchQuery] = useState('');
@@ -1307,7 +1336,7 @@ function CalendarInner() {
 
     return (
         <div className="min-h-screen bg-[#1C1B0E] text-[#FAFAFA] relative overflow-hidden antialiased selection:bg-[#C9AA71]/30">
-            <Head title={`${t('calendar_view') || 'Kalender Operasional'} — Telunas Resort`} />
+            <Head title={`${t('calendar_view') || (lang === 'id' ? 'Kalender' : 'Calendar')} — Telunas Resort`} />
 
             {/* Background Motif Pattern Overlay */}
             <div 
@@ -1329,7 +1358,7 @@ function CalendarInner() {
                     searchDropdown={renderSearchDropdown}
                 />
 
-                <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
+                <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 pb-28 md:pb-6">
                     {/* Sync Message Alert Banner */}
                     {syncMsg && (
                         <div className={`mb-4 px-4 py-3 rounded-xl border flex items-center justify-between text-xs font-bold transition-all shadow-lg animate-in fade-in slide-in-from-top-2 ${
@@ -1357,7 +1386,7 @@ function CalendarInner() {
                             <div className="flex items-center gap-2.5 mb-1.5">
                                 <CalendarIcon className="h-6 w-6 text-[#C9AA71]" />
                                 <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#FAFAFA]">
-                                    {t('calendar_view') || 'Kalender Operasional'}
+                                    {t('calendar_view') || (lang === 'id' ? 'Kalender' : 'Calendar')}
                                 </h1>
                             </div>
                             <p className="text-sm font-medium text-[#A19F8D]">
@@ -1388,6 +1417,16 @@ function CalendarInner() {
                                     <Cloud className="h-3.5 w-3.5 text-[#C9AA71]" />
                                 )}
                                 <span>{syncingCalendar ? 'Syncing...' : 'Sync Google Calendar'}</span>
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => setExportModalOpen(true)}
+                                title={t('tooltip_export_calendar_pdf') || 'Export Calendar Schedule to PDF'}
+                                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-[#1C1B0E] text-[#FAFAFA] border border-[#C9AA71]/50 hover:bg-[#C9AA71]/15 hover:border-[#C9AA71] transition-all hover:scale-105 cursor-pointer backdrop-blur-sm shadow-sm"
+                            >
+                                <FileText className="h-3.5 w-3.5 text-[#C9AA71]" />
+                                <span>{t('export_pdf') || 'Export PDF'}</span>
                             </button>
                         </div>
                     </div>
@@ -1484,6 +1523,15 @@ function CalendarInner() {
                 title={previewImage?.title}
                 subtitle={previewImage?.subtitle}
             />
+
+            {/* Calendar Schedule PDF Export Modal */}
+            <ExportCalendarPdfModal
+                open={exportModalOpen}
+                onOpenChange={setExportModalOpen}
+                tasks={tasks}
+            />
+
+            <MobileBottomNav currentTab="calendar" />
         </div>
     );
 }

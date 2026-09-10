@@ -17,51 +17,65 @@
  */
 
 export const DEPARTMENT_COLORS = {
-    // 🏢 Corporate, Admin & Management
+    // 🏢 1. HR Group (HR, Legal, LnD, Transportasi)
     'hr': { bg: '#737FCC', text: '#FFFFFF', name: 'HR', label: 'Lavender (#737FCC)' },
     'human resources': { bg: '#737FCC', text: '#FFFFFF', name: 'HR', label: 'Lavender' },
     'legal': { bg: '#737FCC', text: '#FFFFFF', name: 'HR', label: 'Lavender' },
+    'lnd': { bg: '#737FCC', text: '#FFFFFF', name: 'HR', label: 'Lavender' },
+    'learning & development': { bg: '#737FCC', text: '#FFFFFF', name: 'HR', label: 'Lavender' },
+    'transportasi': { bg: '#737FCC', text: '#FFFFFF', name: 'HR', label: 'Lavender' },
     'tekong': { bg: '#737FCC', text: '#FFFFFF', name: 'HR', label: 'Lavender' },
 
-    'finance': { bg: '#76E553', text: '#14130B', name: 'Finance', label: 'Kiwi (#76E553)' },
-    'procurement': { bg: '#19A6ED', text: '#FFFFFF', name: 'Procurement', label: 'Azure (#19A6ED)' },
-    'oe': { bg: '#F09BFF', text: '#14130B', name: 'OE', label: 'Amethyst (#F09BFF)' },
-    'it': { bg: '#87DEF4', text: '#14130B', name: 'IT', label: 'Aqua (#87DEF4)' },
-    'it & technology': { bg: '#87DEF4', text: '#14130B', name: 'IT', label: 'Aqua (#87DEF4)' },
-
-    // 🛎️ Frontline, Sales & Guest Facing
-    'reservasi': { bg: '#0058FF', text: '#FFFFFF', name: 'Reservasi', label: 'Cobalt (#0058FF)' },
-    'sales/marketing': { bg: '#E034A5', text: '#FFFFFF', name: 'Sales/Marketing', label: 'Fuchsia (#E034A5)' },
-    'sales marketing': { bg: '#E034A5', text: '#FFFFFF', name: 'Sales/Marketing', label: 'Fuchsia (#E034A5)' },
-
-    // 🌟 GR Combined Group (Service, Bar, Spa, TiRek, GR)
+    // 🌟 2. GR Group (GRE, Service, TIrek, Spa, Bar)
     'gr': { bg: '#FDB256', text: '#14130B', name: 'GR', label: 'Tangerine (#FDB256)' },
+    'gre': { bg: '#FDB256', text: '#14130B', name: 'GR', label: 'Tangerine' },
     'guest relations': { bg: '#FDB256', text: '#14130B', name: 'GR', label: 'Tangerine' },
     'service': { bg: '#FDB256', text: '#14130B', name: 'GR', label: 'Tangerine' },
     'bar': { bg: '#FDB256', text: '#14130B', name: 'GR', label: 'Tangerine' },
     'spa': { bg: '#FDB256', text: '#14130B', name: 'GR', label: 'Tangerine' },
     'tirek': { bg: '#FDB256', text: '#14130B', name: 'GR', label: 'Tangerine' },
 
-    // 🍽️ Food & Beverage
-    'f&b': { bg: '#EE6E78', text: '#FFFFFF', name: 'F&B', label: 'Cranberry (#EE6E78)' },
-    'fnb': { bg: '#EE6E78', text: '#FFFFFF', name: 'F&B', label: 'Cranberry (#EE6E78)' },
-    'food & beverage': { bg: '#EE6E78', text: '#FFFFFF', name: 'F&B', label: 'Cranberry (#EE6E78)' },
+    // 💡 3. OE (Operational Excellence)
+    'oe': { bg: '#F09BFF', text: '#14130B', name: 'OE', label: 'Amethyst (#F09BFF)' },
 
-    // 🧹 HK Combined Group (HK + Pest Control)
+    // 🍳 4. Kitchen (Formerly F&B)
+    'kitchen': { bg: '#EE6E78', text: '#FFFFFF', name: 'Kitchen', label: 'Cranberry (#EE6E78)' },
+    'f&b': { bg: '#EE6E78', text: '#FFFFFF', name: 'Kitchen', label: 'Cranberry (#EE6E78)' },
+    'fnb': { bg: '#EE6E78', text: '#FFFFFF', name: 'Kitchen', label: 'Cranberry (#EE6E78)' },
+    'food & beverage': { bg: '#EE6E78', text: '#FFFFFF', name: 'Kitchen', label: 'Cranberry (#EE6E78)' },
+
+    // 🧹 5. HK (HK + Pest Control)
     'hk': { bg: '#8CEDAE', text: '#14130B', name: 'HK', label: 'Mint (#8CEDAE)' },
     'housekeeping': { bg: '#8CEDAE', text: '#14130B', name: 'HK', label: 'Mint' },
     'pest control': { bg: '#8CEDAE', text: '#14130B', name: 'HK', label: 'Mint' },
     'pestcontrol': { bg: '#8CEDAE', text: '#14130B', name: 'HK', label: 'Mint' },
 
-    // 🛠️ Fasilitas Combined Group (Fasilitas + Security)
-    'fasilitas': { bg: '#F2CD5A', text: '#14130B', name: 'Fasilitas', label: 'Sunny (#F2CD5A)' },
-    'facility': { bg: '#F2CD5A', text: '#14130B', name: 'Fasilitas', label: 'Sunny' },
-    'security': { bg: '#F2CD5A', text: '#14130B', name: 'Fasilitas', label: 'Sunny' },
+    // 💻 6. IT
+    'it': { bg: '#87DEF4', text: '#14130B', name: 'IT', label: 'Aqua (#87DEF4)' },
+    'it & technology': { bg: '#87DEF4', text: '#14130B', name: 'IT', label: 'Aqua (#87DEF4)' },
 
-    // 🔧 Engineering
+    // 📦 7. Procurement
+    'procurement': { bg: '#19A6ED', text: '#FFFFFF', name: 'Procurement', label: 'Azure (#19A6ED)' },
+
+    // 💵 8. Finance
+    'finance': { bg: '#76E553', text: '#14130B', name: 'Finance', label: 'Kiwi (#76E553)' },
+
+    // 🛎️ 9. Reservasi Group (Reservasi, Sales, Marketing)
+    'reservasi': { bg: '#0058FF', text: '#FFFFFF', name: 'Reservasi', label: 'Cobalt (#0058FF)' },
+    'sales': { bg: '#0058FF', text: '#FFFFFF', name: 'Reservasi', label: 'Cobalt' },
+    'marketing': { bg: '#0058FF', text: '#FFFFFF', name: 'Reservasi', label: 'Cobalt' },
+    'sales/marketing': { bg: '#0058FF', text: '#FFFFFF', name: 'Reservasi', label: 'Cobalt' },
+    'sales marketing': { bg: '#0058FF', text: '#FFFFFF', name: 'Reservasi', label: 'Cobalt' },
+
+    // 🔧 10. Engineer
     'engineer': { bg: '#61A6F1', text: '#14130B', name: 'Engineer', label: 'Sky (#61A6F1)' },
     'engineering': { bg: '#61A6F1', text: '#14130B', name: 'Engineer', label: 'Sky' },
     'maintenance': { bg: '#61A6F1', text: '#14130B', name: 'Engineer', label: 'Sky' },
+
+    // 🛠️ 11. Fasilitas Group (Fasilitas + Security)
+    'fasilitas': { bg: '#F2CD5A', text: '#14130B', name: 'Fasilitas', label: 'Sunny (#F2CD5A)' },
+    'facility': { bg: '#F2CD5A', text: '#14130B', name: 'Fasilitas', label: 'Sunny' },
+    'security': { bg: '#F2CD5A', text: '#14130B', name: 'Fasilitas', label: 'Sunny' },
 };
 
 /**
@@ -168,6 +182,16 @@ export function getShortDepartmentName(dept) {
     if (!dept) return '';
     const d = dept.trim().toLowerCase();
     const map = {
+        'kitchen': 'KTCH',
+        'f&b': 'KTCH',
+        'fnb': 'KTCH',
+        'food & beverage': 'KTCH',
+        'transportasi': 'TRP',
+        'tekong': 'TRP',
+        'lnd': 'LnD',
+        'gre': 'GRE',
+        'sales': 'SLS',
+        'marketing': 'MKT',
         'procurement': 'PROC',
         'engineering': 'ENG',
         'engineer': 'ENG',
@@ -177,15 +201,11 @@ export function getShortDepartmentName(dept) {
         'human resources': 'HR',
         'hr': 'HR',
         'legal': 'LEGAL',
-        'tekong': 'TEKONG',
         'finance': 'FIN',
         'fasilitas': 'FAS',
         'facility': 'FAS',
         'facilities': 'FAS',
         'security': 'SEC',
-        'f&b': 'F&B',
-        'fnb': 'F&B',
-        'food & beverage': 'F&B',
         'guest relations': 'GR',
         'gr': 'GR',
         'service': 'SRV',
@@ -194,9 +214,8 @@ export function getShortDepartmentName(dept) {
         'tirek': 'TIREK',
         'reservasi': 'RES',
         'reservation': 'RES',
-        'sales/marketing': 'MKT',
-        'sales marketing': 'MKT',
-        'marketing': 'MKT',
+        'sales/marketing': 'RES',
+        'sales marketing': 'RES',
         'it': 'IT',
         'it & technology': 'IT',
         'oe': 'OE',

@@ -9,61 +9,97 @@
  */
 
 export const ALL_DEPARTMENTS = [
+    'HR',
+    'GR',
+    'OE',
+    'Kitchen',
+    'HK',
+    'IT',
+    'Procurement',
+    'Finance',
+    'Reservasi',
     'Engineer',
     'Fasilitas',
-    'HK',
-    'F&B',
-    'GR',
-    'HR',
-    'IT',
-    'OE',
-    'Procurement',
-    'Sales/Marketing',
-    'Reservasi',
-    'Finance',
 ];
+
+// Sub-units / Sub-Departments under each parent department
+export const DEPARTMENT_SUBDIVISIONS = {
+    'HR': ['HR', 'Legal', 'LnD', 'Transportasi'],
+    'GR': ['GRE', 'Service', 'TIrek', 'Spa', 'Bar'],
+    'OE': ['OE'],
+    'Kitchen': ['Kitchen'],
+    'HK': ['HK', 'Pest Control'],
+    'IT': ['IT'],
+    'Procurement': ['Procurement'],
+    'Finance': ['Finance'],
+    'Reservasi': ['Reservasi', 'Sales', 'Marketing'],
+    'Engineer': ['Engineer'],
+    'Fasilitas': ['Fasilitas', 'Security'],
+};
 
 // Department Mapping / Alias Normalizer
 export const DEPARTMENT_ALIASES = {
-    // GR Group
+    // 🏢 HR Group
+    'hr': 'HR',
+    'human resources': 'HR',
+    'legal': 'HR',
+    'lnd': 'HR',
+    'learning & development': 'HR',
+    'transportasi': 'HR',
+    'tekong': 'HR',
+
+    // 🌟 GR Group
+    'gr': 'GR',
+    'gre': 'GR',
+    'guest relations': 'GR',
     'service': 'GR',
     'bar': 'GR',
     'spa': 'GR',
     'tirek': 'GR',
-    'gr': 'GR',
-    'guest relations': 'GR',
 
-    // HR Group
-    'legal': 'HR',
-    'tekong': 'HR',
-    'hr': 'HR',
-    'human resources': 'HR',
+    // 💡 OE Group
+    'oe': 'OE',
 
-    // HK Group
-    'pest control': 'HK',
-    'pestcontrol': 'HK',
+    // 🍳 Kitchen Group (formerly F&B)
+    'kitchen': 'Kitchen',
+    'f&b': 'Kitchen',
+    'fnb': 'Kitchen',
+    'food & beverage': 'Kitchen',
+
+    // 🧹 HK Group
     'hk': 'HK',
     'housekeeping': 'HK',
+    'pest control': 'HK',
+    'pestcontrol': 'HK',
 
-    // Fasilitas Group
-    'security': 'Fasilitas',
-    'fasilitas': 'Fasilitas',
-    'facility': 'Fasilitas',
+    // 💻 IT Group
+    'it': 'IT',
+    'it & technology': 'IT',
 
-    // Standalone
+    // 📦 Procurement Group
+    'procurement': 'Procurement',
+
+    // 💵 Finance Group
+    'finance': 'Finance',
+
+    // 🛎️ Reservasi Group (includes Sales & Marketing)
+    'reservasi': 'Reservasi',
+    'reservation': 'Reservasi',
+    'sales': 'Reservasi',
+    'marketing': 'Reservasi',
+    'sales/marketing': 'Reservasi',
+    'sales marketing': 'Reservasi',
+
+    // 🔧 Engineer Group
     'engineer': 'Engineer',
     'engineering': 'Engineer',
     'maintenance': 'Engineer',
-    'f&b': 'F&B',
-    'fnb': 'F&B',
-    'food & beverage': 'F&B',
-    'it': 'IT',
-    'oe': 'OE',
-    'procurement': 'Procurement',
-    'sales/marketing': 'Sales/Marketing',
-    'sales marketing': 'Sales/Marketing',
-    'reservasi': 'Reservasi',
-    'finance': 'Finance',
+
+    // 🛠️ Fasilitas Group
+    'fasilitas': 'Fasilitas',
+    'facility': 'Fasilitas',
+    'facilities': 'Fasilitas',
+    'security': 'Fasilitas',
 };
 
 export function normalizeDepartment(deptName) {
@@ -73,6 +109,80 @@ export function normalizeDepartment(deptName) {
 }
 
 export const DEPARTMENT_STAFF = {
+    'HR': [
+        'Pak Bambang (HR)',
+        'Siti HR Specialist',
+        'HR Officer',
+        'Advokat Hendro (Legal)',
+        'Ratna SH (Legal)',
+        'Legal Team Lead',
+        'Putri (LnD)',
+        'LnD Specialist',
+        'Captain Arif (Transportasi)',
+        'Rudi Hartono (Transportasi)',
+        'Surya Saputra (Transportasi)',
+    ],
+    'GR': [
+        'Wawan (GRE)',
+        'Nadia Safitri (GRE)',
+        'Indah Permata (GRE)',
+        'GRE Team',
+        'Andi Kurnia (Service)',
+        'Rina Marlina (Service)',
+        'Dian Anggraini (Service)',
+        'Lia (Bar)',
+        'Kevin Sanjaya (Bar)',
+        'Nurse Maya (Spa)',
+        'Sari Wulandari (Spa)',
+        'Yanti Komala (Spa)',
+        'TiRek Coordinator',
+        'Fajar Ramadhan (TiRek)',
+    ],
+    'OE': [
+        'Dimas (OE)',
+        'OE Operations Lead',
+        'Taufik Hidayat',
+    ],
+    'Kitchen': [
+        'Chef Ricky (Kitchen)',
+        'Bayu Pratama (Kitchen)',
+        'Putri Ayu (Kitchen)',
+        'Kitchen Team',
+    ],
+    'HK': [
+        'Siti Rahma (HK)',
+        'Dewi Lestari (HK)',
+        'Sri Wahyuni (HK)',
+        'Nurul Aini (HK)',
+        'Fitri Handayani (HK)',
+        'Wahyu Hidayat (Pest Control)',
+        'Rian Kurniawan (Pest Control)',
+        'Pest Control Team',
+    ],
+    'IT': [
+        'Reza (IT)',
+        'Dani (IT)',
+        'IT Support Team',
+    ],
+    'Procurement': [
+        'Procurement Team',
+        'Budi Purchasing',
+        'Ratna Dewi',
+    ],
+    'Finance': [
+        'Iwan Accountant',
+        'Finance Lead',
+        'Finance Officer',
+    ],
+    'Reservasi': [
+        'Maya Putri (Reservasi)',
+        'Reservasi Lead',
+        'Res Staff',
+        'Clarissa Tan (Sales)',
+        'Sales Lead',
+        'Ana (Marketing)',
+        'Marketing Coordinator',
+    ],
     'Engineer': [
         'Dimas Pratama',
         'Budi Santoso',
@@ -86,83 +196,9 @@ export const DEPARTMENT_STAFF = {
         'Eko Purnomo',
         'Fasilitas Team',
         'Pak Joko (Security)',
-        'Agus Setiawan',
-        'Doni Prasetyo',
+        'Agus Setiawan (Security)',
+        'Doni Prasetyo (Security)',
         'Security Lead',
-    ],
-    'HK': [
-        'Siti Rahma',
-        'Dewi Lestari',
-        'Sri Wahyuni',
-        'Nurul Aini',
-        'Fitri Handayani',
-        'Wahyu Hidayat (Pest Control)',
-        'Rian Kurniawan (Pest Control)',
-        'Pest Control Team',
-    ],
-    'F&B': [
-        'Chef Ricky',
-        'Bayu Pratama',
-        'Putri Ayu',
-        'F&B Kitchen Team',
-    ],
-    'GR': [
-        'Wawan (GR)',
-        'Nadia Safitri',
-        'Indah Permata',
-        'GR Reception Team',
-        'Andi Kurnia (Service)',
-        'Rina Marlina (Service)',
-        'Dian Anggraini (Service)',
-        'Lia (Bar)',
-        'Kevin Sanjaya (Bar)',
-        'Nurse Maya (Spa)',
-        'Sari Wulandari (Spa)',
-        'Yanti Komala (Spa)',
-        'TiRek Coordinator',
-        'Fajar Ramadhan (TiRek)',
-    ],
-    'HR': [
-        'Pak Bambang (HR)',
-        'Siti HR Specialist',
-        'HR Officer',
-        'Advokat Hendro (Legal)',
-        'Ratna SH (Legal)',
-        'Legal Team Lead',
-        'Captain Arif (Tekong)',
-        'Rudi Hartono (Tekong)',
-        'Surya Saputra (Tekong)',
-        'Bambang Irawan (Tekong)',
-    ],
-    'IT': [
-        'Reza (IT)',
-        'Dani (IT)',
-        'IT Support Team',
-    ],
-    'OE': [
-        'Dimas (OE)',
-        'OE Operations Lead',
-        'Taufik Hidayat',
-    ],
-    'Procurement': [
-        'Procurement Team',
-        'Budi Purchasing',
-        'Ratna Dewi',
-    ],
-    'Sales/Marketing': [
-        'Clarissa Tan',
-        'Sales Lead',
-        'Marketing Coordinator',
-    ],
-    'Reservasi': [
-        'Maya Putri',
-        'Reservasi Lead',
-        'Res Staff',
-    ],
-    'Finance': [
-        'Iwan Accountant',
-        'Finance Lead',
-        'Finance Officer',
     ],
 };
 

@@ -73,7 +73,8 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, density = '3' }) 
     // DENSITY 10 — MICRO MATRIX VIEW
     // =========================================================================
     if (density === '10') {
-        const isCritical = issue.priority === 'critical';
+        const isEmergency = (issue.category || '').toLowerCase() === 'emergency' || String(issue.id || '').startsWith('SOS');
+        const isCritical = !isEmergency && issue.priority === 'critical';
         const isSolved = issue.status === 'solved';
         const isPending = issue.status === 'pending';
         const isProgress = issue.status === 'progress';
@@ -97,7 +98,7 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, density = '3' }) 
         const primaryDept = assignedList[0] || issue.department || null;
         const deptTheme = primaryDept ? getDepartmentTheme(primaryDept) : null;
 
-        const tooltipText = `[${issue.id}] ${issue.title}\nStatus: ${issue.status.toUpperCase()}${issue.priority === 'critical' ? ' (CRITICAL)' : ''}\nLocation: ${issue.location || '-'}\nDept: ${primaryDept || '-'}\nReported: ${issue.reporter || '-'}`;
+        const tooltipText = `[${issue.id}] ${issue.title}\nStatus: ${issue.status.toUpperCase()}${isEmergency ? ' (SOS EMERGENCY)' : isCritical ? ' (CRITICAL)' : ''}\nLocation: ${issue.location || '-'}\nDept: ${primaryDept || '-'}\nReported: ${issue.reporter || '-'}`;
 
         return (
             <button
@@ -105,61 +106,56 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, density = '3' }) 
                 onClick={() => onSelect(issue)}
                 title={tooltipText}
                 className={cn(
-                    "group relative flex flex-col justify-between overflow-hidden rounded-lg border text-left transition-all duration-150 hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring min-w-0 w-full p-2 bg-surface",
-                    isCritical
+                    "group relative flex flex-col p-2 rounded-lg border text-left transition-all duration-150 hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-1 min-w-0 w-full bg-surface select-none",
+                    isEmergency
                         ? isSolved
-                            ? "border-red-500/50 bg-red-950/15 ring-1 ring-red-500/30"
-                            : "border-red-500 bg-red-950/25 border-2 animate-aura ring-1 ring-red-500"
-                        : isPending
-                            ? "border-orange-500/40 hover:border-orange-500"
-                            : "border-border hover:border-primary/50"
+                            ? "border-red-500/50 bg-red-950/15 ring-1 ring-red-500/40"
+                            : "border-red-500 bg-red-950/30 border-2 ring-1 ring-red-500 z-10"
+                        : isCritical
+                            ? isSolved
+                                ? "border-amber-500/50 bg-amber-950/15 ring-1 ring-amber-500/40"
+                                : "border-amber-500 bg-amber-950/20 border-2 ring-1 ring-amber-500 z-10"
+                            : isPending
+                                ? "border-orange-500/40 ring-1 ring-orange-500/20"
+                                : "border-border/80 hover:border-border"
                 )}
             >
-                {/* Micro Header */}
-                <div className="flex items-center justify-between gap-1 w-full text-[10px] font-mono mb-1">
-                    <span className="flex items-center gap-1 font-bold text-muted-foreground truncate">
-                        <span className={`h-2 w-2 rounded-full shrink-0 ${statusDot}`} />
+                {/* Header Row: ID + Status Dot */}
+                <div className="flex items-center justify-between gap-1 w-full mb-1">
+                    <span className="font-mono text-[9px] font-bold text-muted-foreground group-hover:text-foreground truncate">
                         {issue.id}
                     </span>
-                    {isCritical && (
-                        <span className="px-1 py-0.2 rounded bg-red-500/20 text-red-400 font-bold text-[9px] shrink-0 border border-red-500/30 animate-pulse">
-                            🚨
-                        </span>
-                    )}
-                </div>
-
-                {/* Micro Body */}
-                <div className="flex items-start gap-1.5 min-w-0 w-full mb-1.5">
-                    <img
-                        src={activeImage}
-                        alt=""
-                        loading="lazy"
-                        onError={(e) => { e.currentTarget.src = FALLBACK_IMAGE; }}
-                        className="h-9 w-9 rounded object-cover shrink-0 bg-muted border border-border/50"
-                    />
-                    <div className="flex flex-col min-w-0 flex-1">
-                        <h4 className="text-[11px] font-semibold leading-tight text-foreground line-clamp-2 break-words group-hover:text-primary transition-colors">
-                            {issue.title}
-                        </h4>
+                    <div className="flex items-center gap-1 shrink-0">
+                        {isEmergency ? (
+                            <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse ring-1 ring-red-400" />
+                        ) : isCritical ? (
+                            <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse ring-1 ring-amber-400" />
+                        ) : (
+                            <span className={cn("h-1.5 w-1.5 rounded-full", statusDot)} />
+                        )}
                     </div>
                 </div>
 
-                {/* Micro Footer */}
-                <div className="flex items-center justify-between gap-1 text-[9px] pt-1 border-t border-border/40 text-muted-foreground w-full">
-                    <span className="truncate flex items-center gap-0.5 max-w-[55%]">
-                        <MapPin className="h-2.5 w-2.5 shrink-0 text-muted-foreground/70" />
-                        <span className="truncate">{issue.location || '-'}</span>
-                    </span>
-                    {primaryDept && (
-                        <span
-                            style={deptTheme ? {
-                                backgroundColor: deptTheme.bg === '#212121' ? 'rgba(255, 255, 255, 0.1)' : `${deptTheme.bg}22`,
-                                borderColor: deptTheme.bg === '#212121' ? 'rgba(255, 255, 255, 0.3)' : `${deptTheme.bg}50`,
-                                color: deptTheme.bg === '#212121' ? '#FFFFFF' : (deptTheme.text === '#14130B' ? '#FBBF24' : deptTheme.bg)
-                            } : {}}
-                            className="truncate px-1 py-0.2 rounded font-mono font-semibold text-[8.5px] border shrink-0 max-w-[45%]"
+                {/* Title */}
+                <span className="text-[11px] font-semibold leading-tight text-foreground truncate w-full mb-1 group-hover:text-primary">
+                    {issue.title}
+                </span>
+
+                {/* Micro Meta: Dept pill + Timer if critical */}
+                <div className="flex items-center justify-between gap-1 w-full mt-auto pt-1 border-t border-border/40 text-[9px]">
+                    {deptTheme ? (
+                        <span 
+                            className="px-1 py-0.2 rounded text-[8px] font-bold truncate max-w-[60px]"
+                            style={{ backgroundColor: `${deptTheme.bg}25`, color: deptTheme.bg }}
                         >
                             {primaryDept}
+                        </span>
+                    ) : (
+                        <span className="text-muted-foreground truncate">{issue.location || '-'}</span>
+                    )}
+                    {isCritical && issue.deadline && !isSolved && (
+                        <span className="text-[8px] font-mono font-bold text-amber-400 shrink-0">
+                            ⏱️
                         </span>
                     )}
                 </div>
@@ -171,7 +167,8 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, density = '3' }) 
     // DENSITY 5 — COMPACT VIEW
     // =========================================================================
     if (density === '5') {
-        const isCritical = issue.priority === 'critical';
+        const isEmergency = (issue.category || '').toLowerCase() === 'emergency' || String(issue.id || '').startsWith('SOS');
+        const isCritical = !isEmergency && issue.priority === 'critical';
         const isSolved = issue.status === 'solved';
         const isPending = issue.status === 'pending';
 
@@ -181,13 +178,17 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, density = '3' }) 
                 onClick={() => onSelect(issue)}
                 className={cn(
                     "group flex flex-col overflow-hidden rounded-xl border text-left transition-all duration-200 hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 min-w-0 w-full bg-surface",
-                    isCritical
+                    isEmergency
                         ? isSolved
                             ? "border-red-500/50 bg-red-950/10 shadow-[0_0_15px_rgba(239,68,68,0.2)] ring-1 ring-red-500/50"
-                            : "border-red-500 bg-red-950/20 border-2 animate-aura ring-1 ring-red-500 z-10 relative"
-                        : isPending
-                            ? "border-orange-500/50 shadow-card hover:shadow-card-hover ring-1 ring-orange-500/30"
-                            : "border-border shadow-card hover:shadow-card-hover focus-visible:ring-ring"
+                            : "border-red-500 bg-red-950/25 border-2 ring-1 ring-red-500 z-10 relative"
+                        : isCritical
+                            ? isSolved
+                                ? "border-amber-500/50 bg-amber-950/10 shadow-[0_0_15px_rgba(245,158,11,0.2)] ring-1 ring-amber-500/50"
+                                : "border-amber-500 bg-amber-950/20 border-2 ring-1 ring-amber-500 z-10 relative"
+                            : isPending
+                                ? "border-orange-500/50 shadow-card hover:shadow-card-hover ring-1 ring-orange-500/30"
+                                : "border-border shadow-card hover:shadow-card-hover focus-visible:ring-ring"
                 )}
             >
                 <div className="relative aspect-[16/10] overflow-hidden bg-muted group/img">
@@ -401,19 +402,26 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, density = '3' }) 
     // =========================================================================
     // DENSITY 3 — STANDARD DETAILED VIEW (DEFAULT)
     // =========================================================================
+    const isEmergency = (issue.category || '').toLowerCase() === 'emergency' || String(issue.id || '').startsWith('SOS');
+    const isCritical = !isEmergency && issue.priority === 'critical';
+
     return (
         <button
             type="button"
             onClick={() => onSelect(issue)}
             className={cn(
                 "group flex flex-col overflow-hidden rounded-xl border text-left transition-all duration-200 hover:-translate-y-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 min-w-0 w-full",
-                issue.priority === 'critical'
+                isEmergency
                     ? issue.status === 'solved'
                         ? "border-red-500/50 bg-red-950/10 shadow-[0_0_15px_rgba(239,68,68,0.2)] ring-1 ring-red-500/50"
-                        : "border-red-500 bg-red-950/20 border-2 animate-aura ring-1 ring-red-500 z-10 relative"
-                    : issue.status === 'pending'
-                        ? "border-orange-500/50 bg-surface shadow-card hover:shadow-card-hover focus-visible:ring-ring ring-1 ring-orange-500/30"
-                        : "border-border bg-surface shadow-card hover:shadow-card-hover focus-visible:ring-ring"
+                        : "border-red-500 bg-red-950/25 border-2 ring-1 ring-red-500 z-10 relative"
+                    : isCritical
+                        ? issue.status === 'solved'
+                            ? "border-amber-500/50 bg-amber-950/10 shadow-[0_0_15px_rgba(245,158,11,0.2)] ring-1 ring-amber-500/50"
+                            : "border-amber-500 bg-amber-950/20 border-2 ring-1 ring-amber-500 z-10 relative"
+                        : issue.status === 'pending'
+                            ? "border-orange-500/50 bg-surface shadow-card hover:shadow-card-hover focus-visible:ring-ring ring-1 ring-orange-500/30"
+                            : "border-border bg-surface shadow-card hover:shadow-card-hover focus-visible:ring-ring"
             )}
         >
             <div className="relative aspect-[4/3] overflow-hidden bg-muted group/img">
@@ -440,7 +448,7 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, density = '3' }) 
                     label={issue.status === 'solved' ? issue.durationLabel : undefined}
                     className="absolute left-3 top-3"
                 />
-                {issue.priority === 'critical' && !canEdit && !canDelete && (
+                {isCritical && !canEdit && !canDelete && (
                     <CriticalTimer
                         deadline={issue.deadline}
                         status={issue.status}
@@ -481,7 +489,7 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, density = '3' }) 
             </div>
 
             <div className="flex flex-1 flex-col gap-2 p-4 min-w-0 w-full">
-                {issue.priority === 'critical' && issue.deadline && issue.status !== 'solved' && (
+                {isCritical && issue.deadline && issue.status !== 'solved' && (
                     <CriticalTimer
                         deadline={issue.deadline}
                         status={issue.status}

@@ -20,13 +20,14 @@ import {
 } from '@/Components/UI/Select';
 import { ImageDropzone } from './ImageDropzone';
 import { useIssues } from '@/context/IssuesContext';
-import { Loader2, AlertTriangle, CalendarClock } from 'lucide-react';
+import { Loader2, AlertTriangle, CalendarClock, Clock } from 'lucide-react';
 import { ALL_DEPARTMENTS, getStaffForDepartment } from '@/constants/staff';
 import { getDepartmentTheme } from '@/constants/departments';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/context/LanguageContext';
 import { useDepartmentScheduleConflicts } from '@/hooks/useDepartmentScheduleConflicts';
 import { DepartmentScheduleWarning } from './DepartmentScheduleWarning';
+import { InlineAnalogClockPicker } from './CircularTimePickerModal';
 
 export function ReportIssueModal({ open, onOpenChange }) {
     const { t, lang } = useLanguage();
@@ -41,6 +42,8 @@ export function ReportIssueModal({ open, onOpenChange }) {
     const [description, setDescription] = useState('');
     const [priority, setPriority] = useState('low');
     const [deadline, setDeadline] = useState('15');
+    const [customDeadlineMs, setCustomDeadlineMs] = useState(null);
+    const [showTimePicker, setShowTimePicker] = useState(false);
     const [assignedDepts, setAssignedDepts] = useState([]);
     const [taggedDepts, setTaggedDepts] = useState([]);
     const [imageFile, setImageFile] = useState(null);
@@ -55,6 +58,10 @@ export function ReportIssueModal({ open, onOpenChange }) {
 
     const { conflicts, conflictsByDept, hasConflicts } = useDepartmentScheduleConflicts(selectedTargetDepts);
 
+    const DRAFT_KEY = 'campusfix_report_draft';
+    const [hasDraftRestored, setHasDraftRestored] = useState(false);
+
+    // Check and restore saved draft when modal opens
     useEffect(() => {
         if (open) {
             if (isDeptUser && department) {
@@ -62,8 +69,64 @@ export function ReportIssueModal({ open, onOpenChange }) {
                 if (staffName) setReporter(staffName);
             }
             setShowConflictConfirm(false);
+
+            try {
+                const saved = localStorage.getItem(DRAFT_KEY);
+                if (saved) {
+                    const d = JSON.parse(saved);
+                    if (d.title) setTitle(d.title);
+                    if (d.description) setDescription(d.description);
+                    if (d.locMain) setLocMain(d.locMain);
+                    if (d.locDetail) setLocDetail(d.locDetail);
+                    if (d.category) setCategory(d.category);
+                    if (d.priority) setPriority(d.priority);
+                    if (d.deadline) setDeadline(d.deadline);
+                    if (d.originDept && !isDeptUser) setOriginDept(d.originDept);
+                    if (d.reporter && !isDeptUser) setReporter(d.reporter);
+                    if (Array.isArray(d.assignedDepts) && d.assignedDepts.length > 0) {
+                        setAssignedDepts(d.assignedDepts);
+                    }
+                    if (Array.isArray(d.taggedDepts) && d.taggedDepts.length > 0) {
+                        setTaggedDepts(d.taggedDepts);
+                    }
+                    if (d.title || d.description) {
+                        setHasDraftRestored(true);
+                    }
+                }
+            } catch (e) {}
         }
     }, [open, isDeptUser, department, staffName]);
+
+    // Auto-save draft changes to localStorage
+    useEffect(() => {
+        if (!open) return;
+        try {
+            const draft = {
+                originDept,
+                reporter,
+                title,
+                locMain,
+                locDetail,
+                category,
+                description,
+                priority,
+                deadline,
+                assignedDepts,
+                taggedDepts,
+            };
+            if (title.trim() || description.trim() || locDetail.trim()) {
+                localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+            }
+        } catch (e) {}
+    }, [open, originDept, reporter, title, locMain, locDetail, category, description, priority, deadline, assignedDepts, taggedDepts]);
+
+    const clearDraft = () => {
+        try {
+            localStorage.removeItem(DRAFT_KEY);
+        } catch (e) {}
+        setHasDraftRestored(false);
+        reset();
+    };
 
     // Reset confirmation prompt if assigned or tagged depts change
     useEffect(() => {
@@ -99,6 +162,8 @@ export function ReportIssueModal({ open, onOpenChange }) {
         setDescription('');
         setPriority('low');
         setDeadline('15');
+        setCustomDeadlineMs(null);
+        setShowTimePicker(false);
         setAssignedDepts([]);
         setTaggedDepts([]);
         setImageFile(null);
@@ -106,6 +171,10 @@ export function ReportIssueModal({ open, onOpenChange }) {
         setErrorMsg('');
         setShowConflictConfirm(false);
         setIsSubmitting(false);
+        try {
+            localStorage.removeItem(DRAFT_KEY);
+        } catch (e) {}
+        setHasDraftRestored(false);
     };
 
     const toggleAssigned = (dept) => {
@@ -145,7 +214,12 @@ export function ReportIssueModal({ open, onOpenChange }) {
         setErrorMsg('');
 
         try {
-            await addIssue({
+            let finalDeadline = '';
+            if (priority === 'critical') {
+                finalDeadline = (customDeadlineMs || (Date.now() + 15 * 60000)).toString();
+            }
+
+            const res = await addIssue({
                 reporter: reporter.trim(),
                 title: title.trim(),
                 location: location.trim(),
@@ -156,8 +230,16 @@ export function ReportIssueModal({ open, onOpenChange }) {
                 description: description.trim(),
                 imageFile,
                 priority,
-                deadline: priority === 'critical' ? (Date.now() + parseInt(deadline) * 60000).toString() : '',
+                deadline: finalDeadline,
             });
+
+            if (res?.queuedOffline) {
+                alert(lang === 'id'
+                    ? `📡 Wi-Fi tidak terhubung. Laporan "${title}" telah disimpan di antrean offline dengan waktu saat ini (${new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}). Laporan akan otomatis terkirim begitu Anda terhubung ke Wi-Fi.`
+                    : `📡 Wi-Fi disconnected. Report "${title}" saved to offline outbox with original timestamp (${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}). It will auto-upload as soon as Wi-Fi reconnects.`
+                );
+            }
+
             reset();
             onOpenChange(false);
         } catch (err) {
@@ -177,6 +259,19 @@ export function ReportIssueModal({ open, onOpenChange }) {
                         Tell the community what is broken so someone nearby can pick it up.
                     </DialogDescription>
                 </DialogHeader>
+
+                {hasDraftRestored && (
+                    <div className="flex items-center justify-between rounded-lg bg-amber-500/10 border border-amber-500/30 px-3 py-2 text-xs text-amber-300">
+                        <span>💾 {lang === 'id' ? 'Draft laporan otomatis dipulihkan' : 'Report draft auto-restored'}</span>
+                        <button
+                            type="button"
+                            onClick={clearDraft}
+                            className="underline text-amber-200 hover:text-white font-semibold cursor-pointer"
+                        >
+                            {lang === 'id' ? 'Hapus Draft' : 'Clear Draft'}
+                        </button>
+                    </div>
+                )}
 
                 {errorMsg && (
                     <div className="rounded-md bg-destructive/15 p-3 text-sm font-medium text-destructive">
@@ -415,39 +510,31 @@ export function ReportIssueModal({ open, onOpenChange }) {
                         <DepartmentScheduleWarning conflictsByDept={conflictsByDept} className="my-1" />
                     )}
 
-                    <div className="grid gap-4 sm:grid-cols-2">
-                        <div className="grid gap-2">
-                            <Label htmlFor="priority">Priority Level</Label>
-                            <Select value={priority} onValueChange={setPriority} disabled={isSubmitting}>
-                                <SelectTrigger id="priority">
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="low">Low Priority</SelectItem>
-                                    <SelectItem value="medium">Medium Priority</SelectItem>
-                                    <SelectItem value="high">High Priority</SelectItem>
-                                    <SelectItem value="critical">🚨 Critical</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-                        {priority === 'critical' && (
-                            <div className="grid gap-2">
-                                <Label htmlFor="deadline">Time Limit</Label>
-                                <Select value={deadline} onValueChange={setDeadline} disabled={isSubmitting}>
-                                    <SelectTrigger id="deadline">
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="0">🚨 NOW</SelectItem>
-                                        <SelectItem value="15">15 Minutes</SelectItem>
-                                        <SelectItem value="30">30 Minutes</SelectItem>
-                                        <SelectItem value="60">1 Hour</SelectItem>
-                                        <SelectItem value="120">2 Hours</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                        )}
+                    <div className="grid gap-2">
+                        <Label htmlFor="priority">{lang === 'id' ? 'Tingkat Prioritas' : 'Priority Level'}</Label>
+                        <Select value={priority} onValueChange={setPriority} disabled={isSubmitting}>
+                            <SelectTrigger id="priority">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="low">{lang === 'id' ? 'Prioritas' : 'Priority'}</SelectItem>
+                                <SelectItem value="high">{lang === 'id' ? 'Prioritas Tinggi' : 'High Priority'}</SelectItem>
+                                <SelectItem value="critical">{lang === 'id' ? '🚨 Kritis' : '🚨 Critical'}</SelectItem>
+                            </SelectContent>
+                        </Select>
                     </div>
+
+                    {priority === 'critical' && (
+                        <div className="animate-in fade-in slide-in-from-top-2 duration-200">
+                            <InlineAnalogClockPicker
+                                valueMs={customDeadlineMs || (Date.now() + 15 * 60000)}
+                                onChange={(ms) => {
+                                    setCustomDeadlineMs(ms);
+                                }}
+                                lang={lang}
+                            />
+                        </div>
+                    )}
 
                     <div className="grid gap-2">
                         <Label htmlFor="description">Problem description</Label>

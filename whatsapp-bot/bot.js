@@ -20,7 +20,10 @@ const userStates = new Map();
 // Multi-group & Community Configuration
 let botConfig = {
     generalGroupId: null,
-    departmentGroups: {}
+    departmentGroups: {},
+    channelId: null,
+    channelInvite: '0029VbD3yVS2UPBOZRraWu2j',
+    channelName: null
 };
 let linkedGroupId = null;
 
@@ -253,9 +256,15 @@ function loadConfig() {
             const data = JSON.parse(fs.readFileSync('config.json', 'utf8'));
             botConfig.generalGroupId = data.generalGroupId || data.groupId || null;
             botConfig.departmentGroups = data.departmentGroups || {};
+            botConfig.channelId = data.channelId || null;
+            botConfig.channelInvite = data.channelInvite || '0029VbD3yVS2UPBOZRraWu2j';
+            botConfig.channelName = data.channelName || null;
             linkedGroupId = botConfig.generalGroupId;
             console.log(`Loaded General Group ID: ${botConfig.generalGroupId}`);
             console.log(`Loaded ${Object.keys(botConfig.departmentGroups).length} Department Groups`);
+            if (botConfig.channelId) {
+                console.log(`Loaded WhatsApp Channel ID: ${botConfig.channelId}`);
+            }
         }
     } catch (e) {
         console.error("Could not load config.json:", e);
@@ -315,34 +324,81 @@ const STEPS = {
 };
 
 const DEPARTMENTS = [
-    'Engineer', 'Tekong', 'Pest Control', 'Security', 'Fasilitas',
-    'HK', 'F&B', 'Service', 'Bar', 'GR', 'Spa', 'TiRek', 'OE',
-    'IT', 'Procurement', 'Sales/Marketing', 'Reservasi', 'Finance',
-    'Legal', 'HR'
+    'HR', 'GR', 'OE', 'Kitchen', 'HK', 'IT', 'Procurement', 'Finance', 'Reservasi', 'Engineer', 'Fasilitas'
 ];
 
-// Staff rosters keyed by lowercase department name
+// Map sub-departments / small units to their parent community group
+const SUBDEPARTMENT_TO_MAIN = {
+    // 🏢 HR Group
+    'hr': 'hr',
+    'legal': 'hr',
+    'lnd': 'hr',
+    'transportasi': 'hr',
+    'tekong': 'hr',
+
+    // 🌟 GR Group
+    'gr': 'gr',
+    'gre': 'gr',
+    'guest relations': 'gr',
+    'service': 'gr',
+    'bar': 'gr',
+    'spa': 'gr',
+    'tirek': 'gr',
+
+    // 🍳 Kitchen Group
+    'kitchen': 'kitchen',
+    'f&b': 'kitchen',
+    'fnb': 'kitchen',
+
+    // 🧹 HK Group
+    'hk': 'hk',
+    'pest control': 'hk',
+
+    // 🛎️ Reservasi Group
+    'reservasi': 'reservasi',
+    'sales': 'reservasi',
+    'marketing': 'reservasi',
+    'sales/marketing': 'reservasi',
+
+    // 🛠️ Fasilitas Group
+    'fasilitas': 'fasilitas',
+    'security': 'fasilitas',
+
+    // Standalone
+    'it': 'it',
+    'oe': 'oe',
+    'procurement': 'procurement',
+    'finance': 'finance',
+    'engineer': 'engineer',
+};
+
+// Staff rosters keyed by lowercase department or subdivision name
 const DEPARTMENT_STAFF = {
     'engineer':         ['Dimas Pratama', 'Budi Santoso', 'Ahmad Fauzi', 'Hendra Wijaya', 'Joko Susilo'],
-    'tekong':           ['Captain Arif', 'Rudi Hartono', 'Surya Saputra', 'Bambang Irawan'],
-    'pest control':     ['Wahyu Hidayat', 'Rian Kurniawan', 'Pest Control Team'],
-    'security':         ['Pak Joko (Security)', 'Agus Setiawan', 'Doni Prasetyo', 'Security Lead'],
-    'fasilitas':        ['Anto (Fasilitas)', 'Dedi Kusuma', 'Eko Purnomo', 'Fasilitas Team'],
-    'hk':               ['Siti Rahma', 'Dewi Lestari', 'Sri Wahyuni', 'Nurul Aini', 'Fitri Handayani'],
-    'f&b':              ['Chef Ricky', 'Bayu Pratama', 'Putri Ayu', 'F&B Kitchen Team'],
-    'service':          ['Andi Kurnia', 'Rina Marlina', 'Dian Anggraini', 'Service Captain'],
-    'bar':              ['Lia (Bar)', 'Kevin Sanjaya', 'Bar Team Lead'],
-    'gr':               ['Wawan (GR)', 'Nadia Safitri', 'Indah Permata', 'GR Reception Team'],
-    'spa':              ['Nurse Maya', 'Sari Wulandari', 'Yanti Komala', 'Spa Therapist Lead'],
-    'tirek':            ['TiRek Coordinator', 'Fajar Ramadhan', 'Activity Guide Team'],
+    'fasilitas':        ['Anto (Fasilitas)', 'Dedi Kusuma', 'Eko Purnomo', 'Fasilitas Team', 'Pak Joko (Security)', 'Agus Setiawan (Security)', 'Doni Prasetyo (Security)'],
+    'security':         ['Pak Joko (Security)', 'Agus Setiawan (Security)', 'Doni Prasetyo (Security)', 'Security Lead'],
+    'hk':               ['Siti Rahma (HK)', 'Dewi Lestari (HK)', 'Sri Wahyuni (HK)', 'Nurul Aini (HK)', 'Fitri Handayani (HK)', 'Wahyu Hidayat (Pest Control)'],
+    'pest control':     ['Wahyu Hidayat (Pest Control)', 'Rian Kurniawan (Pest Control)', 'Pest Control Team'],
+    'kitchen':          ['Chef Ricky (Kitchen)', 'Bayu Pratama (Kitchen)', 'Putri Ayu (Kitchen)', 'Kitchen Team'],
+    'f&b':              ['Chef Ricky (Kitchen)', 'Bayu Pratama (Kitchen)', 'Putri Ayu (Kitchen)', 'Kitchen Team'],
+    'service':          ['Andi Kurnia (Service)', 'Rina Marlina (Service)', 'Dian Anggraini (Service)', 'Service Captain'],
+    'bar':              ['Lia (Bar)', 'Kevin Sanjaya (Bar)', 'Bar Team Lead'],
+    'gre':              ['Wawan (GRE)', 'Nadia Safitri (GRE)', 'Indah Permata (GRE)', 'GRE Team'],
+    'gr':               ['Wawan (GRE)', 'Nadia Safitri (GRE)', 'Indah Permata (GRE)', 'Andi Kurnia (Service)', 'Lia (Bar)', 'Nurse Maya (Spa)', 'Fajar Ramadhan (TiRek)'],
+    'spa':              ['Nurse Maya (Spa)', 'Sari Wulandari (Spa)', 'Yanti Komala (Spa)', 'Spa Therapist Lead'],
+    'tirek':            ['TiRek Coordinator', 'Fajar Ramadhan (TiRek)', 'Activity Guide Team'],
     'oe':               ['Dimas (OE)', 'OE Operations Lead', 'Taufik Hidayat'],
     'it':               ['Reza (IT)', 'Dani (IT)', 'IT Support Team'],
     'procurement':      ['Procurement Team', 'Budi Purchasing', 'Ratna Dewi'],
-    'sales/marketing':  ['Clarissa Tan', 'Sales Lead', 'Marketing Coordinator'],
-    'reservasi':        ['Maya Putri', 'Reservasi Lead', 'Res Staff'],
+    'reservasi':        ['Maya Putri (Reservasi)', 'Reservasi Lead', 'Clarissa Tan (Sales)', 'Ana (Marketing)'],
+    'sales':            ['Clarissa Tan (Sales)', 'Sales Lead'],
+    'marketing':        ['Ana (Marketing)', 'Marketing Coordinator'],
     'finance':          ['Iwan Accountant', 'Finance Lead', 'Finance Officer'],
-    'legal':            ['Advokat Hendro', 'Ratna SH (Legal)', 'Legal Team Lead'],
-    'hr':               ['Pak Bambang (HR)', 'Siti HR Specialist', 'HR Officer'],
+    'legal':            ['Advokat Hendro (Legal)', 'Ratna SH (Legal)', 'Legal Team Lead'],
+    'lnd':              ['Putri (LnD)', 'LnD Specialist'],
+    'transportasi':     ['Captain Arif (Transportasi)', 'Rudi Hartono (Transportasi)', 'Surya Saputra (Transportasi)'],
+    'tekong':           ['Captain Arif (Transportasi)', 'Rudi Hartono (Transportasi)', 'Surya Saputra (Transportasi)'],
+    'hr':               ['Pak Bambang (HR)', 'Siti HR Specialist', 'Advokat Hendro (Legal)', 'Putri (LnD)', 'Captain Arif (Transportasi)'],
 };
 
 /**
@@ -444,10 +500,9 @@ async function syncCommunityGroups(sock) {
             const subject = group.subject.trim();
             const lowerSubject = subject.toLowerCase();
 
-            // Match General / Main Community Group
+            // Announcements group is skipped because announcements are routed to the WhatsApp Channel
             if (lowerSubject.includes('general') || lowerSubject.includes('pengumuman') || lowerSubject === 'telunas resort issue report') {
-                botConfig.generalGroupId = group.id;
-                matched.push(`📌 *General*: "${subject}"`);
+                // Do not set generalGroupId — all broad announcements go to WhatsApp Channel!
             }
 
             // Auto-index all participants' LIDs to Phone numbers across all groups!
@@ -484,6 +539,28 @@ async function syncCommunityGroups(sock) {
         console.error('Group sync error:', err);
         return { success: false, error: err.message };
     }
+}
+
+// Helper: Auto-resolve and follow WhatsApp Channel via invite code
+async function syncWhatsAppChannel(sock) {
+    try {
+        const inviteCode = botConfig.channelInvite || '0029VbD3yVS2UPBOZRraWu2j';
+        if (!inviteCode) return { success: false, error: 'No channel invite code configured' };
+
+        console.log(`[Channel] Resolving channel invite code: ${inviteCode}...`);
+        const meta = await sock.newsletterMetadata('INVITE', inviteCode);
+        if (meta && meta.id) {
+            botConfig.channelId = meta.id;
+            botConfig.channelName = meta.name || 'Telunas Issue Tracker';
+            saveConfig();
+            console.log(`[Channel] ✅ Linked WhatsApp Channel: "${meta.name}" (${meta.id})`);
+            return { success: true, id: meta.id, name: meta.name };
+        }
+    } catch (err) {
+        console.log(`[Channel] Channel sync note: ${err.message}`);
+        return { success: false, error: err.message };
+    }
+    return { success: false, error: 'Could not resolve channel metadata' };
 }
 
 let globalSock = null;
@@ -530,6 +607,7 @@ async function startSock() {
             console.log('Client is ready!');
             syncCommunityGroups(sock).then(res => { if (res.success) console.log(`Auto-synced ${res.count} community groups.`); });
             syncStaffDirectory();
+            syncWhatsAppChannel(sock);
         }
     });
 
@@ -559,9 +637,10 @@ async function startSock() {
             if (lower === '!whoami' || lower === '!profil' || lower === '!akun' || lower === 'whoami' || lower === 'profil') {
                 if (registeredUser) {
                     const displayPhone = registeredUser.realPhone || (senderPhone.length <= 13 ? senderPhone : (registeredUser.phone || senderPhone));
+                    const hasSubdivision = registeredUser.subdivision && registeredUser.subdivision.toLowerCase() !== (registeredUser.department || '').toLowerCase();
                     let profileMsg = `📱 *PROFIL WHATSAPP TELUNAS* 📱\n\n`;
                     profileMsg += `• *Nama Tampilan:* ${registeredUser.name || registeredUser.staff_name}\n`;
-                    profileMsg += `• *Departemen:* ${registeredUser.department || '-'}\n`;
+                    profileMsg += `• *Departemen:* ${registeredUser.department || '-'}${hasSubdivision ? ` [${registeredUser.department} • ${registeredUser.subdivision}]` : ''}\n`;
                     profileMsg += `• *Nomor WhatsApp:* +${displayPhone}\n`;
                     profileMsg += `• *Status:* ✅ Terverifikasi (${registeredUser.source === 'dashboard_profile' ? 'Dashboard Profile' : 'WhatsApp Link'})\n\n`;
                     profileMsg += `💡 _Setiap kali Anda mengetik !claim atau membuat laporan, sistem akan otomatis mencatat atas nama Anda._\n\n`;
@@ -760,17 +839,39 @@ async function startSock() {
                     continue;
                 }
 
-                // 4. View currently linked groups
+                // 4. View currently linked groups & channel
                 if (lower === '!groups' || lower === '!groupinfo') {
-                    let msgInfo = '📋 *LINKED TELUNAS GROUPS* 📋\n\n';
+                    let msgInfo = '📋 *LINKED TELUNAS CHANNELS & GROUPS* 📋\n\n';
+                    msgInfo += `📢 *WhatsApp Channel:* ${botConfig.channelId ? `✅ Linked (${botConfig.channelName || botConfig.channelId})` : (botConfig.channelInvite ? `⏳ Pending Sync (${botConfig.channelInvite})` : '❌ Not set')}\n`;
                     msgInfo += `📌 *General Group:* ${botConfig.generalGroupId ? '✅ Configured' : '❌ Not set'}\n\n`;
                     msgInfo += '*Department Groups:*\n';
                     DEPARTMENTS.forEach(d => {
                         const isSet = botConfig.departmentGroups[d.toLowerCase()] ? '✅' : '❌';
                         msgInfo += `• ${d}: ${isSet}\n`;
                     });
-                    msgInfo += '\n💡 Type !syncgroups to auto-detect all community groups, or !setgroup <Department> in any group.';
+                    msgInfo += '\n💡 Type !syncgroups to auto-detect community groups, or !setchannel <link> to link a WhatsApp Channel.';
                     await reply(msgInfo);
+                    continue;
+                }
+
+                // 4b. Command to set or re-sync WhatsApp Channel
+                if (lower.startsWith('!setchannel') || lower === '!syncchannel') {
+                    const arg = text.substring(lower.startsWith('!setchannel') ? 11 : 12).trim();
+                    let code = arg;
+                    if (code.includes('whatsapp.com/channel/')) {
+                        code = code.split('whatsapp.com/channel/')[1].split(/[/?#]/)[0];
+                    }
+                    if (code) {
+                        botConfig.channelInvite = code;
+                        saveConfig();
+                    }
+                    await reply(`⏳ Checking WhatsApp Channel with invite code *${botConfig.channelInvite || '0029VbD3yVS2UPBOZRraWu2j'}*...`);
+                    const res = await syncWhatsAppChannel(sock);
+                    if (res.success) {
+                        await reply(`✅ *WhatsApp Channel Linked Successfully!*\n\n• *Name:* ${res.name}\n• *ID:* \`${res.id}\`\n\nAll new issue reports and alerts will now be broadcasted directly to this Channel!`);
+                    } else {
+                        await reply(`⚠️ Could not link channel: ${res.error || 'Unknown error'}\n\nPlease ensure the bot is an *Admin* of the channel and the invite link is valid.`);
+                    }
                     continue;
                 }
 
@@ -1503,28 +1604,41 @@ async function startSock() {
                 
                 state.data.category = text === '10' ? 'other' : CORE_DISPLAY[text].toLowerCase();
                 await reply(getMsg(
-                    'Got it. What is the priority of this issue? Reply with the number:\n1. Low\n2. Medium\n3. High\n4. 🚨 Critical',
-                    'Paham. Apa prioritas masalah ini? Balas dengan nomor:\n1. Rendah (Low)\n2. Sedang (Medium)\n3. Tinggi (High)\n4. 🚨 Kritis (Critical)'
+                    'Got it. What is the priority of this issue? Reply with the number:\n1. Priority (Standard)\n2. High Priority\n3. 🚨 Critical',
+                    'Paham. Apa prioritas masalah ini? Balas dengan nomor:\n1. Prioritas (Standar)\n2. Prioritas Tinggi\n3. 🚨 Kritis'
                 ));
                 state.step = STEPS.AWAITING_PRIORITY;
                 continue;
             }
 
             if (state.step === STEPS.AWAITING_PRIORITY) {
-                const priorityMap = { '1': 'low', '2': 'medium', '3': 'high', '4': 'critical' };
-                if (!priorityMap[text]) {
+                const priorityMap = {
+                    '1': 'low',
+                    '2': 'high',
+                    '3': 'critical',
+                    '4': 'critical',
+                };
+                const lowerText = text.toLowerCase().trim();
+                let selectedPriority = priorityMap[text];
+                if (!selectedPriority) {
+                    if (lowerText.includes('kritis') || lowerText.includes('critical')) selectedPriority = 'critical';
+                    else if (lowerText.includes('tinggi') || lowerText.includes('high')) selectedPriority = 'high';
+                    else if (lowerText.includes('standar') || lowerText.includes('prioritas') || lowerText.includes('priority') || lowerText.includes('rendah') || lowerText.includes('low')) selectedPriority = 'low';
+                }
+
+                if (!selectedPriority) {
                     await reply(getMsg(
-                        'Invalid selection. Please reply with a valid number (1-4).',
-                        'Pilihan tidak valid. Harap balas dengan nomor (1-4).'
+                        'Invalid selection. Please reply with a valid number (1-3):\n1. Priority\n2. High Priority\n3. 🚨 Critical',
+                        'Pilihan tidak valid. Harap balas dengan nomor (1-3):\n1. Prioritas (Standar)\n2. Prioritas Tinggi\n3. 🚨 Kritis'
                     ));
                     continue;
                 }
                 
-                state.data.priority = priorityMap[text];
+                state.data.priority = selectedPriority;
                 if (state.data.priority === 'critical') {
                     await reply(getMsg(
-                        '🚨 Critical Priority selected. How much time do we have to fix this? Reply with the number:\n1. NOW\n2. 15 Minutes\n3. 30 Minutes\n4. 1 Hour\n5. 2 Hours',
-                        '🚨 Prioritas Kritis dipilih. Berapa lama waktu penanganan? Balas dengan nomor:\n1. SEKARANG (NOW)\n2. 15 Menit\n3. 30 Menit\n4. 1 Jam\n5. 2 Jam'
+                        '🚨 *Critical Priority selected.* What is the time limit? (Max 24 Hours)\n\nReply with a number or type directly (e.g. 4h, 30m, 16:30):\n1. 15 Minutes\n2. 30 Minutes\n3. 1 Hour\n4. 2 Hours\n5. 4 Hours\n6. 8 Hours\n7. 12 Hours\n8. 24 Hours (Max)',
+                        '🚨 *Prioritas Kritis dipilih.* Berapa batas waktu penanganan? (Maksimal 24 Jam)\n\nBalas dengan nomor preset atau ketik langsung (contoh: 4h, 30m, 16:30):\n1. 15 Menit\n2. 30 Menit\n3. 1 Jam\n4. 2 Jam\n5. 4 Jam\n6. 8 Jam\n7. 12 Jam\n8. 24 Jam (Maksimal)'
                     ));
                     state.step = STEPS.AWAITING_CRITICAL_TIME;
                 } else {
@@ -1538,15 +1652,80 @@ async function startSock() {
             }
 
             if (state.step === STEPS.AWAITING_CRITICAL_TIME) {
-                const timeMap = { '1': 0, '2': 15, '3': 30, '4': 60, '5': 120 };
-                if (timeMap[text] === undefined) {
-                    await reply('Invalid selection. Please reply with a valid number (1-5).');
+                const presetMap = {
+                    '1': 15,
+                    '2': 30,
+                    '3': 60,
+                    '4': 120,
+                    '5': 240,
+                    '6': 480,
+                    '7': 720,
+                    '8': 1440,
+                };
+
+                let targetDeadlineMs = null;
+                const cleanInput = text.trim().toLowerCase();
+
+                // 1. Check numeric preset (1-8)
+                if (presetMap[cleanInput] !== undefined) {
+                    targetDeadlineMs = Date.now() + presetMap[cleanInput] * 60000;
+                }
+                // 2. Check duration format like '4h', '4 jam', '4 hours', '30m', '30 menit', '90 mins'
+                else if (/^(\d+(?:\.\d+)?)\s*(h|hr|hrs|hour|hours|jam)$/i.test(cleanInput)) {
+                    const match = cleanInput.match(/^(\d+(?:\.\d+)?)\s*(h|hr|hrs|hour|hours|jam)$/i);
+                    const hours = parseFloat(match[1]);
+                    targetDeadlineMs = Date.now() + Math.round(hours * 60) * 60000;
+                } else if (/^(\d+)\s*(m|min|mins|menit|mnt)$/i.test(cleanInput)) {
+                    const match = cleanInput.match(/^(\d+)\s*(m|min|mins|menit|mnt)$/i);
+                    const mins = parseInt(match[1], 10);
+                    targetDeadlineMs = Date.now() + mins * 60000;
+                }
+                // 3. Check clock time format like '16:30', '4:30 pm', '09.15'
+                else if (/^(\d{1,2})[:.](\d{2})(?:\s*(am|pm))?$/i.test(cleanInput)) {
+                    const match = cleanInput.match(/^(\d{1,2})[:.](\d{2})(?:\s*(am|pm))?$/i);
+                    let h = parseInt(match[1], 10);
+                    const m = parseInt(match[2], 10);
+                    const meridiem = (match[3] || '').toLowerCase();
+
+                    if (meridiem === 'pm' && h < 12) h += 12;
+                    if (meridiem === 'am' && h === 12) h = 0;
+
+                    const target = new Date();
+                    target.setHours(h, m, 0, 0);
+                    if (target.getTime() <= Date.now() + 60000) {
+                        target.setDate(target.getDate() + 1);
+                    }
+                    targetDeadlineMs = target.getTime();
+                }
+
+                if (!targetDeadlineMs) {
+                    await reply(getMsg(
+                        'Invalid time format. Please reply with a number (1-8) or type a duration (e.g. 4h, 30m, 16:30):',
+                        'Format waktu tidak valid. Harap balas dengan nomor (1-8) atau ketik durasi (contoh: 4h, 30m, 16:30):'
+                    ));
                     continue;
                 }
-                
-                const deadlineMs = Date.now() + timeMap[text] * 60000;
-                state.data.deadline = deadlineMs.toString();
-                await reply('Time limit set. Finally, please upload a photo of the problem as proof. (Send an image here)');
+
+                // Strict Cap: Max 24 hours
+                const maxDeadlineMs = Date.now() + 24 * 60 * 60 * 1000;
+                if (targetDeadlineMs > maxDeadlineMs) {
+                    targetDeadlineMs = maxDeadlineMs;
+                }
+
+                state.data.deadline = targetDeadlineMs.toString();
+
+                const diffMins = Math.max(1, Math.round((targetDeadlineMs - Date.now()) / 60000));
+                const diffHours = Math.floor(diffMins / 60);
+                const remMins = diffMins % 60;
+                const timeStr = diffHours > 0 
+                    ? (remMins > 0 ? `${diffHours}h ${remMins}m` : `${diffHours} hour${diffHours > 1 ? 's' : ''}`)
+                    : `${remMins}m`;
+                const targetTimeClock = new Date(targetDeadlineMs).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+                await reply(getMsg(
+                    `✅ Time limit set: *${timeStr} from now* (${targetTimeClock}).\n\nFinally, please upload a photo of the problem as proof. (Send an image here)`,
+                    `✅ Batas waktu diatur: *${diffHours > 0 ? (remMins > 0 ? `${diffHours} jam ${remMins} mnt` : `${diffHours} jam`) : `${remMins} mnt`} lagi* (${targetTimeClock}).\n\nTerakhir, harap unggah foto bukti masalah. (Kirim gambar di sini)`
+                ));
                 state.step = STEPS.AWAITING_PHOTO;
                 continue;
             }
@@ -2153,16 +2332,19 @@ app.post('/notify', async (req, res) => {
                 if (gid) targetGroupIds.add(gid);
             });
         } else {
-            // Helper to safely match department name to group
+            // Helper to safely match department or sub-department name to group
             const addDeptToTargets = (deptName) => {
                 if (!deptName) return;
-                const deptKey = String(deptName).toLowerCase().trim();
-                if (botConfig.departmentGroups[deptKey]) {
-                    targetGroupIds.add(botConfig.departmentGroups[deptKey]);
+                const rawKey = String(deptName).toLowerCase().trim();
+                const mainKey = SUBDEPARTMENT_TO_MAIN[rawKey] || rawKey;
+                if (botConfig.departmentGroups[mainKey]) {
+                    targetGroupIds.add(botConfig.departmentGroups[mainKey]);
+                } else if (botConfig.departmentGroups[rawKey]) {
+                    targetGroupIds.add(botConfig.departmentGroups[rawKey]);
                 } else {
                     // Try partial/alias match
                     for (const [k, gid] of Object.entries(botConfig.departmentGroups)) {
-                        if (k === deptKey || deptKey.includes(k) || k.includes(deptKey)) {
+                        if (k === mainKey || mainKey.includes(k) || k.includes(mainKey)) {
                             targetGroupIds.add(gid);
                             break;
                         }
@@ -2188,18 +2370,17 @@ app.post('/notify', async (req, res) => {
             }
 
             // 2d. Also match any @mentions or *Origin:* / *Taken by:* / *Solved by:* text inside message
-            for (const dept of DEPARTMENTS) {
-                const deptKey = dept.toLowerCase();
-                if (lowerMsg.includes(`@${deptKey}`) || lowerMsg.includes(`origin:* ${deptKey}`) || lowerMsg.includes(`origin: ${deptKey}`)) {
-                    if (botConfig.departmentGroups[deptKey]) {
-                        targetGroupIds.add(botConfig.departmentGroups[deptKey]);
+            for (const [subKey, parentKey] of Object.entries(SUBDEPARTMENT_TO_MAIN)) {
+                if (lowerMsg.includes(`@${subKey}`) || lowerMsg.includes(`origin:* ${subKey}`) || lowerMsg.includes(`origin: ${subKey}`)) {
+                    if (botConfig.departmentGroups[parentKey]) {
+                        targetGroupIds.add(botConfig.departmentGroups[parentKey]);
                     }
                 }
             }
         }
 
-        if (targetGroupIds.size === 0) {
-            return res.status(400).json({ error: 'No groups linked. Type !syncgroups or !setgroup in WhatsApp.' });
+        if (targetGroupIds.size === 0 && !botConfig.channelId) {
+            return res.status(400).json({ error: 'No groups linked or channel set. Type !syncgroups or !setgroup in WhatsApp.' });
         }
 
         console.log(`Dispatching notification to ${targetGroupIds.size} groups...`);
@@ -2247,8 +2428,20 @@ app.post('/notify', async (req, res) => {
                 console.error(`Failed sending to group ${gid}:`, errSend.message);
             }
         }
+
+        // Broadcast to WhatsApp Channel (Read-only bulletin feed for all staff & management)
+        if (botConfig.channelId) {
+            try {
+                await globalSock.sendMessage(botConfig.channelId, { 
+                    text: message
+                });
+                console.log(`[Channel] Broadcasted notification to Channel: ${botConfig.channelId}`);
+            } catch (errChan) {
+                console.error(`[Channel] Failed sending to channel ${botConfig.channelId}:`, errChan.message);
+            }
+        }
         
-        res.json({ success: true, sentToCount: targetGroupIds.size });
+        res.json({ success: true, sentToCount: targetGroupIds.size, channelSent: !!botConfig.channelId });
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: err.message });
@@ -2332,8 +2525,7 @@ setInterval(async () => {
                     `*Status:* ${statusLabel}${workerStr}${taggedStr}\n` +
                     `*Overdue by:* ${overdueStr}\n` +
                     `*ID:* ${issue.id}\n\n` +
-                    `❗ *PLEASE RESOLVE OR UPDATE IMMEDIATELY!*\n` +
-                    `🔗 ${BASE_URL}/dashboard`;
+                    `❗ *PLEASE RESOLVE OR UPDATE IMMEDIATELY!*`;
 
                 // Targets for escalation
                 const escalationTargets = new Set();
@@ -2376,6 +2568,16 @@ setInterval(async () => {
                             await globalSock.sendMessage(gid, { text: targetMsg });
                         }
                     } catch (e) {}
+                }
+
+                // Also broadcast critical milestone escalation to WhatsApp Channel
+                if (botConfig.channelId) {
+                    try {
+                        await globalSock.sendMessage(botConfig.channelId, { text: msg });
+                        console.log(`[Channel] Broadcasted milestone escalation to Channel: ${botConfig.channelId}`);
+                    } catch (eChan) {
+                        console.error(`[Channel] Milestone broadcast error:`, eChan.message);
+                    }
                 }
             }
 

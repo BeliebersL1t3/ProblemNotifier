@@ -84,11 +84,16 @@ class GoogleService
                     }
                     $names[] = $title;
                 }
+                Cache::put('google_sheets_list_backup', $names, 86400 * 7);
                 return $names;
             });
         } catch (\Throwable $e) {
             if (Cache::has('google_sheets_list')) {
                 return Cache::get('google_sheets_list');
+            }
+            if (Cache::has('google_sheets_list_backup')) {
+                Log::warning('Google Sheets API unavailable for listSheets. Using 7-day backup: ' . $e->getMessage());
+                return Cache::get('google_sheets_list_backup');
             }
             throw $e;
         }
@@ -402,12 +407,13 @@ class GoogleService
     public function getRows(bool $forceRefresh = false): array
     {
         $cacheKey = "google_sheet_rows_{$this->sheetName}";
+        $backupCacheKey = "google_sheet_rows_backup_{$this->sheetName}";
         if ($forceRefresh) {
             Cache::forget($cacheKey);
         }
 
         try {
-            return Cache::remember($cacheKey, 20, function () {
+            return Cache::remember($cacheKey, 20, function () use ($backupCacheKey) {
                 $response = $this->sheets->spreadsheets_values->get(
                     $this->spreadsheetId,
                     "{$this->sheetName}!A2:Y"
@@ -416,11 +422,17 @@ class GoogleService
                 $values = $response->getValues() ?? [];
 
                 // Pad every row to 25 columns so missing trailing cells don't cause errors
-                return array_map(fn($row) => array_pad($row, 25, ''), $values);
+                $padded = array_map(fn($row) => array_pad($row, 25, ''), $values);
+                Cache::put($backupCacheKey, $padded, 86400 * 7);
+                return $padded;
             });
         } catch (\Throwable $e) {
             if (Cache::has($cacheKey)) {
                 return Cache::get($cacheKey);
+            }
+            if (Cache::has($backupCacheKey)) {
+                Log::warning("Google Sheets API failed for {$this->sheetName}. Using 7-day backup cache: " . $e->getMessage());
+                return Cache::get($backupCacheKey);
             }
             throw $e;
         }

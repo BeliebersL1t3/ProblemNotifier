@@ -44,6 +44,7 @@ import { ALL_DEPARTMENTS, getStaffForDepartment, getDepartmentForStaff, normaliz
 import { getDepartmentTheme } from '@/constants/departments';
 import { useLanguage } from '@/context/LanguageContext';
 import { useAuth } from '@/hooks/useAuth';
+import { InlineAnalogClockPicker } from './CircularTimePickerModal';
 
 const MAIN_LOCATIONS = ['TPI', 'TBR', 'Kantor'];
 
@@ -94,6 +95,8 @@ export function EditIssueModal({ issue, open, onOpenChange, onSuccess }) {
     const [description, setDescription] = useState('');
     const [priority, setPriority] = useState('low');
     const [deadlineMinutes, setDeadlineMinutes] = useState('15');
+    const [customDeadlineMs, setCustomDeadlineMs] = useState(null);
+    const [showTimePicker, setShowTimePicker] = useState(false);
     const [assignedDepts, setAssignedDepts] = useState([]);
     const [taggedDepts, setTaggedDepts] = useState([]);
     const [newImageFile, setNewImageFile] = useState(null);
@@ -141,7 +144,7 @@ export function EditIssueModal({ issue, open, onOpenChange, onSuccess }) {
             setTitle(issue.title || '');
             setDescription(issue.description || '');
             setCategory(issue.category || 'broken');
-            setPriority(issue.priority || 'low');
+            setPriority(issue.priority === 'medium' ? 'low' : (issue.priority || 'low'));
 
             // Parse location
             const rawLoc = issue.location || '';
@@ -157,9 +160,12 @@ export function EditIssueModal({ issue, open, onOpenChange, onSuccess }) {
 
             // Parse deadline
             if (issue.priority === 'critical' && issue.deadline) {
-                const diffMins = Math.max(1, Math.round((parseInt(issue.deadline, 10) - (issue.reportedAt || Date.now())) / 60000));
+                const dMs = parseInt(issue.deadline, 10);
+                setCustomDeadlineMs(dMs);
+                const diffMins = Math.max(1, Math.round((dMs - (issue.reportedAt || Date.now())) / 60000));
                 setDeadlineMinutes(String(diffMins || '15'));
             } else {
+                setCustomDeadlineMs(null);
                 setDeadlineMinutes('15');
             }
 
@@ -268,8 +274,7 @@ export function EditIssueModal({ issue, open, onOpenChange, onSuccess }) {
             if (canEditReport) {
                 let finalDeadline = '';
                 if (priority === 'critical') {
-                    const baseTime = issue.reportedAt || Date.now();
-                    finalDeadline = String(baseTime + parseInt(deadlineMinutes, 10) * 60 * 1000);
+                    finalDeadline = String(customDeadlineMs || (Date.now() + 15 * 60 * 1000));
                 }
                 payload.title = title.trim();
                 payload.description = description.trim();
@@ -596,34 +601,24 @@ export function EditIssueModal({ issue, open, onOpenChange, onSuccess }) {
                                                 <SelectValue />
                                             </SelectTrigger>
                                             <SelectContent className="bg-[#2A281E] border-[#3B3929] text-foreground">
-                                                <SelectItem value="low" className="text-xs">🟢 Low</SelectItem>
-                                                <SelectItem value="medium" className="text-xs">🟡 Medium</SelectItem>
-                                                <SelectItem value="high" className="text-xs">🟠 High</SelectItem>
-                                                <SelectItem value="critical" className="text-xs text-red-400 font-bold">🔴 Critical (SOS)</SelectItem>
+                                                <SelectItem value="low" className="text-xs">🟢 {lang === 'id' ? 'Prioritas' : 'Priority'}</SelectItem>
+                                                <SelectItem value="high" className="text-xs">🟠 {lang === 'id' ? 'Prioritas Tinggi' : 'High Priority'}</SelectItem>
+                                                <SelectItem value="critical" className="text-xs text-red-400 font-bold">🔴 {lang === 'id' ? 'Kritis' : 'Critical'}</SelectItem>
                                             </SelectContent>
                                         </Select>
                                     </div>
                                 </div>
 
-                                {/* Critical SLA Setting */}
+                                {/* Critical SLA Setting - Immediate Inline Analog Clock */}
                                 {priority === 'critical' && (
-                                    <div className="p-3 rounded-xl bg-red-950/20 border border-red-500/30 space-y-2 text-xs">
-                                        <div className="flex items-center gap-1.5 font-bold text-red-400">
-                                            <CalendarClock className="h-4 w-4" />
-                                            <span>{lang === 'id' ? 'Target Waktu Countdown SLA (Menit)' : 'Critical SLA Countdown Target'}</span>
-                                        </div>
-                                        <Select value={deadlineMinutes} onValueChange={setDeadlineMinutes} disabled={isSubmitting}>
-                                            <SelectTrigger className="bg-[#2A281E] border-red-500/40 text-xs h-8">
-                                                <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent className="bg-[#2A281E] border-[#3B3929]">
-                                                <SelectItem value="5">⚡ 5 {t('mins')}</SelectItem>
-                                                <SelectItem value="10">⚡ 10 {t('mins')}</SelectItem>
-                                                <SelectItem value="15">⚡ 15 {t('mins')}</SelectItem>
-                                                <SelectItem value="30">⚡ 30 {t('mins')}</SelectItem>
-                                                <SelectItem value="60">⚡ 60 {t('mins')}</SelectItem>
-                                            </SelectContent>
-                                        </Select>
+                                    <div className="animate-in fade-in slide-in-from-top-2 duration-200">
+                                        <InlineAnalogClockPicker
+                                            valueMs={customDeadlineMs || (Date.now() + 15 * 60000)}
+                                            onChange={(ms) => {
+                                                setCustomDeadlineMs(ms);
+                                            }}
+                                            lang={lang}
+                                        />
                                     </div>
                                 )}
 

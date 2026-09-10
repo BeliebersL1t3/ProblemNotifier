@@ -18,6 +18,7 @@ import { ActivityDetailModal } from '@/Components/CampusFix/ActivityDetailModal'
 import { EmergencyIssueModal } from '@/Components/CampusFix/EmergencyIssueModal';
 import { NewPeriodModal } from '@/Components/CampusFix/NewPeriodModal';
 import { ScrollToTop } from '@/Components/CampusFix/ScrollToTop';
+import { MobileBottomNav } from '@/Components/CampusFix/MobileBottomNav';
 import { Button } from '@/Components/UI/Button';
 import { normalizeDepartment } from '@/constants/staff';
 import {
@@ -90,7 +91,7 @@ function playAlarmBeep() {
 }
 
 function DashboardInner() {
-    const { issues, loading, error, fetchIssues } = useIssues();
+    const { issues, loading, error, fetchIssues, outboxCount, isSyncingOutbox, syncOfflineOutbox } = useIssues();
     const { t, lang } = useLanguage();
     const { isDeptUser, department } = useAuth();
     const [query, setQuery] = useState('');
@@ -125,7 +126,35 @@ function DashboardInner() {
     const [deleteTarget, setDeleteTarget] = useState(null);
     const [isDeleting, setIsDeleting] = useState(false);
     const [deleteError, setDeleteError] = useState('');
-    const [isMuted, setIsMuted] = useState(false);
+    const [isMuted, setIsMuted] = useState(() => {
+        try {
+            return localStorage.getItem('campusfix_alarm_muted') === 'true';
+        } catch (e) {
+            return false;
+        }
+    });
+
+    const toggleMute = () => {
+        setIsMuted(prev => {
+            const next = !prev;
+            try {
+                localStorage.setItem('campusfix_alarm_muted', String(next));
+            } catch (e) {}
+            return next;
+        });
+    };
+
+    // Auto-open report modal if directed from mobile bottom nav with ?report=1
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('report') === '1') {
+            setReportOpen(true);
+            try {
+                window.history.replaceState({}, '', window.location.pathname);
+            } catch (e) {}
+        }
+    }, []);
+
     const [now, setNow] = useState(Date.now());
     const soundedMilestones = useRef(new Set());
 
@@ -427,8 +456,21 @@ function DashboardInner() {
     };
 
     return (
-        <div className="min-h-screen bg-background text-foreground antialiased selection:bg-primary/20">
-            <CampusFixHeader
+        <div className="min-h-screen bg-[#1C1B0E] text-[#FAFAFA] relative overflow-hidden antialiased selection:bg-[#C9AA71]/30">
+            {/* Background Motif Pattern Overlay (Palm Lineart) */}
+            <div 
+                className="fixed inset-0 pointer-events-none opacity-25 z-0 bg-repeat"
+                style={{
+                    backgroundImage: "url('/bg-lineart.png')",
+                    backgroundSize: '600px',
+                }}
+            />
+
+            {/* Warm Ambient Glow */}
+            <div className="fixed top-12 left-1/2 -translate-x-1/2 w-[750px] h-[380px] pointer-events-none blur-[160px] opacity-15 rounded-full bg-[#C9AA71] z-0" />
+
+            <div className="relative z-10">
+                <CampusFixHeader
                 mode="dashboard"
                 query={query}
                 onQueryChange={setQuery}
@@ -437,6 +479,30 @@ function DashboardInner() {
                 onEmergency={() => setEmergencyOpen(true)}
                 onNewPeriod={() => setNewPeriodOpen(true)}
             />
+
+            {outboxCount > 0 && (
+                <div className="bg-amber-500 text-[#1C1B0E] px-4 py-2 text-xs font-bold flex items-center justify-between gap-3 shadow-md border-b border-amber-600">
+                    <div className="flex items-center gap-2">
+                        <span className={isSyncingOutbox ? "animate-spin" : "animate-pulse text-base"}>
+                            {isSyncingOutbox ? "🔄" : "📡"}
+                        </span>
+                        <span>
+                            {isSyncingOutbox
+                                ? (lang === 'id' ? 'Menyinkronkan laporan offline ke server...' : 'Syncing offline reports to server...')
+                                : `${outboxCount} ${lang === 'id' ? 'laporan tersimpan di memori HP (menunggu koneksi Wi-Fi). Waktu asli tetap tersimpan.' : 'reports saved locally (waiting for Wi-Fi). Original timestamp preserved.'}`}
+                        </span>
+                    </div>
+                    {!isSyncingOutbox && (
+                        <button
+                            type="button"
+                            onClick={syncOfflineOutbox}
+                            className="px-2.5 py-1 text-[11px] font-black rounded-lg bg-[#1C1B0E] text-[#E3D1AA] hover:bg-black transition-all cursor-pointer shrink-0"
+                        >
+                            {lang === 'id' ? 'Kirim Sekarang' : 'Sync Now'}
+                        </button>
+                    )}
+                </div>
+            )}
 
             {totalOverdueCount > 0 && (
                 <div className="bg-red-600 text-white px-4 py-2.5 font-bold flex flex-col sm:flex-row items-center justify-between gap-3 shadow-lg border-b border-red-500 animate-pulse">
@@ -448,7 +514,7 @@ function DashboardInner() {
                     </div>
                     <button
                         type="button"
-                        onClick={() => setIsMuted(prev => !prev)}
+                        onClick={toggleMute}
                         className="px-3 py-1 text-xs font-extrabold rounded-lg bg-black/40 hover:bg-black/60 border border-white/30 transition-all cursor-pointer shrink-0 flex items-center gap-1.5"
                     >
                         {isMuted ? `🔇 ${t('unmute_alarm')}` : `🔊 ${t('sound_active')}`}
@@ -456,7 +522,7 @@ function DashboardInner() {
                 </div>
             )}
 
-            <main className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6 sm:py-8">
+            <main className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6 sm:py-8 pb-28 md:pb-8">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div className="space-y-1">
                         <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
@@ -731,6 +797,8 @@ function DashboardInner() {
             </Dialog>
 
             <ScrollToTop />
+            <MobileBottomNav currentTab="dashboard" onReport={() => setReportOpen(true)} />
+            </div>
         </div>
     );
 }

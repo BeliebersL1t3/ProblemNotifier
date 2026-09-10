@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import { useAuth } from '@/hooks/useAuth';
+import { getOfflineQueue, addToOfflineQueue, removeFromOfflineQueue, dataUrlToFile } from '@/lib/offlineQueue';
 
 // Fixed 10-category system — no custom categories
 export const DEFAULT_CATEGORIES = [
@@ -86,20 +87,29 @@ export function IssuesProvider({ children }) {
         fetchIssues(false);
     }, [fetchIssues]);
 
-    // Live Auto-Sync: Poll every 8 seconds and re-fetch immediately on window focus
+    // Live Auto-Sync: Poll every 8 seconds and re-fetch immediately on window focus / tab wake-up
     useEffect(() => {
         const interval = setInterval(() => {
+            // If screen locked or tab in background, skip polling to preserve phone battery and network
+            if (typeof document !== 'undefined' && document.hidden) return;
             fetchIssues(true);
         }, 8000);
 
-        const handleFocus = () => {
-            fetchIssues(true);
+        const handleResume = () => {
+            if (typeof document === 'undefined' || !document.hidden) {
+                fetchIssues(true);
+            }
         };
 
-        window.addEventListener('focus', handleFocus);
+        window.addEventListener('focus', handleResume);
+        document.addEventListener('visibilitychange', handleResume);
+        window.addEventListener('pageshow', handleResume);
+
         return () => {
             clearInterval(interval);
-            window.removeEventListener('focus', handleFocus);
+            window.removeEventListener('focus', handleResume);
+            document.removeEventListener('visibilitychange', handleResume);
+            window.removeEventListener('pageshow', handleResume);
         };
     }, [fetchIssues]);
 
@@ -118,7 +128,105 @@ export function IssuesProvider({ children }) {
         });
     }, [rawIssues, isDeptUser, department]);
 
+    const [outboxCount, setOutboxCount] = useState(() => getOfflineQueue().length);
+    const [isSyncingOutbox, setIsSyncingOutbox] = useState(false);
+
+    // Sync items in offline outbox back to server with original timestamp
+    const syncOfflineOutbox = useCallback(async () => {
+        const queue = getOfflineQueue();
+        if (queue.length === 0 || !navigator.onLine) return;
+
+        setIsSyncingOutbox(true);
+        try {
+            for (const item of queue) {
+                const formData = new FormData();
+                formData.append('title', item.title);
+                formData.append('description', item.description);
+                formData.append('location', item.location);
+                formData.append('category', item.category);
+                formData.append('department', item.department);
+                formData.append('assignedDepartments', item.assignedDepartments);
+                if (item.taggedDepartments) formData.append('taggedDepartments', item.taggedDepartments);
+                formData.append('reporter', item.reporter);
+                if (item.priority) formData.append('priority', item.priority);
+                if (item.deadline) formData.append('deadline', item.deadline);
+                // Keep the exact original timestamp of when the user tried to submit!
+                formData.append('reportedAt', item.reportedAt);
+
+                if (item.imageDataUrl) {
+                    const file = dataUrlToFile(item.imageDataUrl, item.imageName || 'photo.jpg');
+                    if (file) formData.append('image', file);
+                }
+
+                const res = await axios.post('/api/issues', formData, {
+                    headers: { 'Content-Type': 'multipart/form-data' },
+                });
+
+                if (res.data?.success) {
+                    removeFromOfflineQueue(item.id);
+                }
+            }
+            setOutboxCount(getOfflineQueue().length);
+            await fetchIssues(true);
+        } catch (err) {
+            console.warn('Background outbox sync paused (will resume on reconnection):', err);
+        } finally {
+            setIsSyncingOutbox(false);
+        }
+    }, [fetchIssues]);
+
+    // Listen for online status and custom outbox events
+    useEffect(() => {
+        const handleOnline = () => {
+            syncOfflineOutbox();
+        };
+        const handleOutboxUpdate = (e) => {
+            setOutboxCount(e.detail?.count ?? getOfflineQueue().length);
+        };
+
+        window.addEventListener('online', handleOnline);
+        window.addEventListener('campusfix:outbox-updated', handleOutboxUpdate);
+
+        if (navigator.onLine) {
+            syncOfflineOutbox();
+        }
+
+        return () => {
+            window.removeEventListener('online', handleOnline);
+            window.removeEventListener('campusfix:outbox-updated', handleOutboxUpdate);
+        };
+    }, [syncOfflineOutbox]);
+
     const addIssue = useCallback(async (input) => {
+        const submissionTime = input.reportedAt || new Date().toISOString();
+
+        // Convert image to dataUrl if we need to store offline
+        const getImageDataUrl = async () => {
+            if (input.imageDataUrl) return input.imageDataUrl;
+            if (input.imageFile) {
+                return new Promise((res) => {
+                    const r = new FileReader();
+                    r.onload = (e) => res(e.target.result);
+                    r.onerror = () => res(null);
+                    r.readAsDataURL(input.imageFile);
+                });
+            }
+            return null;
+        };
+
+        // If completely offline right now, queue locally with original timestamp
+        if (!navigator.onLine) {
+            const dataUrl = await getImageDataUrl();
+            addToOfflineQueue({
+                ...input,
+                reportedAt: submissionTime,
+                imageDataUrl: dataUrl,
+                imageName: input.imageFile?.name || 'photo.jpg',
+            });
+            setOutboxCount(getOfflineQueue().length);
+            return { queuedOffline: true, reportedAt: submissionTime };
+        }
+
         const formData = new FormData();
         formData.append('title', input.title);
         formData.append('description', input.description);
@@ -130,18 +238,37 @@ export function IssuesProvider({ children }) {
         formData.append('reporter', input.reporter);
         if (input.priority) formData.append('priority', input.priority);
         if (input.deadline) formData.append('deadline', input.deadline);
+        formData.append('reportedAt', submissionTime);
         if (input.imageFile) {
             formData.append('image', input.imageFile);
         }
 
-        const response = await axios.post('/api/issues', formData, {
-            headers: { 'Content-Type': 'multipart/form-data' },
-        });
+        try {
+            const response = await axios.post('/api/issues', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' },
+            });
 
-        if (response.data?.success) {
-            await fetchIssues();
-        } else {
-            throw new Error(response.data?.message || 'Upload failed');
+            if (response.data?.success) {
+                await fetchIssues();
+                return { success: true, reportedAt: submissionTime };
+            } else {
+                throw new Error(response.data?.message || 'Upload failed');
+            }
+        } catch (err) {
+            // If network failed (Wi-Fi dropped during upload), save to offline outbox!
+            const isNetworkError = !err.response || err.code === 'ERR_NETWORK' || err.message?.includes('Network Error');
+            if (isNetworkError) {
+                const dataUrl = await getImageDataUrl();
+                addToOfflineQueue({
+                    ...input,
+                    reportedAt: submissionTime,
+                    imageDataUrl: dataUrl,
+                    imageName: input.imageFile?.name || 'photo.jpg',
+                });
+                setOutboxCount(getOfflineQueue().length);
+                return { queuedOffline: true, reportedAt: submissionTime };
+            }
+            throw err;
         }
     }, [fetchIssues]);
 
@@ -329,8 +456,12 @@ export function IssuesProvider({ children }) {
             createNewPeriod,
             deletePeriod,
             fetchSheets,
+            // Offline outbox status
+            outboxCount,
+            isSyncingOutbox,
+            syncOfflineOutbox,
         };
-    }, [issues, rawIssues, loading, error, fetchIssues, addIssue, updateIssue, deleteIssue, claimIssue, resolveIssue, pendingIssue, updateIssueCategory, availableSheets, currentSheet, setCurrentSheet, createNewPeriod, deletePeriod, fetchSheets]);
+    }, [issues, rawIssues, loading, error, fetchIssues, addIssue, updateIssue, deleteIssue, claimIssue, resolveIssue, pendingIssue, updateIssueCategory, availableSheets, currentSheet, setCurrentSheet, createNewPeriod, deletePeriod, fetchSheets, outboxCount, isSyncingOutbox, syncOfflineOutbox]);
 
     return <IssuesContext.Provider value={value}>{children}</IssuesContext.Provider>;
 }

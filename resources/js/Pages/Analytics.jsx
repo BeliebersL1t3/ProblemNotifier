@@ -17,6 +17,7 @@ import { useLanguage } from '@/context/LanguageContext';
 import { ALL_DEPARTMENTS, normalizeDepartment } from '@/constants/staff';
 import { getDepartmentColor, getDepartmentTheme, getDepartmentTextColor, getDepartmentLightColor, getDepartmentDarkColor } from '@/constants/departments';
 import { CampusFixHeader } from '@/Components/CampusFix/CampusFixHeader';
+import { MobileBottomNav } from '@/Components/CampusFix/MobileBottomNav';
 import { ScrollToTop } from '@/Components/CampusFix/ScrollToTop';
 import { ExportPdfModal } from '@/Components/CampusFix/ExportPdfModal';
 import { ActivityDetailModal } from '@/Components/CampusFix/ActivityDetailModal';
@@ -400,6 +401,7 @@ function AnalyticsInner() {
         setCardModalTarget(issue);
     };
     const [selectedStatusFilters, setSelectedStatusFilters] = useState([]);
+    const [selectedPriorityFilters, setSelectedPriorityFilters] = useState([]);
     // Department filter: empty by default so it shows all issues within the user's scope
     const [selectedDepartmentFilters, setSelectedDepartmentFilters] = useState([]);
     const [deptFilterMode, setDeptFilterMode] = useState('assigned');
@@ -411,7 +413,7 @@ function AnalyticsInner() {
     const [chartsVisible, setChartsVisible] = useState(true);
     const prevTimelineHash = useRef('');
 
-    const activeDetailedFilterCount = selectedDepartmentFilters.length + selectedCategoryFilters.length;
+    const activeDetailedFilterCount = selectedDepartmentFilters.length + selectedCategoryFilters.length + selectedPriorityFilters.length;
 
     // Interactive Chart Click Handlers
     const handleCategoryPieClick = (entry) => {
@@ -419,7 +421,7 @@ function AnalyticsInner() {
         if (!catId) return;
         setSelectedCategoryFilters(prev => {
             const lower = catId.toLowerCase();
-            const exists = prev.some(c => c.toLowerCase() === lower);
+            const exists = prev.some(c => c.toLowerCase() !== lower);
             return exists ? prev.filter(c => c.toLowerCase() !== lower) : [...prev, catId];
         });
         recentActivityRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -439,13 +441,29 @@ function AnalyticsInner() {
     // Precomputed stats for the mini stat filter cards in Recent Activity
     const analyticsStats = useMemo(() => {
         const list = timeFilteredIssues || [];
+        const isEmergency = (i) => (i.category || '').toLowerCase() === 'emergency' || String(i.id || '').startsWith('SOS');
+        const isCritical = (i) => i.priority === 'critical' && !isEmergency(i);
+        const isHigh = (i) => i.priority === 'high' && !isEmergency(i);
+        const isStandard = (i) => !isEmergency(i) && !isCritical(i) && !isHigh(i);
+
+        const emergencyList = list.filter(isEmergency);
+        const criticalList = list.filter(isCritical);
+        const highList = list.filter(isHigh);
+        const standardList = list.filter(isStandard);
+
         return {
             total: list.length,
             open: list.filter(i => i.status === 'open').length,
             progress: list.filter(i => i.status === 'progress').length,
             pending: list.filter(i => i.status === 'pending').length,
             solved: list.filter(i => i.status === 'solved').length,
-            critical: list.filter(i => i.priority === 'critical' && i.status !== 'solved').length,
+            criticalCount: criticalList.length,
+            criticalActive: criticalList.filter(i => i.status !== 'solved').length,
+            highCount: highList.length,
+            standardCount: standardList.length,
+            emergencyTotal: emergencyList.length,
+            emergencyActive: emergencyList.filter(i => i.status !== 'solved').length,
+            emergencySolved: emergencyList.filter(i => i.status === 'solved').length,
         };
     }, [timeFilteredIssues]);
 
@@ -564,6 +582,19 @@ function AnalyticsInner() {
             accent: 'bg-[var(--status-solved)]/15 text-status-solved',
             activeRing: 'ring-status-solved border-status-solved shadow-[0_0_12px_rgba(16,185,129,0.25)]',
             activeAccent: 'bg-status-solved/30 text-status-solved',
+        },
+        {
+            key: 'emergency',
+            status: 'critical',
+            label: lang === 'id' ? 'Darurat / Kritis' : 'Emergency / Critical',
+            value: analyticsStats.emergencyTotal,
+            badge: analyticsStats.emergencyActive > 0 
+                ? (lang === 'id' ? `${analyticsStats.emergencyActive} aktif` : `${analyticsStats.emergencyActive} active`)
+                : null,
+            Icon: AlertTriangle,
+            accent: 'bg-red-500/15 text-red-400',
+            activeRing: 'ring-red-500 border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.35)]',
+            activeAccent: 'bg-red-500/30 text-red-400',
         },
     ];
 
@@ -1057,18 +1088,33 @@ function AnalyticsInner() {
                 const isCriticalSelected = selectedStatusFilters.includes('critical');
                 const selectedStatuses = selectedStatusFilters.filter(f => f !== 'critical');
                 const currentStatus = ev.originalIssue?.status;
-                const isCriticalIssue = ev.originalIssue?.priority === 'critical';
+                const isEmergencyIssue = (ev.originalIssue?.category || '').toLowerCase() === 'emergency' || String(ev.issueId || '').startsWith('SOS');
+                const isCriticalIssue = !isEmergencyIssue && ev.originalIssue?.priority === 'critical';
 
                 let matchesStatus = true;
                 if (selectedStatuses.length > 0 && isCriticalSelected) {
-                    matchesStatus = selectedStatuses.includes(currentStatus) || isCriticalIssue;
+                    matchesStatus = selectedStatuses.includes(currentStatus) || isCriticalIssue || isEmergencyIssue;
                 } else if (selectedStatuses.length > 0) {
                     matchesStatus = selectedStatuses.includes(currentStatus);
                 } else if (isCriticalSelected) {
-                    matchesStatus = isCriticalIssue;
+                    matchesStatus = isCriticalIssue || isEmergencyIssue;
                 }
 
                 if (!matchesStatus) return false;
+            }
+
+            // 1b. Combinable Priority Filters (standard | high | critical)
+            if (selectedPriorityFilters.length > 0) {
+                const isEmergencyIssue = (ev.originalIssue?.category || '').toLowerCase() === 'emergency' || String(ev.issueId || '').startsWith('SOS');
+                const rawPriority = (ev.originalIssue?.priority || '').toLowerCase();
+                let issuePriorityKey = 'standard';
+                if (!isEmergencyIssue && rawPriority === 'critical') issuePriorityKey = 'critical';
+                else if (!isEmergencyIssue && rawPriority === 'high') issuePriorityKey = 'high';
+                else issuePriorityKey = 'standard';
+
+                if (!selectedPriorityFilters.includes(issuePriorityKey)) {
+                    return false;
+                }
             }
 
             // 2. Combinable Department Filters with Mode (assigned | origin | tagged | all)
@@ -1112,7 +1158,7 @@ function AnalyticsInner() {
         });
 
         return timelineLimit === 'all' ? filtered : filtered.slice(0, timelineLimit);
-    }, [timeFilteredIssues, timelineLimit, searchQuery, selectedStatusFilters, selectedDepartmentFilters, deptFilterMode, selectedCategoryFilters]);
+    }, [timeFilteredIssues, timelineLimit, searchQuery, selectedStatusFilters, selectedPriorityFilters, selectedDepartmentFilters, deptFilterMode, selectedCategoryFilters]);
 
     // Scroll-Linked Animation for Timeline Items
     useEffect(() => {
@@ -1158,14 +1204,27 @@ function AnalyticsInner() {
     }
 
     return (
-        <div className="min-h-screen bg-transparent font-sans text-foreground selection:bg-primary/20">
-            <CampusFixHeader 
+        <div className="min-h-screen bg-[#1C1B0E] text-[#FAFAFA] relative overflow-hidden antialiased selection:bg-[#C9AA71]/30">
+            {/* Background Motif Pattern Overlay (Palm Lineart) */}
+            <div 
+                className="fixed inset-0 pointer-events-none opacity-25 z-0 bg-repeat"
+                style={{
+                    backgroundImage: "url('/bg-lineart.png')",
+                    backgroundSize: '600px',
+                }}
+            />
+
+            {/* Warm Ambient Glow */}
+            <div className="fixed top-12 left-1/2 -translate-x-1/2 w-[750px] h-[380px] pointer-events-none blur-[160px] opacity-15 rounded-full bg-[#C9AA71] z-0" />
+
+            <div className="relative z-10">
+                <CampusFixHeader 
                 mode="analytics" 
                 query={searchQuery} 
                 onQueryChange={setSearchQuery} 
             />
 
-            <main className="mx-auto max-w-7xl p-4 sm:p-6 lg:p-8 flex flex-col gap-8">
+            <main className="mx-auto max-w-7xl p-4 sm:p-6 lg:p-8 flex flex-col gap-8 pb-28 md:pb-8">
                 
                 {error && (
                     <div className="flex items-center justify-between rounded-xl border border-destructive/20 bg-destructive/10 p-4 text-sm text-destructive shadow-sm">
@@ -1280,6 +1339,105 @@ function AnalyticsInner() {
                                 <span>{t('export_pdf')}</span>
                             </button>
                         </Tooltip>
+                    </div>
+                </div>
+
+                {/* Dedicated Emergency & Critical Incident Spotlight Panel */}
+                <div className={`p-5 rounded-2xl border transition-all duration-300 shadow-md ${
+                    analyticsStats.emergencyActive > 0 
+                        ? 'bg-gradient-to-br from-red-950/70 via-[#1C1B0E] to-red-950/30 border-red-500/60 shadow-[0_0_25px_rgba(239,68,68,0.25)]' 
+                        : analyticsStats.emergencyTotal > 0
+                            ? 'bg-[#1C1B0E]/90 border-red-900/40 shadow-sm'
+                            : 'bg-[#1C1B0E]/60 border-[#3B3929]/70'
+                }`}>
+                    <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+                        {/* Left: Info & Details */}
+                        <div className="flex items-start sm:items-center gap-3.5">
+                            <div className={`p-2.5 rounded-xl border shrink-0 ${
+                                analyticsStats.emergencyActive > 0
+                                    ? 'bg-red-500/20 text-red-400 border-red-500/40 animate-pulse shadow-[0_0_12px_rgba(239,68,68,0.4)]'
+                                    : analyticsStats.emergencyTotal > 0
+                                        ? 'bg-red-950/40 text-red-400 border-red-900/50'
+                                        : 'bg-zinc-800/60 text-zinc-400 border-zinc-700/50'
+                            }`}>
+                                <AlertTriangle className="h-6 w-6" />
+                            </div>
+                            <div>
+                                <div className="flex items-center gap-2.5 flex-wrap">
+                                    <h2 className="text-base sm:text-lg font-extrabold text-[#FAFAFA] flex items-center gap-2">
+                                        <span>{lang === 'id' ? 'Pemantauan Insiden Darurat & Krisis Kritis' : 'Emergency & Critical Incident Tracking'}</span>
+                                    </h2>
+                                    <span className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-red-950/60 border border-red-500/40 text-red-300">
+                                        {lang === 'id' ? 'Ditugaskan ke SEMUA Tim' : 'Assigned to ALL Teams'}
+                                    </span>
+                                </div>
+                                <p className="text-xs text-[#A19F8D] mt-0.5 leading-relaxed">
+                                    {lang === 'id'
+                                        ? 'Laporan darurat disiarkan ke seluruh resort tanpa departemen tunggal. Pantau status dan kecepatan tanggap krisis di sini.'
+                                        : 'Emergency fast-track reports broadcast to the entire island without a single department owner. Monitor crisis status and resolution here.'}
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Right: Metrics Pills + Filter Action */}
+                        <div className="flex items-center gap-2.5 sm:gap-3 flex-wrap self-stretch lg:self-auto justify-between lg:justify-end border-t lg:border-t-0 border-[#3B3929]/60 pt-3 lg:pt-0">
+                            {/* Stat: Total */}
+                            <div className="flex flex-col items-center px-3 py-1.5 rounded-xl bg-[#2A281E] border border-[#3B3929] min-w-[70px]">
+                                <span className="text-[10px] font-bold text-[#A19F8D] uppercase tracking-wider">
+                                    {lang === 'id' ? 'Total Insiden' : 'Total Incidents'}
+                                </span>
+                                <span className="text-lg font-black text-[#FAFAFA] font-mono">
+                                    {analyticsStats.emergencyTotal}
+                                </span>
+                            </div>
+
+                            {/* Stat: Active */}
+                            <div className={`flex flex-col items-center px-3 py-1.5 rounded-xl border min-w-[75px] ${
+                                analyticsStats.emergencyActive > 0
+                                    ? 'bg-red-950/60 border-red-500/50 text-red-300 ring-1 ring-red-500/30'
+                                    : 'bg-[#2A281E] border-[#3B3929] text-emerald-400'
+                            }`}>
+                                <span className="text-[10px] font-bold uppercase tracking-wider">
+                                    {lang === 'id' ? 'Aktif' : 'Active'}
+                                </span>
+                                <span className="text-lg font-black font-mono flex items-center gap-1">
+                                    {analyticsStats.emergencyActive > 0 && <span className="h-2 w-2 rounded-full bg-red-400 animate-ping inline-block" />}
+                                    {analyticsStats.emergencyActive}
+                                </span>
+                            </div>
+
+                            {/* Stat: Solved */}
+                            <div className="flex flex-col items-center px-3 py-1.5 rounded-xl bg-[#2A281E] border border-[#3B3929] min-w-[70px]">
+                                <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">
+                                    {lang === 'id' ? 'Selesai' : 'Solved'}
+                                </span>
+                                <span className="text-lg font-black text-emerald-300 font-mono">
+                                    {analyticsStats.emergencySolved}
+                                </span>
+                            </div>
+
+                            {/* Filter Toggle Button */}
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    handleStatusCardClick('critical');
+                                    recentActivityRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                }}
+                                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 flex items-center gap-2 border cursor-pointer shadow-md select-none ${
+                                    selectedStatusFilters.includes('critical')
+                                        ? 'bg-red-600 hover:bg-red-500 text-white border-red-400 ring-2 ring-red-500/50 scale-105'
+                                        : 'bg-red-950/40 hover:bg-red-900/60 text-red-300 border-red-800/60 hover:border-red-500'
+                                }`}
+                                title={lang === 'id' ? 'Filter hanya laporan darurat' : 'Filter emergency reports only'}
+                            >
+                                <AlertTriangle className="h-3.5 w-3.5" />
+                                <span>
+                                    {selectedStatusFilters.includes('critical')
+                                        ? (lang === 'id' ? '✕ Lepas Filter Darurat' : '✕ Clear Emergency Filter')
+                                        : (lang === 'id' ? 'Lihat Tiket Darurat' : 'View Emergency Tickets')}
+                                </span>
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -1776,9 +1934,9 @@ function AnalyticsInner() {
                         </div>
                     </div>
 
-                    {/* Mini 5-Card Status Filter Bar (Replacing old pill strip) */}
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 w-full">
-                        {analyticsCards.map(({ key, status, label, value, Icon, accent, activeRing, activeAccent }, idx) => {
+                    {/* Mini 6-Card Status Filter Bar (Including Dedicated Emergency Card) */}
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 w-full">
+                        {analyticsCards.map(({ key, status, label, value, badge, Icon, accent, activeRing, activeAccent }) => {
                             const isActive = (status === 'all' && selectedStatusFilters.length === 0) || 
                                              (status !== 'all' && selectedStatusFilters.includes(status));
                             const isFiltered = selectedStatusFilters.length > 0;
@@ -1789,8 +1947,6 @@ function AnalyticsInner() {
                                     onClick={() => handleStatusCardClick(status)}
                                     aria-pressed={isActive}
                                     className={`group relative flex items-center justify-between gap-2.5 rounded-xl border p-3 text-left transition-all duration-200 shadow-sm select-none cursor-pointer ${
-                                        idx === 0 ? 'col-span-2 sm:col-span-1' : ''
-                                    } ${
                                         isActive
                                             ? `bg-surface ring-2 scale-[1.01] ${activeRing}`
                                             : isFiltered
@@ -1807,7 +1963,14 @@ function AnalyticsInner() {
                                             <Icon className="h-4 w-4 sm:h-4.5 sm:w-4.5" aria-hidden />
                                         </span>
                                         <div className="min-w-0">
-                                            <p className="text-lg sm:text-xl font-bold leading-none text-foreground">{value}</p>
+                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                                <p className="text-lg sm:text-xl font-bold leading-none text-foreground">{value}</p>
+                                                {badge && (
+                                                    <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-red-600 text-white animate-pulse">
+                                                        {badge}
+                                                    </span>
+                                                )}
+                                            </div>
                                             <p className="mt-1 text-[11px] font-medium text-muted-foreground truncate">{label}</p>
                                         </div>
                                     </div>
@@ -1890,13 +2053,20 @@ function AnalyticsInner() {
                                     progress: t('in_progress') || (lang === 'id' ? 'Dalam Proses' : 'In Progress'),
                                     pending: t('pending') || (lang === 'id' ? 'Tertunda' : 'Pending'),
                                     solved: t('resolved') || (lang === 'id' ? 'Terselesaikan' : 'Resolved'),
-                                    critical: t('critical') || (lang === 'id' ? 'Kritis' : 'Critical'),
+                                    critical: lang === 'id' ? 'Darurat / Kritis' : 'Emergency / Critical',
                                 };
                                 const stLabel = statusLabels[st] || st;
 
                                 return (
-                                    <span key={st} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold bg-green-500/20 text-green-300 border border-green-500/30">
-                                        <span>✓ {stLabel}</span>
+                                    <span 
+                                        key={st} 
+                                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold border ${
+                                            st === 'critical'
+                                                ? 'bg-red-500/25 text-red-300 border-red-500/40 ring-1 ring-red-500/30'
+                                                : 'bg-green-500/20 text-green-300 border-green-500/30'
+                                        }`}
+                                    >
+                                        <span>{st === 'critical' ? '🚨' : '✓'} {stLabel}</span>
                                         <button 
                                             type="button" 
                                             onClick={() => setSelectedStatusFilters(prev => prev.filter(s => s !== st))}
@@ -2129,6 +2299,63 @@ function AnalyticsInner() {
                                     </button>
                                 )}
                             </div>
+
+                            {/* Combinable Priority Filter Pills for Timeline Activity */}
+                            <div className="flex items-center gap-1.5 text-xs flex-wrap bg-[#1E1D16] p-2 rounded-xl border border-[#3B3929]/80 shadow-inner">
+                                <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider px-2 shrink-0 flex items-center gap-1.5">
+                                    <AlertTriangle className="h-3.5 w-3.5 text-[#C9AA71]" />
+                                    {lang === 'id' ? 'Prioritas:' : 'Priority:'}
+                                </span>
+
+                                <button
+                                    type="button"
+                                    onClick={() => setSelectedPriorityFilters([])}
+                                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all duration-200 cursor-pointer border ${
+                                        selectedPriorityFilters.length === 0
+                                            ? 'bg-[#C9AA71] text-[#1C1B0E] border-[#C9AA71] font-extrabold shadow-sm'
+                                            : 'bg-[#2A281E]/60 text-muted-foreground border-transparent hover:border-[#3B3929] hover:text-foreground opacity-70 hover:opacity-100'
+                                    }`}
+                                >
+                                    {lang === 'id' ? 'Semua Prioritas' : 'All Priorities'}
+                                </button>
+
+                                {[
+                                    { id: 'standard', label: lang === 'id' ? 'Prioritas' : 'Priority', color: '#10B981', count: analyticsStats.standardCount },
+                                    { id: 'high', label: lang === 'id' ? 'Prioritas Tinggi' : 'High Priority', color: '#F59E0B', count: analyticsStats.highCount },
+                                    { id: 'critical', label: lang === 'id' ? 'Kritis' : 'Critical', color: '#EF4444', count: analyticsStats.criticalCount },
+                                ].map(p => {
+                                    const isSelected = selectedPriorityFilters.includes(p.id);
+                                    return (
+                                        <button
+                                            key={p.id}
+                                            type="button"
+                                            onClick={() => {
+                                                setSelectedPriorityFilters(prev =>
+                                                    prev.includes(p.id) ? prev.filter(x => x !== p.id) : [...prev, p.id]
+                                                );
+                                            }}
+                                            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all duration-200 cursor-pointer border ${
+                                                isSelected
+                                                    ? 'bg-primary/25 text-[#C9AA71] border-[#C9AA71]/80 shadow-sm font-bold ring-1 ring-[#C9AA71]/40'
+                                                    : 'bg-[#2A281E]/60 text-muted-foreground border-transparent hover:border-[#3B3929] hover:text-foreground opacity-70 hover:opacity-100'
+                                            }`}
+                                        >
+                                            <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: p.color }} />
+                                            <span>{p.label} ({p.count})</span>
+                                        </button>
+                                    );
+                                })}
+
+                                {selectedPriorityFilters.length > 0 && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setSelectedPriorityFilters([])}
+                                        className="text-[11px] font-semibold text-[#C9AA71] hover:text-[#FAFAFA] px-2 py-1 rounded hover:bg-[#2A281E] transition-colors ml-1 cursor-pointer"
+                                    >
+                                        ✕ {lang === 'id' ? 'Reset Prioritas' : 'Reset Priority'}
+                                    </button>
+                                )}
+                            </div>
                         </div>
                     )}
 
@@ -2145,20 +2372,31 @@ function AnalyticsInner() {
                                         timeStr = dateObj.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
                                     }
                                     
+                                    const isEmergency = (ev.originalIssue?.category || '').toLowerCase() === 'emergency' || 
+                                                        String(ev.issueId || '').startsWith('SOS');
+                                    const isCritical = !isEmergency && (ev.originalIssue?.priority === 'critical');
+                                    const isHigh = !isEmergency && (ev.originalIssue?.priority === 'high');
+
                                     let actionBadge = null;
                                     let dotColor = 'bg-blue-500';
                                     
                                     switch(ev.type) {
                                         case 'create':
-                                            dotColor = 'bg-blue-500';
+                                            dotColor = isEmergency ? 'bg-red-500' : isCritical ? 'bg-amber-500' : 'bg-blue-500';
                                             actionBadge = (
-                                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-500/15 text-blue-400 border border-blue-500/30">
+                                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold border ${
+                                                    isEmergency 
+                                                        ? 'bg-red-500/15 text-red-400 border-red-500/30' 
+                                                        : isCritical
+                                                            ? 'bg-amber-500/15 text-amber-400 border-amber-500/30'
+                                                            : 'bg-blue-500/15 text-blue-400 border-blue-500/30'
+                                                }`}>
                                                     {lang === 'id' ? 'Laporan Dibuat' : 'Report Created'}
                                                 </span>
                                             );
                                             break;
                                         case 'claim':
-                                            dotColor = 'bg-amber-500';
+                                            dotColor = isEmergency ? 'bg-red-500' : isCritical ? 'bg-amber-500' : 'bg-amber-500';
                                             actionBadge = (
                                                 <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-500/15 text-amber-400 border border-amber-500/30">
                                                     {lang === 'id' ? 'Diambil (Claim)' : 'Claimed'}
@@ -2166,7 +2404,7 @@ function AnalyticsInner() {
                                             );
                                             break;
                                         case 'pending':
-                                            dotColor = 'bg-orange-500';
+                                            dotColor = isEmergency ? 'bg-red-500' : isCritical ? 'bg-amber-500' : 'bg-orange-500';
                                             actionBadge = (
                                                 <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-orange-500/15 text-orange-400 border border-orange-500/30">
                                                     {lang === 'id' ? 'Ditunda (Pending)' : 'Pending'}
@@ -2201,18 +2439,58 @@ function AnalyticsInner() {
 
                                     return (
                                         <div key={ev.id} className="timeline-item relative">
-                                            <div className={`absolute -left-[21px] top-4 h-3.5 w-3.5 rounded-full border-2 border-surface shadow-sm z-10 ${dotColor}`} />
+                                            {isEmergency ? (
+                                                <div className="absolute -left-[23px] top-3.5 flex items-center justify-center z-10">
+                                                    <span className="absolute h-5 w-5 rounded-full bg-red-500/35 animate-ping pointer-events-none" />
+                                                    <span className="h-4 w-4 rounded-full border-2 border-[#181711] bg-red-500 shadow-[0_0_12px_rgba(239,68,68,1)] ring-2 ring-red-500/30" />
+                                                </div>
+                                            ) : isCritical ? (
+                                                <div className="absolute -left-[22px] top-3.5 flex items-center justify-center z-10">
+                                                    <span className="h-4 w-4 rounded-full border-2 border-[#181711] bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.85)] ring-2 ring-amber-500/30" />
+                                                </div>
+                                            ) : (
+                                                <div className={`absolute -left-[21px] top-4 h-3.5 w-3.5 rounded-full border-2 border-surface shadow-sm z-10 ${dotColor}`} />
+                                            )}
                                             
                                             <div 
                                                 onClick={() => setSelectedActivityIssue(ev.originalIssue)}
-                                                className="group flex flex-col gap-2 p-4 rounded-xl border border-border/80 bg-[#1E1D16] shadow-sm hover:border-primary/60 hover:bg-[#25241B] cursor-pointer transition-all duration-200"
+                                                className={`group flex flex-col gap-2 p-4 rounded-xl cursor-pointer transition-all duration-200 ${
+                                                    isEmergency
+                                                        ? 'border border-red-500/30 border-l-[4px] border-l-red-500 bg-gradient-to-r from-red-950/25 via-[#1E1D16] to-[#1E1D16] shadow-[0_0_18px_rgba(239,68,68,0.12)] hover:border-red-500/60 hover:shadow-[0_0_24px_rgba(239,68,68,0.22)] hover:bg-[#231E17]'
+                                                        : isCritical
+                                                            ? 'border border-amber-500/30 border-l-[4px] border-l-amber-500 bg-gradient-to-r from-amber-950/20 via-[#1E1D16] to-[#1E1D16] shadow-[0_0_14px_rgba(245,158,11,0.08)] hover:border-amber-500/60 hover:shadow-[0_0_20px_rgba(245,158,11,0.18)] hover:bg-[#232017]'
+                                                            : 'border border-border/80 bg-[#1E1D16] shadow-sm hover:border-primary/60 hover:bg-[#25241B]'
+                                                }`}
                                             >
                                                 {/* Header Row: Title + Department + ID + Click Indicator */}
                                                 <div className="flex flex-wrap items-center justify-between gap-2">
                                                     <div className="flex items-center gap-2 flex-wrap min-w-0">
-                                                        <span className="text-base font-bold text-foreground group-hover:text-primary transition-colors truncate max-w-md">
+                                                        <span className={`text-base font-bold transition-colors truncate max-w-md ${
+                                                            isEmergency 
+                                                                ? 'text-white group-hover:text-red-300' 
+                                                                : isCritical 
+                                                                    ? 'text-white group-hover:text-amber-300' 
+                                                                    : 'text-foreground group-hover:text-primary'
+                                                        }`}>
                                                             {ev.title}
                                                         </span>
+                                                        {isEmergency && (
+                                                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-red-500/15 text-red-400 border border-red-500/40 shadow-[0_0_8px_rgba(239,68,68,0.25)]">
+                                                                <span className="h-1.5 w-1.5 rounded-full bg-red-400 animate-pulse inline-block" />
+                                                                {lang === 'id' ? 'DARURAT (SOS)' : 'SOS EMERGENCY'}
+                                                            </span>
+                                                        )}
+                                                        {isCritical && (
+                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-[0_0_8px_rgba(245,158,11,0.2)]">
+                                                                <AlertTriangle className="w-3 h-3 text-amber-400" />
+                                                                {lang === 'id' ? 'KRITIS' : 'CRITICAL'}
+                                                            </span>
+                                                        )}
+                                                        {isHigh && (
+                                                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-orange-500/15 text-orange-400 border border-orange-500/30">
+                                                                {lang === 'id' ? 'TINGGI' : 'HIGH'}
+                                                            </span>
+                                                        )}
                                                         {ev.originalIssue?.department && (
                                                             <span className="text-xs px-2 py-0.5 rounded bg-muted/40 text-muted-foreground border border-border/40 font-medium">
                                                                 {ev.originalIssue.department}
@@ -2220,7 +2498,13 @@ function AnalyticsInner() {
                                                         )}
                                                     </div>
                                                     <div className="flex items-center gap-2">
-                                                        <span className="text-xs font-mono font-bold text-[#C9AA71] bg-[#2A281E] px-2.5 py-1 rounded-md border border-[#3B3929] shadow-inner">
+                                                        <span className={`text-xs font-mono font-bold px-2.5 py-1 rounded-md border shadow-inner ${
+                                                            isEmergency
+                                                                ? 'text-red-400 bg-red-950/50 border-red-500/40 shadow-[0_0_8px_rgba(239,68,68,0.25)]'
+                                                                : isCritical
+                                                                    ? 'text-amber-400 bg-amber-950/40 border-amber-500/40'
+                                                                    : 'text-[#C9AA71] bg-[#2A281E] border-[#3B3929]'
+                                                        }`}>
                                                             {ev.issueId}
                                                         </span>
                                                         <button
@@ -2229,27 +2513,53 @@ function AnalyticsInner() {
                                                                 e.stopPropagation();
                                                                 handleOpenIssueCard(ev.originalIssue);
                                                             }}
-                                                            className="flex items-center gap-1 px-2.5 py-1 rounded-md bg-[#2A281E] hover:bg-[#3B3929] text-[#C9AA71] hover:text-[#FAFAFA] border border-[#3B3929] text-xs font-semibold transition-all shadow-sm cursor-pointer z-10"
+                                                            className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold transition-all shadow-sm cursor-pointer z-10 ${
+                                                                isEmergency
+                                                                    ? 'bg-red-950/40 hover:bg-red-900/60 text-red-300 hover:text-red-100 border border-red-700/50'
+                                                                    : isCritical
+                                                                        ? 'bg-amber-950/40 hover:bg-amber-900/50 text-amber-300 hover:text-amber-100 border border-amber-700/50'
+                                                                        : 'bg-[#2A281E] hover:bg-[#3B3929] text-[#C9AA71] hover:text-[#FAFAFA] border border-[#3B3929]'
+                                                            }`}
                                                             title={lang === 'id' ? 'Buka Kartu Isu (Foto & Detail)' : 'Open Issue Card'}
                                                         >
                                                             <Eye className="w-3.5 h-3.5" />
                                                             <span>Detail</span>
                                                         </button>
-                                                        <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
+                                                        <ChevronRight className={`w-4 h-4 transition-all ${
+                                                            isEmergency
+                                                                ? 'text-red-400/60 group-hover:text-red-400 group-hover:translate-x-0.5'
+                                                                : isCritical
+                                                                    ? 'text-amber-400/60 group-hover:text-amber-400 group-hover:translate-x-0.5'
+                                                                    : 'text-muted-foreground group-hover:text-primary group-hover:translate-x-0.5'
+                                                        }`} />
                                                     </div>
                                                 </div>
 
                                                 {/* Detail Row: Action + Person + Date/Time */}
-                                                <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-border/30 text-xs text-muted-foreground">
+                                                <div className={`flex flex-wrap items-center justify-between gap-2 pt-1 border-t text-xs ${
+                                                    isEmergency 
+                                                        ? 'border-red-900/40 text-red-300/80' 
+                                                        : isCritical
+                                                            ? 'border-amber-900/30 text-amber-300/80'
+                                                            : 'border-border/30 text-muted-foreground'
+                                                }`}>
                                                     <div className="flex items-center gap-2 flex-wrap">
                                                         {actionBadge}
-                                                        <span className="text-muted-foreground">{t('by_reporter')}</span>
-                                                        <span className="font-bold text-foreground bg-surface px-2 py-0.5 rounded border border-border/50">
+                                                        <span className={isEmergency ? 'text-red-300/70' : isCritical ? 'text-amber-300/70' : 'text-muted-foreground'}>{t('by_reporter')}</span>
+                                                        <span className={`font-bold px-2 py-0.5 rounded border ${
+                                                            isEmergency
+                                                                ? 'text-red-200 bg-red-950/40 border-red-800/40'
+                                                                : isCritical
+                                                                    ? 'text-amber-200 bg-amber-950/40 border-amber-800/40'
+                                                                    : 'text-foreground bg-surface border-border/50'
+                                                        }`}>
                                                             {ev.person}
                                                         </span>
                                                     </div>
 
-                                                    <div className="font-medium text-muted-foreground flex items-center gap-1.5 ml-auto">
+                                                    <div className={`font-medium flex items-center gap-1.5 ml-auto ${
+                                                        isEmergency ? 'text-red-300/75' : isCritical ? 'text-amber-300/75' : 'text-muted-foreground'
+                                                    }`}>
                                                         <span>📅 {dateStr}</span>
                                                         <span>•</span>
                                                         <span>⏰ {timeStr}</span>
@@ -2258,8 +2568,14 @@ function AnalyticsInner() {
 
                                                 {/* Optional Reason / Details */}
                                                 {ev.reason && (
-                                                    <div className="text-xs text-muted-foreground bg-black/20 p-2.5 rounded-lg border border-border/40 italic">
-                                                        💬 <span className="font-semibold text-foreground/80">{lang === 'id' ? 'Alasan/Catatan: ' : 'Reason/Notes: '}</span>
+                                                    <div className={`text-xs p-2.5 rounded-lg border italic ${
+                                                        isCritical
+                                                            ? 'text-red-200/90 bg-red-950/30 border-red-800/40'
+                                                            : 'text-muted-foreground bg-black/20 border-border/40'
+                                                    }`}>
+                                                        💬 <span className={`font-semibold ${isCritical ? 'text-red-300' : 'text-foreground/80'}`}>
+                                                            {lang === 'id' ? 'Alasan/Catatan: ' : 'Reason/Notes: '}
+                                                        </span>
                                                         "{ev.reason}"
                                                     </div>
                                                 )}
@@ -2300,6 +2616,8 @@ function AnalyticsInner() {
                     onClose={() => setCardModalTarget(null)} 
                 />
             )}
+            <MobileBottomNav currentTab="analytics" />
+            </div>
         </div>
     );
 }

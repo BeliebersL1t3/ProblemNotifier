@@ -419,32 +419,51 @@ export function ActivityDetailModal({ issue, onClose, onOpenCardModal, onEdit })
         <Dialog open={!!issue} onOpenChange={(open) => !open && onClose()}>
             <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-2xl bg-[#181711] border border-[#3B3929] text-[#FAFAFA] shadow-2xl p-6">
                 <DialogHeader className="border-b border-[#3B3929]/80 pb-4">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                            <span className="text-xs font-mono font-bold text-[#C9AA71] bg-[#2A281E] px-2.5 py-1 rounded-md border border-[#3B3929] shadow-inner">
-                                {issue.id}
-                            </span>
-                            <DialogTitle className="text-lg font-bold text-foreground tracking-tight">
-                                {issue.title}
-                            </DialogTitle>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            {issue.priority === 'critical' && (
-                                <span className="inline-flex items-center gap-1 rounded-md bg-red-500/20 px-2 py-0.5 text-xs font-bold text-red-400 border border-red-500/30 animate-pulse">
-                                    <AlertCircle className="w-3.5 h-3.5" />
-                                    {t('critical')}
-                                </span>
-                            )}
-                            <span className={`px-2.5 py-0.5 rounded-md text-xs font-bold font-mono border ${
-                                issue.status === 'solved' ? 'bg-green-500/20 text-green-300 border-green-500/30' :
-                                issue.status === 'pending' ? 'bg-orange-500/20 text-orange-300 border-orange-500/30' :
-                                issue.status === 'progress' ? 'bg-blue-500/20 text-blue-300 border-blue-500/30' :
-                                'bg-amber-500/20 text-amber-300 border-amber-500/30'
-                            }`}>
-                                {issue.status?.toUpperCase() || 'OPEN'}
-                            </span>
-                        </div>
-                    </div>
+                    {(() => {
+                        const isEmergency = (issue.category || '').toLowerCase() === 'emergency' || 
+                                            String(issue.id || '').startsWith('SOS');
+                        const isCritical = !isEmergency && (issue.priority === 'critical');
+                        return (
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                                <div className="flex items-center gap-2">
+                                    <span className={`text-xs font-mono font-bold px-2.5 py-1 rounded-md border shadow-inner ${
+                                        isEmergency
+                                            ? 'text-red-400 bg-red-950/50 border-red-500/40 shadow-[0_0_8px_rgba(239,68,68,0.25)]'
+                                            : isCritical
+                                                ? 'text-amber-400 bg-amber-950/50 border-amber-500/40'
+                                                : 'text-[#C9AA71] bg-[#2A281E] border-[#3B3929]'
+                                    }`}>
+                                        {issue.id}
+                                    </span>
+                                    <DialogTitle className="text-lg font-bold text-foreground tracking-tight">
+                                        {issue.title}
+                                    </DialogTitle>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    {isEmergency && (
+                                        <span className="inline-flex items-center gap-1.5 rounded-md bg-red-500/20 px-2.5 py-0.5 text-xs font-black uppercase tracking-wider text-red-400 border border-red-500/40 shadow-[0_0_8px_rgba(239,68,68,0.25)]">
+                                            <span className="h-1.5 w-1.5 rounded-full bg-red-400 animate-pulse inline-block" />
+                                            {lang === 'id' ? 'DARURAT (SOS)' : 'SOS EMERGENCY'}
+                                        </span>
+                                    )}
+                                    {isCritical && (
+                                        <span className="inline-flex items-center gap-1.5 rounded-md bg-amber-500/20 px-2.5 py-0.5 text-xs font-black uppercase tracking-wider text-amber-400 border border-amber-500/40 shadow-[0_0_8px_rgba(245,158,11,0.25)]">
+                                            <AlertCircle className="w-3.5 h-3.5" />
+                                            {lang === 'id' ? 'PRIORITAS KRITIS' : 'CRITICAL PRIORITY'}
+                                        </span>
+                                    )}
+                                    <span className={`px-2.5 py-0.5 rounded-md text-xs font-bold font-mono border ${
+                                        issue.status === 'solved' ? 'bg-green-500/20 text-green-300 border-green-500/30' :
+                                        issue.status === 'pending' ? 'bg-orange-500/20 text-orange-300 border-orange-500/30' :
+                                        issue.status === 'progress' ? 'bg-blue-500/20 text-blue-300 border-blue-500/30' :
+                                        'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                                    }`}>
+                                        {issue.status?.toUpperCase() || 'OPEN'}
+                                    </span>
+                                </div>
+                            </div>
+                        );
+                    })()}
                 </DialogHeader>
 
                 {/* ========================================================================= */}

@@ -3,7 +3,7 @@ import {
     ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock,
     CheckCircle2, Plus, MapPin, ZoomIn, CheckCheck,
     Edit2, Trash2, Building2, Check, ChevronDown, Search, X,
-    MousePointerClick, Sparkles, User
+    MousePointerClick, Sparkles, User, StickyNote, Layers
 } from 'lucide-react';
 import { getDepartmentTheme } from '@/constants/departments';
 import { ALL_DEPARTMENTS, normalizeDepartment } from '@/constants/staff';
@@ -74,6 +74,110 @@ export function parseTaskRanges(task) {
         return [{ startDate: task.startDate || task.endDate, endDate: task.endDate || task.startDate }];
     }
     return [];
+}
+
+// ─── Extract Clean Notes (Strip multi-range JSON metadata) ───────────────────
+export function getCleanTaskNotes(notes) {
+    if (!notes || typeof notes !== 'string') return '';
+    let clean = notes.replace(/\[SCHEDULE_RANGES:\s*\[.*?\]\s*\]/gis, '').trim();
+    clean = clean.replace(/^\]+|\s*\]+$/g, '').trim();
+    return clean;
+}
+
+// ─── Helper: Get all dates covered by a task ───────────────────────────────
+export function getAllDatesInRange(startDateStr, endDateStr) {
+    const dates = [];
+    const s = parseDateStr(startDateStr);
+    const e = parseDateStr(endDateStr || startDateStr);
+    if (!s || !e) return dates;
+    const cur = new Date(s.getFullYear(), s.getMonth(), s.getDate());
+    const end = new Date(e.getFullYear(), e.getMonth(), e.getDate());
+    while (cur <= end) {
+        dates.push(toDateString(cur));
+        cur.setDate(cur.getDate() + 1);
+    }
+    return dates;
+}
+
+export function getTaskAllDates(task) {
+    if (!task) return [];
+    const ranges = parseTaskRanges(task);
+    const set = new Set();
+    ranges.forEach(r => {
+        if (r.startDate) {
+            getAllDatesInRange(r.startDate, r.endDate || r.startDate).forEach(d => set.add(d));
+        }
+    });
+    if (set.size === 0 && (task.startDate || task.endDate)) {
+        getAllDatesInRange(task.startDate || task.endDate, task.endDate || task.startDate).forEach(d => set.add(d));
+    }
+    return Array.from(set);
+}
+
+export function hexToHsl(hex) {
+    if (!hex || typeof hex !== 'string') return { h: 42, s: 50, l: 60 };
+    let c = hex.replace('#', '');
+    if (c.length === 3) c = c.split('').map(x => x + x).join('');
+    if (c.length !== 6) return { h: 42, s: 50, l: 60 };
+    const r = parseInt(c.substring(0, 2), 16) / 255;
+    const g = parseInt(c.substring(2, 4), 16) / 255;
+    const b = parseInt(c.substring(4, 6), 16) / 255;
+    const max = Math.max(r, g, b), min = Math.min(r, g, b);
+    let h = 0, s = 0, l = (max + min) / 2;
+    if (max !== min) {
+        const d = max - min;
+        s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+        switch (max) {
+            case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+            case g: h = (b - r) / d + 2; break;
+            case b: h = (r - g) / d + 4; break;
+        }
+        h /= 6;
+    }
+    return { h: Math.round(h * 360), s: Math.round(s * 100), l: Math.round(l * 100) };
+}
+
+// Generates varying shades (brighter, deeper, lighter, etc.) of the EXACT SAME department hue
+export function getBlockColorVariation(baseHex, blockIndex, totalBlocks = 1) {
+    if (!baseHex || baseHex === '#212121') baseHex = '#C9AA71';
+    if (totalBlocks <= 1) return baseHex;
+    const { h, s, l } = hexToHsl(baseHex);
+    // Distinct lightness/saturation variations for blocks:
+    // Block 0: base
+    // Block 1: lighter/brighter (+16%)
+    // Block 2: deeper/richer (-14%)
+    // Block 3: pastel/vibrant (+26%)
+    // Block 4: intense dark tone (-22%)
+    // Block 5: punchy cyan/sky tone (+34%)
+    const lightnessOffsets = [0, 16, -14, 26, -22, 34, -28];
+    const offset = lightnessOffsets[blockIndex % lightnessOffsets.length];
+    const newL = Math.max(26, Math.min(84, l + offset));
+    const newS = Math.max(45, Math.min(100, s + (blockIndex % 2 === 1 ? 8 : -4)));
+    return `hsl(${h}, ${newS}%, ${newL}%)`;
+}
+
+export function getTaskDateBlockMap(task, baseDeptColor) {
+    const map = {};
+    if (!task) return map;
+    const ranges = parseTaskRanges(task);
+    if (ranges.length === 0 && (task.startDate || task.endDate)) {
+        ranges.push({ startDate: task.startDate, endDate: task.endDate || task.startDate });
+    }
+    const totalBlocks = ranges.length;
+
+    ranges.forEach((range, idx) => {
+        const blockColor = getBlockColorVariation(baseDeptColor, idx, totalBlocks);
+        getAllDatesInRange(range.startDate, range.endDate).forEach(dateStr => {
+            map[dateStr] = {
+                blockIndex: idx,
+                blockNum: idx + 1,
+                totalBlocks,
+                range,
+                blockColor,
+            };
+        });
+    });
+    return map;
 }
 
 function isTaskActiveOnDate(task, targetDateStr) {
@@ -332,6 +436,25 @@ export function OperationsCalendarView({
     const [statusFilter, setStatusFilter] = useState('all'); // 'all' | 'active' | 'done'
     const [hoveredTask, setHoveredTask] = useState(null);
     const [hoveredMore, setHoveredMore] = useState(null);
+    const [activeCardHighlightId, setActiveCardHighlightId] = useState(null);
+    const [selectedBlockFilter, setSelectedBlockFilter] = useState(null); // null = all blocks, or block index number (0, 1, 2, ...)
+    const [agendaViewMode, setAgendaViewMode] = useState('date'); // 'date' | 'all'
+    const [allTasksRange, setAllTasksRange] = useState(1); // 1 | 3 | 6 | 'all'
+
+    // Sync highlightTaskId if provided from outside (e.g. search)
+    useEffect(() => {
+        if (highlightTaskId) {
+            setActiveCardHighlightId(highlightTaskId);
+            setSelectedBlockFilter(null);
+        }
+    }, [highlightTaskId]);
+
+    // Reset block filter when card highlight is cleared
+    useEffect(() => {
+        if (!activeCardHighlightId) {
+            setSelectedBlockFilter(null);
+        }
+    }, [activeCardHighlightId]);
 
     // Dismiss hover previews on window scroll
     useEffect(() => {
@@ -410,6 +533,101 @@ export function OperationsCalendarView({
         return rawTaskList;
     }, [rawTaskList, statusFilter]);
 
+    // Compute all active dates for the highlighted task (after allTasks is declared)
+    const activeHighlightedTask = useMemo(() => {
+        if (!activeCardHighlightId) return null;
+        return allTasks.find(t => String(t.id) === String(activeCardHighlightId)) || null;
+    }, [activeCardHighlightId, allTasks]);
+
+    const activeDeptTheme = useMemo(() => {
+        if (!activeHighlightedTask) return null;
+        const dept = activeHighlightedTask.department || activeHighlightedTask.dept;
+        return getDepartmentTheme(dept);
+    }, [activeHighlightedTask]);
+
+    const activeDeptColor = activeDeptTheme 
+        ? (activeDeptTheme.bg === '#212121' ? '#FFFFFF' : activeDeptTheme.bg) 
+        : '#C9AA71';
+
+    // Compute date-to-block map with varying department color shades for each block
+    const activeTaskDateBlockMap = useMemo(() => {
+        if (!activeHighlightedTask) return {};
+        return getTaskDateBlockMap(activeHighlightedTask, activeDeptColor);
+    }, [activeHighlightedTask, activeDeptColor]);
+
+    // Compute active dates for the highlighted task (or specific selected block)
+    const activeTaskDates = useMemo(() => {
+        if (!activeHighlightedTask) return [];
+        if (selectedBlockFilter !== null) {
+            const ranges = parseTaskRanges(activeHighlightedTask);
+            const targetRange = ranges[selectedBlockFilter];
+            if (targetRange) {
+                return getAllDatesInRange(targetRange.startDate, targetRange.endDate || targetRange.startDate);
+            }
+        }
+        return getTaskAllDates(activeHighlightedTask);
+    }, [activeHighlightedTask, selectedBlockFilter]);
+
+    // Card click toggles highlighting of all dates belonging to that task on the calendar grid
+    // Card click toggles highlighting of the task, focusing on the current date's block if active
+    const handleTaskCardClick = (item, e) => {
+        if (e.target.closest('button') || e.target.closest('a') || e.target.closest('input')) {
+            return;
+        }
+
+        if (String(activeCardHighlightId) === String(item.id)) {
+            setActiveCardHighlightId(null);
+            setSelectedBlockFilter(null);
+            onClearHighlight?.();
+        } else {
+            setActiveCardHighlightId(item.id);
+            
+            // Check if this task is active on the currently selected date (selectedDateStr)
+            const ranges = parseTaskRanges(item);
+            const activeBlockIdx = ranges.findIndex(r => 
+                selectedDateStr && r.startDate && (selectedDateStr >= r.startDate && selectedDateStr <= (r.endDate || r.startDate))
+            );
+
+            if (activeBlockIdx !== -1) {
+                // Immediately isolate the specific block that matches the date in the day agenda!
+                setSelectedBlockFilter(activeBlockIdx);
+                const sDate = parseDateStr(selectedDateStr);
+                if (sDate && (sDate.getFullYear() !== year || sDate.getMonth() !== month)) {
+                    setCurrentMonth(new Date(sDate.getFullYear(), sDate.getMonth(), 1));
+                }
+            } else {
+                setSelectedBlockFilter(null);
+                const taskDates = getTaskAllDates(item);
+                if (taskDates.length > 0) {
+                    const firstDate = parseDateStr(taskDates[0]);
+                    if (firstDate && (firstDate.getFullYear() !== year || firstDate.getMonth() !== month)) {
+                        setCurrentMonth(new Date(firstDate.getFullYear(), firstDate.getMonth(), 1));
+                    }
+                }
+            }
+        }
+    };
+
+    // Clicking a specific block chip in the schedule breakdown
+    const handleBlockClick = (bIdx, range, item, e) => {
+        e.stopPropagation();
+        setActiveCardHighlightId(item.id);
+
+        if (selectedBlockFilter === bIdx) {
+            // Toggle off back to all blocks
+            setSelectedBlockFilter(null);
+        } else {
+            setSelectedBlockFilter(bIdx);
+            if (range.startDate) {
+                setSelectedDateStr(range.startDate);
+                const sDate = parseDateStr(range.startDate);
+                if (sDate) {
+                    setCurrentMonth(new Date(sDate.getFullYear(), sDate.getMonth(), 1));
+                }
+            }
+        }
+    };
+
     // Calendar grid calculations
     const firstDayOfMonth = new Date(year, month, 1);
     const lastDayOfMonth = new Date(year, month + 1, 0);
@@ -480,6 +698,7 @@ export function OperationsCalendarView({
             }
         } else {
             setSelectedDateStr(dateStr);
+            setAgendaViewMode('date');
         }
 
         setDragStart(null);
@@ -505,18 +724,33 @@ export function OperationsCalendarView({
     const calendarDays = useMemo(() => {
         const days = [];
 
+        // When a task is focused, only show that specific task (or specific block) in the month calendar grid
+        const filterVisibleTasks = (tasksList, dateStr) => {
+            if (!activeCardHighlightId) return tasksList;
+            if (selectedBlockFilter !== null) {
+                const blockInfo = activeTaskDateBlockMap[dateStr];
+                if (!blockInfo || blockInfo.blockIndex !== selectedBlockFilter) {
+                    return [];
+                }
+            }
+            return tasksList.filter(item => String(item.id) === String(activeCardHighlightId));
+        };
+
         // Previous month padding
         const prevMonthLastDay = new Date(year, month, 0).getDate();
         for (let i = startDayOfWeek - 1; i >= 0; i--) {
             const dayNum = prevMonthLastDay - i;
             const d = new Date(year, month - 1, dayNum);
             const dateStr = toDateString(d);
+            const rawTasks = allTasks.filter(item => isTaskActiveOnDate(item, dateStr));
+            const tasksForDay = filterVisibleTasks(rawTasks, dateStr);
             days.push({
                 key: `prev-${dayNum}`,
                 dayNum,
                 dateStr,
                 isCurrentMonth: false,
                 isToday: dateStr === todayStr,
+                tasks: tasksForDay,
             });
         }
 
@@ -524,7 +758,8 @@ export function OperationsCalendarView({
         for (let d = 1; d <= totalDaysInMonth; d++) {
             const dateObj = new Date(year, month, d);
             const dateStr = toDateString(dateObj);
-            const tasksForDay = allTasks.filter(item => isTaskActiveOnDate(item, dateStr));
+            const rawTasks = allTasks.filter(item => isTaskActiveOnDate(item, dateStr));
+            const tasksForDay = filterVisibleTasks(rawTasks, dateStr);
             const hasQueryMatch = searchQuery ? tasksForDay.some(item => matchesTaskQuery(item, searchQuery)) : false;
 
             days.push({
@@ -543,17 +778,55 @@ export function OperationsCalendarView({
         for (let d = 1; d <= remainingCells; d++) {
             const nextDateObj = new Date(year, month + 1, d);
             const dateStr = toDateString(nextDateObj);
+            const rawTasks = allTasks.filter(item => isTaskActiveOnDate(item, dateStr));
+            const tasksForDay = filterVisibleTasks(rawTasks, dateStr);
             days.push({
                 key: `next-${d}`,
                 dayNum: d,
                 dateStr,
                 isCurrentMonth: false,
                 isToday: dateStr === todayStr,
+                tasks: tasksForDay,
             });
         }
 
         return days;
-    }, [year, month, startDayOfWeek, totalDaysInMonth, todayStr, allTasks, searchQuery]);
+    }, [year, month, startDayOfWeek, totalDaysInMonth, todayStr, allTasks, searchQuery, activeCardHighlightId, selectedBlockFilter, activeTaskDateBlockMap]);
+
+    // Compute date range info for "All Tasks" mode (1, 3, 6 months forward or all)
+    const allTasksRangeInfo = useMemo(() => {
+        if (allTasksRange === 'all') {
+            return {
+                startStr: null,
+                endStr: null,
+                title: lang === 'id' ? 'Semua Tugas (Seluruh Waktu)' : 'All Tasks (All Time)',
+                subtitle: lang === 'id' ? 'Semua tugas tanpa batasan tanggal' : 'All scheduled tasks without date limit'
+            };
+        }
+        const numMonths = Number(allTasksRange) || 1;
+        const sDate = new Date(year, month, 1);
+        const eDate = new Date(year, month + numMonths, 0);
+        const startStr = toDateString(sDate);
+        const endStr = toDateString(eDate);
+
+        const sTitle = new Intl.DateTimeFormat(lang === 'id' ? 'id-ID' : 'en-US', { month: 'short', year: 'numeric' }).format(sDate);
+        const eTitle = new Intl.DateTimeFormat(lang === 'id' ? 'id-ID' : 'en-US', { month: 'short', year: 'numeric' }).format(eDate);
+
+        let title = sTitle;
+        if (numMonths > 1) {
+            title = `${sTitle} – ${eTitle}`;
+        }
+
+        return {
+            startStr,
+            endStr,
+            title,
+            numMonths,
+            subtitle: lang === 'id' 
+                ? `Tugas dalam ${numMonths} bulan (${title})` 
+                : `Tasks within ${numMonths} months (${title})`
+        };
+    }, [year, month, allTasksRange, lang]);
 
     // Tasks for the selected date
     const selectedDateObj = parseDateStr(selectedDateStr) || new Date();
@@ -568,6 +841,35 @@ export function OperationsCalendarView({
             return 0;
         });
     }, [allTasks, selectedDateStr, searchQuery]);
+
+    // Displayed tasks in inspector panel (either single date or all tasks within month range)
+    const displayedAgendaTasks = useMemo(() => {
+        let list = [];
+        if (agendaViewMode === 'date') {
+            list = tasksForSelectedDate;
+        } else {
+            // 'all' mode
+            if (allTasksRange === 'all') {
+                list = allTasks;
+            } else {
+                const { startStr, endStr } = allTasksRangeInfo;
+                list = allTasks.filter(item => {
+                    const dates = getTaskAllDates(item);
+                    if (dates.length === 0) return true;
+                    return dates.some(d => d >= startStr && d <= endStr);
+                });
+            }
+        }
+
+        if (!searchQuery) return list;
+        return [...list].sort((a, b) => {
+            const aMatch = matchesTaskQuery(a, searchQuery);
+            const bMatch = matchesTaskQuery(b, searchQuery);
+            if (aMatch && !bMatch) return -1;
+            if (!aMatch && bMatch) return 1;
+            return 0;
+        });
+    }, [agendaViewMode, tasksForSelectedDate, allTasks, allTasksRange, allTasksRangeInfo, searchQuery]);
 
     return (
         <div className="space-y-6 select-none">
@@ -699,6 +1001,58 @@ export function OperationsCalendarView({
 
                 {/* ─── Calendar Month Grid (8 Cols on Desktop) ─── */}
                 <div className="lg:col-span-8 bg-[#2A281E]/95 border border-[#3B3929] rounded-2xl p-4 sm:p-5 shadow-2xl backdrop-blur-xl">
+                    {/* Active Task Focus Banner */}
+                    {activeHighlightedTask && (
+                        <div 
+                            className="flex flex-wrap items-center justify-between gap-3 px-3.5 py-2.5 rounded-xl border mb-3 text-xs font-bold shadow-lg animate-in fade-in"
+                            style={{
+                                backgroundColor: `${activeDeptColor}18`,
+                                borderColor: `${activeDeptColor}60`,
+                                color: activeDeptColor === '#212121' ? '#FFFFFF' : activeDeptColor
+                            }}
+                        >
+                            <div className="flex items-center gap-2 min-w-0">
+                                <Sparkles className="h-4 w-4 shrink-0" style={{ color: activeDeptColor }} />
+                                <span className="truncate">
+                                    {t('focusing_on_task') || 'Fokus Pada Tugas'}: <strong className="text-[#FAFAFA]">[{activeHighlightedTask.department || activeHighlightedTask.dept}] {activeHighlightedTask.title}</strong>
+                                    {selectedBlockFilter !== null && (
+                                        <span 
+                                            className="ml-2 px-2 py-0.5 rounded text-[10px] font-black uppercase text-[#1C1B0E]"
+                                            style={{ backgroundColor: activeTaskDateBlockMap[activeTaskDates[0]]?.blockColor || activeDeptColor }}
+                                        >
+                                            {t('date_block') || 'Blok'} #{selectedBlockFilter + 1}
+                                        </span>
+                                    )}
+                                </span>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                                {selectedBlockFilter !== null && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setSelectedBlockFilter(null)}
+                                        className="text-[11px] font-extrabold px-2.5 py-1 rounded-lg border hover:bg-white/10 transition-all cursor-pointer flex items-center gap-1 text-[#FAFAFA]"
+                                        style={{ borderColor: `${activeDeptColor}50` }}
+                                    >
+                                        <span>{t('all_blocks') || 'Semua Blok'}</span>
+                                    </button>
+                                )}
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setActiveCardHighlightId(null);
+                                        setSelectedBlockFilter(null);
+                                        onClearHighlight?.();
+                                    }}
+                                    className="text-[11px] font-extrabold px-2.5 py-1 rounded-lg border hover:bg-white/10 transition-all cursor-pointer shrink-0 flex items-center gap-1 text-[#FAFAFA]"
+                                    style={{ borderColor: `${activeDeptColor}60` }}
+                                >
+                                    <X className="h-3 w-3" />
+                                    <span>{t('show_all_tasks') || 'Tampilkan Semua Tugas'}</span>
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Day-of-week Header */}
                     <div className="grid grid-cols-7 gap-1.5 text-center mb-2 text-xs font-bold text-[#A19F8D] uppercase tracking-wider">
                         {dayHeaders.map((dh, idx) => (
@@ -716,16 +1070,31 @@ export function OperationsCalendarView({
                             const primaryDept = cell.tasks?.[0]?.department || cell.tasks?.[0]?.dept;
                             const primaryTheme = primaryDept ? getDepartmentTheme(primaryDept) : null;
 
-                            // Check if cell is within active drag range
+                            // Check if cell is within active drag range or task highlight
                             const isInDragRange = dragRange && cell.dateStr >= dragRange.start && cell.dateStr <= dragRange.end;
-                            const isSearchDateHighlighted = highlightedDates && highlightedDates.includes(cell.dateStr);
+                            const isTaskDateHighlighted = activeTaskDates.length > 0 && activeTaskDates.includes(cell.dateStr);
+                            const isSearchDateHighlighted = (highlightedDates && highlightedDates.includes(cell.dateStr)) || isTaskDateHighlighted;
+
+                            const cellBlockInfo = activeTaskDateBlockMap[cell.dateStr];
+                            const cellDeptColor = cellBlockInfo?.blockColor || activeDeptColor;
+                            const cellBlockNum = cellBlockInfo?.blockNum;
 
                             let borderClass = 'border-[#3B3929]/70';
                             let bgClass = cell.isCurrentMonth ? 'bg-[#1C1B0E]/80 hover:bg-[#353326]/60' : 'bg-[#14140B]/40 opacity-40';
+                            let cellHighlightStyle = {};
 
                             if (isInDragRange) {
                                 borderClass = 'border-[#C9AA71] ring-2 ring-[#C9AA71]/70 shadow-xl';
                                 bgClass = 'bg-[#C9AA71]/25 scale-[1.02]';
+                            } else if (isTaskDateHighlighted && activeDeptTheme) {
+                                borderClass = 'ring-2 shadow-2xl';
+                                bgClass = cell.isCurrentMonth ? 'scale-[1.03] z-10' : 'opacity-85';
+                                cellHighlightStyle = {
+                                    borderColor: cellDeptColor,
+                                    outline: `2px solid ${cellDeptColor}`,
+                                    boxShadow: `0 0 24px ${cellDeptColor}60, inset 0 0 12px ${cellDeptColor}20`,
+                                    backgroundColor: cell.isCurrentMonth ? `${cellDeptColor}2c` : `${cellDeptColor}18`,
+                                };
                             } else if (isSearchDateHighlighted) {
                                 borderClass = 'border-[#C9AA71] ring-2 ring-[#C9AA71]/90 shadow-[0_0_18px_rgba(201,170,113,0.5)]';
                                 bgClass = cell.isCurrentMonth ? 'bg-[#C9AA71]/25 hover:bg-[#C9AA71]/35 scale-[1.02]' : 'bg-[#C9AA71]/15 opacity-75';
@@ -745,12 +1114,20 @@ export function OperationsCalendarView({
                                     onClick={() => {
                                         if (!isDragging) {
                                             setSelectedDateStr(cell.dateStr);
+                                            setAgendaViewMode('date');
+                                            if (!cell.isCurrentMonth) {
+                                                const cellDate = parseDateStr(cell.dateStr);
+                                                if (cellDate && (cellDate.getFullYear() !== year || cellDate.getMonth() !== month)) {
+                                                    setCurrentMonth(new Date(cellDate.getFullYear(), cellDate.getMonth(), 1));
+                                                }
+                                            }
                                             onClearHighlight?.();
                                         }
                                     }}
                                     onMouseDown={(e) => handleCellMouseDown(cell.dateStr, e)}
                                     onMouseEnter={() => handleCellMouseEnter(cell.dateStr)}
                                     onMouseUp={() => handleCellMouseUp(cell.dateStr)}
+                                    style={cellHighlightStyle}
                                     className={`min-h-[85px] sm:min-h-[105px] p-1.5 sm:p-2 rounded-xl border flex flex-col justify-between transition-all cursor-pointer group ${bgClass} ${borderClass}`}
                                 >
                                     {/* Top Row: Date Number & Department Badge Indicator */}
@@ -760,23 +1137,49 @@ export function OperationsCalendarView({
                                                 className={`text-xs font-bold w-6 h-6 flex items-center justify-center rounded-lg transition-colors ${
                                                     cell.isToday
                                                         ? 'bg-[#C9AA71] text-[#1C1B0E] font-black shadow-sm'
-                                                        : isSearchDateHighlighted || isSelected || isInDragRange
-                                                            ? 'text-[#E3D1AA] font-black'
-                                                            : cell.isCurrentMonth
-                                                                ? 'text-[#FAFAFA] group-hover:text-[#C9AA71]'
-                                                                : 'text-[#A19F8D]/60'
+                                                        : isTaskDateHighlighted
+                                                            ? 'font-black'
+                                                            : isSearchDateHighlighted || isSelected || isInDragRange
+                                                                ? 'text-[#E3D1AA] font-black'
+                                                                : cell.isCurrentMonth
+                                                                    ? 'text-[#FAFAFA] group-hover:text-[#C9AA71]'
+                                                                    : 'text-[#A19F8D]/60'
                                                 }`}
+                                                style={isTaskDateHighlighted ? {
+                                                    backgroundColor: `${cellDeptColor}35`,
+                                                    color: cellDeptColor === '#212121' ? '#FFFFFF' : cellDeptColor,
+                                                    border: `1px solid ${cellDeptColor}80`
+                                                } : {}}
                                             >
                                                 {cell.dayNum}
                                             </span>
-                                            {isSearchDateHighlighted && (
+                                            {isTaskDateHighlighted ? (
+                                                <div className="flex items-center gap-1">
+                                                    {cellBlockInfo?.totalBlocks > 1 && (
+                                                        <span 
+                                                            className="px-1.5 py-0.2 rounded text-[9px] font-black shadow-xs tracking-wider font-mono text-[#1C1B0E]"
+                                                            style={{ backgroundColor: cellDeptColor }}
+                                                            title={`Rentang / Blok #${cellBlockNum}`}
+                                                        >
+                                                            #{cellBlockNum}
+                                                        </span>
+                                                    )}
+                                                    <span 
+                                                        className="text-[10px] shrink-0 font-black animate-pulse" 
+                                                        style={{ color: cellDeptColor }}
+                                                        title={t('task_date_selected') || 'Tanggal tugas terpilih'}
+                                                    >
+                                                        ✨
+                                                    </span>
+                                                </div>
+                                            ) : isSearchDateHighlighted ? (
                                                 <span className="text-[10px] shrink-0 animate-pulse">
                                                     📍
                                                 </span>
-                                            )}
+                                            ) : null}
                                         </div>
 
-                                        {taskCount > 0 && (
+                                        {!activeCardHighlightId && taskCount > 0 && (
                                             <span
                                                 className="px-1.5 py-0.2 text-[10px] font-extrabold rounded-md flex items-center gap-1 shadow-xs"
                                                 style={{
@@ -810,6 +1213,23 @@ export function OperationsCalendarView({
                                                     onClick={(e) => {
                                                         e.stopPropagation();
                                                         setSelectedDateStr(cell.dateStr);
+                                                        setAgendaViewMode('date');
+                                                        if (!cell.isCurrentMonth) {
+                                                            const cellDate = parseDateStr(cell.dateStr);
+                                                            if (cellDate && (cellDate.getFullYear() !== year || cellDate.getMonth() !== month)) {
+                                                                setCurrentMonth(new Date(cellDate.getFullYear(), cellDate.getMonth(), 1));
+                                                            }
+                                                        }
+                                                        setActiveCardHighlightId(item.id);
+                                                        const ranges = parseTaskRanges(item);
+                                                        const activeBlockIdx = ranges.findIndex(r => 
+                                                            cell.dateStr >= r.startDate && cell.dateStr <= (r.endDate || r.startDate)
+                                                        );
+                                                        if (activeBlockIdx !== -1) {
+                                                            setSelectedBlockFilter(activeBlockIdx);
+                                                        } else {
+                                                            setSelectedBlockFilter(null);
+                                                        }
                                                         const el = document.getElementById(`task-card-${item.id}`);
                                                         if (el) {
                                                             el.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -817,18 +1237,21 @@ export function OperationsCalendarView({
                                                     }}
                                                     className="truncate px-1.5 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 transition-all shadow-xs cursor-pointer hover:scale-[1.02] hover:brightness-125"
                                                     style={{
-                                                        backgroundColor: `${itemTheme.bg}25`,
-                                                        color: deptColor,
-                                                        borderLeft: `3px solid ${itemTheme.bg}`,
-                                                        borderTop: `1px solid ${itemTheme.bg}30`,
-                                                        borderRight: `1px solid ${itemTheme.bg}30`,
-                                                        borderBottom: `1px solid ${itemTheme.bg}30`,
+                                                        backgroundColor: cellBlockInfo ? `${cellDeptColor}30` : `${itemTheme.bg}25`,
+                                                        color: cellBlockInfo ? '#FFFFFF' : deptColor,
+                                                        borderLeft: `3px solid ${cellDeptColor || itemTheme.bg}`,
+                                                        borderTop: `1px solid ${cellDeptColor || itemTheme.bg}35`,
+                                                        borderRight: `1px solid ${cellDeptColor || itemTheme.bg}35`,
+                                                        borderBottom: `1px solid ${cellDeptColor || itemTheme.bg}35`,
                                                     }}
                                                 >
                                                     {isDone ? (
-                                                        <CheckCircle2 className="h-2.5 w-2.5 shrink-0" style={{ color: deptColor }} />
+                                                        <CheckCircle2 className="h-2.5 w-2.5 shrink-0" style={{ color: cellDeptColor || deptColor }} />
                                                     ) : (
-                                                        <Clock className="h-2.5 w-2.5 shrink-0 opacity-80" style={{ color: deptColor }} />
+                                                        <Clock className="h-2.5 w-2.5 shrink-0 opacity-80" style={{ color: cellDeptColor || deptColor }} />
+                                                    )}
+                                                    {cellBlockInfo?.totalBlocks > 1 && (
+                                                        <span className="font-mono text-[9px] font-black opacity-90">#{cellBlockNum}</span>
                                                     )}
                                                     <span className="truncate">{item.title}</span>
                                                 </div>
@@ -859,32 +1282,117 @@ export function OperationsCalendarView({
                     </div>
                 </div>
 
-                {/* ─── Day Agenda Inspector (4 Cols on Desktop) ─── */}
+                {/* ─── Day Agenda / All Tasks Inspector (4 Cols on Desktop) ─── */}
                 <div id="day-agenda-inspector" className="lg:col-span-4 bg-[#2A281E]/95 border border-[#3B3929] rounded-2xl p-4 sm:p-5 shadow-2xl backdrop-blur-xl flex flex-col h-full">
-                    {/* Header */}
-                    <div className="pb-4 mb-4 border-b border-[#3B3929] flex items-start justify-between gap-2">
-                        <div>
-                            <span className="text-[10px] font-black uppercase tracking-widest text-[#C9AA71] flex items-center gap-1 mb-1">
-                                <Clock className="h-3.5 w-3.5" />
-                                {t('selected_day_agenda') || 'Agenda Harian'}
-                            </span>
-                            <h3 className="text-base sm:text-lg font-extrabold text-[#FAFAFA]">
-                                {formatDateFull(selectedDateObj, lang)}
-                            </h3>
-                        </div>
-
-                        <span className="px-2.5 py-1 rounded-xl text-xs font-bold bg-[#1C1B0E] border border-[#3B3929] text-[#E3D1AA]">
-                            {tasksForSelectedDate.length} {tasksForSelectedDate.length === 1 ? (t('task_unit_singular') || (lang === 'id' ? 'Tugas' : 'Task')) : (t('task_unit') || (lang === 'id' ? 'Tugas' : 'Tasks'))}
-                        </span>
+                    {/* Mode Switcher: Date vs All Tasks */}
+                    <div className="flex items-center gap-1 p-1 bg-[#14140B] rounded-xl border border-[#3B3929] mb-3">
+                        <button
+                            type="button"
+                            onClick={() => setAgendaViewMode('date')}
+                            className={`flex-1 py-1.5 px-2.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                                agendaViewMode === 'date'
+                                    ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-md font-black'
+                                    : 'text-[#A19F8D] hover:text-[#FAFAFA]'
+                            }`}
+                        >
+                            <Clock className="h-3.5 w-3.5" />
+                            <span className="truncate">{t('view_by_date') || (lang === 'id' ? 'Tanggal' : 'Date')} ({formatDateShort(selectedDateStr, lang)})</span>
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setAgendaViewMode('all')}
+                            className={`flex-1 py-1.5 px-2.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                                agendaViewMode === 'all'
+                                    ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-md font-black'
+                                    : 'text-[#A19F8D] hover:text-[#FAFAFA]'
+                            }`}
+                        >
+                            <Layers className="h-3.5 w-3.5" />
+                            <span>{t('all_tasks_scope') || (lang === 'id' ? 'Semua Tugas' : 'All Tasks')}</span>
+                        </button>
                     </div>
 
-                    {/* Task List on Selected Date */}
+                    {/* Range Filter Buttons if in 'all' mode: 1, 3, 6 forward or all */}
+                    {agendaViewMode === 'all' && (
+                        <div className="flex items-center gap-1.5 mb-3.5 overflow-x-auto pb-0.5">
+                            {[
+                                { id: 1, label: `1 ${t('month_label') || (lang === 'id' ? 'Bulan' : 'Month')}` },
+                                { id: 3, label: `3 ${t('months_label') || (lang === 'id' ? 'Bulan' : 'Months')}` },
+                                { id: 6, label: `6 ${t('months_label') || (lang === 'id' ? 'Bulan' : 'Months')}` },
+                                { id: 'all', label: t('all_time') || (lang === 'id' ? 'Semua' : 'All') },
+                            ].map((r) => (
+                                <button
+                                    key={r.id}
+                                    type="button"
+                                    onClick={() => setAllTasksRange(r.id)}
+                                    className={`px-3 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer ${
+                                        allTasksRange === r.id
+                                            ? 'bg-[#C9AA71]/25 border-[#C9AA71] text-[#E3D1AA] font-black shadow-sm'
+                                            : 'bg-[#1C1B0E]/70 border-[#3B3929] text-[#A19F8D] hover:text-[#FAFAFA]'
+                                    }`}
+                                >
+                                    {r.label}
+                                </button>
+                            ))}
+                        </div>
+                    )}
+
+                    {/* Header */}
+                    <div className="pb-3.5 mb-3.5 border-b border-[#3B3929] flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-[#C9AA71] flex items-center gap-1 mb-1">
+                                {agendaViewMode === 'date' ? (
+                                    <>
+                                        <Clock className="h-3.5 w-3.5" />
+                                        <span>{t('selected_day_agenda') || 'Agenda Harian'}</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Layers className="h-3.5 w-3.5" />
+                                        <span>
+                                            {t('all_tasks_scope') || 'Semua Tugas'} • {allTasksRange === 'all' ? (t('all_time') || (lang === 'id' ? 'Semua' : 'All')) : `${allTasksRange} ${t('months_label') || (lang === 'id' ? 'Bulan' : 'Months')}`}
+                                        </span>
+                                    </>
+                                )}
+                            </span>
+                            <h3 className="text-base sm:text-lg font-extrabold text-[#FAFAFA] leading-snug truncate">
+                                {agendaViewMode === 'date'
+                                    ? formatDateFull(selectedDateObj, lang)
+                                    : allTasksRangeInfo.title}
+                            </h3>
+                            {agendaViewMode === 'all' && (
+                                <p className="text-[11px] text-[#A19F8D] mt-0.5">
+                                    {allTasksRangeInfo.subtitle}
+                                </p>
+                            )}
+                        </div>
+
+                        <div className="flex items-center gap-1.5 shrink-0">
+                            <span className="px-2.5 py-1 rounded-xl text-xs font-bold bg-[#1C1B0E] border border-[#3B3929] text-[#E3D1AA]">
+                                {displayedAgendaTasks.length} {displayedAgendaTasks.length === 1 ? (t('task_unit_singular') || (lang === 'id' ? 'Tugas' : 'Task')) : (t('task_unit') || (lang === 'id' ? 'Tugas' : 'Tasks'))}
+                            </span>
+                            {agendaViewMode === 'all' && (
+                                <button
+                                    type="button"
+                                    onClick={() => setAgendaViewMode('date')}
+                                    className="p-1 rounded-lg hover:bg-white/10 text-[#A19F8D] hover:text-[#FAFAFA] transition-colors cursor-pointer"
+                                    title={t('back_to_date') || 'Kembali ke Tanggal'}
+                                >
+                                    <X className="h-4 w-4" />
+                                </button>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Task List on Selected Date or Range */}
                     <div className="space-y-3.5 flex-1 overflow-y-auto max-h-[560px] pr-1 custom-scrollbar">
-                        {tasksForSelectedDate.length === 0 ? (
+                        {displayedAgendaTasks.length === 0 ? (
                             <div className="text-center py-12 px-4 rounded-xl border border-dashed border-[#3B3929] bg-[#1C1B0E]/50">
                                 <CalendarIcon className="h-10 w-10 mx-auto mb-2 text-[#A19F8D]/40" />
                                 <p className="text-xs font-bold text-[#FAFAFA] mb-1">
-                                    {t('no_tasks_on_date') || 'Tidak ada tugas pada tanggal ini'}
+                                    {agendaViewMode === 'date' 
+                                        ? (t('no_tasks_on_date') || 'Tidak ada tugas pada tanggal ini')
+                                        : (t('no_tasks_found') || 'Tidak ada tugas ditemukan dalam rentang ini')}
                                 </p>
                                 <p className="text-[11px] text-[#A19F8D] mb-4">
                                     {t('click_date_to_view') || 'Klik tombol di bawah atau seret mouse untuk menambah tugas baru.'}
@@ -899,7 +1407,7 @@ export function OperationsCalendarView({
                                 </button>
                             </div>
                         ) : (
-                            tasksForSelectedDate.map((item) => {
+                            displayedAgendaTasks.map((item) => {
                                 const isDone = item.status === 'done';
                                 const displayImg = item.photoUrl || item.imageUrl || item.photo;
                                 const itemDept = item.department || item.dept;
@@ -909,6 +1417,7 @@ export function OperationsCalendarView({
 
                                 const ranges = parseTaskRanges(item);
                                 const isMultiRange = ranges.length > 1;
+                                const cleanNotes = getCleanTaskNotes(item.notes);
 
                                 // Build timeline progress string
                                 let progressLabel = '';
@@ -917,13 +1426,17 @@ export function OperationsCalendarView({
                                     const eDate = parseDateStr(ranges[0].endDate);
                                     if (sDate && eDate) {
                                         const totalDays = Math.round(Math.abs(eDate - sDate) / (1000 * 60 * 60 * 24)) + 1;
-                                        const currDay = Math.round((selectedDateObj - sDate) / (1000 * 60 * 60 * 24)) + 1;
-                                        const boundedDay = Math.max(1, Math.min(totalDays, currDay));
-                                        const tpl = t('day_progress');
-                                        const label = (tpl && tpl.includes('{x}'))
-                                            ? tpl.replace('{x}', boundedDay).replace('{y}', totalDays)
-                                            : (lang === 'id' ? `Hari ke-${boundedDay} dari ${totalDays}` : `Day ${boundedDay} of ${totalDays}`);
-                                        progressLabel = `${label} (${formatDateShort(ranges[0].startDate, lang)} – ${formatDateShort(ranges[0].endDate, lang)})`;
+                                        if (agendaViewMode === 'date') {
+                                            const currDay = Math.round((selectedDateObj - sDate) / (1000 * 60 * 60 * 24)) + 1;
+                                            const boundedDay = Math.max(1, Math.min(totalDays, currDay));
+                                            const tpl = t('day_progress');
+                                            const label = (tpl && tpl.includes('{x}'))
+                                                ? tpl.replace('{x}', boundedDay).replace('{y}', totalDays)
+                                                : (lang === 'id' ? `Hari ke-${boundedDay} dari ${totalDays}` : `Day ${boundedDay} of ${totalDays}`);
+                                            progressLabel = `${label} (${formatDateShort(ranges[0].startDate, lang)} – ${formatDateShort(ranges[0].endDate, lang)})`;
+                                        } else {
+                                            progressLabel = `${totalDays} ${lang === 'id' ? 'hari' : 'days'} (${formatDateShort(ranges[0].startDate, lang)} – ${formatDateShort(ranges[0].endDate, lang)})`;
+                                        }
                                     } else if (sDate) {
                                         progressLabel = `${t('single_day_task') || 'Tugas 1 hari'} (${formatDateShort(ranges[0].startDate, lang)})`;
                                     }
@@ -932,26 +1445,31 @@ export function OperationsCalendarView({
                                     progressLabel = `${t('schedule_blocks') || 'Jadwal'}: ${rangeLabels}`;
                                 }
 
-                                const isHighlighted = highlightTaskId && String(highlightTaskId) === String(item.id);
+                                const isCardSelected = String(activeCardHighlightId) === String(item.id);
+                                const isHighlighted = isCardSelected || (highlightTaskId && String(highlightTaskId) === String(item.id));
                                 const isSearchMatch = searchQuery && matchesTaskQuery(item, searchQuery);
 
                                 return (
                                     <div
                                         key={item.id}
                                         id={`task-card-${item.id}`}
-                                        className={`rounded-2xl border p-4 space-y-3 transition-all hover:scale-[1.01] shadow-lg group relative overflow-hidden ${
+                                        onClick={(e) => handleTaskCardClick(item, e)}
+                                        className={`rounded-2xl border p-4 space-y-3 transition-all hover:scale-[1.01] shadow-lg group relative overflow-hidden cursor-pointer ${
                                             isHighlighted 
-                                                ? 'ring-2 ring-[#C9AA71] shadow-[0_0_24px_rgba(201,170,113,0.6)] scale-[1.02]' 
+                                                ? 'ring-2 scale-[1.02]' 
                                                 : isSearchMatch 
                                                     ? 'ring-1 ring-[#C9AA71]/60 shadow-[0_0_12px_rgba(201,170,113,0.25)]' 
-                                                    : ''
+                                                    : 'hover:border-[#C9AA71]/60'
                                         }`}
                                         style={{
                                             backgroundColor: '#1C1B0E',
-                                            borderColor: isHighlighted ? '#C9AA71' : `${itemTheme.bg}50`,
+                                            borderColor: isHighlighted ? deptColor : `${itemTheme.bg}50`,
                                             borderLeftWidth: '5px',
                                             borderLeftColor: itemTheme.bg,
-                                            background: `linear-gradient(135deg, ${itemTheme.bg}14 0%, #1C1B0E 60%)`
+                                            boxShadow: isHighlighted ? `0 0 24px ${itemTheme.bg}55` : undefined,
+                                            background: isHighlighted 
+                                                ? `linear-gradient(135deg, ${itemTheme.bg}22 0%, #1C1B0E 70%)`
+                                                : `linear-gradient(135deg, ${itemTheme.bg}14 0%, #1C1B0E 60%)`
                                         }}
                                     >
                                         {/* Status & Department Badges */}
@@ -961,8 +1479,8 @@ export function OperationsCalendarView({
                                                     <span
                                                         className="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider shadow-sm"
                                                         style={{
-                                                            backgroundColor: itemTheme.bg,
-                                                            color: itemTheme.text
+                                                             backgroundColor: itemTheme.bg,
+                                                             color: itemTheme.text
                                                         }}
                                                     >
                                                         {itemDept}
@@ -995,6 +1513,18 @@ export function OperationsCalendarView({
                                                         </>
                                                     )}
                                                 </span>
+                                                {isCardSelected && (
+                                                    <span 
+                                                        className="px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-wider flex items-center gap-1 shadow-sm animate-pulse"
+                                                        style={{
+                                                            backgroundColor: itemTheme.bg,
+                                                            color: itemTheme.text
+                                                        }}
+                                                    >
+                                                        <Sparkles className="h-2.5 w-2.5" />
+                                                        <span>{t('task_focused_grid') || 'Disorot di Kalender'}</span>
+                                                    </span>
+                                                )}
                                             </div>
 
                                             {item.location && (
@@ -1019,10 +1549,101 @@ export function OperationsCalendarView({
                                             )}
                                         </div>
 
-                                        {/* Timeline Badge */}
-                                        {progressLabel && (
+                                        {/* Schedule & Date Blocks (Full details without truncating) */}
+                                        {ranges.length > 1 ? (
                                             <div
-                                                className="p-2.5 rounded-xl border text-[10px] font-bold flex items-center gap-2 shadow-inner"
+                                                className="p-3 rounded-xl border text-xs font-semibold space-y-2 shadow-inner"
+                                                style={{
+                                                    backgroundColor: `${itemTheme.bg}12`,
+                                                    borderColor: `${itemTheme.bg}35`,
+                                                    color: deptColor
+                                                }}
+                                            >
+                                                <div className="flex items-center justify-between text-[10px] font-extrabold uppercase tracking-wider pb-1.5 border-b" style={{ borderColor: `${itemTheme.bg}25` }}>
+                                                    <span className="flex items-center gap-1.5">
+                                                        <CalendarIcon className="h-3.5 w-3.5" style={{ color: itemTheme.bg }} />
+                                                        <span>{t('schedule_blocks') || 'Jadwal & Rentang Tanggal'} ({ranges.length} {t('blocks') || 'Rentang'})</span>
+                                                    </span>
+                                                    {isCardSelected && selectedBlockFilter !== null ? (
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setSelectedBlockFilter(null);
+                                                            }}
+                                                            className="text-[9px] font-black px-2 py-0.5 rounded border border-white/20 hover:bg-white/10 text-[#C9AA71] transition-colors cursor-pointer flex items-center gap-1"
+                                                        >
+                                                            <X className="h-2.5 w-2.5" />
+                                                            <span>{t('all_blocks') || 'Semua Blok'}</span>
+                                                        </button>
+                                                    ) : (
+                                                        <span className="text-[9px] font-normal text-[#A19F8D]">
+                                                            {t('click_block_to_filter') || 'Klik blok untuk filter tanggal'}
+                                                        </span>
+                                                    )}
+                                                </div>
+
+                                                <div className="flex flex-wrap gap-1.5 pt-0.5">
+                                                    {ranges.map((r, bIdx) => {
+                                                        const sDate = parseDateStr(r.startDate);
+                                                        const eDate = parseDateStr(r.endDate);
+                                                        const days = (sDate && eDate) 
+                                                            ? Math.round(Math.abs(eDate - sDate) / (1000 * 60 * 60 * 24)) + 1 
+                                                            : 1;
+                                                        const isBlockFiltered = isCardSelected && selectedBlockFilter === bIdx;
+                                                        const isBlockCurrentDate = selectedDateStr && r.startDate && r.endDate && 
+                                                            (selectedDateStr >= r.startDate && selectedDateStr <= r.endDate);
+                                                        const blockColor = getBlockColorVariation(deptColor, bIdx, ranges.length);
+
+                                                        return (
+                                                            <button
+                                                                key={bIdx}
+                                                                type="button"
+                                                                onClick={(e) => handleBlockClick(bIdx, r, item, e)}
+                                                                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold border transition-all flex items-center gap-1.5 cursor-pointer hover:scale-105 active:scale-95 text-left ${
+                                                                    isBlockFiltered
+                                                                        ? 'ring-2 shadow-lg font-black'
+                                                                        : isBlockCurrentDate
+                                                                            ? 'ring-1 shadow-sm font-black'
+                                                                            : 'hover:border-white/30 text-[#FAFAFA]'
+                                                                }`}
+                                                                style={{
+                                                                    backgroundColor: isBlockFiltered 
+                                                                        ? `${blockColor}40`
+                                                                        : isBlockCurrentDate
+                                                                            ? `${blockColor}25`
+                                                                            : '#1C1B0E',
+                                                                    borderColor: isBlockFiltered || isBlockCurrentDate ? blockColor : `${blockColor}50`,
+                                                                    color: '#FFFFFF',
+                                                                    boxShadow: isBlockFiltered ? `0 0 14px ${blockColor}55` : undefined,
+                                                                }}
+                                                            >
+                                                                <span 
+                                                                    className="text-[9px] px-1.5 py-0.2 rounded font-black font-mono shadow-xs"
+                                                                    style={{
+                                                                        backgroundColor: blockColor,
+                                                                        color: '#1C1B0E'
+                                                                    }}
+                                                                >
+                                                                    #{bIdx + 1}
+                                                                </span>
+                                                                <span>{formatDateShort(r.startDate, lang)} – {formatDateShort(r.endDate || r.startDate, lang)}</span>
+                                                                <span className="text-[10px] opacity-75 font-normal">({days} {lang === 'id' ? 'hari' : 'd'})</span>
+                                                                {isBlockFiltered ? (
+                                                                    <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.2 rounded bg-emerald-500/30 text-emerald-300 border border-emerald-500/50">
+                                                                        ✓
+                                                                    </span>
+                                                                ) : isBlockCurrentDate ? (
+                                                                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" title={t('current_selected_date') || 'Tanggal saat ini'} />
+                                                                ) : null}
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        ) : (ranges.length === 1 && progressLabel) ? (
+                                            <div
+                                                className="p-2.5 rounded-xl border text-xs font-bold flex items-center gap-2 shadow-inner"
                                                 style={{
                                                     backgroundColor: `${itemTheme.bg}15`,
                                                     borderColor: `${itemTheme.bg}35`,
@@ -1030,7 +1651,22 @@ export function OperationsCalendarView({
                                                 }}
                                             >
                                                 <CalendarIcon className="h-3.5 w-3.5 shrink-0" style={{ color: itemTheme.bg }} />
-                                                <span className="truncate">{progressLabel}</span>
+                                                <span className="leading-relaxed">{progressLabel}</span>
+                                            </div>
+                                        ) : null}
+
+                                        {/* Notes / Catatan Tambahan */}
+                                        {cleanNotes && (
+                                            <div className="p-2.5 rounded-xl border border-[#3B3929] bg-[#14130A]/70 text-xs text-[#E3D1AA] flex items-start gap-2 shadow-inner">
+                                                <StickyNote className="h-3.5 w-3.5 text-[#C9AA71] shrink-0 mt-0.5" />
+                                                <div className="min-w-0 flex-1 space-y-0.5">
+                                                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#A19F8D] block">
+                                                        {t('notes') || 'Catatan'}:
+                                                    </span>
+                                                    <p className="text-xs text-[#E3D1AA] leading-relaxed whitespace-pre-wrap">
+                                                        {cleanNotes}
+                                                    </p>
+                                                </div>
                                             </div>
                                         )}
 
@@ -1174,6 +1810,18 @@ export function OperationsCalendarView({
                                 <div className="flex items-center gap-1.5 text-[#A19F8D]/80 text-[9px]">
                                     <User className="h-2.5 w-2.5 shrink-0" />
                                     <span className="truncate">{hoveredTask.item.createdBy}</span>
+                                </div>
+                            )}
+
+                            {getCleanTaskNotes(hoveredTask.item.notes) && (
+                                <div className="pt-1.5 border-t border-[#3B3929]/70 text-[9px]">
+                                    <span className="font-black uppercase text-[#C9AA71] tracking-wider block mb-0.5 flex items-center gap-1">
+                                        <StickyNote className="h-2.5 w-2.5" />
+                                        {t('notes') || 'Catatan'}
+                                    </span>
+                                    <p className="text-[10px] text-[#E3D1AA] line-clamp-3 leading-relaxed whitespace-pre-wrap">
+                                        {getCleanTaskNotes(hoveredTask.item.notes)}
+                                    </p>
                                 </div>
                             )}
                         </div>

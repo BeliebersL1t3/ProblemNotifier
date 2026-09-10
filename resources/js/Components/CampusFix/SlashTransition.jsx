@@ -16,10 +16,15 @@ export function SlashProvider({ children }) {
     const isNavigatingRef = useRef(false);
 
     const getTitleFromHref = (href, explicitTitle) => {
+        const raw = (explicitTitle || href || '').toLowerCase();
+        if (raw.includes('calendar') || raw.includes('kalender')) return 'CALENDAR';
+        if (raw.includes('analytics') || raw.includes('analitik')) return 'ANALYTICS';
+        if (raw.includes('dashboard')) return 'DASHBOARD';
+        if (raw.includes('operation') || raw.includes('operasi')) return 'OPERATIONS';
+        if (raw.includes('profile') || raw.includes('profil')) return 'PROFILE';
+
         if (explicitTitle) return explicitTitle.toUpperCase();
         if (typeof href === 'string') {
-            if (href.includes('analytics')) return 'ANALYTICS';
-            if (href.includes('dashboard')) return 'DASHBOARD';
             const clean = href.replace(/^\//, '').split('/')[0];
             if (clean) return clean.toUpperCase();
         }
@@ -202,7 +207,7 @@ export function SlashProvider({ children }) {
                                         key={index}
                                         className="anime-char inline-block font-extrabold tracking-wider text-4xl sm:text-6xl md:text-7xl uppercase bg-gradient-to-b from-white via-amber-100 to-[#C9AA71] bg-clip-text text-transparent drop-shadow-[0_0_25px_rgba(201,170,113,0.5)] opacity-0"
                                         style={{
-                                            fontFamily: 'Resort, serif',
+                                            fontFamily: '"Plus Jakarta Sans", sans-serif',
                                             transformOrigin: '50% 50%',
                                             willChange: 'transform, opacity',
                                             transform: 'translateZ(0)',

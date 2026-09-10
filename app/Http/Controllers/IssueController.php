@@ -17,6 +17,15 @@ class IssueController extends Controller
         $this->googleService = $googleService;
     }
 
+    private function notifyWhatsApp(array $payload): void
+    {
+        try {
+            Http::connectTimeout(1)->timeout(1)->post('http://localhost:3000/notify', $payload);
+        } catch (\Throwable $e) {
+            // Non-blocking: ignore if bot is offline
+        }
+    }
+
     private function resolveImageUrl(?string $raw): string
     {
         if (empty($raw)) {
@@ -340,6 +349,7 @@ class IssueController extends Controller
                 'assignedDepartments' => 'nullable|string',
                 'taggedDepartments'   => 'nullable|string',
                 'reporter'    => 'required|string|max:255',
+                'reportedAt'  => 'nullable|string',
                 'image'       => 'nullable|file|image|mimes:jpg,jpeg,png,webp|max:5120',
             ]);
         } catch (ValidationException $ve) {
@@ -361,26 +371,32 @@ class IssueController extends Controller
 
             // Map full department name to 3-letter code if provided, else use first 3 chars
             $deptCodes = [
-                'Engineer' => 'Eng',
-                'Tekong' => 'Tkg',
+                'Engineer'     => 'Eng',
+                'Fasilitas'    => 'Fas',
+                'Security'     => 'Sec',
+                'HK'           => 'HK',
                 'Pest Control' => 'Pst',
-                'Security' => 'Scy',
-                'Fasilitas' => 'Fas',
-                'HK' => 'HK',
-                'F&B' => 'FnB',
-                'Service' => 'Svc',
-                'Bar' => 'Bar',
-                'GR' => 'GR',
-                'Spa' => 'Spa',
-                'TiRek' => 'TRK',
-                'OE' => 'OE',
-                'IT' => 'IT',
-                'Procurement' => 'PRc',
+                'Kitchen'      => 'Ktc',
+                'F&B'          => 'Ktc',
+                'GR'           => 'GR',
+                'GRE'          => 'GRE',
+                'Service'      => 'Svc',
+                'Bar'          => 'Bar',
+                'Spa'          => 'Spa',
+                'TiRek'        => 'TRK',
+                'HR'           => 'HR',
+                'Legal'        => 'LGL',
+                'LnD'          => 'LnD',
+                'Transportasi' => 'Trp',
+                'Tekong'       => 'Trp',
+                'IT'           => 'IT',
+                'OE'           => 'OE',
+                'Procurement'  => 'PRc',
+                'Reservasi'    => 'Res',
+                'Sales'        => 'Sls',
+                'Marketing'    => 'Mkt',
                 'Sales/Marketing' => 'Sls',
-                'Reservasi'       => 'Res',
-                'Finance'         => 'Fin',
-                'Legal'           => 'LGL',
-                'HR'              => 'HR',
+                'Finance'      => 'Fin',
             ];
             
             $dept = $request->department;
@@ -399,7 +415,11 @@ class IssueController extends Controller
                 $deptCode = $deptCodes[$dept] ?? (!empty($dept) ? strtoupper(substr($dept, 0, 3)) : 'GEN');
             }
 
-            $dateMonth = Carbon::now()->format('dmy'); // e.g. 190826
+            $submittedAt = !empty($request->reportedAt)
+                ? Carbon::parse($request->reportedAt)->toIso8601String()
+                : Carbon::now()->toIso8601String();
+
+            $dateMonth = Carbon::parse($submittedAt)->format('dmy'); // e.g. 190826
             
             $id = "{$deptCode}-{$dateMonth}-{$sequentialIndex}";
             
@@ -411,7 +431,6 @@ class IssueController extends Controller
                 $imageUrl = url('/urgent.png');
             }
             
-            $submittedAt = Carbon::now()->toIso8601String();
             $formattedDesc = self::formatParagraphText($request->description);
 
             if (!$isEmergency) {
@@ -468,52 +487,78 @@ class IssueController extends Controller
             }
 
             $resolvedImageUrl = $this->resolveImageUrl($imageUrl);
+            $originName = $dept ?: ($isEmergency ? 'Emergency (SOS)' : 'General');
 
-            $priorityStr = "";
-            if ($request->priority === 'critical') {
-                $priorityStr = "\n\n🚨 *PRIORITY: CRITICAL* 🚨";
-                if (!empty($request->deadline)) {
-                    $deadlineMs = (float) $request->deadline;
-                    $minutes = round(($deadlineMs - (now()->timestamp * 1000)) / 60000);
-                    if ($minutes <= 0) {
-                        $priorityStr .= "\n⏱️ *TIME LIMIT: NOW (IMMEDIATE ACTION REQUIRED)*";
-                    } else {
-                        $priorityStr .= "\n⏱️ *TIME LIMIT: {$minutes} Minutes*";
+            if ($isEmergency) {
+                // High-Impact S.O.S Emergency Broadcast Template
+                $cleanDesc = trim(str_replace('[EMERGENCY FAST-TRACK]', '', $request->description ?? ''));
+                $descBlock = !empty($cleanDesc) ? "\n\n📝 *SITUATION DETAILS:*\n\"{$cleanDesc}\"" : "";
+
+                $message = "🚨🚨🚨 *EMERGENCY S.O.S ALERT* 🚨🚨🚨\n"
+                    . "⚡ *IMMEDIATE ACTION REQUIRED (NOW)* ⚡\n\n"
+                    . "🔴 *INCIDENT:* {$request->title}\n"
+                    . "📍 *LOCATION:* {$request->location}\n"
+                    . "🏠 *ORIGIN:* {$originName}\n"
+                    . "👤 *REPORTER:* {$request->reporter}\n\n"
+                    . "⚠️ *DISPATCH DIRECTIVE:*\n"
+                    . "🚨 *ALL RESORT TEAMS ON ALERT:* This is an emergency broadcast. All on-duty teams and available personnel please assess and assist immediately!"
+                    . "{$descBlock}\n\n"
+                    . "🆔 *TICKET ID:* {$id}";
+            } else {
+                // Clean Standard Maintenance Report Template
+                $priorityStr = "";
+                if ($request->priority === 'critical') {
+                    $priorityStr = "\n🚨 *PRIORITY: CRITICAL*";
+                    if (!empty($request->deadline)) {
+                        $deadlineMs = (float) $request->deadline;
+                        $minutes = round(($deadlineMs - (now()->timestamp * 1000)) / 60000);
+                        if ($minutes <= 0) {
+                            $priorityStr .= " *(DEADLINE: NOW)*";
+                        } else {
+                            $priorityStr .= " *(DEADLINE: {$minutes}m)*";
+                        }
                     }
+                } else if ($request->priority === 'high') {
+                    $priorityStr = "\n⚡ *Priority:* High";
                 }
-                $priorityStr .= "\n";
+
+                $assignedStr = '';
+                if (!empty($assignedDeptsStr)) {
+                    $assignedTags = array_map('trim', explode(',', $assignedDeptsStr));
+                    $assignedStr = "\n🎯 *Assigned to:* " . implode(' ', array_map(fn($t) => "@{$t}", $assignedTags)) . " *(Action Required)*";
+                }
+
+                $taggedStr = '';
+                if (!empty($taggedDeptsStr)) {
+                    $tags = array_map('trim', explode(',', $taggedDeptsStr));
+                    $taggedStr = "\n📢 *Tagged:* " . implode(' ', array_map(fn($t) => "@{$t}", $tags)) . " *(FYI / Awareness)*";
+                }
+
+                $cleanDesc = trim($request->description ?? '');
+                $descBlock = !empty($cleanDesc) ? "\n\n📝 *Description:*\n\"{$cleanDesc}\"" : "";
+
+                $catName = ucwords(str_replace('-', ' ', $request->category ?? 'General'));
+
+                $message = "📋 *New Issue Submitted!*{$priorityStr}\n\n"
+                    . "*Title:* {$request->title}\n"
+                    . "*Location:* {$request->location}\n"
+                    . "*Category:* {$catName}\n"
+                    . "*Origin:* {$originName}"
+                    . "{$assignedStr}"
+                    . "{$taggedStr}\n"
+                    . "*Reporter:* {$request->reporter}"
+                    . "{$descBlock}\n\n"
+                    . "*ID:* {$id}";
             }
 
-            // Formatting tags and assignments for WhatsApp Notification
-            $assignedStr = '';
-            if ($isEmergency || $assignedDeptsStr === 'ALL') {
-                $assignedStr = "\n🎯 *Assigned to:* @ALL (ACTION REQUIRED)";
-            } else if (!empty($assignedDeptsStr)) {
-                $assignedTags = array_map('trim', explode(',', $assignedDeptsStr));
-                $assignedStr = "\n🎯 *Assigned to:* " . implode(' ', array_map(fn($t) => "@{$t}", $assignedTags)) . " *(Action Required)*";
-            }
-
-            $taggedStr = '';
-            if ($isEmergency || $taggedDeptsStr === 'ALL') {
-                $taggedStr = "\n📢 *Tagged:* @ALL (Info Only)";
-            } else if (!empty($taggedDeptsStr)) {
-                $tags = array_map('trim', explode(',', $taggedDeptsStr));
-                $taggedStr = "\n📢 *Tagged:* " . implode(' ', array_map(fn($t) => "@{$t}", $tags)) . " *(Info Only)*";
-            }
-
-            try {
-                $originName = $dept ?: ($isEmergency ? 'Emergency (SOS)' : 'General');
-                Http::timeout(3)->post('http://localhost:3000/notify', [
-                    'message' => "🚨 *New Issue Submitted!*{$priorityStr}\n*Title:* {$request->title}\n*Location:* {$request->location}\n*Origin:* {$originName}{$assignedStr}{$taggedStr}\n*Category:* {$request->category}\n*Reporter:* {$request->reporter}\n*ID:* {$id}\n*Link:* " . url('/dashboard'),
-                    'imageUrl' => $resolvedImageUrl,
-                    'assignedDepartments' => $assignedDeptsStr,
-                    'taggedDepartments' => $taggedDeptsStr,
-                    'department' => $originName,
-                    'priority' => $request->priority ?? 'low'
-                ]);
-            } catch (\Exception $e) {
-                // Ignore if bot is offline
-            }
+            $this->notifyWhatsApp([
+                'message' => $message,
+                'imageUrl' => $resolvedImageUrl,
+                'assignedDepartments' => $assignedDeptsStr,
+                'taggedDepartments' => $taggedDeptsStr,
+                'department' => $originName,
+                'priority' => $request->priority ?? 'low'
+            ]);
 
             return response()->json([
                 'success' => true,
@@ -618,21 +663,19 @@ class IssueController extends Controller
                 'Y' => json_encode($existingLogs),
             ]);
 
-            try {
-                $crossYearNotice = $crossYear ? "\n📋 *Note: This issue is from a previous period ({$foundLocation['sheet']}).*" : '';
-                $originDept = $currentRow[22] ?? '';
-                $assignedDepts = $currentRow[23] ?? ($currentRow[21] ?? '');
-                $taggedDepts = $currentRow[21] ?? '';
-                $originStr = !empty($originDept) ? "\n*Origin:* {$originDept}" : '';
-                $takerDeptStr = !empty($request->department) ? " ({$request->department})" : '';
+            $crossYearNotice = $crossYear ? "\n📋 *Note: This issue is from a previous period ({$foundLocation['sheet']}).*" : '';
+            $originDept = $currentRow[22] ?? '';
+            $assignedDepts = $currentRow[23] ?? ($currentRow[21] ?? '');
+            $taggedDepts = $currentRow[21] ?? '';
+            $originStr = !empty($originDept) ? "\n*Origin:* {$originDept}" : '';
+            $takerDeptStr = !empty($request->department) ? " ({$request->department})" : '';
 
-                Http::timeout(3)->post('http://localhost:3000/notify', [
-                    'message' => "👷 *Issue Claimed!*{$crossYearNotice}\n*Title:* {$currentRow[1]}\n*Location:* {$currentRow[3]}{$originStr}\n*Taken by:* {$request->taker}{$takerDeptStr}\n*Link:* " . url('/dashboard'),
-                    'department' => $originDept,
-                    'assignedDepartments' => $assignedDepts,
-                    'taggedDepartments' => $taggedDepts,
-                ]);
-            } catch (\Exception $e) {}
+            $this->notifyWhatsApp([
+                'message' => "👷 *Issue Claimed!*{$crossYearNotice}\n*Title:* {$currentRow[1]}\n*Location:* {$currentRow[3]}{$originStr}\n*Taken by:* {$request->taker}{$takerDeptStr}\n*ID:* {$currentRow[0]}",
+                'department' => $originDept,
+                'assignedDepartments' => $assignedDepts,
+                'taggedDepartments' => $taggedDepts,
+            ]);
 
             return response()->json([
                 'success'   => true,
@@ -762,20 +805,18 @@ class IssueController extends Controller
 
             $resolvedProofUrl = $this->resolveImageUrl($proofUrl);
 
-            try {
-                $originDept = $currentRow[22] ?? '';
-                $assignedDepts = $currentRow[23] ?? ($currentRow[21] ?? '');
-                $taggedDepts = $currentRow[21] ?? '';
-                $originStr = !empty($originDept) ? "\n*Origin:* {$originDept}" : '';
+            $originDept = $currentRow[22] ?? '';
+            $assignedDepts = $currentRow[23] ?? ($currentRow[21] ?? '');
+            $taggedDepts = $currentRow[21] ?? '';
+            $originStr = !empty($originDept) ? "\n*Origin:* {$originDept}" : '';
 
-                Http::timeout(3)->post('http://localhost:3000/notify', [
-                    'message' => "✅ *Issue Resolved!*\n*Title:* {$currentRow[1]}\n*Location:* {$currentRow[3]}{$originStr}\n*Solved by:* {$request->solver}\n*Notes:* {$request->fixDescription}\n*Link:* " . url('/dashboard'),
+            $this->notifyWhatsApp([
+                    'message' => "✅ *Issue Resolved!*\n*Title:* {$currentRow[1]}\n*Location:* {$currentRow[3]}{$originStr}\n*Solved by:* {$request->solver}\n*Notes:* {$request->fixDescription}\n*ID:* {$currentRow[0]}",
                     'imageUrl' => $resolvedProofUrl,
                     'department' => $originDept,
                     'assignedDepartments' => $assignedDepts,
                     'taggedDepartments' => $taggedDepts,
                 ]);
-            } catch (\Exception $e) {}
 
             return response()->json([
                 'success' => true,
@@ -902,20 +943,18 @@ class IssueController extends Controller
             $resolvedPendingUrl = $this->resolveImageUrl($pendingImageUrl);
             $resolvedTimeline = $this->parsePendingTimeline($newJson);
 
-            try {
-                $originDept = $currentRow[22] ?? '';
-                $assignedDepts = $currentRow[23] ?? ($currentRow[21] ?? '');
-                $taggedDepts = $currentRow[21] ?? '';
-                $originStr = !empty($originDept) ? "\n*Origin:* {$originDept}" : '';
+            $originDept = $currentRow[22] ?? '';
+            $assignedDepts = $currentRow[23] ?? ($currentRow[21] ?? '');
+            $taggedDepts = $currentRow[21] ?? '';
+            $originStr = !empty($originDept) ? "\n*Origin:* {$originDept}" : '';
 
-                Http::timeout(3)->post('http://localhost:3000/notify', [
-                    'message' => "⏸️ *Issue Pending!*\n*Title:* {$currentRow[1]}\n*Location:* {$currentRow[3]}{$originStr}\n*Pending By:* {$request->pendingBy}\n*Reason:* {$request->pendingReason}\n*Link:* " . url('/dashboard'),
+            $this->notifyWhatsApp([
+                    'message' => "⏸️ *Issue Pending!*\n*Title:* {$currentRow[1]}\n*Location:* {$currentRow[3]}{$originStr}\n*Pending By:* {$request->pendingBy}\n*Reason:* {$request->pendingReason}\n*ID:* {$currentRow[0]}",
                     'imageUrl' => $resolvedPendingUrl,
                     'department' => $originDept,
                     'assignedDepartments' => $assignedDepts,
                     'taggedDepartments' => $taggedDepts,
                 ]);
-            } catch (\Exception $e) {}
 
             return response()->json([
                 'success' => true,
@@ -1403,9 +1442,8 @@ class IssueController extends Controller
             }
 
             // Dispatch WhatsApp notification
-            try {
-                $changeSummaryStr = !empty($changes) ? implode("\n• ", $changes) : 'Details updated';
-                $originStr     = !empty($originDept) ? "\n*Origin:* {$originDept}" : '';
+            $changeSummaryStr = !empty($changes) ? implode("\n• ", $changes) : 'Details updated';
+            $originStr     = !empty($originDept) ? "\n*Origin:* {$originDept}" : '';
                 $resolvedImg   = $this->resolveImageUrl($imageUrl ?? ($currentRow[8] ?? ''));
 
                 // Notify union of new and previous departments
@@ -1429,7 +1467,7 @@ class IssueController extends Controller
                     ? "\n*Status Transition:* " . strtoupper($oldStatus) . " ➔ *" . strtoupper($newStatus) . "*" . ($statusReason ? "\n*Reason:* {$statusReason}" : "")
                     : "\n*Status:* " . strtoupper($newStatus);
 
-                Http::timeout(3)->post('http://localhost:3000/notify', [
+                $this->notifyWhatsApp([
                     'message' => "{$headerPrefix}\n*ID:* {$currentRow[0]}\n*Title:* " . ($newTitle ?? $currentRow[1]) . "\n*Location:* " . ($newLoc ?? $currentRow[3]) . "{$originStr}{$assignedDisplayStr}{$taggedDisplayStr}{$statusNotice}\n*Category:* " . ($newCat ?? $currentRow[4]) . " | *Priority:* " . ($newPriority ?? $currentRow[16]) . "\n*Updated By:* {$editorName} ({$editorRole}" . ($editorDept ? " - {$editorDept}" : "") . ")\n*Modifications / Notes:*\n• {$changeSummaryStr}\n*Link:* " . url('/dashboard'),
                     'imageUrl' => $resolvedImg,
                     'department' => $originDept,
@@ -1437,7 +1475,6 @@ class IssueController extends Controller
                     'taggedDepartments' => implode(', ', $allTagged),
                     'priority' => $newPriority ?? $currentRow[16] ?? 'low',
                 ]);
-            } catch (\Exception $e) {}
 
             return response()->json([
                 'success' => true,
@@ -1529,18 +1566,16 @@ class IssueController extends Controller
             $deleterRole = $user->isAdmin() ? 'Admin' : 'Department';
 
             // Dispatch WhatsApp deletion announcement
-            try {
                 $originStr = !empty($originDept) ? "\n*Origin:* {$originDept}" : '';
                 $assignedStr = !empty($assignedDepts) ? "\n*Assigned:* {$assignedDepts}" : '';
                 $taggedStr   = !empty($taggedDepts) ? "\n*Tagged:* {$taggedDepts}" : '';
 
-                Http::timeout(3)->post('http://localhost:3000/notify', [
+                $this->notifyWhatsApp([
                     'message' => "📢 🗑️ *ISSUE DELETED / ANNOUNCEMENT*\n*ID:* {$deletedId}\n*Title:* {$deletedTitle}\n*Location:* {$deletedLoc}{$originStr}{$assignedStr}{$taggedStr}\n*Deleted By:* {$deleterName} ({$deleterRole}" . ($deleterDept ? " - {$deleterDept}" : "") . ")\n*Status:* Permanently Removed from System",
                     'department' => $originDept,
                     'assignedDepartments' => $assignedDepts,
                     'taggedDepartments' => $taggedDepts,
                 ]);
-            } catch (\Exception $e) {}
 
             return response()->json([
                 'success' => true,

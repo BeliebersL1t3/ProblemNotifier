@@ -9,9 +9,11 @@ import {
 import { IssuesProvider } from '@/context/IssuesContext';
 import { useLanguage } from '@/context/LanguageContext';
 import { CampusFixHeader } from '@/Components/CampusFix/CampusFixHeader';
+import { MobileBottomNav } from '@/Components/CampusFix/MobileBottomNav';
 import { useAuth } from '@/hooks/useAuth';
 import { getDepartmentTheme } from '@/constants/departments';
 import { getStaffForDepartment } from '@/constants/staff';
+import SubdivisionTag from '@/Components/CampusFix/SubdivisionTag';
 
 export default function ProfilePage() {
     return (
@@ -128,7 +130,7 @@ function ProfileInner() {
             <div className="relative z-10">
                 <CampusFixHeader mode="profile" />
 
-                <main className="mx-auto max-w-5xl space-y-8 px-4 py-8 sm:px-6 sm:py-10">
+                <main className="mx-auto max-w-5xl space-y-8 px-4 py-8 sm:px-6 sm:py-10 pb-28 md:pb-10">
                     {/* Header Banner */}
                     <div className="rounded-2xl p-6 sm:p-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xl border border-white/10 bg-gradient-to-br from-[#2A281E] to-[#1C1B0E]">
                         <div className="flex items-center gap-4">
@@ -150,17 +152,11 @@ function ProfileInner() {
                                         </span>
                                     )}
                                     {department && (
-                                        <span 
-                                            className="px-2.5 py-0.5 rounded-full text-xs font-extrabold tracking-wide uppercase shadow-sm"
-                                            style={{ background: currentDeptTheme.bg, color: currentDeptTheme.text }}
-                                        >
-                                            {department}
-                                        </span>
-                                    )}
-                                    {subdivision && (
-                                        <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#353326] text-[#E3D1AA] border border-[#3B3929]">
-                                            {subdivision}
-                                        </span>
+                                        <SubdivisionTag 
+                                            department={department} 
+                                            subdivision={subdivision} 
+                                            size="sm" 
+                                        />
                                     )}
                                 </div>
                                 <p className="text-xs sm:text-sm text-[#A19F8D] mt-1 flex items-center gap-1.5">
@@ -217,20 +213,12 @@ function ProfileInner() {
 
                                     {department && (
                                         <div>
-                                            <p className="text-[#A19F8D] font-medium">{t('department_label') || 'Cakupan Departemen'}</p>
-                                            <div className="mt-1 flex items-center gap-2">
-                                                <span 
-                                                    className="px-2 py-0.5 rounded-md text-xs font-extrabold uppercase"
-                                                    style={{ background: currentDeptTheme.bg, color: currentDeptTheme.text }}
-                                                >
-                                                    {department}
-                                                </span>
-                                                {subdivision && (
-                                                    <span className="text-xs text-[#E3D1AA]">
-                                                        ({subdivision})
-                                                    </span>
-                                                )}
-                                            </div>
+                                            <p className="text-[#A19F8D] font-medium mb-1.5">{t('department_label') || 'Cakupan Departemen'}</p>
+                                            <SubdivisionTag 
+                                                department={department} 
+                                                subdivision={subdivision} 
+                                                size="md" 
+                                            />
                                         </div>
                                     )}
                                 </div>
@@ -511,6 +499,8 @@ function ProfileInner() {
                         </div>
                     </div>
                 </main>
+
+                <MobileBottomNav currentTab="profile" />
             </div>
         </div>
     );

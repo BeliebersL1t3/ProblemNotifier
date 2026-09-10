@@ -112,8 +112,8 @@ export function CampusFixHeader({ mode = 'dashboard', query, onQueryChange, onRe
                 }} 
             />
 
-            <div className="relative z-10 mx-auto flex max-w-7xl flex-col gap-2.5 px-3.5 py-2.5 sm:px-6 sm:py-3 md:flex-row md:items-center md:gap-6">
-                {/* Mobile Expanded Search Bar (Takes over top row when active) */}
+            <div className="relative z-10 mx-auto flex max-w-7xl items-center justify-between px-3.5 py-2 sm:px-6 sm:py-3 md:gap-6">
+                {/* Mobile Expanded Search Bar (Takes over row when active) */}
                 {(mobileSearchOpen || !!query) && onQueryChange ? (
                     <div className="flex md:hidden items-center w-full animate-in fade-in zoom-in-95 duration-150">
                         <div ref={mobileSearchContainerRef} className="relative w-full">
@@ -150,22 +150,22 @@ export function CampusFixHeader({ mode = 'dashboard', query, onQueryChange, onRe
                         </div>
                     </div>
                 ) : (
-                    /* Default Top Bar (Logo on left, Search icon + Actions + Profile on right) */
+                    /* Default Top Bar (Logo on left, Search icon + Actions + Profile on right in 1 single clean line) */
                     <div className="flex items-center gap-2 justify-between w-full md:w-auto">
-                        <div className="flex items-center gap-2.5">
+                        <div className="flex items-center gap-2">
                             <img
                                 src="/logo.png"
                                 alt="Telunas Resorts"
-                                className="h-8 sm:h-9 w-auto object-contain"
+                                className="h-7 sm:h-9 w-auto object-contain shrink-0"
                             />
-                            <div className="hidden sm:flex flex-col">
-                                <p className="text-[11px] font-extrabold tracking-wider uppercase text-[#1C1B0E]/80 leading-tight">
+                            <div className="flex flex-col">
+                                <p className="text-[11px] sm:text-xs font-extrabold tracking-wider uppercase text-[#1C1B0E]/90 leading-tight">
                                     {t('system_title')}
                                 </p>
                             </div>
                         </div>
 
-                        {/* Mobile Right Controls: Search Icon, Language Toggle, Quick Actions & Profile */}
+                        {/* Mobile Right Controls: Search Icon, Language Toggle, SOS & Profile */}
                         <div className="flex md:hidden items-center gap-1.5 shrink-0">
                             {/* Search Expand Trigger Button */}
                             {onQueryChange && (
@@ -197,29 +197,19 @@ export function CampusFixHeader({ mode = 'dashboard', query, onQueryChange, onRe
                                 </button>
                             </div>
 
-                            {/* Quick Action Buttons on Dashboard */}
-                            {mode === 'dashboard' && (
-                                <>
-                                    <button
-                                        type="button"
-                                        onClick={onEmergency}
-                                        className="p-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white shadow-[0_0_8px_rgba(239,68,68,0.4)] transition-all animate-pulse cursor-pointer"
-                                        title={t('emergency')}
-                                    >
-                                        <span className="text-xs leading-none">🚨</span>
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={onReport}
-                                        className="p-1.5 rounded-lg bg-[#1C1B0E] text-[#E3D1AA] hover:bg-[#1C1B0E]/90 shadow-sm transition-all cursor-pointer"
-                                        title={t('report_issue')}
-                                    >
-                                        <Plus className="h-3.5 w-3.5" />
-                                    </button>
-                                </>
+                            {/* Quick Emergency Button on Dashboard */}
+                            {mode === 'dashboard' && onEmergency && (
+                                <button
+                                    type="button"
+                                    onClick={onEmergency}
+                                    className="p-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white shadow-[0_0_8px_rgba(239,68,68,0.4)] transition-all animate-pulse cursor-pointer"
+                                    title={t('emergency')}
+                                >
+                                    <span className="text-xs leading-none">🚨</span>
+                                </button>
                             )}
 
-                            {/* Mobile Profile Chip: Only avatar picture */}
+                            {/* Mobile Profile Chip: Avatar only */}
                             <Link
                                 href="/profile"
                                 onClick={(e) => handleNav(e, '/profile', t('profile') || 'Profile')}
@@ -449,46 +439,6 @@ export function CampusFixHeader({ mode = 'dashboard', query, onQueryChange, onRe
                         </Link>
                     </Tooltip>
                 </div>
-            </div>
-
-            {/* Mobile Nav Toggle */}
-            <div className="flex md:hidden bg-[#E3D1AA] border-t border-[#1C1B0E]/10 px-2 py-2 gap-1 overflow-x-auto">
-                <Link
-                    href="/dashboard"
-                    onClick={(e) => handleNav(e, '/dashboard', t('dashboard'))}
-                    className={`flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
-                        mode === 'dashboard'
-                            ? 'bg-[#1C1B0E] text-[#E3D1AA] shadow-sm'
-                            : 'text-[#1C1B0E]/80 hover:text-[#1C1B0E] hover:bg-[#1C1B0E]/10 border border-[#1C1B0E]/20'
-                    }`}
-                >
-                    <LayoutDashboard className="h-3.5 w-3.5 shrink-0" />
-                    <span>{t('dashboard')}</span>
-                </Link>
-                <Link
-                    href="/analytics"
-                    onClick={(e) => handleNav(e, '/analytics', t('analytics'))}
-                    className={`flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
-                        mode === 'analytics'
-                            ? 'bg-[#1C1B0E] text-[#E3D1AA] shadow-sm'
-                            : 'text-[#1C1B0E]/80 hover:text-[#1C1B0E] hover:bg-[#1C1B0E]/10 border border-[#1C1B0E]/20'
-                    }`}
-                >
-                    <BarChart3 className="h-3.5 w-3.5 shrink-0" />
-                    <span>{t('analytics')}</span>
-                </Link>
-                <Link
-                    href="/calendar"
-                    onClick={(e) => handleNav(e, '/calendar', t('calendar_view') || 'Calendar')}
-                    className={`flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
-                        mode === 'calendar'
-                            ? 'bg-[#1C1B0E] text-[#E3D1AA] shadow-sm'
-                            : 'text-[#1C1B0E]/80 hover:text-[#1C1B0E] hover:bg-[#1C1B0E]/10 border border-[#1C1B0E]/20'
-                    }`}
-                >
-                    <Calendar className="h-3.5 w-3.5 shrink-0" />
-                    <span>{t('calendar_view') || 'Calendar'}</span>
-                </Link>
             </div>
 
             <NewPeriodModal open={periodModalOpen} onOpenChange={setPeriodModalOpen} mode={mode} />
