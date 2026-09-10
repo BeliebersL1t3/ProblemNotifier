@@ -134,6 +134,32 @@ class IssueController extends Controller
         return $trimmed;
     }
 
+    private function normalizeDeptKey(?string $dept): string
+    {
+        if (empty($dept)) return '';
+        $key = strtolower(trim($dept));
+        $map = [
+            'legal'           => 'hr',
+            'lnd'             => 'hr',
+            'transportasi'    => 'hr',
+            'tekong'          => 'hr',
+            'gre'             => 'gr',
+            'guest relations' => 'gr',
+            'service'         => 'gr',
+            'bar'             => 'gr',
+            'spa'             => 'gr',
+            'tirek'           => 'gr',
+            'f&b'             => 'kitchen',
+            'fnb'             => 'kitchen',
+            'pest control'    => 'hk',
+            'sales'           => 'reservasi',
+            'marketing'       => 'reservasi',
+            'sales/marketing' => 'reservasi',
+            'security'        => 'fasilitas',
+        ];
+        return $map[$key] ?? $key;
+    }
+
     /** Resolve the active sheet: use ?sheet= param, else the newest sheet tab. */
     private function resolveSheet(?string $sheetParam = null): string
     {
@@ -638,6 +664,33 @@ class IssueController extends Controller
                     'success' => false,
                     'message' => 'Job already taken or resolved.',
                 ], 422);
+            }
+
+            // Department authorization check
+            $rawAssigned = !empty($currentRow[23]) ? $currentRow[23] : (!empty($currentRow[21]) ? $currentRow[21] : '');
+            $assignedList = !empty($rawAssigned) ? array_map('trim', explode(',', $rawAssigned)) : [];
+            $assignedListUpper = array_map('strtoupper', $assignedList);
+            $isAllAssigned = empty($assignedList) || in_array('ALL', $assignedListUpper);
+
+            $authUser = auth()->user();
+            $claimantDept = $request->input('department') ?? ($authUser?->department ?? '');
+            $claimantSubdiv = $authUser?->subdivision ?? '';
+
+            if (!$isAllAssigned && (! $authUser || ! $authUser->isAdmin()) && !empty($claimantDept)) {
+                $assignedNorm = array_map(fn($d) => $this->normalizeDeptKey($d), $assignedList);
+                $claimantDeptNorm = $this->normalizeDeptKey($claimantDept);
+                $claimantSubdivNorm = !empty($claimantSubdiv) ? $this->normalizeDeptKey($claimantSubdiv) : '';
+
+                $isAuthorized = in_array($claimantDeptNorm, $assignedNorm) ||
+                                (!empty($claimantSubdivNorm) && in_array($claimantSubdivNorm, $assignedNorm));
+
+                if (!$isAuthorized) {
+                    $assignedStr = implode(', ', array_filter($assignedList, fn($d) => strtoupper($d) !== 'ALL'));
+                    return response()->json([
+                        'success' => false,
+                        'message' => "Klaim tidak diizinkan: Masalah ini ditugaskan khusus untuk [{$assignedStr}]. Departemen Anda ({$claimantDept}) tidak dapat mengklaimnya.",
+                    ], 403);
+                }
             }
 
             $takenAt = Carbon::now()->toIso8601String();

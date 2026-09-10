@@ -926,13 +926,17 @@ async function startSock() {
                         const taggedKeys   = taggedDepts.map(d => d.toLowerCase());
 
                         // --- GROUP AUTHORIZATION CHECK (ASSIGNED ONLY) ---
-                        const isAllDepts = assignedDepts.includes('ALL');
-                        const isAssigned = isAllDepts || !groupDeptKey || assignedKeys.includes(groupDeptKey);
+                        const isAllDepts = assignedDepts.some(d => d.toUpperCase() === 'ALL');
+                        const isAssigned = isAllDepts || !groupDeptKey || assignedKeys.includes(groupDeptKey) || assignedDepts.some(ad => {
+                            const adNorm = ad.toLowerCase().trim();
+                            const adMain = SUBDEPARTMENT_TO_MAIN[adNorm] || adNorm;
+                            return adNorm === groupDeptKey || adMain === groupDeptKey;
+                        });
                         const isTaggedOnly = !isAssigned && groupDeptKey && taggedKeys.includes(groupDeptKey);
 
                         if (!isAssigned && groupDeptKey) {
-                            const assignedList = assignedDepts.filter(d => d !== 'ALL').join(', ') || 'departemen yang ditugaskan';
-                            const taggedList   = taggedDepts.filter(d => d !== 'ALL').join(', ');
+                            const assignedList = assignedDepts.filter(d => d.toUpperCase() !== 'ALL').join(', ') || 'departemen yang ditugaskan';
+                            const taggedList   = taggedDepts.filter(d => d.toUpperCase() !== 'ALL').join(', ');
 
                             if (isTaggedOnly) {
                                 let routingMsg = `📢 *Departemen Anda hanya di-Tag (Hanya Info / Pemantauan)*\n\n`;
@@ -951,8 +955,47 @@ async function startSock() {
 
                         // --- SENDER RESOLUTION & ANTI-IMPERSONATION ---
                         const senderJid = msg.key.participant || from;
-                        const senderPhone = String(senderJid).replace(/[^0-9]/g, '');
-                        const registeredUser = getStaffByPhone(senderPhone);
+                        const rawSenderPhone = String(senderJid).replace(/[^0-9]/g, '');
+                        const resolvedSenderPhone = await resolveSenderPhone(sock, from, msg);
+                        const registeredUser = getStaffByPhone(resolvedSenderPhone) || getStaffByPhone(rawSenderPhone);
+                        const senderPhone = resolvedSenderPhone || rawSenderPhone;
+
+                        // --- SENDER DEPARTMENT AUTHORIZATION CHECK ---
+                        if (registeredUser && !isAllDepts && registeredUser.role !== 'admin') {
+                            const userDeptRaw = (registeredUser.department || '').toLowerCase().trim();
+                            const userSubdivRaw = (registeredUser.subdivision || '').toLowerCase().trim();
+                            const userMainDept = SUBDEPARTMENT_TO_MAIN[userDeptRaw] || userDeptRaw;
+                            const userSubdivMain = SUBDEPARTMENT_TO_MAIN[userSubdivRaw] || userSubdivRaw;
+
+                            const isUserAuthorized = assignedKeys.includes(userDeptRaw) ||
+                                                     assignedKeys.includes(userMainDept) ||
+                                                     (userSubdivRaw && assignedKeys.includes(userSubdivRaw)) ||
+                                                     (userSubdivMain && assignedKeys.includes(userSubdivMain)) ||
+                                                     assignedDepts.some(ad => {
+                                                         const adNorm = ad.toLowerCase().trim();
+                                                         const adMain = SUBDEPARTMENT_TO_MAIN[adNorm] || adNorm;
+                                                         return adNorm === userDeptRaw || adMain === userDeptRaw || adMain === userMainDept;
+                                                     });
+
+                            if (!isUserAuthorized) {
+                                const userDeptDisplay = registeredUser.department || 'Lainnya';
+                                const assignedList = assignedDepts.filter(d => d.toUpperCase() !== 'ALL').join(', ') || 'departemen yang ditugaskan';
+                                let rejectMsg = `❌ *Klaim Tidak Diizinkan / Claim Unauthorized* ❌\n\n`;
+                                rejectMsg += `Halo *${registeredUser.name || registeredUser.staff_name}*, Anda terdaftar sebagai staf departemen *${userDeptDisplay}*.\n\n`;
+                                rejectMsg += `Masalah *${issueId}* ini ditugaskan khusus untuk departemen:\n`;
+                                rejectMsg += `🎯 *${assignedList}*\n\n`;
+                                rejectMsg += `Pekerjaan ini hanya dapat diklaim oleh staf dari departemen yang ditugaskan.`;
+                                await reply(rejectMsg);
+                                continue;
+                            }
+                        }
+
+                        // Unregistered user attempting to claim in General group for non-ALL issue
+                        if (!groupDeptKey && !registeredUser && !isAllDepts) {
+                            await reply(`ℹ️ *Akun WhatsApp Anda Belum Terdaftar*\n\nUntuk mengklaim masalah ini di grup General, bot perlu mengetahui departemen Anda.\n\nSilakan:\n1. Buka grup WhatsApp departemen Anda untuk mengklaim pekerjaan ini, ATAU\n2. Daftarkan nama staf Anda terlebih dahulu dengan mengetik *!iam <Nama Lengkap Anda>*`);
+                            continue;
+                        }
+
                         const roster = groupDeptKey ? (DEPARTMENT_STAFF[groupDeptKey] || []) : [];
                         const takerArg = text.substring(6).trim(); // anything after !claim
 
@@ -1027,7 +1070,7 @@ async function startSock() {
                                 if (isClaimedByOther) {
                                     const isMine = (isClaimedByOther.phone === senderPhone) || 
                                                    (isClaimedByOther.rawKey === senderPhone) || 
-                                                   (isClaimedByOther.phone === rawSenderPhone) ||
+                                                   (isClaimedByOther.phone === rawSenderPhone) || 
                                                    (deviceMappings[rawSenderPhone] === isClaimedByOther.phone);
                                     lockIcon = isMine ? ' ✅ (Akun Anda)' : ' 🔒 (Terdaftar)';
                                 }
@@ -1040,7 +1083,8 @@ async function startSock() {
                             takerName = msg.pushName || 'Staff';
                         }
 
-                        const deptLabel = groupDeptKey ? groupDeptKey.charAt(0).toUpperCase() + groupDeptKey.slice(1) : (registeredUser?.department || '');
+                        const userTrueDept = registeredUser?.department || (groupDeptKey ? (groupDeptKey.charAt(0).toUpperCase() + groupDeptKey.slice(1)) : '');
+                        const deptLabel = userTrueDept ? (userTrueDept.charAt(0).toUpperCase() + userTrueDept.slice(1)) : '';
                         const claimRes = await axios.post(`${BASE_URL}/api/issues/${issue.rowIndex}/claim`, {
                             taker: takerName + (deptLabel ? ` (${deptLabel})` : '') + ' via WhatsApp',
                             ...(deptLabel ? { department: deptLabel } : {}),
