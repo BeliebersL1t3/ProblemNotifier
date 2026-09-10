@@ -170,18 +170,19 @@ export function EditIssueModal({ issue, open, onOpenChange, onSuccess }) {
             }
 
             // Parse assigned and tagged departments (excluding origin department)
-            const curOrigin = normalizeDepartment(issue.department);
-            const assigned = (Array.isArray(issue.assignedDepartments)
+            const curOrigin = normalizeDepartment(issue.department).toLowerCase();
+            const rawAssigned = (Array.isArray(issue.assignedDepartments)
                 ? issue.assignedDepartments
                 : (issue.assignedDepartments ? String(issue.assignedDepartments).split(',').map(s => s.trim()).filter(Boolean) : [])
-            ).filter(d => normalizeDepartment(d) !== curOrigin);
-            setAssignedDepts(assigned);
+            ).map(normalizeDepartment).filter(d => d.toLowerCase() !== curOrigin);
+            setAssignedDepts(rawAssigned);
 
-            const tagged = (Array.isArray(issue.taggedDepartments)
+            const assignedNormSet = new Set(rawAssigned.map(a => a.toLowerCase()));
+            const rawTagged = (Array.isArray(issue.taggedDepartments)
                 ? issue.taggedDepartments
                 : (issue.taggedDepartments ? String(issue.taggedDepartments).split(',').map(s => s.trim()).filter(Boolean) : [])
-            ).filter(d => normalizeDepartment(d) !== curOrigin && !assigned.includes(d));
-            setTaggedDepts(tagged);
+            ).map(normalizeDepartment).filter(d => d.toLowerCase() !== curOrigin && !assignedNormSet.has(d.toLowerCase()));
+            setTaggedDepts(rawTagged);
 
             // Initial image
             setNewImageFile(null);
@@ -235,18 +236,38 @@ export function EditIssueModal({ issue, open, onOpenChange, onSuccess }) {
 
     const valid = !canEditReport || (title.trim() && location.trim() && description.trim() && assignedDepts.length > 0);
 
+    const isAssignedDept = (dept) => {
+        const norm = normalizeDepartment(dept).toLowerCase();
+        return assignedDepts.some(a => normalizeDepartment(a).toLowerCase() === norm);
+    };
+
+    const isTaggedDept = (dept) => {
+        const norm = normalizeDepartment(dept).toLowerCase();
+        return taggedDepts.some(t => normalizeDepartment(t).toLowerCase() === norm);
+    };
+
     const toggleAssignedDept = (dept) => {
-        setAssignedDepts((prev) =>
-            prev.includes(dept) ? prev.filter((d) => d !== dept) : [...prev, dept]
-        );
-        setTaggedDepts((prev) => prev.filter((d) => d !== dept));
+        const norm = normalizeDepartment(dept);
+        const normLower = norm.toLowerCase();
+        setAssignedDepts((prev) => {
+            const exists = prev.some(d => normalizeDepartment(d).toLowerCase() === normLower);
+            return exists
+                ? prev.filter(d => normalizeDepartment(d).toLowerCase() !== normLower)
+                : [...prev.filter(d => normalizeDepartment(d).toLowerCase() !== normLower), norm];
+        });
+        setTaggedDepts((prev) => prev.filter((d) => normalizeDepartment(d).toLowerCase() !== normLower));
     };
 
     const toggleTaggedDept = (dept) => {
-        setTaggedDepts((prev) =>
-            prev.includes(dept) ? prev.filter((d) => d !== dept) : [...prev, dept]
-        );
-        setAssignedDepts((prev) => prev.filter((d) => d !== dept));
+        const norm = normalizeDepartment(dept);
+        const normLower = norm.toLowerCase();
+        setTaggedDepts((prev) => {
+            const exists = prev.some(d => normalizeDepartment(d).toLowerCase() === normLower);
+            return exists
+                ? prev.filter(d => normalizeDepartment(d).toLowerCase() !== normLower)
+                : [...prev.filter(d => normalizeDepartment(d).toLowerCase() !== normLower), norm];
+        });
+        setAssignedDepts((prev) => prev.filter((d) => normalizeDepartment(d).toLowerCase() !== normLower));
     };
 
     const handleSubmit = async (e) => {
@@ -663,9 +684,14 @@ export function EditIssueModal({ issue, open, onOpenChange, onSuccess }) {
                                         </div>
                                         <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto p-2 rounded-xl bg-[#2A281E] border border-[#3B3929]">
                                             {ALL_DEPARTMENTS
-                                                .filter(d => (!originDept || normalizeDepartment(d) !== originDept) && !taggedDepts.includes(d))
+                                                .filter(d => {
+                                                    const normD = normalizeDepartment(d).toLowerCase();
+                                                    if (originDept && normalizeDepartment(originDept).toLowerCase() === normD) return false;
+                                                    if (isTaggedDept(d)) return false;
+                                                    return true;
+                                                })
                                                 .map((dept) => {
-                                                    const active = assignedDepts.includes(dept);
+                                                    const active = isAssignedDept(dept);
                                                     const theme = getDepartmentTheme(dept);
                                                     return (
                                                         <button
@@ -698,9 +724,14 @@ export function EditIssueModal({ issue, open, onOpenChange, onSuccess }) {
                                         </div>
                                         <div className="flex flex-wrap gap-1.5 max-h-20 overflow-y-auto p-2 rounded-xl bg-[#2A281E]/60 border border-[#3B3929]/80">
                                             {ALL_DEPARTMENTS
-                                                .filter(d => (!originDept || normalizeDepartment(d) !== originDept) && !assignedDepts.includes(d))
+                                                .filter(d => {
+                                                    const normD = normalizeDepartment(d).toLowerCase();
+                                                    if (originDept && normalizeDepartment(originDept).toLowerCase() === normD) return false;
+                                                    if (isAssignedDept(d)) return false;
+                                                    return true;
+                                                })
                                                 .map((dept) => {
-                                                    const active = taggedDepts.includes(dept);
+                                                    const active = isTaggedDept(dept);
                                                     const theme = getDepartmentTheme(dept);
                                                     return (
                                                         <button

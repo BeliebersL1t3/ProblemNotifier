@@ -21,7 +21,7 @@ import {
 import { ImageDropzone } from './ImageDropzone';
 import { useIssues } from '@/context/IssuesContext';
 import { Loader2, AlertTriangle, CalendarClock, Clock } from 'lucide-react';
-import { ALL_DEPARTMENTS, getStaffForDepartment } from '@/constants/staff';
+import { ALL_DEPARTMENTS, getStaffForDepartment, normalizeDepartment } from '@/constants/staff';
 import { getDepartmentTheme } from '@/constants/departments';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/context/LanguageContext';
@@ -84,10 +84,14 @@ export function ReportIssueModal({ open, onOpenChange }) {
                     if (d.originDept && !isDeptUser) setOriginDept(d.originDept);
                     if (d.reporter && !isDeptUser) setReporter(d.reporter);
                     if (Array.isArray(d.assignedDepts) && d.assignedDepts.length > 0) {
-                        setAssignedDepts(d.assignedDepts);
-                    }
-                    if (Array.isArray(d.taggedDepts) && d.taggedDepts.length > 0) {
-                        setTaggedDepts(d.taggedDepts);
+                        const restoredAssigned = d.assignedDepts.map(normalizeDepartment);
+                        setAssignedDepts(restoredAssigned);
+                        if (Array.isArray(d.taggedDepts) && d.taggedDepts.length > 0) {
+                            const assignedSet = new Set(restoredAssigned.map(a => a.toLowerCase()));
+                            setTaggedDepts(d.taggedDepts.map(normalizeDepartment).filter(t => !assignedSet.has(t.toLowerCase())));
+                        }
+                    } else if (Array.isArray(d.taggedDepts) && d.taggedDepts.length > 0) {
+                        setTaggedDepts(d.taggedDepts.map(normalizeDepartment));
                     }
                     if (d.title || d.description) {
                         setHasDraftRestored(true);
@@ -177,22 +181,40 @@ export function ReportIssueModal({ open, onOpenChange }) {
         setHasDraftRestored(false);
     };
 
+    const isAssigned = (dept) => {
+        const norm = normalizeDepartment(dept).toLowerCase();
+        return assignedDepts.some(a => normalizeDepartment(a).toLowerCase() === norm);
+    };
+
+    const isTagged = (dept) => {
+        const norm = normalizeDepartment(dept).toLowerCase();
+        return taggedDepts.some(t => normalizeDepartment(t).toLowerCase() === norm);
+    };
+
     const toggleAssigned = (dept) => {
+        const norm = normalizeDepartment(dept);
+        const normLower = norm.toLowerCase();
         setAssignedDepts(prev => {
-            const next = prev.includes(dept) ? prev.filter(d => d !== dept) : [...prev, dept];
-            return next;
+            const exists = prev.some(d => normalizeDepartment(d).toLowerCase() === normLower);
+            return exists
+                ? prev.filter(d => normalizeDepartment(d).toLowerCase() !== normLower)
+                : [...prev.filter(d => normalizeDepartment(d).toLowerCase() !== normLower), norm];
         });
-        // Mutually exclusive: cannot tag a department that is assigned
-        setTaggedDepts(prev => prev.filter(d => d !== dept));
+        // Mutually exclusive: strictly remove from tagged
+        setTaggedDepts(prev => prev.filter(d => normalizeDepartment(d).toLowerCase() !== normLower));
     };
 
     const toggleTag = (dept) => {
+        const norm = normalizeDepartment(dept);
+        const normLower = norm.toLowerCase();
         setTaggedDepts(prev => {
-            const next = prev.includes(dept) ? prev.filter(d => d !== dept) : [...prev, dept];
-            return next;
+            const exists = prev.some(d => normalizeDepartment(d).toLowerCase() === normLower);
+            return exists
+                ? prev.filter(d => normalizeDepartment(d).toLowerCase() !== normLower)
+                : [...prev.filter(d => normalizeDepartment(d).toLowerCase() !== normLower), norm];
         });
-        // Mutually exclusive: cannot assign a department that is tagged
-        setAssignedDepts(prev => prev.filter(d => d !== dept));
+        // Mutually exclusive: strictly remove from assigned
+        setAssignedDepts(prev => prev.filter(d => normalizeDepartment(d).toLowerCase() !== normLower));
     };
 
     const handleSubmitClick = (e) => {
@@ -455,7 +477,12 @@ export function ReportIssueModal({ open, onOpenChange }) {
                         </div>
                         <div className="flex flex-wrap gap-2 pt-1">
                             {ALL_DEPARTMENTS
-                                .filter(d => (!originDept || d.toLowerCase() !== originDept.toLowerCase()) && !taggedDepts.includes(d))
+                                .filter(d => {
+                                    const normD = normalizeDepartment(d).toLowerCase();
+                                    if (originDept && normalizeDepartment(originDept).toLowerCase() === normD) return false;
+                                    if (isTagged(d)) return false;
+                                    return true;
+                                })
                                 .map(dept => (
                                     <button
                                         key={dept}
@@ -463,12 +490,12 @@ export function ReportIssueModal({ open, onOpenChange }) {
                                         disabled={isSubmitting}
                                         onClick={() => toggleAssigned(dept)}
                                         className={`px-3 py-1.5 text-xs font-semibold rounded-full border transition-all ${
-                                            assignedDepts.includes(dept) 
+                                            isAssigned(dept) 
                                                 ? 'bg-amber-600 text-white border-amber-600 shadow-sm ring-2 ring-amber-500/20' 
                                                 : 'bg-surface text-muted-foreground border-border hover:border-amber-500/50 hover:bg-amber-500/10'
                                         }`}
                                     >
-                                        {assignedDepts.includes(dept) ? `✓ ${dept}` : dept}
+                                        {isAssigned(dept) ? `✓ ${dept}` : dept}
                                     </button>
                                 ))}
                         </div>
@@ -485,7 +512,12 @@ export function ReportIssueModal({ open, onOpenChange }) {
                             </span>
                             <div className="flex flex-wrap gap-2 pt-1">
                             {ALL_DEPARTMENTS
-                                .filter(d => (!originDept || d.toLowerCase() !== originDept.toLowerCase()) && !assignedDepts.includes(d))
+                                .filter(d => {
+                                    const normD = normalizeDepartment(d).toLowerCase();
+                                    if (originDept && normalizeDepartment(originDept).toLowerCase() === normD) return false;
+                                    if (isAssigned(d)) return false;
+                                    return true;
+                                })
                                 .map(dept => (
                                     <button
                                         key={dept}
@@ -493,12 +525,12 @@ export function ReportIssueModal({ open, onOpenChange }) {
                                         disabled={isSubmitting}
                                         onClick={() => toggleTag(dept)}
                                         className={`px-3 py-1.5 text-xs font-semibold rounded-full border transition-all ${
-                                            taggedDepts.includes(dept) 
+                                            isTagged(dept) 
                                                 ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm ring-2 ring-indigo-500/20' 
                                                 : 'bg-surface text-muted-foreground border-border hover:border-indigo-500/50 hover:bg-indigo-500/10'
                                         }`}
                                     >
-                                        {taggedDepts.includes(dept) ? `✓ ${dept}` : dept}
+                                        {isTagged(dept) ? `✓ ${dept}` : dept}
                                     </button>
                                 ))}
                             </div>
