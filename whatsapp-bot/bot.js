@@ -1550,12 +1550,31 @@ async function startSock() {
                 
                 state.data.assignedDepartments = selectedAssigns.join(', ');
                 
+                // Filter out already assigned departments so they do NOT appear in the Tag/Info list
+                const assignedSet = new Set(selectedAssigns.map(d => d.toLowerCase()));
+                const availableTagDepts = DEPARTMENTS.filter(dept => !assignedSet.has(dept.toLowerCase()));
+                state.data.availableTagDepts = availableTagDepts;
+
+                if (availableTagDepts.length === 0) {
+                    state.data.taggedDepartments = '';
+                    let categoryMenu = getMsg(
+                        'All departments are assigned! Now, please select a category by replying with the number:\n\n',
+                        'Semua departemen telah ditugaskan! Sekarang, pilih kategori dengan membalas nomornya:\n\n'
+                    );
+                    for (const [key, val] of Object.entries(CORE_DISPLAY)) {
+                        categoryMenu += `${key}. ${val}\n`;
+                    }
+                    await reply(categoryMenu.trim());
+                    state.step = STEPS.AWAITING_CAT;
+                    continue;
+                }
+
                 let tagMenu = getMsg(
-                    '📢 Tag other departments for INFORMATION / NOTIFICATION only? Select numbers (e.g. "6 10") or reply with "0" to skip:\n',
-                    '📢 Tandai departemen lain HANYA UNTUK INFO / NOTIFIKASI? Pilih nomor (contoh: "6 10") atau balas "0" untuk lewati:\n'
+                    '📢 Tag other departments for INFORMATION / NOTIFICATION only? Select numbers (e.g. "1 3") or reply with "0" to skip:\n\n',
+                    '📢 Tandai departemen lain HANYA UNTUK INFO / NOTIFIKASI? Pilih nomor (contoh: "1 3") atau balas "0" untuk lewati:\n\n'
                 );
                 tagMenu += getMsg('0. (Skip / None)\n', '0. (Lewati / Tidak ada)\n');
-                DEPARTMENTS.forEach((dept, index) => {
+                availableTagDepts.forEach((dept, index) => {
                     tagMenu += `${index + 1}. ${dept}\n`;
                 });
                 
@@ -1565,6 +1584,9 @@ async function startSock() {
             }
             
             if (state.step === STEPS.AWAITING_TAG_DEPT) {
+                const assignedList = (state.data.assignedDepartments || '').split(',').map(s => s.trim().toLowerCase());
+                const availableTagDepts = state.data.availableTagDepts || DEPARTMENTS.filter(d => !assignedList.includes(d.toLowerCase()));
+
                 const trimmed = text.trim().toLowerCase();
                 if (trimmed === '0' || trimmed === 'skip' || trimmed === 'none' || trimmed === 'tidak' || trimmed === 'pass') {
                     state.data.taggedDepartments = '';
@@ -1573,16 +1595,16 @@ async function startSock() {
                     const selectedTags = [];
                     for (const part of parts) {
                         const idx = parseInt(part) - 1;
-                        if (!isNaN(idx) && idx >= 0 && idx < DEPARTMENTS.length) {
-                            selectedTags.push(DEPARTMENTS[idx]);
+                        if (!isNaN(idx) && idx >= 0 && idx < availableTagDepts.length) {
+                            selectedTags.push(availableTagDepts[idx]);
                         }
                     }
                     state.data.taggedDepartments = selectedTags.join(', ');
                 }
                 
                 let categoryMenu = getMsg(
-                    'Almost done! Please select a category by replying with the number:\n',
-                    'Hampir selesai! Pilih kategori dengan membalas nomornya:\n'
+                    'Almost done! Please select a category by replying with the number:\n\n',
+                    'Hampir selesai! Pilih kategori dengan membalas nomornya:\n\n'
                 );
                 for (const [key, val] of Object.entries(CORE_DISPLAY)) {
                     categoryMenu += `${key}. ${val}\n`;
