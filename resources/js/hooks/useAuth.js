@@ -14,13 +14,32 @@ import { usePage } from '@inertiajs/react';
 export function useAuth() {
     const { auth } = usePage().props;
     const user = auth?.user ?? null;
+    const isAdmin = user?.role === 'admin';
+    const permissions = user?.permissions ?? {};
+
+    const hasPermission = (key, defaultVal = true) => {
+        if (isAdmin) return true;
+        if (permissions && permissions[key] !== undefined) return Boolean(permissions[key]);
+        return defaultVal;
+    };
 
     return {
         user,
-        isAdmin:     user?.role === 'admin',
+        isAdmin,
         isDeptUser:  user?.role === 'department',
+        isViewer:    user?.role === 'viewer',
         department:  user?.department ?? null,
+        subdivision: user?.subdivision ?? null,
         staffName:      user?.staff_name ?? user?.name ?? null,
         whatsappNumber: user?.whatsapp_number ?? null,
+        permissions,
+        // Specific capability helpers
+        canViewAllDepartments: hasPermission('can_view_all_departments', true),
+        canManageIssues:        hasPermission('can_manage_issues', true),
+        canDeleteIssues:        hasPermission('can_delete_issues', false),
+        canAccessAnalytics:     hasPermission('can_access_analytics', true),
+        canAccessCalendar:      hasPermission('can_access_calendar', true),
+        canExportReports:       hasPermission('can_export_reports', true),
+        canManageCategories:    hasPermission('can_manage_categories', false),
     };
 }

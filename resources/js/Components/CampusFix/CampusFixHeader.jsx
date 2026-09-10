@@ -14,7 +14,7 @@ import { getDepartmentTheme, getShortDepartmentName } from '@/constants/departme
 export function CampusFixHeader({ mode = 'dashboard', query, onQueryChange, onReport, onEmergency, onNewPeriod, searchDropdown }) {
     const { currentSheet } = useIssues();
     const { lang, setLang, t } = useLanguage();
-    const { user, isAdmin, department, staffName } = useAuth();
+    const { user, isAdmin, department, staffName, canAccessAnalytics, canAccessCalendar } = useAuth();
     const userDept = user?.department || department;
     const deptTheme = userDept ? getDepartmentTheme(userDept) : (isAdmin ? { bg: '#C9AA71', text: '#1C1B0E' } : { bg: '#607D8B', text: '#FFFFFF' });
     const [searchFocused, setSearchFocused] = useState(false);
@@ -255,44 +255,65 @@ export function CampusFixHeader({ mode = 'dashboard', query, onQueryChange, onRe
                             {t('dashboard')}
                         </span>
                     </Link>
-                    <Link
-                        href="/analytics"
-                        onClick={(e) => handleNav(e, '/analytics', t('analytics'))}
-                        className={`group flex items-center justify-center px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                            mode === 'analytics'
-                                ? 'bg-[#1C1B0E] text-[#E3D1AA] shadow-sm'
-                                : 'text-[#1C1B0E]/70 hover:text-[#1C1B0E] hover:bg-[#1C1B0E]/10'
-                        }`}
-                        title={t('analytics')}
-                    >
-                        <BarChart3 className="h-4 w-4 shrink-0" />
-                        <span className={`transition-all duration-300 ease-out overflow-hidden whitespace-nowrap ${
-                            searchFocused 
-                                ? 'max-w-0 opacity-0 ml-0 group-hover:max-w-[100px] group-hover:opacity-100 group-hover:ml-1.5' 
-                                : 'max-w-[100px] opacity-100 ml-1.5'
-                        }`}>
-                            {t('analytics')}
-                        </span>
-                    </Link>
-                    <Link
-                        href="/calendar"
-                        onClick={(e) => handleNav(e, '/calendar', t('calendar_view') || 'Calendar')}
-                        className={`group flex items-center justify-center px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                            mode === 'calendar'
-                                ? 'bg-[#1C1B0E] text-[#E3D1AA] shadow-sm'
-                                : 'text-[#1C1B0E]/70 hover:text-[#1C1B0E] hover:bg-[#1C1B0E]/10'
-                        }`}
-                        title={t('calendar_view') || 'Calendar'}
-                    >
-                        <Calendar className="h-4 w-4 shrink-0" />
-                        <span className={`transition-all duration-300 ease-out overflow-hidden whitespace-nowrap ${
-                            searchFocused 
-                                ? 'max-w-0 opacity-0 ml-0 group-hover:max-w-[100px] group-hover:opacity-100 group-hover:ml-1.5' 
-                                : 'max-w-[100px] opacity-100 ml-1.5'
-                        }`}>
-                            {t('calendar_view') || 'Calendar'}
-                        </span>
-                    </Link>
+                    {canAccessAnalytics ? (
+                        <Link
+                            href="/analytics"
+                            onClick={(e) => handleNav(e, '/analytics', t('analytics'))}
+                            className={`group flex items-center justify-center px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                                mode === 'analytics'
+                                    ? 'bg-[#1C1B0E] text-[#E3D1AA] shadow-sm'
+                                    : 'text-[#1C1B0E]/70 hover:text-[#1C1B0E] hover:bg-[#1C1B0E]/10'
+                            }`}
+                            title={t('analytics')}
+                        >
+                            <BarChart3 className="h-4 w-4 shrink-0" />
+                            <span className={`transition-all duration-300 ease-out overflow-hidden whitespace-nowrap ${
+                                searchFocused 
+                                    ? 'max-w-0 opacity-0 ml-0 group-hover:max-w-[100px] group-hover:opacity-100 group-hover:ml-1.5' 
+                                    : 'max-w-[100px] opacity-100 ml-1.5'
+                            }`}>
+                                {t('analytics')}
+                            </span>
+                        </Link>
+                    ) : (
+                        <div 
+                            className="flex items-center justify-center px-2.5 py-1.5 rounded-md text-sm font-medium text-[#1C1B0E]/40 cursor-not-allowed select-none gap-1 bg-[#1C1B0E]/5"
+                            title="Akses Analytics dibatasi oleh Administrator (Barrier Aktif)"
+                        >
+                            <BarChart3 className="h-4 w-4 shrink-0 opacity-40" />
+                            <span className="text-[10px] font-bold text-amber-600">🚧</span>
+                        </div>
+                    )}
+
+                    {canAccessCalendar ? (
+                        <Link
+                            href="/calendar"
+                            onClick={(e) => handleNav(e, '/calendar', t('calendar_view') || 'Calendar')}
+                            className={`group flex items-center justify-center px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                                mode === 'calendar'
+                                    ? 'bg-[#1C1B0E] text-[#E3D1AA] shadow-sm'
+                                    : 'text-[#1C1B0E]/70 hover:text-[#1C1B0E] hover:bg-[#1C1B0E]/10'
+                            }`}
+                            title={t('calendar_view') || 'Calendar'}
+                        >
+                            <Calendar className="h-4 w-4 shrink-0" />
+                            <span className={`transition-all duration-300 ease-out overflow-hidden whitespace-nowrap ${
+                                searchFocused 
+                                    ? 'max-w-0 opacity-0 ml-0 group-hover:max-w-[100px] group-hover:opacity-100 group-hover:ml-1.5' 
+                                    : 'max-w-[100px] opacity-100 ml-1.5'
+                            }`}>
+                                {t('calendar_view') || 'Calendar'}
+                            </span>
+                        </Link>
+                    ) : (
+                        <div 
+                            className="flex items-center justify-center px-2.5 py-1.5 rounded-md text-sm font-medium text-[#1C1B0E]/40 cursor-not-allowed select-none gap-1 bg-[#1C1B0E]/5"
+                            title="Akses Kalender dibatasi oleh Administrator (Barrier Aktif)"
+                        >
+                            <Calendar className="h-4 w-4 shrink-0 opacity-40" />
+                            <span className="text-[10px] font-bold text-amber-600">🚧</span>
+                        </div>
+                    )}
                 </div>
 
                 {/* Desktop Search Bar (Hidden on mobile, mobile uses expandable top row) */}

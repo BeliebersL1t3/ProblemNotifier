@@ -1,9 +1,10 @@
-import { Head, useForm, router } from '@inertiajs/react';
+import { Head, useForm, router, Link } from '@inertiajs/react';
 import { useState, useRef } from 'react';
 import { 
     User, Lock, KeyRound, LogOut, Shield, Building2, CheckCircle2, 
     AlertCircle, Loader2, Sparkles, Mail, Tag, ShieldCheck, RefreshCw,
-    Phone, MessageSquare, Check, Smartphone, Unlink, Trash2
+    Phone, MessageSquare, Check, Smartphone, Unlink, Trash2,
+    Users as UsersIcon, ChevronRight, ShieldAlert
 } from 'lucide-react';
 
 import { IssuesProvider } from '@/context/IssuesContext';
@@ -181,6 +182,40 @@ function ProfileInner() {
                             <span>{isLoggingOut ? (t('logging_out') || 'Logging out...') : (t('logout') || 'Log Out')}</span>
                         </button>
                     </div>
+
+                    {/* Admin Control Hub Banner (Visible only for Administrator) */}
+                    {isAdmin && (
+                        <div className="rounded-2xl border border-[#C9AA71]/40 bg-gradient-to-r from-[#2A281E] via-[#332E1C] to-[#1C1B0E] p-6 shadow-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 relative overflow-hidden group">
+                            <div className="flex items-center gap-4">
+                                <div className="p-3 rounded-2xl bg-[#C9AA71]/20 text-[#C9AA71] border border-[#C9AA71]/40 shadow-inner shrink-0">
+                                    <UsersIcon className="h-7 w-7" />
+                                </div>
+                                <div>
+                                    <div className="flex items-center gap-2">
+                                        <h2 className="text-base sm:text-lg font-extrabold text-[#FAFAFA]">
+                                            {lang === 'id' ? 'Manajemen Pengguna & Hak Akses' : 'User Management & Permissions'}
+                                        </h2>
+                                        <span className="px-2 py-0.5 rounded text-[10px] font-black bg-[#C9AA71] text-[#1C1B0E]">
+                                            ADMIN
+                                        </span>
+                                    </div>
+                                    <p className="text-xs text-[#A19F8D] mt-0.5 max-w-xl leading-relaxed">
+                                        {lang === 'id'
+                                            ? 'Atur akun staf, reset password, konfigurasi departemen, matriks izin akses (Barrier), serta pantau audit log keamanan resort.'
+                                            : 'Manage staff credentials, reset passwords, configure department scopes, access barriers, and review security audit logs.'}
+                                    </p>
+                                </div>
+                            </div>
+                            <Link
+                                href="/users"
+                                className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-xs font-bold bg-[#C9AA71] hover:bg-[#b89960] text-[#1C1B0E] transition-all shadow-md hover:shadow-lg cursor-pointer shrink-0 hover:scale-[1.02]"
+                            >
+                                <ShieldAlert className="h-4 w-4" />
+                                <span>{lang === 'id' ? 'Buka Kelola Semua Akun' : 'Open User Management'}</span>
+                                <ChevronRight className="h-4 w-4" />
+                            </Link>
+                        </div>
+                    )}
 
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                         {/* Account Details Card */}

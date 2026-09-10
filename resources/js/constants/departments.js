@@ -226,3 +226,11 @@ export function getShortDepartmentName(dept) {
     if (dept.length <= 4) return dept.toUpperCase();
     return dept.slice(0, 4).toUpperCase();
 }
+
+export { 
+    ALL_DEPARTMENTS, 
+    DEPARTMENT_SUBDIVISIONS, 
+    ALL_DEPARTMENTS as DEPARTMENTS, 
+    DEPARTMENT_SUBDIVISIONS as SUBDEPARTMENTS 
+} from './staff';
+

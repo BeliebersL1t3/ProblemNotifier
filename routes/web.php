@@ -4,6 +4,7 @@ use App\Http\Controllers\IssueController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\OperationsController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\UserController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -33,6 +34,7 @@ Route::middleware('auth')->group(function () {
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::patch('/profile/whatsapp', [ProfileController::class, 'updateWhatsApp'])->name('profile.whatsapp');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+    Route::get('/users', [UserController::class, 'index'])->name('users.index');
 });
 
 // CampusFix API Endpoints
@@ -62,6 +64,16 @@ Route::prefix('api')->group(function () {
     Route::post('/operations/sync-calendar', [OperationsController::class, 'syncCalendar']);
     Route::match(['patch', 'post'], '/operations/{rowIndex}', [OperationsController::class, 'update']);
     Route::delete('/operations/{rowIndex}', [OperationsController::class, 'destroy']);
+    // Admin User Management & Audit Logs
+    Route::middleware('auth')->group(function () {
+        Route::get('/users', [UserController::class, 'index']);
+        Route::post('/users', [UserController::class, 'store']);
+        Route::match(['put', 'patch', 'post'], '/users/{id}', [UserController::class, 'update']);
+        Route::delete('/users/{id}', [UserController::class, 'destroy']);
+        Route::post('/users/{id}/restore', [UserController::class, 'restore']);
+        Route::post('/users/{id}/reset-password', [UserController::class, 'resetPassword']);
+        Route::get('/user-audit-logs', [UserController::class, 'auditLogs']);
+    });
 });
 
 require __DIR__.'/auth.php';

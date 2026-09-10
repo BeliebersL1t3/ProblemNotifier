@@ -5,6 +5,7 @@ namespace App\Models;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
@@ -12,7 +13,7 @@ use Illuminate\Notifications\Notifiable;
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory, Notifiable;
+    use HasFactory, Notifiable, SoftDeletes;
 
     protected $fillable = [
         'name',
@@ -24,6 +25,7 @@ class User extends Authenticatable
         'subdivision',
         'staff_name',
         'whatsapp_number',
+        'permissions',
     ];
 
     protected function casts(): array
@@ -31,6 +33,7 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password'          => 'hashed',
+            'permissions'       => 'array',
         ];
     }
 
@@ -42,5 +45,60 @@ class User extends Authenticatable
     public function isDepartmentUser(): bool
     {
         return $this->role === 'department';
+    }
+
+    public function isViewer(): bool
+    {
+        return $this->role === 'viewer';
+    }
+
+    public function hasPermission(string $permission): bool
+    {
+        if ($this->isAdmin()) {
+            return true;
+        }
+
+        $perms = $this->permissions ?? [];
+        return !empty($perms[$permission]);
+    }
+
+    public function canViewDepartment(string $department): bool
+    {
+        if ($this->isAdmin()) {
+            return true;
+        }
+
+        $perms = $this->permissions ?? [];
+        if (!empty($perms['can_view_all_departments'])) {
+            return true;
+        }
+
+        $myDept = strtolower(trim($this->department ?? ''));
+        $targetDept = strtolower(trim($department));
+
+        if ($myDept === $targetDept) {
+            return true;
+        }
+
+        $allowed = $perms['allowed_departments'] ?? [];
+        if (is_array($allowed)) {
+            $allowedNorm = array_map('strtolower', array_map('trim', $allowed));
+            return in_array($targetDept, $allowedNorm);
+        }
+
+        return false;
+    }
+
+    public function scopeWithPermission($query, string $permission)
+    {
+        return $query->where(function ($q) use ($permission) {
+            $q->where('role', 'admin')
+              ->orWhere('permissions->' . $permission, true);
+        });
+    }
+
+    public function auditLogs()
+    {
+        return $this->hasMany(UserAuditLog::class, 'target_user_id');
     }
 }
