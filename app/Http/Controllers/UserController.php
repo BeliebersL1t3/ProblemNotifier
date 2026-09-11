@@ -345,6 +345,115 @@ class UserController extends Controller
     }
 
     /**
+     * Batch update permissions for multiple users.
+     */
+    public function batchUpdatePermissions(Request $request)
+    {
+        $this->ensureAdmin();
+
+        $validated = $request->validate([
+            'user_ids'    => 'required|array|min:1',
+            'user_ids.*'  => 'integer|exists:users,id',
+            'permissions' => 'nullable|array',
+            'action'      => 'nullable|string|in:set,reset_default,enable_all,disable_all',
+        ]);
+
+        $admin = auth()->user();
+        $targetUsers = User::whereIn('id', $validated['user_ids'])->get();
+        $updatedCount = 0;
+        $updatedUsersList = [];
+
+        foreach ($targetUsers as $target) {
+            if ($target->isAdmin()) {
+                continue;
+            }
+
+            $before = [
+                'name'        => $target->name,
+                'staff_name'  => $target->staff_name,
+                'email'       => $target->email,
+                'role'        => $target->role,
+                'department'  => $target->department,
+                'permissions' => $target->permissions,
+            ];
+
+            $action = $validated['action'] ?? 'set';
+            $currentPerms = $target->permissions ?? self::getDefaultPermissions($target->role);
+
+            if ($action === 'reset_default') {
+                $currentPerms = self::getDefaultPermissions($target->role);
+            } elseif ($action === 'enable_all') {
+                foreach (array_keys(self::getDefaultPermissions($target->role)) as $key) {
+                    $currentPerms[$key] = true;
+                }
+            } elseif ($action === 'disable_all') {
+                foreach (array_keys(self::getDefaultPermissions($target->role)) as $key) {
+                    $currentPerms[$key] = false;
+                }
+            } else {
+                if (!empty($validated['permissions'])) {
+                    foreach ($validated['permissions'] as $permKey => $permVal) {
+                        $currentPerms[$permKey] = (bool) $permVal;
+                    }
+                }
+            }
+
+            $target->permissions = $currentPerms;
+            $target->save();
+
+            $after = [
+                'name'        => $target->name,
+                'staff_name'  => $target->staff_name,
+                'email'       => $target->email,
+                'role'        => $target->role,
+                'department'  => $target->department,
+                'permissions' => $target->permissions,
+            ];
+
+            UserAuditLog::record(
+                $admin,
+                $target,
+                'USER_PERMISSIONS_BATCH_UPDATED',
+                [
+                    'before' => $before,
+                    'after'  => $after,
+                    'action' => 'BATCH_PERMISSIONS_UPDATE',
+                ]
+            );
+
+            $restrictionData = $this->analyzeRestrictions($target);
+            $updatedUsersList[] = [
+                'id'               => $target->id,
+                'name'             => $target->name,
+                'staff_name'       => $target->staff_name,
+                'email'            => $target->email,
+                'role'             => $target->role,
+                'department'       => $target->department,
+                'subdivision'      => $target->subdivision,
+                'whatsapp_number'  => $target->whatsapp_number,
+                'raw_password'     => $target->raw_password,
+                'permissions'      => $target->permissions,
+                'has_restrictions' => $restrictionData['has_restrictions'],
+                'barrier_reasons'  => $restrictionData['reasons'],
+                'avatar'           => $target->avatar,
+                'avatar_url'       => $target->avatar_url,
+                'is_archived'      => $target->trashed(),
+                'deleted_at'       => $target->deleted_at?->toIso8601String(),
+                'created_at'       => $target->created_at?->toIso8601String(),
+            ];
+
+            $updatedCount++;
+        }
+
+        return response()->json([
+            'success'       => true,
+            'message'       => "Berhasil memperbarui hak akses untuk {$updatedCount} akun.",
+            'updated_count' => $updatedCount,
+            'updated_users' => $updatedUsersList,
+        ]);
+    }
+
+    /**
      * Soft delete (archive) a user.
      */
     public function destroy(Request $request, $id)

@@ -3,7 +3,8 @@ import { Head, Link } from '@inertiajs/react';
 import { 
     Users as UsersIcon, Plus, Search, Shield, ShieldCheck, ShieldAlert, 
     KeyRound, Building2, Phone, CheckCircle2, AlertCircle, Edit, Trash2, 
-    RefreshCw, RotateCcw, Activity, Eye, Filter, Lock, ArrowLeft
+    RefreshCw, RotateCcw, Activity, Eye, Filter, Lock, ArrowLeft,
+    Check, CheckSquare, Square, MinusSquare
 } from 'lucide-react';
 
 import { IssuesProvider } from '@/context/IssuesContext';
@@ -13,6 +14,7 @@ import { MobileBottomNav } from '@/Components/CampusFix/MobileBottomNav';
 import { useAuth } from '@/hooks/useAuth';
 import { UserModal } from '@/Components/Users/UserModal';
 import { AuditLogDrawer } from '@/Components/Users/AuditLogDrawer';
+import { BatchPermissionsModal } from '@/Components/Users/BatchPermissionsModal';
 import { DEPARTMENTS, getDepartmentTheme } from '@/constants/departments';
 import SubdivisionTag from '@/Components/CampusFix/SubdivisionTag';
 
@@ -36,6 +38,11 @@ function UsersInner({ initialUsers, initialStats }) {
     const [statusFilter, setStatusFilter] = useState('active'); // 'active' | 'archived' | 'all'
     const [loading, setLoading] = useState(false);
 
+    // Multi-Select & Batch Permission State
+    const [selectedUserIds, setSelectedUserIds] = useState([]);
+    const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
+    const [batchQuickProcessing, setBatchQuickProcessing] = useState(false);
+
     // Modals
     const [isUserModalOpen, setIsUserModalOpen] = useState(false);
     const [selectedUser, setSelectedUser] = useState(null);
@@ -47,6 +54,77 @@ function UsersInner({ initialUsers, initialStats }) {
     const showToast = (msg, isError = false) => {
         setToastMessage({ text: msg, isError });
         setTimeout(() => setToastMessage(null), 4000);
+    };
+
+    // Selection helpers
+    const selectableUsers = users.filter(u => !u.is_archived);
+    const isAllSelected = selectableUsers.length > 0 && selectableUsers.every(u => selectedUserIds.includes(u.id));
+    const isSomeSelected = selectedUserIds.length > 0 && !isAllSelected;
+
+    const handleSelectAll = () => {
+        if (isAllSelected) {
+            setSelectedUserIds([]);
+        } else {
+            setSelectedUserIds(selectableUsers.map(u => u.id));
+        }
+    };
+
+    const handleSelectUser = (id) => {
+        setSelectedUserIds(prev => 
+            prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+        );
+    };
+
+    const handleDeselectAll = () => {
+        setSelectedUserIds([]);
+    };
+
+    const handleBatchSuccess = (updatedUsersList) => {
+        if (updatedUsersList && updatedUsersList.length > 0) {
+            setUsers(prev => {
+                const updatedMap = new Map(updatedUsersList.map(u => [u.id, u]));
+                return prev.map(u => updatedMap.get(u.id) || u);
+            });
+        } else {
+            fetchUsers();
+        }
+        setSelectedUserIds([]);
+    };
+
+    const handleQuickToggleViewAllDepts = async (enabled) => {
+        if (selectedUserIds.length === 0) return;
+        setBatchQuickProcessing(true);
+        try {
+            const res = await fetch('/api/users/batch-permissions', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                },
+                body: JSON.stringify({
+                    user_ids: selectedUserIds,
+                    permissions: {
+                        can_view_all_departments: enabled,
+                    },
+                }),
+            });
+            const data = await res.json();
+            if (data.success) {
+                showToast(
+                    enabled 
+                        ? `Akses semua departemen dinyalakan untuk ${data.updated_count} akun.` 
+                        : `Akses dibatasi ke departemen sendiri untuk ${data.updated_count} akun.`
+                );
+                handleBatchSuccess(data.updated_users || []);
+            } else {
+                showToast(data.message || 'Gagal mengubah izin.', true);
+            }
+        } catch (e) {
+            showToast('Terjadi kesalahan jaringan.', true);
+        } finally {
+            setBatchQuickProcessing(false);
+        }
     };
 
     const fetchUsers = async () => {
@@ -369,12 +447,85 @@ function UsersInner({ initialUsers, initialStats }) {
                         </div>
                     )}
 
+                    {/* Batch Action Toolbar */}
+                    {selectedUserIds.length > 0 && (
+                        <div className="rounded-2xl border-2 border-[#C9AA71]/60 bg-gradient-to-r from-[#2A281E] via-[#332E1C] to-[#1C1B0E] p-4 sm:p-5 shadow-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-in fade-in slide-in-from-top-4 duration-300">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-[#C9AA71] text-[#1C1B0E] flex items-center justify-center font-black text-sm shadow-md shrink-0">
+                                    {selectedUserIds.length}
+                                </div>
+                                <div>
+                                    <div className="font-extrabold text-sm sm:text-base text-[#FAFAFA] flex items-center gap-2">
+                                        <span>{selectedUserIds.length} Akun Dipilih</span>
+                                        <button
+                                            type="button"
+                                            onClick={handleDeselectAll}
+                                            className="text-xs text-[#A19F8D] hover:text-[#FAFAFA] underline cursor-pointer"
+                                        >
+                                            Batalkan
+                                        </button>
+                                    </div>
+                                    <p className="text-xs text-[#A19F8D]">
+                                        Ubah izin massal dengan tombol cepat atau buka pengatur izin lengkap.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
+                                {/* Quick Toggle: Batasi ke Departemen Sendiri */}
+                                <button
+                                    type="button"
+                                    onClick={() => handleQuickToggleViewAllDepts(false)}
+                                    disabled={batchQuickProcessing}
+                                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-amber-950/50 hover:bg-amber-900/60 border border-amber-500/40 text-amber-300 hover:text-amber-200 transition-all cursor-pointer shadow-xs disabled:opacity-50"
+                                    title="Matikan 'Bisa Melihat Semua Departemen' untuk akun terpilih"
+                                >
+                                    <Lock className="h-3.5 w-3.5 text-amber-400" />
+                                    <span>Batasi Dept (OFF)</span>
+                                </button>
+
+                                {/* Quick Toggle: Buka Semua Departemen */}
+                                <button
+                                    type="button"
+                                    onClick={() => handleQuickToggleViewAllDepts(true)}
+                                    disabled={batchQuickProcessing}
+                                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-950/50 hover:bg-emerald-900/60 border border-emerald-500/40 text-emerald-300 hover:text-emerald-200 transition-all cursor-pointer shadow-xs disabled:opacity-50"
+                                    title="Nyalakan 'Bisa Melihat Semua Departemen' untuk akun terpilih"
+                                >
+                                    <Check className="h-3.5 w-3.5 text-emerald-400" />
+                                    <span>Buka Semua (ON)</span>
+                                </button>
+
+                                {/* Granular Batch Permissions Modal Button */}
+                                <button
+                                    type="button"
+                                    onClick={() => setIsBatchModalOpen(true)}
+                                    disabled={batchQuickProcessing}
+                                    className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-extrabold bg-[#C9AA71] hover:bg-[#b89960] text-[#1C1B0E] transition-all shadow-md hover:shadow-lg cursor-pointer hover:scale-[1.02] disabled:opacity-50"
+                                >
+                                    <ShieldCheck className="h-4 w-4" />
+                                    <span>Atur Izin Lengkap...</span>
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Users Data Table */}
                     <div className="rounded-2xl border border-[#3B3929] bg-[#2A281E]/90 shadow-2xl overflow-hidden">
                         <div className="overflow-x-auto">
                             <table className="w-full text-left border-collapse text-xs">
                                 <thead>
                                     <tr className="border-b border-[#3B3929] bg-[#1C1B0E]/80 text-[#A19F8D] uppercase tracking-wider font-bold">
+                                        <th className="w-12 py-3.5 px-3 text-center">
+                                            <input 
+                                                type="checkbox"
+                                                checked={isAllSelected}
+                                                ref={el => { if (el) el.indeterminate = isSomeSelected; }}
+                                                onChange={handleSelectAll}
+                                                className="w-4 h-4 rounded border-[#3B3929] bg-[#1C1B0E] text-[#C9AA71] accent-[#C9AA71] focus:ring-[#C9AA71] focus:ring-offset-0 cursor-pointer"
+                                                title={isAllSelected ? "Batalkan semua pilihan" : "Pilih semua akun"}
+                                            />
+                                        </th>
                                         <th className="py-3.5 px-4">Pengguna / Nama Staf</th>
                                         <th className="py-3.5 px-4">Peran (Role)</th>
                                         <th className="py-3.5 px-4">Departemen / Unit</th>
@@ -386,14 +537,14 @@ function UsersInner({ initialUsers, initialStats }) {
                                 <tbody className="divide-y divide-[#3B3929]/50">
                                     {loading && users.length === 0 ? (
                                         <tr>
-                                            <td colSpan={6} className="py-16 text-center text-[#A19F8D]">
+                                            <td colSpan={7} className="py-16 text-center text-[#A19F8D]">
                                                 <RefreshCw className="h-6 w-6 animate-spin text-[#C9AA71] mx-auto mb-2" />
                                                 <span>Memuat daftar akun...</span>
                                             </td>
                                         </tr>
                                     ) : users.length === 0 ? (
                                         <tr>
-                                            <td colSpan={6} className="py-16 text-center text-[#A19F8D] space-y-2">
+                                            <td colSpan={7} className="py-16 text-center text-[#A19F8D] space-y-2">
                                                 <UsersIcon className="h-8 w-8 mx-auto text-[#3B3929]" />
                                                 <div>Tidak ada akun yang sesuai dengan filter.</div>
                                             </td>
@@ -402,14 +553,25 @@ function UsersInner({ initialUsers, initialStats }) {
                                         users.map(u => {
                                             const deptTheme = u.department ? getDepartmentTheme(u.department) : { bg: '#C9AA71', text: '#1C1B0E' };
                                             const isMe = u.id === currentUser?.id;
+                                            const isSelected = selectedUserIds.includes(u.id);
 
                                             return (
                                                 <tr 
                                                     key={u.id} 
                                                     className={`hover:bg-[#1C1B0E]/40 transition-colors ${
-                                                        u.is_archived ? 'opacity-60 bg-red-950/10' : ''
-                                                    }`}
+                                                        isSelected ? 'bg-[#C9AA71]/15' : ''
+                                                    } ${u.is_archived ? 'opacity-60 bg-red-950/10' : ''}`}
                                                 >
+                                                    {/* Select Row Checkbox */}
+                                                    <td className="w-12 py-3 px-3 text-center" onClick={e => e.stopPropagation()}>
+                                                        <input 
+                                                            type="checkbox"
+                                                            checked={isSelected}
+                                                            onChange={() => handleSelectUser(u.id)}
+                                                            disabled={u.is_archived}
+                                                            className="w-4 h-4 rounded border-[#3B3929] bg-[#1C1B0E] text-[#C9AA71] accent-[#C9AA71] focus:ring-[#C9AA71] focus:ring-offset-0 cursor-pointer disabled:opacity-30"
+                                                        />
+                                                    </td>
                                                     {/* User & Staff Name */}
                                                     <td className="py-3 px-4">
                                                         <div className="flex items-center gap-3">
@@ -601,6 +763,15 @@ function UsersInner({ initialUsers, initialStats }) {
                     showToast(selectedUser ? 'Akun berhasil diperbarui' : 'Akun baru berhasil dibuat');
                     fetchUsers();
                 }}
+            />
+
+            {/* Batch Permissions Modal */}
+            <BatchPermissionsModal
+                isOpen={isBatchModalOpen}
+                onClose={() => setIsBatchModalOpen(false)}
+                selectedUsers={users.filter(u => selectedUserIds.includes(u.id))}
+                onBatchSuccess={handleBatchSuccess}
+                showToast={showToast}
             />
 
             {/* Security Audit Trail Drawer */}
