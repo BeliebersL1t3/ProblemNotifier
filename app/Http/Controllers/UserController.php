@@ -219,6 +219,9 @@ class UserController extends Controller
         $cleanPhone = !empty($validated['whatsapp_number']) 
             ? preg_replace('/[^0-9]/', '', $validated['whatsapp_number']) 
             : null;
+        if (!empty($cleanPhone) && str_starts_with($cleanPhone, '0')) {
+            $cleanPhone = '62' . substr($cleanPhone, 1);
+        }
 
         $user = User::create([
             'name'            => $validated['name'],
@@ -232,6 +235,12 @@ class UserController extends Controller
             'whatsapp_number' => $cleanPhone,
             'permissions'     => $permissions,
         ]);
+
+        if (!empty($cleanPhone)) {
+            try {
+                \Illuminate\Support\Facades\Http::timeout(1)->post('http://127.0.0.1:3000/sync-staff');
+            } catch (\Throwable $e) {}
+        }
 
         // Audit log
         UserAuditLog::record(
@@ -291,6 +300,9 @@ class UserController extends Controller
         $cleanPhone = !empty($validated['whatsapp_number']) 
             ? preg_replace('/[^0-9]/', '', $validated['whatsapp_number']) 
             : null;
+        if (!empty($cleanPhone) && str_starts_with($cleanPhone, '0')) {
+            $cleanPhone = '62' . substr($cleanPhone, 1);
+        }
 
         $user->name = trim($validated['name']);
         $user->staff_name = !empty($validated['staff_name']) ? trim($validated['staff_name']) : trim($validated['name']);
@@ -316,6 +328,11 @@ class UserController extends Controller
         }
 
         $user->save();
+
+        // Notify WhatsApp bot to sync staff memory in real-time
+        try {
+            \Illuminate\Support\Facades\Http::timeout(1)->post('http://127.0.0.1:3000/sync-staff');
+        } catch (\Throwable $e) {}
 
         $after = [
             'name'            => $user->name,

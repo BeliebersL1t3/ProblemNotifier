@@ -50,6 +50,15 @@ function saveStaffPhones() {
 
 loadStaffPhones();
 
+function normalizePhoneNumber(phone) {
+    if (!phone) return '';
+    let clean = String(phone).replace(/[^0-9]/g, '');
+    if (clean.startsWith('0')) {
+        clean = '62' + clean.substring(1);
+    }
+    return clean;
+}
+
 async function syncStaffDirectory() {
     try {
         const res = await axios.get(`${BASE_URL}/api/staff-directory`, { timeout: 4000 });
@@ -61,9 +70,15 @@ async function syncStaffDirectory() {
             currentDbUsers.forEach(user => {
                 if (user.whatsapp_number) {
                     const cleanPhone = String(user.whatsapp_number).replace(/[^0-9]/g, '');
+                    const normPhone = normalizePhoneNumber(cleanPhone);
+                    const localPhone = normPhone.startsWith('62') ? ('0' + normPhone.substring(2)) : cleanPhone;
                     if (cleanPhone) {
                         currentDbPhones.add(cleanPhone);
+                        currentDbPhones.add(normPhone);
+                        currentDbPhones.add(localPhone);
                         currentDbMap.set(cleanPhone, user);
+                        currentDbMap.set(normPhone, user);
+                        currentDbMap.set(localPhone, user);
                     }
                 }
             });
@@ -81,26 +96,30 @@ async function syncStaffDirectory() {
             currentDbUsers.forEach(user => {
                 if (user.whatsapp_number) {
                     const cleanPhone = String(user.whatsapp_number).replace(/[^0-9]/g, '');
-                    if (cleanPhone) {
-                        newStaffPhones[cleanPhone] = {
-                            name: user.staff_name || user.name,
-                            staff_name: user.staff_name || user.name,
-                            department: user.department || '',
-                            subdivision: user.subdivision || '',
-                            role: user.role || 'department',
-                            id: user.id,
-                            source: 'dashboard_profile',
-                            realPhone: cleanPhone,
-                            syncedAt: new Date().toISOString(),
-                        };
-                    }
+                    const normPhone = normalizePhoneNumber(cleanPhone);
+                    const localPhone = normPhone.startsWith('62') ? ('0' + normPhone.substring(2)) : cleanPhone;
+                    const staffData = {
+                        name: user.staff_name || user.name,
+                        staff_name: user.staff_name || user.name,
+                        department: user.department || '',
+                        subdivision: user.subdivision || '',
+                        role: user.role || 'department',
+                        id: user.id,
+                        source: 'dashboard_profile',
+                        realPhone: normPhone,
+                        syncedAt: new Date().toISOString(),
+                    };
+                    newStaffPhones[cleanPhone] = staffData;
+                    newStaffPhones[normPhone] = staffData;
+                    newStaffPhones[localPhone] = staffData;
                 }
             });
 
             // 3. Attach known device LIDs ONLY if their mapped phone is in currentDbPhones!
             for (const [lid, phone] of Object.entries(deviceMappings)) {
-                if (currentDbPhones.has(phone)) {
-                    const user = currentDbMap.get(phone);
+                const normMapped = normalizePhoneNumber(phone);
+                if (currentDbPhones.has(phone) || currentDbPhones.has(normMapped)) {
+                    const user = currentDbMap.get(phone) || currentDbMap.get(normMapped);
                     if (user) {
                         newStaffPhones[lid] = {
                             name: user.staff_name || user.name,
@@ -110,7 +129,7 @@ async function syncStaffDirectory() {
                             role: user.role || 'department',
                             id: user.id,
                             source: 'whatsapp_lid',
-                            realPhone: phone,
+                            realPhone: normMapped,
                             syncedAt: new Date().toISOString(),
                         };
                     }
@@ -119,8 +138,8 @@ async function syncStaffDirectory() {
 
             staffPhones = newStaffPhones;
             saveStaffPhones();
-            console.log(`Synced ${currentDbPhones.size} staff WhatsApp numbers from Laravel Dashboard.`);
-            return { success: true, count: currentDbPhones.size };
+            console.log(`Synced ${currentDbUsers.length} staff WhatsApp numbers from Laravel Dashboard.`);
+            return { success: true, count: currentDbUsers.length };
         }
     } catch (e) {
         console.log(`Staff directory sync note: ${e.message}`);
@@ -169,7 +188,21 @@ function getRegisteredPhoneByStaffName(targetName, groupDeptKey = '') {
 function getStaffByPhone(phone) {
     if (!phone) return null;
     const cleanPhone = String(phone).replace(/[^0-9]/g, '');
-    return staffPhones[cleanPhone] || null;
+    if (staffPhones[cleanPhone]) return staffPhones[cleanPhone];
+
+    const norm = normalizePhoneNumber(cleanPhone);
+    if (staffPhones[norm]) return staffPhones[norm];
+
+    const local = norm.startsWith('62') ? ('0' + norm.substring(2)) : norm;
+    if (staffPhones[local]) return staffPhones[local];
+
+    if (deviceMappings[cleanPhone]) {
+        const mapped = deviceMappings[cleanPhone];
+        const mappedNorm = normalizePhoneNumber(mapped);
+        return staffPhones[mapped] || staffPhones[mappedNorm] || null;
+    }
+
+    return null;
 }
 
 // Persistent Device LID <-> Phone Mapping
@@ -648,10 +681,17 @@ async function startSock() {
                     await reply(profileMsg);
                 } else {
                     let unregMsg = `📱 *PROFIL WHATSAPP TELUNAS* 📱\n\n`;
-                    unregMsg += `• *Nomor/ID WA:* +${rawSenderPhone}\n`;
+                    const mappedReal = deviceMappings[rawSenderPhone] || deviceMappings[senderPhone];
+                    if (mappedReal) {
+                        unregMsg += `• *Nomor WhatsApp:* +${mappedReal}\n`;
+                    } else if (rawSenderPhone.length <= 13) {
+                        unregMsg += `• *Nomor WhatsApp:* +${rawSenderPhone}\n`;
+                    } else {
+                        unregMsg += `• *Nomor/ID WA:* +${rawSenderPhone} _(WhatsApp Privacy Device ID)_\n`;
+                    }
                     unregMsg += `• *Status:* ⚠️ Belum Terdaftar\n\n`;
                     unregMsg += `Untuk mendaftarkan nomor ini:\n`;
-                    unregMsg += `1. Buka menu *Profile* di Web Dashboard dan masukkan nomor WA Anda, ATAU\n`;
+                    unregMsg += `1. Buka menu *Profile* di Web Dashboard dan masukkan nomor WA Anda (format 08... atau 628...), ATAU\n`;
                     unregMsg += `2. Cukup *reply notifikasi masalah* di grup WhatsApp departemen Anda dengan mengetik *!claim*, lalu pilih nama Anda satu kali. Bot akan otomatis mengingat nomor Anda untuk seterusnya!`;
                     await reply(unregMsg);
                 }
@@ -2356,12 +2396,12 @@ Example: *2* or your full name.`;
 }
 
 // --- EXPRESS SERVER FOR NOTIFICATIONS & REAL-TIME SYNC ---
-app.post('/sync-staff', async (req, res) => {
+app.post(['/sync-staff', '/api/sync-staff'], async (req, res) => {
     const result = await syncStaffDirectory();
     res.json(result);
 });
 
-app.get('/sync-staff', async (req, res) => {
+app.get(['/sync-staff', '/api/sync-staff'], async (req, res) => {
     const result = await syncStaffDirectory();
     res.json(result);
 });
