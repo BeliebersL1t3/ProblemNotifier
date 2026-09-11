@@ -325,12 +325,12 @@ class IssueApiTest extends TestCase
         $googleMock->shouldReceive('getRows')->andReturn([
             array_pad(['ENG-001', 'Old Title', 'Old Desc', 'Villa 1', 'plumbing', 'open'], 26, '')
         ]);
-        $googleMock->shouldReceive('appendRow')->once()->with(Mockery::on(function ($newRow) {
+        $googleMock->shouldReceive('insertRowAfter')->once()->with(2, Mockery::on(function ($newRow) {
             return $newRow[0] === 'ENG-001' 
                 && $newRow[1] === 'New Title' 
                 && !empty($newRow[24]) // Edit History has note
                 && $newRow[25] === '1';
-        }))->andReturn(3);
+        }), Mockery::any())->andReturn(3);
         $googleMock->shouldReceive('colorRowByCategory')->once()->andReturn(true);
 
         $this->app->instance(GoogleService::class, $googleMock);

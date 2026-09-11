@@ -401,14 +401,31 @@ export function IssuesProvider({ children }) {
     const updateIssue = useCallback(async (issue, input) => {
         const target = issue.id || issue.rowIndex;
         const formData = new FormData();
-        formData.append('title', input.title);
-        formData.append('description', input.description);
-        formData.append('location', input.location);
-        formData.append('category', input.category);
-        if (input.priority) formData.append('priority', input.priority);
-        if (input.deadline) formData.append('deadline', input.deadline);
-        if (input.assignedDepartments !== undefined) formData.append('assignedDepartments', input.assignedDepartments);
-        if (input.taggedDepartments !== undefined) formData.append('taggedDepartments', input.taggedDepartments);
+
+        const safeTitle = (input.title !== undefined && input.title !== 'undefined') ? input.title : (issue?.title || '');
+        const safeDesc = (input.description !== undefined && input.description !== 'undefined') ? input.description : (issue?.description || '');
+        const safeLoc = (input.location !== undefined && input.location !== 'undefined') ? input.location : (issue?.location || '');
+        const safeCat = (input.category !== undefined && input.category !== 'undefined') ? input.category : (issue?.category || 'broken');
+        const safePriority = (input.priority !== undefined && input.priority !== 'undefined') ? input.priority : (issue?.priority || 'low');
+        const safeDeadline = (input.deadline !== undefined && input.deadline !== 'undefined') ? input.deadline : (issue?.deadline || '');
+
+        let safeAssigned = input.assignedDepartments;
+        if (safeAssigned === undefined || safeAssigned === 'undefined') {
+            safeAssigned = Array.isArray(issue?.assignedDepartments) ? issue.assignedDepartments.join(',') : (issue?.assignedDepartments || '');
+        }
+        let safeTagged = input.taggedDepartments;
+        if (safeTagged === undefined || safeTagged === 'undefined') {
+            safeTagged = Array.isArray(issue?.taggedDepartments) ? issue.taggedDepartments.join(',') : (issue?.taggedDepartments || '');
+        }
+
+        formData.append('title', safeTitle);
+        formData.append('description', safeDesc);
+        formData.append('location', safeLoc);
+        formData.append('category', safeCat);
+        if (safePriority) formData.append('priority', safePriority);
+        if (safeDeadline) formData.append('deadline', safeDeadline);
+        if (safeAssigned !== undefined) formData.append('assignedDepartments', safeAssigned);
+        if (safeTagged !== undefined) formData.append('taggedDepartments', safeTagged);
         if (input.imageFile) {
             formData.append('image', input.imageFile);
         }

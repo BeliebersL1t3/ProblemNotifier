@@ -458,15 +458,33 @@ class IssueController extends Controller
                         ];
                     }
 
+                    // Robust fallback for corrupted fields (e.g. literal 'undefined')
+                    $safeTitle = (!empty($latestRow[1]) && $latestRow[1] !== 'undefined') ? $latestRow[1] : '';
+                    $safeDesc  = (!empty($latestRow[2]) && $latestRow[2] !== 'undefined') ? $latestRow[2] : '';
+                    $safeLoc   = (!empty($latestRow[3]) && $latestRow[3] !== 'undefined') ? $latestRow[3] : '';
+                    $safeCat   = (!empty($latestRow[4]) && $latestRow[4] !== 'undefined') ? $latestRow[4] : '';
+                    $safeDept  = (!empty($latestRow[22]) && $latestRow[22] !== 'undefined') ? $latestRow[22] : '';
+
+                    if (empty($safeTitle) || empty($safeDesc) || empty($safeLoc) || empty($safeCat) || empty($safeDept)) {
+                        foreach (array_reverse($versions) as $v) {
+                            $vr = $v['row'];
+                            if (empty($safeTitle) && !empty($vr[1]) && $vr[1] !== 'undefined') $safeTitle = $vr[1];
+                            if (empty($safeDesc) && !empty($vr[2]) && $vr[2] !== 'undefined') $safeDesc = $vr[2];
+                            if (empty($safeLoc) && !empty($vr[3]) && $vr[3] !== 'undefined') $safeLoc = $vr[3];
+                            if (empty($safeCat) && !empty($vr[4]) && $vr[4] !== 'undefined') $safeCat = $vr[4];
+                            if (empty($safeDept) && !empty($vr[22]) && $vr[22] !== 'undefined') $safeDept = $vr[22];
+                        }
+                    }
+
                     $issues[] = [
                         'id'             => $latestRow[0],
                         'rowIndex'       => $latestRowIndex,
                         'sheet'          => $currentSheet,
-                        'title'          => $latestRow[1] ?? '',
-                        'description'    => $latestRow[2] ?? '',
-                        'location'       => $latestRow[3] ?? '',
-                        'category'       => $latestRow[4] ?? '',
-                        'department'     => $latestRow[22] ?? '', // Origin department
+                        'title'          => $safeTitle,
+                        'description'    => $safeDesc,
+                        'location'       => $safeLoc,
+                        'category'       => $safeCat,
+                        'department'     => $safeDept, // Origin department
                         'assignedDepartments' => !empty($latestRow[23]) 
                             ? array_map('trim', explode(',', $latestRow[23])) 
                             : (!empty($latestRow[21]) ? array_map('trim', explode(',', $latestRow[21])) : []),
@@ -1149,9 +1167,10 @@ class IssueController extends Controller
             $newRow[24] = $note;
             $newRow[25] = '1';
 
-            $newRowIndex = $this->googleService->appendRow($newRow);
+            $targetSheet = $issueData['foundLocation']['sheet'] ?? null;
+            $newRowIndex = $this->googleService->insertRowAfter($issueData['rowIndex'], $newRow, $targetSheet);
             if ($newRowIndex) {
-                $this->googleService->colorRowByCategory($newRowIndex, $request->category);
+                $this->googleService->colorRowByCategory($newRowIndex, $request->category, $targetSheet);
             }
 
             return response()->json(['success' => true]);
@@ -1176,16 +1195,20 @@ class IssueController extends Controller
 
         try {
             $request->validate([
-                'title'               => 'required|string|max:255',
-                'description'         => 'required|string',
-                'location'            => 'required|string|max:255',
-                'category'            => 'required|string',
+                'title'               => 'nullable|string|max:255',
+                'description'         => 'nullable|string',
+                'location'            => 'nullable|string|max:255',
+                'category'            => 'nullable|string',
                 'priority'            => 'nullable|string',
                 'deadline'            => 'nullable|string',
                 'assignedDepartments' => 'nullable|string',
                 'taggedDepartments'   => 'nullable|string',
                 'image'               => 'nullable|file|image|mimes:jpg,jpeg,png,webp|max:5120',
                 // State-specific fields
+                'status'              => 'nullable|string',
+                'statusReason'        => 'nullable|string',
+                'removePending'       => 'nullable',
+                'deletePendingIndex'  => 'nullable',
                 'taker'               => 'nullable|string|max:255',
                 'pendingBy'           => 'nullable|string|max:255',
                 'pendingReason'       => 'nullable|string',
@@ -1241,85 +1264,113 @@ class IssueController extends Controller
             $updateCols = [];
 
             // ================= 1. INITIAL REPORT FIELDS (Origin or Admin) =================
+            $newTitle    = $currentRow[1] ?? '';
+            $newDesc     = $currentRow[2] ?? '';
+            $newLoc      = $currentRow[3] ?? '';
+            $newCat      = $currentRow[4] ?? 'broken';
+            $newPriority = $currentRow[16] ?? 'low';
+            $newDeadline = $currentRow[17] ?? '';
+            $newAssigned = $currentRow[23] ?? '';
+            $newTagged   = $currentRow[21] ?? '';
+
             if ($canEditReport) {
-                $oldTitle = $currentRow[1] ?? '';
-                $newTitle = trim($request->title);
-                if ($oldTitle !== $newTitle) {
-                    $changes[] = "Title: \"{$newTitle}\"";
+                if ($request->has('title')) {
+                    $rawTitle = trim($request->input('title', ''));
+                    if ($rawTitle !== '' && $rawTitle !== 'undefined' && $rawTitle !== ($currentRow[1] ?? '')) {
+                        $newTitle = $rawTitle;
+                        $changes[] = "Title: \"{$newTitle}\"";
+                        $updateCols['B'] = $newTitle;
+                    }
                 }
 
-                $oldDesc = $currentRow[2] ?? '';
-                $newDesc = self::formatParagraphText($request->description);
-                if ($oldDesc !== $newDesc) {
-                    $changes[] = "Description updated";
+                if ($request->has('description')) {
+                    $rawDesc = trim($request->input('description', ''));
+                    if ($rawDesc !== '' && $rawDesc !== 'undefined') {
+                        $formattedDesc = self::formatParagraphText($rawDesc);
+                        if ($formattedDesc !== ($currentRow[2] ?? '')) {
+                            $newDesc = $formattedDesc;
+                            $changes[] = "Description updated";
+                            $updateCols['C'] = $newDesc;
+                        }
+                    }
                 }
 
-                $oldLoc = $currentRow[3] ?? '';
-                $newLoc = trim($request->location);
-                if ($oldLoc !== $newLoc) {
-                    $changes[] = "Location: \"{$newLoc}\"";
+                if ($request->has('location')) {
+                    $rawLoc = trim($request->input('location', ''));
+                    if ($rawLoc !== '' && $rawLoc !== 'undefined' && $rawLoc !== ($currentRow[3] ?? '')) {
+                        $newLoc = $rawLoc;
+                        $changes[] = "Location: \"{$newLoc}\"";
+                        $updateCols['D'] = $newLoc;
+                    }
                 }
 
-                $oldCat = $currentRow[4] ?? '';
-                $newCat = trim($request->category);
-                if ($oldCat !== $newCat) {
-                    $changes[] = "Category: {$oldCat} → {$newCat}";
+                if ($request->has('category')) {
+                    $rawCat = trim($request->input('category', ''));
+                    if ($rawCat !== '' && $rawCat !== 'undefined' && $rawCat !== ($currentRow[4] ?? '')) {
+                        $newCat = $rawCat;
+                        $changes[] = "Category: " . ($currentRow[4] ?? '') . " → {$newCat}";
+                        $updateCols['E'] = $newCat;
+                    }
                 }
 
-                $oldPriority = $currentRow[16] ?? 'low';
-                $newPriority = trim($request->input('priority', 'low'));
-                if ($oldPriority !== $newPriority) {
-                    $changes[] = "Priority: {$oldPriority} → {$newPriority}";
+                if ($request->has('priority')) {
+                    $rawPriority = trim($request->input('priority', ''));
+                    if ($rawPriority !== '' && $rawPriority !== 'undefined' && $rawPriority !== ($currentRow[16] ?? 'low')) {
+                        $newPriority = $rawPriority;
+                        $changes[] = "Priority: " . ($currentRow[16] ?? 'low') . " → {$newPriority}";
+                        $updateCols['Q'] = $newPriority;
+                    }
                 }
 
-                $newDeadline = $request->input('deadline', '');
-                if (($currentRow[17] ?? '') !== $newDeadline) {
-                    $changes[] = "Deadline updated";
+                if ($request->has('deadline')) {
+                    $rawDeadline = trim($request->input('deadline', ''));
+                    if ($rawDeadline !== 'undefined' && $rawDeadline !== ($currentRow[17] ?? '')) {
+                        $newDeadline = $rawDeadline;
+                        $changes[] = "Deadline updated";
+                        $updateCols['R'] = $newDeadline;
+                    }
                 }
 
-                $rawAssigned = $request->input('assignedDepartments', '');
-                $rawTagged   = $request->input('taggedDepartments', '');
+                if ($request->has('assignedDepartments') || $request->has('taggedDepartments')) {
+                    $rawAssigned = $request->input('assignedDepartments', '');
+                    $rawTagged   = $request->input('taggedDepartments', '');
 
-                $assignedListParsed = !empty($rawAssigned) ? array_filter(array_map('trim', explode(',', $rawAssigned))) : [];
-                $taggedListParsed   = !empty($rawTagged) ? array_filter(array_map('trim', explode(',', $rawTagged))) : [];
+                    if ($rawAssigned !== 'undefined' && $rawTagged !== 'undefined') {
+                        $assignedListParsed = !empty($rawAssigned) ? array_filter(array_map('trim', explode(',', $rawAssigned))) : [];
+                        $taggedListParsed   = !empty($rawTagged) ? array_filter(array_map('trim', explode(',', $rawTagged))) : [];
 
-                // Origin department cannot assign or tag itself
-                if (!empty($originDept)) {
-                    $assignedListParsed = array_values(array_filter($assignedListParsed, fn($d) => strtolower($d) !== strtolower($originDept)));
-                    $taggedListParsed   = array_values(array_filter($taggedListParsed, fn($d) => strtolower($d) !== strtolower($originDept)));
-                }
+                        // Origin department cannot assign or tag itself
+                        if (!empty($originDept)) {
+                            $assignedListParsed = array_values(array_filter($assignedListParsed, fn($d) => strtolower($d) !== strtolower($originDept)));
+                            $taggedListParsed   = array_values(array_filter($taggedListParsed, fn($d) => strtolower($d) !== strtolower($originDept)));
+                        }
 
-                // Mutually exclusive: remove any tagged department that is already assigned
-                $taggedListParsed = array_values(array_filter($taggedListParsed, function($d) use ($assignedListParsed) {
-                    return !in_array(strtolower($d), array_map('strtolower', $assignedListParsed));
-                }));
+                        // Mutually exclusive: remove any tagged department that is already assigned
+                        $taggedListParsed = array_values(array_filter($taggedListParsed, function($d) use ($assignedListParsed) {
+                            return !in_array(strtolower($d), array_map('strtolower', $assignedListParsed));
+                        }));
 
-                $newAssigned = implode(', ', $assignedListParsed);
-                $newTagged   = implode(', ', $taggedListParsed);
+                        $newAssigned = implode(', ', $assignedListParsed);
+                        $newTagged   = implode(', ', $taggedListParsed);
 
-                if (($currentRow[23] ?? '') !== $newAssigned) {
-                    $changes[] = "Assigned: {$newAssigned}";
-                }
+                        if (($currentRow[23] ?? '') !== $newAssigned) {
+                            $changes[] = "Assigned: {$newAssigned}";
+                            $updateCols['X'] = $newAssigned;
+                        }
 
-                if (($currentRow[21] ?? '') !== $newTagged) {
-                    $changes[] = "Tagged: {$newTagged}";
+                        if (($currentRow[21] ?? '') !== $newTagged) {
+                            $changes[] = "Tagged: {$newTagged}";
+                            $updateCols['V'] = $newTagged;
+                        }
+                    }
                 }
 
                 $imageUrl = $currentRow[8] ?? '';
                 if ($request->hasFile('image')) {
                     $imageUrl = $this->googleService->uploadImage($request->file('image'), "{$currentRow[0]}-updated-" . time());
                     $changes[] = "Photo updated";
+                    $updateCols['I'] = $imageUrl;
                 }
-
-                $updateCols['B'] = $newTitle;
-                $updateCols['C'] = $newDesc;
-                $updateCols['D'] = $newLoc;
-                $updateCols['E'] = $newCat;
-                $updateCols['I'] = $imageUrl;
-                $updateCols['Q'] = $newPriority;
-                $updateCols['R'] = $newDeadline;
-                $updateCols['V'] = $newTagged;
-                $updateCols['X'] = $newAssigned;
             }
 
             // ================= 2. CLAIM FIELDS (Claiming/Assigned Dept or Admin) =================
@@ -1586,9 +1637,10 @@ class IssueController extends Controller
             $newRow[24] = "[{$nowFormatted}] {$editorName}: {$changeSummary}";
             $newRow[25] = '1';
 
-            $newRowIndex = $this->googleService->appendRow($newRow);
+            $targetSheet = $issueData['foundLocation']['sheet'] ?? null;
+            $newRowIndex = $this->googleService->insertRowAfter($issueData['rowIndex'], $newRow, $targetSheet);
             if ($newRowIndex) {
-                $this->googleService->colorRowByCategory($newRowIndex, $newRow[4] ?? 'other');
+                $this->googleService->colorRowByCategory($newRowIndex, $newRow[4] ?? 'other', $targetSheet);
             }
 
             // Dispatch WhatsApp notification

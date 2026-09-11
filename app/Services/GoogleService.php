@@ -588,14 +588,64 @@ class GoogleService
         }
     }
 
-    /** Colors a specific row with a consistent pastel color based on the category string */
-    public function colorRowByCategory(int $rowIndex, string $category): void
+    /**
+     * Insert a new row directly after a specific row index (1-based), shifting subsequent rows down.
+     * Keeps versioned edits adjacent to each other.
+     */
+    public function insertRowAfter(int $afterRowIndex, array $values, ?string $sheetName = null): ?int
     {
+        $targetSheet = $sheetName ?: $this->sheetName;
+        $this->clearCache();
+
+        $spreadsheet = $this->sheets->spreadsheets->get($this->spreadsheetId);
+        $sheetId = 0;
+        foreach ($spreadsheet->getSheets() as $sheet) {
+            if ($sheet->getProperties()->getTitle() === $targetSheet) {
+                $sheetId = $sheet->getProperties()->getSheetId();
+                break;
+            }
+        }
+
+        $insertRowIndex = $afterRowIndex + 1; // 1-based index of the new row
+
+        // 1. Insert blank row at 0-based index $afterRowIndex (which pushes row $insertRowIndex and below down)
+        $requests = [
+            new \Google\Service\Sheets\Request([
+                'insertDimension' => [
+                    'range' => [
+                        'sheetId'   => $sheetId,
+                        'dimension' => 'ROWS',
+                        'startIndex'=> $afterRowIndex, // 0-based index
+                        'endIndex'  => $afterRowIndex + 1,
+                    ],
+                    'inheritFromBefore' => true,
+                ]
+            ])
+        ];
+        $batchUpdateRequest = new \Google\Service\Sheets\BatchUpdateSpreadsheetRequest(['requests' => $requests]);
+        $this->sheets->spreadsheets->batchUpdate($this->spreadsheetId, $batchUpdateRequest);
+
+        // 2. Populate the inserted row with values
+        $body = new ValueRange(['values' => [array_pad($values, 26, '')]]);
+        $this->sheets->spreadsheets_values->update(
+            $this->spreadsheetId,
+            "{$targetSheet}!A{$insertRowIndex}:Z{$insertRowIndex}",
+            $body,
+            ['valueInputOption' => 'RAW']
+        );
+
+        return $insertRowIndex;
+    }
+
+    /** Colors a specific row with a consistent pastel color based on the category string */
+    public function colorRowByCategory(int $rowIndex, string $category, ?string $sheetName = null): void
+    {
+        $targetSheet = $sheetName ?: $this->sheetName;
         // Get Sheet ID
         $spreadsheet = $this->sheets->spreadsheets->get($this->spreadsheetId);
         $sheetId = 0;
         foreach ($spreadsheet->getSheets() as $sheet) {
-            if ($sheet->getProperties()->getTitle() === $this->sheetName) {
+            if ($sheet->getProperties()->getTitle() === $targetSheet) {
                 $sheetId = $sheet->getProperties()->getSheetId();
                 break;
             }

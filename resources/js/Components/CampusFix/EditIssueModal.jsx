@@ -291,7 +291,7 @@ export function EditIssueModal({ issue, open, onOpenChange, onSuccess }) {
                 }
             }
 
-            // Include Initial Report fields ONLY if authorized
+            // Include Initial Report fields
             if (canEditReport) {
                 let finalDeadline = '';
                 if (priority === 'critical') {
@@ -306,6 +306,19 @@ export function EditIssueModal({ issue, open, onOpenChange, onSuccess }) {
                 payload.assignedDepartments = assignedDepts.join(',');
                 payload.taggedDepartments = taggedDepts.join(',');
                 if (newImageFile) payload.imageFile = newImageFile;
+            } else {
+                payload.title = issue?.title || '';
+                payload.description = issue?.description || '';
+                payload.location = issue?.location || '';
+                payload.category = issue?.category || 'broken';
+                payload.priority = issue?.priority || 'low';
+                payload.deadline = issue?.deadline || '';
+                payload.assignedDepartments = Array.isArray(issue?.assignedDepartments) 
+                    ? issue.assignedDepartments.join(',') 
+                    : (issue?.assignedDepartments || '');
+                payload.taggedDepartments = Array.isArray(issue?.taggedDepartments) 
+                    ? issue.taggedDepartments.join(',') 
+                    : (issue?.taggedDepartments || '');
             }
 
             // Include Claim fields ONLY if authorized and in relevant status
