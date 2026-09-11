@@ -464,12 +464,12 @@ export function UserModal({ isOpen, onClose, user = null, onSaved }) {
                                     {
                                         key: 'can_manage_issues',
                                         label: 'Bisa Mengedit & Mengklaim Isu',
-                                        desc: 'Mengizinkan staf untuk klaim (In Progress), pending, dan menyelesaikan isu.',
+                                        desc: 'Mengizinkan staf untuk klaim (In Progress), pending, dan menyelesaikan isu (khusus tugas departemennya sendiri, bukan seperti admin).',
                                     },
                                     {
                                         key: 'can_delete_issues',
                                         label: 'Bisa Menghapus Isu (Delete)',
-                                        desc: 'Mengizinkan penghapusan tiket laporan isu secara permanen.',
+                                        desc: 'Mengizinkan penghapusan tiket laporan isu secara permanen (hanya tiket yang dibuat oleh departemennya sendiri).',
                                     },
                                     {
                                         key: 'can_access_analytics',
@@ -488,8 +488,8 @@ export function UserModal({ isOpen, onClose, user = null, onSaved }) {
                                     },
                                     {
                                         key: 'can_manage_categories',
-                                        label: 'Bisa Kelola Kategori',
-                                        desc: 'Mengizinkan menambah atau mengubah kategori masalah resort.',
+                                        label: 'Bisa Kelola Kategori (Master)',
+                                        desc: 'Izin tingkat lanjut untuk menambah atau mengubah master kategori masalah resort.',
                                     },
                                 ].map(item => {
                                     const isEnabled = Boolean(permissions[item.key]);

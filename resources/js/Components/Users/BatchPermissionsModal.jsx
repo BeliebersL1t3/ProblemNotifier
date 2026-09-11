@@ -14,12 +14,12 @@ const PERMISSION_CONFIGS = [
     {
         key: 'can_manage_issues',
         label: 'Bisa Mengedit & Mengklaim Isu',
-        desc: 'Mengizinkan staf untuk klaim (In Progress), pending, dan menyelesaikan isu.',
+        desc: 'Mengizinkan klaim, pending, dan penyelesaian isu (khusus tugas departemennya sendiri, bukan seperti admin).',
     },
     {
         key: 'can_delete_issues',
         label: 'Bisa Menghapus Isu (Delete)',
-        desc: 'Mengizinkan penghapusan tiket laporan isu secara permanen.',
+        desc: 'Mengizinkan penghapusan tiket laporan isu secara permanen (hanya tiket yang dibuat oleh departemennya sendiri).',
     },
     {
         key: 'can_access_analytics',
@@ -38,8 +38,8 @@ const PERMISSION_CONFIGS = [
     },
     {
         key: 'can_manage_categories',
-        label: 'Kelola Kategori Isu',
-        desc: 'Mengizinkan penambahan, pengeditan, atau penghapusan master kategori.',
+        label: 'Kelola Kategori Isu (Master)',
+        desc: 'Izin tingkat lanjut untuk menambah, mengedit, atau menghapus master kategori resort.',
     },
 ];
 

@@ -292,6 +292,9 @@ class UserController extends Controller
             ? preg_replace('/[^0-9]/', '', $validated['whatsapp_number']) 
             : null;
 
+        $user->name = trim($validated['name']);
+        $user->staff_name = !empty($validated['staff_name']) ? trim($validated['staff_name']) : trim($validated['name']);
+
         $newEmail = trim($validated['email']);
         if (strtolower($user->email) !== strtolower($newEmail)) {
             $user->email = strtolower($newEmail);
