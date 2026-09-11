@@ -82,10 +82,33 @@ export function IssuesProvider({ children }) {
         }
     }, [currentSheet]);
 
+    // Archived issues state (for Admin Archive / Trash view)
+    const [archivedIssues, setArchivedIssues] = useState([]);
+    const [loadingArchived, setLoadingArchived] = useState(false);
+
+    const fetchArchivedIssues = useCallback(async (isSilent = false) => {
+        if (!isSilent) setLoadingArchived(true);
+        try {
+            const params = { archived: true };
+            if (currentSheet && currentSheet !== 'all') {
+                params.sheet = currentSheet;
+            }
+            const res = await axios.get('/api/issues', { params });
+            if (res.data?.success && Array.isArray(res.data.data)) {
+                setArchivedIssues(res.data.data);
+            }
+        } catch (err) {
+            console.error('Failed to fetch archived issues:', err);
+        } finally {
+            if (!isSilent) setLoadingArchived(false);
+        }
+    }, [currentSheet]);
+
     // Re-fetch issues when active sheet changes
     useEffect(() => {
         fetchIssues(false);
-    }, [fetchIssues]);
+        fetchArchivedIssues(true);
+    }, [fetchIssues, fetchArchivedIssues]);
 
     // Live Auto-Sync: Poll every 8 seconds and re-fetch immediately on window focus / tab wake-up
     useEffect(() => {
@@ -93,6 +116,7 @@ export function IssuesProvider({ children }) {
             // If screen locked or tab in background, skip polling to preserve phone battery and network
             if (typeof document !== 'undefined' && document.hidden) return;
             fetchIssues(true);
+            fetchArchivedIssues(true);
         }, 8000);
 
         const handleResume = () => {
@@ -419,12 +443,24 @@ export function IssuesProvider({ children }) {
         const response = await axios.delete(`/api/issues/${target}`);
 
         if (response.data?.success) {
-            await fetchIssues(true);
+            await Promise.all([fetchIssues(true), fetchArchivedIssues(true)]);
             return response.data;
         } else {
             throw new Error(response.data?.message || 'Failed to delete issue');
         }
-    }, [fetchIssues]);
+    }, [fetchIssues, fetchArchivedIssues]);
+
+    const restoreIssue = useCallback(async (issue) => {
+        const target = issue.id || issue.rowIndex;
+        const response = await axios.post(`/api/issues/${target}/restore`);
+
+        if (response.data?.success) {
+            await Promise.all([fetchIssues(true), fetchArchivedIssues(true)]);
+            return response.data;
+        } else {
+            throw new Error(response.data?.message || 'Failed to restore issue');
+        }
+    }, [fetchIssues, fetchArchivedIssues]);
 
     const value = useMemo(() => {
         const stats = {
@@ -433,10 +469,15 @@ export function IssuesProvider({ children }) {
             progress: issues.filter((i) => i.status === 'progress').length,
             pending: issues.filter((i) => i.status === 'pending').length,
             solved: issues.filter((i) => i.status === 'solved').length,
+            archived: archivedIssues.length,
         };
         return {
             issues,
             rawIssues,
+            archivedIssues,
+            loadingArchived,
+            fetchArchivedIssues,
+            restoreIssue,
             categories: DEFAULT_CATEGORIES,
             stats,
             loading,
@@ -461,7 +502,7 @@ export function IssuesProvider({ children }) {
             isSyncingOutbox,
             syncOfflineOutbox,
         };
-    }, [issues, rawIssues, loading, error, fetchIssues, addIssue, updateIssue, deleteIssue, claimIssue, resolveIssue, pendingIssue, updateIssueCategory, availableSheets, currentSheet, setCurrentSheet, createNewPeriod, deletePeriod, fetchSheets, outboxCount, isSyncingOutbox, syncOfflineOutbox]);
+    }, [issues, rawIssues, archivedIssues, loadingArchived, fetchArchivedIssues, restoreIssue, loading, error, fetchIssues, addIssue, updateIssue, deleteIssue, claimIssue, resolveIssue, pendingIssue, updateIssueCategory, availableSheets, currentSheet, setCurrentSheet, createNewPeriod, deletePeriod, fetchSheets, outboxCount, isSyncingOutbox, syncOfflineOutbox]);
 
     return <IssuesContext.Provider value={value}>{children}</IssuesContext.Provider>;
 }

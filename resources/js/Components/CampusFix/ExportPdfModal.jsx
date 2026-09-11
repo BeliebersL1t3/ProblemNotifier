@@ -422,6 +422,12 @@ export function ExportPdfModal({ open, onOpenChange }) {
                         logTypeLabel = '[CLAIM]';
                     } else if (log.type === 'solve') {
                         logTypeLabel = '[SOLVED]';
+                    } else if (log.type === 'pending') {
+                        logTypeLabel = '[PENDING]';
+                    } else if (log.type === 'archive') {
+                        logTypeLabel = '[ARCHIVE]';
+                    } else if (log.type === 'restore') {
+                        logTypeLabel = '[RESTORE]';
                     }
 
                     const timeStr = includeAuditTime && log.date ? `[${log.date}] ` : '';
