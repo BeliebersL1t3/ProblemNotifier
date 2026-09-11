@@ -104,6 +104,7 @@ async function syncStaffDirectory() {
                         department: user.department || '',
                         subdivision: user.subdivision || '',
                         role: user.role || 'department',
+                        permissions: user.permissions || {},
                         id: user.id,
                         source: 'dashboard_profile',
                         realPhone: normPhone,
@@ -127,6 +128,7 @@ async function syncStaffDirectory() {
                             department: user.department || '',
                             subdivision: user.subdivision || '',
                             role: user.role || 'department',
+                            permissions: user.permissions || {},
                             id: user.id,
                             source: 'whatsapp_lid',
                             realPhone: normMapped,
@@ -1000,6 +1002,14 @@ async function startSock() {
                         const registeredUser = getStaffByPhone(resolvedSenderPhone) || getStaffByPhone(rawSenderPhone);
                         const senderPhone = resolvedSenderPhone || rawSenderPhone;
 
+                        // --- SENDER BARRIER & PERMISSION CHECK ---
+                        if (registeredUser && registeredUser.role !== 'admin') {
+                            if (registeredUser.permissions && registeredUser.permissions.can_manage_issues === false) {
+                                await reply(`❌ *Akses Dibatasi (Barrier Aktif)* ❌\n\nIzin mengedit & mengklaim isu untuk akun Anda telah dinonaktifkan oleh Administrator di Web Dashboard.`);
+                                continue;
+                            }
+                        }
+
                         // --- SENDER DEPARTMENT AUTHORIZATION CHECK ---
                         if (registeredUser && !isAllDepts && registeredUser.role !== 'admin') {
                             const userDeptRaw = (registeredUser.department || '').toLowerCase().trim();
@@ -1279,6 +1289,10 @@ async function startSock() {
                     ));
                     continue;
                 } else if (intent === 'SOLVE') {
+                    if (registeredStaff.role !== 'admin' && registeredStaff.permissions?.can_manage_issues === false) {
+                        await reply(`❌ *Akses Dibatasi (Barrier Aktif)* ❌\n\nIzin menyelesaikan isu untuk akun Anda telah dinonaktifkan oleh Administrator di Web Dashboard.`);
+                        continue;
+                    }
                     await reply(getMsg(
                         'Great! Please provide the Issue ID you want to resolve (e.g., Sec-190826-1 or 190826-4):',
                         'Bagus! Harap masukkan ID Masalah yang ingin Anda selesaikan (contoh: Sec-190826-1 atau 190826-4):'
@@ -1286,6 +1300,10 @@ async function startSock() {
                     userStates.set(stateKey, { step: STEPS.AWAITING_SOLVE_ID, data: {}, lang: state.lang });
                     continue;
                 } else if (intent === 'PENDING') {
+                    if (registeredStaff.role !== 'admin' && registeredStaff.permissions?.can_manage_issues === false) {
+                        await reply(`❌ *Akses Dibatasi (Barrier Aktif)* ❌\n\nIzin menunda/mengubah status isu untuk akun Anda telah dinonaktifkan oleh Administrator di Web Dashboard.`);
+                        continue;
+                    }
                     await reply(getMsg(
                         'You want to mark a job as Pending. Please provide the Issue ID (e.g., Sec-190826-1 or 190826-4):',
                         'Anda ingin menandai pekerjaan sebagai Tertunda. Harap masukkan ID Masalah (contoh: Sec-190826-1 atau 190826-4):'

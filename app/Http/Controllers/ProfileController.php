@@ -93,7 +93,7 @@ class ProfileController extends Controller
     public function staffDirectory()
     {
         $users = \App\Models\User::whereNotNull('whatsapp_number')
-            ->select('id', 'name', 'staff_name', 'department', 'subdivision', 'role', 'whatsapp_number')
+            ->select('id', 'name', 'staff_name', 'department', 'subdivision', 'role', 'whatsapp_number', 'permissions')
             ->get();
 
         return response()->json([
