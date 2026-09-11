@@ -1,12 +1,12 @@
 # 🏝️ Telunas Resort Issue Tracker & WhatsApp Bot
 
 <p align="center">
-  <img src="public/favicon.ico" width="80" alt="Telunas Logo">
+  <img src="public/logo.png" width="160" alt="Telunas Logo">
 </p>
 
 <p align="center">
-  <b>A comprehensive, real-time facility maintenance & incident tracking system built specifically for Telunas Resorts.</b><br>
-  Combines a modern web application, native desktop client, Google Sheets two-way cloud synchronization, comprehensive multi-sheet analytics, and an intelligent WhatsApp Community Bot integration.
+  <b>A comprehensive, real-time facility maintenance, operational scheduling & incident tracking system built specifically for Telunas Resorts.</b><br>
+  Combines a modern web application, native desktop client, Google Sheets two-way cloud synchronization, operational work board, multi-sheet analytics, granular RBAC security, audit logging, and an intelligent WhatsApp Community Bot integration.
 </p>
 
 <p align="center">
@@ -67,11 +67,67 @@ Dedicated analytical engine designed for operational reviews, monthly reporting,
     - `Reported by (Origin Only)`: Shows issues reported by that department only.
     - `Tagged Only`: Shows issues where the department was tagged/assigned by others.
   - **Combinable Category Filter**: Multi-select categories with corresponding color badges.
-  - **In-Page PDF Exporter**: Download comprehensive printable PDF reports directly from the analytics layout.
+  - **In-Page PDF Exporter**: Download comprehensive printable PDF reports directly from the analytics layout (guarded by `can_export_reports` permission).
+  - **Permission-Guarded Access**: Accounts restricted from analytics automatically see a friendly access-denied state with navigation controls.
 
 ---
 
-### 🤖 3. WhatsApp Community Bot (`whatsapp-bot/bot.js`)
+### 📅 3. Operations & Maintenance Work Board (`/operations` / `/calendar`)
+Full-fledged operational scheduling and project timeline manager:
+
+- **Interactive Calendar Matrix**:
+  - View multi-day maintenance schedules, resort improvement projects, and ongoing tasks across departments.
+  - Multi-department filter with quick-toggle chips and color-coded schedule blocks.
+- **Drag-and-Drop Date Range Picker**:
+  - Mini calendar range picker with multi-block selection and visual drag highlighting.
+- **Task Lifecycle & Progress**:
+  - Status indicators for `Aktif (Active)`, `Selesai (Done)`, and `Tertunda (Pending)`.
+  - Photo attachment proof with in-modal image lightbox.
+- **Two-Way Google Calendar Sync**:
+  - One-click synchronization exporting scheduled tasks directly to external Google Calendars.
+- **Export Calendar Schedule PDF**:
+  - Clean, print-ready schedule exports formatted with custom resort typography and branding.
+
+---
+
+### 👥 4. User Management & Granular RBAC (`/users`)
+Enterprise-grade user management and security administration:
+
+- **Role Presets**:
+  - **Administrator**: Full system access, period/sheet creation, and user management.
+  - **Department User**: Scoped task management with customizable department views.
+  - **Viewer (Peninjau)**: Read-only access for monitoring and reporting.
+- **Granular Capability & Barrier Toggles**:
+  - `can_view_all_departments`: Toggle between restricted department scope and full island-wide visibility.
+  - `can_manage_issues`: Control rights to claim, delay, resolve, and update maintenance tickets.
+  - `can_delete_issues`: Secure issue deletion to authorized personnel only.
+  - `can_access_analytics`: Enable or restrict access to performance analytics and charts.
+  - `can_access_calendar`: Control access to operational work board schedules.
+  - `can_export_reports`: Permit or disable PDF and Excel report generation.
+  - `can_manage_categories`: Manage and reassign category definitions.
+- **WhatsApp Phone Auto-Linking**:
+  - Links staff WhatsApp numbers for instant recognition when interacting with the Bot.
+- **Safe Soft Deletion (Archive / Restore)**:
+  - Archive users without breaking historical issue relation links, with one-click restore.
+
+---
+
+### 🛡️ 5. Security Audit Trail & Visual Diff Viewer
+Transparent accountability and compliance logging:
+
+- **Comprehensive Action Tracking**:
+  - Logs user creation, profile edits, permission changes, password resets, archiving, and restorations.
+  - Records responsible administrator, target user, timestamp, and IP address.
+- **Human-Readable Before-and-After Diff Viewer**:
+  - Intelligently extracts **only the fields that changed**, eliminating raw database JSON clutter.
+  - Visual before-and-after pills (e.g. `[Sebelum: Nonaktif]` ➔ `[Sesudah: Aktif]`).
+  - Context-aware action badges (`Profil Diperbarui`, `Izin Diubah`, `Reset Password`, etc.).
+  - Case-insensitive email normalization preventing phantom diff reports.
+  - Optional expandable raw JSON viewer for technical diagnostics.
+
+---
+
+### 🤖 6. WhatsApp Community Bot (`whatsapp-bot/bot.js`)
 Powered by `@whiskeysockets/baileys`, the bot runs alongside the web platform with multi-group intelligent routing:
 
 - **18 Department Sub-Group Routing**: Automatically detects and routes notifications to the appropriate department sub-group chats (`Engineer`, `IT`, `Security`, `Housekeeping`, `F&B`, `Pest Control`, `Fasilitas`, `Service`, `Bar`, `GR`, `Spa`, `TiRek`, `OE`, `Procurement`, `Sales/Marketing`, `Reservasi`, `Finance`, `Tekong`) plus the **General Announcement Group**.
@@ -87,7 +143,7 @@ Powered by `@whiskeysockets/baileys`, the bot runs alongside the web platform wi
 
 ---
 
-### 🗄️ 4. Hybrid Storage Architecture
+### 🗄️ 7. Hybrid Storage Architecture
 - **Tabular Data**: Synced with **Google Sheets API v4** for real-time collaborative cloud access, reporting, and backup.
 - **Image Storage**: **100% Local Storage** (`public/uploads/`) with strict MIME validation (`jpg`, `jpeg`, `png`, `webp`), 5MB file size limit, and automatic filename sanitization. Eliminates third-party image hosting dependency and rate limits.
 
