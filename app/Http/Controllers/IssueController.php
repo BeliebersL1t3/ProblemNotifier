@@ -280,11 +280,73 @@ class IssueController extends Controller
         }
     }
 
+    /**
+     * Resolve the latest row version for an issue across sheets.
+     * Supports lookup by issue ID (e.g. 'HR-010926-9') or legacy row index.
+     */
+    private function getLatestIssueRowData(string $idOrRowIndex): ?array
+    {
+        $crossYear = false;
+        $targetSheet = null;
+        $targetRowIndex = null;
+        $currentRow = null;
+
+        $foundLocation = $this->googleService->findIssueAcrossSheets((string)$idOrRowIndex);
+        if ($foundLocation) {
+            $allSheets = $this->googleService->listSheets();
+            $newestSheet = !empty($allSheets) ? end($allSheets) : 'Sheet1';
+            if ($foundLocation['sheet'] !== $newestSheet) {
+                $crossYear = true;
+            }
+            $targetSheet = $foundLocation['sheet'];
+            $this->googleService->setSheet($targetSheet);
+            $rows = $this->googleService->getRows();
+        } else {
+            $targetSheet = $this->resolveSheet(null);
+            $rows = $this->googleService->getRows();
+        }
+
+        $matchedId = null;
+        // First pass: locate the row matching either row number or ID
+        foreach ($rows as $index => $row) {
+            $actualRowIndex = $index + 2;
+            if (($row[0] ?? '') === (string)$idOrRowIndex || (string)$actualRowIndex === (string)$idOrRowIndex) {
+                $matchedId = $row[0] ?? null;
+                $targetRowIndex = $actualRowIndex;
+                $currentRow = $row;
+            }
+        }
+
+        // If we found an issue ID, ensure we pick the LATEST row with that ID
+        if (!empty($matchedId)) {
+            foreach ($rows as $index => $row) {
+                $actualRowIndex = $index + 2;
+                if (($row[0] ?? '') === $matchedId) {
+                    $targetRowIndex = $actualRowIndex;
+                    $currentRow = $row;
+                }
+            }
+        }
+
+        if (!$targetRowIndex || !$currentRow) {
+            return null;
+        }
+
+        return [
+            'sheet'          => $targetSheet,
+            'rowIndex'       => $targetRowIndex,
+            'row'            => array_pad($currentRow, 26, ''),
+            'crossYear'      => $crossYear,
+            'foundLocation'  => $foundLocation,
+        ];
+    }
+
     public function index(Request $request)
     {
         try {
             $sheetParam = $request->query('sheet');
             $forceRefresh = $request->boolean('refresh') || $request->boolean('sync');
+            $showArchived = $request->boolean('archived');
 
             $allAvailableSheets = $this->googleService->listSheets($forceRefresh);
             
@@ -301,45 +363,134 @@ class IssueController extends Controller
                 $this->googleService->setSheet($currentSheet);
                 $rows = $this->googleService->getRows($forceRefresh);
 
+                // Group all rows by Issue ID to support versioned append-only rows
+                $grouped = [];
                 foreach ($rows as $index => $row) {
                     if (empty($row[0])) {
                         continue;
                     }
+                    $id = trim($row[0]);
+                    $grouped[$id][] = [
+                        'row'      => array_pad($row, 26, ''),
+                        'rowIndex' => $index + 2,
+                    ];
+                }
 
-                    $rowIndex = $index + 2;
+                foreach ($grouped as $id => $versions) {
+                    $latestItem = end($versions);
+                    $latestRow = $latestItem['row'];
+                    $latestRowIndex = $latestItem['rowIndex'];
+
+                    $displayStatus = trim($latestRow[25] ?? '');
+                    $isArchived = ($displayStatus === '0');
+
+                    // Filter by archive status
+                    if ($showArchived && !$isArchived) {
+                        continue;
+                    }
+                    if (!$showArchived && $isArchived) {
+                        continue;
+                    }
+
+                    // Reconstruct editLogs across all versions/rows of this issue
+                    $editLogs = [];
+                    foreach ($versions as $vItem) {
+                        $vRow = $vItem['row'];
+                        $rawNote = trim($vRow[24] ?? '');
+                        if (empty($rawNote)) {
+                            continue;
+                        }
+
+                        // Support legacy JSON blob if present
+                        $decoded = json_decode($rawNote, true);
+                        if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                            foreach ($decoded as $logEntry) {
+                                if (is_array($logEntry)) {
+                                    $editLogs[] = $logEntry;
+                                }
+                            }
+                            continue;
+                        }
+
+                        // Human-readable plain text note in Column Y
+                        $date = '';
+                        $cleanChanges = $rawNote;
+                        if (preg_match('/^\[(.*?)\]\s*(.*)$/s', $rawNote, $matches)) {
+                            $date = trim($matches[1]);
+                            $cleanChanges = trim($matches[2]);
+                        }
+
+                        $lower = strtolower($cleanChanges);
+                        $type = 'edit';
+                        if (str_contains($lower, 'klaim') || str_contains($lower, 'claim') || str_contains($lower, 'diambil')) {
+                            $type = 'claim';
+                        } else if (str_contains($lower, 'diselesaikan') || str_contains($lower, 'solved') || str_contains($lower, 'selesai')) {
+                            $type = 'solve';
+                        } else if (str_contains($lower, 'pending') || str_contains($lower, 'tunda')) {
+                            $type = 'pending';
+                        } else if (str_contains($lower, 'arsip') || str_contains($lower, 'archive') || str_contains($lower, 'hapus')) {
+                            $type = 'archive';
+                        } else if (str_contains($lower, 'pulih') || str_contains($lower, 'restore')) {
+                            $type = 'restore';
+                        } else if (str_contains($lower, 'rollback') || str_contains($lower, 'kembali')) {
+                            $type = 'revert_status';
+                        }
+
+                        $logActor = $vRow[9] ?: ($vRow[11] ?: ($vRow[19] ?: $vRow[6]));
+                        if (preg_match('/^([^:]+):\s*(.*)$/s', $cleanChanges, $actorMatches) && !str_contains($cleanChanges, 'Status')) {
+                            $candidate = trim($actorMatches[1]);
+                            if (strlen($candidate) < 40) {
+                                $logActor = $candidate;
+                            }
+                        }
+
+                        $editLogs[] = [
+                            'date'         => $date ?: ($vRow[10] ?: ($vRow[12] ?: ($vRow[7] ?? ''))),
+                            'by'           => $logActor,
+                            'dept'         => $vRow[22] ?? '',
+                            'role'         => 'Department',
+                            'type'         => $type,
+                            'statusChange' => null,
+                            'changes'      => $cleanChanges,
+                            'reason'       => $vRow[13] ?: ($vRow[18] ?: null),
+                            'proofImage'   => !empty($vRow[14]) ? $this->resolveImageUrl($vRow[14]) : null,
+                            'duration'     => $vRow[15] ?? null,
+                        ];
+                    }
 
                     $issues[] = [
-                        'id'             => $row[0],
-                        'rowIndex'       => $rowIndex,
+                        'id'             => $latestRow[0],
+                        'rowIndex'       => $latestRowIndex,
                         'sheet'          => $currentSheet,
-                        'title'          => $row[1] ?? '',
-                        'description'    => $row[2] ?? '',
-                        'location'       => $row[3] ?? '',
-                        'category'       => $row[4] ?? '',
-                        'department'     => $row[22] ?? '', // Origin department
-                        'assignedDepartments' => !empty($row[23]) 
-                            ? array_map('trim', explode(',', $row[23])) 
-                            : (!empty($row[21]) ? array_map('trim', explode(',', $row[21])) : []),
-                        'taggedDepartments' => !empty($row[21]) ? array_map('trim', explode(',', $row[21])) : [],
-                        'status'         => $row[5] ?? 'open',
-                        'reporter'       => $row[6] ?? 'Anonymous',
-                        'reportedAt'     => !empty($row[7]) ? strtotime($row[7]) * 1000 : time() * 1000,
-                        'reportedAtIso'  => $row[7] ?? '',
-                        'imageUrl'       => $this->resolveImageUrl($row[8] ?? ''),
-                        'taker'          => $row[9] ?? null,
-                        'takenAt'        => !empty($row[10]) ? strtotime($row[10]) * 1000 : null,
-                        'solver'         => $row[11] ?? '',
-                        'solvedAt'       => $row[12] ?? '',
-                        'fixDescription' => $row[13] ?? '',
-                        'proofImageUrl'  => $this->resolveImageUrl($row[14] ?? ''),
-                        'durationLabel'  => $row[15] ?? '',
-                        'priority'       => $row[16] ?? 'low',
-                        'deadline'       => $row[17] ?? '',
-                        'pendingReason'  => $this->parsePendingReason($row[18] ?? ''),
-                        'pendingTimeline'=> $this->parsePendingTimeline($row[18] ?? '', $row[19] ?? '', $row[20] ?? ''),
-                        'pendingBy'      => $row[19] ?? '',
-                        'pendingImageUrl'=> $this->resolveImageUrl($row[20] ?? ''),
-                        'editLogs'       => $this->parseEditLogs($row[24] ?? ''),
+                        'title'          => $latestRow[1] ?? '',
+                        'description'    => $latestRow[2] ?? '',
+                        'location'       => $latestRow[3] ?? '',
+                        'category'       => $latestRow[4] ?? '',
+                        'department'     => $latestRow[22] ?? '', // Origin department
+                        'assignedDepartments' => !empty($latestRow[23]) 
+                            ? array_map('trim', explode(',', $latestRow[23])) 
+                            : (!empty($latestRow[21]) ? array_map('trim', explode(',', $latestRow[21])) : []),
+                        'taggedDepartments' => !empty($latestRow[21]) ? array_map('trim', explode(',', $latestRow[21])) : [],
+                        'status'         => $latestRow[5] ?? 'open',
+                        'reporter'       => $latestRow[6] ?? 'Anonymous',
+                        'reportedAt'     => !empty($latestRow[7]) ? strtotime($latestRow[7]) * 1000 : time() * 1000,
+                        'reportedAtIso'  => $latestRow[7] ?? '',
+                        'imageUrl'       => $this->resolveImageUrl($latestRow[8] ?? ''),
+                        'taker'          => $latestRow[9] ?? null,
+                        'takenAt'        => !empty($latestRow[10]) ? strtotime($latestRow[10]) * 1000 : null,
+                        'solver'         => $latestRow[11] ?? '',
+                        'solvedAt'       => $latestRow[12] ?? '',
+                        'fixDescription' => $latestRow[13] ?? '',
+                        'proofImageUrl'  => $this->resolveImageUrl($latestRow[14] ?? ''),
+                        'durationLabel'  => $latestRow[15] ?? '',
+                        'priority'       => $latestRow[16] ?? 'low',
+                        'deadline'       => $latestRow[17] ?? '',
+                        'pendingReason'  => $this->parsePendingReason($latestRow[18] ?? ''),
+                        'pendingTimeline'=> $this->parsePendingTimeline($latestRow[18] ?? '', $latestRow[19] ?? '', $latestRow[20] ?? ''),
+                        'pendingBy'      => $latestRow[19] ?? '',
+                        'pendingImageUrl'=> $this->resolveImageUrl($latestRow[20] ?? ''),
+                        'editLogs'       => $editLogs,
+                        'isArchived'     => $isArchived,
                     ];
                 }
             }
@@ -505,6 +656,8 @@ class IssueController extends Controller
                 $taggedDeptsStr, // 21 tagged_departments (info only)
                 $dept ?: ($isEmergency ? 'Emergency' : 'General'), // 22 origin_department
                 $assignedDeptsStr, // 23 assigned_department (responsible to fix)
+                '', // 24 Edit History (Column Y: empty on creation)
+                '1', // 25 Display Status (Column Z: 1 = active)
             ];
 
             $rowIndex = $this->googleService->appendRow($newRow);
@@ -630,39 +783,17 @@ class IssueController extends Controller
         }
 
         try {
-            // Cross-sheet lookup: find which sheet this issue belongs to
-            $crossYear = false;
-            $foundLocation = $this->googleService->findIssueAcrossSheets((string)$idOrRowIndex);
-            if ($foundLocation) {
-                $allSheets = $this->googleService->listSheets();
-                $newestSheet = end($allSheets);
-                if ($foundLocation['sheet'] !== $newestSheet) {
-                    $crossYear = true;
-                }
-                $this->googleService->setSheet($foundLocation['sheet']);
-                $rows = $this->googleService->getRows();
-            } else {
-                $this->resolveSheet(null);
-                $rows = $this->googleService->getRows();
-            }
-            $targetRowIndex = null;
-            $currentRow = null;
-
-            foreach ($rows as $index => $row) {
-                $actualRowIndex = $index + 2;
-                if (($row[0] ?? '') === (string)$idOrRowIndex || (string)$actualRowIndex === (string)$idOrRowIndex) {
-                    $targetRowIndex = $actualRowIndex;
-                    $currentRow = $row;
-                    break;
-                }
-            }
-
-            if (!$targetRowIndex || !$currentRow) {
+            $issueData = $this->getLatestIssueRowData((string)$idOrRowIndex);
+            if (!$issueData) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Issue not found.',
                 ], 404);
             }
+
+            $currentRow = $issueData['row'];
+            $crossYear = $issueData['crossYear'];
+            $foundLocation = $issueData['foundLocation'];
 
             $currentStatus = $currentRow[5] ?? 'open';
 
@@ -701,27 +832,22 @@ class IssueController extends Controller
             }
 
             $takenAt = Carbon::now()->toIso8601String();
+            $nowFormatted = Carbon::now('Asia/Jakarta')->format('M d, Y H:i:s');
+            $deptSuffix = !empty($request->department) ? " ({$request->department})" : "";
+            $note = "[{$nowFormatted}] Pekerjaan diambil / diklaim oleh {$request->taker}{$deptSuffix}";
 
-            $existingLogs = $this->parseEditLogs($currentRow[24] ?? '');
-            $existingLogs[] = [
-                'date'         => Carbon::now('Asia/Jakarta')->format('M d, Y H:i:s'),
-                'by'           => $request->taker,
-                'dept'         => $request->department ?? '',
-                'role'         => 'Department',
-                'type'         => 'claim',
-                'from'         => 'open',
-                'to'           => 'progress',
-                'statusChange' => 'open → progress',
-                'reason'       => null,
-                'changes'      => "Pekerjaan diambil / diklaim oleh {$request->taker}" . (!empty($request->department) ? " ({$request->department})" : ""),
-            ];
+            // Option C: Append a new version row with only changed fields updated
+            $newRow = array_pad($currentRow, 26, '');
+            $newRow[5]  = 'progress';
+            $newRow[9]  = $request->taker;
+            $newRow[10] = $takenAt;
+            $newRow[24] = $note;
+            $newRow[25] = '1';
 
-            $this->googleService->updateRow($targetRowIndex, [
-                'F' => 'progress',
-                'J' => $request->taker,
-                'K' => $takenAt,
-                'Y' => json_encode($existingLogs),
-            ]);
+            $newRowIndex = $this->googleService->appendRow($newRow);
+            if ($newRowIndex) {
+                $this->googleService->colorRowByCategory($newRowIndex, $newRow[4] ?? 'other');
+            }
 
             $crossYearNotice = $crossYear ? "\n📋 *Note: This issue is from a previous period ({$foundLocation['sheet']}).*" : '';
             $originDept = $currentRow[22] ?? '';
@@ -778,39 +904,15 @@ class IssueController extends Controller
         }
 
         try {
-            // Cross-sheet lookup
-            $crossYear = false;
-            $foundLocation = $this->googleService->findIssueAcrossSheets((string)$idOrRowIndex);
-            if ($foundLocation) {
-                $allSheets = $this->googleService->listSheets();
-                $newestSheet = end($allSheets);
-                if ($foundLocation['sheet'] !== $newestSheet) {
-                    $crossYear = true;
-                }
-                $this->googleService->setSheet($foundLocation['sheet']);
-                $rows = $this->googleService->getRows();
-            } else {
-                $this->resolveSheet(null);
-                $rows = $this->googleService->getRows();
-            }
-            $targetRowIndex = null;
-            $currentRow = null;
-
-            foreach ($rows as $index => $row) {
-                $actualRowIndex = $index + 2;
-                if (($row[0] ?? '') === (string)$idOrRowIndex || (string)$actualRowIndex === (string)$idOrRowIndex) {
-                    $targetRowIndex = $actualRowIndex;
-                    $currentRow = $row;
-                    break;
-                }
-            }
-
-            if (!$targetRowIndex || !$currentRow) {
+            $issueData = $this->getLatestIssueRowData((string)$idOrRowIndex);
+            if (!$issueData) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Issue not found.',
                 ], 404);
             }
+
+            $currentRow = $issueData['row'];
 
             $submittedAtRaw = $currentRow[7] ?? null;
 
@@ -842,33 +944,25 @@ class IssueController extends Controller
 
             $formattedFix = self::formatParagraphText($request->fixDescription);
 
-            // Audit log in Column Y
-            $existingLogs = $this->parseEditLogs($currentRow[24] ?? '');
             $nowFormatted = Carbon::now('Asia/Jakarta')->format('M d, Y H:i:s');
-            $existingLogs[] = [
-                'date' => $nowFormatted,
-                'by' => $request->solver,
-                'dept' => auth()->user()?->department ?? '',
-                'role' => auth()->user()?->role ?? 'Department',
-                'type' => 'solve',
-                'from' => $currentRow[5] ?? 'progress',
-                'to' => 'solved',
-                'statusChange' => ($currentRow[5] ?? 'progress') . ' → solved',
-                'reason' => $formattedFix,
-                'proofImage' => $proofUrl,
-                'duration' => $durationLabel,
-                'changes' => "Pekerjaan diselesaikan oleh {$request->solver}",
-            ];
+            $fixExcerpt = strlen($request->fixDescription) > 60 ? substr($request->fixDescription, 0, 57) . '...' : $request->fixDescription;
+            $note = "[{$nowFormatted}] Status diubah ke Solved oleh {$request->solver}: \"{$fixExcerpt}\"";
 
-            $this->googleService->updateRow($targetRowIndex, [
-                'F' => 'solved',
-                'L' => $request->solver,
-                'M' => $solvedAt,
-                'N' => $formattedFix,
-                'O' => $proofUrl,
-                'P' => $durationLabel,
-                'Y' => json_encode($existingLogs),
-            ]);
+            // Option C: Append a new version row with only changed fields updated
+            $newRow = array_pad($currentRow, 26, '');
+            $newRow[5]  = 'solved';
+            $newRow[11] = $request->solver;
+            $newRow[12] = $solvedAt;
+            $newRow[13] = $formattedFix;
+            $newRow[14] = $proofUrl ?: ($currentRow[14] ?? '');
+            $newRow[15] = $durationLabel;
+            $newRow[24] = $note;
+            $newRow[25] = '1';
+
+            $newRowIndex = $this->googleService->appendRow($newRow);
+            if ($newRowIndex) {
+                $this->googleService->colorRowByCategory($newRowIndex, $newRow[4] ?? 'other');
+            }
 
             $resolvedProofUrl = $this->resolveImageUrl($proofUrl);
 
@@ -928,36 +1022,12 @@ class IssueController extends Controller
         }
 
         try {
-            // Cross-sheet lookup
-            $crossYear = false;
-            $foundLocation = $this->googleService->findIssueAcrossSheets((string)$idOrRowIndex);
-            if ($foundLocation) {
-                $allSheets = $this->googleService->listSheets();
-                $newestSheet = end($allSheets);
-                if ($foundLocation['sheet'] !== $newestSheet) {
-                    $crossYear = true;
-                }
-                $this->googleService->setSheet($foundLocation['sheet']);
-                $rows = $this->googleService->getRows();
-            } else {
-                $this->resolveSheet(null);
-                $rows = $this->googleService->getRows();
-            }
-            $targetRowIndex = null;
-            $currentRow = null;
-
-            foreach ($rows as $index => $row) {
-                $actualRowIndex = $index + 2;
-                if (($row[0] ?? '') === (string)$idOrRowIndex || (string)$actualRowIndex === (string)$idOrRowIndex) {
-                    $targetRowIndex = $actualRowIndex;
-                    $currentRow = $row;
-                    break;
-                }
-            }
-
-            if (!$targetRowIndex || !$currentRow) {
+            $issueData = $this->getLatestIssueRowData((string)$idOrRowIndex);
+            if (!$issueData) {
                 return response()->json(['success' => false, 'message' => 'Issue not found.'], 404);
             }
+
+            $currentRow = $issueData['row'];
 
             $pendingDataRaw = $currentRow[18] ?? '';
             $existingItems = [];
@@ -1007,12 +1077,23 @@ class IssueController extends Controller
 
             $newJson = json_encode($existingItems);
 
-            $this->googleService->updateRow($targetRowIndex, [
-                'F' => 'pending',
-                'S' => $newJson,
-                'T' => $request->pendingBy,
-                'U' => $pendingImageUrl,
-            ]);
+            $nowFormatted = Carbon::now('Asia/Jakarta')->format('M d, Y H:i:s');
+            $reasonExcerpt = strlen($request->pendingReason) > 60 ? substr($request->pendingReason, 0, 57) . '...' : $request->pendingReason;
+            $note = "[{$nowFormatted}] Status diubah ke Pending oleh {$request->pendingBy}: \"{$reasonExcerpt}\"";
+
+            // Option C: Append a new version row with only changed fields updated
+            $newRow = array_pad($currentRow, 26, '');
+            $newRow[5]  = 'pending';
+            $newRow[18] = $newJson;
+            $newRow[19] = $request->pendingBy;
+            $newRow[20] = $pendingImageUrl ?: ($currentRow[20] ?? '');
+            $newRow[24] = $note;
+            $newRow[25] = '1';
+
+            $newRowIndex = $this->googleService->appendRow($newRow);
+            if ($newRowIndex) {
+                $this->googleService->colorRowByCategory($newRowIndex, $newRow[4] ?? 'other');
+            }
 
             $resolvedPendingUrl = $this->resolveImageUrl($pendingImageUrl);
             $resolvedTimeline = $this->parsePendingTimeline($newJson);
@@ -1063,30 +1144,24 @@ class IssueController extends Controller
         ]);
         
         try {
-            $foundLocation = $this->googleService->findIssueAcrossSheets((string)$idOrRowIndex);
-            if ($foundLocation) {
-                $this->googleService->setSheet($foundLocation['sheet']);
-                $targetRowIndex = $foundLocation['rowIndex'];
-            } else {
-                $this->resolveSheet(null);
-                $rows = $this->googleService->getRows();
-                $targetRowIndex = null;
-                foreach ($rows as $index => $row) {
-                    $actualRowIndex = $index + 2;
-                    if (($row[0] ?? '') === (string)$idOrRowIndex || (string)$actualRowIndex === (string)$idOrRowIndex) {
-                        $targetRowIndex = $actualRowIndex;
-                        break;
-                    }
-                }
-            }
-
-            if (!$targetRowIndex) {
+            $issueData = $this->getLatestIssueRowData((string)$idOrRowIndex);
+            if (!$issueData) {
                 return response()->json(['success' => false, 'message' => 'Issue not found.'], 404);
             }
 
-            $this->googleService->updateRow($targetRowIndex, [
-                'E' => $request->category
-            ]);
+            $currentRow = $issueData['row'];
+            $nowFormatted = Carbon::now('Asia/Jakarta')->format('M d, Y H:i:s');
+            $note = "[{$nowFormatted}] Kategori diubah ke {$request->category}";
+
+            $newRow = array_pad($currentRow, 26, '');
+            $newRow[4]  = $request->category;
+            $newRow[24] = $note;
+            $newRow[25] = '1';
+
+            $newRowIndex = $this->googleService->appendRow($newRow);
+            if ($newRowIndex) {
+                $this->googleService->colorRowByCategory($newRowIndex, $request->category);
+            }
 
             return response()->json(['success' => true]);
         } catch (\Exception $e) {
@@ -1138,33 +1213,12 @@ class IssueController extends Controller
         }
 
         try {
-            $foundLocation = $this->googleService->findIssueAcrossSheets((string)$idOrRowIndex);
-            if ($foundLocation) {
-                $targetSheet    = $foundLocation['sheet'];
-                $this->googleService->setSheet($targetSheet);
-                $targetRowIndex = $foundLocation['rowIndex'];
-            } else {
-                $targetSheet = $this->resolveSheet(null);
-                $rows = $this->googleService->getRows();
-                $targetRowIndex = null;
-                foreach ($rows as $index => $row) {
-                    $actualRowIndex = $index + 2;
-                    if (($row[0] ?? '') === (string)$idOrRowIndex || (string)$actualRowIndex === (string)$idOrRowIndex) {
-                        $targetRowIndex = $actualRowIndex;
-                        break;
-                    }
-                }
-            }
-
-            if (!$targetRowIndex) {
+            $issueData = $this->getLatestIssueRowData((string)$idOrRowIndex);
+            if (!$issueData) {
                 return response()->json(['success' => false, 'message' => 'Issue not found.'], 404);
             }
 
-            $rows = $this->googleService->getRows();
-            $currentRow = $rows[$targetRowIndex - 2] ?? null;
-            if (!$currentRow) {
-                return response()->json(['success' => false, 'message' => 'Issue row data not found.'], 404);
-            }
+            $currentRow = $issueData['row'];
 
             // Granular Authorization check
             $originDept = $currentRow[22] ?? '';
@@ -1522,11 +1576,28 @@ class IssueController extends Controller
             $existingLogs[] = $editEntry;
             $logsJson = json_encode($existingLogs);
 
-            $updateCols['Y'] = $logsJson;
+            $newRow = array_pad($currentRow, 26, '');
+            $colMap = [
+                'B' => 1, 'C' => 2, 'D' => 3, 'E' => 4, 'F' => 5,
+                'G' => 6, 'H' => 7, 'I' => 8, 'J' => 9, 'K' => 10,
+                'L' => 11, 'M' => 12, 'N' => 13, 'O' => 14, 'P' => 15,
+                'Q' => 16, 'R' => 17, 'S' => 18, 'T' => 19, 'U' => 20,
+                'V' => 21, 'W' => 22, 'X' => 23,
+            ];
+            foreach ($updateCols as $col => $val) {
+                if (isset($colMap[$col])) {
+                    $newRow[$colMap[$col]] = $val;
+                }
+            }
 
-            $this->googleService->updateRow($targetRowIndex, $updateCols);
-            if ($canEditReport && isset($oldCat) && isset($newCat) && $oldCat !== $newCat) {
-                $this->googleService->colorRowByCategory($targetRowIndex, $newCat);
+            $nowFormatted = Carbon::now('Asia/Jakarta')->format('M d, Y H:i:s');
+            $changeSummary = !empty($changes) ? implode(', ', $changes) : 'Detail isu diperbarui';
+            $newRow[24] = "[{$nowFormatted}] {$editorName}: {$changeSummary}";
+            $newRow[25] = '1';
+
+            $newRowIndex = $this->googleService->appendRow($newRow);
+            if ($newRowIndex) {
+                $this->googleService->colorRowByCategory($newRowIndex, $newRow[4] ?? 'other');
             }
 
             // Dispatch WhatsApp notification
@@ -1604,33 +1675,12 @@ class IssueController extends Controller
         }
 
         try {
-            $foundLocation = $this->googleService->findIssueAcrossSheets((string)$idOrRowIndex);
-            if ($foundLocation) {
-                $targetSheet    = $foundLocation['sheet'];
-                $this->googleService->setSheet($targetSheet);
-                $targetRowIndex = $foundLocation['rowIndex'];
-            } else {
-                $targetSheet = $this->resolveSheet(null);
-                $rows = $this->googleService->getRows();
-                $targetRowIndex = null;
-                foreach ($rows as $index => $row) {
-                    $actualRowIndex = $index + 2;
-                    if (($row[0] ?? '') === (string)$idOrRowIndex || (string)$actualRowIndex === (string)$idOrRowIndex) {
-                        $targetRowIndex = $actualRowIndex;
-                        break;
-                    }
-                }
-            }
-
-            if (!$targetRowIndex) {
+            $issueData = $this->getLatestIssueRowData((string)$idOrRowIndex);
+            if (!$issueData) {
                 return response()->json(['success' => false, 'message' => 'Issue not found.'], 404);
             }
 
-            $rows = $this->googleService->getRows();
-            $currentRow = $rows[$targetRowIndex - 2] ?? null;
-            if (!$currentRow) {
-                return response()->json(['success' => false, 'message' => 'Issue row data not found.'], 404);
-            }
+            $currentRow = $issueData['row'];
 
             // Authorization check: Admin OR creator's department
             $originDept = $currentRow[22] ?? '';
@@ -1653,33 +1703,102 @@ class IssueController extends Controller
             $assignedDepts= $currentRow[23] ?? ($currentRow[21] ?? '');
             $taggedDepts  = $currentRow[21] ?? '';
 
-            // Perform deletion
-            $this->googleService->deleteRow($targetRowIndex, $targetSheet);
-
             $deleterName = $user->staff_name ?? $user->name ?? 'Staff';
             $deleterDept = $user->department ?? ($user->isAdmin() ? 'Admin' : '');
             $deleterRole = $user->isAdmin() ? 'Admin' : 'Department';
+            $nowFormatted = Carbon::now('Asia/Jakarta')->format('M d, Y H:i:s');
+            $note = "[{$nowFormatted}] Isu diarsipkan oleh {$deleterName}";
+
+            // Option C: Append a soft-delete row (Col Z = '0', Col Y = note)
+            $newRow = array_pad($currentRow, 26, '');
+            $newRow[24] = $note;
+            $newRow[25] = '0'; // ARCHIVED / HIDDEN
+
+            $this->googleService->appendRow($newRow);
 
             // Dispatch WhatsApp deletion announcement
-                $originStr = !empty($originDept) ? "\n*Origin:* {$originDept}" : '';
-                $assignedStr = !empty($assignedDepts) ? "\n*Assigned:* {$assignedDepts}" : '';
-                $taggedStr   = !empty($taggedDepts) ? "\n*Tagged:* {$taggedDepts}" : '';
+            $originStr = !empty($originDept) ? "\n*Origin:* {$originDept}" : '';
+            $assignedStr = !empty($assignedDepts) ? "\n*Assigned:* {$assignedDepts}" : '';
+            $taggedStr   = !empty($taggedDepts) ? "\n*Tagged:* {$taggedDepts}" : '';
 
-                $this->notifyWhatsApp([
-                    'message' => "📢 🗑️ *ISSUE DELETED / ANNOUNCEMENT*\n*ID:* {$deletedId}\n*Title:* {$deletedTitle}\n*Location:* {$deletedLoc}{$originStr}{$assignedStr}{$taggedStr}\n*Deleted By:* {$deleterName} ({$deleterRole}" . ($deleterDept ? " - {$deleterDept}" : "") . ")\n*Status:* Permanently Removed from System",
-                    'department' => $originDept,
-                    'assignedDepartments' => $assignedDepts,
-                    'taggedDepartments' => $taggedDepts,
-                ]);
+            $this->notifyWhatsApp([
+                'message' => "📢 🗑️ *ISSUE ARCHIVED / ANNOUNCEMENT*\n*ID:* {$deletedId}\n*Title:* {$deletedTitle}\n*Location:* {$deletedLoc}{$originStr}{$assignedStr}{$taggedStr}\n*Archived By:* {$deleterName} ({$deleterRole}" . ($deleterDept ? " - {$deleterDept}" : "") . ")\n*Status:* Archived (Hidden from Dashboard)",
+                'department' => $originDept,
+                'assignedDepartments' => $assignedDepts,
+                'taggedDepartments' => $taggedDepts,
+            ]);
 
             return response()->json([
                 'success' => true,
-                'message' => "Issue {$deletedId} deleted successfully.",
+                'message' => "Issue {$deletedId} archived successfully.",
             ]);
         } catch (\Throwable $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to delete issue: ' . $e->getMessage(),
+                'message' => 'Failed to archive issue: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function restore(Request $request, $idOrRowIndex)
+    {
+        $user = auth()->user();
+        if (!$user) {
+            return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
+        }
+
+        if (!$user->isAdmin() && !$user->hasPermission('can_manage_issues')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized. Izin memulihkan isu dinonaktifkan untuk akun Anda oleh Administrator.',
+            ], 403);
+        }
+
+        try {
+            $issueData = $this->getLatestIssueRowData((string)$idOrRowIndex);
+            if (!$issueData) {
+                return response()->json(['success' => false, 'message' => 'Issue not found.'], 404);
+            }
+
+            $currentRow = $issueData['row'];
+            $restorerName = $user->staff_name ?? $user->name ?? 'Admin';
+            $nowFormatted = Carbon::now('Asia/Jakarta')->format('M d, Y H:i:s');
+            $note = "[{$nowFormatted}] Isu dipulihkan dari arsip oleh {$restorerName}";
+
+            // Restore: append new row with Col Z = '1'
+            $newRow = array_pad($currentRow, 26, '');
+            $newRow[24] = $note;
+            $newRow[25] = '1'; // RESTORE TO ACTIVE
+
+            $newRowIndex = $this->googleService->appendRow($newRow);
+            if ($newRowIndex) {
+                $this->googleService->colorRowByCategory($newRowIndex, $newRow[4] ?? 'other');
+            }
+
+            $originDept = $currentRow[22] ?? '';
+            $assignedDepts = $currentRow[23] ?? ($currentRow[21] ?? '');
+            $taggedDepts = $currentRow[21] ?? '';
+            $originStr = !empty($originDept) ? "\n*Origin:* {$originDept}" : '';
+
+            $this->notifyWhatsApp([
+                'message' => "♻️ *ISSUE RESTORED FROM ARCHIVE*\n*ID:* {$currentRow[0]}\n*Title:* {$currentRow[1]}\n*Location:* {$currentRow[3]}{$originStr}\n*Restored By:* {$restorerName}\n*Status:* " . strtoupper($currentRow[5]),
+                'department' => $originDept,
+                'assignedDepartments' => $assignedDepts,
+                'taggedDepartments' => $taggedDepts,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => "Issue {$currentRow[0]} restored successfully.",
+                'data'    => [
+                    'id'     => $currentRow[0],
+                    'status' => $currentRow[5],
+                ]
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to restore issue: ' . $e->getMessage(),
             ], 500);
         }
     }

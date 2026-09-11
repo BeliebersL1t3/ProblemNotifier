@@ -59,6 +59,7 @@ Route::prefix('api')->group(function () {
     Route::post('/issues/{rowIndex}/claim', [IssueController::class, 'claim']);
     Route::post('/issues/{rowIndex}/pending', [IssueController::class, 'pending']);
     Route::post('/issues/{rowIndex}/resolve', [IssueController::class, 'resolve']);
+    Route::post('/issues/{rowIndex}/restore', [IssueController::class, 'restore']);
     Route::post('/issues/{rowIndex}/category', [IssueController::class, 'updateCategory']);
     // Sheet (period/year) management
     Route::get('/sheets', [IssueController::class, 'listSheets']);
