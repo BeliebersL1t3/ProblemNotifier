@@ -159,6 +159,8 @@ class UserController extends Controller
                 'permissions'      => $user->permissions ?? self::getDefaultPermissions($user->role),
                 'has_restrictions' => $restrictionData['has_restrictions'],
                 'barrier_reasons'  => $restrictionData['reasons'],
+                'avatar'           => $user->avatar,
+                'avatar_url'       => $user->avatar_url,
                 'is_archived'      => $user->trashed(),
                 'deleted_at'       => $user->deleted_at?->toIso8601String(),
                 'created_at'       => $user->created_at?->toIso8601String(),

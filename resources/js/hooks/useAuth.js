@@ -23,6 +23,8 @@ export function useAuth() {
         return defaultVal;
     };
 
+    const avatarUrl = user?.avatar_url || (user?.avatar ? (user.avatar.startsWith('http') ? user.avatar : `/uploads/avatars/${user.avatar}`) : null);
+
     return {
         user,
         isAdmin,
@@ -32,6 +34,8 @@ export function useAuth() {
         subdivision: user?.subdivision ?? null,
         staffName:      user?.staff_name ?? user?.name ?? null,
         whatsappNumber: user?.whatsapp_number ?? null,
+        avatar:         avatarUrl,
+        avatarUrl,
         permissions,
         // Specific capability helpers
         canViewAllDepartments: hasPermission('can_view_all_departments', true),

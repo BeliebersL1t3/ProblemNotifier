@@ -213,6 +213,80 @@ class ProfileController extends Controller
     }
 
     /**
+     * Upload or update user avatar photo.
+     */
+    public function updateAvatar(Request $request)
+    {
+        $request->validate([
+            'avatar' => ['required', 'image', 'mimes:jpeg,png,jpg,webp', 'max:5120'],
+        ]);
+
+        $user = $request->user();
+        $file = $request->file('avatar');
+
+        $avatarsDir = public_path('uploads/avatars');
+        if (!file_exists($avatarsDir)) {
+            mkdir($avatarsDir, 0755, true);
+        }
+
+        if (!empty($user->avatar)) {
+            $oldPath = $avatarsDir . '/' . basename($user->avatar);
+            if (file_exists($oldPath)) {
+                @unlink($oldPath);
+            }
+        }
+
+        $extension = strtolower($file->getClientOriginalExtension() ?: 'png');
+        $filename = 'avatar_' . $user->id . '_' . time() . '_' . \Illuminate\Support\Str::random(6) . '.' . $extension;
+
+        $file->move($avatarsDir, $filename);
+
+        $user->avatar = $filename;
+        $user->save();
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success'    => true,
+                'avatar'     => $user->avatar,
+                'avatar_url' => $user->avatar_url,
+                'message'    => 'Foto profil berhasil diperbarui.',
+            ]);
+        }
+
+        return Redirect::route('profile.edit')->with('status', 'avatar-updated');
+    }
+
+    /**
+     * Remove / reset user avatar photo.
+     */
+    public function destroyAvatar(Request $request)
+    {
+        $user = $request->user();
+        $avatarsDir = public_path('uploads/avatars');
+
+        if (!empty($user->avatar)) {
+            $oldPath = $avatarsDir . '/' . basename($user->avatar);
+            if (file_exists($oldPath)) {
+                @unlink($oldPath);
+            }
+        }
+
+        $user->avatar = null;
+        $user->save();
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success'    => true,
+                'avatar'     => null,
+                'avatar_url' => null,
+                'message'    => 'Foto profil berhasil dihapus.',
+            ]);
+        }
+
+        return Redirect::route('profile.edit')->with('status', 'avatar-deleted');
+    }
+
+    /**
      * Delete the user's account.
      */
     public function destroy(Request $request): RedirectResponse

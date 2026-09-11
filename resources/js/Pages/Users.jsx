@@ -414,10 +414,18 @@ function UsersInner({ initialUsers, initialStats }) {
                                                     <td className="py-3 px-4">
                                                         <div className="flex items-center gap-3">
                                                             <div 
-                                                                className="w-9 h-9 rounded-xl flex items-center justify-center font-extrabold text-sm shrink-0 border border-white/10 shadow-xs"
+                                                                className="w-9 h-9 rounded-xl flex items-center justify-center font-extrabold text-sm shrink-0 border border-white/10 shadow-xs overflow-hidden"
                                                                 style={{ backgroundColor: deptTheme.bg, color: deptTheme.text }}
                                                             >
-                                                                {u.name.charAt(0).toUpperCase()}
+                                                                {(u.avatar_url || (u.avatar ? (u.avatar.startsWith('http') ? u.avatar : `/uploads/avatars/${u.avatar}`) : null)) ? (
+                                                                    <img 
+                                                                        src={u.avatar_url || (u.avatar.startsWith('http') ? u.avatar : `/uploads/avatars/${u.avatar}`)} 
+                                                                        alt={u.name} 
+                                                                        className="w-full h-full object-cover rounded-xl"
+                                                                    />
+                                                                ) : (
+                                                                    u.name.charAt(0).toUpperCase()
+                                                                )}
                                                             </div>
                                                             <div className="min-w-0">
                                                                 <div className="font-bold text-sm text-[#FAFAFA] flex items-center gap-2">

@@ -4,7 +4,8 @@ import {
     User, Lock, KeyRound, LogOut, Shield, Building2, CheckCircle2, 
     AlertCircle, Loader2, Sparkles, Mail, Tag, ShieldCheck, RefreshCw,
     Phone, MessageSquare, Check, Smartphone, Unlink, Trash2,
-    Users as UsersIcon, ChevronRight, ShieldAlert
+    Users as UsersIcon, ChevronRight, ShieldAlert, Camera, UploadCloud,
+    Image as ImageIcon, X
 } from 'lucide-react';
 
 import { IssuesProvider } from '@/context/IssuesContext';
@@ -26,12 +27,100 @@ export default function ProfilePage() {
 
 function ProfileInner() {
     const { t, lang } = useLanguage();
-    const { user, isAdmin, isDeptUser, department, subdivision, staffName, whatsappNumber } = useAuth();
+    const { user, isAdmin, isDeptUser, department, subdivision, staffName, whatsappNumber, avatarUrl } = useAuth();
     const currentDeptTheme = department ? getDepartmentTheme(department) : { bg: '#C9AA71', text: '#1C1B0E' };
 
     const [isLoggingOut, setIsLoggingOut] = useState(false);
     const passwordInput = useRef(null);
     const currentPasswordInput = useRef(null);
+
+    // Profile Photo / Avatar management state
+    const avatarInputRef = useRef(null);
+    const [avatarFile, setAvatarFile] = useState(null);
+    const [avatarPreview, setAvatarPreview] = useState(null);
+    const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+    const [isDeletingAvatar, setIsDeletingAvatar] = useState(false);
+    const [avatarError, setAvatarError] = useState('');
+    const [avatarSuccess, setAvatarSuccess] = useState('');
+
+    const handleAvatarSelect = (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        if (!file.type.match(/^image\/(jpeg|png|jpg|webp)$/i)) {
+            setAvatarError(lang === 'id' ? 'Format gambar tidak didukung. Harap gunakan file JPG, PNG, atau WEBP.' : 'Unsupported image format. Please select JPG, PNG, or WEBP.');
+            return;
+        }
+
+        if (file.size > 5 * 1024 * 1024) {
+            setAvatarError(lang === 'id' ? 'Ukuran file terlalu besar (maksimal 5MB).' : 'File size too large (maximum 5MB).');
+            return;
+        }
+
+        setAvatarError('');
+        setAvatarFile(file);
+        setAvatarPreview(URL.createObjectURL(file));
+    };
+
+    const handleAvatarUpload = (e) => {
+        if (e) e.preventDefault();
+        if (!avatarFile) return;
+
+        setIsUploadingAvatar(true);
+        setAvatarError('');
+
+        const formData = new FormData();
+        formData.append('avatar', avatarFile);
+
+        router.post('/profile/avatar', formData, {
+            forceFormData: true,
+            preserveScroll: true,
+            onSuccess: () => {
+                setIsUploadingAvatar(false);
+                setAvatarFile(null);
+                setAvatarPreview(null);
+                if (avatarInputRef.current) avatarInputRef.current.value = '';
+                setAvatarSuccess(lang === 'id' ? 'Foto profil berhasil diperbarui!' : 'Profile photo updated successfully!');
+                setTimeout(() => setAvatarSuccess(''), 4000);
+            },
+            onError: (errs) => {
+                setIsUploadingAvatar(false);
+                setAvatarError(errs?.avatar || (lang === 'id' ? 'Gagal mengunggah foto profil.' : 'Failed to upload profile photo.'));
+            },
+        });
+    };
+
+    const handleAvatarCancel = () => {
+        setAvatarFile(null);
+        setAvatarPreview(null);
+        setAvatarError('');
+        if (avatarInputRef.current) {
+            avatarInputRef.current.value = '';
+        }
+    };
+
+    const handleAvatarDelete = () => {
+        if (!confirm(lang === 'id' ? 'Apakah Anda yakin ingin menghapus foto profil dan kembali menggunakan inisial akun?' : 'Are you sure you want to remove your profile photo and restore default initials?')) {
+            return;
+        }
+
+        setIsDeletingAvatar(true);
+        setAvatarError('');
+
+        router.delete('/profile/avatar', {
+            preserveScroll: true,
+            onSuccess: () => {
+                setIsDeletingAvatar(false);
+                handleAvatarCancel();
+                setAvatarSuccess(lang === 'id' ? 'Foto profil berhasil dihapus.' : 'Profile photo removed.');
+                setTimeout(() => setAvatarSuccess(''), 4000);
+            },
+            onError: () => {
+                setIsDeletingAvatar(false);
+                setAvatarError(lang === 'id' ? 'Gagal menghapus foto profil.' : 'Failed to remove profile photo.');
+            },
+        });
+    };
 
     // WhatsApp form
     const {
@@ -132,15 +221,57 @@ function ProfileInner() {
                 <CampusFixHeader mode="profile" />
 
                 <main className="mx-auto max-w-5xl space-y-8 px-4 py-8 sm:px-6 sm:py-10 pb-28 md:pb-10">
+                    {/* Hidden Avatar File Input */}
+                    <input
+                        ref={avatarInputRef}
+                        type="file"
+                        accept="image/jpeg,image/png,image/jpg,image/webp"
+                        onChange={handleAvatarSelect}
+                        className="hidden"
+                    />
+
                     {/* Header Banner */}
-                    <div className="rounded-2xl p-6 sm:p-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xl border border-white/10 bg-gradient-to-br from-[#2A281E] to-[#1C1B0E]">
-                        <div className="flex items-center gap-4">
-                            <div 
-                                className="w-16 h-16 rounded-2xl flex items-center justify-center font-extrabold text-2xl shadow-xl border border-white/20 shrink-0"
-                                style={{ background: currentDeptTheme.bg, color: currentDeptTheme.text }}
-                            >
-                                {user?.name ? user.name.charAt(0).toUpperCase() : <User className="h-8 w-8" />}
+                    <div className="rounded-2xl p-6 sm:p-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5 shadow-xl border border-white/10 bg-gradient-to-br from-[#2A281E] to-[#1C1B0E]">
+                        <div className="flex items-start sm:items-center gap-5">
+                            {/* Interactive Avatar in Banner */}
+                            <div className="relative group shrink-0">
+                                <div 
+                                    className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl flex items-center justify-center font-extrabold text-2xl sm:text-3xl shadow-xl border-2 border-white/20 overflow-hidden relative"
+                                    style={{ background: currentDeptTheme.bg, color: currentDeptTheme.text }}
+                                >
+                                    {avatarPreview ? (
+                                        <img src={avatarPreview} alt="Preview" className="w-full h-full object-cover" />
+                                    ) : avatarUrl ? (
+                                        <img src={avatarUrl} alt={user?.name || 'Avatar'} className="w-full h-full object-cover" />
+                                    ) : (
+                                        user?.name ? user.name.charAt(0).toUpperCase() : <User className="h-8 w-8" />
+                                    )}
+
+                                    {/* Hover overlay button */}
+                                    <button
+                                        type="button"
+                                        onClick={() => avatarInputRef.current?.click()}
+                                        disabled={isUploadingAvatar || isDeletingAvatar}
+                                        className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center text-white transition-opacity duration-200 cursor-pointer backdrop-blur-[2px]"
+                                        title={lang === 'id' ? 'Ubah Foto Profil' : 'Change Profile Photo'}
+                                    >
+                                        <Camera className="h-5 w-5 sm:h-6 sm:w-6 text-[#E3D1AA] mb-0.5" />
+                                        <span className="text-[10px] font-bold text-[#E3D1AA]">{lang === 'id' ? 'Ubah' : 'Change'}</span>
+                                    </button>
+                                </div>
+
+                                {/* Quick Camera Badge Icon */}
+                                <button
+                                    type="button"
+                                    onClick={() => avatarInputRef.current?.click()}
+                                    disabled={isUploadingAvatar || isDeletingAvatar}
+                                    className="absolute -bottom-1 -right-1 sm:-bottom-1.5 sm:-right-1.5 w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-[#C9AA71] hover:bg-[#E3D1AA] text-[#1C1B0E] flex items-center justify-center shadow-lg border-2 border-[#1C1B0E] transition-transform hover:scale-110 cursor-pointer"
+                                    title={lang === 'id' ? 'Pilih Foto Baru' : 'Choose New Photo'}
+                                >
+                                    <Camera className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                                </button>
                             </div>
+
                             <div>
                                 <div className="flex items-center gap-2.5 flex-wrap">
                                     <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#FAFAFA]">
@@ -164,6 +295,34 @@ function ProfileInner() {
                                     <Mail className="h-3.5 w-3.5" />
                                     {user?.email}
                                 </p>
+
+                                {/* Banner Quick Preview Action Bar */}
+                                {avatarPreview && (
+                                    <div className="mt-2.5 flex items-center gap-2 flex-wrap">
+                                        <span className="text-[11px] text-[#E3D1AA] font-semibold flex items-center gap-1">
+                                            <Sparkles className="h-3 w-3 text-[#C9AA71]" />
+                                            {lang === 'id' ? 'Foto siap disimpan:' : 'Ready to save:'}
+                                        </span>
+                                        <button
+                                            type="button"
+                                            onClick={handleAvatarUpload}
+                                            disabled={isUploadingAvatar}
+                                            className="flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-bold bg-[#C9AA71] hover:bg-[#b89960] text-[#1C1B0E] transition-all cursor-pointer shadow-md disabled:opacity-60"
+                                        >
+                                            {isUploadingAvatar ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                                            <span>{isUploadingAvatar ? (lang === 'id' ? 'Menyimpan...' : 'Saving...') : (lang === 'id' ? 'Simpan' : 'Save')}</span>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={handleAvatarCancel}
+                                            disabled={isUploadingAvatar}
+                                            className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold bg-white/10 hover:bg-white/20 text-[#FAFAFA] transition-all cursor-pointer"
+                                        >
+                                            <X className="h-3 w-3" />
+                                            <span>{lang === 'id' ? 'Batal' : 'Cancel'}</span>
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                         </div>
 
@@ -289,8 +448,154 @@ function ProfileInner() {
                             )}
                         </div>
 
-                        {/* Right Column: WhatsApp Linking & Password Change */}
+                        {/* Right Column: Profile Photo, WhatsApp Linking & Password Change */}
                         <div className="lg:col-span-2 space-y-6">
+                            {/* Profile Photo Card */}
+                            <div className="rounded-2xl border border-[#3B3929] bg-[#2A281E]/90 p-6 sm:p-8 shadow-xl space-y-6">
+                                <div className="flex items-center justify-between gap-4 pb-4 border-b border-[#3B3929] flex-wrap">
+                                    <div className="flex items-center gap-2.5">
+                                        <div className="w-9 h-9 rounded-xl bg-[#C9AA71]/20 text-[#C9AA71] flex items-center justify-center border border-[#C9AA71]/30 shrink-0">
+                                            <Camera className="h-5 w-5" />
+                                        </div>
+                                        <div>
+                                            <h2 className="text-base sm:text-lg font-bold text-[#FAFAFA]">
+                                                {lang === 'id' ? 'Foto Profil Akun' : 'Account Profile Photo'}
+                                            </h2>
+                                            <p className="text-xs text-[#A19F8D] mt-0.5">
+                                                {lang === 'id'
+                                                    ? 'Personalisasi avatar akun Anda agar mudah dikenali oleh seluruh rekan tim dan resort.'
+                                                    : 'Personalize your avatar for easy recognition across team activities and operations.'}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    {avatarUrl ? (
+                                        <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-950/60 border border-emerald-500/50 text-emerald-300 flex items-center gap-1.5 shadow-sm">
+                                            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+                                            <span>{lang === 'id' ? 'Foto Kustom Aktif' : 'Custom Photo Active'}</span>
+                                        </span>
+                                    ) : (
+                                        <span className="px-3 py-1 rounded-full text-xs font-semibold bg-white/5 border border-white/10 text-[#A19F8D] flex items-center gap-1.5">
+                                            <User className="h-3.5 w-3.5" />
+                                            <span>{lang === 'id' ? 'Inisial Default' : 'Default Initials'}</span>
+                                        </span>
+                                    )}
+                                </div>
+
+                                {/* Status Alerts */}
+                                {avatarSuccess && (
+                                    <div className="flex items-center gap-2 p-3.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-medium animate-in fade-in duration-200">
+                                        <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
+                                        <span>{avatarSuccess}</span>
+                                    </div>
+                                )}
+
+                                {avatarError && (
+                                    <div className="flex items-center gap-2 p-3.5 rounded-xl bg-red-500/15 border border-red-500/30 text-red-300 text-xs font-medium animate-in fade-in duration-200">
+                                        <AlertCircle className="h-4 w-4 shrink-0 text-red-400" />
+                                        <span>{avatarError}</span>
+                                    </div>
+                                )}
+
+                                <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
+                                    {/* Large Avatar Preview with frame */}
+                                    <div className="relative group shrink-0">
+                                        <div 
+                                            className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl flex items-center justify-center font-extrabold text-3xl sm:text-4xl shadow-2xl border-2 border-[#C9AA71]/40 overflow-hidden relative ring-4 ring-black/30"
+                                            style={{ background: currentDeptTheme.bg, color: currentDeptTheme.text }}
+                                        >
+                                            {avatarPreview ? (
+                                                <img src={avatarPreview} alt="Preview" className="w-full h-full object-cover" />
+                                            ) : avatarUrl ? (
+                                                <img src={avatarUrl} alt={user?.name || 'Avatar'} className="w-full h-full object-cover" />
+                                            ) : (
+                                                user?.name ? user.name.charAt(0).toUpperCase() : <User className="h-12 w-12" />
+                                            )}
+
+                                            {/* Hover overlay to change */}
+                                            <button
+                                                type="button"
+                                                onClick={() => avatarInputRef.current?.click()}
+                                                disabled={isUploadingAvatar || isDeletingAvatar}
+                                                className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center text-white transition-opacity duration-200 cursor-pointer backdrop-blur-[2px]"
+                                            >
+                                                <UploadCloud className="h-7 w-7 text-[#E3D1AA] mb-1" />
+                                                <span className="text-[11px] font-bold text-[#E3D1AA]">{lang === 'id' ? 'Ganti Foto' : 'Change'}</span>
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Action Controls & Instructions */}
+                                    <div className="flex-1 space-y-3.5 text-center sm:text-left">
+                                        <div className="space-y-1">
+                                            <h3 className="text-sm font-bold text-[#FAFAFA]">
+                                                {lang === 'id' ? 'Pengaturan Avatar' : 'Avatar Settings'}
+                                            </h3>
+                                            <p className="text-xs text-[#A19F8D] leading-relaxed">
+                                                {lang === 'id'
+                                                    ? 'Unggah foto profil Anda (JPG, PNG, atau WEBP, maks. 5MB). Foto akan ditampilkan pada header, kartu profil, serta daftar aktivitas sistem.'
+                                                    : 'Upload your avatar photo (JPG, PNG, or WEBP, max 5MB). Your photo appears on the header, profile badges, and system activity logs.'}
+                                            </p>
+                                        </div>
+
+                                        {avatarPreview ? (
+                                            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3 pt-1">
+                                                <button
+                                                    type="button"
+                                                    onClick={handleAvatarUpload}
+                                                    disabled={isUploadingAvatar}
+                                                    className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-[#C9AA71] hover:bg-[#b89960] text-[#1C1B0E] transition-all shadow-lg hover:shadow-xl cursor-pointer disabled:opacity-60 hover:scale-[1.02]"
+                                                >
+                                                    {isUploadingAvatar ? (
+                                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                                    ) : (
+                                                        <Check className="h-4 w-4" />
+                                                    )}
+                                                    <span>{isUploadingAvatar ? (lang === 'id' ? 'Menyimpan...' : 'Saving...') : (lang === 'id' ? 'Simpan Foto Ini' : 'Save This Photo')}</span>
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={handleAvatarCancel}
+                                                    disabled={isUploadingAvatar}
+                                                    className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold bg-white/10 hover:bg-white/15 text-[#FAFAFA] transition-all cursor-pointer"
+                                                >
+                                                    <X className="h-4 w-4" />
+                                                    <span>{lang === 'id' ? 'Batal' : 'Cancel'}</span>
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3 pt-1">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => avatarInputRef.current?.click()}
+                                                    disabled={isUploadingAvatar || isDeletingAvatar}
+                                                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-[#C9AA71] hover:bg-[#b89960] text-[#1C1B0E] transition-all shadow-md hover:shadow-lg cursor-pointer hover:scale-[1.02] disabled:opacity-60"
+                                                >
+                                                    <Camera className="h-4 w-4" />
+                                                    <span>{avatarUrl ? (lang === 'id' ? 'Ganti Foto' : 'Change Photo') : (lang === 'id' ? 'Pilih Foto' : 'Choose Photo')}</span>
+                                                </button>
+
+                                                {avatarUrl && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={handleAvatarDelete}
+                                                        disabled={isUploadingAvatar || isDeletingAvatar}
+                                                        className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold text-red-400 hover:text-red-300 hover:bg-red-500/10 border border-red-500/20 transition-all cursor-pointer disabled:opacity-60"
+                                                    >
+                                                        {isDeletingAvatar ? (
+                                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                                        ) : (
+                                                            <Trash2 className="h-4 w-4" />
+                                                        )}
+                                                        <span>{lang === 'id' ? 'Hapus Foto' : 'Remove Photo'}</span>
+                                                    </button>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+
                             {/* WhatsApp Linking Card */}
                             <div className="rounded-2xl border border-[#3B3929] bg-[#2A281E]/90 p-6 sm:p-8 shadow-xl space-y-6">
                                 <div className="flex items-center justify-between gap-4 pb-4 border-b border-[#3B3929] flex-wrap">

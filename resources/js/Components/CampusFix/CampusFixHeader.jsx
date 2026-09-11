@@ -14,7 +14,7 @@ import { getDepartmentTheme, getShortDepartmentName } from '@/constants/departme
 export function CampusFixHeader({ mode = 'dashboard', query, onQueryChange, onReport, onEmergency, onNewPeriod, searchDropdown }) {
     const { currentSheet } = useIssues();
     const { lang, setLang, t } = useLanguage();
-    const { user, isAdmin, department, staffName, canAccessAnalytics, canAccessCalendar } = useAuth();
+    const { user, isAdmin, department, staffName, canAccessAnalytics, canAccessCalendar, avatarUrl } = useAuth();
     const userDept = user?.department || department;
     const deptTheme = userDept ? getDepartmentTheme(userDept) : (isAdmin ? { bg: '#C9AA71', text: '#1C1B0E' } : { bg: '#607D8B', text: '#FFFFFF' });
     const [searchFocused, setSearchFocused] = useState(false);
@@ -221,13 +221,21 @@ export function CampusFixHeader({ mode = 'dashboard', query, onQueryChange, onRe
                                 title={`${user?.name || 'Account'} (${user?.department || (isAdmin ? 'Admin' : '')})`}
                             >
                                 <div 
-                                    className="w-6 h-6 rounded-full flex items-center justify-center font-black text-xs shrink-0 shadow-xs ring-1 ring-black/20"
+                                    className="w-6 h-6 rounded-full flex items-center justify-center font-black text-xs shrink-0 shadow-xs ring-1 ring-black/20 overflow-hidden"
                                     style={{
                                         backgroundColor: deptTheme.bg,
                                         color: deptTheme.text,
                                     }}
                                 >
-                                    {user?.name ? user.name.charAt(0).toUpperCase() : <User className="h-3 w-3" />}
+                                    {avatarUrl ? (
+                                        <img 
+                                            src={avatarUrl} 
+                                            alt={user?.name || 'Avatar'} 
+                                            className="w-full h-full object-cover rounded-full" 
+                                        />
+                                    ) : (
+                                        user?.name ? user.name.charAt(0).toUpperCase() : <User className="h-3 w-3" />
+                                    )}
                                 </div>
                             </Link>
                         </div>
@@ -432,13 +440,21 @@ export function CampusFixHeader({ mode = 'dashboard', query, onQueryChange, onRe
                         >
                             {/* Unique Department-Themed Avatar */}
                             <div 
-                                className="w-5 h-5 rounded-full flex items-center justify-center font-extrabold text-[10px] shrink-0 shadow-xs ring-1 ring-black/20"
+                                className="w-5 h-5 rounded-full flex items-center justify-center font-extrabold text-[10px] shrink-0 shadow-xs ring-1 ring-black/20 overflow-hidden"
                                 style={{
                                     backgroundColor: deptTheme.bg,
                                     color: deptTheme.text,
                                 }}
                             >
-                                {user?.name ? user.name.charAt(0).toUpperCase() : <User className="h-3 w-3" />}
+                                {avatarUrl ? (
+                                    <img 
+                                        src={avatarUrl} 
+                                        alt={user?.name || 'Avatar'} 
+                                        className="w-full h-full object-cover rounded-full" 
+                                    />
+                                ) : (
+                                    user?.name ? user.name.charAt(0).toUpperCase() : <User className="h-3 w-3" />
+                                )}
                             </div>
                             <span className={`hidden sm:inline max-w-[110px] truncate text-[11px] font-bold ${
                                 mode === 'profile' ? 'text-[#E3D1AA]' : 'text-[#1C1B0E]'

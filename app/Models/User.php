@@ -26,6 +26,11 @@ class User extends Authenticatable
         'staff_name',
         'whatsapp_number',
         'permissions',
+        'avatar',
+    ];
+
+    protected $appends = [
+        'avatar_url',
     ];
 
     protected function casts(): array
@@ -100,5 +105,16 @@ class User extends Authenticatable
     public function auditLogs()
     {
         return $this->hasMany(UserAuditLog::class, 'target_user_id');
+    }
+
+    public function getAvatarUrlAttribute(): ?string
+    {
+        if (empty($this->avatar)) {
+            return null;
+        }
+        if (str_starts_with($this->avatar, 'http://') || str_starts_with($this->avatar, 'https://') || str_starts_with($this->avatar, 'data:')) {
+            return $this->avatar;
+        }
+        return asset('uploads/avatars/' . ltrim($this->avatar, '/'));
     }
 }
