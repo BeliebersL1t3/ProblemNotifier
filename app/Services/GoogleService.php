@@ -144,20 +144,20 @@ class GoogleService
 
         $this->sheets->spreadsheets->batchUpdate($this->spreadsheetId, $batchReq);
 
-        // 2. Write the header row to the new sheet (25 columns: A to Y)
+        // 2. Write the header row to the new sheet (26 columns: A to Z)
         $headers = [[
             'ID', 'Title', 'Description', 'Location', 'Category',
             'Status', 'Reporter', 'Submitted At', 'Image URL',
             'Taker', 'Taken At', 'Solver', 'Solved At',
             'Fix Description', 'Proof Image URL', 'Duration',
             'Priority', 'Deadline', 'Pending Reason', 'Pending By',
-            'Pending Image URL', 'Tagged Departments', 'Origin Department', 'Assigned Department', 'Edit Logs'
+            'Pending Image URL', 'Tagged Departments', 'Origin Department', 'Assigned Department', 'Edit History', 'Display Status'
         ]];
 
         $body = new ValueRange(['values' => $headers]);
         $this->sheets->spreadsheets_values->update(
             $this->spreadsheetId,
-            "{$name}!A1:Y1",
+            "{$name}!A1:Z1",
             $body,
             ['valueInputOption' => 'RAW']
         );
@@ -207,6 +207,35 @@ class GoogleService
     }
 
     /**
+     * Ensure Column Y1 ('Edit History') and Z1 ('Display Status') headers across all sheets.
+     */
+    public function ensureEditAndDisplayHeaders(): void
+    {
+        $allSheets = $this->listSheets(true);
+        foreach ($allSheets as $sheetName) {
+            try {
+                $res = $this->sheets->spreadsheets_values->get(
+                    $this->spreadsheetId,
+                    "{$sheetName}!Y1:Z1"
+                );
+                $vals = $res->getValues();
+                $yVal = $vals[0][0] ?? '';
+                $zVal = $vals[0][1] ?? '';
+                if ($yVal !== 'Edit History' || $zVal !== 'Display Status') {
+                    $body = new ValueRange(['values' => [['Edit History', 'Display Status']]]);
+                    $this->sheets->spreadsheets_values->update(
+                        $this->spreadsheetId,
+                        "{$sheetName}!Y1:Z1",
+                        $body,
+                        ['valueInputOption' => 'RAW']
+                    );
+                }
+            } catch (\Throwable $e) {}
+        }
+        $this->clearCache();
+    }
+
+    /**
      * Automatically setup formatting rules for a sheet (Bold headers, Text Wrap, Top Alignment, and Status Conditional Colors ONLY for Column F).
      */
     public function setupSheetFormatting(int $sheetId): void
@@ -232,7 +261,7 @@ class GoogleService
             }
         } catch (\Throwable $e) {}
 
-        // 1. Set Text Wrap and Top Vertical Alignment for all cells (25 columns: A to Y)
+        // 1. Set Text Wrap and Top Vertical Alignment for all cells (26 columns: A to Z)
         $requests[] = new \Google\Service\Sheets\Request([
             'repeatCell' => [
                 'range' => [
@@ -240,7 +269,7 @@ class GoogleService
                     'startRowIndex'    => 0,
                     'endRowIndex'      => 1000,
                     'startColumnIndex' => 0,
-                    'endColumnIndex'   => 25,
+                    'endColumnIndex'   => 26,
                 ],
                 'cell' => [
                     'userEnteredFormat' => [
@@ -252,7 +281,7 @@ class GoogleService
             ]
         ]);
 
-        // 2. Bold header row (25 columns: A to Y)
+        // 2. Bold header row (26 columns: A to Z)
         $requests[] = new \Google\Service\Sheets\Request([
             'repeatCell' => [
                 'range' => [
@@ -260,7 +289,7 @@ class GoogleService
                     'startRowIndex'    => 0,
                     'endRowIndex'      => 1,
                     'startColumnIndex' => 0,
-                    'endColumnIndex'   => 25,
+                    'endColumnIndex'   => 26,
                 ],
                 'cell'   => ['userEnteredFormat' => ['textFormat' => ['bold' => true]]],
                 'fields' => 'userEnteredFormat.textFormat.bold',
@@ -394,16 +423,20 @@ class GoogleService
                 "{$sheetName}!A2:A"
             );
             $values = $response->getValues() ?? [];
+            $lastMatch = null;
             foreach ($values as $idx => $row) {
                 if (($row[0] ?? '') === $issueId) {
-                    return ['sheet' => $sheetName, 'rowIndex' => $idx + 2]; // 1-based, skip header
+                    $lastMatch = ['sheet' => $sheetName, 'rowIndex' => $idx + 2]; // 1-based, skip header
                 }
+            }
+            if ($lastMatch !== null) {
+                return $lastMatch;
             }
         }
         return null;
     }
 
-    /** Return all issue rows (skips header row 1), each padded to 25 columns. */
+    /** Return all issue rows (skips header row 1), each padded to 26 columns (A to Z). */
     public function getRows(bool $forceRefresh = false): array
     {
         $cacheKey = "google_sheet_rows_{$this->sheetName}";
@@ -416,21 +449,21 @@ class GoogleService
             return Cache::remember($cacheKey, 20, function () use ($backupCacheKey) {
                 $response = $this->sheets->spreadsheets_values->get(
                     $this->spreadsheetId,
-                    "{$this->sheetName}!A2:Y"
+                    "{$this->sheetName}!A2:Z"
                 );
 
                 $values = $response->getValues() ?? [];
 
-                // Pad every row to 25 columns so missing trailing cells don't cause errors
-                $padded = array_map(fn($row) => array_pad($row, 25, ''), $values);
+                // Pad every row to 26 columns so missing trailing cells don't cause errors
+                $padded = array_map(fn($row) => array_pad($row, 26, ''), $values);
                 Cache::put($backupCacheKey, $padded, 86400 * 7);
                 return $padded;
             });
         } catch (\Throwable $e) {
-            if (Cache::has($cacheKey)) {
+            if ($cacheKey && Cache::has($cacheKey)) {
                 return Cache::get($cacheKey);
             }
-            if (Cache::has($backupCacheKey)) {
+            if ($backupCacheKey && Cache::has($backupCacheKey)) {
                 Log::warning("Google Sheets API failed for {$this->sheetName}. Using 7-day backup cache: " . $e->getMessage());
                 return Cache::get($backupCacheKey);
             }
@@ -438,14 +471,14 @@ class GoogleService
         }
     }
 
-    /** Append a new row. Returns the row index. */
+    /** Append a new row (26 columns: A to Z). Returns the row index. */
     public function appendRow(array $values): ?int
     {
         $this->clearCache();
-        $body = new ValueRange(['values' => [array_pad($values, 25, '')]]);
+        $body = new ValueRange(['values' => [array_pad($values, 26, '')]]);
         $response = $this->sheets->spreadsheets_values->append(
             $this->spreadsheetId,
-            "{$this->sheetName}!A:Y",
+            "{$this->sheetName}!A:Z",
             $body,
             ['valueInputOption' => 'RAW', 'insertDataOption' => 'INSERT_ROWS']
         );
@@ -600,7 +633,7 @@ class GoogleService
                         'startRowIndex' => $rowIndex - 1, // 0-based
                         'endRowIndex' => $rowIndex,
                         'startColumnIndex' => 0,
-                        'endColumnIndex' => 24 // A to X
+                        'endColumnIndex' => 26 // A to Z
                     ],
                     'cell' => [
                         'userEnteredFormat' => [
@@ -639,7 +672,7 @@ class GoogleService
                         'startRowIndex'    => 0,
                         'endRowIndex'      => 1000,
                         'startColumnIndex' => 0,
-                        'endColumnIndex'   => 24,
+                        'endColumnIndex'   => 26,
                     ],
                     'cell' => [
                         'userEnteredFormat' => [
