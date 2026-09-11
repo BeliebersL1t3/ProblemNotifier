@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { X, Shield, Clock, User, AlertCircle, RefreshCw, ChevronDown, ChevronRight, Activity } from 'lucide-react';
+import { AuditDiffViewer, extractDifferences } from './AuditDiffViewer';
 
 export function AuditLogDrawer({ isOpen, onClose }) {
     const [logs, setLogs] = useState([]);
@@ -33,19 +34,39 @@ export function AuditLogDrawer({ isOpen, onClose }) {
 
     if (!isOpen) return null;
 
-    const getActionBadge = (action) => {
+    const getActionBadge = (log) => {
+        const action = log?.action;
         switch (action) {
             case 'USER_CREATED':
                 return <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">User Baru</span>;
-            case 'USER_UPDATED':
-            case 'PERMISSIONS_UPDATED':
-                return <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/20 text-blue-300 border border-blue-500/30">Izin Diubah</span>;
             case 'PASSWORD_RESET':
                 return <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">Reset Password</span>;
             case 'USER_ARCHIVED':
                 return <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-500/20 text-red-300 border border-red-500/30">Di-Archive (Soft Delete)</span>;
             case 'USER_RESTORED':
                 return <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30">Dipulihkan</span>;
+            case 'PERMISSIONS_UPDATED':
+                return <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/20 text-blue-300 border border-blue-500/30">Izin Diubah</span>;
+            case 'USER_UPDATED': {
+                const diffs = extractDifferences(log?.changes);
+                const hasPerms = diffs.some(d => d.type === 'permission');
+                const hasFields = diffs.some(d => d.type === 'field');
+                const hasPass = diffs.some(d => d.type === 'password');
+
+                if (hasPerms && !hasFields && !hasPass) {
+                    return <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/20 text-blue-300 border border-blue-500/30">Izin Diubah</span>;
+                }
+                if (hasFields && !hasPerms && !hasPass) {
+                    return <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-sky-500/20 text-sky-300 border border-sky-500/30">Profil Diperbarui</span>;
+                }
+                if (hasPass && !hasFields && !hasPerms) {
+                    return <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">Reset Password</span>;
+                }
+                if (hasPerms && hasFields) {
+                    return <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">Profil & Izin Diubah</span>;
+                }
+                return <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/20 text-blue-300 border border-blue-500/30">Data Diperbarui</span>;
+            }
             default:
                 return <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-gray-500/20 text-gray-300 border border-gray-500/30">{action}</span>;
         }
@@ -126,7 +147,7 @@ export function AuditLogDrawer({ isOpen, onClose }) {
                                     <div className="flex items-start justify-between gap-2">
                                         <div className="space-y-1">
                                             <div className="flex items-center gap-2 flex-wrap">
-                                                {getActionBadge(log.action)}
+                                                {getActionBadge(log)}
                                                 <span className="text-xs font-bold text-[#FAFAFA]">
                                                     {log.target_user_name}
                                                 </span>
@@ -150,21 +171,19 @@ export function AuditLogDrawer({ isOpen, onClose }) {
 
                                     {/* Diff expandable */}
                                     {log.changes && (
-                                        <div>
+                                        <div className="pt-1">
                                             <button
                                                 type="button"
                                                 onClick={() => setExpandedId(isExpanded ? null : log.id)}
-                                                className="text-[11px] text-[#C9AA71] hover:underline flex items-center gap-1 font-medium pt-1 cursor-pointer"
+                                                className="text-[11px] text-[#C9AA71] hover:text-[#E3D1AA] transition-colors flex items-center gap-1 font-semibold cursor-pointer"
                                             >
-                                                {isExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-                                                <span>{isExpanded ? 'Sembunyikan Rincian Diff' : 'Lihat Rincian Perubahan'}</span>
+                                                {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                                                <span>{isExpanded ? 'Sembunyikan Rincian Perubahan' : 'Lihat Rincian Perubahan'}</span>
                                             </button>
 
                                             {isExpanded && (
-                                                <div className="mt-2 p-2.5 rounded-lg bg-[#1C1B0E] border border-[#3B3929] text-[11px] font-mono text-[#E3D1AA] overflow-x-auto">
-                                                    <pre className="whitespace-pre-wrap leading-relaxed">
-                                                        {JSON.stringify(log.changes, null, 2)}
-                                                    </pre>
+                                                <div className="mt-2.5 animate-in fade-in duration-200">
+                                                    <AuditDiffViewer log={log} />
                                                 </div>
                                             )}
                                         </div>
