@@ -12,9 +12,9 @@ return new class extends Migration
             $table->string('raw_password')->nullable()->default('telunas123')->after('password');
         });
 
-        \App\Models\User::query()->update(['raw_password' => 'telunas123']);
+        \Illuminate\Support\Facades\DB::table('users')->update(['raw_password' => 'telunas123']);
         // Also reset their hash back to telunas123 if it was altered by the test
-        \App\Models\User::query()->update(['password' => \Illuminate\Support\Facades\Hash::make('telunas123')]);
+        \Illuminate\Support\Facades\DB::table('users')->update(['password' => \Illuminate\Support\Facades\Hash::make('telunas123')]);
     }
 
     public function down(): void
