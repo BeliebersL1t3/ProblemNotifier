@@ -46,13 +46,15 @@ class UserAuditLog extends Model
         string $action,
         array $changes = [],
         ?string $ipAddress = null,
-        ?string $userAgent = null
+        ?string $userAgent = null,
+        ?string $customTargetName = null
     ): self {
+        $targetName = $customTargetName ?? ($targetUser?->staff_name ?: ($targetUser?->name ?: ($targetUser ? 'User #' . $targetUser->id : 'Multi Akun')));
         return self::create([
             'admin_id'         => $admin?->id,
             'admin_name'       => $admin?->staff_name ?: ($admin?->name ?: 'System'),
             'target_user_id'   => $targetUser?->id,
-            'target_user_name' => $targetUser?->staff_name ?: ($targetUser?->name ?: 'User #' . ($targetUser?->id ?? 'unknown')),
+            'target_user_name' => $targetName,
             'action'           => $action,
             'changes'          => $changes,
             'ip_address'       => $ipAddress ?? request()?->ip(),

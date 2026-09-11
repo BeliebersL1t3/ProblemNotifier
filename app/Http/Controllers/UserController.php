@@ -401,25 +401,13 @@ class UserController extends Controller
             $target->permissions = $currentPerms;
             $target->save();
 
-            $after = [
-                'name'        => $target->name,
-                'staff_name'  => $target->staff_name,
-                'email'       => $target->email,
-                'role'        => $target->role,
+            $affectedAccounts[] = [
+                'id'          => $target->id,
+                'name'        => $target->staff_name ?: $target->name,
                 'department'  => $target->department,
-                'permissions' => $target->permissions,
+                'subdivision' => $target->subdivision,
+                'role'        => $target->role,
             ];
-
-            UserAuditLog::record(
-                $admin,
-                $target,
-                'USER_PERMISSIONS_BATCH_UPDATED',
-                [
-                    'before' => $before,
-                    'after'  => $after,
-                    'action' => 'BATCH_PERMISSIONS_UPDATE',
-                ]
-            );
 
             $restrictionData = $this->analyzeRestrictions($target);
             $updatedUsersList[] = [
@@ -443,6 +431,28 @@ class UserController extends Controller
             ];
 
             $updatedCount++;
+        }
+
+        // Record EXACTLY ONE consolidated audit log entry for this batch operation
+        if ($updatedCount > 0) {
+            $namesSample = array_slice(array_column($affectedAccounts, 'name'), 0, 3);
+            $targetLabel = "{$updatedCount} Akun (" . implode(', ', $namesSample) . ($updatedCount > 3 ? ', ...' : '') . ')';
+
+            UserAuditLog::record(
+                $admin,
+                null,
+                'BATCH_PERMISSIONS_UPDATED',
+                [
+                    'batch'              => true,
+                    'account_count'      => $updatedCount,
+                    'action_applied'     => $validated['action'] ?? 'set',
+                    'permission_changes' => $validated['permissions'] ?? [],
+                    'accounts'           => $affectedAccounts,
+                ],
+                null,
+                null,
+                $targetLabel
+            );
         }
 
         return response()->json([

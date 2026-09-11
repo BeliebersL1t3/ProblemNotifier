@@ -45,6 +45,18 @@ export function AuditLogDrawer({ isOpen, onClose }) {
                 return <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-500/20 text-red-300 border border-red-500/30">Di-Archive (Soft Delete)</span>;
             case 'USER_RESTORED':
                 return <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30">Dipulihkan</span>;
+            case 'BATCH_PERMISSIONS_UPDATED':
+            case 'USER_PERMISSIONS_BATCH_UPDATED':
+                return (
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#C9AA71]/20 text-[#E3D1AA] border border-[#C9AA71]/40 flex items-center gap-1 shadow-xs">
+                        <span>Izin Massal</span>
+                        {log?.changes?.account_count && (
+                            <span className="px-1.5 py-0.2 rounded bg-[#C9AA71] text-[#1C1B0E] font-black text-[9px]">
+                                {log.changes.account_count} Akun
+                            </span>
+                        )}
+                    </span>
+                );
             case 'PERMISSIONS_UPDATED':
                 return <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/20 text-blue-300 border border-blue-500/30">Izin Diubah</span>;
             case 'USER_UPDATED': {

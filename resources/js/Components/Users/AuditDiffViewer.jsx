@@ -230,6 +230,98 @@ export function AuditDiffViewer({ log }) {
         );
     }
 
+    if (changes.batch || log.action === 'BATCH_PERMISSIONS_UPDATED' || log.action === 'USER_PERMISSIONS_BATCH_UPDATED') {
+        const accountCount = changes.account_count || changes.accounts?.length || 0;
+        const accounts = changes.accounts || [];
+        const permChanges = changes.permission_changes || {};
+        const actionApplied = changes.action_applied || 'set';
+
+        return (
+            <div className="space-y-3 pt-1">
+                <div className="p-3.5 rounded-xl bg-gradient-to-br from-[#2A281E] to-[#1C1B0E] border border-[#C9AA71]/40 text-xs space-y-3 shadow-lg">
+                    <div className="flex items-center justify-between gap-2 flex-wrap pb-2 border-b border-[#3B3929]">
+                        <div className="flex items-center gap-2">
+                            <div className="w-7 h-7 rounded-lg bg-[#C9AA71]/20 text-[#C9AA71] flex items-center justify-center border border-[#C9AA71]/30 shrink-0">
+                                <Sliders className="h-4 w-4" />
+                            </div>
+                            <div>
+                                <span className="font-extrabold text-[#FAFAFA] text-xs sm:text-sm">
+                                    Laporan Perubahan Izin Massal
+                                </span>
+                                <p className="text-[10px] text-[#A19F8D]">
+                                    Diterapkan serentak untuk {accountCount} akun
+                                </p>
+                            </div>
+                        </div>
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-[#C9AA71] text-[#1C1B0E]">
+                            {accountCount} AKUN
+                        </span>
+                    </div>
+
+                    <div className="space-y-1.5">
+                        <span className="text-[10px] font-bold text-[#E3D1AA] uppercase tracking-wider">
+                            Izin yang Diubah:
+                        </span>
+                        {actionApplied === 'reset_default' ? (
+                            <div className="p-2 rounded-lg bg-blue-950/20 border border-blue-500/30 text-blue-300 text-xs">
+                                🔄 Seluruh izin direset kembali ke standar default role akun masing-masing.
+                            </div>
+                        ) : Object.keys(permChanges).length > 0 ? (
+                            <div className="space-y-1.5">
+                                {Object.entries(permChanges).map(([permKey, permVal]) => {
+                                    const label = PERMISSION_CONFIG[permKey] || permKey;
+                                    const isEnabled = Boolean(permVal);
+                                    return (
+                                        <div 
+                                            key={permKey}
+                                            className="p-2 rounded-lg bg-[#1C1B0E] border border-[#3B3929] flex items-center justify-between gap-2"
+                                        >
+                                            <span className="text-xs text-[#FAFAFA] font-medium">{label}</span>
+                                            {isEnabled ? (
+                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                                                    <CheckCircle2 className="h-3 w-3" /> DIAKTIFKAN (ON)
+                                                </span>
+                                            ) : (
+                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-red-500/20 text-red-300 border border-red-500/30">
+                                                    <XCircle className="h-3 w-3" /> DINONAKTIFKAN (OFF)
+                                                </span>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        ) : (
+                            <div className="text-[11px] text-[#A19F8D]">
+                                Izin diperbarui secara serentak.
+                            </div>
+                        )}
+                    </div>
+
+                    {accounts.length > 0 && (
+                        <div className="space-y-1.5 pt-1">
+                            <span className="text-[10px] font-bold text-[#E3D1AA] uppercase tracking-wider">
+                                Daftar Akun yang Diperbarui ({accounts.length}):
+                            </span>
+                            <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto p-2 rounded-lg bg-[#1C1B0E]/80 border border-[#3B3929] custom-scrollbar">
+                                {accounts.map((acc, idx) => (
+                                    <span 
+                                        key={acc.id || idx}
+                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] bg-[#2A281E] border border-[#3B3929] text-[#FAFAFA]"
+                                    >
+                                        <span className="font-semibold">{acc.name}</span>
+                                        {acc.department && (
+                                            <span className="text-[9px] text-[#A19F8D]">({acc.department})</span>
+                                        )}
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
+        );
+    }
+
     if (changes.archived_user || log.action === 'USER_ARCHIVED') {
         return (
             <div className="p-3 rounded-xl bg-[#232218] border border-red-500/20 text-xs space-y-1">
