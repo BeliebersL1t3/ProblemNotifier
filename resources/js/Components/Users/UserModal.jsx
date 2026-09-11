@@ -459,7 +459,7 @@ export function UserModal({ isOpen, onClose, user = null, onSaved }) {
                                     {
                                         key: 'can_view_all_departments',
                                         label: 'Bisa Melihat Semua Departemen',
-                                        desc: 'Jika dinonaktifkan, akun hanya dapat melihat isu milik departemennya sendiri.',
+                                        desc: 'Jika dinonaktifkan, akun hanya melihat isu terkait departemennya (yang ditugaskan/assigned, dilaporkan, atau ditag). Isu departemen lain tidak muncul.',
                                     },
                                     {
                                         key: 'can_manage_issues',
