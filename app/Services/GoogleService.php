@@ -690,16 +690,43 @@ class GoogleService
     }
 
     /**
-     * Update specific columns in a given 1-based row number.
-     * $colValues: ['F' => 'progress', 'J' => 'Budi', ...]
+     * Update specific columns or an entire row in a given 1-based row number.
+     * Supports:
+     * 1. Full row array (0-indexed): ['ENG-001', 'Title', ...] -> updates range A{row}:Z{row} in single call.
+     * 2. Associative column letters: ['F' => 'progress', 'J' => 'Budi'] -> updates specific cells.
+     * 3. Associative numeric indices: [5 => 'progress', 9 => 'Budi'] -> converts to letters and updates.
      */
-    public function updateRow(int $rowNumber, array $colValues): void
+    public function updateRow(int $rowNumber, array $colValues, ?string $sheetName = null): void
     {
         $this->clearCache();
+        $targetSheet = $sheetName ?? $this->sheetName;
+
+        // If it's a list (0-indexed sequential array representing entire row)
+        if (array_is_list($colValues) || (isset($colValues[0]) && is_int(array_key_first($colValues)) && count($colValues) > 10)) {
+            $padded = array_pad($colValues, 26, '');
+            $body = new ValueRange([
+                'range'  => "{$targetSheet}!A{$rowNumber}:Z{$rowNumber}",
+                'values' => [$padded],
+            ]);
+            $this->sheets->spreadsheets_values->update(
+                $this->spreadsheetId,
+                "{$targetSheet}!A{$rowNumber}:Z{$rowNumber}",
+                $body,
+                ['valueInputOption' => 'RAW']
+            );
+            return;
+        }
+
         $data = [];
         foreach ($colValues as $col => $value) {
+            if (is_int($col) || is_numeric($col)) {
+                $colLetter = chr(65 + (int)$col);
+            } else {
+                $colLetter = strtoupper((string)$col);
+            }
+
             $data[] = new ValueRange([
-                'range'  => "{$this->sheetName}!{$col}{$rowNumber}",
+                'range'  => "{$targetSheet}!{$colLetter}{$rowNumber}",
                 'values' => [[$value]],
             ]);
         }

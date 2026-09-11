@@ -839,8 +839,12 @@ class IssueController extends Controller
             $currentRow[9]  = $request->taker;
             $currentRow[10] = $takenAt;
             $currentRow[25] = '1';
-
-            $this->googleService->updateRow($issueData['rowIndex'], $currentRow);
+            $targetSheet = $issueData['foundLocation']['sheet'] ?? null;
+            if ($targetSheet) {
+                $this->googleService->updateRow($issueData['rowIndex'], $currentRow, $targetSheet);
+            } else {
+                $this->googleService->updateRow($issueData['rowIndex'], $currentRow);
+            }
 
             $crossYearNotice = $crossYear ? "\n📋 *Note: This issue is from a previous period ({$foundLocation['sheet']}).*" : '';
             $originDept = $currentRow[22] ?? '';
@@ -947,7 +951,12 @@ class IssueController extends Controller
             $currentRow[15] = $durationLabel;
             $currentRow[25] = '1';
 
-            $this->googleService->updateRow($issueData['rowIndex'], $currentRow);
+            $targetSheet = $issueData['foundLocation']['sheet'] ?? null;
+            if ($targetSheet) {
+                $this->googleService->updateRow($issueData['rowIndex'], $currentRow, $targetSheet);
+            } else {
+                $this->googleService->updateRow($issueData['rowIndex'], $currentRow);
+            }
 
             $resolvedProofUrl = $this->resolveImageUrl($proofUrl);
 
@@ -1070,7 +1079,12 @@ class IssueController extends Controller
             $currentRow[20] = $pendingImageUrl ?: ($currentRow[20] ?? '');
             $currentRow[25] = '1';
 
-            $this->googleService->updateRow($issueData['rowIndex'], $currentRow);
+            $targetSheet = $issueData['foundLocation']['sheet'] ?? null;
+            if ($targetSheet) {
+                $this->googleService->updateRow($issueData['rowIndex'], $currentRow, $targetSheet);
+            } else {
+                $this->googleService->updateRow($issueData['rowIndex'], $currentRow);
+            }
 
             $resolvedPendingUrl = $this->resolveImageUrl($pendingImageUrl);
             $resolvedTimeline = $this->parsePendingTimeline($newJson);
@@ -1687,7 +1701,12 @@ class IssueController extends Controller
             $currentRow = array_pad($currentRow, 26, '');
             $currentRow[25] = '0'; // ARCHIVED / HIDDEN
 
-            $this->googleService->updateRow($issueData['rowIndex'], $currentRow);
+            $targetSheet = $issueData['foundLocation']['sheet'] ?? null;
+            if ($targetSheet) {
+                $this->googleService->updateRow($issueData['rowIndex'], $currentRow, $targetSheet);
+            } else {
+                $this->googleService->updateRow($issueData['rowIndex'], $currentRow);
+            }
 
             // Dispatch WhatsApp deletion announcement
             $originStr = !empty($originDept) ? "\n*Origin:* {$originDept}" : '';
@@ -1739,7 +1758,12 @@ class IssueController extends Controller
             $currentRow = array_pad($currentRow, 26, '');
             $currentRow[25] = '1'; // RESTORE TO ACTIVE
 
-            $this->googleService->updateRow($issueData['rowIndex'], $currentRow);
+            $targetSheet = $issueData['foundLocation']['sheet'] ?? null;
+            if ($targetSheet) {
+                $this->googleService->updateRow($issueData['rowIndex'], $currentRow, $targetSheet);
+            } else {
+                $this->googleService->updateRow($issueData['rowIndex'], $currentRow);
+            }
 
             $originDept = $currentRow[22] ?? '';
             $assignedDepts = $currentRow[23] ?? ($currentRow[21] ?? '');
