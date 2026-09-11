@@ -29,7 +29,7 @@ import { getDepartmentForStaff, normalizeDepartment } from '@/constants/staff';
 import { getDepartmentTheme } from '@/constants/departments';
 import { useAuth } from '@/hooks/useAuth';
 
-export function ActivityDetailModal({ issue, onClose, onOpenCardModal, onEdit }) {
+export function ActivityDetailModal({ issue, onClose, onOpenCardModal, onEdit, onRestore }) {
     const { t, lang } = useLanguage();
     const { isAdmin, isDeptUser, department } = useAuth();
 
@@ -184,6 +184,30 @@ export function ActivityDetailModal({ issue, onClose, onOpenCardModal, onEdit })
                             durationLabel: solveDuration,
                             fixDescription: log.reason || log.changes || 'Pekerjaan diselesaikan',
                             proofImageUrl: log.proofImage || null,
+                        }
+                    });
+                } else if (log.type === 'archive') {
+                    rawEvents.push({
+                        id: `step-archive-log-${lIdx}`,
+                        type: 'archive',
+                        timestamp: lTime,
+                        dateStr: log.date ? formatDateTime(log.date) : t('date_na'),
+                        data: {
+                            by: log.by || 'Admin',
+                            dept: log.dept,
+                            changes: log.changes || 'Isu diarsipkan / disembunyikan dari dashboard operasional',
+                        }
+                    });
+                } else if (log.type === 'restore') {
+                    rawEvents.push({
+                        id: `step-restore-log-${lIdx}`,
+                        type: 'restore',
+                        timestamp: lTime,
+                        dateStr: log.date ? formatDateTime(log.date) : t('date_na'),
+                        data: {
+                            by: log.by || 'Admin',
+                            dept: log.dept,
+                            changes: log.changes || 'Isu dipulihkan kembali ke dashboard operasional',
                         }
                     });
                 } else {
@@ -790,6 +814,45 @@ export function ActivityDetailModal({ issue, onClose, onOpenCardModal, onEdit })
                             );
                         }
 
+                        // ================= 7. ARCHIVED / RESTORED =================
+                        if (step.type === 'archive' || step.type === 'restore') {
+                            const isArchive = step.type === 'archive';
+                            return (
+                                <div key={step.id} className={`rounded-xl border ${isArchive ? 'border-red-500/30 bg-red-950/20' : 'border-emerald-500/30 bg-emerald-950/20'} p-4 shadow-sm relative overflow-hidden`}>
+                                    <div className={`absolute top-0 left-0 bottom-0 w-1.5 ${isArchive ? 'bg-red-500' : 'bg-emerald-500'}`} />
+                                    <div className="flex items-center justify-between pb-3 border-b border-border/40">
+                                        <div className="flex items-center gap-2">
+                                            <span className={`flex h-6 w-6 items-center justify-center rounded-full ${isArchive ? 'bg-red-500' : 'bg-emerald-500'} text-black font-bold text-xs`}>
+                                                {stepNumber}
+                                            </span>
+                                            <h3 className={`font-bold text-sm ${isArchive ? 'text-red-400' : 'text-emerald-400'} uppercase tracking-wider flex items-center gap-1.5`}>
+                                                {isArchive ? '🗄️ Isu Diarsipkan / Dihapus' : '♻️ Isu Dipulihkan (Restored)'}
+                                            </h3>
+                                        </div>
+                                        <span className="text-xs text-muted-foreground font-medium">
+                                            📅 {step.dateStr}
+                                        </span>
+                                    </div>
+                                    <div className="mt-3 space-y-2 text-xs">
+                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                            <span className="text-muted-foreground">{lang === 'id' ? 'Oleh:' : 'By:'}</span>
+                                            <span className="font-bold text-foreground">{step.data.by}</span>
+                                            {step.data.dept && (
+                                                <span className="px-1.5 py-0.2 rounded bg-black/40 text-foreground border border-white/10 text-[10px] font-mono">
+                                                    {step.data.dept}
+                                                </span>
+                                            )}
+                                        </div>
+                                        {step.data.changes && (
+                                            <p className="text-foreground/90 font-mono text-[11px] bg-black/40 p-2 rounded border border-white/5">
+                                                • {step.data.changes}
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        }
+
                         return null;
                     })}
                 </div>
@@ -820,6 +883,19 @@ export function ActivityDetailModal({ issue, onClose, onOpenCardModal, onEdit })
                             >
                                 <Edit3 className="w-4 h-4" />
                                 <span>{lang === 'id' ? 'Edit & Mundur Status' : 'Edit & Rollback'}</span>
+                            </button>
+                        )}
+                        {onRestore && (issue.statusDisplay === '0' || issue.displayStatus === '0') && (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    onClose?.();
+                                    onRestore(issue);
+                                }}
+                                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600/90 hover:bg-emerald-500 text-white border border-emerald-400/50 font-semibold text-xs transition-all shadow-sm cursor-pointer"
+                            >
+                                <RotateCcw className="w-4 h-4" />
+                                <span>{lang === 'id' ? 'Pulihkan Isu Ini' : 'Restore Issue'}</span>
                             </button>
                         )}
                     </div>

@@ -91,7 +91,21 @@ function playAlarmBeep() {
 }
 
 function DashboardInner() {
-    const { issues, loading, error, fetchIssues, outboxCount, isSyncingOutbox, syncOfflineOutbox } = useIssues();
+    const {
+        issues,
+        loading,
+        error,
+        fetchIssues,
+        outboxCount,
+        isSyncingOutbox,
+        syncOfflineOutbox,
+        deleteIssue,
+        currentSheet,
+        archivedIssues,
+        loadingArchived,
+        fetchArchivedIssues,
+        restoreIssue,
+    } = useIssues();
     const { t, lang } = useLanguage();
     const { isDeptUser, department, isAdmin, canViewAllDepartments, canDeleteIssues, canManageIssues } = useAuth();
     const [query, setQuery] = useState('');
@@ -118,6 +132,8 @@ function DashboardInner() {
     const [reportOpen, setReportOpen] = useState(false);
     const [emergencyOpen, setEmergencyOpen] = useState(false);
     const [newPeriodOpen, setNewPeriodOpen] = useState(false);
+    const [showArchiveTab, setShowArchiveTab] = useState(false);
+    const [restoringIssueId, setRestoringIssueId] = useState(null);
     const [takeTarget, setTakeTarget] = useState(null);
     const [resolveTarget, setResolveTarget] = useState(null);
     const [detailTarget, setDetailTarget] = useState(null);
@@ -155,10 +171,15 @@ function DashboardInner() {
         }
     }, []);
 
+    // Fetch archived issues when Admin is active or period sheet changes
+    useEffect(() => {
+        if (isAdmin && fetchArchivedIssues) {
+            fetchArchivedIssues();
+        }
+    }, [isAdmin, currentSheet, fetchArchivedIssues]);
+
     const [now, setNow] = useState(Date.now());
     const soundedMilestones = useRef(new Set());
-
-    const { deleteIssue, currentSheet } = useIssues();
 
     const handleConfirmDelete = async () => {
         if (!deleteTarget || isDeleting) return;
@@ -171,6 +192,18 @@ function DashboardInner() {
             setDeleteError(err.message || 'Failed to delete issue.');
         } finally {
             setIsDeleting(false);
+        }
+    };
+
+    const handleRestore = async (issue) => {
+        if (!issue || restoringIssueId) return;
+        setRestoringIssueId(issue.id);
+        try {
+            await restoreIssue(issue);
+        } catch (err) {
+            alert(err.message || (lang === 'id' ? 'Gagal memulihkan isu.' : 'Failed to restore issue.'));
+        } finally {
+            setRestoringIssueId(null);
         }
     };
 
@@ -261,10 +294,11 @@ function DashboardInner() {
 
     const visible = useMemo(() => {
         const q = query.trim().toLowerCase();
+        const sourceIssues = showArchiveTab ? (archivedIssues || []) : issues;
 
         // For department users, pre-filter to their department scope, ALWAYS including island-wide emergency alerts
         const deptScoped = isDeptUser && department && !canViewAllDepartments
-            ? issues.filter(issue => {
+            ? sourceIssues.filter(issue => {
                 // 🚨 Emergency & critical fast-track issues are island-wide alerts, ALWAYS in scope for everyone!
                 const isEmergency = (issue.category || '').toLowerCase() === 'emergency' 
                     || String(issue.id || '').startsWith('SOS')
@@ -291,7 +325,7 @@ function DashboardInner() {
                 if (deptViewMode === 'tagged') return isTagged;
                 return isAssigned || isOrigin || isTagged;
               })
-            : issues;
+            : sourceIssues;
 
         const filtered = deptScoped.filter((issue) => {
             const matchesQuery =
@@ -322,6 +356,10 @@ function DashboardInner() {
             return matchesQuery && matchesCategory && matchesStatus && matchesDept;
         });
 
+        if (showArchiveTab) {
+            return filtered.sort((a, b) => (b.reportedAt || 0) - (a.reportedAt || 0));
+        }
+
         // Sort active critical issues to the top
         return filtered.sort((a, b) => {
             const aIsCriticalActive = a.priority === 'critical' && a.status !== 'solved';
@@ -334,7 +372,7 @@ function DashboardInner() {
             }
             return (b.reportedAt || 0) - (a.reportedAt || 0);
         });
-    }, [issues, query, categoryFilter, statusFilter, deptFilter, isDeptUser, department, deptViewMode]);
+    }, [issues, archivedIssues, showArchiveTab, query, categoryFilter, statusFilter, deptFilter, isDeptUser, department, deptViewMode]);
 
     const handleSelect = (issue) => {
         if (!issue) return;
@@ -571,6 +609,28 @@ function DashboardInner() {
                             <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
                             {t('sync_sheets')}
                         </Button>
+
+                        {isAdmin && (
+                            <Button
+                                variant={showArchiveTab ? "default" : "outline"}
+                                size="sm"
+                                onClick={() => setShowArchiveTab(prev => !prev)}
+                                className={`w-fit shrink-0 gap-1.5 transition-all shadow-xs cursor-pointer ${
+                                    showArchiveTab
+                                        ? 'bg-amber-600 hover:bg-amber-700 text-white border-amber-500 font-bold'
+                                        : 'border-[#3B3929] hover:bg-[#2A281E] text-muted-foreground hover:text-foreground'
+                                }`}
+                                title="Buka Tab Arsip / Sampah Isu (Soft-deleted)"
+                            >
+                                <span>🗄️</span>
+                                <span>{lang === 'id' ? 'Arsip / Sampah' : 'Archive / Trash'}</span>
+                                {archivedIssues && archivedIssues.length > 0 && (
+                                    <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                                        {archivedIssues.length}
+                                    </span>
+                                )}
+                            </Button>
+                        )}
                     </div>
                 </div>
 
@@ -688,17 +748,51 @@ function DashboardInner() {
                     </div>
                 </div>
 
-                {loading && issues.length === 0 ? (
+                {showArchiveTab && (
+                    <div className="rounded-xl border border-amber-500/30 bg-amber-950/20 p-4 text-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-md">
+                        <div className="flex items-center gap-3">
+                            <span className="text-2xl">🗄️</span>
+                            <div>
+                                <h3 className="text-sm font-bold text-amber-300 uppercase tracking-wide">
+                                    {lang === 'id' ? 'Arsip & Sampah Isu (Soft-Deleted)' : 'Issue Archive & Trash'}
+                                </h3>
+                                <p className="text-xs text-amber-200/80">
+                                    {lang === 'id' 
+                                        ? 'Isu di bawah ini disembunyikan dari dashboard operasional. Anda dapat memulihkan (restore) kapan saja ke status asalnya.' 
+                                        : 'Issues below are hidden from the active dashboard. You can restore them anytime to their exact previous state.'}
+                                </p>
+                            </div>
+                        </div>
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setShowArchiveTab(false)}
+                            className="w-fit text-xs border-amber-500/40 text-amber-300 hover:bg-amber-500/10 cursor-pointer shrink-0"
+                        >
+                            ← {lang === 'id' ? 'Kembali ke Isu Aktif' : 'Back to Active Issues'}
+                        </Button>
+                    </div>
+                )}
+
+                {(showArchiveTab ? loadingArchived : loading) && (showArchiveTab ? (archivedIssues || []).length === 0 : issues.length === 0) ? (
                     <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border bg-surface py-20 text-center">
                         <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                        <p className="text-sm font-medium text-muted-foreground">Connecting to Google Sheets...</p>
+                        <p className="text-sm font-medium text-muted-foreground">
+                            {showArchiveTab ? 'Memuat arsip isu...' : 'Connecting to Google Sheets...'}
+                        </p>
                     </div>
                 ) : visible.length === 0 ? (
                     <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-border bg-surface py-16 text-center">
                         <SearchX className="h-8 w-8 text-muted-foreground" aria-hidden />
-                        <p className="font-semibold text-foreground">No issues match your filters</p>
+                        <p className="font-semibold text-foreground">
+                            {showArchiveTab 
+                                ? (lang === 'id' ? 'Tidak ada isu di dalam arsip / sampah' : 'No issues in archive / trash')
+                                : (lang === 'id' ? 'Tidak ada isu yang cocok dengan filter' : 'No issues match your filters')}
+                        </p>
                         <p className="text-sm text-muted-foreground">
-                            Try a different keyword or reset the filter chips.
+                            {showArchiveTab 
+                                ? (lang === 'id' ? 'Semua isu saat ini berstatus aktif di dashboard operasional.' : 'All issues are currently active.')
+                                : (lang === 'id' ? 'Coba kata kunci lain atau reset filter.' : 'Try a different keyword or reset the filter chips.')}
                         </p>
                     </div>
                 ) : (
@@ -714,11 +808,12 @@ function DashboardInner() {
                                 key={issue.id}
                                 issue={issue}
                                 onSelect={handleSelect}
-                                onEdit={(item) => setEditTarget(item)}
-                                onDelete={(item) => {
+                                onEdit={showArchiveTab ? undefined : (item) => setEditTarget(item)}
+                                onDelete={showArchiveTab ? undefined : (item) => {
                                     setDeleteError('');
                                     setDeleteTarget(item);
                                 }}
+                                onRestore={showArchiveTab ? handleRestore : undefined}
                                 density={viewDensity}
                             />
                         ))}
@@ -737,6 +832,7 @@ function DashboardInner() {
                 issue={activityDetailTarget} 
                 onClose={() => setActivityDetailTarget(null)} 
                 onEdit={(item) => setEditTarget(item)}
+                onRestore={handleRestore}
             />
 
             {/* Permanent Deletion Confirmation Modal */}
@@ -751,8 +847,8 @@ function DashboardInner() {
                         </div>
                         <DialogDescription className="text-xs text-muted-foreground pt-1">
                             {lang === 'id' 
-                                ? 'Apakah Anda yakin ingin menghapus isu ini secara permanen dari Google Sheets? Data yang dihapus tidak dapat dipulihkan.' 
-                                : 'Are you sure you want to permanently delete this issue from Google Sheets? This action cannot be undone.'}
+                                ? 'Isu ini akan disembunyikan dari dashboard operasional dan dipindahkan ke Arsip / Sampah. Admin dapat memulihkannya kembali kapan saja.' 
+                                : 'This issue will be hidden from the operational dashboard and moved to Archive / Trash. Admins can restore it at any time.'}
                         </DialogDescription>
                     </DialogHeader>
 

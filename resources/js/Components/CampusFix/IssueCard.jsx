@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { MapPin, Building, ZoomIn, Edit3, Trash2 } from 'lucide-react';
+import { MapPin, Building, ZoomIn, Edit3, Trash2, RotateCcw } from 'lucide-react';
 import { StatusBadge } from './StatusBadge';
 import { cn } from '@/lib/utils';
 import DelayDetailModal from './DelayDetailModal';
@@ -27,7 +27,7 @@ function formatDate(ts) {
     });
 }
 
-export function IssueCard({ issue, onSelect, onEdit, onDelete, density = '3' }) {
+export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, density = '3' }) {
     const [selectedDelay, setSelectedDelay] = useState(null);
     const [previewImage, setPreviewImage] = useState(null);
     const { isAdmin, isDeptUser, department } = useAuth();
@@ -222,34 +222,51 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, density = '3' }) 
                             className="absolute right-2 top-2 scale-90 origin-top-right"
                         />
                     )}
-                    {/* Action buttons (Edit / Delete) for authorized users */}
-                    {(canEdit || canDelete) && (
+                    {/* Action buttons (Edit / Delete / Restore) for authorized users */}
+                    {(canEdit || canDelete || onRestore) && (
                         <div className="absolute top-2 right-2 flex items-center gap-1 z-20">
-                            {canEdit && onEdit && (
+                            {onRestore ? (
                                 <button
                                     type="button"
                                     onClick={(e) => {
                                         e.stopPropagation();
-                                        onEdit(issue);
+                                        onRestore(issue);
                                     }}
-                                    className="p-1 rounded bg-black/80 hover:bg-sky-600 text-sky-300 hover:text-white border border-sky-500/40 shadow-sm transition-all cursor-pointer hover:scale-110"
-                                    title="Edit Issue"
+                                    className="px-2 py-0.5 rounded bg-emerald-600/90 hover:bg-emerald-500 text-white border border-emerald-400/50 shadow-sm transition-all cursor-pointer hover:scale-105 flex items-center gap-1 text-[11px] font-bold"
+                                    title="Pulihkan Isu ke Dashboard"
                                 >
-                                    <Edit3 className="w-3 h-3" />
+                                    <RotateCcw className="w-3 h-3" />
+                                    <span>Restore</span>
                                 </button>
-                            )}
-                            {canDelete && onDelete && (
-                                <button
-                                    type="button"
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        onDelete(issue);
-                                    }}
-                                    className="p-1 rounded bg-black/80 hover:bg-red-600 text-red-300 hover:text-white border border-red-500/40 shadow-sm transition-all cursor-pointer hover:scale-110"
-                                    title="Delete Issue"
-                                >
-                                    <Trash2 className="w-3 h-3" />
-                                </button>
+                            ) : (
+                                <>
+                                    {canEdit && onEdit && (
+                                        <button
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                onEdit(issue);
+                                            }}
+                                            className="p-1 rounded bg-black/80 hover:bg-sky-600 text-sky-300 hover:text-white border border-sky-500/40 shadow-sm transition-all cursor-pointer hover:scale-110"
+                                            title="Edit Issue"
+                                        >
+                                            <Edit3 className="w-3 h-3" />
+                                        </button>
+                                    )}
+                                    {canDelete && onDelete && (
+                                        <button
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                onDelete(issue);
+                                            }}
+                                            className="p-1 rounded bg-black/80 hover:bg-red-600 text-red-300 hover:text-white border border-red-500/40 shadow-sm transition-all cursor-pointer hover:scale-110"
+                                            title="Delete Issue"
+                                        >
+                                            <Trash2 className="w-3 h-3" />
+                                        </button>
+                                    )}
+                                </>
                             )}
                         </div>
                     )}
@@ -455,34 +472,51 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, density = '3' }) 
                         className="absolute right-3 top-3"
                     />
                 )}
-                {/* Action buttons (Edit / Delete) for authorized users */}
-                {(canEdit || canDelete) && (
+                {/* Action buttons (Edit / Delete / Restore) for authorized users */}
+                {(canEdit || canDelete || onRestore) && (
                     <div className="absolute top-3 right-3 flex items-center gap-1.5 z-20">
-                        {canEdit && onEdit && (
+                        {onRestore ? (
                             <button
                                 type="button"
                                 onClick={(e) => {
                                     e.stopPropagation();
-                                    onEdit(issue);
+                                    onRestore(issue);
                                 }}
-                                className="p-1.5 rounded-lg bg-black/80 hover:bg-sky-600 text-sky-300 hover:text-white border border-sky-500/40 shadow-md transition-all cursor-pointer hover:scale-110"
-                                title="Edit Issue"
+                                className="px-2.5 py-1 rounded-lg bg-emerald-600/90 hover:bg-emerald-500 text-white border border-emerald-400/50 shadow-md transition-all cursor-pointer hover:scale-105 flex items-center gap-1.5 text-xs font-bold"
+                                title="Pulihkan Isu ke Dashboard Operasional"
                             >
-                                <Edit3 className="w-3.5 h-3.5" />
+                                <RotateCcw className="w-3.5 h-3.5" />
+                                <span>Pulihkan</span>
                             </button>
-                        )}
-                        {canDelete && onDelete && (
-                            <button
-                                type="button"
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    onDelete(issue);
-                                }}
-                                className="p-1.5 rounded-lg bg-black/80 hover:bg-red-600 text-red-300 hover:text-white border border-red-500/40 shadow-md transition-all cursor-pointer hover:scale-110"
-                                title="Delete Issue"
-                            >
-                                <Trash2 className="w-3.5 h-3.5" />
-                            </button>
+                        ) : (
+                            <>
+                                {canEdit && onEdit && (
+                                    <button
+                                        type="button"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            onEdit(issue);
+                                        }}
+                                        className="p-1.5 rounded-lg bg-black/80 hover:bg-sky-600 text-sky-300 hover:text-white border border-sky-500/40 shadow-md transition-all cursor-pointer hover:scale-110"
+                                        title="Edit Issue"
+                                    >
+                                        <Edit3 className="w-3.5 h-3.5" />
+                                    </button>
+                                )}
+                                {canDelete && onDelete && (
+                                    <button
+                                        type="button"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            onDelete(issue);
+                                        }}
+                                        className="p-1.5 rounded-lg bg-black/80 hover:bg-red-600 text-red-300 hover:text-white border border-red-500/40 shadow-md transition-all cursor-pointer hover:scale-110"
+                                        title="Delete Issue"
+                                    >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                )}
+                            </>
                         )}
                     </div>
                 )}
