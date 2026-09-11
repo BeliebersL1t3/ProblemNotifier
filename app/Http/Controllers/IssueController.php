@@ -611,6 +611,13 @@ class IssueController extends Controller
 
     public function claim(Request $request, $idOrRowIndex)
     {
+        if (auth()->check() && !auth()->user()->isAdmin() && !auth()->user()->hasPermission('can_manage_issues')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized. Izin mengelola isu dinonaktifkan untuk akun Anda oleh Administrator.',
+            ], 403);
+        }
+
         try {
             $request->validate([
                 'taker' => 'required|string|max:255',
@@ -750,6 +757,13 @@ class IssueController extends Controller
 
     public function resolve(Request $request, $idOrRowIndex)
     {
+        if (auth()->check() && !auth()->user()->isAdmin() && !auth()->user()->hasPermission('can_manage_issues')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized. Izin mengelola isu dinonaktifkan untuk akun Anda oleh Administrator.',
+            ], 403);
+        }
+
         try {
             $request->validate([
                 'solver'         => 'required|string|max:255',
@@ -893,6 +907,13 @@ class IssueController extends Controller
 
     public function pending(Request $request, $idOrRowIndex)
     {
+        if (auth()->check() && !auth()->user()->isAdmin() && !auth()->user()->hasPermission('can_manage_issues')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized. Izin mengelola isu dinonaktifkan untuk akun Anda oleh Administrator.',
+            ], 403);
+        }
+
         try {
             $request->validate([
                 'pendingBy'     => 'required|string|max:255',
@@ -1030,6 +1051,13 @@ class IssueController extends Controller
 
     public function updateCategory(Request $request, $idOrRowIndex)
     {
+        if (auth()->check() && !auth()->user()->isAdmin() && !auth()->user()->hasPermission('can_manage_issues')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized. Izin mengelola isu dinonaktifkan untuk akun Anda oleh Administrator.',
+            ], 403);
+        }
+
         $request->validate([
             'category' => 'required|string',
         ]);
@@ -1071,6 +1099,13 @@ class IssueController extends Controller
         $user = auth()->user();
         if (!$user) {
             return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
+        }
+
+        if (!$user->isAdmin() && !$user->hasPermission('can_manage_issues')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized. Izin mengedit isu dinonaktifkan untuk akun Anda oleh Administrator.',
+            ], 403);
         }
 
         try {
@@ -1559,6 +1594,13 @@ class IssueController extends Controller
         $user = auth()->user();
         if (!$user) {
             return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
+        }
+
+        if (!$user->isAdmin() && !$user->hasPermission('can_delete_issues')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized. Izin menghapus isu dinonaktifkan untuk akun Anda oleh Administrator.',
+            ], 403);
         }
 
         try {

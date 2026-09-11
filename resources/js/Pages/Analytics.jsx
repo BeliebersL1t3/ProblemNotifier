@@ -250,7 +250,7 @@ const CustomDepartmentBar = (props) => {
 
 function AnalyticsInner() {
     const { issues, loading: contextLoading, error, fetchIssues, availableSheets, currentSheet } = useIssues();
-    const { isAdmin, isDeptUser, department } = useAuth();
+    const { isAdmin, isDeptUser, department, canAccessAnalytics, canExportReports, canViewAllDepartments } = useAuth();
     const [selectedSheets, setSelectedSheets] = useState(() => {
         return currentSheet ? [currentSheet] : (availableSheets && availableSheets.length > 0 ? [availableSheets[0]] : ['2026']);
     });
@@ -297,7 +297,7 @@ function AnalyticsInner() {
         fetchMissing();
     }, [selectedSheets, sheetDataMap, fetchingSheets]);
 
-    // Combined issues from all selected sheets (strictly scoped to department for dept users)
+    // Combined issues from all selected sheets (strictly scoped to department for dept users, ALWAYS including island-wide emergency alerts)
     const combinedIssues = useMemo(() => {
         if (!selectedSheets || selectedSheets.length === 0) return issues || [];
         let all = [];
@@ -312,9 +312,17 @@ function AnalyticsInner() {
                 }
             });
         });
-        if (isDeptUser && department) {
+        if (isDeptUser && department && !canViewAllDepartments) {
             const userDeptNorm = normalizeDepartment(department).toLowerCase();
             return all.filter(issue => {
+                // 🚨 Emergency & critical fast-track issues are island-wide alerts, ALWAYS in scope for everyone!
+                const isEmergency = (issue.category || '').toLowerCase() === 'emergency'
+                    || String(issue.id || '').startsWith('SOS')
+                    || safeArray(issue.assignedDepartments).some(d => String(d).trim().toUpperCase() === 'ALL')
+                    || safeArray(issue.taggedDepartments).some(d => String(d).trim().toUpperCase() === 'ALL');
+
+                if (isEmergency) return true;
+
                 const assigned = safeArray(issue.assignedDepartments).map(d => normalizeDepartment(d).toLowerCase());
                 const tagged = safeArray(issue.taggedDepartments).map(d => normalizeDepartment(d).toLowerCase());
                 const originDept = normalizeDepartment(issue.department || '').toLowerCase();
@@ -323,7 +331,7 @@ function AnalyticsInner() {
             });
         }
         return all;
-    }, [selectedSheets, sheetDataMap, currentSheet, issues, isDeptUser, department]);
+    }, [selectedSheets, sheetDataMap, currentSheet, issues, isDeptUser, department, canViewAllDepartments]);
 
     const isFetchingAnySheet = Object.values(fetchingSheets).some(Boolean);
     const loading = contextLoading && combinedIssues.length === 0 && !error;
@@ -1203,6 +1211,45 @@ function AnalyticsInner() {
         );
     }
 
+    if (!canAccessAnalytics) {
+        return (
+            <div className="min-h-screen bg-[#1C1B0E] text-[#FAFAFA] flex flex-col justify-between relative overflow-hidden">
+                <div 
+                    className="fixed inset-0 pointer-events-none opacity-25 z-0 bg-repeat"
+                    style={{
+                        backgroundImage: "url('/bg-lineart.png')",
+                        backgroundSize: '600px',
+                    }}
+                />
+                <div className="relative z-10">
+                    <CampusFixHeader mode="analytics" />
+                    <main className="flex-1 flex flex-col items-center justify-center p-8 text-center max-w-md mx-auto my-20 space-y-5">
+                        <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400">
+                            <ShieldAlert className="h-12 w-12 mx-auto" />
+                        </div>
+                        <div className="space-y-2">
+                            <h2 className="text-xl font-extrabold text-[#FAFAFA]">
+                                {lang === 'id' ? 'Akses Analytics Dibatasi' : 'Analytics Access Restricted'}
+                            </h2>
+                            <p className="text-xs text-[#A19F8D] leading-relaxed">
+                                {lang === 'id' 
+                                    ? 'Akun Anda dibatasi untuk mengakses data performa & statistik analitik resort. Hubungi Administrator jika Anda membutuhkan izin ini.' 
+                                    : 'Your account is restricted from accessing resort performance and analytics data. Please contact an Administrator if you need access.'}
+                            </p>
+                        </div>
+                        <a
+                            href="/dashboard"
+                            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold bg-[#C9AA71] text-[#1C1B0E] hover:bg-[#D4B883] transition-all shadow-md"
+                        >
+                            {lang === 'id' ? 'Kembali ke Dashboard' : 'Back to Dashboard'}
+                        </a>
+                    </main>
+                </div>
+                <MobileBottomNav currentTab="analytics" />
+            </div>
+        );
+    }
+
     return (
         <div className="min-h-screen bg-[#1C1B0E] text-[#FAFAFA] relative overflow-hidden antialiased selection:bg-[#C9AA71]/30">
             {/* Background Motif Pattern Overlay (Palm Lineart) */}
@@ -1328,17 +1375,27 @@ function AnalyticsInner() {
                             </span>
                         </div>
 
-                        <Tooltip content={t('tooltip_export_pdf')} position="top">
-                            <button
-                                type="button"
-                                onClick={() => setExportOpen(true)}
-                                className="px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 flex items-center gap-2 bg-[#C9AA71] text-[#1C1B0E] hover:bg-[#D4B883] border border-[#C9AA71] shadow-sm hover:shadow-md active:scale-95 cursor-pointer font-extrabold"
-                                title={t('export_pdf')}
+                        {canExportReports ? (
+                            <Tooltip content={t('tooltip_export_pdf')} position="top">
+                                <button
+                                    type="button"
+                                    onClick={() => setExportOpen(true)}
+                                    className="px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 flex items-center gap-2 bg-[#C9AA71] text-[#1C1B0E] hover:bg-[#D4B883] border border-[#C9AA71] shadow-sm hover:shadow-md active:scale-95 cursor-pointer font-extrabold"
+                                    title={t('export_pdf')}
+                                >
+                                    <Download className="h-4 w-4" />
+                                    <span>{t('export_pdf')}</span>
+                                </button>
+                            </Tooltip>
+                        ) : (
+                            <div 
+                                className="px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 bg-[#1C1B0E] text-[#A19F8D]/50 border border-[#3B3929] cursor-not-allowed select-none"
+                                title={lang === 'id' ? 'Izin export laporan dinonaktifkan oleh Administrator' : 'Report export disabled by Administrator'}
                             >
-                                <Download className="h-4 w-4" />
-                                <span>{t('export_pdf')}</span>
-                            </button>
-                        </Tooltip>
+                                <Download className="h-4 w-4 opacity-40" />
+                                <span>{t('export_pdf')} ({lang === 'id' ? 'Dibatasi' : 'Restricted'})</span>
+                            </div>
+                        )}
                     </div>
                 </div>
 

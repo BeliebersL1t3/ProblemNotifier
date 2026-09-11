@@ -18,6 +18,10 @@ Route::get('/dashboard', function () {
 })->middleware(['auth', 'verified'])->name('dashboard');
 
 Route::get('/analytics', function () {
+    $user = auth()->user();
+    if ($user && !$user->hasPermission('can_access_analytics')) {
+        return redirect()->route('dashboard')->with('error', 'Akses ke halaman Analytics dibatasi oleh Administrator.');
+    }
     return Inertia::render('Analytics');
 })->middleware(['auth', 'verified'])->name('analytics');
 
@@ -26,6 +30,10 @@ Route::get('/operations', function () {
 })->middleware(['auth', 'verified'])->name('operations');
 
 Route::get('/calendar', function () {
+    $user = auth()->user();
+    if ($user && !$user->hasPermission('can_access_calendar')) {
+        return redirect()->route('dashboard')->with('error', 'Akses ke Kalender Operasional dibatasi oleh Administrator.');
+    }
     return Inertia::render('Calendar');
 })->middleware(['auth', 'verified'])->name('calendar');
 

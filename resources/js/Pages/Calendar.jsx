@@ -950,7 +950,7 @@ function CalendarAddWorkModal({ initialStartDate = '', initialEndDate = '', init
 function CalendarInner() {
     const { t, lang } = useLanguage();
     const { tasks, setTasks, loading, error, reload } = useAllOpsTasks();
-    const { isDeptUser, department: userDept, staffName } = useAuth();
+    const { isDeptUser, department: userDept, staffName, canAccessCalendar, canExportReports } = useAuth();
 
     // Multi-Department Selection: Defaults to ALL departments for everyone
     const [selectedDepartments, setSelectedDepartments] = useState(ALL_DEPARTMENTS);
@@ -1334,6 +1334,45 @@ function CalendarInner() {
         }
     };
 
+    if (!canAccessCalendar) {
+        return (
+            <div className="min-h-screen bg-[#1C1B0E] text-[#FAFAFA] flex flex-col justify-between relative overflow-hidden">
+                <div 
+                    className="fixed inset-0 pointer-events-none opacity-25 z-0 bg-repeat"
+                    style={{
+                        backgroundImage: "url('/bg-lineart.png')",
+                        backgroundSize: '600px',
+                    }}
+                />
+                <div className="relative z-10">
+                    <CampusFixHeader mode="calendar" />
+                    <main className="flex-1 flex flex-col items-center justify-center p-8 text-center max-w-md mx-auto my-20 space-y-5">
+                        <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400">
+                            <Clock className="h-12 w-12 mx-auto" />
+                        </div>
+                        <div className="space-y-2">
+                            <h2 className="text-xl font-extrabold text-[#FAFAFA]">
+                                {lang === 'id' ? 'Akses Kalender Dibatasi' : 'Calendar Access Restricted'}
+                            </h2>
+                            <p className="text-xs text-[#A19F8D] leading-relaxed">
+                                {lang === 'id' 
+                                    ? 'Akun Anda dibatasi untuk mengakses jadwal kalender operasional departemen. Hubungi Administrator jika Anda membutuhkan izin ini.' 
+                                    : 'Your account is restricted from accessing operational calendar schedules. Please contact an Administrator if you need access.'}
+                            </p>
+                        </div>
+                        <a
+                            href="/dashboard"
+                            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold bg-[#C9AA71] text-[#1C1B0E] hover:bg-[#D4B883] transition-all shadow-md"
+                        >
+                            {lang === 'id' ? 'Kembali ke Dashboard' : 'Back to Dashboard'}
+                        </a>
+                    </main>
+                </div>
+                <MobileBottomNav currentTab="calendar" />
+            </div>
+        );
+    }
+
     return (
         <div className="min-h-screen bg-[#1C1B0E] text-[#FAFAFA] relative overflow-hidden antialiased selection:bg-[#C9AA71]/30">
             <Head title={`${t('calendar_view') || (lang === 'id' ? 'Kalender' : 'Calendar')} — Telunas Resort`} />
@@ -1419,15 +1458,25 @@ function CalendarInner() {
                                 <span>{syncingCalendar ? 'Syncing...' : 'Sync Google Calendar'}</span>
                             </button>
 
-                            <button
-                                type="button"
-                                onClick={() => setExportModalOpen(true)}
-                                title={t('tooltip_export_calendar_pdf') || 'Export Calendar Schedule to PDF'}
-                                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-[#1C1B0E] text-[#FAFAFA] border border-[#C9AA71]/50 hover:bg-[#C9AA71]/15 hover:border-[#C9AA71] transition-all hover:scale-105 cursor-pointer backdrop-blur-sm shadow-sm"
-                            >
-                                <FileText className="h-3.5 w-3.5 text-[#C9AA71]" />
-                                <span>{t('export_pdf') || 'Export PDF'}</span>
-                            </button>
+                            {canExportReports ? (
+                                <button
+                                    type="button"
+                                    onClick={() => setExportModalOpen(true)}
+                                    title={t('tooltip_export_calendar_pdf') || 'Export Calendar Schedule to PDF'}
+                                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-[#1C1B0E] text-[#FAFAFA] border border-[#C9AA71]/50 hover:bg-[#C9AA71]/15 hover:border-[#C9AA71] transition-all hover:scale-105 cursor-pointer backdrop-blur-sm shadow-sm"
+                                >
+                                    <FileText className="h-3.5 w-3.5 text-[#C9AA71]" />
+                                    <span>{t('export_pdf') || 'Export PDF'}</span>
+                                </button>
+                            ) : (
+                                <div 
+                                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-[#1C1B0E] text-[#A19F8D]/50 border border-[#3B3929] cursor-not-allowed select-none backdrop-blur-sm shadow-sm"
+                                    title={lang === 'id' ? 'Izin export laporan dinonaktifkan oleh Administrator' : 'Report export disabled by Administrator'}
+                                >
+                                    <FileText className="h-3.5 w-3.5 opacity-40" />
+                                    <span>{t('export_pdf') || 'Export PDF'} ({lang === 'id' ? 'Dibatasi' : 'Restricted'})</span>
+                                </div>
+                            )}
                         </div>
                     </div>
 

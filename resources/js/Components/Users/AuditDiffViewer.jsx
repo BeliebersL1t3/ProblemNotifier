@@ -63,6 +63,11 @@ export function extractDifferences(changes) {
         const valAfter = after[key] ?? '';
 
         if (String(valBefore).trim() !== String(valAfter).trim()) {
+            // Ignore case-only difference in email addresses (e.g. AntoService@ vs antoservice@)
+            if (key === 'email' && String(valBefore).trim().toLowerCase() === String(valAfter).trim().toLowerCase()) {
+                return;
+            }
+
             diffs.push({
                 key,
                 type: 'field',

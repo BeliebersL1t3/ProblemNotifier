@@ -93,12 +93,12 @@ function playAlarmBeep() {
 function DashboardInner() {
     const { issues, loading, error, fetchIssues, outboxCount, isSyncingOutbox, syncOfflineOutbox } = useIssues();
     const { t, lang } = useLanguage();
-    const { isDeptUser, department } = useAuth();
+    const { isDeptUser, department, isAdmin, canViewAllDepartments, canDeleteIssues, canManageIssues } = useAuth();
     const [query, setQuery] = useState('');
     const [categoryFilter, setCategoryFilter] = useState('all');
     const [statusFilter, setStatusFilter] = useState('all');
-    // For department users, lock the dept filter to their department
-    const [deptFilter, setDeptFilter] = useState(() => isDeptUser && department ? department : 'all');
+    // For department users without full-view permission, lock the dept filter to their department
+    const [deptFilter, setDeptFilter] = useState(() => isDeptUser && department && !canViewAllDepartments ? department : 'all');
     const [deptViewMode, setDeptViewMode] = useState('all'); // 'all' | 'assigned' | 'origin'
     const [viewDensity, setViewDensity] = useState(() => {
         try {
@@ -262,9 +262,17 @@ function DashboardInner() {
     const visible = useMemo(() => {
         const q = query.trim().toLowerCase();
 
-        // For department users, pre-filter to their department scope & perspective
-        const deptScoped = isDeptUser && department
+        // For department users, pre-filter to their department scope, ALWAYS including island-wide emergency alerts
+        const deptScoped = isDeptUser && department && !canViewAllDepartments
             ? issues.filter(issue => {
+                // 🚨 Emergency & critical fast-track issues are island-wide alerts, ALWAYS in scope for everyone!
+                const isEmergency = (issue.category || '').toLowerCase() === 'emergency' 
+                    || String(issue.id || '').startsWith('SOS')
+                    || (Array.isArray(issue.assignedDepartments) ? issue.assignedDepartments : [issue.assignedDepartments]).some(d => String(d).trim().toUpperCase() === 'ALL')
+                    || (Array.isArray(issue.taggedDepartments) ? issue.taggedDepartments : [issue.taggedDepartments]).some(d => String(d).trim().toUpperCase() === 'ALL');
+
+                if (isEmergency) return true;
+
                 const normUserDept = normalizeDepartment(department);
                 const assigned = (Array.isArray(issue.assignedDepartments) 
                     ? issue.assignedDepartments 
@@ -300,7 +308,10 @@ function DashboardInner() {
                 ? true
                 : issue.status === statusFilter;
 
-            const matchesDept = deptFilter === 'all' ? true : (
+            const isEmergency = (issue.category || '').toLowerCase() === 'emergency'
+                || String(issue.id || '').startsWith('SOS');
+
+            const matchesDept = deptFilter === 'all' || isEmergency ? true : (
                 (Array.isArray(issue.assignedDepartments) && issue.assignedDepartments.includes(deptFilter)) ||
                 issue.assignedDepartments === deptFilter ||
                 issue.department === deptFilter || 

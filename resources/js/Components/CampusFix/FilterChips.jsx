@@ -32,7 +32,8 @@ const DEPARTMENT_FILTERS = ALL_DEPARTMENTS;
 
 export function FilterChips({ categoryFilter, onCategoryChange, deptFilter, onDeptChange }) {
     const { t } = useLanguage();
-    const { isAdmin, isDeptUser, department: userDept } = useAuth();
+    const { isAdmin, isDeptUser, department: userDept, canViewAllDepartments } = useAuth();
+    const canSelectDept = isAdmin || canViewAllDepartments;
     const [catSheetOpen, setCatSheetOpen] = useState(false);
     const [deptSheetOpen, setDeptSheetOpen] = useState(false);
 
@@ -45,7 +46,7 @@ export function FilterChips({ categoryFilter, onCategoryChange, deptFilter, onDe
     };
 
     const hasActiveCategory = categoryFilter && categoryFilter !== 'all';
-    const hasActiveDept = isAdmin && deptFilter && deptFilter !== 'all';
+    const hasActiveDept = canSelectDept && deptFilter && deptFilter !== 'all';
     const hasActiveFilters = hasActiveCategory || hasActiveDept;
 
     const deptTheme = deptFilter && deptFilter !== 'all' ? getDepartmentTheme(deptFilter) : null;
@@ -72,8 +73,8 @@ export function FilterChips({ categoryFilter, onCategoryChange, deptFilter, onDe
                     <span className="text-[10px] opacity-60">▼</span>
                 </button>
 
-                {/* Department trigger chip — Interactive for Admin, Locked badge for Dept user */}
-                {isAdmin ? (
+                {/* Department trigger chip — Interactive for Admin or users with canViewAllDepartments, Locked badge for Dept user */}
+                {canSelectDept ? (
                     <button
                         type="button"
                         onClick={() => setDeptSheetOpen(true)}
@@ -118,7 +119,7 @@ export function FilterChips({ categoryFilter, onCategoryChange, deptFilter, onDe
                         type="button"
                         onClick={() => {
                             onCategoryChange('all');
-                            if (isAdmin) onDeptChange('all');
+                            if (canSelectDept) onDeptChange('all');
                         }}
                         className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 ml-1 transition-colors cursor-pointer"
                     >
