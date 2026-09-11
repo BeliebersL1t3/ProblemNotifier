@@ -173,10 +173,9 @@ class IssueApiTest extends TestCase
         $googleMock->shouldReceive('getRows')->andReturn([
             array_pad(['ENG-001', 'AC', 'Desc', 'Loc', 'Cat', 'open', 'Rep', 'Date'], 26, '')
         ]);
-        $googleMock->shouldReceive('appendRow')->once()->with(Mockery::on(function ($newRow) {
-            return $newRow[0] === 'ENG-001' && $newRow[5] === 'progress' && $newRow[9] === 'Hendro Tech' && $newRow[25] === '1';
-        }))->andReturn(3);
-        $googleMock->shouldReceive('colorRowByCategory')->once()->andReturn(true);
+        $googleMock->shouldReceive('updateRow')->once()->with(2, Mockery::on(function ($row) {
+            return $row[0] === 'ENG-001' && $row[5] === 'progress' && $row[9] === 'Hendro Tech' && $row[25] === '1';
+        }))->andReturn(true);
 
         $this->app->instance(GoogleService::class, $googleMock);
 
@@ -204,10 +203,9 @@ class IssueApiTest extends TestCase
         $googleMock->shouldReceive('getRows')->andReturn([
             array_pad(['ENG-001', 'AC', 'Desc', 'Loc', 'Cat', 'progress', 'Rep', 'Date'], 26, '')
         ]);
-        $googleMock->shouldReceive('appendRow')->once()->with(Mockery::on(function ($newRow) {
-            return $newRow[0] === 'ENG-001' && $newRow[5] === 'pending' && $newRow[19] === 'Budi' && $newRow[25] === '1';
-        }))->andReturn(3);
-        $googleMock->shouldReceive('colorRowByCategory')->once()->andReturn(true);
+        $googleMock->shouldReceive('updateRow')->once()->with(2, Mockery::on(function ($row) {
+            return $row[0] === 'ENG-001' && $row[5] === 'pending' && $row[19] === 'Budi' && $row[25] === '1';
+        }))->andReturn(true);
 
         $this->app->instance(GoogleService::class, $googleMock);
 
@@ -236,10 +234,9 @@ class IssueApiTest extends TestCase
         $googleMock->shouldReceive('getRows')->andReturn([
             array_pad(['ENG-001', 'AC', 'Desc', 'Loc', 'Cat', 'progress', 'Rep', '2026-09-08T09:00:00Z', '', 'Budi', '2026-09-08T09:30:00Z'], 26, '')
         ]);
-        $googleMock->shouldReceive('appendRow')->once()->with(Mockery::on(function ($newRow) {
-            return $newRow[0] === 'ENG-001' && $newRow[5] === 'solved' && $newRow[11] === 'Budi Tech' && $newRow[25] === '1';
-        }))->andReturn(3);
-        $googleMock->shouldReceive('colorRowByCategory')->once()->andReturn(true);
+        $googleMock->shouldReceive('updateRow')->once()->with(2, Mockery::on(function ($row) {
+            return $row[0] === 'ENG-001' && $row[5] === 'solved' && $row[11] === 'Budi Tech' && $row[25] === '1';
+        }))->andReturn(true);
 
         $this->app->instance(GoogleService::class, $googleMock);
 
@@ -270,9 +267,9 @@ class IssueApiTest extends TestCase
         $googleMock->shouldReceive('getRows')->andReturn([
             array_pad(['ENG-001', 'Title', 'Desc', 'Loc', 'Cat', 'open'], 26, '')
         ]);
-        $googleMock->shouldReceive('appendRow')->once()->with(Mockery::on(function ($newRow) {
-            return $newRow[0] === 'ENG-001' && $newRow[25] === '0';
-        }))->andReturn(3);
+        $googleMock->shouldReceive('updateRow')->once()->with(2, Mockery::on(function ($row) {
+            return $row[0] === 'ENG-001' && $row[25] === '0';
+        }))->andReturn(true);
 
         $this->app->instance(GoogleService::class, $googleMock);
 
@@ -297,10 +294,9 @@ class IssueApiTest extends TestCase
         $googleMock->shouldReceive('getRows')->andReturn([
             array_pad(['ENG-001', 'Title', 'Desc', 'Loc', 'Cat', 'progress'], 26, '')
         ]);
-        $googleMock->shouldReceive('appendRow')->once()->with(Mockery::on(function ($newRow) {
-            return $newRow[0] === 'ENG-001' && $newRow[25] === '1';
-        }))->andReturn(4);
-        $googleMock->shouldReceive('colorRowByCategory')->once()->andReturn(true);
+        $googleMock->shouldReceive('updateRow')->once()->with(2, Mockery::on(function ($row) {
+            return $row[0] === 'ENG-001' && $row[25] === '1';
+        }))->andReturn(true);
 
         $this->app->instance(GoogleService::class, $googleMock);
 
@@ -315,6 +311,41 @@ class IssueApiTest extends TestCase
                     'id'     => 'ENG-001',
                     'status' => 'progress',
                 ],
+            ]);
+    }
+
+    public function test_edit_issue_creates_new_row(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+
+        $googleMock = Mockery::mock(GoogleService::class);
+        $googleMock->shouldReceive('findIssueAcrossSheets')->andReturn(null);
+        $googleMock->shouldReceive('listSheets')->andReturn(['2026']);
+        $googleMock->shouldReceive('setSheet')->with('2026');
+        $googleMock->shouldReceive('getRows')->andReturn([
+            array_pad(['ENG-001', 'Old Title', 'Old Desc', 'Villa 1', 'plumbing', 'open'], 26, '')
+        ]);
+        $googleMock->shouldReceive('appendRow')->once()->with(Mockery::on(function ($newRow) {
+            return $newRow[0] === 'ENG-001' 
+                && $newRow[1] === 'New Title' 
+                && !empty($newRow[24]) // Edit History has note
+                && $newRow[25] === '1';
+        }))->andReturn(3);
+        $googleMock->shouldReceive('colorRowByCategory')->once()->andReturn(true);
+
+        $this->app->instance(GoogleService::class, $googleMock);
+
+        $response = $this->actingAs($admin)->postJson('/api/issues/2/update', [
+            'title'       => 'New Title',
+            'description' => 'Old Desc',
+            'location'    => 'Villa 1',
+            'category'    => 'plumbing',
+            'sheet'       => '2026',
+        ]);
+
+        $response->assertOk()
+            ->assertJson([
+                'success' => true,
             ]);
     }
 }

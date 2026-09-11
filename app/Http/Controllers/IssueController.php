@@ -832,22 +832,15 @@ class IssueController extends Controller
             }
 
             $takenAt = Carbon::now()->toIso8601String();
-            $nowFormatted = Carbon::now('Asia/Jakarta')->format('M d, Y H:i:s');
-            $deptSuffix = !empty($request->department) ? " ({$request->department})" : "";
-            $note = "[{$nowFormatted}] Pekerjaan diambil / diklaim oleh {$request->taker}{$deptSuffix}";
 
-            // Option C: Append a new version row with only changed fields updated
-            $newRow = array_pad($currentRow, 26, '');
-            $newRow[5]  = 'progress';
-            $newRow[9]  = $request->taker;
-            $newRow[10] = $takenAt;
-            $newRow[24] = $note;
-            $newRow[25] = '1';
+            // Lifecycle progress (open -> progress): update in-place without creating a new row
+            $currentRow = array_pad($currentRow, 26, '');
+            $currentRow[5]  = 'progress';
+            $currentRow[9]  = $request->taker;
+            $currentRow[10] = $takenAt;
+            $currentRow[25] = '1';
 
-            $newRowIndex = $this->googleService->appendRow($newRow);
-            if ($newRowIndex) {
-                $this->googleService->colorRowByCategory($newRowIndex, $newRow[4] ?? 'other');
-            }
+            $this->googleService->updateRow($issueData['rowIndex'], $currentRow);
 
             $crossYearNotice = $crossYear ? "\n📋 *Note: This issue is from a previous period ({$foundLocation['sheet']}).*" : '';
             $originDept = $currentRow[22] ?? '';
@@ -944,25 +937,17 @@ class IssueController extends Controller
 
             $formattedFix = self::formatParagraphText($request->fixDescription);
 
-            $nowFormatted = Carbon::now('Asia/Jakarta')->format('M d, Y H:i:s');
-            $fixExcerpt = strlen($request->fixDescription) > 60 ? substr($request->fixDescription, 0, 57) . '...' : $request->fixDescription;
-            $note = "[{$nowFormatted}] Status diubah ke Solved oleh {$request->solver}: \"{$fixExcerpt}\"";
+            // Lifecycle progress (progress/pending -> solved): update in-place without creating a new row
+            $currentRow = array_pad($currentRow, 26, '');
+            $currentRow[5]  = 'solved';
+            $currentRow[11] = $request->solver;
+            $currentRow[12] = $solvedAt;
+            $currentRow[13] = $formattedFix;
+            $currentRow[14] = $proofUrl ?: ($currentRow[14] ?? '');
+            $currentRow[15] = $durationLabel;
+            $currentRow[25] = '1';
 
-            // Option C: Append a new version row with only changed fields updated
-            $newRow = array_pad($currentRow, 26, '');
-            $newRow[5]  = 'solved';
-            $newRow[11] = $request->solver;
-            $newRow[12] = $solvedAt;
-            $newRow[13] = $formattedFix;
-            $newRow[14] = $proofUrl ?: ($currentRow[14] ?? '');
-            $newRow[15] = $durationLabel;
-            $newRow[24] = $note;
-            $newRow[25] = '1';
-
-            $newRowIndex = $this->googleService->appendRow($newRow);
-            if ($newRowIndex) {
-                $this->googleService->colorRowByCategory($newRowIndex, $newRow[4] ?? 'other');
-            }
+            $this->googleService->updateRow($issueData['rowIndex'], $currentRow);
 
             $resolvedProofUrl = $this->resolveImageUrl($proofUrl);
 
@@ -1077,23 +1062,15 @@ class IssueController extends Controller
 
             $newJson = json_encode($existingItems);
 
-            $nowFormatted = Carbon::now('Asia/Jakarta')->format('M d, Y H:i:s');
-            $reasonExcerpt = strlen($request->pendingReason) > 60 ? substr($request->pendingReason, 0, 57) . '...' : $request->pendingReason;
-            $note = "[{$nowFormatted}] Status diubah ke Pending oleh {$request->pendingBy}: \"{$reasonExcerpt}\"";
+            // Lifecycle progress (progress -> pending): update in-place without creating a new row
+            $currentRow = array_pad($currentRow, 26, '');
+            $currentRow[5]  = 'pending';
+            $currentRow[18] = $newJson;
+            $currentRow[19] = $request->pendingBy;
+            $currentRow[20] = $pendingImageUrl ?: ($currentRow[20] ?? '');
+            $currentRow[25] = '1';
 
-            // Option C: Append a new version row with only changed fields updated
-            $newRow = array_pad($currentRow, 26, '');
-            $newRow[5]  = 'pending';
-            $newRow[18] = $newJson;
-            $newRow[19] = $request->pendingBy;
-            $newRow[20] = $pendingImageUrl ?: ($currentRow[20] ?? '');
-            $newRow[24] = $note;
-            $newRow[25] = '1';
-
-            $newRowIndex = $this->googleService->appendRow($newRow);
-            if ($newRowIndex) {
-                $this->googleService->colorRowByCategory($newRowIndex, $newRow[4] ?? 'other');
-            }
+            $this->googleService->updateRow($issueData['rowIndex'], $currentRow);
 
             $resolvedPendingUrl = $this->resolveImageUrl($pendingImageUrl);
             $resolvedTimeline = $this->parsePendingTimeline($newJson);
@@ -1706,15 +1683,11 @@ class IssueController extends Controller
             $deleterName = $user->staff_name ?? $user->name ?? 'Staff';
             $deleterDept = $user->department ?? ($user->isAdmin() ? 'Admin' : '');
             $deleterRole = $user->isAdmin() ? 'Admin' : 'Department';
-            $nowFormatted = Carbon::now('Asia/Jakarta')->format('M d, Y H:i:s');
-            $note = "[{$nowFormatted}] Isu diarsipkan oleh {$deleterName}";
+            // Soft-delete / hide: update Col Z to '0' in-place without creating a new row
+            $currentRow = array_pad($currentRow, 26, '');
+            $currentRow[25] = '0'; // ARCHIVED / HIDDEN
 
-            // Option C: Append a soft-delete row (Col Z = '0', Col Y = note)
-            $newRow = array_pad($currentRow, 26, '');
-            $newRow[24] = $note;
-            $newRow[25] = '0'; // ARCHIVED / HIDDEN
-
-            $this->googleService->appendRow($newRow);
+            $this->googleService->updateRow($issueData['rowIndex'], $currentRow);
 
             // Dispatch WhatsApp deletion announcement
             $originStr = !empty($originDept) ? "\n*Origin:* {$originDept}" : '';
@@ -1762,18 +1735,11 @@ class IssueController extends Controller
 
             $currentRow = $issueData['row'];
             $restorerName = $user->staff_name ?? $user->name ?? 'Admin';
-            $nowFormatted = Carbon::now('Asia/Jakarta')->format('M d, Y H:i:s');
-            $note = "[{$nowFormatted}] Isu dipulihkan dari arsip oleh {$restorerName}";
+            // Restore to active: update Col Z to '1' in-place without creating a new row
+            $currentRow = array_pad($currentRow, 26, '');
+            $currentRow[25] = '1'; // RESTORE TO ACTIVE
 
-            // Restore: append new row with Col Z = '1'
-            $newRow = array_pad($currentRow, 26, '');
-            $newRow[24] = $note;
-            $newRow[25] = '1'; // RESTORE TO ACTIVE
-
-            $newRowIndex = $this->googleService->appendRow($newRow);
-            if ($newRowIndex) {
-                $this->googleService->colorRowByCategory($newRowIndex, $newRow[4] ?? 'other');
-            }
+            $this->googleService->updateRow($issueData['rowIndex'], $currentRow);
 
             $originDept = $currentRow[22] ?? '';
             $assignedDepts = $currentRow[23] ?? ($currentRow[21] ?? '');
