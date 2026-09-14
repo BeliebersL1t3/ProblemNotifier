@@ -2157,8 +2157,8 @@ function AnalyticsInner() {
                         })}
                     </div>
 
-                    {/* Active Filters Bar (Category / Department / Search / Archive) */}
-                    {(selectedCategoryFilters.length > 0 || selectedDepartmentFilters.length > 0 || selectedStatusFilters.length > 0 || showArchivedInTimeline || searchQuery.trim()) && (
+                    {/* Active Filters Bar (Category / Department / Priority / Status / Search / Archive) */}
+                    {(selectedCategoryFilters.length > 0 || selectedDepartmentFilters.length > 0 || selectedPriorityFilters.length > 0 || selectedStatusFilters.length > 0 || showArchivedInTimeline || searchQuery.trim()) && (
                         <div className="flex items-center gap-2 flex-wrap bg-[#1E1D16] p-2.5 rounded-xl border border-[#3B3929]/70 text-xs">
                             <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
                                 <Tag className="w-3.5 h-3.5 text-[#C9AA71]" />
@@ -2212,6 +2212,42 @@ function AnalyticsInner() {
                                             type="button" 
                                             onClick={() => setSelectedDepartmentFilters(prev => prev.filter(d => d !== dept))}
                                             className="hover:text-white cursor-pointer ml-0.5"
+                                        >
+                                            ✕
+                                        </button>
+                                    </span>
+                                );
+                            })}
+
+                            {selectedPriorityFilters.map(pId => {
+                                const priorityLabels = {
+                                    standard: lang === 'id' ? 'Prioritas Normal' : 'Standard Priority',
+                                    high: lang === 'id' ? 'Prioritas Tinggi' : 'High Priority',
+                                    critical: lang === 'id' ? 'Prioritas Kritis' : 'Critical Priority',
+                                };
+                                const pColors = {
+                                    standard: { bg: 'bg-emerald-500/20', text: 'text-emerald-300', border: 'border-emerald-500/30', dot: '#10B981' },
+                                    high: { bg: 'bg-amber-500/20', text: 'text-amber-300', border: 'border-amber-500/30', dot: '#F59E0B' },
+                                    critical: { bg: 'bg-red-500/25', text: 'text-red-300', border: 'border-red-500/40 ring-1 ring-red-500/30', dot: '#EF4444' },
+                                };
+                                const pTheme = pColors[pId] || { bg: 'bg-zinc-500/20', text: 'text-zinc-300', border: 'border-zinc-500/30', dot: '#9CA3AF' };
+                                const pLabel = priorityLabels[pId] || pId;
+
+                                return (
+                                    <span 
+                                        key={pId} 
+                                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold border ${pTheme.bg} ${pTheme.text} ${pTheme.border}`}
+                                    >
+                                        <span 
+                                            className="h-2 w-2 rounded-full shrink-0" 
+                                            style={{ backgroundColor: pTheme.dot }} 
+                                        />
+                                        <span>⚡ {pLabel}</span>
+                                        <button 
+                                            type="button" 
+                                            onClick={() => setSelectedPriorityFilters(prev => prev.filter(x => x !== pId))}
+                                            className="hover:text-white cursor-pointer ml-0.5"
+                                            title={lang === 'id' ? 'Hapus filter prioritas' : 'Remove priority filter'}
                                         >
                                             ✕
                                         </button>
@@ -2285,6 +2321,7 @@ function AnalyticsInner() {
                                 onClick={() => {
                                     setSelectedCategoryFilters([]);
                                     setSelectedDepartmentFilters([]);
+                                    setSelectedPriorityFilters([]);
                                     setSelectedStatusFilters([]);
                                     setShowArchivedInTimeline(false);
                                     setSearchQuery('');
