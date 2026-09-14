@@ -353,6 +353,17 @@ class IssueController extends Controller
             $forceRefresh = $request->boolean('refresh') || $request->boolean('sync');
             $showArchived = $request->boolean('archived');
 
+            if ($showArchived) {
+                $user = $request->user();
+                if (!$user || !$user->isAdmin()) {
+                    return response()->json([
+                        'success' => true,
+                        'data'    => [],
+                        'sheet'   => $sheetParam ?: '2026',
+                    ]);
+                }
+            }
+
             $allAvailableSheets = $this->googleService->listSheets($forceRefresh);
             
             $sheetsToFetch = [];

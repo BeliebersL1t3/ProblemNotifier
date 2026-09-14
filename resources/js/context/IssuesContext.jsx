@@ -24,7 +24,7 @@ export function IssuesProvider({ children }) {
     const [rawIssues, setRawIssues] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    const { isDeptUser, department } = useAuth();
+    const { isDeptUser, department, isAdmin } = useAuth();
 
     // --- Sheet (Period/Year) state ---
     const [availableSheets, setAvailableSheets] = useState([]);
@@ -33,26 +33,25 @@ export function IssuesProvider({ children }) {
     });
 
     const setCurrentSheet = useCallback((name) => {
-        setCurrentSheetState(name);
         localStorage.setItem('campusfix_sheet', name);
+        setCurrentSheetState(name);
     }, []);
 
     // Fetch available sheets once on mount
-    const fetchSheets = useCallback(async () => {
+    const fetchSheets = useCallback(async (isSilent = false) => {
         try {
             const res = await axios.get('/api/sheets');
             if (res.data?.success) {
-                setAvailableSheets(res.data.data);
-                // If no sheet selected yet, default to newest
-                if (!currentSheet) {
+                const sheets = res.data.data || [];
+                setAvailableSheets(sheets);
+                if (!localStorage.getItem('campusfix_sheet') && res.data.newest) {
                     setCurrentSheetState(res.data.newest);
-                    localStorage.setItem('campusfix_sheet', res.data.newest);
                 }
             }
-        } catch (err) {
-            console.error('Failed to load sheets:', err);
+        } catch (e) {
+            console.error('Failed to fetch sheets:', e);
         }
-    }, [currentSheet]); 
+    }, []); 
 
     useEffect(() => {
         fetchSheets();
@@ -87,6 +86,10 @@ export function IssuesProvider({ children }) {
     const [loadingArchived, setLoadingArchived] = useState(false);
 
     const fetchArchivedIssues = useCallback(async (isSilent = false) => {
+        if (!isAdmin) {
+            setArchivedIssues([]);
+            return;
+        }
         if (!isSilent) setLoadingArchived(true);
         try {
             const params = { archived: true };
@@ -102,13 +105,17 @@ export function IssuesProvider({ children }) {
         } finally {
             if (!isSilent) setLoadingArchived(false);
         }
-    }, [currentSheet]);
+    }, [currentSheet, isAdmin]);
 
     // Re-fetch issues when active sheet changes
     useEffect(() => {
         fetchIssues(false);
-        fetchArchivedIssues(true);
-    }, [fetchIssues, fetchArchivedIssues]);
+        if (isAdmin) {
+            fetchArchivedIssues(true);
+        } else {
+            setArchivedIssues([]);
+        }
+    }, [fetchIssues, fetchArchivedIssues, isAdmin]);
 
     // Live Auto-Sync: Poll every 8 seconds and re-fetch immediately on window focus / tab wake-up
     useEffect(() => {
@@ -116,7 +123,7 @@ export function IssuesProvider({ children }) {
             // If screen locked or tab in background, skip polling to preserve phone battery and network
             if (typeof document !== 'undefined' && document.hidden) return;
             fetchIssues(true);
-            fetchArchivedIssues(true);
+            if (isAdmin) fetchArchivedIssues(true);
         }, 8000);
 
         const handleResume = () => {

@@ -4,7 +4,7 @@ import { useMemo, useState, useEffect, useRef } from 'react';
 import { 
     Loader2, Wrench, Sparkles, Laptop, Anchor, ShieldAlert, Utensils, Building, Hammer, Zap,
     Droplets, Building2, Bug, Tag, User, HelpCircle, Download, AlertTriangle, Layers, Database, Clock, CheckSquare, Check, Eye, ChevronRight,
-    ClipboardList, PauseCircle, CheckCircle2, Filter, SlidersHorizontal, ChevronDown, ChevronUp
+    ClipboardList, PauseCircle, CheckCircle2, Filter, SlidersHorizontal, ChevronDown, ChevronUp, Archive
 } from 'lucide-react';
 import anime from 'animejs';
 import {
@@ -249,12 +249,13 @@ const CustomDepartmentBar = (props) => {
 };
 
 function AnalyticsInner() {
-    const { issues, loading: contextLoading, error, fetchIssues, availableSheets, currentSheet } = useIssues();
+    const { issues, archivedIssues, fetchArchivedIssues, restoreIssue, loading: contextLoading, error, fetchIssues, availableSheets, currentSheet } = useIssues();
     const { isAdmin, isDeptUser, department, canAccessAnalytics, canExportReports, canViewAllDepartments } = useAuth();
     const [selectedSheets, setSelectedSheets] = useState(() => {
         return currentSheet ? [currentSheet] : (availableSheets && availableSheets.length > 0 ? [availableSheets[0]] : ['2026']);
     });
     const [sheetDataMap, setSheetDataMap] = useState({});
+    const [archivedSheetDataMap, setArchivedSheetDataMap] = useState({});
     const [fetchingSheets, setFetchingSheets] = useState({});
 
     // Populate cache with currentSheet data when available
@@ -263,6 +264,15 @@ function AnalyticsInner() {
             setSheetDataMap(prev => ({ ...prev, [currentSheet]: issues }));
         }
     }, [currentSheet, issues]);
+
+    // Populate archived cache for currentSheet when available (admin only)
+    useEffect(() => {
+        if (isAdmin && currentSheet && archivedIssues && archivedIssues.length >= 0) {
+            setArchivedSheetDataMap(prev => ({ ...prev, [currentSheet]: archivedIssues }));
+        } else if (!isAdmin) {
+            setArchivedSheetDataMap({});
+        }
+    }, [isAdmin, currentSheet, archivedIssues]);
 
     // Ensure selectedSheets initializes when availableSheets or currentSheet becomes ready
     useEffect(() => {
@@ -292,10 +302,21 @@ function AnalyticsInner() {
                         setFetchingSheets(prev => ({ ...prev, [sheet]: false }));
                     }
                 }
+
+                if (isAdmin && !archivedSheetDataMap[sheet]) {
+                    try {
+                        const archRes = await axios.get('/api/issues', { params: { sheet, archived: true } });
+                        if (archRes.data?.success && Array.isArray(archRes.data.data)) {
+                            setArchivedSheetDataMap(prev => ({ ...prev, [sheet]: archRes.data.data }));
+                        }
+                    } catch (e) {
+                        console.error('Failed to fetch archived sheet data for:', sheet, e);
+                    }
+                }
             }
         };
         fetchMissing();
-    }, [selectedSheets, sheetDataMap, fetchingSheets]);
+    }, [selectedSheets, sheetDataMap, archivedSheetDataMap, fetchingSheets, isAdmin]);
 
     // Combined issues from all selected sheets (strictly scoped to department for dept users, ALWAYS including island-wide emergency alerts)
     const combinedIssues = useMemo(() => {
@@ -308,13 +329,29 @@ function AnalyticsInner() {
                 const uniqueKey = `${sheetName}-${item.id}`;
                 if (!seenIds.has(uniqueKey)) {
                     seenIds.add(uniqueKey);
-                    all.push({ ...item, _sheet: sheetName });
+                    all.push({ ...item, _sheet: sheetName, isArchived: false });
                 }
             });
+
+            // If admin, ALSO include archived issues for this sheet
+            if (isAdmin) {
+                const archList = archivedSheetDataMap[sheetName] || (sheetName === currentSheet ? (archivedIssues || []) : []);
+                archList.forEach(item => {
+                    const uniqueKey = `archived-${sheetName}-${item.id}`;
+                    if (!seenIds.has(uniqueKey)) {
+                        seenIds.add(uniqueKey);
+                        all.push({ ...item, _sheet: sheetName, isArchived: true });
+                    }
+                });
+            }
         });
+
         if (isDeptUser && department && !canViewAllDepartments) {
             const userDeptNorm = normalizeDepartment(department).toLowerCase();
             return all.filter(issue => {
+                // Dept users never see archived issues
+                if (issue.isArchived) return false;
+
                 // 🚨 Emergency & critical fast-track issues are island-wide alerts, ALWAYS in scope for everyone!
                 const isEmergency = (issue.category || '').toLowerCase() === 'emergency'
                     || String(issue.id || '').startsWith('SOS')
@@ -331,7 +368,7 @@ function AnalyticsInner() {
             });
         }
         return all;
-    }, [selectedSheets, sheetDataMap, currentSheet, issues, isDeptUser, department, canViewAllDepartments]);
+    }, [selectedSheets, sheetDataMap, archivedSheetDataMap, currentSheet, issues, archivedIssues, isAdmin, isDeptUser, department, canViewAllDepartments]);
 
     const isFetchingAnySheet = Object.values(fetchingSheets).some(Boolean);
     const loading = contextLoading && combinedIssues.length === 0 && !error;
@@ -393,7 +430,9 @@ function AnalyticsInner() {
         }
 
         return combinedIssues.filter(issue => {
-            const rawTime = issue.reportedAt || (issue.reportedAtIso ? new Date(issue.reportedAtIso).getTime() : 0);
+            const rawTime = issue.isArchived
+                ? (issue.archivedAt || (issue.archivedAtStr ? new Date(issue.archivedAtStr).getTime() : issue.reportedAt))
+                : (issue.reportedAt || (issue.reportedAtIso ? new Date(issue.reportedAtIso).getTime() : 0));
             if (!rawTime) return true; // Keep if date is unspecified
             return rawTime >= cutoff;
         });
@@ -446,25 +485,40 @@ function AnalyticsInner() {
         recentActivityRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     };
 
+    const handleRestoreIssue = async (issue) => {
+        if (!isAdmin || !issue) return;
+        try {
+            await restoreIssue(issue.id, issue._sheet || issue.sheet || currentSheet);
+            fetchIssues(true);
+            fetchArchivedIssues(true);
+        } catch (e) {
+            console.error('Failed to restore issue:', e);
+        }
+    };
+
     // Precomputed stats for the mini stat filter cards in Recent Activity
     const analyticsStats = useMemo(() => {
         const list = timeFilteredIssues || [];
+        const activeList = list.filter(i => !i.isArchived);
+        const archivedList = list.filter(i => i.isArchived);
+
         const isEmergency = (i) => (i.category || '').toLowerCase() === 'emergency' || String(i.id || '').startsWith('SOS');
         const isCritical = (i) => i.priority === 'critical' && !isEmergency(i);
         const isHigh = (i) => i.priority === 'high' && !isEmergency(i);
         const isStandard = (i) => !isEmergency(i) && !isCritical(i) && !isHigh(i);
 
-        const emergencyList = list.filter(isEmergency);
-        const criticalList = list.filter(isCritical);
-        const highList = list.filter(isHigh);
-        const standardList = list.filter(isStandard);
+        const emergencyList = activeList.filter(isEmergency);
+        const criticalList = activeList.filter(isCritical);
+        const highList = activeList.filter(isHigh);
+        const standardList = activeList.filter(isStandard);
 
         return {
-            total: list.length,
-            open: list.filter(i => i.status === 'open').length,
-            progress: list.filter(i => i.status === 'progress').length,
-            pending: list.filter(i => i.status === 'pending').length,
-            solved: list.filter(i => i.status === 'solved').length,
+            total: activeList.length,
+            open: activeList.filter(i => i.status === 'open').length,
+            progress: activeList.filter(i => i.status === 'progress').length,
+            pending: activeList.filter(i => i.status === 'pending').length,
+            solved: activeList.filter(i => i.status === 'solved').length,
+            archived: archivedList.length,
             criticalCount: criticalList.length,
             criticalActive: criticalList.filter(i => i.status !== 'solved').length,
             highCount: highList.length,
@@ -604,6 +658,16 @@ function AnalyticsInner() {
             activeRing: 'ring-red-500 border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.35)]',
             activeAccent: 'bg-red-500/30 text-red-400',
         },
+        ...(isAdmin ? [{
+            key: 'archived',
+            status: 'archived',
+            label: lang === 'id' ? 'Diarsipkan' : 'Archived',
+            value: analyticsStats.archived,
+            Icon: Archive,
+            accent: 'bg-rose-500/15 text-rose-400',
+            activeRing: 'ring-rose-500 border-rose-500 shadow-[0_0_12px_rgba(244,63,94,0.25)]',
+            activeAccent: 'bg-rose-500/30 text-rose-400',
+        }] : []),
     ];
 
     const handleStatusCardClick = (status) => {
@@ -641,7 +705,7 @@ function AnalyticsInner() {
     const categoryData = useMemo(() => {
         if (!timeFilteredIssues || timeFilteredIssues.length === 0) return [];
         const counts = {};
-        timeFilteredIssues.forEach(issue => {
+        timeFilteredIssues.filter(i => !i.isArchived).forEach(issue => {
             const cat = (issue.category || 'other').toLowerCase().trim();
             counts[cat] = (counts[cat] || 0) + 1;
         });
@@ -679,7 +743,7 @@ function AnalyticsInner() {
             }
         };
 
-        timeFilteredIssues.forEach(issue => {
+        timeFilteredIssues.filter(i => !i.isArchived).forEach(issue => {
             const isSolved = issue.status === 'solved';
 
             if (isDeptUser && userDeptNorm) {
@@ -794,6 +858,32 @@ function AnalyticsInner() {
         let events = [];
         
         timeFilteredIssues.forEach(issue => {
+            if (issue.isArchived) {
+                if (!isAdmin) return;
+
+                const currentYear = new Date().getFullYear();
+                let dateStr = String(issue.archivedAtStr || '').trim();
+                const noYearMatch = dateStr.match(/^([A-Za-z]+)\s+(\d{1,2}),?\s+(\d{1,2})[:\.](\d{1,2})(?:[:\.](\d{1,2}))?/i);
+                if (noYearMatch) {
+                    const secPart = noYearMatch[5] ? `:${noYearMatch[5]}` : ':00';
+                    dateStr = `${noYearMatch[1]} ${noYearMatch[2]}, ${currentYear} ${noYearMatch[3]}:${noYearMatch[4]}${secPart}`;
+                }
+                const parsedArchiveTime = dateStr ? new Date(dateStr).getTime() : (issue.archivedAt || issue.reportedAt || Date.now());
+                const archiveTime = isNaN(parsedArchiveTime) ? (issue.archivedAt || issue.reportedAt || Date.now()) : parsedArchiveTime;
+
+                events.push({
+                    id: `${issue.id}-archived`,
+                    issueId: issue.id,
+                    title: issue.title,
+                    type: 'archive',
+                    date: archiveTime,
+                    person: issue.archivedBy && issue.archivedBy !== 'Staff' && issue.archivedBy !== 'Admin / Staff' ? issue.archivedBy : 'Admin',
+                    reason: lang === 'id' ? 'Isu diarsipkan oleh Admin' : 'Issue archived by Admin',
+                    originalIssue: issue,
+                });
+                return;
+            }
+
             const rawTime = issue.reportedAt || (issue.reportedAtIso ? new Date(issue.reportedAtIso).getTime() : 0);
             const issueEvents = [];
             
@@ -1061,13 +1151,14 @@ function AnalyticsInner() {
         });
         
         // Sort descending with event type tie-breaking
-        const typePriority = { create: 6, claim: 5, pending: 4, edit: 3, revert: 2, solve: 1 };
+        const typePriority = { archive: 7, create: 6, claim: 5, pending: 4, edit: 3, revert: 2, solve: 1 };
         events.sort((a, b) => {
             if (b.date !== a.date) return b.date - a.date;
             return (typePriority[a.type] || 9) - (typePriority[b.type] || 9);
         });
 
         const typeMap = {
+            'archive': 'archived',
             'create': 'open',
             'claim': 'progress',
             'pending': 'pending',
@@ -1093,22 +1184,31 @@ function AnalyticsInner() {
 
             // 1. Combinable Status & Priority Filters (matches current status of the issue)
             if (selectedStatusFilters.length > 0) {
+                const isArchivedSelected = selectedStatusFilters.includes('archived');
                 const isCriticalSelected = selectedStatusFilters.includes('critical');
-                const selectedStatuses = selectedStatusFilters.filter(f => f !== 'critical');
-                const currentStatus = ev.originalIssue?.status;
-                const isEmergencyIssue = (ev.originalIssue?.category || '').toLowerCase() === 'emergency' || String(ev.issueId || '').startsWith('SOS');
-                const isCriticalIssue = !isEmergencyIssue && ev.originalIssue?.priority === 'critical';
+                const selectedStatuses = selectedStatusFilters.filter(f => f !== 'critical' && f !== 'archived');
+                const isItemArchived = ev.type === 'archive' || ev.originalIssue?.isArchived;
 
-                let matchesStatus = true;
-                if (selectedStatuses.length > 0 && isCriticalSelected) {
-                    matchesStatus = selectedStatuses.includes(currentStatus) || isCriticalIssue || isEmergencyIssue;
-                } else if (selectedStatuses.length > 0) {
-                    matchesStatus = selectedStatuses.includes(currentStatus);
-                } else if (isCriticalSelected) {
-                    matchesStatus = isCriticalIssue || isEmergencyIssue;
+                if (isItemArchived) {
+                    if (!isArchivedSelected) return false;
+                } else {
+                    if (isArchivedSelected && selectedStatuses.length === 0 && !isCriticalSelected) return false;
+
+                    const currentStatus = ev.originalIssue?.status;
+                    const isEmergencyIssue = (ev.originalIssue?.category || '').toLowerCase() === 'emergency' || String(ev.issueId || '').startsWith('SOS');
+                    const isCriticalIssue = !isEmergencyIssue && ev.originalIssue?.priority === 'critical';
+
+                    let matchesStatus = true;
+                    if (selectedStatuses.length > 0 && isCriticalSelected) {
+                        matchesStatus = selectedStatuses.includes(currentStatus) || isCriticalIssue || isEmergencyIssue;
+                    } else if (selectedStatuses.length > 0) {
+                        matchesStatus = selectedStatuses.includes(currentStatus);
+                    } else if (isCriticalSelected) {
+                        matchesStatus = isCriticalIssue || isEmergencyIssue;
+                    }
+
+                    if (!matchesStatus) return false;
                 }
-
-                if (!matchesStatus) return false;
             }
 
             // 1b. Combinable Priority Filters (standard | high | critical)
@@ -2433,11 +2533,20 @@ function AnalyticsInner() {
                                                         String(ev.issueId || '').startsWith('SOS');
                                     const isCritical = !isEmergency && (ev.originalIssue?.priority === 'critical');
                                     const isHigh = !isEmergency && (ev.originalIssue?.priority === 'high');
+                                    const isArchived = ev.type === 'archive' || ev.originalIssue?.isArchived;
 
                                     let actionBadge = null;
                                     let dotColor = 'bg-blue-500';
                                     
                                     switch(ev.type) {
+                                        case 'archive':
+                                            dotColor = 'bg-rose-500';
+                                            actionBadge = (
+                                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                                                    📦 {lang === 'id' ? 'Diarsipkan' : 'Archived'}
+                                                </span>
+                                            );
+                                            break;
                                         case 'create':
                                             dotColor = isEmergency ? 'bg-red-500' : isCritical ? 'bg-amber-500' : 'bg-blue-500';
                                             actionBadge = (
@@ -2505,6 +2614,8 @@ function AnalyticsInner() {
                                                 <div className="absolute -left-[22px] top-3.5 flex items-center justify-center z-10">
                                                     <span className="h-4 w-4 rounded-full border-2 border-[#181711] bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.85)] ring-2 ring-amber-500/30" />
                                                 </div>
+                                            ) : isArchived ? (
+                                                <div className="absolute -left-[21px] top-4 h-3.5 w-3.5 rounded-full border-2 border-surface shadow-sm z-10 bg-rose-500" />
                                             ) : (
                                                 <div className={`absolute -left-[21px] top-4 h-3.5 w-3.5 rounded-full border-2 border-surface shadow-sm z-10 ${dotColor}`} />
                                             )}
@@ -2516,7 +2627,9 @@ function AnalyticsInner() {
                                                         ? 'border border-red-500/30 border-l-[4px] border-l-red-500 bg-gradient-to-r from-red-950/25 via-[#1E1D16] to-[#1E1D16] shadow-[0_0_18px_rgba(239,68,68,0.12)] hover:border-red-500/60 hover:shadow-[0_0_24px_rgba(239,68,68,0.22)] hover:bg-[#231E17]'
                                                         : isCritical
                                                             ? 'border border-amber-500/30 border-l-[4px] border-l-amber-500 bg-gradient-to-r from-amber-950/20 via-[#1E1D16] to-[#1E1D16] shadow-[0_0_14px_rgba(245,158,11,0.08)] hover:border-amber-500/60 hover:shadow-[0_0_20px_rgba(245,158,11,0.18)] hover:bg-[#232017]'
-                                                            : 'border border-border/80 bg-[#1E1D16] shadow-sm hover:border-primary/60 hover:bg-[#25241B]'
+                                                            : isArchived
+                                                                ? 'border border-rose-500/30 border-l-[4px] border-l-rose-500/80 bg-gradient-to-r from-rose-950/20 via-[#1E1D16] to-[#1E1D16] shadow-sm hover:border-rose-500/50 hover:bg-[#241E1C]'
+                                                                : 'border border-border/80 bg-[#1E1D16] shadow-sm hover:border-primary/60 hover:bg-[#25241B]'
                                                 }`}
                                             >
                                                 {/* Header Row: Title + Department + ID + Click Indicator */}
@@ -2527,7 +2640,9 @@ function AnalyticsInner() {
                                                                 ? 'text-white group-hover:text-red-300' 
                                                                 : isCritical 
                                                                     ? 'text-white group-hover:text-amber-300' 
-                                                                    : 'text-foreground group-hover:text-primary'
+                                                                    : isArchived
+                                                                        ? 'text-white group-hover:text-rose-300'
+                                                                        : 'text-foreground group-hover:text-primary'
                                                         }`}>
                                                             {ev.title}
                                                         </span>
@@ -2548,6 +2663,11 @@ function AnalyticsInner() {
                                                                 {lang === 'id' ? 'TINGGI' : 'HIGH'}
                                                             </span>
                                                         )}
+                                                        {isArchived && (
+                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-rose-500/20 text-rose-300 border border-rose-500/40">
+                                                                📦 {lang === 'id' ? 'DIARSIPKAN' : 'ARCHIVED'}
+                                                            </span>
+                                                        )}
                                                         {ev.originalIssue?.department && (
                                                             <span className="text-xs px-2 py-0.5 rounded bg-muted/40 text-muted-foreground border border-border/40 font-medium">
                                                                 {ev.originalIssue.department}
@@ -2560,7 +2680,9 @@ function AnalyticsInner() {
                                                                 ? 'text-red-400 bg-red-950/50 border-red-500/40 shadow-[0_0_8px_rgba(239,68,68,0.25)]'
                                                                 : isCritical
                                                                     ? 'text-amber-400 bg-amber-950/40 border-amber-500/40'
-                                                                    : 'text-[#C9AA71] bg-[#2A281E] border-[#3B3929]'
+                                                                    : isArchived
+                                                                        ? 'text-rose-400 bg-rose-950/40 border-rose-500/40'
+                                                                        : 'text-[#C9AA71] bg-[#2A281E] border-[#3B3929]'
                                                         }`}>
                                                             {ev.issueId}
                                                         </span>
@@ -2568,16 +2690,22 @@ function AnalyticsInner() {
                                                             type="button"
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
-                                                                handleOpenIssueCard(ev.originalIssue);
+                                                                if (isArchived) {
+                                                                    setSelectedActivityIssue(ev.originalIssue);
+                                                                } else {
+                                                                    handleOpenIssueCard(ev.originalIssue);
+                                                                }
                                                             }}
                                                             className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold transition-all shadow-sm cursor-pointer z-10 ${
                                                                 isEmergency
                                                                     ? 'bg-red-950/40 hover:bg-red-900/60 text-red-300 hover:text-red-100 border border-red-700/50'
                                                                     : isCritical
                                                                         ? 'bg-amber-950/40 hover:bg-amber-900/50 text-amber-300 hover:text-amber-100 border border-amber-700/50'
-                                                                        : 'bg-[#2A281E] hover:bg-[#3B3929] text-[#C9AA71] hover:text-[#FAFAFA] border border-[#3B3929]'
+                                                                        : isArchived
+                                                                            ? 'bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 hover:text-rose-100 border border-rose-700/50'
+                                                                            : 'bg-[#2A281E] hover:bg-[#3B3929] text-[#C9AA71] hover:text-[#FAFAFA] border border-[#3B3929]'
                                                             }`}
-                                                            title={lang === 'id' ? 'Buka Kartu Isu (Foto & Detail)' : 'Open Issue Card'}
+                                                            title={isArchived ? (lang === 'id' ? 'Lihat Riwayat Isu' : 'View Issue History') : (lang === 'id' ? 'Buka Kartu Isu (Foto & Detail)' : 'Open Issue Card')}
                                                         >
                                                             <Eye className="w-3.5 h-3.5" />
                                                             <span>Detail</span>
@@ -2587,7 +2715,9 @@ function AnalyticsInner() {
                                                                 ? 'text-red-400/60 group-hover:text-red-400 group-hover:translate-x-0.5'
                                                                 : isCritical
                                                                     ? 'text-amber-400/60 group-hover:text-amber-400 group-hover:translate-x-0.5'
-                                                                    : 'text-muted-foreground group-hover:text-primary group-hover:translate-x-0.5'
+                                                                    : isArchived
+                                                                        ? 'text-rose-400/60 group-hover:text-rose-400 group-hover:translate-x-0.5'
+                                                                        : 'text-muted-foreground group-hover:text-primary group-hover:translate-x-0.5'
                                                         }`} />
                                                     </div>
                                                 </div>
@@ -2598,24 +2728,30 @@ function AnalyticsInner() {
                                                         ? 'border-red-900/40 text-red-300/80' 
                                                         : isCritical
                                                             ? 'border-amber-900/30 text-amber-300/80'
-                                                            : 'border-border/30 text-muted-foreground'
+                                                            : isArchived
+                                                                ? 'border-rose-900/30 text-rose-300/80'
+                                                                : 'border-border/30 text-muted-foreground'
                                                 }`}>
                                                     <div className="flex items-center gap-2 flex-wrap">
                                                         {actionBadge}
-                                                        <span className={isEmergency ? 'text-red-300/70' : isCritical ? 'text-amber-300/70' : 'text-muted-foreground'}>{t('by_reporter')}</span>
+                                                        <span className={isEmergency ? 'text-red-300/70' : isCritical ? 'text-amber-300/70' : isArchived ? 'text-rose-300/70' : 'text-muted-foreground'}>
+                                                            {isArchived ? (lang === 'id' ? 'Oleh:' : 'By:') : t('by_reporter')}
+                                                        </span>
                                                         <span className={`font-bold px-2 py-0.5 rounded border ${
                                                             isEmergency
                                                                 ? 'text-red-200 bg-red-950/40 border-red-800/40'
                                                                 : isCritical
                                                                     ? 'text-amber-200 bg-amber-950/40 border-amber-800/40'
-                                                                    : 'text-foreground bg-surface border-border/50'
+                                                                    : isArchived
+                                                                        ? 'text-rose-200 bg-rose-950/40 border-rose-800/40'
+                                                                        : 'text-foreground bg-surface border-border/50'
                                                         }`}>
                                                             {ev.person}
                                                         </span>
                                                     </div>
 
                                                     <div className={`font-medium flex items-center gap-1.5 ml-auto ${
-                                                        isEmergency ? 'text-red-300/75' : isCritical ? 'text-amber-300/75' : 'text-muted-foreground'
+                                                        isEmergency ? 'text-red-300/75' : isCritical ? 'text-amber-300/75' : isArchived ? 'text-rose-300/75' : 'text-muted-foreground'
                                                     }`}>
                                                         <span>📅 {dateStr}</span>
                                                         <span>•</span>
@@ -2628,9 +2764,11 @@ function AnalyticsInner() {
                                                     <div className={`text-xs p-2.5 rounded-lg border italic ${
                                                         isCritical
                                                             ? 'text-red-200/90 bg-red-950/30 border-red-800/40'
-                                                            : 'text-muted-foreground bg-black/20 border-border/40'
+                                                            : isArchived
+                                                                ? 'text-rose-200/90 bg-rose-950/20 border-rose-800/30'
+                                                                : 'text-muted-foreground bg-black/20 border-border/40'
                                                     }`}>
-                                                        💬 <span className={`font-semibold ${isCritical ? 'text-red-300' : 'text-foreground/80'}`}>
+                                                        💬 <span className={`font-semibold ${isCritical ? 'text-red-300' : isArchived ? 'text-rose-300' : 'text-foreground/80'}`}>
                                                             {lang === 'id' ? 'Alasan/Catatan: ' : 'Reason/Notes: '}
                                                         </span>
                                                         "{ev.reason}"
@@ -2653,6 +2791,7 @@ function AnalyticsInner() {
                 issue={selectedActivityIssue} 
                 onClose={() => setSelectedActivityIssue(null)} 
                 onOpenCardModal={(issue) => setCardModalTarget(issue)}
+                onRestore={isAdmin ? handleRestoreIssue : undefined}
             />
 
             {cardModalTarget?.status === 'open' && (

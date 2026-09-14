@@ -395,4 +395,47 @@ class IssueApiTest extends TestCase
 
         $response->assertStatus(403);
     }
+
+    public function test_non_admin_cannot_access_archived_issues(): void
+    {
+        $deptUser = User::factory()->create(['role' => 'department', 'department' => 'HK']);
+
+        $response = $this->actingAs($deptUser)->getJson('/api/issues?archived=true&sheet=2026');
+
+        $response->assertOk()
+            ->assertJson([
+                'success' => true,
+                'data'    => [],
+            ]);
+    }
+
+    public function test_admin_can_access_archived_issues(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+
+        $googleMock = Mockery::mock(GoogleService::class);
+        $googleMock->shouldReceive('listSheets')->andReturn(['2026']);
+        $googleMock->shouldReceive('setSheet')->with('2026');
+        $archivedRow = array_pad(['ENG-001', 'Archived Title', 'Desc', 'Loc', 'Cat', 'open', 'Reporter', '2026-09-10'], 26, '');
+        $archivedRow[24] = '[14 Sep, 10:34] Gardiono: Isu diarsipkan oleh Admin';
+        $archivedRow[25] = '0'; // Display Status = 0 (Archived)
+
+        $googleMock->shouldReceive('getRows')->andReturn([$archivedRow]);
+
+        $this->app->instance(GoogleService::class, $googleMock);
+
+        $response = $this->actingAs($admin)->getJson('/api/issues?archived=true&sheet=2026');
+
+        $response->assertOk()
+            ->assertJson([
+                'success' => true,
+            ]);
+
+        $data = $response->json('data');
+        $this->assertCount(1, $data);
+        $this->assertEquals('ENG-001', $data[0]['id']);
+        $this->assertTrue($data[0]['isArchived']);
+        $this->assertEquals('Gardiono', $data[0]['archivedBy']);
+    }
 }
+
