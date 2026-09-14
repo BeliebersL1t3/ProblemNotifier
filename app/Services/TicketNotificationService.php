@@ -124,6 +124,7 @@ class TicketNotificationService
             'whatsapp_change' => 'Perubahan Nomor WhatsApp',
             'whatsapp_unlink' => 'Pelepasan Nomor WhatsApp',
             'password_reset' => 'Reset Password',
+            'department_transfer' => 'Mutasi / Pindah Departemen',
             default => 'Pengajuan Tiket',
         };
 

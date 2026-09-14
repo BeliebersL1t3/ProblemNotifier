@@ -230,6 +230,62 @@ class ApprovalTicketController extends Controller
     }
 
     /**
+     * Submit a department transfer ticket from Profile
+     */
+    public function storeDepartmentTransferTicket(Request $request): RedirectResponse
+    {
+        $user = Auth::user();
+
+        $request->validate([
+            'target_department' => 'required|string|max:100',
+            'target_subdivision' => 'nullable|string|max:100',
+            'reason' => 'required|string|max:500',
+        ]);
+
+        $targetDept = trim($request->input('target_department'));
+        $targetSubdiv = trim($request->input('target_subdivision', ''));
+
+        if ($targetDept === $user->department) {
+            return back()->withErrors([
+                'target_department' => 'Departemen tujuan harus berbeda dengan departemen Anda saat ini.'
+            ]);
+        }
+
+        // Check for existing pending transfer ticket
+        $existing = ApprovalTicket::where('user_id', $user->id)
+            ->whereIn('status', ['pending_hod', 'pending_admin'])
+            ->where('type', 'department_transfer')
+            ->first();
+
+        if ($existing) {
+            return back()->withErrors([
+                'target_department' => "Anda sudah memiliki permohonan pindah departemen ({$existing->ticket_number}) yang sedang dalam proses verifikasi."
+            ]);
+        }
+
+        $requestedValue = $targetDept . ($targetSubdiv ? '::' . $targetSubdiv : '');
+
+        $ticket = ApprovalTicket::create([
+            'ticket_number' => ApprovalTicket::generateTicketNumber('department_transfer'),
+            'type' => 'department_transfer',
+            'user_id' => $user->id,
+            'department' => $user->department ?: 'General',
+            'subdivision' => $user->subdivision,
+            'staff_name' => $user->staff_name ?: $user->name,
+            'email' => $user->email,
+            'current_value' => $user->department . ($user->subdivision ? ' (' . $user->subdivision . ')' : ''),
+            'requested_value' => $requestedValue,
+            'reason' => $request->input('reason'),
+            'status' => 'pending_hod',
+        ]);
+
+        // Notify HODs of current department
+        TicketNotificationService::notifyHods($ticket, 'Permohonan Pindah Departemen');
+
+        return back()->with('status', 'transfer-ticket-submitted');
+    }
+
+    /**
      * HOD Review action (Approve to Admin or Reject with reason)
      */
     public function hodAction(Request $request, $id): RedirectResponse
