@@ -267,9 +267,7 @@ class IssueApiTest extends TestCase
         $googleMock->shouldReceive('getRows')->andReturn([
             array_pad(['ENG-001', 'Title', 'Desc', 'Loc', 'Cat', 'open'], 26, '')
         ]);
-        $googleMock->shouldReceive('updateRow')->once()->with(2, Mockery::on(function ($row) {
-            return $row[0] === 'ENG-001' && $row[25] === '0';
-        }))->andReturn(true);
+        $googleMock->shouldReceive('batchUpdateColumn')->once()->with([2], 'Z', '0', Mockery::any())->andReturn(null);
 
         $this->app->instance(GoogleService::class, $googleMock);
 
@@ -294,9 +292,7 @@ class IssueApiTest extends TestCase
         $googleMock->shouldReceive('getRows')->andReturn([
             array_pad(['ENG-001', 'Title', 'Desc', 'Loc', 'Cat', 'progress'], 26, '')
         ]);
-        $googleMock->shouldReceive('updateRow')->once()->with(2, Mockery::on(function ($row) {
-            return $row[0] === 'ENG-001' && $row[25] === '1';
-        }))->andReturn(true);
+        $googleMock->shouldReceive('batchUpdateColumn')->once()->with([2], 'Z', '1', Mockery::any())->andReturn(null);
 
         $this->app->instance(GoogleService::class, $googleMock);
 
@@ -341,6 +337,34 @@ class IssueApiTest extends TestCase
             'location'    => 'Villa 1',
             'category'    => 'plumbing',
             'sheet'       => '2026',
+        ]);
+
+        $response->assertOk()
+            ->assertJson([
+                'success' => true,
+            ]);
+    }
+
+    public function test_delete_issue_with_multiple_versions_sets_all_rows_to_zero(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+
+        $googleMock = Mockery::mock(GoogleService::class);
+        $googleMock->shouldReceive('findIssueAcrossSheets')->andReturn(null);
+        $googleMock->shouldReceive('listSheets')->andReturn(['2026']);
+        $googleMock->shouldReceive('setSheet')->with('2026');
+        // Suppose ENG-001 has 2 rows (row 2 and row 3)
+        $googleMock->shouldReceive('getRows')->andReturn([
+            array_pad(['ENG-001', 'Old Title', 'Desc', 'Loc', 'Cat', 'progress'], 26, ''),
+            array_pad(['ENG-001', 'Edited Title', 'Desc', 'Loc', 'Cat', 'open'], 26, ''),
+        ]);
+        // Both rows [2, 3] should have Column Z set to '0'
+        $googleMock->shouldReceive('batchUpdateColumn')->once()->with([2, 3], 'Z', '0', Mockery::any())->andReturn(null);
+
+        $this->app->instance(GoogleService::class, $googleMock);
+
+        $response = $this->actingAs($admin)->deleteJson('/api/issues/ENG-001', [
+            'sheet' => '2026',
         ]);
 
         $response->assertOk()

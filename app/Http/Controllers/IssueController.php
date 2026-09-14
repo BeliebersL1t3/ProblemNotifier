@@ -307,6 +307,7 @@ class IssueController extends Controller
         }
 
         $matchedId = null;
+        $matchedRowIndices = [];
         // First pass: locate the row matching either row number or ID
         foreach ($rows as $index => $row) {
             $actualRowIndex = $index + 2;
@@ -317,15 +318,18 @@ class IssueController extends Controller
             }
         }
 
-        // If we found an issue ID, ensure we pick the LATEST row with that ID
+        // If we found an issue ID, ensure we pick the LATEST row with that ID and collect ALL row indices
         if (!empty($matchedId)) {
             foreach ($rows as $index => $row) {
                 $actualRowIndex = $index + 2;
                 if (($row[0] ?? '') === $matchedId) {
+                    $matchedRowIndices[] = $actualRowIndex;
                     $targetRowIndex = $actualRowIndex;
                     $currentRow = $row;
                 }
             }
+        } else if ($targetRowIndex) {
+            $matchedRowIndices[] = $targetRowIndex;
         }
 
         if (!$targetRowIndex || !$currentRow) {
@@ -335,6 +339,7 @@ class IssueController extends Controller
         return [
             'sheet'          => $targetSheet,
             'rowIndex'       => $targetRowIndex,
+            'allRowIndices'  => !empty($matchedRowIndices) ? array_values(array_unique($matchedRowIndices)) : [$targetRowIndex],
             'row'            => array_pad($currentRow, 26, ''),
             'crossYear'      => $crossYear,
             'foundLocation'  => $foundLocation,
@@ -1749,16 +1754,10 @@ class IssueController extends Controller
             $deleterName = $user->staff_name ?? $user->name ?? 'Staff';
             $deleterDept = $user->department ?? ($user->isAdmin() ? 'Admin' : '');
             $deleterRole = $user->isAdmin() ? 'Admin' : 'Department';
-            // Soft-delete / hide: update Col Z to '0' in-place without creating a new row
-            $currentRow = array_pad($currentRow, 26, '');
-            $currentRow[25] = '0'; // ARCHIVED / HIDDEN
-
+            // Soft-delete / hide: update Col Z to '0' across ALL row versions of this issue
             $targetSheet = $issueData['foundLocation']['sheet'] ?? null;
-            if ($targetSheet) {
-                $this->googleService->updateRow($issueData['rowIndex'], $currentRow, $targetSheet);
-            } else {
-                $this->googleService->updateRow($issueData['rowIndex'], $currentRow);
-            }
+            $allRows = $issueData['allRowIndices'] ?? [$issueData['rowIndex']];
+            $this->googleService->batchUpdateColumn($allRows, 'Z', '0', $targetSheet);
 
             // Dispatch WhatsApp deletion announcement
             $originStr = !empty($originDept) ? "\n*Origin:* {$originDept}" : '';
@@ -1806,16 +1805,11 @@ class IssueController extends Controller
 
             $currentRow = $issueData['row'];
             $restorerName = $user->staff_name ?? $user->name ?? 'Admin';
-            // Restore to active: update Col Z to '1' in-place without creating a new row
-            $currentRow = array_pad($currentRow, 26, '');
-            $currentRow[25] = '1'; // RESTORE TO ACTIVE
-
+            
+            // Restore to active: update Col Z to '1' across ALL row versions of this issue
             $targetSheet = $issueData['foundLocation']['sheet'] ?? null;
-            if ($targetSheet) {
-                $this->googleService->updateRow($issueData['rowIndex'], $currentRow, $targetSheet);
-            } else {
-                $this->googleService->updateRow($issueData['rowIndex'], $currentRow);
-            }
+            $allRows = $issueData['allRowIndices'] ?? [$issueData['rowIndex']];
+            $this->googleService->batchUpdateColumn($allRows, 'Z', '1', $targetSheet);
 
             $originDept = $currentRow[22] ?? '';
             $assignedDepts = $currentRow[23] ?? ($currentRow[21] ?? '');

@@ -790,6 +790,32 @@ class GoogleService
     }
 
     /**
+     * Batch update a specific column (e.g. 'Z') across multiple row indices in a single Google Sheets API call.
+     */
+    public function batchUpdateColumn(array $rowIndices, string $colLetter, $value, ?string $sheetName = null): void
+    {
+        if (empty($rowIndices)) return;
+        $this->clearCache();
+        $targetSheet = $sheetName ?? $this->sheetName;
+        $colLetter = strtoupper($colLetter);
+
+        $data = [];
+        foreach ($rowIndices as $rowNum) {
+            $data[] = new ValueRange([
+                'range'  => "{$targetSheet}!{$colLetter}{$rowNum}",
+                'values' => [[(string)$value]],
+            ]);
+        }
+
+        $body = new BatchUpdateValuesRequest([
+            'valueInputOption' => 'RAW',
+            'data'             => $data,
+        ]);
+
+        $this->sheets->spreadsheets_values->batchUpdate($this->spreadsheetId, $body);
+    }
+
+    /**
      * Delete an issue row by 1-based row number.
      */
     public function deleteRow(int $rowIndex, ?string $sheetName = null): bool
