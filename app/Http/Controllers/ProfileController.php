@@ -76,7 +76,10 @@ class ProfileController extends Controller
 
         // If Admin, direct update is permitted
         if ($user->isAdmin()) {
-            $user->whatsapp_number = $clean;
+            $user->whatsapp_number = empty($clean) ? null : $clean;
+            if (empty($clean)) {
+                $user->notify_whatsapp_tickets = false;
+            }
             $user->save();
 
             try {
@@ -130,7 +133,15 @@ class ProfileController extends Controller
         ]);
 
         $user = $request->user();
-        $user->notify_whatsapp_tickets = $request->boolean('notify_whatsapp_tickets');
+        $enableWa = $request->boolean('notify_whatsapp_tickets');
+
+        if ($enableWa && empty($user->whatsapp_number)) {
+            return Redirect::back()->withErrors([
+                'notify_whatsapp_tickets' => 'Akun tidak memiliki nomor WhatsApp terdaftar. Hubungkan nomor WhatsApp terlebih dahulu untuk mengaktifkan notifikasi via WhatsApp.',
+            ]);
+        }
+
+        $user->notify_whatsapp_tickets = $enableWa;
         $user->save();
 
         return Redirect::route('profile.edit')->with('status', 'preferences-updated');

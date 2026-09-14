@@ -334,6 +334,9 @@ class UserController extends Controller
         $user->department = $validated['department'] ?? null;
         $user->subdivision = $validated['subdivision'] ?? null;
         $user->whatsapp_number = $cleanPhone;
+        if (empty($cleanPhone)) {
+            $user->notify_whatsapp_tickets = false;
+        }
 
         if ($request->has('is_hod')) {
             $user->is_hod = $request->boolean('is_hod');

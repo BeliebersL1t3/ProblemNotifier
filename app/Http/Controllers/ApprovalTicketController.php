@@ -118,6 +118,9 @@ class ApprovalTicketController extends Controller
         // If user is Admin, they can apply immediately without ticket
         if ($user->isAdmin()) {
             $user->whatsapp_number = $isUnlink ? null : $cleanPhone;
+            if ($isUnlink) {
+                $user->notify_whatsapp_tickets = false;
+            }
             $user->save();
             try {
                 Http::timeout(1)->post('http://localhost:3000/sync-staff');
@@ -328,6 +331,7 @@ class ApprovalTicketController extends Controller
                     if ($ticket->user) {
                         $ticket->user->update([
                             'whatsapp_number' => null,
+                            'notify_whatsapp_tickets' => false,
                         ]);
                     }
                     break;

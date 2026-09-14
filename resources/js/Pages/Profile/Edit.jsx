@@ -123,10 +123,14 @@ function ProfileInner({ pendingTicket, notifyWhatsAppTickets, status }) {
     };
 
     // Notification preference state
-    const [notifyPref, setNotifyPref] = useState(notifyWhatsAppTickets ?? true);
+    const hasWhatsapp = Boolean(user?.whatsapp_number);
+    const [notifyPref, setNotifyPref] = useState(hasWhatsapp ? (notifyWhatsAppTickets ?? true) : false);
     const [isUpdatingNotifyPref, setIsUpdatingNotifyPref] = useState(false);
 
     const handleToggleNotifyPref = () => {
+        if (!hasWhatsapp) {
+            return;
+        }
         const nextVal = !notifyPref;
         setIsUpdatingNotifyPref(true);
         router.patch(route('profile.notificationPreferences'), {
@@ -792,40 +796,66 @@ function ProfileInner({ pendingTicket, notifyWhatsAppTickets, status }) {
                             </div>
 
                             {/* Notification Preferences Card */}
-                            <div className="rounded-2xl border border-[#3B3929] bg-[#2A281E]/90 p-6 sm:p-8 shadow-xl space-y-4">
+                            <div className={`rounded-2xl border border-[#3B3929] bg-[#2A281E]/90 p-6 sm:p-8 shadow-xl space-y-4 ${!hasWhatsapp ? 'opacity-85' : ''}`}>
                                 <div className="flex items-center justify-between gap-4 flex-wrap">
                                     <div className="flex items-center gap-2.5">
-                                        <div className="w-9 h-9 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center border border-indigo-500/30 shrink-0">
+                                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center border shrink-0 ${
+                                            hasWhatsapp 
+                                                ? 'bg-indigo-500/20 text-indigo-400 border-indigo-500/30' 
+                                                : 'bg-stone-800 text-stone-400 border-stone-700'
+                                        }`}>
                                             <MessageSquare className="h-5 w-5" />
                                         </div>
                                         <div>
-                                            <h2 className="text-base sm:text-lg font-bold text-[#FAFAFA]">
-                                                Notifikasi Tiket via WhatsApp
-                                            </h2>
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                                <h2 className="text-base sm:text-lg font-bold text-[#FAFAFA]">
+                                                    Notifikasi Tiket via WhatsApp
+                                                </h2>
+                                                {!hasWhatsapp && (
+                                                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                                                        Nomor Tidak Terdaftar
+                                                    </span>
+                                                )}
+                                            </div>
                                             <p className="text-xs text-[#A19F8D] mt-0.5">
                                                 Kirimkan pemberitahuan tiket permohonan dan persetujuan akun ke WhatsApp pribadi Anda.
                                             </p>
                                         </div>
                                     </div>
 
-                                    <button
-                                        type="button"
-                                        onClick={handleToggleNotifyPref}
-                                        disabled={isUpdatingNotifyPref}
-                                        className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                                            notifyPref ? 'bg-emerald-600' : 'bg-slate-700'
-                                        }`}
-                                    >
-                                        <span 
-                                            className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                                                notifyPref ? 'translate-x-5' : 'translate-x-0'
-                                            }`} 
-                                        />
-                                    </button>
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={handleToggleNotifyPref}
+                                            disabled={isUpdatingNotifyPref || !hasWhatsapp}
+                                            title={!hasWhatsapp ? 'Nomor WhatsApp belum terdaftar atau telah dihapus' : (notifyPref ? 'Matikan Notifikasi WhatsApp' : 'Nyalakan Notifikasi WhatsApp')}
+                                            className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                                                !hasWhatsapp
+                                                    ? 'bg-[#3B3929]/70 cursor-not-allowed opacity-40'
+                                                    : (notifyPref ? 'bg-emerald-600 cursor-pointer' : 'bg-slate-700 cursor-pointer')
+                                            }`}
+                                        >
+                                            <span 
+                                                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                                                    (hasWhatsapp && notifyPref) ? 'translate-x-5' : 'translate-x-0'
+                                                }`} 
+                                            />
+                                        </button>
+                                    </div>
                                 </div>
-                                <p className="text-[11px] text-[#A19F8D]">
-                                    <em>Catatan:</em> Bot tidak akan mengirimkan spam progres isu ke chat pribadi Anda. Progres isu antar-departemen dapat dipantau melalui lonceng notifikasi di dashboard.
-                                </p>
+
+                                {!hasWhatsapp ? (
+                                    <div className="p-3.5 rounded-xl bg-amber-950/40 border border-amber-500/30 text-amber-200 text-xs flex items-center gap-2.5">
+                                        <AlertCircle className="h-4 w-4 shrink-0 text-amber-400" />
+                                        <span>
+                                            Opsi ini <strong>tidak dapat diaktifkan</strong> karena akun Anda tidak memiliki nomor WhatsApp yang terdaftar (atau nomor telah dihapus/di-unlink dan di-ACC Admin). Hubungkan nomor WhatsApp terlebih dahulu untuk mengaktifkan notifikasi via WhatsApp pribadi.
+                                        </span>
+                                    </div>
+                                ) : (
+                                    <p className="text-[11px] text-[#A19F8D]">
+                                        <em>Catatan:</em> Bot tidak akan mengirimkan spam progres isu ke chat pribadi Anda. Progres isu antar-departemen dapat dipantau melalui lonceng notifikasi di dashboard.
+                                    </p>
+                                )}
                             </div>
 
                             {/* Password Form Card */}
