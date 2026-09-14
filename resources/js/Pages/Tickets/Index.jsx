@@ -246,7 +246,7 @@ function TicketsInner({
                                     ) : isUserHOD ? (
                                         `Tinjau dan verifikasi permohonan staf di naungan departemen ${currentUser?.department || 'Anda'} sebelum diteruskan ke Admin untuk ACC final.`
                                     ) : (
-                                        'Pantau status pengajuan pendaftaran akun, perubahan nomor WhatsApp bot, dan reset password Anda secara real-time.'
+                                        'Pantau status pengajuan permohonan nomor WhatsApp bot dan reset kata sandi akun Anda secara real-time.'
                                     )}
                                 </p>
                             </div>
@@ -407,7 +407,9 @@ function TicketsInner({
                                 className="bg-[#1C1B0E] border border-[#3B3929] text-[#FAFAFA] rounded-xl text-xs py-2 px-3 focus:border-[#C9AA71] focus:ring-1 focus:ring-[#C9AA71]"
                             >
                                 <option value="all">Semua Tipe</option>
-                                <option value="account_registration">Pendaftaran Akun</option>
+                                {(isUserAdmin || isUserHOD) && (
+                                    <option value="account_registration">Pendaftaran Akun</option>
+                                )}
                                 <option value="whatsapp_change">Ganti WhatsApp</option>
                                 <option value="whatsapp_unlink">Lepas WhatsApp</option>
                                 <option value="password_reset">Reset Password</option>
@@ -446,7 +448,7 @@ function TicketsInner({
                             <h3 className="text-lg font-bold text-[#FAFAFA]">Tidak Ada Tiket Ditemukan</h3>
                             <p className="text-xs sm:text-sm text-[#A19F8D] mt-1.5 max-w-md mx-auto">
                                 {!isUserAdmin && !isUserHOD
-                                    ? 'Anda belum memiliki riwayat pengajuan tiket yang sesuai dengan filter ini.'
+                                    ? 'Anda belum memiliki riwayat tiket aktif (perubahan nomor WhatsApp atau reset kata sandi).'
                                     : 'Tidak ada permohonan tiket yang cocok dengan kriteria filter saat ini.'}
                             </p>
                         </div>

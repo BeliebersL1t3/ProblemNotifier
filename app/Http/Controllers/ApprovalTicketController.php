@@ -34,8 +34,9 @@ class ApprovalTicketController extends Controller
                   ->orWhere('user_id', $user->id);
             });
         } else {
-            // Regular user only sees their own tickets
-            $query->where('user_id', $user->id);
+            // Regular user only sees their own active operational tickets (exclude account_registration because their account is already verified & active)
+            $query->where('user_id', $user->id)
+                  ->where('type', '!=', 'account_registration');
         }
 
         // Department Filter (for Admin)
@@ -69,8 +70,13 @@ class ApprovalTicketController extends Controller
         // Calculate badges count
         $pendingHodCount = 0;
         $pendingAdminCount = 0;
-        $myTicketsCount = ApprovalTicket::where('user_id', $user->id)->count();
-        $myPendingCount = ApprovalTicket::where('user_id', $user->id)
+
+        $myTicketsQuery = ApprovalTicket::where('user_id', $user->id);
+        if (!$user->isAdmin() && !$user->isHOD()) {
+            $myTicketsQuery->where('type', '!=', 'account_registration');
+        }
+        $myTicketsCount = (clone $myTicketsQuery)->count();
+        $myPendingCount = (clone $myTicketsQuery)
             ->whereIn('status', ['pending_hod', 'pending_admin'])
             ->count();
 
