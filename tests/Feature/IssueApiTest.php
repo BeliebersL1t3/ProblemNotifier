@@ -375,4 +375,15 @@ class IssueApiTest extends TestCase
                 'success' => true,
             ]);
     }
+
+    public function test_non_admin_cannot_delete_issue(): void
+    {
+        $deptUser = User::factory()->create(['role' => 'department', 'department' => 'HK']);
+
+        $response = $this->actingAs($deptUser)->deleteJson('/api/issues/ENG-001', [
+            'sheet' => '2026',
+        ]);
+
+        $response->assertStatus(403);
+    }
 }

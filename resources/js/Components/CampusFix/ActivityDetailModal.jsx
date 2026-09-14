@@ -378,17 +378,20 @@ export function ActivityDetailModal({ issue, onClose, onOpenCardModal, onEdit, o
             const hasArchiveEvent = rawEvents.some(e => e.type === 'archive');
             if (!hasArchiveEvent) {
                 const archiveTime = parseSafeTimestamp(archivedRawDate, Date.now());
+                const finalArchivedBy = (issue.archivedBy && issue.archivedBy !== 'Admin / Staff' && issue.archivedBy !== 'Staff') 
+                    ? issue.archivedBy 
+                    : (archiveLog?.by || 'Gardiono (Admin)');
                 rawEvents.push({
                     id: 'step-archive-current',
                     type: 'archive',
                     timestamp: Math.max(archiveTime, baseCreatedTime + 180000),
                     dateStr: archivedDateFormatted || formatDateTime(archiveTime),
                     data: {
-                        by: issue.archivedBy || archiveLog?.by || (lang === 'id' ? 'Admin / Staf' : 'Admin / Staff'),
-                        dept: issue.archivedDept || archiveLog?.dept || issue.department,
+                        by: finalArchivedBy,
+                        role: 'Admin',
                         changes: lang === 'id' 
-                            ? 'Isu diarsipkan / disembunyikan dari dashboard operasional'
-                            : 'Issue archived / hidden from operational dashboard',
+                            ? 'Isu diarsipkan oleh Administrator (disembunyikan dari dashboard operasional)'
+                            : 'Issue archived by Administrator (hidden from operational dashboard)',
                     }
                 });
             }
@@ -503,6 +506,9 @@ export function ActivityDetailModal({ issue, onClose, onOpenCardModal, onEdit, o
                                                     • {archivedDateFormatted}
                                                 </span>
                                             )}
+                                            <span className="font-sans font-semibold text-[11px] text-amber-300/90 tracking-normal normal-case">
+                                                (Oleh Admin: {issue.archivedBy && issue.archivedBy !== 'Admin / Staff' && issue.archivedBy !== 'Staff' ? issue.archivedBy : 'Gardiono'})
+                                            </span>
                                         </span>
                                     )}
                                     {isEmergency && (
@@ -877,12 +883,14 @@ export function ActivityDetailModal({ issue, onClose, onOpenCardModal, onEdit, o
                                     <div className="mt-3 space-y-2 text-xs">
                                         <div className="flex items-center gap-1.5 flex-wrap">
                                             <span className="text-muted-foreground">{lang === 'id' ? 'Oleh:' : 'By:'}</span>
-                                            <span className="font-bold text-foreground">{step.data.by}</span>
-                                            {step.data.dept && (
-                                                <span className="px-1.5 py-0.2 rounded bg-black/40 text-foreground border border-white/10 text-[10px] font-mono">
-                                                    {step.data.dept}
-                                                </span>
-                                            )}
+                                            <span className="font-bold text-foreground">
+                                                {step.data.by && step.data.by !== 'Admin / Staff' && step.data.by !== 'Admin / Staf' && step.data.by !== 'Staff' 
+                                                    ? step.data.by 
+                                                    : (issue.archivedBy && issue.archivedBy !== 'Admin / Staff' && issue.archivedBy !== 'Staff' ? issue.archivedBy : 'Gardiono')}
+                                            </span>
+                                            <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[10px] font-mono font-bold tracking-wider">
+                                                ADMIN
+                                            </span>
                                         </div>
                                         {step.data.changes && (
                                             <p className="text-foreground/90 font-mono text-[11px] bg-black/40 p-2 rounded border border-white/5">

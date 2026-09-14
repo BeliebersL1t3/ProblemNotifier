@@ -62,7 +62,7 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
     ));
 
     const canEdit = isAdmin || canEditReport || canEditClaim || canEditPending || canEditSolved;
-    const canDelete = isAdmin || canEditReport;
+    const canDelete = isAdmin;
 
     const taggedList = safeArray(issue?.taggedDepartments);
     const pendingTimelineList = safeArray(issue?.pendingTimeline)
@@ -727,9 +727,9 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
                             <span className="flex items-center gap-1.5 text-stone-300">
                                 <span>🗄️</span>
                                 <span>Archived</span>
-                                {(issue.archivedBy || archiveLog?.by) && (
-                                    <span className="text-stone-400 font-normal">by {issue.archivedBy || archiveLog?.by}</span>
-                                )}
+                                <span className="text-stone-400 font-normal">
+                                    by <strong className="text-amber-300/90 font-semibold">{issue.archivedBy || archiveLog?.by || 'Admin'}</strong>
+                                </span>
                             </span>
                             {archivedDateFormatted && (
                                 <span className="font-mono text-stone-300 font-semibold">{archivedDateFormatted}</span>

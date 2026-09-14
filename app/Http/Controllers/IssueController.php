@@ -492,8 +492,21 @@ class IssueController extends Controller
                             }
                         }
 
+                        $latestRawNote = trim($latestRow[24] ?? '');
+                        if (empty($archivedBy)) {
+                            // Extract author from latest raw note: [date] Author: ...
+                            if (preg_match('/^\[(.*?)\]\s*([^:]+):/s', $latestRawNote, $m)) {
+                                if (empty($archivedAt)) {
+                                    $archivedAt = trim($m[1]);
+                                }
+                                $candidate = trim($m[2]);
+                                if (strlen($candidate) < 40 && !str_contains($candidate, 'Status') && !str_contains($candidate, 'Detail')) {
+                                    $archivedBy = $candidate;
+                                }
+                            }
+                        }
+
                         if (empty($archivedAt)) {
-                            $latestRawNote = trim($latestRow[24] ?? '');
                             if (preg_match('/^\[(.*?)\]/s', $latestRawNote, $m)) {
                                 $archivedAt = trim($m[1]);
                             } else if (!empty($latestRow[12])) {
@@ -503,6 +516,10 @@ class IssueController extends Controller
                             } else if (!empty($latestRow[7])) {
                                 $archivedAt = $latestRow[7];
                             }
+                        }
+
+                        if (empty($archivedBy) || $archivedBy === 'Staff' || $archivedBy === 'Admin / Staff') {
+                            $archivedBy = 'Admin';
                         }
                     }
 
@@ -542,6 +559,7 @@ class IssueController extends Controller
                         'archivedAt'     => !empty($archivedAt) ? (strtotime($archivedAt) ? strtotime($archivedAt) * 1000 : $archivedAt) : null,
                         'archivedAtStr'  => $archivedAt,
                         'archivedBy'     => $archivedBy,
+                        'archivedRole'   => 'Admin',
                     ];
                 }
             }
@@ -1743,10 +1761,10 @@ class IssueController extends Controller
             return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
         }
 
-        if (!$user->isAdmin() && !$user->hasPermission('can_delete_issues')) {
+        if (!$user->isAdmin()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Unauthorized. Izin menghapus isu dinonaktifkan untuk akun Anda oleh Administrator.',
+                'message' => 'Unauthorized. Hanya Administrator yang memiliki hak akses untuk mengarsipkan isu.',
             ], 403);
         }
 
@@ -1757,21 +1775,7 @@ class IssueController extends Controller
             }
 
             $currentRow = $issueData['row'];
-
-            // Authorization check: Admin OR creator's department
             $originDept = $currentRow[22] ?? '';
-            $isAuthorized = $user->isAdmin() || (
-                $user->isDepartmentUser() && 
-                !empty($user->department) && 
-                strtolower(trim($user->department)) === strtolower(trim($originDept))
-            );
-
-            if (!$isAuthorized) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Unauthorized. You can only delete issues created by your department.',
-                ], 403);
-            }
 
             $deletedId    = $currentRow[0] ?? (string)$idOrRowIndex;
             $deletedTitle = $currentRow[1] ?? '';
@@ -1779,16 +1783,15 @@ class IssueController extends Controller
             $assignedDepts= $currentRow[23] ?? ($currentRow[21] ?? '');
             $taggedDepts  = $currentRow[21] ?? '';
 
-            $deleterName = $user->staff_name ?? $user->name ?? 'Staff';
-            $deleterDept = $user->department ?? ($user->isAdmin() ? 'Admin' : '');
-            $deleterRole = $user->isAdmin() ? 'Admin' : 'Department';
-            // Soft-delete / hide: update Col Z to '0' across ALL row versions of this issue
+            $adminName = $user->staff_name ?: ($user->name ?: 'Admin');
+
+            // Soft-delete / hide: update Col Z to '0' across ALL row versions of this issue (permanent retention in sheet)
             $targetSheet = $issueData['foundLocation']['sheet'] ?? null;
             $allRows = $issueData['allRowIndices'] ?? [$issueData['rowIndex']];
             $this->googleService->batchUpdateColumn($allRows, 'Z', '0', $targetSheet);
 
             $nowFormatted = Carbon::now('Asia/Jakarta')->format('M d, Y H:i:s');
-            $archiveNote = "[{$nowFormatted}] {$deleterName}: Isu diarsipkan / disembunyikan dari dashboard operasional";
+            $archiveNote = "[{$nowFormatted}] {$adminName}: Isu diarsipkan oleh Admin";
             $this->googleService->batchUpdateColumn([$issueData['rowIndex']], 'Y', $archiveNote, $targetSheet);
 
             // Dispatch WhatsApp deletion announcement
@@ -1797,7 +1800,7 @@ class IssueController extends Controller
             $taggedStr   = !empty($taggedDepts) ? "\n*Tagged:* {$taggedDepts}" : '';
 
             $this->notifyWhatsApp([
-                'message' => "📢 🗑️ *ISSUE ARCHIVED / ANNOUNCEMENT*\n*ID:* {$deletedId}\n*Title:* {$deletedTitle}\n*Location:* {$deletedLoc}{$originStr}{$assignedStr}{$taggedStr}\n*Archived By:* {$deleterName} ({$deleterRole}" . ($deleterDept ? " - {$deleterDept}" : "") . ")\n*Status:* Archived (Hidden from Dashboard)",
+                'message' => "📢 🗑️ *ISSUE ARCHIVED / ANNOUNCEMENT*\n*ID:* {$deletedId}\n*Title:* {$deletedTitle}\n*Location:* {$deletedLoc}{$originStr}{$assignedStr}{$taggedStr}\n*Archived By Admin:* {$adminName}\n*Status:* Archived (Hidden from Operational Dashboard)",
                 'department' => $originDept,
                 'assignedDepartments' => $assignedDepts,
                 'taggedDepartments' => $taggedDepts,
@@ -1822,10 +1825,10 @@ class IssueController extends Controller
             return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
         }
 
-        if (!$user->isAdmin() && !$user->hasPermission('can_manage_issues')) {
+        if (!$user->isAdmin()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Unauthorized. Izin memulihkan isu dinonaktifkan untuk akun Anda oleh Administrator.',
+                'message' => 'Unauthorized. Hanya Administrator yang memiliki hak akses untuk memulihkan isu.',
             ], 403);
         }
 
@@ -1836,7 +1839,7 @@ class IssueController extends Controller
             }
 
             $currentRow = $issueData['row'];
-            $restorerName = $user->staff_name ?? $user->name ?? 'Admin';
+            $adminName = $user->staff_name ?: ($user->name ?: 'Admin');
             
             // Restore to active: update Col Z to '1' across ALL row versions of this issue
             $targetSheet = $issueData['foundLocation']['sheet'] ?? null;
@@ -1844,7 +1847,7 @@ class IssueController extends Controller
             $this->googleService->batchUpdateColumn($allRows, 'Z', '1', $targetSheet);
 
             $nowFormatted = Carbon::now('Asia/Jakarta')->format('M d, Y H:i:s');
-            $restoreNote = "[{$nowFormatted}] {$restorerName}: Isu dipulihkan kembali ke dashboard operasional";
+            $restoreNote = "[{$nowFormatted}] {$adminName}: Isu dipulihkan oleh Admin";
             $this->googleService->batchUpdateColumn([$issueData['rowIndex']], 'Y', $restoreNote, $targetSheet);
 
             $originDept = $currentRow[22] ?? '';
@@ -1853,7 +1856,7 @@ class IssueController extends Controller
             $originStr = !empty($originDept) ? "\n*Origin:* {$originDept}" : '';
 
             $this->notifyWhatsApp([
-                'message' => "♻️ *ISSUE RESTORED FROM ARCHIVE*\n*ID:* {$currentRow[0]}\n*Title:* {$currentRow[1]}\n*Location:* {$currentRow[3]}{$originStr}\n*Restored By:* {$restorerName}\n*Status:* " . strtoupper($currentRow[5]),
+                'message' => "♻️ *ISSUE RESTORED FROM ARCHIVE*\n*ID:* {$currentRow[0]}\n*Title:* {$currentRow[1]}\n*Location:* {$currentRow[3]}{$originStr}\n*Restored By Admin:* {$adminName}\n*Status:* " . strtoupper($currentRow[5]),
                 'department' => $originDept,
                 'assignedDepartments' => $assignedDepts,
                 'taggedDepartments' => $taggedDepts,
