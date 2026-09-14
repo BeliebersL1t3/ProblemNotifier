@@ -52,8 +52,9 @@ const LIMITS = [
 ];
 
 export function ExportPdfModal({ open, onOpenChange }) {
-    const { issues, categories, currentSheet, availableSheets } = useIssues();
+    const { issues, archivedIssues, categories, currentSheet, availableSheets } = useIssues();
     const { auth } = usePage().props;
+    const isAdmin = auth?.user?.role === 'admin';
     const userDept = normalizeDepartment(auth?.user?.department || '');
 
     const [isExporting, setIsExporting] = useState(false);
@@ -75,6 +76,7 @@ export function ExportPdfModal({ open, onOpenChange }) {
     const [includeAuditPerson, setIncludeAuditPerson] = useState(true);
     const [includeAuditReason, setIncludeAuditReason] = useState(true);
     const [includeDelayTimeline, setIncludeDelayTimeline] = useState(true);
+    const [includeArchived, setIncludeArchived] = useState(false);
 
     const DEPARTMENTS = [
         'Engineer', 'Tekong', 'Pest Control', 'Security', 'Fasilitas', 
@@ -235,6 +237,14 @@ export function ExportPdfModal({ open, onOpenChange }) {
                 allSelectedIssues = allSelectedIssues.concat(sheetIssues);
             }
         });
+
+        // Optional inclusion of archived issues for Admin
+        if (isAdmin && includeArchived && Array.isArray(archivedIssues)) {
+            const relevantArchived = archivedIssues
+                .filter(i => selectedSheets.includes(i.sheet || i._sheet || currentSheet))
+                .map(i => ({ ...i, __sheetName: i.sheet || i._sheet || currentSheet }));
+            allSelectedIssues = allSelectedIssues.concat(relevantArchived);
+        }
 
         // Filter issues based on selection
         let filtered = allSelectedIssues.filter(issue => {
@@ -451,6 +461,16 @@ export function ExportPdfModal({ open, onOpenChange }) {
             }
         });
 
+        if (tableData.length === 0) {
+            tableData.push([
+                {
+                    content: 'No records found matching the selected filter criteria.',
+                    colSpan: 12,
+                    styles: { halign: 'center', textColor: [120, 120, 120], fontStyle: 'italic', cellPadding: 8 }
+                }
+            ]);
+        }
+
         autoTable(doc, {
             startY: 78,
             margin: { left: 10, right: 10, bottom: 25 },
@@ -552,16 +572,16 @@ export function ExportPdfModal({ open, onOpenChange }) {
 
     const [initialRenderComplete, setInitialRenderComplete] = useState(false);
 
-    // Reset initial render state when modal closes, and trigger it when issues are loaded
+    // Reset initial render state when modal closes, and trigger it when modal opens
     useEffect(() => {
         if (!open) {
             setInitialRenderComplete(false);
             return;
         }
-        if (open && issues.length > 0 && !initialRenderComplete) {
+        if (open && !initialRenderComplete) {
             setInitialRenderComplete(true);
         }
-    }, [open, issues.length, initialRenderComplete]);
+    }, [open, initialRenderComplete]);
 
     // Update live preview only when filters change or initial render triggers
     useEffect(() => {
@@ -586,7 +606,7 @@ export function ExportPdfModal({ open, onOpenChange }) {
         }, 300); // 300ms debounce
 
         return () => clearTimeout(debounce);
-    }, [limit, selectedStatuses, selectedCategories, selectedDepartments, deptFilterMode, selectedSheets, downloadedIssues, initialRenderComplete, open, includeAuditTrail, includeAuditTime, includeAuditPerson, includeAuditReason, includeDelayTimeline]);
+    }, [limit, selectedStatuses, selectedCategories, selectedDepartments, deptFilterMode, selectedSheets, downloadedIssues, initialRenderComplete, open, includeAuditTrail, includeAuditTime, includeAuditPerson, includeAuditReason, includeDelayTimeline, includeArchived]);
 
     const handleDownload = () => {
         setIsExporting(true);
@@ -888,6 +908,18 @@ export function ExportPdfModal({ open, onOpenChange }) {
                                     />
                                     <span>Include Pending Delay Timeline</span>
                                 </label>
+
+                                {isAdmin && (
+                                    <label className="flex items-center gap-2 text-xs text-rose-300/90 font-medium cursor-pointer select-none pt-1 border-t border-[#3B3929]/50">
+                                        <input
+                                            type="checkbox"
+                                            checked={includeArchived}
+                                            onChange={(e) => setIncludeArchived(e.target.checked)}
+                                            className="rounded text-rose-500 focus:ring-rose-500 h-4 w-4 bg-[#1C1B0E] border-[#3B3929]"
+                                        />
+                                        <span>Include Archived Issues ({archivedIssues?.length || 0})</span>
+                                    </label>
+                                )}
                             </div>
                         </div>
                     </div>
