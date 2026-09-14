@@ -73,12 +73,16 @@ export default function NotificationDropdown() {
             <button
                 type="button"
                 onClick={() => setIsOpen(!isOpen)}
-                className="relative p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-full transition-colors focus:outline-none"
+                className={`relative p-2 rounded-xl transition-all focus:outline-none cursor-pointer ${
+                    isOpen 
+                        ? 'bg-[#1C1B0E] text-[#E3D1AA] shadow-sm' 
+                        : 'text-[#1C1B0E]/75 hover:text-[#1C1B0E] hover:bg-[#1C1B0E]/10'
+                }`}
                 title="Pusat Notifikasi"
             >
                 <Bell className="w-5 h-5" />
                 {data.unread_count > 0 && (
-                    <span className="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[10px] font-bold text-white shadow-sm ring-2 ring-white animate-pulse">
+                    <span className="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-[#C9AA71] text-[10px] font-black text-[#1C1B0E] shadow-sm ring-1 ring-[#1C1B0E]/30 animate-pulse">
                         {data.unread_count > 9 ? '9+' : data.unread_count}
                     </span>
                 )}
@@ -86,13 +90,16 @@ export default function NotificationDropdown() {
 
             {/* Dropdown Card */}
             {isOpen && (
-                <div className="absolute right-0 mt-2 w-80 sm:w-96 rounded-2xl bg-white shadow-2xl border border-slate-200 z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+                <div className="absolute right-0 mt-2.5 w-80 sm:w-96 rounded-2xl bg-[#2A281E] text-[#FAFAFA] shadow-2xl border border-[#3B3929] z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+                    {/* Ambient subtle glow */}
+                    <div className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-8 pointer-events-none blur-[24px] opacity-25 rounded-full bg-[#C9AA71]" />
+
                     {/* Header */}
-                    <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-slate-50/70">
+                    <div className="relative flex items-center justify-between px-4 py-3.5 border-b border-[#3B3929] bg-[#1C1B0E]/90 backdrop-blur-md">
                         <div className="flex items-center gap-2">
-                            <span className="font-bold text-sm text-slate-900">Notifikasi</span>
+                            <span className="font-extrabold text-sm text-[#FAFAFA] tracking-tight">Notifikasi</span>
                             {data.unread_count > 0 && (
-                                <span className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-indigo-100 text-indigo-700">
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-[#C9AA71]/20 text-[#C9AA71] border border-[#C9AA71]/40">
                                     {data.unread_count} baru
                                 </span>
                             )}
@@ -101,7 +108,7 @@ export default function NotificationDropdown() {
                         {data.unread_count > 0 && (
                             <button
                                 onClick={markAllAsRead}
-                                className="text-[11px] text-indigo-600 hover:text-indigo-800 font-medium flex items-center gap-1"
+                                className="text-[11px] text-[#C9AA71] hover:text-[#E3D1AA] font-bold flex items-center gap-1 transition-colors cursor-pointer"
                             >
                                 <CheckCheck className="w-3.5 h-3.5" /> Tandai semua dibaca
                             </button>
@@ -109,86 +116,88 @@ export default function NotificationDropdown() {
                     </div>
 
                     {/* Tabs */}
-                    <div className="flex border-b border-slate-100 bg-slate-50/40 text-xs">
+                    <div className="flex border-b border-[#3B3929] bg-[#1C1B0E]/60 text-xs">
                         <button
                             onClick={() => setActiveTab('tickets')}
-                            className={`flex-1 py-2.5 px-3 text-center font-semibold transition-colors relative flex items-center justify-center gap-1.5 ${
+                            className={`flex-1 py-2.5 px-3 text-center font-bold transition-all relative flex items-center justify-center gap-1.5 cursor-pointer ${
                                 activeTab === 'tickets'
-                                    ? 'text-indigo-600 bg-white border-b-2 border-indigo-600'
-                                    : 'text-slate-500 hover:text-slate-800'
+                                    ? 'text-[#C9AA71] bg-[#2A281E] border-b-2 border-[#C9AA71] shadow-inner'
+                                    : 'text-[#A19F8D] hover:text-[#FAFAFA] hover:bg-[#1C1B0E]/40'
                             }`}
                         >
                             <Ticket className="w-3.5 h-3.5" />
                             <span>Persetujuan / Tiket</span>
                             {unreadTicketsCount > 0 && (
-                                <span className="h-2 w-2 rounded-full bg-rose-500"></span>
+                                <span className="h-2 w-2 rounded-full bg-amber-400"></span>
                             )}
                         </button>
 
                         <button
                             onClick={() => setActiveTab('issues')}
-                            className={`flex-1 py-2.5 px-3 text-center font-semibold transition-colors relative flex items-center justify-center gap-1.5 ${
+                            className={`flex-1 py-2.5 px-3 text-center font-bold transition-all relative flex items-center justify-center gap-1.5 cursor-pointer ${
                                 activeTab === 'issues'
-                                    ? 'text-indigo-600 bg-white border-b-2 border-indigo-600'
-                                    : 'text-slate-500 hover:text-slate-800'
+                                    ? 'text-[#C9AA71] bg-[#2A281E] border-b-2 border-[#C9AA71] shadow-inner'
+                                    : 'text-[#A19F8D] hover:text-[#FAFAFA] hover:bg-[#1C1B0E]/40'
                             }`}
                         >
                             <Clock className="w-3.5 h-3.5" />
                             <span>Aktivitas Isu</span>
                             {unreadIssuesCount > 0 && (
-                                <span className="h-2 w-2 rounded-full bg-indigo-500"></span>
+                                <span className="h-2 w-2 rounded-full bg-sky-400"></span>
                             )}
                         </button>
                     </div>
 
                     {/* Notification Items List */}
-                    <div className="max-h-80 overflow-y-auto divide-y divide-slate-100 text-xs">
+                    <div className="max-h-84 overflow-y-auto divide-y divide-[#3B3929]/50 text-xs">
                         {activeTab === 'tickets' && (
                             data.tickets.length === 0 ? (
-                                <div className="p-8 text-center text-slate-400">
-                                    <Ticket className="w-8 h-8 mx-auto mb-2 text-slate-300" />
-                                    <p>Belum ada tiket permohonan.</p>
+                                <div className="p-8 text-center text-[#A19F8D] space-y-2">
+                                    <Ticket className="w-8 h-8 mx-auto text-[#3B3929]" />
+                                    <p className="text-xs">Belum ada tiket permohonan.</p>
                                 </div>
                             ) : (
                                 data.tickets.map((item) => (
                                     <div
                                         key={item.id}
                                         onClick={() => !item.is_read && markAsRead(item.id)}
-                                        className={`p-3.5 transition hover:bg-slate-50 flex items-start gap-3 cursor-pointer ${
-                                            !item.is_read ? 'bg-indigo-50/40' : ''
+                                        className={`p-3.5 transition flex items-start gap-3 cursor-pointer ${
+                                            !item.is_read 
+                                                ? 'bg-[#C9AA71]/10 hover:bg-[#C9AA71]/15' 
+                                                : 'hover:bg-[#1C1B0E]/40'
                                         }`}
                                     >
-                                        <div className={`mt-0.5 p-1.5 rounded-lg flex-shrink-0 ${
+                                        <div className={`mt-0.5 p-1.5 rounded-lg flex-shrink-0 border ${
                                             item.type === 'ticket_approved'
-                                                ? 'bg-emerald-100 text-emerald-700'
+                                                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
                                                 : item.type === 'ticket_rejected'
-                                                ? 'bg-rose-100 text-rose-700'
+                                                ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
                                                 : item.type === 'hod_status_change'
-                                                ? 'bg-amber-100 text-amber-800'
-                                                : 'bg-indigo-100 text-indigo-700'
+                                                ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                                                : 'bg-[#C9AA71]/20 text-[#C9AA71] border-[#C9AA71]/40'
                                         }`}>
                                             {item.type === 'hod_status_change' ? (
-                                                <Crown className="w-3.5 h-3.5 text-amber-700" />
+                                                <Crown className="w-3.5 h-3.5 text-amber-300" />
                                             ) : (
                                                 <Ticket className="w-3.5 h-3.5" />
                                             )}
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                            <p className="font-semibold text-slate-900 leading-tight">
+                                            <p className="font-bold text-xs text-[#FAFAFA] leading-tight">
                                                 {item.title}
                                             </p>
-                                            <p className="text-slate-600 text-[11px] mt-1 leading-snug">
+                                            <p className="text-[#E3D1AA] text-[11px] mt-1 leading-snug">
                                                 {item.message}
                                             </p>
-                                            <div className="flex items-center justify-between mt-2 pt-1 border-t border-slate-100/60">
-                                                <span className="text-[10px] text-slate-400">
+                                            <div className="flex items-center justify-between mt-2 pt-1 border-t border-[#3B3929]/40">
+                                                <span className="text-[10px] text-[#A19F8D]">
                                                     {new Date(item.created_at).toLocaleDateString('id-ID', { hour: '2-digit', minute: '2-digit' })}
                                                 </span>
                                                 {item.link && (
                                                     <Link
                                                         href={item.link}
                                                         onClick={() => setIsOpen(false)}
-                                                        className="text-[11px] text-indigo-600 hover:text-indigo-800 font-semibold flex items-center gap-0.5"
+                                                        className="text-[11px] text-[#C9AA71] hover:text-[#FAFAFA] font-bold flex items-center gap-0.5 hover:underline"
                                                     >
                                                         {item.link.includes('profile') ? 'Lihat Profil' : item.link.includes('users') ? 'Kelola Akun' : 'Lihat Tiket'} <ExternalLink className="w-2.5 h-2.5" />
                                                     </Link>
@@ -202,38 +211,40 @@ export default function NotificationDropdown() {
 
                         {activeTab === 'issues' && (
                             data.issues.length === 0 ? (
-                                <div className="p-8 text-center text-slate-400">
-                                    <Clock className="w-8 h-8 mx-auto mb-2 text-slate-300" />
-                                    <p>Belum ada update progres isu.</p>
+                                <div className="p-8 text-center text-[#A19F8D] space-y-2">
+                                    <Clock className="w-8 h-8 mx-auto text-[#3B3929]" />
+                                    <p className="text-xs">Belum ada update progres isu.</p>
                                 </div>
                             ) : (
                                 data.issues.map((item) => (
                                     <div
                                         key={item.id}
                                         onClick={() => !item.is_read && markAsRead(item.id)}
-                                        className={`p-3.5 transition hover:bg-slate-50 flex items-start gap-3 cursor-pointer ${
-                                            !item.is_read ? 'bg-amber-50/40' : ''
+                                        className={`p-3.5 transition flex items-start gap-3 cursor-pointer ${
+                                            !item.is_read 
+                                                ? 'bg-[#C9AA71]/10 hover:bg-[#C9AA71]/15' 
+                                                : 'hover:bg-[#1C1B0E]/40'
                                         }`}
                                     >
-                                        <div className="mt-0.5 p-1.5 rounded-lg bg-amber-100 text-amber-700 flex-shrink-0">
+                                        <div className="mt-0.5 p-1.5 rounded-lg bg-sky-500/20 text-sky-300 border border-sky-500/40 flex-shrink-0">
                                             <Clock className="w-3.5 h-3.5" />
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                            <p className="font-semibold text-slate-900 leading-tight">
+                                            <p className="font-bold text-xs text-[#FAFAFA] leading-tight">
                                                 {item.title}
                                             </p>
-                                            <p className="text-slate-600 text-[11px] mt-1 leading-snug">
+                                            <p className="text-[#E3D1AA] text-[11px] mt-1 leading-snug">
                                                 {item.message}
                                             </p>
-                                            <div className="flex items-center justify-between mt-2 pt-1 border-t border-slate-100/60">
-                                                <span className="text-[10px] text-slate-400">
+                                            <div className="flex items-center justify-between mt-2 pt-1 border-t border-[#3B3929]/40">
+                                                <span className="text-[10px] text-[#A19F8D]">
                                                     {new Date(item.created_at).toLocaleDateString('id-ID', { hour: '2-digit', minute: '2-digit' })}
                                                 </span>
                                                 {item.link && (
                                                     <Link
                                                         href={item.link}
                                                         onClick={() => setIsOpen(false)}
-                                                        className="text-[11px] text-indigo-600 hover:text-indigo-800 font-semibold flex items-center gap-0.5"
+                                                        className="text-[11px] text-[#C9AA71] hover:text-[#FAFAFA] font-bold flex items-center gap-0.5 hover:underline"
                                                     >
                                                         Lihat Isu <ExternalLink className="w-2.5 h-2.5" />
                                                     </Link>
@@ -247,13 +258,14 @@ export default function NotificationDropdown() {
                     </div>
 
                     {/* Footer */}
-                    <div className="p-2.5 bg-slate-50 text-center border-t border-slate-100">
+                    <div className="p-3 bg-[#1C1B0E]/90 text-center border-t border-[#3B3929]">
                         <Link
                             href={route('tickets.index')}
                             onClick={() => setIsOpen(false)}
-                            className="text-xs font-semibold text-indigo-600 hover:text-indigo-800"
+                            className="text-xs font-bold text-[#C9AA71] hover:text-[#E3D1AA] transition-colors inline-flex items-center gap-1"
                         >
-                            Buka Semua Persetujuan Tiket →
+                            <span>Buka Semua Persetujuan Tiket</span>
+                            <span>→</span>
                         </Link>
                     </div>
                 </div>
