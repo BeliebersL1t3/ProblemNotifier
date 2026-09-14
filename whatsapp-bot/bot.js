@@ -755,6 +755,25 @@ async function startSock() {
             const registeredUser = getStaffByPhone(senderPhone) || getStaffByPhone(rawSenderPhone);
             const lower = text.toLowerCase().trim();
 
+            const isGroup = from.endsWith('@g.us');
+
+            // --- STRICT DM POLICY FOR UNREGISTERED USERS ---
+            // In private DM, non-registered numbers can ONLY receive the registration flow guidance.
+            if (!isGroup && !registeredUser) {
+                const displayPhone = (rawSenderPhone && rawSenderPhone.length <= 13) ? rawSenderPhone : (senderPhone || rawSenderPhone);
+                await reply(
+                    `🔒 *AKSES TERBATAS — TELUNAS RESORT BOT* 🔒\n\n` +
+                    `Nomor WhatsApp Anda (+${displayPhone}) belum terdaftar sebagai akun staf di Web Dashboard Telunas.\n\n` +
+                    `📌 *Alur Pendaftaran Akun Staf:*\n` +
+                    `1. Buka Web Dashboard Telunas di: ${BASE_URL}/register\n` +
+                    `2. Isi formulir pendaftaran: nama lengkap, email, nomor WhatsApp (+${displayPhone}), dan pilih departemen Anda.\n` +
+                    `3. Permohonan pendaftaran Anda akan diverifikasi oleh Head of Department (HOD) dan disetujui final oleh Administrator.\n` +
+                    `4. Setelah disetujui, akun Anda aktif dan nomor ini otomatis dapat berinteraksi penuh dengan Bot WhatsApp Telunas.\n\n` +
+                    `_Catatan: Pendaftaran mandiri via WhatsApp telah dinonaktifkan. Silakan mendaftar melalui Web Dashboard di atas atau hubungi HOD / Admin departemen Anda._`
+                );
+                continue;
+            }
+
             // --- 0. Global Self-Service Identity & Registration Commands (Works in DM & Groups) ---
             if (lower === '!whoami' || lower === '!profil' || lower === '!akun' || lower === 'whoami' || lower === 'profil') {
                 if (registeredUser) {
@@ -1266,24 +1285,10 @@ async function startSock() {
                 const registeredStaff = getStaffByPhone(senderPhone) || getStaffByPhone(rawSenderPhone);
 
                 if (!registeredStaff) {
-                    if (intent === 'SOS' && !from.endsWith('@g.us')) {
-                        state.data.department = 'General';
-                        state.data.reporter = (msg.pushName || 'Guest/Staff') + ` (+${rawSenderPhone})`;
-                        state.data.isEmergency = true;
-                        state.step = STEPS.SOS_AWAITING_TITLE;
-                        userStates.set(stateKey, state);
-
-                        await reply(getMsg(
-                            `🚨 EMERGENCY MODE 🚨\n\nStay calm. What is the emergency situation?`,
-                            `🚨 MODE DARURAT 🚨\n\nTetap tenang. Apa situasi darurat yang terjadi?`
-                        ));
-                        continue;
-                    }
-
                     await reply(
                         `🔒 *AKSES TERBATAS — TELUNAS RESORT* 🔒\n\n` +
                         `Nomor WhatsApp Anda (+${rawSenderPhone}) belum terdaftar di Web Dashboard Telunas.\n\n` +
-                        `📌 *Cara Pendaftaran:*\n` +
+                        `📌 *Alur Pendaftaran:*\n` +
                         `1. Registrasi akun mandiri di Web Dashboard (${BASE_URL}/register) dengan persetujuan HOD & Admin, ATAU\n` +
                         `2. Hubungi Admin / HOD Departemen Anda untuk mendaftarkan nomor ini.\n\n` +
                         `_Catatan: Pendaftaran langsung via WhatsApp telah dinonaktifkan._`
