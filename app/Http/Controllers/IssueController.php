@@ -1784,15 +1784,26 @@ class IssueController extends Controller
             $taggedDepts  = $currentRow[21] ?? '';
 
             $adminName = $user->staff_name ?: ($user->name ?: 'Admin');
-
-            // Soft-delete / hide: update Col Z to '0' across ALL row versions of this issue (permanent retention in sheet)
             $targetSheet = $issueData['foundLocation']['sheet'] ?? null;
-            $allRows = $issueData['allRowIndices'] ?? [$issueData['rowIndex']];
-            $this->googleService->batchUpdateColumn($allRows, 'Z', '0', $targetSheet);
-
             $nowFormatted = Carbon::now('Asia/Jakarta')->format('M d, Y H:i:s');
             $archiveNote = "[{$nowFormatted}] {$adminName}: Isu diarsipkan oleh Admin";
-            $this->googleService->batchUpdateColumn([$issueData['rowIndex']], 'Y', $archiveNote, $targetSheet);
+
+            // Insert a new version row directly below the latest row to preserve all prior edit history
+            $newRow = array_pad($currentRow, 26, '');
+            $newRow[24] = $archiveNote;
+            $newRow[25] = '0';
+
+            $newRowIndex = $this->googleService->insertRowAfter($issueData['rowIndex'], $newRow, $targetSheet);
+            if ($newRowIndex) {
+                $this->googleService->colorRowByCategory($newRowIndex, $newRow[4] ?? 'other', $targetSheet);
+            }
+
+            // Soft-delete / hide: update Col Z to '0' across ALL row versions of this issue (permanent retention in sheet)
+            $allRows = $issueData['allRowIndices'] ?? [$issueData['rowIndex']];
+            if ($newRowIndex && !in_array($newRowIndex, $allRows)) {
+                $allRows[] = $newRowIndex;
+            }
+            $this->googleService->batchUpdateColumn($allRows, 'Z', '0', $targetSheet);
 
             // Dispatch WhatsApp deletion announcement
             $originStr = !empty($originDept) ? "\n*Origin:* {$originDept}" : '';
@@ -1840,15 +1851,27 @@ class IssueController extends Controller
 
             $currentRow = $issueData['row'];
             $adminName = $user->staff_name ?: ($user->name ?: 'Admin');
-            
-            // Restore to active: update Col Z to '1' across ALL row versions of this issue
             $targetSheet = $issueData['foundLocation']['sheet'] ?? null;
-            $allRows = $issueData['allRowIndices'] ?? [$issueData['rowIndex']];
-            $this->googleService->batchUpdateColumn($allRows, 'Z', '1', $targetSheet);
-
+            
             $nowFormatted = Carbon::now('Asia/Jakarta')->format('M d, Y H:i:s');
             $restoreNote = "[{$nowFormatted}] {$adminName}: Isu dipulihkan oleh Admin";
-            $this->googleService->batchUpdateColumn([$issueData['rowIndex']], 'Y', $restoreNote, $targetSheet);
+
+            // Insert a new version row directly below the latest row to preserve all prior edit history
+            $newRow = array_pad($currentRow, 26, '');
+            $newRow[24] = $restoreNote;
+            $newRow[25] = '1';
+
+            $newRowIndex = $this->googleService->insertRowAfter($issueData['rowIndex'], $newRow, $targetSheet);
+            if ($newRowIndex) {
+                $this->googleService->colorRowByCategory($newRowIndex, $newRow[4] ?? 'other', $targetSheet);
+            }
+
+            // Restore to active: update Col Z to '1' across ALL row versions of this issue
+            $allRows = $issueData['allRowIndices'] ?? [$issueData['rowIndex']];
+            if ($newRowIndex && !in_array($newRowIndex, $allRows)) {
+                $allRows[] = $newRowIndex;
+            }
+            $this->googleService->batchUpdateColumn($allRows, 'Z', '1', $targetSheet);
 
             $originDept = $currentRow[22] ?? '';
             $assignedDepts = $currentRow[23] ?? ($currentRow[21] ?? '');

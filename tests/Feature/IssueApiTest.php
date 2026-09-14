@@ -267,8 +267,11 @@ class IssueApiTest extends TestCase
         $googleMock->shouldReceive('getRows')->andReturn([
             array_pad(['ENG-001', 'Title', 'Desc', 'Loc', 'Cat', 'open'], 26, '')
         ]);
-        $googleMock->shouldReceive('batchUpdateColumn')->once()->with([2], 'Z', '0', Mockery::any())->andReturn(null);
-        $googleMock->shouldReceive('batchUpdateColumn')->once()->with([2], 'Y', Mockery::any(), Mockery::any())->andReturn(null);
+        $googleMock->shouldReceive('insertRowAfter')->once()->with(2, Mockery::on(function ($row) {
+            return $row[0] === 'ENG-001' && $row[25] === '0' && str_contains($row[24], 'Isu diarsipkan oleh Admin');
+        }), Mockery::any())->andReturn(3);
+        $googleMock->shouldReceive('colorRowByCategory')->once()->andReturn(true);
+        $googleMock->shouldReceive('batchUpdateColumn')->once()->with([2, 3], 'Z', '0', Mockery::any())->andReturn(null);
 
         $this->app->instance(GoogleService::class, $googleMock);
 
@@ -293,8 +296,11 @@ class IssueApiTest extends TestCase
         $googleMock->shouldReceive('getRows')->andReturn([
             array_pad(['ENG-001', 'Title', 'Desc', 'Loc', 'Cat', 'progress'], 26, '')
         ]);
-        $googleMock->shouldReceive('batchUpdateColumn')->once()->with([2], 'Z', '1', Mockery::any())->andReturn(null);
-        $googleMock->shouldReceive('batchUpdateColumn')->once()->with([2], 'Y', Mockery::any(), Mockery::any())->andReturn(null);
+        $googleMock->shouldReceive('insertRowAfter')->once()->with(2, Mockery::on(function ($row) {
+            return $row[0] === 'ENG-001' && $row[25] === '1' && str_contains($row[24], 'Isu dipulihkan oleh Admin');
+        }), Mockery::any())->andReturn(3);
+        $googleMock->shouldReceive('colorRowByCategory')->once()->andReturn(true);
+        $googleMock->shouldReceive('batchUpdateColumn')->once()->with([2, 3], 'Z', '1', Mockery::any())->andReturn(null);
 
         $this->app->instance(GoogleService::class, $googleMock);
 
@@ -360,9 +366,12 @@ class IssueApiTest extends TestCase
             array_pad(['ENG-001', 'Old Title', 'Desc', 'Loc', 'Cat', 'progress'], 26, ''),
             array_pad(['ENG-001', 'Edited Title', 'Desc', 'Loc', 'Cat', 'open'], 26, ''),
         ]);
-        // Both rows [2, 3] should have Column Z set to '0'
-        $googleMock->shouldReceive('batchUpdateColumn')->once()->with([2, 3], 'Z', '0', Mockery::any())->andReturn(null);
-        $googleMock->shouldReceive('batchUpdateColumn')->once()->with([3], 'Y', Mockery::any(), Mockery::any())->andReturn(null);
+        $googleMock->shouldReceive('insertRowAfter')->once()->with(3, Mockery::on(function ($row) {
+            return $row[0] === 'ENG-001' && $row[25] === '0' && str_contains($row[24], 'Isu diarsipkan oleh Admin');
+        }), Mockery::any())->andReturn(4);
+        $googleMock->shouldReceive('colorRowByCategory')->once()->andReturn(true);
+        // All rows [2, 3, 4] should have Column Z set to '0'
+        $googleMock->shouldReceive('batchUpdateColumn')->once()->with([2, 3, 4], 'Z', '0', Mockery::any())->andReturn(null);
 
         $this->app->instance(GoogleService::class, $googleMock);
 
