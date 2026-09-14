@@ -594,6 +594,95 @@ class IssueController extends Controller
         }
     }
 
+    public function lookup(Request $request, $id = null)
+    {
+        try {
+            $queryId = $id ?: $request->query('id');
+            if (empty($queryId)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Issue ID is required.',
+                ], 422);
+            }
+
+            $issueData = $this->getLatestIssueRowData((string)$queryId);
+            if (!$issueData) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Issue not found.',
+                ], 404);
+            }
+
+            $currentRow = $issueData['row'];
+            $displayStatus = trim($currentRow[25] ?? '');
+            $isArchived = ($displayStatus === '0');
+
+            $archivedAt = null;
+            $archivedBy = null;
+            if ($isArchived) {
+                $rawNote = trim($currentRow[24] ?? '');
+                if (preg_match('/\[(.*?)\]\s*([^:]+):\s*Isu diarsipkan/i', $rawNote, $m)) {
+                    $archivedAt = trim($m[1]);
+                    $candidate = trim($m[2]);
+                    if ($candidate !== 'Staff' && $candidate !== 'Admin / Staff') {
+                        $archivedBy = $candidate;
+                    }
+                }
+                if (empty($archivedAt)) {
+                    if (preg_match('/\[(.*?)\]/', $rawNote, $m)) {
+                        $archivedAt = trim($m[1]);
+                    } else {
+                        $archivedAt = Carbon::now('Asia/Jakarta')->format('M d, Y H:i:s');
+                    }
+                }
+                if (empty($archivedBy)) {
+                    $archivedBy = 'Admin';
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'id'                  => $currentRow[0] ?? (string)$queryId,
+                    'title'               => $currentRow[1] ?? '',
+                    'description'         => $currentRow[2] ?? '',
+                    'location'            => $currentRow[3] ?? '',
+                    'category'            => $currentRow[4] ?? '',
+                    'status'              => $currentRow[5] ?? 'open',
+                    'reporter'            => $currentRow[6] ?? '',
+                    'submittedAt'         => $currentRow[7] ?? '',
+                    'imageUrl'            => $this->resolveImageUrl($currentRow[8] ?? ''),
+                    'taker'               => $currentRow[9] ?? '',
+                    'takenAt'             => $currentRow[10] ?? '',
+                    'solver'              => $currentRow[11] ?? '',
+                    'solvedAt'            => $currentRow[12] ?? '',
+                    'fixDescription'      => $currentRow[13] ?? '',
+                    'proofImageUrl'       => $this->resolveImageUrl($currentRow[14] ?? ''),
+                    'durationLabel'       => $currentRow[15] ?? '',
+                    'priority'            => $currentRow[16] ?? 'low',
+                    'deadline'            => $currentRow[17] ?? '',
+                    'pendingReason'       => $this->parsePendingReason($currentRow[18] ?? ''),
+                    'pendingBy'           => $currentRow[19] ?? '',
+                    'pendingImageUrl'     => $this->resolveImageUrl($currentRow[20] ?? ''),
+                    'taggedDepartments'   => !empty($currentRow[21]) ? array_map('trim', explode(',', $currentRow[21])) : [],
+                    'originDepartment'    => $currentRow[22] ?? '',
+                    'assignedDepartments' => !empty($currentRow[23]) ? array_map('trim', explode(',', $currentRow[23])) : (!empty($currentRow[21]) ? array_map('trim', explode(',', $currentRow[21])) : []),
+                    'rowIndex'            => $issueData['rowIndex'],
+                    'sheet'               => $issueData['sheet'],
+                    'isArchived'          => $isArchived,
+                    'archivedAt'          => !empty($archivedAt) ? (strtotime($archivedAt) ? strtotime($archivedAt) * 1000 : $archivedAt) : null,
+                    'archivedAtStr'       => $archivedAt,
+                    'archivedBy'          => $archivedBy,
+                ]
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error looking up issue: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
     public function store(Request $request)
     {
         try {
@@ -875,6 +964,15 @@ class IssueController extends Controller
             $crossYear = $issueData['crossYear'];
             $foundLocation = $issueData['foundLocation'];
 
+            $displayStatus = trim($currentRow[25] ?? '');
+            if ($displayStatus === '0') {
+                return response()->json([
+                    'success'    => false,
+                    'message'    => 'Kartu masalah ini sudah diarsipkan oleh Admin (Archived).',
+                    'isArchived' => true,
+                ], 422);
+            }
+
             $currentStatus = $currentRow[5] ?? 'open';
 
             if ($currentStatus !== 'open') {
@@ -991,6 +1089,15 @@ class IssueController extends Controller
 
             $currentRow = $issueData['row'];
 
+            $displayStatus = trim($currentRow[25] ?? '');
+            if ($displayStatus === '0') {
+                return response()->json([
+                    'success'    => false,
+                    'message'    => 'Kartu masalah ini sudah diarsipkan oleh Admin (Archived).',
+                    'isArchived' => true,
+                ], 422);
+            }
+
             $submittedAtRaw = $currentRow[7] ?? null;
 
             $proofUrl = '';
@@ -1102,6 +1209,15 @@ class IssueController extends Controller
             }
 
             $currentRow = $issueData['row'];
+
+            $displayStatus = trim($currentRow[25] ?? '');
+            if ($displayStatus === '0') {
+                return response()->json([
+                    'success'    => false,
+                    'message'    => 'Kartu masalah ini sudah diarsipkan oleh Admin (Archived).',
+                    'isArchived' => true,
+                ], 422);
+            }
 
             $pendingDataRaw = $currentRow[18] ?? '';
             $existingItems = [];
@@ -1221,6 +1337,16 @@ class IssueController extends Controller
             }
 
             $currentRow = $issueData['row'];
+
+            $displayStatus = trim($currentRow[25] ?? '');
+            if ($displayStatus === '0') {
+                return response()->json([
+                    'success'    => false,
+                    'message'    => 'Kartu masalah ini sudah diarsipkan oleh Admin (Archived).',
+                    'isArchived' => true,
+                ], 422);
+            }
+
             $nowFormatted = Carbon::now('Asia/Jakarta')->format('M d, Y H:i:s');
             $note = "[{$nowFormatted}] Kategori diubah ke {$request->category}";
 
@@ -1295,6 +1421,15 @@ class IssueController extends Controller
             }
 
             $currentRow = $issueData['row'];
+
+            $displayStatus = trim($currentRow[25] ?? '');
+            if ($displayStatus === '0') {
+                return response()->json([
+                    'success'    => false,
+                    'message'    => 'Kartu masalah ini sudah diarsipkan oleh Admin (Archived).',
+                    'isArchived' => true,
+                ], 422);
+            }
 
             // Granular Authorization check
             $originDept = $currentRow[22] ?? '';

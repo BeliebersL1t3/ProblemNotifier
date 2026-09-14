@@ -316,6 +316,93 @@ function saveConfig() {
 
 loadConfig();
 
+// Helper to look up an issue by ID (including archived issues)
+async function getIssueDetails(issueId) {
+    if (!issueId) return null;
+    const cleanId = String(issueId).trim();
+    try {
+        const res = await axios.get(`${BASE_URL}/api/issues/lookup/${encodeURIComponent(cleanId)}`, { timeout: 7000 });
+        if (res.data?.success && res.data.data) {
+            return res.data.data;
+        }
+    } catch (e) {
+        // Fallback or not found
+    }
+    return null;
+}
+
+function getArchivedMessage(issue, lang = 'id') {
+    const isEnglish = lang === 'en';
+    const id = issue.id || 'N/A';
+    const title = issue.title || '-';
+    const archivedBy = issue.archivedBy || 'Admin';
+    const archivedAt = issue.archivedAtStr || issue.archivedAt || '-';
+    const location = issue.location ? `\n📍 *Lokasi:* ${issue.location}` : '';
+    const locationEn = issue.location ? `\n📍 *Location:* ${issue.location}` : '';
+
+    if (isEnglish) {
+        return (
+            `📦 *ISSUE ARCHIVED* 📦\n\n` +
+            `Kartu masalah *${id}* ("${title}") sudah di-archive / diarsipkan oleh Administrator.\n` +
+            locationEn + `\n` +
+            `👤 *Archived By:* ${archivedBy}\n` +
+            `🕒 *Archived At:* ${archivedAt}\n\n` +
+            `ℹ️ *Note:* Issue cards that have been archived are closed and cannot be claimed, modified, or updated through WhatsApp. Contact Admin if this issue needs to be restored.`
+        );
+    }
+
+    return (
+        `📦 *KARTU MASALAH SUDAH DI-ARCHIVE* 📦\n\n` +
+        `Kartu masalah *${id}* ("${title}") sudah di-archive / diarsipkan oleh Administrator.\n` +
+        location + `\n` +
+        `👤 *Diarsipkan Oleh:* ${archivedBy}\n` +
+        `🕒 *Waktu Arsip:* ${archivedAt}\n\n` +
+        `ℹ️ *Catatan:* Kartu masalah yang telah diarsipkan telah ditutup dan tidak dapat diklaim, diubah, atau dikerjakan kembali via WhatsApp. Hubungi Admin jika isu ini perlu dipulihkan (restore).`
+    );
+}
+
+function getIssueSummaryMessage(issue, lang = 'id') {
+    const isEn = lang === 'en';
+    const statusIcons = {
+        open: '🔴 Open (Unclaimed)',
+        progress: '🟡 In Progress',
+        pending: '⏸️ Pending (Delayed)',
+        solved: '✅ Solved'
+    };
+    const statusIconsId = {
+        open: '🔴 Open (Belum Diklaim)',
+        progress: '🟡 Sedang Dikerjakan (In Progress)',
+        pending: '⏸️ Ditunda (Pending)',
+        solved: '✅ Selesai (Solved)'
+    };
+    const statusText = isEn ? (statusIcons[issue.status] || issue.status) : (statusIconsId[issue.status] || issue.status);
+    
+    if (isEn) {
+        return (
+            `📋 *ISSUE DETAILS: ${issue.id}*\n\n` +
+            `📌 *Title:* ${issue.title}\n` +
+            `📍 *Location:* ${issue.location || '-'}\n` +
+            `🏢 *Department:* ${issue.department || '-'}\n` +
+            `📊 *Status:* ${statusText}\n` +
+            `👤 *Reporter:* ${issue.reporter || '-'}\n` +
+            (issue.taker ? `👷 *Claimed by:* ${issue.taker}\n` : '') +
+            (issue.solver ? `✅ *Solved by:* ${issue.solver}\n` : '') +
+            (issue.pendingReason ? `⏸️ *Pending Reason:* ${issue.pendingReason}\n` : '')
+        );
+    }
+    return (
+        `📋 *DETAIL MASALAH: ${issue.id}*\n\n` +
+        `📌 *Judul:* ${issue.title}\n` +
+        `📍 *Lokasi:* ${issue.location || '-'}\n` +
+        `🏢 *Departemen:* ${issue.department || '-'}\n` +
+        `📊 *Status:* ${statusText}\n` +
+        `👤 *Pelapor:* ${issue.reporter || '-'}\n` +
+        (issue.taker ? `👷 *Dikerjakan oleh:* ${issue.taker}\n` : '') +
+        (issue.solver ? `✅ *Diselesaikan oleh:* ${issue.solver}\n` : '') +
+        (issue.pendingReason ? `⏸️ *Alasan Pending:* ${issue.pendingReason}\n` : '')
+    );
+}
+
 const STEPS = {
     IDLE: 0,
     AWAITING_NAME: 1,
@@ -812,6 +899,41 @@ async function startSock() {
                 continue;
             }
 
+            // --- DIRECT ISSUE QUERY / LOOKUP (Both Group & DM) ---
+            let queryIssueId = null;
+            let isExplicitLookup = false;
+            const checkPrefixes = ['!cek', '!check', '!info', '!isu', '!issue', '!cari', '!lookup', '!status'];
+            const trimmedMsgText = text.trim();
+            for (const pfx of checkPrefixes) {
+                if (lower.startsWith(pfx)) {
+                    const remainder = trimmedMsgText.substring(pfx.length).trim();
+                    if (remainder && /^[A-Za-z0-9\-_]+$/.test(remainder)) {
+                        queryIssueId = remainder;
+                        isExplicitLookup = true;
+                        break;
+                    }
+                }
+            }
+            // Also match if message itself is exactly an issue ID pattern (e.g. HK-140926-2 or 140926-2)
+            if (!queryIssueId && /^(?:[A-Za-z]{2,5}-)?\d{6}-\d+$/i.test(trimmedMsgText)) {
+                queryIssueId = trimmedMsgText;
+            }
+
+            if (queryIssueId) {
+                const issueDetails = await getIssueDetails(queryIssueId);
+                if (issueDetails) {
+                    if (issueDetails.isArchived) {
+                        await reply(getArchivedMessage(issueDetails, 'id'));
+                    } else {
+                        await reply(getIssueSummaryMessage(issueDetails, 'id'));
+                    }
+                    continue;
+                } else if (isExplicitLookup) {
+                    await reply(`❌ Masalah dengan ID *${queryIssueId}* tidak ditemukan dalam sistem Telunas.`);
+                    continue;
+                }
+            }
+
             // Group messages handler
             if (from.endsWith('@g.us')) {
                 // Auto-map this group on-the-fly if not already mapped
@@ -921,26 +1043,47 @@ async function startSock() {
                     const quotedMsg = msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
                     const quotedText = quotedMsg?.conversation || quotedMsg?.imageMessage?.caption || quotedMsg?.extendedTextMessage?.text;
 
-                    if (!quotedText) {
-                        await reply('Please reply directly to an issue notification to claim it. Example: reply the notification and type *!claim*');
+                    let issueId = null;
+                    if (quotedText) {
+                        // Match alphanumeric ID with hyphens
+                        const idMatch = quotedText.match(/ID:\s*\*?\s*([A-Za-z0-9\-_]+)/i);
+                        if (idMatch) issueId = idMatch[1];
+                    }
+                    if (!issueId) {
+                        const parts = text.trim().split(/\s+/);
+                        if (parts.length > 1 && /^[A-Za-z0-9\-_]+$/.test(parts[1])) {
+                            issueId = parts[1];
+                        }
+                    }
+
+                    if (!issueId) {
+                        await reply('Please reply directly to an issue notification to claim it, or type *!claim <IssueID>*. Example: *!claim HK-140926-2*');
                         continue;
                     }
 
-                    // Match alphanumeric ID with hyphens
-                    const idMatch = quotedText.match(/ID:\s*\*?\s*([A-Za-z0-9\-_]+)/i);
-                    if (!idMatch) {
-                        await reply('Could not find the Issue ID in the message you replied to. Please make sure you reply to a new issue notification.');
-                        continue;
-                    }
-
-                    const issueId = idMatch[1];
                     try {
+                        let issue = null;
                         const getRes = await axios.get(`${BASE_URL}/api/issues`);
-                        if (!getRes.data.success) throw new Error('Failed to fetch issues');
+                        if (getRes.data?.success) {
+                            issue = getRes.data.data.find(i => i.id === issueId);
+                        }
 
-                        const issue = getRes.data.data.find(i => i.id === issueId);
                         if (!issue) {
-                            await reply(`❌ Could not find issue *${issueId}* in the system.`);
+                            const lookup = await getIssueDetails(issueId);
+                            if (lookup?.isArchived) {
+                                await reply(getArchivedMessage(lookup, state.lang));
+                                continue;
+                            }
+                            if (lookup) {
+                                issue = lookup;
+                            } else {
+                                await reply(`❌ Could not find issue *${issueId}* in the system.`);
+                                continue;
+                            }
+                        }
+
+                        if (issue.isArchived) {
+                            await reply(getArchivedMessage(issue, state.lang));
                             continue;
                         }
 
@@ -1922,13 +2065,32 @@ async function startSock() {
                 let queryId = text.trim();
                 
                 try {
+                    let issue = null;
                     const getRes = await axios.get(`${BASE_URL}/api/issues`);
                     if (getRes.data && getRes.data.success) {
-                        const issue = getRes.data.data.find(i => i.id === queryId);
-                        if (!issue) {
+                        issue = getRes.data.data.find(i => i.id === queryId);
+                    }
+
+                    if (!issue) {
+                        const lookup = await getIssueDetails(queryId);
+                        if (lookup?.isArchived) {
+                            await reply(getArchivedMessage(lookup, state.lang));
+                            userStates.delete(stateKey);
+                            continue;
+                        }
+                        if (lookup) {
+                            issue = lookup;
+                        } else {
                             await reply(`❌ Could not find issue *${queryId}* in the database. Please check the ID and try again, or type "cancel" to exit.`);
                             continue;
                         }
+                    }
+
+                    if (issue.isArchived) {
+                        await reply(getArchivedMessage(issue, state.lang));
+                        userStates.delete(stateKey);
+                        continue;
+                    }
                         if (issue.status === 'solved') {
                             await reply(`✅ Issue *${queryId}* has already been marked as *Solved*. No further action needed. Type "cancel" to exit.`);
                             continue;
@@ -1970,7 +2132,6 @@ async function startSock() {
                                 continue;
                             }
                         }
-                    }
                 } catch (e) {
                     console.error("Validation error:", e.message);
                 }
@@ -2032,9 +2193,24 @@ async function startSock() {
                     const getRes = await axios.get(`${BASE_URL}/api/issues`);
                     if (!getRes.data.success) throw new Error("Failed to fetch issues");
                     
-                    const issue = getRes.data.data.find(i => i.id === state.data.issueId);
+                    let issue = getRes.data.data.find(i => i.id === state.data.issueId);
                     if (!issue) {
-                        await reply(`❌ Could not find issue ${state.data.issueId} in the database.`);
+                        const lookup = await getIssueDetails(state.data.issueId);
+                        if (lookup?.isArchived) {
+                            await reply(getArchivedMessage(lookup, state.lang));
+                            userStates.delete(stateKey);
+                            continue;
+                        }
+                        if (lookup) {
+                            issue = lookup;
+                        } else {
+                            await reply(`❌ Could not find issue ${state.data.issueId} in the database.`);
+                            userStates.delete(stateKey);
+                            continue;
+                        }
+                    }
+                    if (issue.isArchived) {
+                        await reply(getArchivedMessage(issue, state.lang));
                         userStates.delete(stateKey);
                         continue;
                     }
@@ -2064,95 +2240,113 @@ async function startSock() {
             }
 
 
-            // --- PENDING FLOW ---
-            if (state.step === STEPS.AWAITING_PENDING_ID) {
-                let queryId = text.trim();
-
-                try {
-                    const getRes = await axios.get(`${BASE_URL}/api/issues`);
-                    if (getRes.data && getRes.data.success) {
-                        const issue = getRes.data.data.find(i => i.id === queryId);
-                        if (!issue) {
-                            await reply(`❌ Could not find issue *${queryId}* in the database. Please check the ID and try again, or type "cancel" to exit.`);
-                            continue;
-                        }
-                        if (issue.status === 'solved') {
-                            await reply(`✅ Issue *${queryId}* is already *Solved* — no pending needed. Type "cancel" to exit.`);
-                            continue;
-                        }
-                        if (issue.status === 'open') {
-                            await reply(
+            // --- PENDING FLOW ---
+            if (state.step === STEPS.AWAITING_PENDING_ID) {
+                let queryId = text.trim();
+
+                try {
+                    let issue = null;
+                    const getRes = await axios.get(`${BASE_URL}/api/issues`);
+                    if (getRes.data && getRes.data.success) {
+                        issue = getRes.data.data.find(i => i.id === queryId);
+                    }
+
+                    if (!issue) {
+                        const lookup = await getIssueDetails(queryId);
+                        if (lookup?.isArchived) {
+                            await reply(getArchivedMessage(lookup, state.lang));
+                            userStates.delete(stateKey);
+                            continue;
+                        }
+                        if (lookup) {
+                            issue = lookup;
+                        } else {
+                            await reply(`❌ Could not find issue *${queryId}* in the database. Please check the ID and try again, or type "cancel" to exit.`);
+                            continue;
+                        }
+                    }
+
+                    if (issue.isArchived) {
+                        await reply(getArchivedMessage(issue, state.lang));
+                        userStates.delete(stateKey);
+                        continue;
+                    }
+                        if (issue.status === 'solved') {
+                            await reply(`✅ Issue *${queryId}* is already *Solved* — no pending needed. Type "cancel" to exit.`);
+                            continue;
+                        }
+                        if (issue.status === 'open') {
+                            await reply(
                                 `⚠️ Issue *${queryId}* has not been claimed yet — it is currently *Open (unclaimed)*.
 
 To mark a job as pending, someone must first claim it.
 
 Do you want to *claim this job AND immediately mark it as pending*?
 
-Reply *yes* to claim + pending, or *no* to cancel.`
-                            );
-                            state.data.issueId = queryId;
-                            state.data.issueRowIndex = issue.rowIndex;
-                            state.step = STEPS.CONFIRM_CLAIM_THEN_PENDING;
-                            userStates.set(stateKey, state);
-                            continue;
-                        }
-                        if (issue.status !== 'progress') {
-                            await reply(`❌ Issue *${queryId}* is currently *${issue.status}* — only In Progress issues can be marked pending.`);
-                            continue;
-                        }
-                        // status === 'progress' — allowed
-                        const pendGroupDeptKey = getDeptKeyForGroup(from);
-                        const pendAssigned = (Array.isArray(issue.assignedDepartments) ? issue.assignedDepartments : (issue.assignedDepartments || '').split(',').map(d => d.trim())).filter(Boolean);
-                        const pendTagged   = (Array.isArray(issue.taggedDepartments) ? issue.taggedDepartments : (issue.taggedDepartments || '').split(',').map(d => d.trim())).filter(Boolean);
-                        const pendAuthKeys = [...pendAssigned, ...pendTagged].map(d => d.toLowerCase());
-                        const isPendGroupAuth = !pendGroupDeptKey || pendAssigned.includes('ALL') || pendAuthKeys.includes(pendGroupDeptKey);
-                        if (pendGroupDeptKey && isPendGroupAuth) {
-                            const pendRoster = DEPARTMENT_STAFF[pendGroupDeptKey] || [];
-                            if (pendRoster.length > 0) {
+Reply *yes* to claim + pending, or *no* to cancel.`
+                            );
+                            state.data.issueId = queryId;
+                            state.data.issueRowIndex = issue.rowIndex;
+                            state.step = STEPS.CONFIRM_CLAIM_THEN_PENDING;
+                            userStates.set(stateKey, state);
+                            continue;
+                        }
+                        if (issue.status !== 'progress') {
+                            await reply(`❌ Issue *${queryId}* is currently *${issue.status}* — only In Progress issues can be marked pending.`);
+                            continue;
+                        }
+                        // status === 'progress' — allowed
+                        const pendGroupDeptKey = getDeptKeyForGroup(from);
+                        const pendAssigned = (Array.isArray(issue.assignedDepartments) ? issue.assignedDepartments : (issue.assignedDepartments || '').split(',').map(d => d.trim())).filter(Boolean);
+                        const pendTagged   = (Array.isArray(issue.taggedDepartments) ? issue.taggedDepartments : (issue.taggedDepartments || '').split(',').map(d => d.trim())).filter(Boolean);
+                        const pendAuthKeys = [...pendAssigned, ...pendTagged].map(d => d.toLowerCase());
+                        const isPendGroupAuth = !pendGroupDeptKey || pendAssigned.includes('ALL') || pendAuthKeys.includes(pendGroupDeptKey);
+                        if (pendGroupDeptKey && isPendGroupAuth) {
+                            const pendRoster = DEPARTMENT_STAFF[pendGroupDeptKey] || [];
+                            if (pendRoster.length > 0) {
                                 let rMsg = `⏸️ *Marking Issue ${queryId} as Pending*
 
 Select your name:
 
-`;
+`;
                                 pendRoster.forEach((n, i) => { rMsg += `${i + 1}. ${n}
-`; });
+`; });
                                 rMsg += `
-Example: *2* or your full name.`;
-                                state.data.rosterList = pendRoster;
-                                state.data.issueId = queryId;
-                                state.step = STEPS.AWAITING_PENDING_NAME;
-                                userStates.set(stateKey, state);
-                                await reply(rMsg);
-                                continue;
-                            }
-                        }
-                    }
-                } catch (e) {
-                    console.error('Validation error:', e.message);
-                }
-                state.data.issueId = queryId;
-                await reply(getMsg('What is your name? (Worker Name)', 'Siapa nama Anda? (Nama Pekerja)'));
-                state.step = STEPS.AWAITING_PENDING_NAME;
-                userStates.set(stateKey, state);
-                continue;
-            }
-            if (state.step === STEPS.AWAITING_PENDING_NAME) {
-                let pendingInput = text.trim();
-                const pendRoster = state.data.rosterList || [];
-                if (pendRoster.length > 0) {
-                    const numIdx = parseInt(pendingInput, 10);
-                    if (!isNaN(numIdx) && numIdx >= 1 && numIdx <= pendRoster.length) {
-                        pendingInput = pendRoster[numIdx - 1];
-                    } else {
-                        const matched = pendRoster.find(n => n.toLowerCase().includes(pendingInput.toLowerCase()));
-                        if (matched) pendingInput = matched;
-                    }
-                }
-                state.data.pendingBy = pendingInput + ' (via WhatsApp)';
-                await reply('What is the reason for the delay?');
-                state.step = STEPS.AWAITING_PENDING_REASON;
-                continue;
-            }
+Example: *2* or your full name.`;
+                                state.data.rosterList = pendRoster;
+                                state.data.issueId = queryId;
+                                state.step = STEPS.AWAITING_PENDING_NAME;
+                                userStates.set(stateKey, state);
+                                await reply(rMsg);
+                                continue;
+                            }
+                        }
+                } catch (e) {
+                    console.error('Validation error:', e.message);
+                }
+                state.data.issueId = queryId;
+                await reply(getMsg('What is your name? (Worker Name)', 'Siapa nama Anda? (Nama Pekerja)'));
+                state.step = STEPS.AWAITING_PENDING_NAME;
+                userStates.set(stateKey, state);
+                continue;
+            }
+            if (state.step === STEPS.AWAITING_PENDING_NAME) {
+                let pendingInput = text.trim();
+                const pendRoster = state.data.rosterList || [];
+                if (pendRoster.length > 0) {
+                    const numIdx = parseInt(pendingInput, 10);
+                    if (!isNaN(numIdx) && numIdx >= 1 && numIdx <= pendRoster.length) {
+                        pendingInput = pendRoster[numIdx - 1];
+                    } else {
+                        const matched = pendRoster.find(n => n.toLowerCase().includes(pendingInput.toLowerCase()));
+                        if (matched) pendingInput = matched;
+                    }
+                }
+                state.data.pendingBy = pendingInput + ' (via WhatsApp)';
+                await reply('What is the reason for the delay?');
+                state.step = STEPS.AWAITING_PENDING_REASON;
+                continue;
+            }
             if (state.step === STEPS.AWAITING_PENDING_REASON) {
                 state.data.pendingReason = text;
                 await reply('Finally, please upload a photo as proof of the delay. (Send an image here)');
@@ -2181,9 +2375,25 @@ Example: *2* or your full name.`;
                     const getRes = await axios.get(`${BASE_URL}/api/issues`);
                     if (!getRes.data.success) throw new Error("Failed to fetch issues");
                     
-                    const issue = getRes.data.data.find(i => i.id === state.data.issueId);
+                    let issue = getRes.data.data.find(i => i.id === state.data.issueId);
                     if (!issue) {
-                        await reply(`❌ Could not find issue ${state.data.issueId} in the database.`);
+                        const lookup = await getIssueDetails(state.data.issueId);
+                        if (lookup?.isArchived) {
+                            await reply(getArchivedMessage(lookup, state.lang));
+                            userStates.delete(stateKey);
+                            continue;
+                        }
+                        if (lookup) {
+                            issue = lookup;
+                        } else {
+                            await reply(`❌ Could not find issue ${state.data.issueId} in the database.`);
+                            userStates.delete(stateKey);
+                            continue;
+                        }
+                    }
+
+                    if (issue.isArchived) {
+                        await reply(getArchivedMessage(issue, state.lang));
                         userStates.delete(stateKey);
                         continue;
                     }

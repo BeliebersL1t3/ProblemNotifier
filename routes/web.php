@@ -53,6 +53,7 @@ Route::prefix('api')->group(function () {
     Route::post('/link-whatsapp-staff', [ProfileController::class, 'linkStaffFromWhatsApp']);
     Route::post('/reset-whatsapp-password', [ProfileController::class, 'resetPasswordViaWhatsApp']);
     Route::get('/issues', [IssueController::class, 'index']);
+    Route::get('/issues/lookup/{id?}', [IssueController::class, 'lookup']);
     Route::post('/issues', [IssueController::class, 'store']);
     Route::match(['post', 'patch'], '/issues/{rowIndex}/update', [IssueController::class, 'update']);
     Route::delete('/issues/{rowIndex}', [IssueController::class, 'destroy']);
