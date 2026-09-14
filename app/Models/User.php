@@ -21,6 +21,14 @@ class User extends Authenticatable
         'password',
         'raw_password',
         'role',
+        'is_hod',
+        'hod_title',
+        'approval_status',
+        'is_active',
+        'rejection_reason',
+        'rejected_by',
+        'rejected_at',
+        'notify_whatsapp_tickets',
         'department',
         'subdivision',
         'staff_name',
@@ -36,15 +44,24 @@ class User extends Authenticatable
     protected function casts(): array
     {
         return [
-            'email_verified_at' => 'datetime',
-            'password'          => 'hashed',
-            'permissions'       => 'array',
+            'email_verified_at'       => 'datetime',
+            'password'                => 'hashed',
+            'permissions'             => 'array',
+            'is_hod'                  => 'boolean',
+            'is_active'               => 'boolean',
+            'notify_whatsapp_tickets' => 'boolean',
+            'rejected_at'             => 'datetime',
         ];
     }
 
     public function isAdmin(): bool
     {
         return $this->role === 'admin';
+    }
+
+    public function isHOD(): bool
+    {
+        return (bool)$this->is_hod;
     }
 
     public function isDepartmentUser(): bool
@@ -55,6 +72,16 @@ class User extends Authenticatable
     public function isViewer(): bool
     {
         return $this->role === 'viewer';
+    }
+
+    public function isPendingApproval(): bool
+    {
+        return in_array($this->approval_status, ['pending_hod', 'pending_admin']);
+    }
+
+    public function isRejected(): bool
+    {
+        return $this->approval_status === 'rejected';
     }
 
     public function hasPermission(string $permission): bool
@@ -100,6 +127,22 @@ class User extends Authenticatable
             $q->where('role', 'admin')
               ->orWhere('permissions->' . $permission, true);
         });
+    }
+
+    public function scopeHodsOfDepartment($query, string $dept)
+    {
+        return $query->where('is_hod', true)
+            ->where('is_active', true)
+            ->where(function ($q) use ($dept) {
+                $q->whereRaw('LOWER(department) = ?', [strtolower(trim($dept))])
+                  ->orWhere('department', 'like', "%{$dept}%");
+            });
+    }
+
+    public function scopeActiveApproved($query)
+    {
+        return $query->where('is_active', true)
+            ->where('approval_status', 'approved');
     }
 
     public function auditLogs()
