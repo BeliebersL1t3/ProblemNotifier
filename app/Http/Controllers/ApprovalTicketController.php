@@ -137,7 +137,7 @@ class ApprovalTicketController extends Controller
         }
 
         // If user is Admin, they can apply immediately without ticket
-        if ($user->isAdmin()) {
+        if ($user->isAdmin() || $user->isHOD()) {
             $user->whatsapp_number = $isUnlink ? null : $cleanPhone;
             if ($isUnlink) {
                 $user->notify_whatsapp_tickets = false;

@@ -86,8 +86,8 @@ class ProfileController extends Controller
             }
         }
 
-        // If Admin, direct update is permitted
-        if ($user->isAdmin()) {
+        // If Admin or HOD, direct update is permitted without tickets
+        if ($user->isAdmin() || $user->isHOD()) {
             $user->whatsapp_number = empty($clean) ? null : $clean;
             if (empty($clean)) {
                 $user->notify_whatsapp_tickets = false;

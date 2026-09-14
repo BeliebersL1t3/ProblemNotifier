@@ -28,7 +28,8 @@ export default function ProfilePage(props) {
 
 function ProfileInner({ pendingTicket, pendingTransferTicket, notifyWhatsAppTickets, status }) {
     const { t, lang } = useLanguage();
-    const { user, isAdmin, isDeptUser, department, subdivision, staffName, whatsappNumber, avatarUrl } = useAuth();
+    const { user, isAdmin, isHOD, isDeptUser, department, subdivision, staffName, whatsappNumber, avatarUrl } = useAuth();
+    const canDirectUpdateWa = isAdmin || isHOD;
     const currentDeptTheme = department ? getDepartmentTheme(department) : { bg: '#C9AA71', text: '#1C1B0E' };
 
     const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -750,12 +751,12 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, notifyWhatsAppTick
                                 )}
 
                                 <form onSubmit={handleWhatsAppUpdate} className="space-y-4">
-                                    {(waSuccessful || status === 'whatsapp-ticket-submitted') && (
+                                    {(waSuccessful || status === 'whatsapp-ticket-submitted' || status === 'whatsapp-updated') && (
                                         <div className="flex items-center gap-2 p-3.5 rounded-xl bg-emerald-950/50 border border-emerald-500/40 text-emerald-300 text-xs font-semibold animate-fade-in">
                                             <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
                                             <span>
-                                                {isAdmin 
-                                                    ? (lang === 'id' ? 'Nomor WhatsApp berhasil diperbarui!' : 'WhatsApp number updated successfully!')
+                                                {canDirectUpdateWa 
+                                                    ? (lang === 'id' ? 'Nomor WhatsApp berhasil diperbarui secara langsung!' : 'WhatsApp number updated directly!')
                                                     : (lang === 'id' ? 'Tiket permohonan perubahan nomor WhatsApp telah dikirim ke HOD!' : 'WhatsApp update ticket submitted to HOD!')}
                                             </span>
                                         </div>
@@ -766,7 +767,7 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, notifyWhatsAppTick
                                             htmlFor="whatsapp_number" 
                                             className="block text-xs font-semibold text-[#FAFAFA]"
                                         >
-                                            {isAdmin ? 'Nomor WhatsApp Anda' : 'Nomor WhatsApp Baru yang Diajukan'}
+                                            {canDirectUpdateWa ? (lang === 'id' ? 'Nomor WhatsApp Anda' : 'Your WhatsApp Number') : (lang === 'id' ? 'Nomor WhatsApp Baru yang Diajukan' : 'Requested New WhatsApp Number')}
                                         </label>
                                         <div className="relative">
                                             <Phone className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#A19F8D]" />
@@ -787,7 +788,7 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, notifyWhatsAppTick
                                         )}
                                     </div>
 
-                                    {!isAdmin && (
+                                    {!canDirectUpdateWa && (
                                         <div className="space-y-1.5">
                                             <label 
                                                 htmlFor="wa_reason" 
@@ -807,9 +808,13 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, notifyWhatsAppTick
                                     )}
 
                                     <p className="text-[11px] text-[#A19F8D] leading-relaxed">
-                                        💡 {isAdmin 
-                                            ? 'Sebagai Administrator, nomor WhatsApp Anda diperbarui secara langsung ke sistem & bot.'
-                                            : 'Perubahan nomor WhatsApp memerlukan persetujuan HOD Departemen dan Admin. Nomor lama Anda tetap aktif selama masa verifikasi.'}
+                                        💡 {canDirectUpdateWa 
+                                            ? (lang === 'id'
+                                                ? `Sebagai ${isAdmin ? 'Administrator' : 'Head of Department (HOD)'}, nomor WhatsApp Anda langsung aktif dan disinkronkan ke sistem & bot tanpa tiket permohonan.`
+                                                : `As ${isAdmin ? 'Administrator' : 'Head of Department (HOD)'}, your WhatsApp number is directly updated and synced to the system and bot without approval tickets.`)
+                                            : (lang === 'id'
+                                                ? 'Perubahan nomor WhatsApp memerlukan persetujuan HOD Departemen dan Admin. Nomor lama Anda tetap aktif selama masa verifikasi.'
+                                                : 'WhatsApp number change requires approval from your Department HOD and Admin. Your current number remains active during verification.')}
                                     </p>
 
                                     <div className="pt-2 flex items-center justify-between gap-3 flex-wrap">
@@ -839,9 +844,9 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, notifyWhatsAppTick
                                                 <>
                                                     <Smartphone className="h-4 w-4" />
                                                     <span>
-                                                        {isAdmin
-                                                            ? (user?.whatsapp_number ? 'Perbarui Nomor' : 'Simpan Nomor')
-                                                            : 'Ajukan Perubahan ke HOD'}
+                                                        {canDirectUpdateWa
+                                                            ? (user?.whatsapp_number ? (lang === 'id' ? 'Perbarui Nomor' : 'Update Number') : (lang === 'id' ? 'Simpan Nomor' : 'Save Number'))
+                                                            : (lang === 'id' ? 'Ajukan Perubahan ke HOD' : 'Submit Request to HOD')}
                                                     </span>
                                                 </>
                                             )}
