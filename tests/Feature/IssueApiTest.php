@@ -268,6 +268,7 @@ class IssueApiTest extends TestCase
             array_pad(['ENG-001', 'Title', 'Desc', 'Loc', 'Cat', 'open'], 26, '')
         ]);
         $googleMock->shouldReceive('batchUpdateColumn')->once()->with([2], 'Z', '0', Mockery::any())->andReturn(null);
+        $googleMock->shouldReceive('batchUpdateColumn')->once()->with([2], 'Y', Mockery::any(), Mockery::any())->andReturn(null);
 
         $this->app->instance(GoogleService::class, $googleMock);
 
@@ -293,6 +294,7 @@ class IssueApiTest extends TestCase
             array_pad(['ENG-001', 'Title', 'Desc', 'Loc', 'Cat', 'progress'], 26, '')
         ]);
         $googleMock->shouldReceive('batchUpdateColumn')->once()->with([2], 'Z', '1', Mockery::any())->andReturn(null);
+        $googleMock->shouldReceive('batchUpdateColumn')->once()->with([2], 'Y', Mockery::any(), Mockery::any())->andReturn(null);
 
         $this->app->instance(GoogleService::class, $googleMock);
 
@@ -360,6 +362,7 @@ class IssueApiTest extends TestCase
         ]);
         // Both rows [2, 3] should have Column Z set to '0'
         $googleMock->shouldReceive('batchUpdateColumn')->once()->with([2, 3], 'Z', '0', Mockery::any())->andReturn(null);
+        $googleMock->shouldReceive('batchUpdateColumn')->once()->with([3], 'Y', Mockery::any(), Mockery::any())->andReturn(null);
 
         $this->app->instance(GoogleService::class, $googleMock);
 

@@ -122,6 +122,12 @@ export function ActivityDetailModal({ issue, onClose, onOpenCardModal, onEdit, o
         return `${dateStr} • ${timeStr}`;
     };
 
+    const archiveLog = useMemo(() => {
+        return (issue.editLogs || []).slice().reverse().find(l => l && (l.type === 'archive' || String(l.changes).toLowerCase().includes('arsip') || String(l.changes).toLowerCase().includes('archive')));
+    }, [issue.editLogs]);
+    const archivedRawDate = issue.archivedAtStr || issue.archivedAt || archiveLog?.date;
+    const archivedDateFormatted = archivedRawDate ? formatDateTime(archivedRawDate) : null;
+
     // Build Chronologically Unified Timeline
     const timelineItems = useMemo(() => {
         const baseCreatedTime = parseSafeTimestamp(issue.reportedAt || issue.reportedAtIso, Date.now() - 3600000);
@@ -367,6 +373,27 @@ export function ActivityDetailModal({ issue, onClose, onOpenCardModal, onEdit, o
             });
         }
 
+        // E. Current Archived Milestone (if issue is currently archived, ensure archive event is present)
+        if (isArchived) {
+            const hasArchiveEvent = rawEvents.some(e => e.type === 'archive');
+            if (!hasArchiveEvent) {
+                const archiveTime = parseSafeTimestamp(archivedRawDate, Date.now());
+                rawEvents.push({
+                    id: 'step-archive-current',
+                    type: 'archive',
+                    timestamp: Math.max(archiveTime, baseCreatedTime + 180000),
+                    dateStr: archivedDateFormatted || formatDateTime(archiveTime),
+                    data: {
+                        by: issue.archivedBy || archiveLog?.by || (lang === 'id' ? 'Admin / Staf' : 'Admin / Staff'),
+                        dept: issue.archivedDept || archiveLog?.dept || issue.department,
+                        changes: lang === 'id' 
+                            ? 'Isu diarsipkan / disembunyikan dari dashboard operasional'
+                            : 'Issue archived / hidden from operational dashboard',
+                    }
+                });
+            }
+        }
+
         // Event priority helper for deterministic same-minute tie breaking
         const getEventPriority = (ev) => {
             if (ev.type === 'creation') return 0;
@@ -380,6 +407,7 @@ export function ActivityDetailModal({ issue, onClose, onOpenCardModal, onEdit, o
             if (ev.type === 'pending') return 3;
             if (ev.type === 'edit') return 5;
             if (ev.type === 'solved') return 6;
+            if (ev.type === 'archive' || ev.type === 'restore') return 8;
             return 9;
         };
 
@@ -439,7 +467,7 @@ export function ActivityDetailModal({ issue, onClose, onOpenCardModal, onEdit, o
 
         // Return creation FIRST, followed by all progression events in sequence
         return [creationItem, ...subsequentEvents];
-    }, [issue, takerDept, solverDept, t, locale]);
+    }, [issue, takerDept, solverDept, t, locale, isArchived, archivedRawDate, archivedDateFormatted, archiveLog, lang]);
 
     return (
         <Dialog open={!!issue} onOpenChange={(open) => !open && onClose()}>
@@ -469,7 +497,12 @@ export function ActivityDetailModal({ issue, onClose, onOpenCardModal, onEdit, o
                                     {isArchived && (
                                         <span className="inline-flex items-center gap-1.5 rounded-md bg-stone-700/40 px-2.5 py-0.5 text-xs font-black uppercase tracking-wider text-stone-300 border border-stone-500/50 shadow-inner">
                                             <span>🗄️</span>
-                                            {lang === 'id' ? 'DIARSIPKAN' : 'ARCHIVED'}
+                                            <span>{lang === 'id' ? 'DIARSIPKAN' : 'ARCHIVED'}</span>
+                                            {archivedDateFormatted && (
+                                                <span className="font-mono font-normal text-[11px] text-stone-400 lowercase tracking-normal">
+                                                    • {archivedDateFormatted}
+                                                </span>
+                                            )}
                                         </span>
                                     )}
                                     {isEmergency && (

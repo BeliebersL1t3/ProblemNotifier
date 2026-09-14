@@ -481,6 +481,31 @@ class IssueController extends Controller
                         }
                     }
 
+                    $archivedAt = null;
+                    $archivedBy = null;
+                    if ($isArchived) {
+                        for ($i = count($editLogs) - 1; $i >= 0; $i--) {
+                            if (($editLogs[$i]['type'] ?? '') === 'archive') {
+                                $archivedAt = $editLogs[$i]['date'] ?? null;
+                                $archivedBy = $editLogs[$i]['by'] ?? null;
+                                break;
+                            }
+                        }
+
+                        if (empty($archivedAt)) {
+                            $latestRawNote = trim($latestRow[24] ?? '');
+                            if (preg_match('/^\[(.*?)\]/s', $latestRawNote, $m)) {
+                                $archivedAt = trim($m[1]);
+                            } else if (!empty($latestRow[12])) {
+                                $archivedAt = $latestRow[12];
+                            } else if (!empty($latestRow[10])) {
+                                $archivedAt = $latestRow[10];
+                            } else if (!empty($latestRow[7])) {
+                                $archivedAt = $latestRow[7];
+                            }
+                        }
+                    }
+
                     $issues[] = [
                         'id'             => $latestRow[0],
                         'rowIndex'       => $latestRowIndex,
@@ -514,6 +539,9 @@ class IssueController extends Controller
                         'pendingImageUrl'=> $this->resolveImageUrl($latestRow[20] ?? ''),
                         'editLogs'       => $editLogs,
                         'isArchived'     => $isArchived,
+                        'archivedAt'     => !empty($archivedAt) ? (strtotime($archivedAt) ? strtotime($archivedAt) * 1000 : $archivedAt) : null,
+                        'archivedAtStr'  => $archivedAt,
+                        'archivedBy'     => $archivedBy,
                     ];
                 }
             }
@@ -1759,6 +1787,10 @@ class IssueController extends Controller
             $allRows = $issueData['allRowIndices'] ?? [$issueData['rowIndex']];
             $this->googleService->batchUpdateColumn($allRows, 'Z', '0', $targetSheet);
 
+            $nowFormatted = Carbon::now('Asia/Jakarta')->format('M d, Y H:i:s');
+            $archiveNote = "[{$nowFormatted}] {$deleterName}: Isu diarsipkan / disembunyikan dari dashboard operasional";
+            $this->googleService->batchUpdateColumn([$issueData['rowIndex']], 'Y', $archiveNote, $targetSheet);
+
             // Dispatch WhatsApp deletion announcement
             $originStr = !empty($originDept) ? "\n*Origin:* {$originDept}" : '';
             $assignedStr = !empty($assignedDepts) ? "\n*Assigned:* {$assignedDepts}" : '';
@@ -1810,6 +1842,10 @@ class IssueController extends Controller
             $targetSheet = $issueData['foundLocation']['sheet'] ?? null;
             $allRows = $issueData['allRowIndices'] ?? [$issueData['rowIndex']];
             $this->googleService->batchUpdateColumn($allRows, 'Z', '1', $targetSheet);
+
+            $nowFormatted = Carbon::now('Asia/Jakarta')->format('M d, Y H:i:s');
+            $restoreNote = "[{$nowFormatted}] {$restorerName}: Isu dipulihkan kembali ke dashboard operasional";
+            $this->googleService->batchUpdateColumn([$issueData['rowIndex']], 'Y', $restoreNote, $targetSheet);
 
             $originDept = $currentRow[22] ?? '';
             $assignedDepts = $currentRow[23] ?? ($currentRow[21] ?? '');

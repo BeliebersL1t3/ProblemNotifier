@@ -19,11 +19,13 @@ const safeArray = (val) => {
 };
 
 function formatDate(ts) {
-    return new Date(ts).toLocaleDateString('en-US', {
+    if (!ts) return '';
+    const d = new Date(ts);
+    if (isNaN(d.getTime())) return String(ts);
+    return d.toLocaleDateString('en-US', {
         month: 'short',
         day: 'numeric',
         year: 'numeric',
-        timeZone: 'UTC',
     });
 }
 
@@ -31,6 +33,11 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
     const [selectedDelay, setSelectedDelay] = useState(null);
     const [previewImage, setPreviewImage] = useState(null);
     const { isAdmin, isDeptUser, department } = useAuth();
+
+    const isArchived = Boolean(issue?.isArchived || issue?.statusDisplay === '0' || issue?.displayStatus === '0');
+    const archiveLog = (issue?.editLogs || []).slice().reverse().find(l => l && (l.type === 'archive' || String(l.changes).toLowerCase().includes('arsip') || String(l.changes).toLowerCase().includes('archive')));
+    const archivedRawDate = issue?.archivedAtStr || issue?.archivedAt || archiveLog?.date;
+    const archivedDateFormatted = archivedRawDate ? formatDate(archivedRawDate) : null;
 
     const userDept = normalizeDepartment(department);
     const originDept = normalizeDepartment(issue?.department);
@@ -98,7 +105,7 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
         const primaryDept = assignedList[0] || issue.department || null;
         const deptTheme = primaryDept ? getDepartmentTheme(primaryDept) : null;
 
-        const tooltipText = `[${issue.id}] ${issue.title}\nStatus: ${issue.status.toUpperCase()}${isEmergency ? ' (SOS EMERGENCY)' : isCritical ? ' (CRITICAL)' : ''}\nLocation: ${issue.location || '-'}\nDept: ${primaryDept || '-'}\nReported: ${issue.reporter || '-'}`;
+        const tooltipText = `[${issue.id}] ${issue.title}\nStatus: ${issue.status.toUpperCase()}${isArchived ? ' (ARCHIVED)' : isEmergency ? ' (SOS EMERGENCY)' : isCritical ? ' (CRITICAL)' : ''}${isArchived && archivedDateFormatted ? `\nArchived: ${archivedDateFormatted}` : ''}\nLocation: ${issue.location || '-'}\nDept: ${primaryDept || '-'}\nReported: ${issue.reporter || '-'}`;
 
         return (
             <button
@@ -107,17 +114,19 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
                 title={tooltipText}
                 className={cn(
                     "group relative flex flex-col p-2 rounded-lg border text-left transition-all duration-150 hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-1 min-w-0 w-full bg-surface select-none",
-                    isEmergency
-                        ? isSolved
-                            ? "border-red-500/50 bg-red-950/15 ring-1 ring-red-500/40"
-                            : "border-red-500 bg-red-950/30 border-2 ring-1 ring-red-500 z-10"
-                        : isCritical
+                    isArchived
+                        ? "border-stone-700/70 bg-stone-900/40 opacity-80"
+                        : isEmergency
                             ? isSolved
-                                ? "border-amber-500/50 bg-amber-950/15 ring-1 ring-amber-500/40"
-                                : "border-amber-500 bg-amber-950/20 border-2 ring-1 ring-amber-500 z-10"
-                            : isPending
-                                ? "border-orange-500/40 ring-1 ring-orange-500/20"
-                                : "border-border/80 hover:border-border"
+                                ? "border-red-500/50 bg-red-950/15 ring-1 ring-red-500/40"
+                                : "border-red-500 bg-red-950/30 border-2 ring-1 ring-red-500 z-10"
+                            : isCritical
+                                ? isSolved
+                                    ? "border-amber-500/50 bg-amber-950/15 ring-1 ring-amber-500/40"
+                                    : "border-amber-500 bg-amber-950/20 border-2 ring-1 ring-amber-500 z-10"
+                                : isPending
+                                    ? "border-orange-500/40 ring-1 ring-orange-500/20"
+                                    : "border-border/80 hover:border-border"
                 )}
             >
                 {/* Header Row: ID + Status Dot */}
@@ -399,9 +408,20 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
                         </div>
                     )}
 
-                    <div className="mt-auto border-t border-border/60 pt-2 text-[10px] text-muted-foreground flex items-center justify-between">
-                        <span className="truncate">By {issue.reporter}</span>
-                        <span className="shrink-0">{formatDate(issue.reportedAt)}</span>
+                    <div className="mt-auto border-t border-border/60 pt-2 text-[10px] text-muted-foreground flex flex-col gap-0.5">
+                        <div className="flex items-center justify-between">
+                            <span className="truncate">By {issue.reporter}</span>
+                            <span className="shrink-0">{formatDate(issue.reportedAt)}</span>
+                        </div>
+                        {isArchived && (
+                            <div className="text-stone-400 font-medium flex items-center justify-between text-[9px] pt-0.5 border-t border-border/30">
+                                <span className="flex items-center gap-1 text-stone-300">
+                                    <span>🗄️</span>
+                                    <span className="truncate">Archived</span>
+                                </span>
+                                {archivedDateFormatted && <span className="font-mono text-stone-300 shrink-0">{archivedDateFormatted}</span>}
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -465,6 +485,12 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
                     label={issue.status === 'solved' ? issue.durationLabel : undefined}
                     className="absolute left-3 top-3"
                 />
+                {isArchived && (
+                    <div className="absolute left-3 top-11 z-10 flex items-center gap-1.5 rounded-md bg-stone-900/90 text-stone-200 border border-stone-600/60 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider shadow-md backdrop-blur-xs">
+                        <span>🗄️</span>
+                        <span>Archived</span>
+                    </div>
+                )}
                 {isCritical && !canEdit && !canDelete && (
                     <CriticalTimer
                         deadline={issue.deadline}
@@ -691,8 +717,25 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
                         )}
                     </div>
                 )}
-                <div className="mt-auto border-t border-border pt-3 text-xs text-muted-foreground">
-                    Reported by {issue.reporter} • {formatDate(issue.reportedAt)}
+                <div className="mt-auto border-t border-border pt-3 text-xs text-muted-foreground flex flex-col gap-1.5">
+                    <div className="flex items-center justify-between">
+                        <span>Reported by {issue.reporter}</span>
+                        <span>{formatDate(issue.reportedAt)}</span>
+                    </div>
+                    {isArchived && (
+                        <div className="text-stone-400 font-medium flex items-center justify-between text-[11px] pt-1.5 border-t border-border/40">
+                            <span className="flex items-center gap-1.5 text-stone-300">
+                                <span>🗄️</span>
+                                <span>Archived</span>
+                                {(issue.archivedBy || archiveLog?.by) && (
+                                    <span className="text-stone-400 font-normal">by {issue.archivedBy || archiveLog?.by}</span>
+                                )}
+                            </span>
+                            {archivedDateFormatted && (
+                                <span className="font-mono text-stone-300 font-semibold">{archivedDateFormatted}</span>
+                            )}
+                        </div>
+                    )}
                 </div>
             </div>
             
