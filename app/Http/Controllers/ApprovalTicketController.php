@@ -38,6 +38,11 @@ class ApprovalTicketController extends Controller
             $query->where('user_id', $user->id);
         }
 
+        // Department Filter (for Admin)
+        if ($user->isAdmin() && $request->filled('department') && $request->department !== 'all') {
+            $query->where('department', $request->department);
+        }
+
         // Status Filter
         if ($request->filled('status') && $request->status !== 'all') {
             $query->where('status', $request->status);
@@ -64,6 +69,10 @@ class ApprovalTicketController extends Controller
         // Calculate badges count
         $pendingHodCount = 0;
         $pendingAdminCount = 0;
+        $myTicketsCount = ApprovalTicket::where('user_id', $user->id)->count();
+        $myPendingCount = ApprovalTicket::where('user_id', $user->id)
+            ->whereIn('status', ['pending_hod', 'pending_admin'])
+            ->count();
 
         if ($user->isAdmin()) {
             $pendingAdminCount = ApprovalTicket::where('status', 'pending_admin')->count();
@@ -76,9 +85,11 @@ class ApprovalTicketController extends Controller
 
         return Inertia::render('Tickets/Index', [
             'tickets' => $tickets,
-            'filters' => $request->only(['status', 'type', 'search']),
+            'filters' => $request->only(['status', 'type', 'search', 'department']),
             'pendingHodCount' => $pendingHodCount,
             'pendingAdminCount' => $pendingAdminCount,
+            'myTicketsCount' => $myTicketsCount,
+            'myPendingCount' => $myPendingCount,
         ]);
     }
 
