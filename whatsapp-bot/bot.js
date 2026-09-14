@@ -779,9 +779,11 @@ async function startSock() {
                         unregMsg += `• *Nomor/ID WA:* +${rawSenderPhone} _(WhatsApp Privacy Device ID)_\n`;
                     }
                     unregMsg += `• *Status:* ⚠️ Belum Terdaftar\n\n`;
-                    unregMsg += `Untuk mendaftarkan nomor ini:\n`;
-                    unregMsg += `1. Buka menu *Profile* di Web Dashboard dan masukkan nomor WA Anda (format 08... atau 628...), ATAU\n`;
-                    unregMsg += `2. Cukup *reply notifikasi masalah* di grup WhatsApp departemen Anda dengan mengetik *!claim*, lalu pilih nama Anda satu kali. Bot akan otomatis mengingat nomor Anda untuk seterusnya!`;
+                    unregMsg += `Nomor WhatsApp Anda belum terdaftar di Web Dashboard Telunas.\n\n`;
+                    unregMsg += `📌 *Cara Pendaftaran:*\n`;
+                    unregMsg += `1. Registrasi akun mandiri di Web Dashboard (${BASE_URL}/register) dengan verifikasi HOD & Admin, ATAU\n`;
+                    unregMsg += `2. Hubungi Admin / HOD Departemen Anda untuk mendaftarkan nomor ini.\n\n`;
+                    unregMsg += `_Catatan: Pendaftaran mandiri via WhatsApp telah dinonaktifkan._`;
                     await reply(unregMsg);
                 }
                 continue;
@@ -841,50 +843,8 @@ async function startSock() {
                 continue;
             }
 
-            if (lower.startsWith('!iam ') || lower.startsWith('!daftar ') || lower.startsWith('iam ')) {
-                const targetNameInput = text.substring(text.indexOf(' ') + 1).trim();
-                if (!targetNameInput) {
-                    await reply(`Format salah. Contoh: *!iam Ratna Procurement* atau *!daftar 1*`);
-                    continue;
-                }
-
-                const groupDeptKey = getDeptKeyForGroup(from);
-                const roster = groupDeptKey ? (DEPARTMENT_STAFF[groupDeptKey] || []) : [];
-                let targetName = targetNameInput;
-                const numIdx = parseInt(targetNameInput, 10);
-                if (!isNaN(numIdx) && numIdx >= 1 && numIdx <= roster.length) {
-                    targetName = roster[numIdx - 1];
-                } else if (roster.length > 0) {
-                    const matched = roster.find(n => n.toLowerCase().includes(targetNameInput.toLowerCase()));
-                    if (matched) targetName = matched;
-                }
-
-                // Anti-Impersonation Check
-                const conflictReg = getRegisteredPhoneByStaffName(targetName, groupDeptKey);
-                if (conflictReg) {
-                    const isSameSender = (conflictReg.phone === senderPhone) || 
-                                         (conflictReg.rawKey === senderPhone) || 
-                                         (conflictReg.phone === rawSenderPhone) || 
-                                         (conflictReg.rawKey === rawSenderPhone) ||
-                                         (deviceMappings[rawSenderPhone] === conflictReg.phone) ||
-                                         (deviceMappings[senderPhone] === conflictReg.phone);
-                    if (!isSameSender) {
-                        const masked = conflictReg.phone.length > 7 ? `${conflictReg.phone.substring(0, 4)}****${conflictReg.phone.slice(-3)}` : 'lain';
-                        await reply(`❌ *Peringatan Keamanan / Anti-Impersonasi* ❌\n\nNama *${targetName}* sudah terdaftar & dilindungi untuk nomor WhatsApp lain (+${masked}).\n\nAnda tidak dapat menggunakan nama ini dari nomor Anda.`);
-                        continue;
-                    }
-                }
-
-                staffPhones[senderPhone] = {
-                    name: targetName,
-                    staff_name: targetName,
-                    department: groupDeptKey ? groupDeptKey.toUpperCase() : (registeredUser?.department || ''),
-                    source: 'whatsapp_manual',
-                    syncedAt: new Date().toISOString(),
-                };
-                saveStaffPhones();
-
-                await reply(`✅ *Akun Berhasil Ditautkan!*\n\nNomor/ID +${senderPhone} kini terdaftar sebagai *${targetName}*.\n\nSekarang Anda cukup reply *!claim* pada notifikasi masalah di grup untuk mengambil pekerjaan secara instan.`);
+            if (lower.startsWith('!iam') || lower.startsWith('!daftar') || lower.startsWith('iam ')) {
+                await reply(`ℹ️ *Pendaftaran Mandiri via WhatsApp Dinonaktifkan*\n\nNomor WhatsApp hanya dapat didaftarkan melalui Web Dashboard (${BASE_URL}) dengan verifikasi HOD & Admin, atau didaftarkan langsung oleh Administrator.`);
                 continue;
             }
 
@@ -1183,98 +1143,13 @@ async function startSock() {
                             }
                         }
 
-                        // Unregistered user attempting to claim in General group for non-ALL issue
-                        if (!groupDeptKey && !registeredUser && !isAllDepts) {
-                            await reply(`ℹ️ *Akun WhatsApp Anda Belum Terdaftar*\n\nUntuk mengklaim masalah ini di grup General, bot perlu mengetahui departemen Anda.\n\nSilakan:\n1. Buka grup WhatsApp departemen Anda untuk mengklaim pekerjaan ini, ATAU\n2. Daftarkan nama staf Anda terlebih dahulu dengan mengetik *!iam <Nama Lengkap Anda>*`);
+                        if (!registeredUser) {
+                            await reply(`❌ *Klaim Ditolak (Nomor Belum Terdaftar)* ❌\n\nNomor WhatsApp Anda (+${senderPhone}) belum terdaftar di Web Dashboard Telunas.\n\nSesuai kebijakan Telunas, pengklaiman masalah hanya dapat dilakukan oleh staf terdaftar yang telah disetujui HOD & Admin.`);
                             continue;
                         }
 
-                        const roster = groupDeptKey ? (DEPARTMENT_STAFF[groupDeptKey] || []) : [];
-                        const takerArg = text.substring(6).trim(); // anything after !claim
-
-                        let takerName = null;
+                        let takerName = registeredUser.name || registeredUser.staff_name;
                         let autoSaved = false;
-
-                        // 1. Is sender already registered in Dashboard / local directory?
-                        if (registeredUser) {
-                            takerName = registeredUser.name || registeredUser.staff_name;
-                        } else if (takerArg) {
-                            // User specified name or roster index
-                            if (roster.length > 0) {
-                                const numIdx = parseInt(takerArg, 10);
-                                if (!isNaN(numIdx) && numIdx >= 1 && numIdx <= roster.length) {
-                                    takerName = roster[numIdx - 1];
-                                } else {
-                                    const matched = roster.find(n => n.toLowerCase().includes(takerArg.toLowerCase()));
-                                    takerName = matched || takerArg;
-                                }
-                            } else {
-                                takerName = takerArg;
-                            }
-
-                            // Anti-Impersonation Check
-                            const conflict = getRegisteredPhoneByStaffName(takerName, groupDeptKey);
-                            if (conflict) {
-                                const isSameSender = (conflict.phone === senderPhone) || 
-                                                     (conflict.rawKey === senderPhone) || 
-                                                     (conflict.phone === rawSenderPhone) || 
-                                                     (conflict.rawKey === rawSenderPhone) ||
-                                                     (deviceMappings[rawSenderPhone] === conflict.phone) ||
-                                                     (deviceMappings[senderPhone] === conflict.phone);
-                                if (!isSameSender) {
-                                    const masked = conflict.phone.length > 7 ? `${conflict.phone.substring(0, 4)}****${conflict.phone.slice(-3)}` : 'lain';
-                                    await reply(`❌ *Peringatan Keamanan / Anti-Impersonasi* ❌\n\nNama *${takerName}* sudah terdaftar & dilindungi untuk nomor WhatsApp lain (+${masked}).\n\nAnda tidak dapat mengklaim sebagai *${takerName}* dari nomor Anda.`);
-                                    continue;
-                                }
-                            }
-
-                            // Automatically remember this phone mapping & persist to Laravel DB!
-                            try {
-                                const linkRes = await axios.post(`${BASE_URL}/api/link-whatsapp-staff`, {
-                                    staff_name: takerName,
-                                    department: groupDeptKey ? groupDeptKey.toUpperCase() : '',
-                                    whatsapp_number: senderPhone
-                                });
-                                if (linkRes.data.success && linkRes.data.user) {
-                                    staffPhones[senderPhone] = {
-                                        name: linkRes.data.user.name || takerName,
-                                        staff_name: linkRes.data.user.name || takerName,
-                                        department: linkRes.data.user.department || (groupDeptKey ? groupDeptKey.toUpperCase() : ''),
-                                        id: linkRes.data.user.id,
-                                        source: 'whatsapp_lid',
-                                        syncedAt: new Date().toISOString(),
-                                    };
-                                    saveStaffPhones();
-                                    autoSaved = true;
-                                }
-                            } catch (e) {
-                                const errMsg = e.response?.data?.message || `Nama *${takerName}* sudah dilindungi untuk nomor WhatsApp lain.`;
-                                await reply(`❌ *Peringatan Keamanan / Anti-Impersonasi* ❌\n\n${errMsg}\n\nAnda tidak dapat mengklaim masalah ini sebagai *${takerName}*.`);
-                                continue;
-                            }
-                        } else if (roster.length > 0) {
-                            // Unregistered sender with no arguments: show roster
-                            let rosterMsg = `🤝 *Claiming Issue ${issueId}*\n`;
-                            rosterMsg += `📍 *${issue.title}* — ${issue.location}\n\n`;
-                            rosterMsg += `Pilih nomor roster Anda:\n\n`;
-                            roster.forEach((name, idx) => {
-                                const isClaimedByOther = getRegisteredPhoneByStaffName(name, groupDeptKey);
-                                let lockIcon = '';
-                                if (isClaimedByOther) {
-                                    const isMine = (isClaimedByOther.phone === senderPhone) || 
-                                                   (isClaimedByOther.rawKey === senderPhone) || 
-                                                   (isClaimedByOther.phone === rawSenderPhone) || 
-                                                   (deviceMappings[rawSenderPhone] === isClaimedByOther.phone);
-                                    lockIcon = isMine ? ' ✅ (Akun Anda)' : ' 🔒 (Terdaftar)';
-                                }
-                                rosterMsg += `${idx + 1}. ${name}${lockIcon}\n`;
-                            });
-                            rosterMsg += `\n💡 Reply *!claim <nomor>* (contoh: *!claim 1*).\nNomor HP Anda (+${senderPhone}) akan otomatis tersimpan untuk klaim instan berikutnya.`;
-                            await reply(rosterMsg);
-                            continue;
-                        } else {
-                            takerName = msg.pushName || 'Staff';
-                        }
 
                         const userTrueDept = registeredUser?.department || (groupDeptKey ? (groupDeptKey.charAt(0).toUpperCase() + groupDeptKey.slice(1)) : '');
                         const deptLabel = userTrueDept ? (userTrueDept.charAt(0).toUpperCase() + userTrueDept.slice(1)) : '';
@@ -1391,12 +1266,27 @@ async function startSock() {
                 const registeredStaff = getStaffByPhone(senderPhone) || getStaffByPhone(rawSenderPhone);
 
                 if (!registeredStaff) {
+                    if (intent === 'SOS' && !from.endsWith('@g.us')) {
+                        state.data.department = 'General';
+                        state.data.reporter = (msg.pushName || 'Guest/Staff') + ` (+${rawSenderPhone})`;
+                        state.data.isEmergency = true;
+                        state.step = STEPS.SOS_AWAITING_TITLE;
+                        userStates.set(stateKey, state);
+
+                        await reply(getMsg(
+                            `🚨 EMERGENCY MODE 🚨\n\nStay calm. What is the emergency situation?`,
+                            `🚨 MODE DARURAT 🚨\n\nTetap tenang. Apa situasi darurat yang terjadi?`
+                        ));
+                        continue;
+                    }
+
                     await reply(
-                        `🔒 *AKSES TERBATAS — KEAMANAN TELUNAS* 🔒\n\n` +
-                        `Nomor WhatsApp Anda (+${rawSenderPhone}) belum terdaftar atau terhubung dengan akun Telunas Issue Tracker.\n\n` +
-                        `Untuk mendaftarkan akun Anda:\n` +
-                        `1. Masukkan nomor WhatsApp Anda di menu *Profile* Web Dashboard, ATAU\n` +
-                        `2. Cukup *reply notifikasi masalah* di grup WhatsApp departemen Anda dengan mengetik *!claim*, lalu pilih nama Anda satu kali. Bot akan otomatis mengingat Anda untuk seterusnya!`
+                        `🔒 *AKSES TERBATAS — TELUNAS RESORT* 🔒\n\n` +
+                        `Nomor WhatsApp Anda (+${rawSenderPhone}) belum terdaftar di Web Dashboard Telunas.\n\n` +
+                        `📌 *Cara Pendaftaran:*\n` +
+                        `1. Registrasi akun mandiri di Web Dashboard (${BASE_URL}/register) dengan persetujuan HOD & Admin, ATAU\n` +
+                        `2. Hubungi Admin / HOD Departemen Anda untuk mendaftarkan nomor ini.\n\n` +
+                        `_Catatan: Pendaftaran langsung via WhatsApp telah dinonaktifkan._`
                     );
                     continue;
                 }
@@ -2632,6 +2522,26 @@ app.post(['/sync-staff', '/api/sync-staff'], async (req, res) => {
 app.get(['/sync-staff', '/api/sync-staff'], async (req, res) => {
     const result = await syncStaffDirectory();
     res.json(result);
+});
+
+app.post(['/notify-direct', '/api/notify-direct'], async (req, res) => {
+    try {
+        const { phone, message } = req.body;
+        if (!globalSock) {
+            return res.status(500).json({ error: 'Socket not initialized.' });
+        }
+        if (!phone || !message) {
+            return res.status(400).json({ error: 'Phone and message are required.' });
+        }
+        let cleanPhone = normalizePhoneNumber(phone);
+        const jid = `${cleanPhone}@s.whatsapp.net`;
+        await globalSock.sendMessage(jid, { text: message });
+        console.log(`[Ticket Notification] Sent private WhatsApp message to +${cleanPhone}`);
+        res.json({ success: true });
+    } catch (err) {
+        console.error('Failed sending direct notification:', err.message);
+        res.status(500).json({ error: err.message });
+    }
 });
 
 app.post('/notify', async (req, res) => {
