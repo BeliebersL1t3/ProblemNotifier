@@ -164,4 +164,70 @@ class TicketNotificationService
             self::sendWhatsApp($targetPhone, $waMsg);
         }
     }
+
+    /**
+     * Notify a user when their HOD status is granted or revoked, including which admin did it.
+     */
+    public static function notifyHodStatusChange(User $targetUser, bool $isGranted, ?User $adminUser, ?string $hodTitle = null): void
+    {
+        $adminName = $adminUser ? ($adminUser->staff_name ?: $adminUser->name) : 'Administrator';
+        $department = $targetUser->department ?: 'Umum';
+
+        if ($isGranted) {
+            $userTitle = "👑 Diangkat Menjadi Head of Department (HOD)";
+            $userMessage = "Selamat! Anda telah diangkat menjadi Head of Department (HOD) untuk departemen {$department}"
+                         . ($hodTitle ? " ({$hodTitle})" : "")
+                         . " oleh Admin: {$adminName}.";
+
+            $adminTitle = "Perubahan HOD: {$targetUser->name} ({$department})";
+            $adminMessage = "Admin {$adminName} telah mengangkat {$targetUser->name} sebagai HOD departemen {$department}"
+                          . ($hodTitle ? " ({$hodTitle})" : "") . ".";
+        } else {
+            $userTitle = "⚠️ Status Head of Department (HOD) Dicabut";
+            $userMessage = "Status Head of Department (HOD) Anda untuk departemen {$department} telah dicabut oleh Admin: {$adminName}.";
+
+            $adminTitle = "Pencabutan HOD: {$targetUser->name} ({$department})";
+            $adminMessage = "Admin {$adminName} telah mencabut status HOD dari {$targetUser->name} ({$department}).";
+        }
+
+        // 1. In-app notification for the affected user
+        self::createDashboardNotification([
+            'user_id' => $targetUser->id,
+            'department' => $targetUser->department,
+            'type' => 'hod_status_change',
+            'title' => $userTitle,
+            'message' => $userMessage,
+            'link' => '/profile',
+        ]);
+
+        // 2. In-app notification for other Admins
+        self::createDashboardNotification([
+            'role_target' => 'admin',
+            'type' => 'hod_status_change',
+            'title' => $adminTitle,
+            'message' => $adminMessage,
+            'link' => '/users',
+        ]);
+
+        // 3. Direct WhatsApp notification to user if enabled
+        if ($targetUser->notify_whatsapp_tickets && !empty($targetUser->whatsapp_number)) {
+            if ($isGranted) {
+                $waMsg = "👑 *PEMBERITAHUAN HOD TELUNAS* 👑\n\n"
+                       . "Halo *{$targetUser->name}*,\n\n"
+                       . "Akun Anda telah *DIANGKAT* menjadi *Head of Department (HOD)* untuk departemen *{$department}*"
+                       . ($hodTitle ? " ({$hodTitle})" : "") . ".\n\n"
+                       . "• *Ditetapkan oleh Admin:* {$adminName}\n"
+                       . "• *Wewenang:* Anda kini dapat meninjau & menyetujui tiket permohonan staf dan akun baru di departemen Anda.\n\n"
+                       . "Silakan masuk ke Web Dashboard Telunas untuk melihat detail akun Anda.";
+            } else {
+                $waMsg = "⚠️ *PEMBERITAHUAN HOD TELUNAS* ⚠️\n\n"
+                       . "Halo *{$targetUser->name}*,\n\n"
+                       . "Status *Head of Department (HOD)* Anda untuk departemen *{$department}* telah *DICABUT*.\n\n"
+                       . "• *Dicabut oleh Admin:* {$adminName}\n"
+                       . "• *Status Terkini:* Anggota Staf Biasa\n\n"
+                       . "Akses peninjauan tiket HOD untuk akun Anda telah dinonaktifkan.";
+            }
+            self::sendWhatsApp($targetUser->whatsapp_number, $waMsg);
+        }
+    }
 }

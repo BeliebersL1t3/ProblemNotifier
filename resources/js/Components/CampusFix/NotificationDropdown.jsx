@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Bell, Check, Clock, Ticket, AlertCircle, ExternalLink, CheckCheck } from 'lucide-react';
+import { Bell, Check, Clock, Ticket, AlertCircle, ExternalLink, CheckCheck, Crown } from 'lucide-react';
 import { Link } from '@inertiajs/react';
 
 export default function NotificationDropdown() {
@@ -163,9 +163,15 @@ export default function NotificationDropdown() {
                                                 ? 'bg-emerald-100 text-emerald-700'
                                                 : item.type === 'ticket_rejected'
                                                 ? 'bg-rose-100 text-rose-700'
+                                                : item.type === 'hod_status_change'
+                                                ? 'bg-amber-100 text-amber-800'
                                                 : 'bg-indigo-100 text-indigo-700'
                                         }`}>
-                                            <Ticket className="w-3.5 h-3.5" />
+                                            {item.type === 'hod_status_change' ? (
+                                                <Crown className="w-3.5 h-3.5 text-amber-700" />
+                                            ) : (
+                                                <Ticket className="w-3.5 h-3.5" />
+                                            )}
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <p className="font-semibold text-slate-900 leading-tight">
@@ -184,7 +190,7 @@ export default function NotificationDropdown() {
                                                         onClick={() => setIsOpen(false)}
                                                         className="text-[11px] text-indigo-600 hover:text-indigo-800 font-semibold flex items-center gap-0.5"
                                                     >
-                                                        Lihat Tiket <ExternalLink className="w-2.5 h-2.5" />
+                                                        {item.link.includes('profile') ? 'Lihat Profil' : item.link.includes('users') ? 'Kelola Akun' : 'Lihat Tiket'} <ExternalLink className="w-2.5 h-2.5" />
                                                     </Link>
                                                 )}
                                             </div>

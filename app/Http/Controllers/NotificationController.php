@@ -24,12 +24,12 @@ class NotificationController extends Controller
             ->take(40)
             ->get();
 
-        $tickets = $allNotifications->filter(function ($n) {
-            return in_array($n->type, ['ticket_request', 'ticket_approved', 'ticket_rejected']);
-        })->values();
-
         $issues = $allNotifications->filter(function ($n) {
             return $n->type === 'issue_progress';
+        })->values();
+
+        $tickets = $allNotifications->filter(function ($n) {
+            return $n->type !== 'issue_progress';
         })->values();
 
         $unreadCount = $allNotifications->where('is_read', false)->count();

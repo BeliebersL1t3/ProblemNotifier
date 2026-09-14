@@ -338,11 +338,15 @@ class UserController extends Controller
             $user->notify_whatsapp_tickets = false;
         }
 
+        $actingAdmin = auth()->user();
+        $wasHod = (bool) $user->is_hod;
         if ($request->has('is_hod')) {
             $user->is_hod = $request->boolean('is_hod');
         }
         if ($request->has('hod_title')) {
-            $user->hod_title = $request->input('hod_title');
+            $user->hod_title = $user->is_hod ? $request->input('hod_title') : null;
+        } elseif (!$user->is_hod) {
+            $user->hod_title = null;
         }
         if ($request->has('is_active')) {
             $user->is_active = $request->boolean('is_active');
@@ -363,6 +367,16 @@ class UserController extends Controller
         }
 
         $user->save();
+
+        // If HOD status was changed, notify user and other admins with acting admin info
+        if ($wasHod !== (bool) $user->is_hod) {
+            \App\Services\TicketNotificationService::notifyHodStatusChange(
+                $user,
+                (bool) $user->is_hod,
+                $actingAdmin,
+                $user->hod_title
+            );
+        }
 
         // Notify WhatsApp bot to sync staff memory in real-time
         try {
@@ -642,6 +656,7 @@ class UserController extends Controller
     {
         $this->ensureAdmin();
 
+        $actingAdmin = auth()->user();
         $user = User::withTrashed()->findOrFail($id);
         $user->is_hod = !$user->is_hod;
         if ($request->filled('hod_title')) {
@@ -652,10 +667,18 @@ class UserController extends Controller
         $user->save();
 
         UserAuditLog::record(
-            auth()->user(),
+            $actingAdmin,
             $user,
             $user->is_hod ? 'USER_PROMOTED_HOD' : 'USER_DEMOTED_HOD',
             ['is_hod' => $user->is_hod, 'hod_title' => $user->hod_title]
+        );
+
+        // Notify user about HOD status change and who did it
+        \App\Services\TicketNotificationService::notifyHodStatusChange(
+            $user,
+            (bool) $user->is_hod,
+            $actingAdmin,
+            $user->hod_title
         );
 
         return response()->json([
