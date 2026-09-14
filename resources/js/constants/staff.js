@@ -24,7 +24,7 @@ export const ALL_DEPARTMENTS = [
 
 // Sub-units / Sub-Departments under each parent department
 export const DEPARTMENT_SUBDIVISIONS = {
-    'HR': ['HR', 'Legal', 'LnD', 'Transportasi'],
+    'HR': ['HR', 'Legal', 'LnD', 'Transportasi', 'Tekong'],
     'GR': ['GRE', 'Service', 'TIrek', 'Spa', 'Bar'],
     'OE': ['OE'],
     'Kitchen': ['Kitchen'],

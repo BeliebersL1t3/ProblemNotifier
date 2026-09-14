@@ -4,22 +4,20 @@ import PrimaryButton from '@/Components/PrimaryButton';
 import TextInput from '@/Components/TextInput';
 import GuestLayout from '@/Layouts/GuestLayout';
 import { Head, Link, useForm } from '@inertiajs/react';
+import { DEPARTMENT_SUBDIVISIONS, normalizeDepartment } from '@/constants/departments';
 
-const DEPARTMENTS = [
-    'Engineering',
-    'Housekeeping',
-    'Kitchen',
-    'F&B',
-    'Guest Relations',
-    'Human Resources',
-    'IT',
-    'Procurement',
-    'Finance',
-    'Security',
-    'Activities',
-    'Marine',
-    'Operational Excellence',
-    'General',
+const DEPARTMENT_OPTIONS = [
+    { value: 'HR', label: 'HR (Human Resources)' },
+    { value: 'GR', label: 'GR (Guest Relations)' },
+    { value: 'Engineer', label: 'Engineering / Maintenance' },
+    { value: 'Kitchen', label: 'Kitchen (Food & Beverage)' },
+    { value: 'HK', label: 'HK (Housekeeping)' },
+    { value: 'IT', label: 'IT & Technology' },
+    { value: 'Fasilitas', label: 'Fasilitas & Security' },
+    { value: 'Procurement', label: 'Procurement & Logistics' },
+    { value: 'Finance', label: 'Finance & Accounting' },
+    { value: 'Reservasi', label: 'Reservasi, Sales & Marketing' },
+    { value: 'OE', label: 'OE (Operational Excellence)' },
 ];
 
 export default function Register() {
@@ -32,6 +30,14 @@ export default function Register() {
         subdivision: '',
         whatsapp_number: '',
     });
+
+    const normDept = normalizeDepartment(data.department);
+    const rawSubs = data.department 
+        ? (DEPARTMENT_SUBDIVISIONS[normDept] || DEPARTMENT_SUBDIVISIONS[data.department] || [])
+        : [];
+    const specificSubdivisions = rawSubs.filter(
+        s => s.toLowerCase() !== (data.department || '').toLowerCase() && s.toLowerCase() !== normDept.toLowerCase()
+    );
 
     const submit = (e) => {
         e.preventDefault();
@@ -83,14 +89,21 @@ export default function Register() {
                             id="department"
                             name="department"
                             value={data.department}
-                            className="mt-1 block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                            onChange={(e) => setData('department', e.target.value)}
+                            className="mt-1 block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500 bg-white"
+                            onChange={(e) => {
+                                const val = e.target.value;
+                                setData(prev => ({
+                                    ...prev,
+                                    department: val,
+                                    subdivision: '',
+                                }));
+                            }}
                             required
                         >
                             <option value="">-- Pilih Departemen --</option>
-                            {DEPARTMENTS.map((dept) => (
-                                <option key={dept} value={dept}>
-                                    {dept}
+                            {DEPARTMENT_OPTIONS.map((dept) => (
+                                <option key={dept.value} value={dept.value}>
+                                    {dept.label}
                                 </option>
                             ))}
                         </select>
@@ -99,14 +112,35 @@ export default function Register() {
 
                     <div>
                         <InputLabel htmlFor="subdivision" value="Subdivisi (Opsional)" />
-                        <TextInput
-                            id="subdivision"
-                            name="subdivision"
-                            value={data.subdivision}
-                            className="mt-1 block w-full text-sm"
-                            placeholder="Contoh: Tekong, Pest Control"
-                            onChange={(e) => setData('subdivision', e.target.value)}
-                        />
+                        {specificSubdivisions.length > 0 ? (
+                            <select
+                                id="subdivision"
+                                name="subdivision"
+                                value={data.subdivision}
+                                className="mt-1 block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500 bg-white"
+                                onChange={(e) => setData('subdivision', e.target.value)}
+                            >
+                                <option value="">-- Tanpa Subdivisi Khusus ({data.department}) --</option>
+                                {specificSubdivisions.map((sub) => (
+                                    <option key={sub} value={sub}>
+                                        {sub}
+                                    </option>
+                                ))}
+                            </select>
+                        ) : (
+                            <select
+                                id="subdivision"
+                                name="subdivision"
+                                disabled
+                                className="mt-1 block w-full rounded-md border-gray-200 bg-gray-50 text-gray-400 text-sm shadow-sm cursor-not-allowed"
+                            >
+                                <option value="">
+                                    {!data.department 
+                                        ? '-- Pilih Departemen Dahulu --' 
+                                        : `Tidak ada subdivisi khusus (${data.department})`}
+                                </option>
+                            </select>
+                        )}
                         <InputError message={errors.subdivision} className="mt-1" />
                     </div>
                 </div>
