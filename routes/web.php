@@ -53,6 +53,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/tickets', [ApprovalTicketController::class, 'index'])->name('tickets.index');
     Route::post('/tickets/whatsapp', [ApprovalTicketController::class, 'storeWhatsappTicket'])->name('tickets.whatsapp');
     Route::post('/tickets/password', [ApprovalTicketController::class, 'storePasswordResetTicket'])->name('tickets.password');
+    Route::post('/tickets/department-transfer', [ApprovalTicketController::class, 'storeDepartmentTransferTicket'])->name('tickets.departmentTransfer');
     Route::post('/tickets/{id}/hod-action', [ApprovalTicketController::class, 'hodAction'])->name('tickets.hodAction');
     Route::post('/tickets/{id}/admin-action', [ApprovalTicketController::class, 'adminAction'])->name('tickets.adminAction');
 

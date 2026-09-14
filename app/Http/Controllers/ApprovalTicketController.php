@@ -426,6 +426,24 @@ class ApprovalTicketController extends Controller
                         $ticket->user->save();
                     }
                     break;
+
+                case 'department_transfer':
+                    if ($ticket->user && $ticket->requested_value) {
+                        $parts = explode('::', $ticket->requested_value);
+                        $targetDept = trim($parts[0] ?? '');
+                        $targetSubdiv = isset($parts[1]) && trim($parts[1]) !== '' ? trim($parts[1]) : null;
+
+                        if ($targetDept) {
+                            $ticket->user->department = $targetDept;
+                            $ticket->user->subdivision = $targetSubdiv;
+                            // Revoke HOD role if user was HOD in previous department
+                            if ($ticket->user->is_hod) {
+                                $ticket->user->is_hod = false;
+                            }
+                            $ticket->user->save();
+                        }
+                    }
+                    break;
             }
 
             // Sync WhatsApp bot memory in real-time
@@ -471,6 +489,7 @@ class ApprovalTicketController extends Controller
             'whatsapp_change' => 'Perubahan Nomor WhatsApp',
             'whatsapp_unlink' => 'Pelepasan Nomor WhatsApp',
             'password_reset' => 'Reset Password',
+            'department_transfer' => 'Mutasi / Pindah Departemen',
             default => 'Permohonan Tiket',
         };
     }

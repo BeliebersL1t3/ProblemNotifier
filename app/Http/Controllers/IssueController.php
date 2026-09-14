@@ -178,6 +178,38 @@ class IssueController extends Controller
         return $map[$key] ?? $key;
     }
 
+    /**
+     * Check whether an authenticated user is authorized to modify/action an issue.
+     * Regular staff transferred to another department cannot modify issues from their past department.
+     */
+    private function isAuthorizedToModifyIssue($user, array $currentRow): bool
+    {
+        if (!$user) return false;
+        if ($user->isAdmin()) return true;
+
+        $userDept = $user->department ?? '';
+        if (empty($userDept)) return false;
+
+        $rawAssigned = !empty($currentRow[23]) ? $currentRow[23] : (!empty($currentRow[21]) ? $currentRow[21] : '');
+        $assignedList = !empty($rawAssigned) ? array_map('trim', explode(',', $rawAssigned)) : [];
+        $assignedListUpper = array_map('strtoupper', $assignedList);
+        if (empty($assignedList) || in_array('ALL', $assignedListUpper)) {
+            return true;
+        }
+
+        $originDept = $currentRow[22] ?? '';
+        $userSubdiv = $user->subdivision ?? '';
+
+        $assignedNorm = array_map(fn($d) => $this->normalizeDeptKey($d), $assignedList);
+        $userDeptNorm = $this->normalizeDeptKey($userDept);
+        $userSubdivNorm = !empty($userSubdiv) ? $this->normalizeDeptKey($userSubdiv) : '';
+        $originNorm = !empty($originDept) ? $this->normalizeDeptKey($originDept) : '';
+
+        return in_array($userDeptNorm, $assignedNorm) ||
+               (!empty($userSubdivNorm) && in_array($userSubdivNorm, $assignedNorm)) ||
+               (!empty($originNorm) && $userDeptNorm === $originNorm);
+    }
+
     /** Resolve the active sheet: use ?sheet= param, else the newest sheet tab. */
     private function resolveSheet(?string $sheetParam = null): string
     {
@@ -1123,6 +1155,15 @@ class IssueController extends Controller
                 ], 422);
             }
 
+            $authUser = auth()->user();
+            if (!$this->isAuthorizedToModifyIssue($authUser, $currentRow)) {
+                $userDept = $authUser?->department ?? 'lain';
+                return response()->json([
+                    'success' => false,
+                    'message' => "Akses Ditolak: Anda saat ini bertugas di departemen {$userDept}. Riwayat isu dari departemen terdahulu hanya dapat dilihat (Read-Only).",
+                ], 403);
+            }
+
             $submittedAtRaw = $currentRow[7] ?? null;
 
             $proofUrl = '';
@@ -1249,6 +1290,15 @@ class IssueController extends Controller
                     'message'    => 'Kartu masalah ini sudah diarsipkan oleh Admin (Archived).',
                     'isArchived' => true,
                 ], 422);
+            }
+
+            $authUser = auth()->user();
+            if (!$this->isAuthorizedToModifyIssue($authUser, $currentRow)) {
+                $userDept = $authUser?->department ?? 'lain';
+                return response()->json([
+                    'success' => false,
+                    'message' => "Akses Ditolak: Anda saat ini bertugas di departemen {$userDept}. Riwayat isu dari departemen terdahulu hanya dapat dilihat (Read-Only).",
+                ], 403);
             }
 
             $pendingDataRaw = $currentRow[18] ?? '';
@@ -1488,6 +1538,14 @@ class IssueController extends Controller
             $canEditClaim   = $isAdmin || $isAssigned || (!empty($currentTaker) && str_contains(strtolower($currentTaker), $userDept));
             $canEditPending = $isAdmin || $isAssigned || (!empty($currentPendingBy) && str_contains(strtolower($currentPendingBy), $userDept));
             $canEditSolved  = $isAdmin || $isAssigned || (!empty($currentSolver) && str_contains(strtolower($currentSolver), $userDept));
+
+            if (!$isAdmin && !$isOrigin && !$isAssigned) {
+                $deptDisplay = $user->department ?: 'lain';
+                return response()->json([
+                    'success' => false,
+                    'message' => "Akses Ditolak: Anda saat ini bertugas di departemen {$deptDisplay}. Riwayat pekerjaan terdahulu hanya dapat dilihat (Read-Only).",
+                ], 403);
+            }
 
             if (!$canEditReport && !$canEditClaim && !$canEditPending && !$canEditSolved) {
                 return response()->json([

@@ -18,9 +18,21 @@ class ProfileController extends Controller
      */
     public function edit(Request $request): Response
     {
+        $user = $request->user();
+
+        $pendingTickets = \App\Models\ApprovalTicket::where('user_id', $user->id)
+            ->whereIn('status', ['pending_hod', 'pending_admin'])
+            ->get();
+
+        $pendingTransferTicket = $pendingTickets->firstWhere('type', 'department_transfer');
+        $pendingWaOrPwdTicket = $pendingTickets->whereIn('type', ['whatsapp_change', 'whatsapp_unlink', 'password_reset'])->first();
+
         return Inertia::render('Profile/Edit', [
-            'mustVerifyEmail' => $request->user() instanceof MustVerifyEmail,
+            'mustVerifyEmail' => $user instanceof MustVerifyEmail,
             'status' => session('status'),
+            'pendingTicket' => $pendingWaOrPwdTicket,
+            'pendingTransferTicket' => $pendingTransferTicket,
+            'notifyWhatsAppTickets' => (bool) $user->notify_whatsapp_tickets,
         ]);
     }
 
