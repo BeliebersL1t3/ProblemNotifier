@@ -449,6 +449,7 @@ function AnalyticsInner() {
     };
     const [selectedStatusFilters, setSelectedStatusFilters] = useState([]);
     const [selectedPriorityFilters, setSelectedPriorityFilters] = useState([]);
+    const [showArchivedInTimeline, setShowArchivedInTimeline] = useState(false);
     // Department filter: empty by default so it shows all issues within the user's scope
     const [selectedDepartmentFilters, setSelectedDepartmentFilters] = useState([]);
     const [deptFilterMode, setDeptFilterMode] = useState('assigned');
@@ -513,7 +514,7 @@ function AnalyticsInner() {
         const standardList = activeList.filter(isStandard);
 
         return {
-            total: activeList.length,
+            total: list.length,
             open: activeList.filter(i => i.status === 'open').length,
             progress: activeList.filter(i => i.status === 'progress').length,
             pending: activeList.filter(i => i.status === 'pending').length,
@@ -852,7 +853,7 @@ function AnalyticsInner() {
         
         timeFilteredIssues.forEach(issue => {
             if (issue.isArchived) {
-                if (!isAdmin) return;
+                if (!isAdmin || !showArchivedInTimeline) return;
 
                 const currentYear = new Date().getFullYear();
                 let dateStr = String(issue.archivedAtStr || '').trim();
@@ -1177,15 +1178,13 @@ function AnalyticsInner() {
 
             // 1. Combinable Status & Priority Filters (matches current status of the issue)
             if (selectedStatusFilters.length > 0) {
-                const isArchivedSelected = selectedStatusFilters.includes('archived');
                 const isCriticalSelected = selectedStatusFilters.includes('critical');
-                const selectedStatuses = selectedStatusFilters.filter(f => f !== 'critical' && f !== 'archived');
+                const selectedStatuses = selectedStatusFilters.filter(f => f !== 'critical');
                 const isItemArchived = ev.type === 'archive' || ev.originalIssue?.isArchived;
 
                 if (isItemArchived) {
-                    if (!isArchivedSelected) return false;
+                    return false;
                 } else {
-                    if (isArchivedSelected && selectedStatuses.length === 0 && !isCriticalSelected) return false;
 
                     const currentStatus = ev.originalIssue?.status;
                     const isEmergencyIssue = (ev.originalIssue?.category || '').toLowerCase() === 'emergency' || String(ev.issueId || '').startsWith('SOS');
@@ -1259,7 +1258,7 @@ function AnalyticsInner() {
         });
 
         return timelineLimit === 'all' ? filtered : filtered.slice(0, timelineLimit);
-    }, [timeFilteredIssues, timelineLimit, searchQuery, selectedStatusFilters, selectedPriorityFilters, selectedDepartmentFilters, deptFilterMode, selectedCategoryFilters]);
+    }, [timeFilteredIssues, timelineLimit, searchQuery, selectedStatusFilters, selectedPriorityFilters, selectedDepartmentFilters, deptFilterMode, selectedCategoryFilters, showArchivedInTimeline]);
 
     // Scroll-Linked Animation for Timeline Items
     useEffect(() => {
@@ -2046,20 +2045,27 @@ function AnalyticsInner() {
                             {isAdmin && analyticsStats.archived > 0 && (
                                 <button
                                     type="button"
-                                    onClick={() => handleStatusCardClick('archived')}
-                                    aria-pressed={selectedStatusFilters.includes('archived')}
+                                    onClick={() => setShowArchivedInTimeline(prev => !prev)}
+                                    aria-pressed={showArchivedInTimeline}
                                     className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all duration-200 flex items-center gap-1.5 border cursor-pointer select-none shadow-sm ${
-                                        selectedStatusFilters.includes('archived')
+                                        showArchivedInTimeline
                                             ? 'bg-rose-500/25 text-rose-300 border-rose-500/60 ring-1 ring-rose-500/40 font-bold'
                                             : 'bg-[#2A281E] text-rose-300/80 hover:text-rose-200 border-[#3B3929] hover:bg-[#3B3929]'
                                     }`}
-                                    title={lang === 'id' ? 'Saring aktivitas isu yang diarsipkan' : 'Filter archived issues'}
+                                    title={lang === 'id' 
+                                        ? (showArchivedInTimeline ? 'Sembunyikan isu diarsipkan dari aktivitas' : 'Klik untuk menambahkan isu diarsipkan ke aktivitas') 
+                                        : (showArchivedInTimeline ? 'Hide archived issues from activity' : 'Click to add archived issues to activity')}
                                 >
                                     <Archive className="w-3.5 h-3.5 text-rose-400" />
                                     <span>{lang === 'id' ? 'Arsip' : 'Archived'}</span>
-                                    <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold bg-rose-500/25 text-rose-200 border border-rose-500/30">
+                                    <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold ${
+                                        showArchivedInTimeline ? 'bg-rose-500 text-white' : 'bg-rose-500/25 text-rose-200 border border-rose-500/30'
+                                    }`}>
                                         {analyticsStats.archived}
                                     </span>
+                                    {showArchivedInTimeline && (
+                                        <span className="text-xs text-rose-300 font-bold">✓</span>
+                                    )}
                                 </button>
                             )}
 
@@ -2156,8 +2162,8 @@ function AnalyticsInner() {
                         })}
                     </div>
 
-                    {/* Active Filters Bar (Category / Department / Search) */}
-                    {(selectedCategoryFilters.length > 0 || selectedDepartmentFilters.length > 0 || selectedStatusFilters.length > 0 || searchQuery.trim()) && (
+                    {/* Active Filters Bar (Category / Department / Search / Archive) */}
+                    {(selectedCategoryFilters.length > 0 || selectedDepartmentFilters.length > 0 || selectedStatusFilters.length > 0 || showArchivedInTimeline || searchQuery.trim()) && (
                         <div className="flex items-center gap-2 flex-wrap bg-[#1E1D16] p-2.5 rounded-xl border border-[#3B3929]/70 text-xs">
                             <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
                                 <Tag className="w-3.5 h-3.5 text-[#C9AA71]" />
@@ -2251,6 +2257,20 @@ function AnalyticsInner() {
                                     </span>
                                 );
                             })}
+
+                            {showArchivedInTimeline && (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold bg-rose-500/25 text-rose-300 border border-rose-500/40 ring-1 ring-rose-500/30">
+                                    <span>📦 {lang === 'id' ? `Termasuk Arsip (${analyticsStats.archived})` : `Includes Archived (${analyticsStats.archived})`}</span>
+                                    <button 
+                                        type="button" 
+                                        onClick={() => setShowArchivedInTimeline(false)}
+                                        className="hover:text-white cursor-pointer ml-0.5"
+                                        title={lang === 'id' ? 'Sembunyikan arsip' : 'Hide archived'}
+                                    >
+                                        ✕
+                                    </button>
+                                </span>
+                            )}
 
                             {searchQuery.trim() && (
                                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30">
