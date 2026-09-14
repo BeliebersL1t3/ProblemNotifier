@@ -50,6 +50,33 @@ class LoginRequest extends FormRequest
             ]);
         }
 
+        $user = Auth::user();
+
+        if ($user->isRejected()) {
+            Auth::logout();
+            $reason = $user->rejection_reason ? ": \"{$user->rejection_reason}\"" : ". Silakan hubungi Admin atau HOD departemen Anda.";
+            throw ValidationException::withMessages([
+                'email' => "Akun Anda ditolak{$reason}",
+            ]);
+        }
+
+        if ($user->isPendingApproval()) {
+            Auth::logout();
+            $stage = $user->approval_status === 'pending_hod'
+                ? 'menunggu persetujuan HOD Departemen'
+                : 'menunggu persetujuan final dari Admin';
+            throw ValidationException::withMessages([
+                'email' => "Akun Anda belum aktif ({$stage}). Silakan tunggu konfirmasi.",
+            ]);
+        }
+
+        if (!$user->is_active) {
+            Auth::logout();
+            throw ValidationException::withMessages([
+                'email' => "Akun Anda saat ini dinonaktifkan. Silakan hubungi Admin.",
+            ]);
+        }
+
         RateLimiter::clear($this->throttleKey());
     }
 

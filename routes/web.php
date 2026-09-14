@@ -1,7 +1,9 @@
 <?php
 
-use App\Http\Controllers\IssueController;
+use App\Http\Controllers\ApprovalTicketController;
 use App\Http\Controllers\CategoryController;
+use App\Http\Controllers\IssueController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\OperationsController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\UserController;
@@ -41,10 +43,23 @@ Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::patch('/profile/whatsapp', [ProfileController::class, 'updateWhatsApp'])->name('profile.whatsapp');
+    Route::patch('/profile/notification-preferences', [ProfileController::class, 'updateNotificationPreferences'])->name('profile.notificationPreferences');
     Route::post('/profile/avatar', [ProfileController::class, 'updateAvatar'])->name('profile.avatar.update');
     Route::delete('/profile/avatar', [ProfileController::class, 'destroyAvatar'])->name('profile.avatar.destroy');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
     Route::get('/users', [UserController::class, 'index'])->name('users.index');
+
+    // Approval Tickets
+    Route::get('/tickets', [ApprovalTicketController::class, 'index'])->name('tickets.index');
+    Route::post('/tickets/whatsapp', [ApprovalTicketController::class, 'storeWhatsappTicket'])->name('tickets.whatsapp');
+    Route::post('/tickets/password', [ApprovalTicketController::class, 'storePasswordResetTicket'])->name('tickets.password');
+    Route::post('/tickets/{id}/hod-action', [ApprovalTicketController::class, 'hodAction'])->name('tickets.hodAction');
+    Route::post('/tickets/{id}/admin-action', [ApprovalTicketController::class, 'adminAction'])->name('tickets.adminAction');
+
+    // Dashboard Notifications Center
+    Route::get('/notifications', [NotificationController::class, 'getNotifications'])->name('notifications.index');
+    Route::post('/notifications/{id}/read', [NotificationController::class, 'markAsRead'])->name('notifications.read');
+    Route::post('/notifications/read-all', [NotificationController::class, 'markAllAsRead'])->name('notifications.readAll');
 });
 
 // CampusFix API Endpoints
@@ -85,6 +100,7 @@ Route::prefix('api')->group(function () {
         Route::delete('/users/{id}', [UserController::class, 'destroy']);
         Route::post('/users/{id}/restore', [UserController::class, 'restore']);
         Route::post('/users/{id}/reset-password', [UserController::class, 'resetPassword']);
+        Route::post('/users/{id}/toggle-hod', [UserController::class, 'toggleHod']);
         Route::get('/user-audit-logs', [UserController::class, 'auditLogs']);
     });
 });

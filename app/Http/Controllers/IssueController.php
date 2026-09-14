@@ -26,6 +26,24 @@ class IssueController extends Controller
         }
     }
 
+    private function notifyIssueProgress(?string $department, string $title, string $message, ?string $issueId = null): void
+    {
+        if (empty($department)) {
+            return;
+        }
+        try {
+            \App\Models\DashboardNotification::create([
+                'department' => $department,
+                'role_target' => 'department_user',
+                'type' => 'issue_progress',
+                'title' => $title,
+                'message' => $message,
+                'link' => $issueId ? "/?search={$issueId}" : null,
+                'is_read' => false,
+            ]);
+        } catch (\Throwable $e) {}
+    }
+
     private function resolveImageUrl(?string $raw): string
     {
         if (empty($raw)) {
@@ -1038,6 +1056,13 @@ class IssueController extends Controller
                 'taggedDepartments' => $taggedDepts,
             ]);
 
+            $this->notifyIssueProgress(
+                $originDept,
+                "Isu Diklaim: {$currentRow[1]}",
+                "Isu '{$currentRow[1]}' telah diklaim oleh {$request->taker}{$takerDeptStr}.",
+                $currentRow[0]
+            );
+
             return response()->json([
                 'success'   => true,
                 'message'   => 'Job claimed successfully!',
@@ -1159,6 +1184,13 @@ class IssueController extends Controller
                     'assignedDepartments' => $assignedDepts,
                     'taggedDepartments' => $taggedDepts,
                 ]);
+
+            $this->notifyIssueProgress(
+                $originDept,
+                "Isu Selesai (Solved): {$currentRow[1]}",
+                "Isu '{$currentRow[1]}' telah diselesaikan oleh {$request->solver}.",
+                $currentRow[0]
+            );
 
             return response()->json([
                 'success' => true,
@@ -1297,6 +1329,13 @@ class IssueController extends Controller
                     'assignedDepartments' => $assignedDepts,
                     'taggedDepartments' => $taggedDepts,
                 ]);
+
+            $this->notifyIssueProgress(
+                $originDept,
+                "Isu Tertunda (Pending): {$currentRow[1]}",
+                "Isu '{$currentRow[1]}' ditandai pending oleh {$request->pendingBy}. Alasan: {$request->pendingReason}",
+                $currentRow[0]
+            );
 
             return response()->json([
                 'success' => true,
@@ -1874,6 +1913,15 @@ class IssueController extends Controller
                     'taggedDepartments' => implode(', ', $allTagged),
                     'priority' => $newPriority ?? $currentRow[16] ?? 'low',
                 ]);
+
+                if ($newStatus !== $oldStatus) {
+                    $this->notifyIssueProgress(
+                        $originDept,
+                        "Status Isu Diperbarui: " . ($newTitle ?? $currentRow[1]),
+                        "Status berubah dari " . strtoupper($oldStatus) . " menjadi " . strtoupper($newStatus) . " oleh {$editorName}.",
+                        $currentRow[0]
+                    );
+                }
 
             return response()->json([
                 'success' => true,

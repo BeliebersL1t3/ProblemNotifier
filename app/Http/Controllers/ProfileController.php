@@ -41,19 +41,20 @@ class ProfileController extends Controller
     }
 
     /**
-     * Update user's WhatsApp number.
+     * Update user's WhatsApp number (Admin direct, regular user via ticket).
      */
     public function updateWhatsApp(Request $request): RedirectResponse
     {
         $request->validate([
             'whatsapp_number' => ['nullable', 'string', 'max:30'],
+            'reason' => ['nullable', 'string', 'max:500'],
         ]);
 
         $user = $request->user();
         $rawPhone = trim($request->input('whatsapp_number', ''));
+        $clean = null;
 
         if (!empty($rawPhone)) {
-            // Normalize: remove non-digits
             $clean = preg_replace('/[^0-9]/', '', $rawPhone);
             if (str_starts_with($clean, '0')) {
                 $clean = '62' . substr($clean, 1);
@@ -61,7 +62,7 @@ class ProfileController extends Controller
                 $clean = '62' . $clean;
             }
 
-            // Check if phone number is already registered to another user
+            // Check if phone number is already registered to another active user
             $conflict = \App\Models\User::where('whatsapp_number', $clean)
                 ->where('id', '!=', $user->id)
                 ->first();
@@ -71,20 +72,68 @@ class ProfileController extends Controller
                     'whatsapp_number' => "Nomor WhatsApp ini sudah digunakan oleh akun {$conflict->name} ({$conflict->department})."
                 ]);
             }
-
-            $user->whatsapp_number = $clean;
-        } else {
-            $user->whatsapp_number = null;
         }
 
+        // If Admin, direct update is permitted
+        if ($user->isAdmin()) {
+            $user->whatsapp_number = $clean;
+            $user->save();
+
+            try {
+                \Illuminate\Support\Facades\Http::timeout(1)->post('http://localhost:3000/sync-staff');
+            } catch (\Exception $e) {}
+
+            return Redirect::route('profile.edit')->with('status', 'whatsapp-updated');
+        }
+
+        // For regular users / HODs: create ApprovalTicket while keeping old number active!
+        $type = empty($clean) ? 'whatsapp_unlink' : 'whatsapp_change';
+
+        // Check for existing pending ticket
+        $existing = \App\Models\ApprovalTicket::where('user_id', $user->id)
+            ->whereIn('status', ['pending_hod', 'pending_admin'])
+            ->whereIn('type', ['whatsapp_change', 'whatsapp_unlink'])
+            ->first();
+
+        if ($existing) {
+            return Redirect::back()->withErrors([
+                'whatsapp_number' => "Anda masih memiliki tiket permohonan ({$existing->ticket_number}) yang sedang diproses."
+            ]);
+        }
+
+        $ticket = \App\Models\ApprovalTicket::create([
+            'ticket_number' => \App\Models\ApprovalTicket::generateTicketNumber($type),
+            'type' => $type,
+            'user_id' => $user->id,
+            'department' => $user->department ?: 'General',
+            'subdivision' => $user->subdivision,
+            'staff_name' => $user->staff_name ?: $user->name,
+            'email' => $user->email,
+            'current_value' => $user->whatsapp_number,
+            'requested_value' => $clean,
+            'reason' => $request->input('reason') ?: 'Permohonan penggantian nomor WhatsApp via profil',
+            'status' => 'pending_hod',
+        ]);
+
+        \App\Services\TicketNotificationService::notifyHods($ticket, empty($clean) ? 'Pelepasan Nomor WhatsApp' : 'Perubahan Nomor WhatsApp');
+
+        return Redirect::route('profile.edit')->with('status', 'whatsapp-ticket-submitted');
+    }
+
+    /**
+     * Update user's notification preferences
+     */
+    public function updateNotificationPreferences(Request $request): RedirectResponse
+    {
+        $request->validate([
+            'notify_whatsapp_tickets' => ['required', 'boolean'],
+        ]);
+
+        $user = $request->user();
+        $user->notify_whatsapp_tickets = $request->boolean('notify_whatsapp_tickets');
         $user->save();
 
-        // Notify WhatsApp bot to sync staff memory in real-time
-        try {
-            \Illuminate\Support\Facades\Http::timeout(1)->post('http://localhost:3000/sync-staff');
-        } catch (\Exception $e) {}
-
-        return Redirect::route('profile.edit')->with('status', 'whatsapp-updated');
+        return Redirect::route('profile.edit')->with('status', 'preferences-updated');
     }
 
     /**
@@ -92,8 +141,9 @@ class ProfileController extends Controller
      */
     public function staffDirectory()
     {
-        $users = \App\Models\User::whereNotNull('whatsapp_number')
-            ->select('id', 'name', 'staff_name', 'department', 'subdivision', 'role', 'whatsapp_number', 'permissions')
+        $users = \App\Models\User::activeApproved()
+            ->whereNotNull('whatsapp_number')
+            ->select('id', 'name', 'staff_name', 'department', 'subdivision', 'role', 'whatsapp_number', 'permissions', 'is_hod')
             ->get();
 
         return response()->json([
@@ -104,76 +154,14 @@ class ProfileController extends Controller
 
     /**
      * API endpoint: Link WhatsApp phone number to matching User from WhatsApp claiming.
+     * Deprecated: Self-registration via WhatsApp bot is disabled.
      */
     public function linkStaffFromWhatsApp(Request $request)
     {
-        $staffName = trim($request->input('staff_name', ''));
-        $department = trim($request->input('department', ''));
-        $rawPhone = trim($request->input('whatsapp_number', ''));
-
-        if (empty($rawPhone)) {
-            return response()->json(['success' => false, 'message' => 'Phone required'], 400);
-        }
-
-        $cleanPhone = preg_replace('/[^0-9]/', '', $rawPhone);
-        if (str_starts_with($cleanPhone, '0')) {
-            $cleanPhone = '62' . substr($cleanPhone, 1);
-        }
-
-        // First find user matching department AND staff_name
-        $query = \App\Models\User::query();
-        if (!empty($department)) {
-            $query->where(function($q) use ($department) {
-                $q->where('department', 'like', "%{$department}%")
-                  ->orWhere('name', 'like', "%{$department}%");
-            });
-        }
-
-        // Try to match staffName
-        $cleanStaff = preg_replace('/[^a-zA-Z0-9]/', '', $staffName);
-        $firstName = explode(' ', trim($staffName))[0] ?? '';
-        $matchedUser = (clone $query)->where(function($q) use ($staffName, $firstName, $cleanStaff) {
-            $q->where('staff_name', 'like', "%{$staffName}%")
-              ->orWhere('name', 'like', "%{$staffName}%")
-              ->orWhere('staff_name', 'like', "%{$firstName}%")
-              ->orWhere('name', 'like', "%{$firstName}%");
-        })->first();
-
-        // Fallback: match first user of that department if specific name not found
-        if (!$matchedUser && !empty($department)) {
-            $matchedUser = $query->first();
-        }
-
-        if ($matchedUser) {
-            // Anti-Impersonation: If account is already linked to another WhatsApp number, reject overwrite!
-            if (!empty($matchedUser->whatsapp_number) && $matchedUser->whatsapp_number !== $cleanPhone) {
-                return response()->json([
-                    'success' => false,
-                    'message' => "Akun {$matchedUser->name} sudah terdaftar untuk nomor WhatsApp lain (+{$matchedUser->whatsapp_number})."
-                ], 403);
-            }
-
-            // Unlink any other user who had this phone number to prevent duplicates
-            \App\Models\User::where('whatsapp_number', $cleanPhone)
-                ->where('id', '!=', $matchedUser->id)
-                ->update(['whatsapp_number' => null]);
-
-            $matchedUser->whatsapp_number = $cleanPhone;
-            $matchedUser->save();
-
-            return response()->json([
-                'success' => true,
-                'message' => "Linked phone to user {$matchedUser->name} ({$matchedUser->department})",
-                'user' => [
-                    'id' => $matchedUser->id,
-                    'name' => $matchedUser->name,
-                    'department' => $matchedUser->department,
-                    'whatsapp_number' => $matchedUser->whatsapp_number,
-                ]
-            ]);
-        }
-
-        return response()->json(['success' => false, 'message' => 'No matching user found'], 404);
+        return response()->json([
+            'success' => false,
+            'message' => 'Pendaftaran nomor WhatsApp mandiri via WhatsApp telah dinonaktifkan. Pendaftaran akun atau perubahan nomor hanya dapat dilakukan via Web Dashboard.'
+        ], 403);
     }
 
     /**

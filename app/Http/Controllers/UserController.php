@@ -155,6 +155,11 @@ class UserController extends Controller
                 'department'       => $user->department,
                 'subdivision'      => $user->subdivision,
                 'whatsapp_number'  => $user->whatsapp_number,
+                'is_hod'           => (bool) $user->is_hod,
+                'hod_title'        => $user->hod_title,
+                'approval_status'  => $user->approval_status ?? 'approved',
+                'is_active'        => (bool) ($user->is_active ?? true),
+                'rejection_reason' => $user->rejection_reason,
                 'raw_password'     => $user->raw_password,
                 'permissions'      => $user->permissions ?? self::getDefaultPermissions($user->role),
                 'has_restrictions' => $restrictionData['has_restrictions'],
@@ -208,7 +213,9 @@ class UserController extends Controller
             'role'            => 'required|in:admin,department,viewer',
             'department'      => 'nullable|string|max:100',
             'subdivision'     => 'nullable|string|max:100',
-            'whatsapp_number' => 'nullable|string|max:30',
+            'whatsapp_number' => 'required|string|max:30',
+            'is_hod'          => 'nullable|boolean',
+            'hod_title'       => 'nullable|string|max:100',
             'permissions'     => 'nullable|array',
         ]);
 
@@ -233,6 +240,11 @@ class UserController extends Controller
             'department'      => $validated['department'] ?? null,
             'subdivision'     => $validated['subdivision'] ?? null,
             'whatsapp_number' => $cleanPhone,
+            'is_hod'          => $request->boolean('is_hod'),
+            'hod_title'       => $validated['hod_title'] ?? null,
+            'approval_status' => 'approved',
+            'is_active'       => true,
+            'notify_whatsapp_tickets' => true,
             'permissions'     => $permissions,
         ]);
 
@@ -253,6 +265,7 @@ class UserController extends Controller
                     'email'       => $user->email,
                     'role'        => $user->role,
                     'department'  => $user->department,
+                    'is_hod'      => $user->is_hod,
                     'permissions' => $permissions,
                 ]
             ]
@@ -283,6 +296,10 @@ class UserController extends Controller
             'department'      => 'nullable|string|max:100',
             'subdivision'     => 'nullable|string|max:100',
             'whatsapp_number' => 'nullable|string|max:30',
+            'is_hod'          => 'nullable|boolean',
+            'hod_title'       => 'nullable|string|max:100',
+            'is_active'       => 'nullable|boolean',
+            'approval_status' => 'nullable|in:approved,pending_hod,pending_admin,rejected',
             'permissions'     => 'nullable|array',
         ]);
 
@@ -294,6 +311,8 @@ class UserController extends Controller
             'department'      => $user->department,
             'subdivision'     => $user->subdivision,
             'whatsapp_number' => $user->whatsapp_number,
+            'is_hod'          => $user->is_hod,
+            'is_active'       => $user->is_active,
             'permissions'     => $user->permissions,
         ];
 
@@ -315,6 +334,19 @@ class UserController extends Controller
         $user->department = $validated['department'] ?? null;
         $user->subdivision = $validated['subdivision'] ?? null;
         $user->whatsapp_number = $cleanPhone;
+
+        if ($request->has('is_hod')) {
+            $user->is_hod = $request->boolean('is_hod');
+        }
+        if ($request->has('hod_title')) {
+            $user->hod_title = $request->input('hod_title');
+        }
+        if ($request->has('is_active')) {
+            $user->is_active = $request->boolean('is_active');
+        }
+        if ($request->has('approval_status')) {
+            $user->approval_status = $request->input('approval_status');
+        }
 
         if (isset($validated['permissions'])) {
             $user->permissions = $validated['permissions'];
@@ -597,6 +629,37 @@ class UserController extends Controller
         return response()->json([
             'success' => true,
             'data'    => $logs,
+        ]);
+    }
+
+    /**
+     * Toggle HOD status for a user.
+     */
+    public function toggleHod(Request $request, $id)
+    {
+        $this->ensureAdmin();
+
+        $user = User::withTrashed()->findOrFail($id);
+        $user->is_hod = !$user->is_hod;
+        if ($request->filled('hod_title')) {
+            $user->hod_title = $request->input('hod_title');
+        } elseif (!$user->is_hod) {
+            $user->hod_title = null;
+        }
+        $user->save();
+
+        UserAuditLog::record(
+            auth()->user(),
+            $user,
+            $user->is_hod ? 'USER_PROMOTED_HOD' : 'USER_DEMOTED_HOD',
+            ['is_hod' => $user->is_hod, 'hod_title' => $user->hod_title]
+        );
+
+        return response()->json([
+            'success' => true,
+            'message' => $user->is_hod ? "Akun {$user->name} dijadikan HOD." : "Status HOD {$user->name} dicabut.",
+            'is_hod'  => $user->is_hod,
+            'hod_title' => $user->hod_title,
         ]);
     }
 }
