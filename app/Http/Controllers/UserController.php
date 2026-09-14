@@ -136,7 +136,16 @@ class UserController extends Controller
 
         // Role filter
         if ($role = $request->query('role')) {
-            $query->where('role', $role);
+            if ($role === 'hod') {
+                $query->where('is_hod', true);
+            } else {
+                $query->where('role', $role);
+            }
+        }
+
+        // Dedicated HOD filter
+        if ($request->has('is_hod')) {
+            $query->where('is_hod', $request->boolean('is_hod'));
         }
 
         // Department filter
@@ -179,6 +188,7 @@ class UserController extends Controller
             'total_admins'      => $allActive->where('role', 'admin')->count(),
             'total_departments' => $allActive->where('role', 'department')->count(),
             'total_viewers'     => $allActive->where('role', 'viewer')->count(),
+            'total_hod'         => $allActive->where('is_hod', true)->count(),
             'total_whatsapp'    => $allActive->whereNotNull('whatsapp_number')->where('whatsapp_number', '!=', '')->count(),
             'total_restricted'  => $allActive->filter(fn($u) => $this->analyzeRestrictions($u)['has_restrictions'])->count(),
             'total_archived'    => User::onlyTrashed()->count(),

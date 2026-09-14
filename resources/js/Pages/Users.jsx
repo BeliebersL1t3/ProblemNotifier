@@ -35,6 +35,7 @@ function UsersInner({ initialUsers, initialStats }) {
     const [searchQuery, setSearchQuery] = useState('');
     const [roleFilter, setRoleFilter] = useState('all');
     const [deptFilter, setDeptFilter] = useState('all');
+    const [hodFilter, setHodFilter] = useState(false);
     const [statusFilter, setStatusFilter] = useState('active'); // 'active' | 'archived' | 'all'
     const [loading, setLoading] = useState(false);
 
@@ -133,6 +134,7 @@ function UsersInner({ initialUsers, initialStats }) {
             const params = new URLSearchParams();
             if (searchQuery) params.append('q', searchQuery);
             if (roleFilter !== 'all') params.append('role', roleFilter);
+            if (hodFilter) params.append('is_hod', '1');
             if (deptFilter !== 'all') params.append('department', deptFilter);
             if (statusFilter) params.append('status', statusFilter);
 
@@ -156,7 +158,7 @@ function UsersInner({ initialUsers, initialStats }) {
             fetchUsers();
         }, 250);
         return () => clearTimeout(timer);
-    }, [searchQuery, roleFilter, deptFilter, statusFilter]);
+    }, [searchQuery, roleFilter, deptFilter, statusFilter, hodFilter]);
 
     const handleCreateUser = () => {
         setSelectedUser(null);
@@ -347,7 +349,7 @@ function UsersInner({ initialUsers, initialStats }) {
                     </div>
 
                     {/* Quick Stats Grid */}
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
                         <div className="rounded-xl border border-[#3B3929] bg-[#2A281E]/80 p-3.5 space-y-1">
                             <div className="text-[11px] font-bold text-[#A19F8D] uppercase tracking-wider">Total Akun</div>
                             <div className="text-xl font-extrabold text-[#FAFAFA]">{stats.total_users ?? 0}</div>
@@ -361,6 +363,27 @@ function UsersInner({ initialUsers, initialStats }) {
                         <div className="rounded-xl border border-[#3B3929] bg-[#2A281E]/80 p-3.5 space-y-1">
                             <div className="text-[11px] font-bold text-sky-400 uppercase tracking-wider">Departemen</div>
                             <div className="text-xl font-extrabold text-sky-400">{stats.total_departments ?? 0}</div>
+                        </div>
+
+                        {/* HOD Stat Card with 1-click Filter Toggle */}
+                        <div 
+                            onClick={() => setHodFilter(prev => !prev)}
+                            className={`rounded-xl border p-3.5 space-y-1 cursor-pointer transition-all ${
+                                hodFilter || roleFilter === 'hod'
+                                    ? 'border-amber-400 bg-amber-500/25 ring-1 ring-amber-400 shadow-md'
+                                    : 'border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/15'
+                            }`}
+                            title="Klik untuk filter hanya akun HOD"
+                        >
+                            <div className="text-[11px] font-bold text-amber-400 uppercase tracking-wider flex items-center justify-between">
+                                <span>👑 HOD</span>
+                                {(hodFilter || roleFilter === 'hod') && (
+                                    <span className="text-[9px] font-black bg-amber-400 text-[#1C1B0E] px-1.5 py-0.2 rounded">
+                                        FILTER
+                                    </span>
+                                )}
+                            </div>
+                            <div className="text-xl font-extrabold text-amber-400">{stats.total_hod ?? 0}</div>
                         </div>
 
                         <div className="rounded-xl border border-[#3B3929] bg-[#2A281E]/80 p-3.5 space-y-1">
@@ -398,14 +421,49 @@ function UsersInner({ initialUsers, initialStats }) {
                             {/* Role Filter */}
                             <select
                                 value={roleFilter}
-                                onChange={e => setRoleFilter(e.target.value)}
-                                className="rounded-xl bg-[#1C1B0E] border border-[#3B3929] px-3 py-2 text-xs font-medium text-[#FAFAFA] focus:border-[#C9AA71] focus:outline-none"
+                                onChange={e => {
+                                    setRoleFilter(e.target.value);
+                                    if (e.target.value === 'hod') {
+                                        setHodFilter(false);
+                                    }
+                                }}
+                                className="rounded-xl bg-[#1C1B0E] border border-[#3B3929] px-3 py-2 text-xs font-medium text-[#FAFAFA] focus:border-[#C9AA71] focus:outline-none cursor-pointer"
                             >
                                 <option value="all">Semua Role</option>
                                 <option value="admin">Administrator</option>
                                 <option value="department">Department</option>
                                 <option value="viewer">Viewer</option>
+                                <option value="hod">👑 Head of Department (HOD)</option>
                             </select>
+
+                            {/* Standalone HOD Filter Button */}
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    if (roleFilter === 'hod') {
+                                        setRoleFilter('all');
+                                    }
+                                    setHodFilter(prev => !prev);
+                                }}
+                                className={`px-3 py-2 rounded-xl border text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
+                                    hodFilter || roleFilter === 'hod'
+                                        ? 'bg-amber-500/25 border-amber-500 text-amber-300 ring-1 ring-amber-500/60 shadow-sm'
+                                        : 'bg-[#1C1B0E] border-[#3B3929] text-[#A19F8D] hover:text-[#FAFAFA] hover:border-white/20'
+                                }`}
+                                title="Filter akun Head of Department (HOD)"
+                            >
+                                <span>👑</span>
+                                <span>HOD</span>
+                                {stats.total_hod !== undefined && (
+                                    <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+                                        hodFilter || roleFilter === 'hod'
+                                            ? 'bg-amber-400 text-[#1C1B0E]'
+                                            : 'bg-white/10 text-[#A19F8D]'
+                                    }`}>
+                                        {stats.total_hod}
+                                    </span>
+                                )}
+                            </button>
 
                             {/* Department Filter */}
                             <select
