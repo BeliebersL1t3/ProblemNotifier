@@ -535,13 +535,16 @@ function AnalyticsInner() {
             return null;
         }
 
+        // Active issues only: Do not include archived issues in department perspective counts
+        const activeIssues = timeFilteredIssues.filter(i => !i.isArchived);
+
         if (isDeptUser && department) {
             const userDeptNorm = normalizeDepartment(department).toLowerCase();
             let incoming = 0;
             let outgoing = 0;
             let tagged = 0;
 
-            timeFilteredIssues.forEach(issue => {
+            activeIssues.forEach(issue => {
                 const assigned = safeArray(issue.assignedDepartments).map(d => normalizeDepartment(d).toLowerCase());
                 const tags = safeArray(issue.taggedDepartments).map(d => normalizeDepartment(d).toLowerCase());
                 const originDept = normalizeDepartment(issue.department || '').toLowerCase();
@@ -563,7 +566,7 @@ function AnalyticsInner() {
                 stat1: { count: incoming, label: lang === 'id' ? 'Tugas Masuk' : 'Incoming', icon: '📥', mode: 'assigned', title: t('tooltip_incoming_dept') },
                 stat2: { count: outgoing, label: lang === 'id' ? 'Permintaan Keluar' : 'Outgoing', icon: '📤', mode: 'origin', title: t('tooltip_outgoing_dept') },
                 stat3: { count: tagged, label: lang === 'id' ? 'Di-tag / CC' : 'Tagged', icon: '📢', mode: 'tagged', title: t('tooltip_tagged_dept') },
-                total: timeFilteredIssues.length
+                total: activeIssues.length
             };
         } else {
             // Admin Resort-wide Perspective
@@ -571,7 +574,7 @@ function AnalyticsInner() {
             let origin = 0;
             let tagged = 0;
 
-            timeFilteredIssues.forEach(issue => {
+            activeIssues.forEach(issue => {
                 const assigns = safeArray(issue.assignedDepartments);
                 const tags = safeArray(issue.taggedDepartments);
                 const originDept = (issue.department || '').trim();
@@ -589,7 +592,7 @@ function AnalyticsInner() {
                 stat1: { count: assigned, label: lang === 'id' ? 'Beban Tugas' : 'Assigned Work', icon: '🎯', mode: 'assigned', title: t('tooltip_assigned_dept') },
                 stat2: { count: origin, label: lang === 'id' ? 'Laporan Dibuat' : 'Origin Reports', icon: '🏠', mode: 'origin', title: t('tooltip_origin_dept') },
                 stat3: { count: tagged, label: lang === 'id' ? 'Tiket Di-tag' : 'Tagged Tickets', icon: '📢', mode: 'tagged', title: t('tooltip_tagged_dept') },
-                total: timeFilteredIssues.length
+                total: activeIssues.length
             };
         }
     }, [isDeptUser, department, timeFilteredIssues, t, lang]);
@@ -658,16 +661,6 @@ function AnalyticsInner() {
             activeRing: 'ring-red-500 border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.35)]',
             activeAccent: 'bg-red-500/30 text-red-400',
         },
-        ...(isAdmin ? [{
-            key: 'archived',
-            status: 'archived',
-            label: lang === 'id' ? 'Diarsipkan' : 'Archived',
-            value: analyticsStats.archived,
-            Icon: Archive,
-            accent: 'bg-rose-500/15 text-rose-400',
-            activeRing: 'ring-rose-500 border-rose-500 shadow-[0_0_12px_rgba(244,63,94,0.25)]',
-            activeAccent: 'bg-rose-500/30 text-rose-400',
-        }] : []),
     ];
 
     const handleStatusCardClick = (status) => {
@@ -2049,6 +2042,27 @@ function AnalyticsInner() {
                         </div>
 
                         <div className="flex items-center gap-2.5 shrink-0 self-start sm:self-auto flex-wrap">
+                            {/* Compact Archive Indicator for Admin */}
+                            {isAdmin && analyticsStats.archived > 0 && (
+                                <button
+                                    type="button"
+                                    onClick={() => handleStatusCardClick('archived')}
+                                    aria-pressed={selectedStatusFilters.includes('archived')}
+                                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all duration-200 flex items-center gap-1.5 border cursor-pointer select-none shadow-sm ${
+                                        selectedStatusFilters.includes('archived')
+                                            ? 'bg-rose-500/25 text-rose-300 border-rose-500/60 ring-1 ring-rose-500/40 font-bold'
+                                            : 'bg-[#2A281E] text-rose-300/80 hover:text-rose-200 border-[#3B3929] hover:bg-[#3B3929]'
+                                    }`}
+                                    title={lang === 'id' ? 'Saring aktivitas isu yang diarsipkan' : 'Filter archived issues'}
+                                >
+                                    <Archive className="w-3.5 h-3.5 text-rose-400" />
+                                    <span>{lang === 'id' ? 'Arsip' : 'Archived'}</span>
+                                    <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold bg-rose-500/25 text-rose-200 border border-rose-500/30">
+                                        {analyticsStats.archived}
+                                    </span>
+                                </button>
+                            )}
+
                             {/* Toggle Detailed Filters Dropdown Button */}
                             <button
                                 type="button"
@@ -2211,6 +2225,7 @@ function AnalyticsInner() {
                                     pending: t('pending') || (lang === 'id' ? 'Tertunda' : 'Pending'),
                                     solved: t('resolved') || (lang === 'id' ? 'Terselesaikan' : 'Resolved'),
                                     critical: lang === 'id' ? 'Darurat / Kritis' : 'Emergency / Critical',
+                                    archived: lang === 'id' ? 'Diarsipkan' : 'Archived',
                                 };
                                 const stLabel = statusLabels[st] || st;
 
@@ -2220,10 +2235,12 @@ function AnalyticsInner() {
                                         className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold border ${
                                             st === 'critical'
                                                 ? 'bg-red-500/25 text-red-300 border-red-500/40 ring-1 ring-red-500/30'
-                                                : 'bg-green-500/20 text-green-300 border-green-500/30'
+                                                : st === 'archived'
+                                                    ? 'bg-rose-500/25 text-rose-300 border-rose-500/40 ring-1 ring-rose-500/30'
+                                                    : 'bg-green-500/20 text-green-300 border-green-500/30'
                                         }`}
                                     >
-                                        <span>{st === 'critical' ? '🚨' : '✓'} {stLabel}</span>
+                                        <span>{st === 'archived' ? '📦' : st === 'critical' ? '🚨' : '✓'} {stLabel}</span>
                                         <button 
                                             type="button" 
                                             onClick={() => setSelectedStatusFilters(prev => prev.filter(s => s !== st))}
