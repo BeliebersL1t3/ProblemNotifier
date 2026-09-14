@@ -248,7 +248,9 @@ export function ExportPdfModal({ open, onOpenChange }) {
 
         // Filter issues based on selection
         let filtered = allSelectedIssues.filter(issue => {
-            if (issue.status === 'pending') {
+            if (issue.isArchived) {
+                // Archived issues explicitly included by Admin via includeArchived
+            } else if (issue.status === 'pending') {
                 if (!selectedStatuses.includes('pending') && !selectedStatuses.includes('progress')) return false;
             } else {
                 const sMap = { 'open': 'open', 'progress': 'progress', 'solved': 'solved' };
@@ -363,13 +365,21 @@ export function ExportPdfModal({ open, onOpenChange }) {
                 ]);
             }
 
-            const assignedStr = Array.isArray(i.assignedDepartments) && i.assignedDepartments.length > 0
-                ? `[Assign] ${i.assignedDepartments.join(', ')}`
-                : (i.assignedDepartments ? `[Assign] ${i.assignedDepartments}` : '');
-            const taggedStr = Array.isArray(i.taggedDepartments) && i.taggedDepartments.length > 0
-                ? `[Tag] ${i.taggedDepartments.join(', ')}`
-                : (i.taggedDepartments ? `[Tag] ${i.taggedDepartments}` : '');
-            const combinedDeptTags = sanitizePdfText([assignedStr, taggedStr].filter(Boolean).join('\n')) || '-';
+            const deptLines = [];
+            const assigns = Array.isArray(i.assignedDepartments) 
+                ? i.assignedDepartments.filter(Boolean) 
+                : (i.assignedDepartments ? [i.assignedDepartments] : []);
+            const tags = Array.isArray(i.taggedDepartments) 
+                ? i.taggedDepartments.filter(Boolean) 
+                : (i.taggedDepartments ? [i.taggedDepartments] : []);
+
+            if (assigns.length > 0) {
+                deptLines.push(`Assign: ${assigns.join(', ')}`);
+            }
+            if (tags.length > 0) {
+                deptLines.push(`Tag: ${tags.join(', ')}`);
+            }
+            const combinedDeptTags = sanitizePdfText(deptLines.join('\n\n')) || '-';
 
             // Format Taken and Solved cell strings cleanly
             let takenCell = '-';
@@ -397,8 +407,8 @@ export function ExportPdfModal({ open, onOpenChange }) {
                 combinedDeptTags,
                 sanitizePdfText(categories.find(c => c.id === i.category)?.label || i.category),
                 sanitizePdfText(i.reporter),
-                i.status.toUpperCase(),
-                i.priority.toUpperCase()
+                i.isArchived ? 'ARCHIVED' : (i.status || 'OPEN').toUpperCase(),
+                (i.priority || 'LOW').toUpperCase()
             ]);
 
             if (includeDelayTimeline && i.status === 'pending' && selectedStatuses.includes('pending')) {
@@ -474,7 +484,7 @@ export function ExportPdfModal({ open, onOpenChange }) {
         autoTable(doc, {
             startY: 78,
             margin: { left: 10, right: 10, bottom: 25 },
-            head: [['ID', 'Submitted', 'Taken', 'Solved', 'Time Solve', 'Problem', 'Location', 'Tags', 'Category', 'Reporter', 'Status', 'Priority']],
+            head: [['ID', 'Submitted', 'Taken', 'Solved', 'Time Solve', 'Problem', 'Location', 'Dept / Tags', 'Category', 'Reporter', 'Status', 'Priority']],
             body: tableData,
             theme: 'grid',
             styles: { 
@@ -493,18 +503,18 @@ export function ExportPdfModal({ open, onOpenChange }) {
                 fillColor: [250, 248, 242] 
             },
             columnStyles: {
-                0: { cellWidth: 26 }, // ID
-                1: { cellWidth: 20 }, // Submitted
-                2: { cellWidth: 20 }, // Taken
-                3: { cellWidth: 20 }, // Solved
-                4: { cellWidth: 18 }, // Duration
-                5: { cellWidth: 45 }, // Problem (more space)
-                6: { cellWidth: 22 }, // Location
-                7: { cellWidth: 25 }, // Tags
+                0: { cellWidth: 22 }, // ID
+                1: { cellWidth: 18 }, // Submitted
+                2: { cellWidth: 18 }, // Taken
+                3: { cellWidth: 18 }, // Solved
+                4: { cellWidth: 16 }, // Duration
+                5: { cellWidth: 42 }, // Problem
+                6: { cellWidth: 20 }, // Location
+                7: { cellWidth: 32 }, // Dept / Tags
                 8: { cellWidth: 20 }, // Category
-                9: { cellWidth: 25 }, // Reporter
+                9: { cellWidth: 22 }, // Reporter
                 10: { cellWidth: 22, fontStyle: 'bold' }, // Status
-                11: { cellWidth: 20, fontStyle: 'bold' }, // Priority
+                11: { cellWidth: 18, fontStyle: 'bold' }, // Priority
             },
             didParseCell: function(data) {
                 // Color code Priority column (Index 11)
@@ -524,7 +534,9 @@ export function ExportPdfModal({ open, onOpenChange }) {
                 }
                 // Color code Status column (Index 10)
                 if (data.section === 'body' && data.column.index === 10) {
-                    if (data.cell.raw === 'SOLVED') {
+                    if (data.cell.raw === 'ARCHIVED') {
+                        data.cell.styles.textColor = [190, 24, 93]; // Rose-700
+                    } else if (data.cell.raw === 'SOLVED') {
                         data.cell.styles.textColor = [22, 163, 74]; // Green
                     } else if (data.cell.raw === 'PROGRESS') {
                         data.cell.styles.textColor = [37, 99, 235]; // Blue
