@@ -502,23 +502,24 @@ function AnalyticsInner() {
         const list = timeFilteredIssues || [];
         const activeList = list.filter(i => !i.isArchived);
         const archivedList = list.filter(i => i.isArchived);
+        const currentDisplayList = showArchivedInTimeline ? list : activeList;
 
         const isEmergency = (i) => (i.category || '').toLowerCase() === 'emergency' || String(i.id || '').startsWith('SOS');
         const isCritical = (i) => i.priority === 'critical' && !isEmergency(i);
         const isHigh = (i) => i.priority === 'high' && !isEmergency(i);
         const isStandard = (i) => !isEmergency(i) && !isCritical(i) && !isHigh(i);
 
-        const emergencyList = activeList.filter(isEmergency);
-        const criticalList = activeList.filter(isCritical);
-        const highList = activeList.filter(isHigh);
-        const standardList = activeList.filter(isStandard);
+        const emergencyList = currentDisplayList.filter(isEmergency);
+        const criticalList = currentDisplayList.filter(isCritical);
+        const highList = currentDisplayList.filter(isHigh);
+        const standardList = currentDisplayList.filter(isStandard);
 
         return {
-            total: list.length,
-            open: activeList.filter(i => i.status === 'open').length,
-            progress: activeList.filter(i => i.status === 'progress').length,
-            pending: activeList.filter(i => i.status === 'pending').length,
-            solved: activeList.filter(i => i.status === 'solved').length,
+            total: currentDisplayList.length,
+            open: currentDisplayList.filter(i => i.status === 'open').length,
+            progress: currentDisplayList.filter(i => i.status === 'progress').length,
+            pending: currentDisplayList.filter(i => i.status === 'pending').length,
+            solved: currentDisplayList.filter(i => i.status === 'solved').length,
             archived: archivedList.length,
             criticalCount: criticalList.length,
             criticalActive: criticalList.filter(i => i.status !== 'solved').length,
@@ -528,7 +529,7 @@ function AnalyticsInner() {
             emergencyActive: emergencyList.filter(i => i.status !== 'solved').length,
             emergencySolved: emergencyList.filter(i => i.status === 'solved').length,
         };
-    }, [timeFilteredIssues]);
+    }, [timeFilteredIssues, showArchivedInTimeline]);
 
     // Perspective Breakdown Counts (Admin Macro vs Department Relational)
     const perspectiveStats = useMemo(() => {
@@ -1180,27 +1181,21 @@ function AnalyticsInner() {
             if (selectedStatusFilters.length > 0) {
                 const isCriticalSelected = selectedStatusFilters.includes('critical');
                 const selectedStatuses = selectedStatusFilters.filter(f => f !== 'critical');
-                const isItemArchived = ev.type === 'archive' || ev.originalIssue?.isArchived;
 
-                if (isItemArchived) {
-                    return false;
-                } else {
+                const currentStatus = ev.originalIssue?.status;
+                const isEmergencyIssue = (ev.originalIssue?.category || '').toLowerCase() === 'emergency' || String(ev.issueId || '').startsWith('SOS');
+                const isCriticalIssue = !isEmergencyIssue && ev.originalIssue?.priority === 'critical';
 
-                    const currentStatus = ev.originalIssue?.status;
-                    const isEmergencyIssue = (ev.originalIssue?.category || '').toLowerCase() === 'emergency' || String(ev.issueId || '').startsWith('SOS');
-                    const isCriticalIssue = !isEmergencyIssue && ev.originalIssue?.priority === 'critical';
-
-                    let matchesStatus = true;
-                    if (selectedStatuses.length > 0 && isCriticalSelected) {
-                        matchesStatus = selectedStatuses.includes(currentStatus) || isCriticalIssue || isEmergencyIssue;
-                    } else if (selectedStatuses.length > 0) {
-                        matchesStatus = selectedStatuses.includes(currentStatus);
-                    } else if (isCriticalSelected) {
-                        matchesStatus = isCriticalIssue || isEmergencyIssue;
-                    }
-
-                    if (!matchesStatus) return false;
+                let matchesStatus = true;
+                if (selectedStatuses.length > 0 && isCriticalSelected) {
+                    matchesStatus = selectedStatuses.includes(currentStatus) || isCriticalIssue || isEmergencyIssue;
+                } else if (selectedStatuses.length > 0) {
+                    matchesStatus = selectedStatuses.includes(currentStatus);
+                } else if (isCriticalSelected) {
+                    matchesStatus = isCriticalIssue || isEmergencyIssue;
                 }
+
+                if (!matchesStatus) return false;
             }
 
             // 1b. Combinable Priority Filters (standard | high | critical)
@@ -2291,6 +2286,7 @@ function AnalyticsInner() {
                                     setSelectedCategoryFilters([]);
                                     setSelectedDepartmentFilters([]);
                                     setSelectedStatusFilters([]);
+                                    setShowArchivedInTimeline(false);
                                     setSearchQuery('');
                                 }}
                                 className="text-[11px] font-bold text-[#C9AA71] hover:underline ml-auto cursor-pointer"
