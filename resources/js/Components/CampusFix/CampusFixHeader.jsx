@@ -153,21 +153,21 @@ export function CampusFixHeader({ mode = 'dashboard', query, onQueryChange, onRe
                 ) : (
                     /* Default Top Bar (Logo on left, Search icon + Actions + Profile on right in 1 single clean line) */
                     <div className="flex items-center gap-2 justify-between w-full md:w-auto">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
                             <img
                                 src="/logo.png"
                                 alt="Telunas Resorts"
                                 className="h-7 sm:h-9 w-auto object-contain shrink-0"
                             />
-                            <div className="flex flex-col">
-                                <p className="text-[11px] sm:text-xs font-extrabold tracking-wider uppercase text-[#1C1B0E]/90 leading-tight">
+                            <div className="flex flex-col min-w-0">
+                                <p className="text-[10px] sm:text-xs font-extrabold tracking-wider uppercase text-[#1C1B0E]/90 leading-tight truncate max-w-[125px] sm:max-w-none">
                                     {t('system_title')}
                                 </p>
                             </div>
                         </div>
 
-                        {/* Mobile Right Controls: Search Icon, Language Toggle, SOS & Profile */}
-                        <div className="flex md:hidden items-center gap-1.5 shrink-0">
+                        {/* Mobile Right Controls: Search Icon, Language Toggle, SOS, Notification Bell & Profile */}
+                        <div className="flex md:hidden items-center gap-1 sm:gap-1.5 shrink-0">
                             {/* Search Expand Trigger Button */}
                             {onQueryChange && (
                                 <button
@@ -209,6 +209,9 @@ export function CampusFixHeader({ mode = 'dashboard', query, onQueryChange, onRe
                                     <span className="text-xs leading-none">🚨</span>
                                 </button>
                             )}
+
+                            {/* Mobile Notification Bell Dropdown */}
+                            <NotificationDropdown isMobile={true} />
 
                             {/* Mobile Profile Chip: Avatar only */}
                             <Link
