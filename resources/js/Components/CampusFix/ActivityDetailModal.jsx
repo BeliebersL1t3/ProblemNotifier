@@ -35,6 +35,8 @@ export function ActivityDetailModal({ issue, onClose, onOpenCardModal, onEdit, o
 
     if (!issue) return null;
 
+    const isArchived = Boolean(issue.isArchived || issue.statusDisplay === '0' || issue.displayStatus === '0');
+
     const userDept = normalizeDepartment(department);
     const originDept = normalizeDepartment(issue?.department);
     const takerDept = normalizeDepartment(getDepartmentForStaff(issue?.taker, issue));
