@@ -463,7 +463,13 @@ export function ActivityDetailModal({ issue, onClose, onOpenCardModal, onEdit, o
                                         {issue.title}
                                     </DialogTitle>
                                 </div>
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    {isArchived && (
+                                        <span className="inline-flex items-center gap-1.5 rounded-md bg-stone-700/40 px-2.5 py-0.5 text-xs font-black uppercase tracking-wider text-stone-300 border border-stone-500/50 shadow-inner">
+                                            <span>🗄️</span>
+                                            {lang === 'id' ? 'DIARSIPKAN' : 'ARCHIVED'}
+                                        </span>
+                                    )}
                                     {isEmergency && (
                                         <span className="inline-flex items-center gap-1.5 rounded-md bg-red-500/20 px-2.5 py-0.5 text-xs font-black uppercase tracking-wider text-red-400 border border-red-500/40 shadow-[0_0_8px_rgba(239,68,68,0.25)]">
                                             <span className="h-1.5 w-1.5 rounded-full bg-red-400 animate-pulse inline-block" />
@@ -859,7 +865,7 @@ export function ActivityDetailModal({ issue, onClose, onOpenCardModal, onEdit, o
 
                 <div className="mt-6 flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-[#3B3929]/50">
                     <div className="flex items-center gap-2 flex-wrap">
-                        {onOpenCardModal && (
+                        {!isArchived && onOpenCardModal && (
                             <button
                                 type="button"
                                 onClick={() => {
@@ -872,7 +878,7 @@ export function ActivityDetailModal({ issue, onClose, onOpenCardModal, onEdit, o
                                 <span>{lang === 'id' ? 'Buka Tampilan Kartu Isu' : 'Open Issue Card'}</span>
                             </button>
                         )}
-                        {canEdit && onEdit && (
+                        {!isArchived && canEdit && onEdit && (
                             <button
                                 type="button"
                                 onClick={() => {
@@ -885,7 +891,7 @@ export function ActivityDetailModal({ issue, onClose, onOpenCardModal, onEdit, o
                                 <span>{lang === 'id' ? 'Edit & Mundur Status' : 'Edit & Rollback'}</span>
                             </button>
                         )}
-                        {onRestore && (issue.statusDisplay === '0' || issue.displayStatus === '0') && (
+                        {onRestore && isArchived && (
                             <button
                                 type="button"
                                 onClick={() => {

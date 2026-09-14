@@ -376,6 +376,10 @@ function DashboardInner() {
 
     const handleSelect = (issue) => {
         if (!issue) return;
+        if (showArchiveTab || issue.isArchived || issue.displayStatus === '0') {
+            setActivityDetailTarget(issue);
+            return;
+        }
         if (issue.status === 'open') setTakeTarget(issue);
         else if (issue.status === 'progress' || issue.status === 'pending') setResolveTarget(issue);
         else setDetailTarget(issue);
