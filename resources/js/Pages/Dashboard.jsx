@@ -107,7 +107,34 @@ function DashboardInner() {
         restoreIssue,
     } = useIssues();
     const { t, lang } = useLanguage();
-    const { isDeptUser, department, isAdmin, canViewAllDepartments, canDeleteIssues, canManageIssues } = useAuth();
+    const { isDeptUser, department, isAdmin, canViewAllDepartments, canDeleteIssues, canManageIssues, staffName, user } = useAuth();
+
+    // Helper: Check if current user personally contributed to this issue in the past
+    const isPastContributor = (issue) => {
+        if (!user) return false;
+        const myNames = [user.name, user.staff_name, staffName].filter(Boolean).map(n => String(n).trim().toLowerCase());
+        const matchesUser = (val) => {
+            if (!val) return false;
+            const s = String(val).trim().toLowerCase();
+            return myNames.some(name => s === name || s.includes(name) || name.includes(s));
+        };
+
+        if (issue.user_id && String(issue.user_id) === String(user.id)) return true;
+        if (matchesUser(issue.reporter)) return true;
+        if (matchesUser(issue.taker)) return true;
+        if (matchesUser(issue.solver)) return true;
+        if (matchesUser(issue.pendingBy)) return true;
+
+        if (Array.isArray(issue.pendingTimeline)) {
+            if (issue.pendingTimeline.some(item => matchesUser(item?.by || item?.staff))) return true;
+        }
+
+        if (Array.isArray(issue.editLogs)) {
+            if (issue.editLogs.some(log => matchesUser(log?.by || log?.user || log?.author))) return true;
+        }
+
+        return false;
+    };
     const [query, setQuery] = useState('');
     const [categoryFilter, setCategoryFilter] = useState('all');
     const [statusFilter, setStatusFilter] = useState('all');
@@ -296,16 +323,21 @@ function DashboardInner() {
         const q = query.trim().toLowerCase();
         const sourceIssues = showArchiveTab ? (archivedIssues || []) : issues;
 
-        // For department users, pre-filter to their department scope, ALWAYS including island-wide emergency alerts
+        // For department users, pre-filter to their department scope, ALWAYS including island-wide emergency alerts and past contributions
         const deptScoped = isDeptUser && department && !canViewAllDepartments
-            ? sourceIssues.filter(issue => {
+            ? sourceIssues.reduce((acc, issue) => {
                 // 🚨 Emergency & critical fast-track issues are island-wide alerts, ALWAYS in scope for everyone!
                 const isEmergency = (issue.category || '').toLowerCase() === 'emergency' 
                     || String(issue.id || '').startsWith('SOS')
                     || (Array.isArray(issue.assignedDepartments) ? issue.assignedDepartments : [issue.assignedDepartments]).some(d => String(d).trim().toUpperCase() === 'ALL')
                     || (Array.isArray(issue.taggedDepartments) ? issue.taggedDepartments : [issue.taggedDepartments]).some(d => String(d).trim().toUpperCase() === 'ALL');
 
-                if (isEmergency) return true;
+                if (isEmergency) {
+                    if (deptViewMode !== 'past_contributions') {
+                        acc.push(issue);
+                    }
+                    return acc;
+                }
 
                 const normUserDept = normalizeDepartment(department);
                 const assigned = (Array.isArray(issue.assignedDepartments) 
@@ -320,11 +352,30 @@ function DashboardInner() {
                 const isAssigned = assigned.includes(normUserDept);
                 const isTagged = tagged.includes(normUserDept);
 
-                if (deptViewMode === 'assigned') return isAssigned;
-                if (deptViewMode === 'origin') return isOrigin;
-                if (deptViewMode === 'tagged') return isTagged;
-                return isAssigned || isOrigin || isTagged;
-              })
+                const inCurrentDeptScope = isAssigned || isOrigin || isTagged;
+
+                if (inCurrentDeptScope) {
+                    if (deptViewMode === 'past_contributions') return acc;
+                    if (deptViewMode === 'assigned' && !isAssigned) return acc;
+                    if (deptViewMode === 'origin' && !isOrigin) return acc;
+                    if (deptViewMode === 'tagged' && !isTagged) return acc;
+                    acc.push(issue);
+                    return acc;
+                }
+
+                // If outside current dept scope, check if user personally touched/contributed to this issue in the past
+                if (isPastContributor(issue)) {
+                    if (deptViewMode === 'assigned' || deptViewMode === 'origin' || deptViewMode === 'tagged') {
+                        return acc;
+                    }
+                    acc.push({
+                        ...issue,
+                        _isPastContribution: true,
+                    });
+                }
+
+                return acc;
+              }, [])
             : sourceIssues;
 
         const filtered = deptScoped.filter((issue) => {
@@ -372,11 +423,11 @@ function DashboardInner() {
             }
             return (b.reportedAt || 0) - (a.reportedAt || 0);
         });
-    }, [issues, archivedIssues, showArchiveTab, query, categoryFilter, statusFilter, deptFilter, isDeptUser, department, deptViewMode]);
+    }, [issues, archivedIssues, showArchiveTab, query, categoryFilter, statusFilter, deptFilter, isDeptUser, department, deptViewMode, staffName, user]);
 
     const handleSelect = (issue) => {
         if (!issue) return;
-        if (showArchiveTab || issue.isArchived || issue.displayStatus === '0') {
+        if (showArchiveTab || issue.isArchived || issue.displayStatus === '0' || issue._isPastContribution) {
             setActivityDetailTarget(issue);
             return;
         }
@@ -704,6 +755,18 @@ function DashboardInner() {
                                 >
                                     📢 {t('mentioned_me')}
                                 </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setDeptViewMode('past_contributions')}
+                                    className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
+                                        deptViewMode === 'past_contributions'
+                                            ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-sm font-extrabold'
+                                            : 'text-muted-foreground hover:text-foreground'
+                                    }`}
+                                    title="Isu dari departemen lama yang pernah Anda buat atau tangani"
+                                >
+                                    🔒 {lang === 'id' ? 'Riwayat Kontribusi' : 'Past Contributions'}
+                                </button>
                             </div>
                         )}
 
@@ -812,8 +875,8 @@ function DashboardInner() {
                                 key={issue.id}
                                 issue={issue}
                                 onSelect={handleSelect}
-                                onEdit={showArchiveTab ? undefined : (item) => setEditTarget(item)}
-                                onDelete={showArchiveTab ? undefined : (item) => {
+                                onEdit={showArchiveTab || issue._isPastContribution ? undefined : (item) => setEditTarget(item)}
+                                onDelete={showArchiveTab || issue._isPastContribution ? undefined : (item) => {
                                     setDeleteError('');
                                     setDeleteTarget(item);
                                 }}
@@ -835,8 +898,8 @@ function DashboardInner() {
             <ActivityDetailModal 
                 issue={activityDetailTarget} 
                 onClose={() => setActivityDetailTarget(null)} 
-                onEdit={(item) => setEditTarget(item)}
-                onRestore={handleRestore}
+                onEdit={activityDetailTarget?._isPastContribution ? undefined : (item) => setEditTarget(item)}
+                onRestore={activityDetailTarget?._isPastContribution ? undefined : handleRestore}
             />
 
             {/* Permanent Deletion Confirmation Modal */}

@@ -61,8 +61,9 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
         assignedDeptsNormalized.includes(userDept)
     ));
 
-    const canEdit = isAdmin || canEditReport || canEditClaim || canEditPending || canEditSolved;
-    const canDelete = isAdmin;
+    const isPastContribution = Boolean(issue?._isPastContribution);
+    const canEdit = !isPastContribution && (isAdmin || canEditReport || canEditClaim || canEditPending || canEditSolved);
+    const canDelete = !isPastContribution && isAdmin;
 
     const taggedList = safeArray(issue?.taggedDepartments);
     const pendingTimelineList = safeArray(issue?.pendingTimeline)
@@ -162,6 +163,11 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
                     ) : (
                         <span className="text-muted-foreground truncate">{issue.location || '-'}</span>
                     )}
+                    {isPastContribution && (
+                        <span className="text-[9px] font-bold text-amber-300 shrink-0" title="Riwayat Kontribusi (Read-Only)">
+                            🔒
+                        </span>
+                    )}
                     {isCritical && issue.deadline && !isSolved && (
                         <span className="text-[8px] font-mono font-bold text-amber-400 shrink-0">
                             ⏱️
@@ -224,6 +230,12 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
                         label={issue.status === 'solved' ? issue.durationLabel : undefined}
                         className="absolute left-2 top-2 scale-90 origin-top-left"
                     />
+                    {isPastContribution && (
+                        <div className="absolute left-2 top-8 z-10 flex items-center gap-1 rounded bg-[#1C1B0E]/90 text-amber-300 border border-amber-500/40 px-1.5 py-0.2 text-[9px] font-bold shadow-xs">
+                            <span>🔒</span>
+                            <span>Riwayat</span>
+                        </div>
+                    )}
                     {isCritical && !canEdit && !canDelete && (
                         <CriticalTimer
                             deadline={issue.deadline}
@@ -485,6 +497,12 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
                     label={issue.status === 'solved' ? issue.durationLabel : undefined}
                     className="absolute left-3 top-3"
                 />
+                {isPastContribution && (
+                    <div className="absolute left-3 top-11 z-10 flex items-center gap-1.5 rounded-md bg-[#1C1B0E]/90 text-amber-300 border border-amber-500/40 px-2 py-0.5 text-[10px] font-bold shadow-md backdrop-blur-xs">
+                        <span>🔒</span>
+                        <span>Riwayat ({issue.department})</span>
+                    </div>
+                )}
                 {isArchived && (
                     <div className="absolute left-3 top-11 z-10 flex items-center gap-1.5 rounded-md bg-stone-900/90 text-stone-200 border border-stone-600/60 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider shadow-md backdrop-blur-xs">
                         <span>🗄️</span>

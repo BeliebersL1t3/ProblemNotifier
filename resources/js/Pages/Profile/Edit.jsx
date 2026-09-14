@@ -5,7 +5,7 @@ import {
     AlertCircle, Loader2, Sparkles, Mail, Tag, ShieldCheck, RefreshCw,
     Phone, MessageSquare, Check, Smartphone, Unlink, Trash2,
     Users as UsersIcon, ChevronRight, ShieldAlert, Camera, UploadCloud,
-    Image as ImageIcon, X, Ticket, Clock
+    Image as ImageIcon, X, Ticket, Clock, ArrowRightLeft
 } from 'lucide-react';
 
 import { IssuesProvider } from '@/context/IssuesContext';
@@ -13,9 +13,10 @@ import { useLanguage } from '@/context/LanguageContext';
 import { CampusFixHeader } from '@/Components/CampusFix/CampusFixHeader';
 import { MobileBottomNav } from '@/Components/CampusFix/MobileBottomNav';
 import { useAuth } from '@/hooks/useAuth';
-import { getDepartmentTheme } from '@/constants/departments';
+import { getDepartmentTheme, ALL_DEPARTMENTS, DEPARTMENT_SUBDIVISIONS } from '@/constants/departments';
 import { getStaffForDepartment } from '@/constants/staff';
 import SubdivisionTag from '@/Components/CampusFix/SubdivisionTag';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/Components/UI/Dialog';
 
 export default function ProfilePage(props) {
     return (
@@ -25,7 +26,7 @@ export default function ProfilePage(props) {
     );
 }
 
-function ProfileInner({ pendingTicket, notifyWhatsAppTickets, status }) {
+function ProfileInner({ pendingTicket, pendingTransferTicket, notifyWhatsAppTickets, status }) {
     const { t, lang } = useLanguage();
     const { user, isAdmin, isDeptUser, department, subdivision, staffName, whatsappNumber, avatarUrl } = useAuth();
     const currentDeptTheme = department ? getDepartmentTheme(department) : { bg: '#C9AA71', text: '#1C1B0E' };
@@ -202,6 +203,32 @@ function ProfileInner({ pendingTicket, notifyWhatsAppTickets, status }) {
         postPwdTicket(route('tickets.password'), {
             preserveScroll: true,
             onSuccess: () => resetPwdTicket(),
+        });
+    };
+
+    // Department Transfer Ticket Form
+    const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
+    const {
+        data: transferData,
+        setData: setTransferData,
+        errors: transferErrors,
+        post: postTransferTicket,
+        processing: transferProcessing,
+        reset: resetTransfer,
+    } = useForm({
+        target_department: '',
+        target_subdivision: '',
+        reason: '',
+    });
+
+    const handleTransferSubmit = (e) => {
+        e.preventDefault();
+        postTransferTicket(route('tickets.departmentTransfer'), {
+            preserveScroll: true,
+            onSuccess: () => {
+                resetTransfer();
+                setIsTransferModalOpen(false);
+            },
         });
     };
 
@@ -459,11 +486,39 @@ function ProfileInner({ pendingTicket, notifyWhatsAppTickets, status }) {
                                     {department && (
                                         <div>
                                             <p className="text-[#A19F8D] font-medium mb-1.5">{t('department_label') || 'Cakupan Departemen'}</p>
-                                            <SubdivisionTag 
-                                                department={department} 
-                                                subdivision={subdivision} 
-                                                size="md" 
-                                            />
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                                <SubdivisionTag 
+                                                    department={department} 
+                                                    subdivision={subdivision} 
+                                                    size="md" 
+                                                />
+                                                {!isAdmin && !pendingTransferTicket && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setIsTransferModalOpen(true)}
+                                                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-[#C9AA71]/15 text-[#E3D1AA] hover:bg-[#C9AA71]/25 border border-[#C9AA71]/30 transition-all cursor-pointer"
+                                                    >
+                                                        <ArrowRightLeft className="w-3.5 h-3.5 text-[#C9AA71]" />
+                                                        <span>{lang === 'id' ? 'Ajukan Pindah Departemen' : 'Request Transfer'}</span>
+                                                    </button>
+                                                )}
+                                            </div>
+
+                                            {/* Pending Transfer Alert */}
+                                            {pendingTransferTicket && (
+                                                <div className="mt-3 p-3 rounded-xl bg-teal-500/10 border border-teal-500/30 text-xs text-teal-200 space-y-1">
+                                                    <div className="flex items-center gap-1.5 font-bold text-teal-300">
+                                                        <Clock className="w-4 h-4 text-teal-400" />
+                                                        <span>Permohonan Pindah (#{pendingTransferTicket.ticket_number})</span>
+                                                    </div>
+                                                    <p className="text-[11px] text-teal-200/80">
+                                                        Tujuan: <strong>{pendingTransferTicket.requested_value?.replace('::', ' — Subdivisi: ')}</strong>
+                                                    </p>
+                                                    <p className="text-[10px] text-teal-300/70">
+                                                        Status: Menunggu ACC <strong>{pendingTransferTicket.status === 'pending_hod' ? 'HOD Departemen Asal' : 'Admin'}</strong>
+                                                    </p>
+                                                </div>
+                                            )}
                                         </div>
                                     )}
                                 </div>
@@ -1058,6 +1113,136 @@ function ProfileInner({ pendingTicket, notifyWhatsAppTickets, status }) {
 
                 <MobileBottomNav currentTab="profile" />
             </div>
+
+            {/* Modal: Ajukan Pindah Departemen */}
+            <Dialog open={isTransferModalOpen} onOpenChange={setIsTransferModalOpen}>
+                <DialogContent className="bg-[#2A281E] border border-[#3B3929] text-[#FAFAFA] max-w-md p-6 rounded-2xl shadow-2xl">
+                    <DialogHeader>
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-teal-500/15 text-teal-400 border border-teal-500/30 flex items-center justify-center">
+                                <Building2 className="w-5 h-5" />
+                            </div>
+                            <div>
+                                <DialogTitle className="text-base sm:text-lg font-bold text-[#FAFAFA]">
+                                    {lang === 'id' ? 'Ajukan Pindah Departemen' : 'Request Department Transfer'}
+                                </DialogTitle>
+                                <p className="text-xs text-[#A19F8D]">
+                                    Departemen saat ini: <strong className="text-[#FAFAFA]">{department}</strong> {subdivision ? `(${subdivision})` : ''}
+                                </p>
+                            </div>
+                        </div>
+                    </DialogHeader>
+
+                    <form onSubmit={handleTransferSubmit} className="space-y-4 pt-2 text-xs">
+                        {/* Target Department Select */}
+                        <div className="space-y-1.5">
+                            <label className="text-xs font-bold text-[#E3D1AA]">
+                                Departemen Tujuan <span className="text-red-400">*</span>
+                            </label>
+                            <select
+                                value={transferData.target_department}
+                                onChange={(e) => {
+                                    setTransferData(prev => ({
+                                        ...prev,
+                                        target_department: e.target.value,
+                                        target_subdivision: '',
+                                    }));
+                                }}
+                                required
+                                className="w-full bg-[#1C1B0E] border border-[#3B3929] text-[#FAFAFA] rounded-xl px-3.5 py-2.5 text-xs focus:border-[#C9AA71] focus:ring-1 focus:ring-[#C9AA71]"
+                            >
+                                <option value="">-- Pilih Departemen Tujuan --</option>
+                                {ALL_DEPARTMENTS.filter(d => d.toLowerCase() !== (department || '').toLowerCase()).map(d => (
+                                    <option key={d} value={d}>{d}</option>
+                                ))}
+                            </select>
+                            {transferErrors.target_department && (
+                                <p className="text-[11px] text-red-400">{transferErrors.target_department}</p>
+                            )}
+                        </div>
+
+                        {/* Optional Subdivision Select */}
+                        {transferData.target_department && (DEPARTMENT_SUBDIVISIONS[transferData.target_department] || []).length > 1 && (
+                            <div className="space-y-1.5">
+                                <label className="text-xs font-bold text-[#E3D1AA]">
+                                    Subdivisi / Sub-Unit (Opsional)
+                                </label>
+                                <select
+                                    value={transferData.target_subdivision}
+                                    onChange={(e) => setTransferData('target_subdivision', e.target.value)}
+                                    className="w-full bg-[#1C1B0E] border border-[#3B3929] text-[#FAFAFA] rounded-xl px-3.5 py-2.5 text-xs focus:border-[#C9AA71] focus:ring-1 focus:ring-[#C9AA71]"
+                                >
+                                    <option value="">-- Tanpa Subdivisi Khusus --</option>
+                                    {DEPARTMENT_SUBDIVISIONS[transferData.target_department].map(sub => (
+                                        <option key={sub} value={sub}>{sub}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
+
+                        {/* Reason Textarea */}
+                        <div className="space-y-1.5">
+                            <label className="text-xs font-bold text-[#E3D1AA]">
+                                Alasan Pemindahan / Rotasi <span className="text-red-400">*</span>
+                            </label>
+                            <textarea
+                                rows={3}
+                                value={transferData.reason}
+                                onChange={(e) => setTransferData('reason', e.target.value)}
+                                placeholder="Jelaskan alasan pengajuan mutasi tugas atau rotasi divisi ini..."
+                                required
+                                className="w-full bg-[#1C1B0E] border border-[#3B3929] text-[#FAFAFA] rounded-xl p-3 text-xs focus:border-[#C9AA71] focus:ring-1 focus:ring-[#C9AA71] placeholder-[#A19F8D]/60 leading-relaxed"
+                            />
+                            {transferErrors.reason && (
+                                <p className="text-[11px] text-red-400">{transferErrors.reason}</p>
+                            )}
+                        </div>
+
+                        {/* Workflow info */}
+                        <div className="p-3 rounded-xl bg-[#1C1B0E]/80 border border-[#3B3929] text-[11px] text-[#A19F8D] space-y-1 leading-relaxed">
+                            <p className="font-bold text-[#C9AA71] flex items-center gap-1.5">
+                                <ShieldAlert className="w-3.5 h-3.5 text-[#C9AA71]" />
+                                Alur Persetujuan Bertingkat:
+                            </p>
+                            <p>1. Permohonan akan ditinjau & diverifikasi oleh <strong>HOD Departemen {department}</strong>.</p>
+                            <p>2. Setelah disetujui HOD, <strong>Admin Resort</strong> akan memberikan ACC final.</p>
+                            <p>3. Riwayat isu yang pernah Anda tangani sebelumnya tetap dapat dilihat (Read-Only).</p>
+                        </div>
+
+                        {/* Footer Buttons */}
+                        <div className="pt-2 flex items-center justify-end gap-3">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setIsTransferModalOpen(false);
+                                    resetTransfer();
+                                }}
+                                className="px-4 py-2 rounded-xl text-xs font-semibold text-[#A19F8D] hover:text-[#FAFAFA] hover:bg-[#1C1B0E] transition-all cursor-pointer"
+                            >
+                                Batal
+                            </button>
+
+                            <button
+                                type="submit"
+                                disabled={transferProcessing || !transferData.target_department || !transferData.reason.trim()}
+                                className="flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-bold bg-[#C9AA71] text-[#1C1B0E] hover:bg-[#D8BE8A] active:scale-95 transition-all shadow-lg cursor-pointer disabled:opacity-50"
+                            >
+                                {transferProcessing ? (
+                                    <>
+                                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                        <span>Mengajukan...</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <ArrowRightLeft className="h-3.5 w-3.5" />
+                                        <span>Kirim Permohonan ke HOD</span>
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </form>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

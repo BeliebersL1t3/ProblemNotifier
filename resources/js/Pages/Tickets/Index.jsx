@@ -148,6 +148,12 @@ function TicketsInner({
                         <Shield className="w-3 h-3" /> Reset Password
                     </span>
                 );
+            case 'department_transfer':
+                return (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-teal-500/15 text-teal-300 border border-teal-500/30">
+                        <Building2 className="w-3 h-3" /> Pindah Departemen
+                    </span>
+                );
             default:
                 return (
                     <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-white/10 text-white/80 border border-white/10">
@@ -414,6 +420,7 @@ function TicketsInner({
                                 <option value="whatsapp_change">Ganti WhatsApp</option>
                                 <option value="whatsapp_unlink">Lepas WhatsApp</option>
                                 <option value="password_reset">Reset Password</option>
+                                <option value="department_transfer">Pindah Departemen</option>
                             </select>
 
                             {/* Search Input */}
@@ -556,6 +563,21 @@ function TicketsInner({
                                                         <p className="text-[#A19F8D] text-[11px] italic">
                                                             Kata sandi baru akan diaktifkan secara otomatis setelah disetujui Admin.
                                                         </p>
+                                                    </div>
+                                                )}
+
+                                                {ticket.type === 'department_transfer' && (
+                                                    <div className="space-y-1.5">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-[#A19F8D]">Asal:</span>
+                                                            <span className="font-semibold text-[#FAFAFA]">{ticket.current_value || ticket.department}</span>
+                                                        </div>
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-[#A19F8D]">Tujuan:</span>
+                                                            <span className="font-bold text-teal-300">
+                                                                {ticket.requested_value ? ticket.requested_value.replace('::', ' — ') : '-'}
+                                                            </span>
+                                                        </div>
                                                     </div>
                                                 )}
 
