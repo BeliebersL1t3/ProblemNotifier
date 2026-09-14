@@ -21,6 +21,8 @@ export function UserModal({ isOpen, onClose, user = null, onSaved }) {
     const [subdivision, setSubdivision] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
+    const [isHod, setIsHod] = useState(false);
+    const [hodTitle, setHodTitle] = useState('');
 
     // Granular permissions
     const [permissions, setPermissions] = useState({
@@ -47,6 +49,8 @@ export function UserModal({ isOpen, onClose, user = null, onSaved }) {
                 setRole(user.role || 'department');
                 setDepartment(user.department || '');
                 setSubdivision(user.subdivision || '');
+                setIsHod(Boolean(user.is_hod));
+                setHodTitle(user.hod_title || '');
                 setPassword('');
                 setPermissions({
                     can_view_all_departments: user.permissions?.can_view_all_departments ?? true,
@@ -65,6 +69,8 @@ export function UserModal({ isOpen, onClose, user = null, onSaved }) {
                 setRole('department');
                 setDepartment('HR');
                 setSubdivision('');
+                setIsHod(false);
+                setHodTitle('');
                 setPassword('telunas123');
                 setPermissions({
                     can_view_all_departments: true,
@@ -135,6 +141,12 @@ export function UserModal({ isOpen, onClose, user = null, onSaved }) {
     const handleSubmit = async (e) => {
         e.preventDefault();
         setErrorMessage('');
+
+        if (!isEdit && !whatsappNumber.trim()) {
+            setErrorMessage('Nomor WhatsApp wajib diisi untuk setiap akun baru.');
+            return;
+        }
+
         setLoading(true);
 
         const payload = {
@@ -145,6 +157,8 @@ export function UserModal({ isOpen, onClose, user = null, onSaved }) {
             department: role === 'admin' ? null : department,
             subdivision: role === 'admin' ? null : subdivision,
             whatsapp_number: whatsappNumber,
+            is_hod: role === 'admin' ? false : isHod,
+            hod_title: (role !== 'admin' && isHod) ? hodTitle : null,
             permissions,
             ...(password ? { password } : {}),
         };
@@ -422,6 +436,43 @@ export function UserModal({ isOpen, onClose, user = null, onSaved }) {
                                             </p>
                                         </div>
                                     )}
+
+                                    {/* HOD Hierarchy Assignment */}
+                                    <div className="p-3.5 rounded-xl bg-[#1C1B0E]/70 border border-[#3B3929] mt-3 space-y-3">
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <div className="text-xs font-bold text-[#FAFAFA] flex items-center gap-1.5">
+                                                    👑 Head of Department (HOD)
+                                                </div>
+                                                <div className="text-[11px] text-[#A19F8D]">
+                                                    HOD berhak mereview & menyetujui tiket staf dan akun baru di {department || 'departemen ini'}.
+                                                </div>
+                                            </div>
+                                            <label className="relative inline-flex items-center cursor-pointer">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={isHod}
+                                                    onChange={e => setIsHod(e.target.checked)}
+                                                    className="sr-only peer"
+                                                />
+                                                <div className="w-11 h-6 bg-[#3B3929] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#C9AA71]"></div>
+                                            </label>
+                                        </div>
+                                        {isHod && (
+                                            <div className="pt-2 border-t border-[#3B3929]">
+                                                <label className="block text-xs font-bold text-[#A19F8D] uppercase tracking-wider mb-1">
+                                                    Gelar / Jabatan HOD (Opsional)
+                                                </label>
+                                                <Input
+                                                    type="text"
+                                                    value={hodTitle}
+                                                    onChange={e => setHodTitle(e.target.value)}
+                                                    placeholder="Contoh: Head of Engineering, HR Manager"
+                                                    className="bg-[#1C1B0E] border-[#3B3929] text-[#FAFAFA]"
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
                                 </>
                             )}
                         </div>

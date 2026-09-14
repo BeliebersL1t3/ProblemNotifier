@@ -254,6 +254,28 @@ function UsersInner({ initialUsers, initialStats }) {
         }
     };
 
+    const handleToggleHod = async (targetUser) => {
+        try {
+            const res = await fetch(`/api/users/${targetUser.id}/toggle-hod`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                }
+            });
+            const data = await res.json();
+            if (data.success) {
+                showToast(data.message);
+                setUsers(prev => prev.map(u => u.id === targetUser.id ? { ...u, is_hod: data.is_hod } : u));
+            } else {
+                showToast(data.message || 'Gagal mengubah status HOD', true);
+            }
+        } catch (e) {
+            showToast('Terjadi kesalahan sistem', true);
+        }
+    };
+
     return (
         <div className="min-h-screen bg-[#1C1B0E] text-[#FAFAFA] relative overflow-x-hidden selection:bg-[#C9AA71] selection:text-[#1C1B0E]">
             <Head title={lang === 'id' ? 'Kelola Akun & Hak Akses' : 'User Management'} />
@@ -590,8 +612,31 @@ function UsersInner({ initialUsers, initialStats }) {
                                                                 )}
                                                             </div>
                                                             <div className="min-w-0">
-                                                                <div className="font-bold text-sm text-[#FAFAFA] flex items-center gap-2">
+                                                                <div className="font-bold text-sm text-[#FAFAFA] flex items-center gap-2 flex-wrap">
                                                                     <span>{u.staff_name || u.name}</span>
+                                                                    {u.is_hod && (
+                                                                        <span 
+                                                                            className="px-2 py-0.5 rounded text-[10px] font-black bg-amber-500/20 text-amber-300 border border-amber-500/40"
+                                                                            title={u.hod_title || 'Head of Department'}
+                                                                        >
+                                                                            👑 HOD {u.hod_title ? `(${u.hod_title})` : ''}
+                                                                        </span>
+                                                                    )}
+                                                                    {u.approval_status === 'pending_hod' && (
+                                                                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                                                                            PENDING HOD
+                                                                        </span>
+                                                                    )}
+                                                                    {u.approval_status === 'pending_admin' && (
+                                                                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-sky-500/20 text-sky-300 border border-sky-500/30">
+                                                                            PENDING ADMIN
+                                                                        </span>
+                                                                    )}
+                                                                    {u.approval_status === 'rejected' && (
+                                                                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-500/20 text-red-300 border border-red-500/30" title={u.rejection_reason || 'Pendaftaran ditolak'}>
+                                                                            DITOLAK
+                                                                        </span>
+                                                                    )}
                                                                     {isMe && (
                                                                         <span className="px-1.5 py-0.2 rounded text-[10px] font-extrabold bg-[#C9AA71] text-[#1C1B0E]">
                                                                             YOU
@@ -712,6 +757,22 @@ function UsersInner({ initialUsers, initialStats }) {
                                                             >
                                                                 <Edit className="h-4 w-4" />
                                                             </button>
+
+                                                            {/* Quick Toggle HOD */}
+                                                            {u.role !== 'admin' && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleToggleHod(u)}
+                                                                    title={u.is_hod ? `Cabut Status HOD (${u.staff_name || u.name})` : `Jadikan HOD Departemen (${u.staff_name || u.name})`}
+                                                                    className={`p-1.5 rounded-lg transition-all cursor-pointer ${
+                                                                        u.is_hod 
+                                                                            ? 'text-amber-400 hover:text-amber-300 hover:bg-amber-400/10' 
+                                                                            : 'text-[#A19F8D] hover:text-amber-400 hover:bg-[#1C1B0E]'
+                                                                    }`}
+                                                                >
+                                                                    <span className="text-xs">👑</span>
+                                                                </button>
+                                                            )}
 
                                                             {/* Archive (Soft Delete) or Restore */}
                                                             {u.is_archived ? (
