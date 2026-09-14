@@ -26,6 +26,7 @@ function TicketsInner({
     filters = {}, 
     pendingHodCount = 0, 
     pendingAdminCount = 0, 
+    adminApprovedCount = 0,
     myTicketsCount = 0,
     myPendingCount = 0 
 }) {
@@ -267,12 +268,12 @@ function TicketsInner({
                                     </div>
 
                                     <div className="flex-1 sm:flex-initial flex items-center gap-3 px-4 py-2.5 rounded-xl bg-[#1C1B0E]/70 border border-[#3B3929] shadow-md">
-                                        <div className="p-2 rounded-lg bg-amber-500/15 text-amber-400 border border-amber-500/30">
-                                            <Clock className="w-4 h-4" />
+                                        <div className="p-2 rounded-lg bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                                            <CheckCircle2 className="w-4 h-4" />
                                         </div>
                                         <div>
-                                            <p className="text-[10px] uppercase font-bold text-[#A19F8D] tracking-wider">Menunggu HOD</p>
-                                            <p className="text-lg font-extrabold text-[#FAFAFA]">{pendingHodCount}</p>
+                                            <p className="text-[10px] uppercase font-bold text-[#A19F8D] tracking-wider">Telah Disetujui</p>
+                                            <p className="text-lg font-extrabold text-[#FAFAFA]">{adminApprovedCount}</p>
                                         </div>
                                     </div>
                                 </>
@@ -353,8 +354,8 @@ function TicketsInner({
                         <div className="flex items-center gap-1.5 overflow-x-auto w-full lg:w-auto pb-2 lg:pb-0 scrollbar-none">
                             {[
                                 { key: 'all', label: 'Semua Status' },
-                                { key: 'pending_hod', label: 'Menunggu HOD' },
-                                { key: 'pending_admin', label: 'Menunggu Admin' },
+                                ...(isUserAdmin ? [] : [{ key: 'pending_hod', label: 'Menunggu HOD' }]),
+                                { key: 'pending_admin', label: isUserAdmin ? 'Perlu ACC Admin' : 'Menunggu Admin' },
                                 { key: 'approved', label: 'Disetujui' },
                                 { key: 'rejected', label: 'Ditolak' },
                             ].map(tab => {
@@ -457,13 +458,12 @@ function TicketsInner({
                             {tickets?.data?.map((ticket) => {
                                 const deptTheme = getDepartmentTheme(ticket.department);
                                 
-                                // HOD review privilege
+                                // HOD review privilege: Strictly HOD of ticket's department
                                 const canHodReview = (ticket.status === 'pending_hod') && 
-                                    (isUserAdmin || (isUserHOD && currentUser?.department === ticket.department));
+                                    (isUserHOD && currentUser?.department === ticket.department);
                                 
-                                // Admin review / final ACC privilege
-                                const canAdminReview = isUserAdmin && 
-                                    (ticket.status === 'pending_admin' || ticket.status === 'pending_hod');
+                                // Admin review / final ACC privilege: Strictly Admin on forwarded tickets
+                                const canAdminReview = isUserAdmin && (ticket.status === 'pending_admin');
 
                                 return (
                                     <div 

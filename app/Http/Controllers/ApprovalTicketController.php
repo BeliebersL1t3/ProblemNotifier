@@ -26,7 +26,8 @@ class ApprovalTicketController extends Controller
 
         // Role scoping
         if ($user->isAdmin()) {
-            // Admin sees all tickets
+            // Admin only sees tickets that have been forwarded by HOD or already processed (never pending_hod)
+            $query->where('status', '!=', 'pending_hod');
         } elseif ($user->isHOD()) {
             // HOD sees tickets for their department or submitted by themselves
             $query->where(function ($q) use ($user) {
@@ -70,6 +71,7 @@ class ApprovalTicketController extends Controller
         // Calculate badges count
         $pendingHodCount = 0;
         $pendingAdminCount = 0;
+        $adminApprovedCount = 0;
 
         $myTicketsQuery = ApprovalTicket::where('user_id', $user->id);
         if (!$user->isAdmin() && !$user->isHOD()) {
@@ -82,7 +84,8 @@ class ApprovalTicketController extends Controller
 
         if ($user->isAdmin()) {
             $pendingAdminCount = ApprovalTicket::where('status', 'pending_admin')->count();
-            $pendingHodCount = ApprovalTicket::where('status', 'pending_hod')->count();
+            $adminApprovedCount = ApprovalTicket::where('status', 'approved')->count();
+            $pendingHodCount = 0;
         } elseif ($user->isHOD()) {
             $pendingHodCount = ApprovalTicket::where('status', 'pending_hod')
                 ->where('department', $user->department)
@@ -94,6 +97,7 @@ class ApprovalTicketController extends Controller
             'filters' => $request->only(['status', 'type', 'search', 'department']),
             'pendingHodCount' => $pendingHodCount,
             'pendingAdminCount' => $pendingAdminCount,
+            'adminApprovedCount' => $adminApprovedCount,
             'myTicketsCount' => $myTicketsCount,
             'myPendingCount' => $myPendingCount,
         ]);
@@ -233,9 +237,9 @@ class ApprovalTicketController extends Controller
         $user = Auth::user();
         $ticket = ApprovalTicket::findOrFail($id);
 
-        // Authorization check: User must be HOD of ticket's department OR Admin
-        if (!$user->isAdmin() && (!$user->isHOD() || $user->department !== $ticket->department)) {
-            abort(403, 'Hanya HOD dari departemen bersangkutan yang dapat meninjau tiket ini.');
+        // Authorization check: User must be HOD of ticket's department
+        if (!$user->isHOD() || $user->department !== $ticket->department) {
+            abort(403, 'Hanya HOD dari departemen bersangkutan yang dapat meninjau dan meneruskan tiket ini.');
         }
 
         if ($ticket->status !== 'pending_hod') {
@@ -305,8 +309,8 @@ class ApprovalTicketController extends Controller
 
         $ticket = ApprovalTicket::findOrFail($id);
 
-        if (!in_array($ticket->status, ['pending_admin', 'pending_hod'])) {
-            return back()->withErrors(['message' => 'Tiket ini sudah selesai diproses.']);
+        if ($ticket->status !== 'pending_admin') {
+            return back()->withErrors(['message' => 'Hanya tiket yang telah disetujui dan diteruskan oleh HOD (status Menunggu Admin) yang dapat diproses oleh Admin.']);
         }
 
         $request->validate([
