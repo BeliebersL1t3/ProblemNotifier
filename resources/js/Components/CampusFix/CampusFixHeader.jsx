@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Plus, Search, CalendarPlus, BarChart3, LayoutDashboard, Calendar, User, X } from 'lucide-react';
+import { Plus, Search, CalendarPlus, BarChart3, LayoutDashboard, Calendar, User, X, Ticket } from 'lucide-react';
 import { Button } from '@/Components/UI/Button';
 import { Link } from '@inertiajs/react';
 import { Input } from '@/Components/UI/Input';
@@ -10,6 +10,7 @@ import { useLanguage } from '@/context/LanguageContext';
 import { useAuth } from '@/hooks/useAuth';
 import { Tooltip } from '@/Components/UI/Tooltip';
 import { getDepartmentTheme, getShortDepartmentName } from '@/constants/departments';
+import NotificationDropdown from '@/Components/CampusFix/NotificationDropdown';
 
 export function CampusFixHeader({ mode = 'dashboard', query, onQueryChange, onReport, onEmergency, onNewPeriod, searchDropdown }) {
     const { currentSheet } = useIssues();
@@ -322,6 +323,26 @@ export function CampusFixHeader({ mode = 'dashboard', query, onQueryChange, onRe
                             <span className="text-[10px] font-bold text-amber-600">🚧</span>
                         </div>
                     )}
+
+                    <Link
+                        href="/tickets"
+                        onClick={(e) => handleNav(e, '/tickets', 'Tiket')}
+                        className={`group flex items-center justify-center px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                            mode === 'tickets'
+                                ? 'bg-[#1C1B0E] text-[#E3D1AA] shadow-sm'
+                                : 'text-[#1C1B0E]/70 hover:text-[#1C1B0E] hover:bg-[#1C1B0E]/10'
+                        }`}
+                        title="Pusat Persetujuan Tiket"
+                    >
+                        <Ticket className="h-4 w-4 shrink-0" />
+                        <span className={`transition-all duration-300 ease-out overflow-hidden whitespace-nowrap ${
+                            searchFocused 
+                                ? 'max-w-0 opacity-0 ml-0 group-hover:max-w-[100px] group-hover:opacity-100 group-hover:ml-1.5' 
+                                : 'max-w-[100px] opacity-100 ml-1.5'
+                        }`}>
+                            Tiket
+                        </span>
+                    </Link>
                 </div>
 
                 {/* Desktop Search Bar (Hidden on mobile, mobile uses expandable top row) */}
@@ -418,6 +439,9 @@ export function CampusFixHeader({ mode = 'dashboard', query, onQueryChange, onRe
                             </Tooltip>
                         </>
                     )}
+
+                    {/* Notification Bell Dropdown */}
+                    <NotificationDropdown />
 
                     {/* Profile Quick Chip / Avatar in Action Area — Positioned on the MOST RIGHT */}
                     <Tooltip content={`${user?.name || 'User'} (${user?.department || (isAdmin ? 'Admin' : '')})`} position="bottom">

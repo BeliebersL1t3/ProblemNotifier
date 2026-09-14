@@ -5,7 +5,7 @@ import {
     AlertCircle, Loader2, Sparkles, Mail, Tag, ShieldCheck, RefreshCw,
     Phone, MessageSquare, Check, Smartphone, Unlink, Trash2,
     Users as UsersIcon, ChevronRight, ShieldAlert, Camera, UploadCloud,
-    Image as ImageIcon, X
+    Image as ImageIcon, X, Ticket, Clock
 } from 'lucide-react';
 
 import { IssuesProvider } from '@/context/IssuesContext';
@@ -17,15 +17,15 @@ import { getDepartmentTheme } from '@/constants/departments';
 import { getStaffForDepartment } from '@/constants/staff';
 import SubdivisionTag from '@/Components/CampusFix/SubdivisionTag';
 
-export default function ProfilePage() {
+export default function ProfilePage(props) {
     return (
         <IssuesProvider>
-            <ProfileInner />
+            <ProfileInner {...props} />
         </IssuesProvider>
     );
 }
 
-function ProfileInner() {
+function ProfileInner({ pendingTicket, notifyWhatsAppTickets, status }) {
     const { t, lang } = useLanguage();
     const { user, isAdmin, isDeptUser, department, subdivision, staffName, whatsappNumber, avatarUrl } = useAuth();
     const currentDeptTheme = department ? getDepartmentTheme(department) : { bg: '#C9AA71', text: '#1C1B0E' };
@@ -122,6 +122,27 @@ function ProfileInner() {
         });
     };
 
+    // Notification preference state
+    const [notifyPref, setNotifyPref] = useState(notifyWhatsAppTickets ?? true);
+    const [isUpdatingNotifyPref, setIsUpdatingNotifyPref] = useState(false);
+
+    const handleToggleNotifyPref = () => {
+        const nextVal = !notifyPref;
+        setIsUpdatingNotifyPref(true);
+        router.patch(route('profile.notificationPreferences'), {
+            notify_whatsapp_tickets: nextVal,
+        }, {
+            preserveScroll: true,
+            onSuccess: () => {
+                setNotifyPref(nextVal);
+                setIsUpdatingNotifyPref(false);
+            },
+            onError: () => {
+                setIsUpdatingNotifyPref(false);
+            }
+        });
+    };
+
     // WhatsApp form
     const {
         data: waData,
@@ -132,6 +153,7 @@ function ProfileInner() {
         recentlySuccessful: waSuccessful,
     } = useForm({
         whatsapp_number: user?.whatsapp_number || '',
+        reason: '',
     });
 
     const handleWhatsAppUpdate = (e) => {
@@ -145,12 +167,37 @@ function ProfileInner() {
         if (!confirm(lang === 'id' ? 'Apakah Anda yakin ingin melepas tautan nomor WhatsApp ini dari akun Anda?' : 'Are you sure you want to unlink this WhatsApp number from your account?')) {
             return;
         }
-        setWaData('whatsapp_number', '');
-        router.patch(route('profile.whatsapp'), { whatsapp_number: '' }, {
+        router.patch(route('profile.whatsapp'), { 
+            whatsapp_number: '',
+            reason: 'Permintaan pelepasan nomor WhatsApp mandiri via Profile'
+        }, {
             preserveScroll: true,
             onSuccess: () => {
                 setWaData('whatsapp_number', '');
             }
+        });
+    };
+
+    // Password Reset Ticket Form (for non-admins)
+    const {
+        data: pwdTicketData,
+        setData: setPwdTicketData,
+        errors: pwdTicketErrors,
+        post: postPwdTicket,
+        processing: pwdTicketProcessing,
+        reset: resetPwdTicket,
+        recentlySuccessful: pwdTicketSuccessful,
+    } = useForm({
+        reason: '',
+        new_password: '',
+        new_password_confirmation: '',
+    });
+
+    const handlePasswordTicketSubmit = (e) => {
+        e.preventDefault();
+        postPwdTicket(route('tickets.password'), {
+            preserveScroll: true,
+            onSuccess: () => resetPwdTicket(),
         });
     };
 
@@ -609,8 +656,8 @@ function ProfileInner() {
                                             </h2>
                                             <p className="text-xs text-[#A19F8D] mt-0.5">
                                                 {lang === 'id'
-                                                    ? 'Tautkan nomor WhatsApp Anda agar Bot dapat mengenali Anda saat klaim/lapor issue.'
-                                                    : 'Link your WhatsApp number so the Bot recognizes you automatically when claiming issues.'}
+                                                    ? 'Nomor WhatsApp terverifikasi digunakan oleh bot resort saat bertugas.'
+                                                    : 'Verified WhatsApp number used by the resort bot for task assignments.'}
                                             </p>
                                         </div>
                                     </div>
@@ -627,11 +674,31 @@ function ProfileInner() {
                                     )}
                                 </div>
 
+                                {/* Pending Ticket Notice Banner */}
+                                {pendingTicket && (pendingTicket.type === 'whatsapp_change' || pendingTicket.type === 'whatsapp_unlink') && (
+                                    <div className="p-4 rounded-xl bg-amber-950/60 border border-amber-500/50 text-amber-200 text-xs space-y-1.5 animate-in fade-in duration-200">
+                                        <div className="flex items-center gap-2 font-bold text-amber-300">
+                                            <Clock className="w-4 h-4 text-amber-400" />
+                                            <span>Permohonan Perubahan WhatsApp (#{pendingTicket.ticket_number})</span>
+                                        </div>
+                                        <p>
+                                            Permohonan nomor baru <strong>{pendingTicket.requested_value ? `+${pendingTicket.requested_value}` : 'Pelepasan Nomor'}</strong> sedang menunggu persetujuan <strong>{pendingTicket.status === 'pending_hod' ? 'HOD Departemen' : 'Admin'}</strong>.
+                                        </p>
+                                        <p className="text-amber-400/90 text-[11px] pt-1 border-t border-amber-500/30">
+                                            ℹ️ Nomor WhatsApp Anda saat ini <strong>(+{user?.whatsapp_number || '-'})</strong> tetap aktif digunakan sistem hingga permohonan disetujui.
+                                        </p>
+                                    </div>
+                                )}
+
                                 <form onSubmit={handleWhatsAppUpdate} className="space-y-4">
-                                    {waSuccessful && (
+                                    {(waSuccessful || status === 'whatsapp-ticket-submitted') && (
                                         <div className="flex items-center gap-2 p-3.5 rounded-xl bg-emerald-950/50 border border-emerald-500/40 text-emerald-300 text-xs font-semibold animate-fade-in">
                                             <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
-                                            <span>{lang === 'id' ? 'Nomor WhatsApp berhasil disimpan dan ditautkan!' : 'WhatsApp number successfully linked!'}</span>
+                                            <span>
+                                                {isAdmin 
+                                                    ? (lang === 'id' ? 'Nomor WhatsApp berhasil diperbarui!' : 'WhatsApp number updated successfully!')
+                                                    : (lang === 'id' ? 'Tiket permohonan perubahan nomor WhatsApp telah dikirim ke HOD!' : 'WhatsApp update ticket submitted to HOD!')}
+                                            </span>
                                         </div>
                                     )}
 
@@ -640,7 +707,7 @@ function ProfileInner() {
                                             htmlFor="whatsapp_number" 
                                             className="block text-xs font-semibold text-[#FAFAFA]"
                                         >
-                                            {t('whatsapp_number_label') || 'Nomor WhatsApp Anda'}
+                                            {isAdmin ? 'Nomor WhatsApp Anda' : 'Nomor WhatsApp Baru yang Diajukan'}
                                         </label>
                                         <div className="relative">
                                             <Phone className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#A19F8D]" />
@@ -659,12 +726,32 @@ function ProfileInner() {
                                                 {waErrors.whatsapp_number}
                                             </p>
                                         )}
-                                        <p className="text-[11px] text-[#A19F8D] leading-relaxed pt-1">
-                                            💡 {lang === 'id' 
-                                                ? `Dengan menautkan nomor ini, Anda cukup mengetik "!claim" di grup WhatsApp dan bot akan otomatis mencatatnya atas nama ${staffName || user?.name}. Nomor ini juga mencegah orang lain mengklaim nama Anda.`
-                                                : `By linking this number, simply typing "!claim" in WhatsApp groups will automatically claim tasks as ${staffName || user?.name}. It also protects your name from being claimed by others.`}
-                                        </p>
                                     </div>
+
+                                    {!isAdmin && (
+                                        <div className="space-y-1.5">
+                                            <label 
+                                                htmlFor="wa_reason" 
+                                                className="block text-xs font-semibold text-[#FAFAFA]"
+                                            >
+                                                Alasan Perubahan Nomor
+                                            </label>
+                                            <input
+                                                id="wa_reason"
+                                                type="text"
+                                                value={waData.reason}
+                                                onChange={(e) => setWaData('reason', e.target.value)}
+                                                placeholder="Contoh: Mengganti ke nomor WhatsApp dinas baru..."
+                                                className="w-full rounded-xl border border-[#3B3929] bg-[#1C1B0E] px-3 py-2 text-xs text-[#FAFAFA] placeholder:text-[#A19F8D]/40 focus:border-[#C9AA71] focus:outline-none transition-colors"
+                                            />
+                                        </div>
+                                    )}
+
+                                    <p className="text-[11px] text-[#A19F8D] leading-relaxed">
+                                        💡 {isAdmin 
+                                            ? 'Sebagai Administrator, nomor WhatsApp Anda diperbarui secara langsung ke sistem & bot.'
+                                            : 'Perubahan nomor WhatsApp memerlukan persetujuan HOD Departemen dan Admin. Nomor lama Anda tetap aktif selama masa verifikasi.'}
+                                    </p>
 
                                     <div className="pt-2 flex items-center justify-between gap-3 flex-wrap">
                                         {user?.whatsapp_number ? (
@@ -687,15 +774,15 @@ function ProfileInner() {
                                             {waProcessing ? (
                                                 <>
                                                     <Loader2 className="h-4 w-4 animate-spin" />
-                                                    <span>{t('saving') || 'Menyimpan...'}</span>
+                                                    <span>{t('saving') || 'Memproses...'}</span>
                                                 </>
                                             ) : (
                                                 <>
                                                     <Smartphone className="h-4 w-4" />
                                                     <span>
-                                                        {user?.whatsapp_number 
-                                                            ? (lang === 'id' ? 'Perbarui Nomor WhatsApp' : 'Update WhatsApp Number')
-                                                            : (lang === 'id' ? 'Simpan & Tautkan Nomor' : 'Save & Link Number')}
+                                                        {isAdmin
+                                                            ? (user?.whatsapp_number ? 'Perbarui Nomor' : 'Simpan Nomor')
+                                                            : 'Ajukan Perubahan ke HOD'}
                                                     </span>
                                                 </>
                                             )}
@@ -704,137 +791,236 @@ function ProfileInner() {
                                 </form>
                             </div>
 
-                            {/* Password Change Form Card */}
+                            {/* Notification Preferences Card */}
+                            <div className="rounded-2xl border border-[#3B3929] bg-[#2A281E]/90 p-6 sm:p-8 shadow-xl space-y-4">
+                                <div className="flex items-center justify-between gap-4 flex-wrap">
+                                    <div className="flex items-center gap-2.5">
+                                        <div className="w-9 h-9 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center border border-indigo-500/30 shrink-0">
+                                            <MessageSquare className="h-5 w-5" />
+                                        </div>
+                                        <div>
+                                            <h2 className="text-base sm:text-lg font-bold text-[#FAFAFA]">
+                                                Notifikasi Tiket via WhatsApp
+                                            </h2>
+                                            <p className="text-xs text-[#A19F8D] mt-0.5">
+                                                Kirimkan pemberitahuan tiket permohonan dan persetujuan akun ke WhatsApp pribadi Anda.
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <button
+                                        type="button"
+                                        onClick={handleToggleNotifyPref}
+                                        disabled={isUpdatingNotifyPref}
+                                        className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                                            notifyPref ? 'bg-emerald-600' : 'bg-slate-700'
+                                        }`}
+                                    >
+                                        <span 
+                                            className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                                                notifyPref ? 'translate-x-5' : 'translate-x-0'
+                                            }`} 
+                                        />
+                                    </button>
+                                </div>
+                                <p className="text-[11px] text-[#A19F8D]">
+                                    <em>Catatan:</em> Bot tidak akan mengirimkan spam progres isu ke chat pribadi Anda. Progres isu antar-departemen dapat dipantau melalui lonceng notifikasi di dashboard.
+                                </p>
+                            </div>
+
+                            {/* Password Form Card */}
                             <div className="rounded-2xl border border-[#3B3929] bg-[#2A281E]/90 p-6 sm:p-8 shadow-xl space-y-6">
                                 <div className="flex items-center gap-2.5 pb-4 border-b border-[#3B3929]">
                                     <KeyRound className="h-5 w-5 text-[#C9AA71]" />
                                     <div>
                                         <h2 className="text-base sm:text-lg font-bold text-[#FAFAFA]">
-                                            {t('change_password') || 'Ganti Kata Sandi'}
+                                            {isAdmin ? 'Ganti Kata Sandi (Langsung)' : 'Permohonan Reset Kata Sandi'}
                                         </h2>
                                         <p className="text-xs text-[#A19F8D] mt-0.5">
-                                            {lang === 'id' 
-                                                ? 'Pastikan akun Anda menggunakan kata sandi yang aman untuk mencegah akses tidak sah.' 
-                                                : 'Ensure your account is using a secure password to prevent unauthorized access.'}
+                                            {isAdmin 
+                                                ? 'Sebagai Admin, Anda dapat mengganti kata sandi Anda secara langsung.'
+                                                : 'Sesuai SOP Telunas, permohonan reset password staf akan ditinjau oleh HOD sebelum disetujui Admin.'}
                                         </p>
                                     </div>
                                 </div>
 
-                                <form onSubmit={handlePasswordUpdate} className="space-y-4">
-                                    {/* Success Message Alert */}
-                                    {recentlySuccessful && (
-                                        <div className="flex items-center gap-2 p-3.5 rounded-xl bg-emerald-950/50 border border-emerald-500/40 text-emerald-300 text-xs font-semibold animate-fade-in">
-                                            <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
-                                            <span>{t('password_changed_success') || 'Kata sandi berhasil diperbarui.'}</span>
-                                        </div>
-                                    )}
-
-                                    {/* Current Password */}
-                                    <div className="space-y-1.5">
-                                        <label 
-                                            htmlFor="current_password" 
-                                            className="block text-xs font-semibold text-[#FAFAFA]"
-                                        >
-                                            {t('current_password') || 'Kata Sandi Saat Ini'} <span className="text-red-400">*</span>
-                                        </label>
-                                        <div className="relative">
-                                            <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#A19F8D]" />
-                                            <input
-                                                id="current_password"
-                                                ref={currentPasswordInput}
-                                                type="password"
-                                                value={data.current_password}
-                                                onChange={(e) => setData('current_password', e.target.value)}
-                                                autoComplete="current-password"
-                                                placeholder="••••••••"
-                                                className="w-full rounded-xl border border-[#3B3929] bg-[#1C1B0E] pl-9 pr-3 py-2.5 text-sm text-[#FAFAFA] placeholder:text-[#A19F8D]/40 focus:border-[#C9AA71] focus:outline-none transition-colors"
-                                            />
-                                        </div>
-                                        {errors.current_password && (
-                                            <p className="text-xs text-red-400 flex items-center gap-1 mt-1">
-                                                <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                                                {errors.current_password}
-                                            </p>
+                                {isAdmin ? (
+                                    /* Admin Direct Password Change Form */
+                                    <form onSubmit={handlePasswordUpdate} className="space-y-4">
+                                        {recentlySuccessful && (
+                                            <div className="flex items-center gap-2 p-3.5 rounded-xl bg-emerald-950/50 border border-emerald-500/40 text-emerald-300 text-xs font-semibold animate-fade-in">
+                                                <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
+                                                <span>Kata sandi berhasil diperbarui.</span>
+                                            </div>
                                         )}
-                                    </div>
 
-                                    {/* New Password */}
-                                    <div className="space-y-1.5">
-                                        <label 
-                                            htmlFor="password" 
-                                            className="block text-xs font-semibold text-[#FAFAFA]"
-                                        >
-                                            {t('new_password') || 'Kata Sandi Baru'} <span className="text-red-400">*</span>
-                                        </label>
-                                        <div className="relative">
-                                            <KeyRound className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#A19F8D]" />
-                                            <input
-                                                id="password"
-                                                ref={passwordInput}
-                                                type="password"
-                                                value={data.password}
-                                                onChange={(e) => setData('password', e.target.value)}
-                                                autoComplete="new-password"
-                                                placeholder="••••••••"
-                                                className="w-full rounded-xl border border-[#3B3929] bg-[#1C1B0E] pl-9 pr-3 py-2.5 text-sm text-[#FAFAFA] placeholder:text-[#A19F8D]/40 focus:border-[#C9AA71] focus:outline-none transition-colors"
-                                            />
-                                        </div>
-                                        {errors.password && (
-                                            <p className="text-xs text-red-400 flex items-center gap-1 mt-1">
-                                                <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                                                {errors.password}
-                                            </p>
-                                        )}
-                                    </div>
-
-                                    {/* Confirm New Password */}
-                                    <div className="space-y-1.5">
-                                        <label 
-                                            htmlFor="password_confirmation" 
-                                            className="block text-xs font-semibold text-[#FAFAFA]"
-                                        >
-                                            {t('confirm_password') || 'Konfirmasi Kata Sandi Baru'} <span className="text-red-400">*</span>
-                                        </label>
-                                        <div className="relative">
-                                            <KeyRound className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#A19F8D]" />
-                                            <input
-                                                id="password_confirmation"
-                                                type="password"
-                                                value={data.password_confirmation}
-                                                onChange={(e) => setData('password_confirmation', e.target.value)}
-                                                autoComplete="new-password"
-                                                placeholder="••••••••"
-                                                className="w-full rounded-xl border border-[#3B3929] bg-[#1C1B0E] pl-9 pr-3 py-2.5 text-sm text-[#FAFAFA] placeholder:text-[#A19F8D]/40 focus:border-[#C9AA71] focus:outline-none transition-colors"
-                                            />
-                                        </div>
-                                        {errors.password_confirmation && (
-                                            <p className="text-xs text-red-400 flex items-center gap-1 mt-1">
-                                                <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                                                {errors.password_confirmation}
-                                            </p>
-                                        )}
-                                    </div>
-
-                                    <div className="pt-3 flex justify-end">
-                                        <button
-                                            type="submit"
-                                            disabled={processing}
-                                            className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold bg-[#C9AA71] text-[#1C1B0E] hover:bg-[#D8BE8A] hover:scale-105 active:scale-95 transition-all shadow-xl cursor-pointer disabled:opacity-60"
-                                        >
-                                            {processing ? (
-                                                <>
-                                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                                    <span>{t('saving') || 'Menyimpan...'}</span>
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <KeyRound className="h-4 w-4" />
-                                                    <span>{t('save_password') || 'Simpan Kata Sandi Baru'}</span>
-                                                </>
+                                        <div className="space-y-1.5">
+                                            <label htmlFor="current_password" className="block text-xs font-semibold text-[#FAFAFA]">
+                                                Kata Sandi Saat Ini <span className="text-red-400">*</span>
+                                            </label>
+                                            <div className="relative">
+                                                <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#A19F8D]" />
+                                                <input
+                                                    id="current_password"
+                                                    ref={currentPasswordInput}
+                                                    type="password"
+                                                    value={data.current_password}
+                                                    onChange={(e) => setData('current_password', e.target.value)}
+                                                    autoComplete="current-password"
+                                                    placeholder="••••••••"
+                                                    className="w-full rounded-xl border border-[#3B3929] bg-[#1C1B0E] pl-9 pr-3 py-2.5 text-sm text-[#FAFAFA] placeholder:text-[#A19F8D]/40 focus:border-[#C9AA71] focus:outline-none"
+                                                />
+                                            </div>
+                                            {errors.current_password && (
+                                                <p className="text-xs text-red-400 flex items-center gap-1 mt-1">
+                                                    <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                                                    {errors.current_password}
+                                                </p>
                                             )}
-                                        </button>
+                                        </div>
+
+                                        <div className="space-y-1.5">
+                                            <label htmlFor="password" className="block text-xs font-semibold text-[#FAFAFA]">
+                                                Kata Sandi Baru <span className="text-red-400">*</span>
+                                            </label>
+                                            <div className="relative">
+                                                <KeyRound className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#A19F8D]" />
+                                                <input
+                                                    id="password"
+                                                    ref={passwordInput}
+                                                    type="password"
+                                                    value={data.password}
+                                                    onChange={(e) => setData('password', e.target.value)}
+                                                    autoComplete="new-password"
+                                                    placeholder="••••••••"
+                                                    className="w-full rounded-xl border border-[#3B3929] bg-[#1C1B0E] pl-9 pr-3 py-2.5 text-sm text-[#FAFAFA] placeholder:text-[#A19F8D]/40 focus:border-[#C9AA71] focus:outline-none"
+                                                />
+                                            </div>
+                                            {errors.password && (
+                                                <p className="text-xs text-red-400 flex items-center gap-1 mt-1">
+                                                    <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                                                    {errors.password}
+                                                </p>
+                                            )}
+                                        </div>
+
+                                        <div className="space-y-1.5">
+                                            <label htmlFor="password_confirmation" className="block text-xs font-semibold text-[#FAFAFA]">
+                                                Konfirmasi Kata Sandi Baru <span className="text-red-400">*</span>
+                                            </label>
+                                            <div className="relative">
+                                                <KeyRound className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#A19F8D]" />
+                                                <input
+                                                    id="password_confirmation"
+                                                    type="password"
+                                                    value={data.password_confirmation}
+                                                    onChange={(e) => setData('password_confirmation', e.target.value)}
+                                                    autoComplete="new-password"
+                                                    placeholder="••••••••"
+                                                    className="w-full rounded-xl border border-[#3B3929] bg-[#1C1B0E] pl-9 pr-3 py-2.5 text-sm text-[#FAFAFA] placeholder:text-[#A19F8D]/40 focus:border-[#C9AA71] focus:outline-none"
+                                                />
+                                            </div>
+                                            {errors.password_confirmation && (
+                                                <p className="text-xs text-red-400 flex items-center gap-1 mt-1">
+                                                    <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                                                    {errors.password_confirmation}
+                                                </p>
+                                            )}
+                                        </div>
+
+                                        <div className="pt-3 flex justify-end">
+                                            <button
+                                                type="submit"
+                                                disabled={processing}
+                                                className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold bg-[#C9AA71] text-[#1C1B0E] hover:bg-[#D8BE8A] hover:scale-105 active:scale-95 transition-all shadow-xl cursor-pointer disabled:opacity-60"
+                                            >
+                                                {processing ? 'Menyimpan...' : 'Simpan Kata Sandi Baru'}
+                                            </button>
+                                        </div>
+                                    </form>
+                                ) : (
+                                    /* Non-Admin 2-Tier Password Reset Ticketing Flow */
+                                    <div className="space-y-4">
+                                        {pendingTicket && pendingTicket.type === 'password_reset' ? (
+                                            <div className="p-4 rounded-xl bg-amber-950/60 border border-amber-500/50 text-amber-200 text-xs space-y-1.5 animate-in fade-in duration-200">
+                                                <div className="flex items-center gap-2 font-bold text-amber-300">
+                                                    <Clock className="w-4 h-4 text-amber-400" />
+                                                    <span>Tiket Reset Password Sedang Diproses (#{pendingTicket.ticket_number})</span>
+                                                </div>
+                                                <p>
+                                                    Permohonan reset kata sandi Anda saat ini sedang dalam tahap peninjauan <strong>{pendingTicket.status === 'pending_hod' ? 'HOD Departemen' : 'Admin'}</strong>.
+                                                </p>
+                                                <p className="text-amber-400/90 text-[11px] pt-1 border-t border-amber-500/30">
+                                                    Anda akan menerima kata sandi baru atau konfirmasi setelah tiket disetujui.
+                                                </p>
+                                            </div>
+                                        ) : (
+                                            <form onSubmit={handlePasswordTicketSubmit} className="space-y-4">
+                                                {(pwdTicketSuccessful || status === 'password-ticket-submitted') && (
+                                                    <div className="flex items-center gap-2 p-3.5 rounded-xl bg-emerald-950/50 border border-emerald-500/40 text-emerald-300 text-xs font-semibold animate-fade-in">
+                                                        <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
+                                                        <span>Permohonan tiket reset password telah berhasil diajukan ke HOD!</span>
+                                                    </div>
+                                                )}
+
+                                                <div className="space-y-1.5">
+                                                    <label htmlFor="pwd_reason" className="block text-xs font-semibold text-[#FAFAFA]">
+                                                        Alasan Reset Kata Sandi <span className="text-red-400">*</span>
+                                                    </label>
+                                                    <textarea
+                                                        id="pwd_reason"
+                                                        rows={2}
+                                                        value={pwdTicketData.reason}
+                                                        onChange={(e) => setPwdTicketData('reason', e.target.value)}
+                                                        placeholder="Contoh: Lupa kata sandi lama / Pergantian berkala..."
+                                                        className="w-full rounded-xl border border-[#3B3929] bg-[#1C1B0E] p-3 text-xs text-[#FAFAFA] placeholder:text-[#A19F8D]/40 focus:border-[#C9AA71] focus:outline-none"
+                                                        required
+                                                    />
+                                                    {pwdTicketErrors.reason && (
+                                                        <p className="text-xs text-red-400 flex items-center gap-1 mt-1">
+                                                            <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                                                            {pwdTicketErrors.reason}
+                                                        </p>
+                                                    )}
+                                                </div>
+
+                                                <div className="space-y-1.5">
+                                                    <label htmlFor="new_password_req" className="block text-xs font-semibold text-[#FAFAFA]">
+                                                        Kata Sandi Baru yang Diinginkan (Opsional)
+                                                    </label>
+                                                    <input
+                                                        id="new_password_req"
+                                                        type="password"
+                                                        value={pwdTicketData.new_password}
+                                                        onChange={(e) => setPwdTicketData('new_password', e.target.value)}
+                                                        placeholder="Minimal 8 karakter (biarkan kosong jika ingin digenerate oleh Admin)"
+                                                        className="w-full rounded-xl border border-[#3B3929] bg-[#1C1B0E] px-3 py-2 text-xs text-[#FAFAFA] placeholder:text-[#A19F8D]/40 focus:border-[#C9AA71] focus:outline-none"
+                                                    />
+                                                </div>
+
+                                                <div className="pt-2 flex justify-end">
+                                                    <button
+                                                        type="submit"
+                                                        disabled={pwdTicketProcessing}
+                                                        className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold bg-[#C9AA71] text-[#1C1B0E] hover:bg-[#D8BE8A] hover:scale-105 active:scale-95 transition-all shadow-xl cursor-pointer disabled:opacity-60"
+                                                    >
+                                                        {pwdTicketProcessing ? (
+                                                            <>
+                                                                <Loader2 className="h-4 w-4 animate-spin" />
+                                                                <span>Mengajukan...</span>
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <KeyRound className="h-4 w-4" />
+                                                                <span>Ajukan Reset Password ke HOD</span>
+                                                            </>
+                                                        )}
+                                                    </button>
+                                                </div>
+                                            </form>
+                                        )}
                                     </div>
-                                </form>
+                                )}
                             </div>
                         </div>
                     </div>
