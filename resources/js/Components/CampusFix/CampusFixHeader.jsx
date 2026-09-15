@@ -329,13 +329,13 @@ export function CampusFixHeader({ mode = 'dashboard', query, onQueryChange, onRe
 
                     <Link
                         href="/tickets"
-                        onClick={(e) => handleNav(e, '/tickets', 'Tiket')}
+                        onClick={(e) => handleNav(e, '/tickets', t('tickets') || 'Tickets')}
                         className={`group flex items-center justify-center px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
                             mode === 'tickets'
                                 ? 'bg-[#1C1B0E] text-[#E3D1AA] shadow-sm'
                                 : 'text-[#1C1B0E]/70 hover:text-[#1C1B0E] hover:bg-[#1C1B0E]/10'
                         }`}
-                        title="Pusat Persetujuan Tiket"
+                        title={t('ticket_center_title') || 'Approval Tickets'}
                     >
                         <Ticket className="h-4 w-4 shrink-0" />
                         <span className={`transition-all duration-300 ease-out overflow-hidden whitespace-nowrap ${
@@ -343,7 +343,7 @@ export function CampusFixHeader({ mode = 'dashboard', query, onQueryChange, onRe
                                 ? 'max-w-0 opacity-0 ml-0 group-hover:max-w-[100px] group-hover:opacity-100 group-hover:ml-1.5' 
                                 : 'max-w-[100px] opacity-100 ml-1.5'
                         }`}>
-                            Tiket
+                            {t('tickets') || 'Tickets'}
                         </span>
                     </Link>
                 </div>

@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { Bell, Check, Clock, Ticket, AlertCircle, ExternalLink, CheckCheck, Crown, X } from 'lucide-react';
 import { Link } from '@inertiajs/react';
+import { useLanguage } from '@/context/LanguageContext';
 
 export default function NotificationDropdown({ isMobile = false }) {
+    const { t } = useLanguage();
     const [isOpen, setIsOpen] = useState(false);
     const [activeTab, setActiveTab] = useState('tickets'); // 'tickets' | 'issues'
     const [data, setData] = useState({ tickets: [], issues: [], unread_count: 0 });
@@ -295,7 +297,7 @@ export default function NotificationDropdown({ isMobile = false }) {
                             onClick={() => setIsOpen(false)}
                             className="text-xs font-bold text-[#C9AA71] hover:text-[#E3D1AA] transition-colors inline-flex items-center gap-1"
                         >
-                            <span>Buka Semua Persetujuan Tiket</span>
+                            <span>{t('view_all_tickets') || 'Buka Semua Persetujuan Tiket'}</span>
                             <span>→</span>
                         </Link>
                     </div>

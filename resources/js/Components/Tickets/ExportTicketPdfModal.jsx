@@ -8,39 +8,17 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/Components/UI/Dialog';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/Components/UI/Select';
 import { Loader2, Download, FileText, Filter, ExternalLink, RefreshCw, CheckCircle2, Clock, XCircle, Shield } from 'lucide-react';
 import { DEPARTMENTS } from '@/constants/departments';
+import { useLanguage } from '@/context/LanguageContext';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import axios from 'axios';
 
-const TICKET_TYPES = [
-    { id: 'all', label: 'Semua Tipe' },
-    { id: 'account_registration', label: 'Registrasi Akun Baru' },
-    { id: 'whatsapp_change', label: 'Ubah Nomor WhatsApp' },
-    { id: 'whatsapp_unlink', label: 'Unlink Nomor WhatsApp' },
-    { id: 'password_reset', label: 'Reset Password Akun' },
-    { id: 'department_transfer', label: 'Mutasi Departemen' },
-];
-
-const STATUS_OPTIONS = [
-    { id: 'all', label: 'Semua Status' },
-    { id: 'approved', label: 'Disetujui (Approved)' },
-    { id: 'pending_admin', label: 'Menunggu ACC Admin' },
-    { id: 'pending_hod', label: 'Menunggu HOD' },
-    { id: 'rejected', label: 'Ditolak (Rejected)' },
-];
-
 const LIMITS = [10, 25, 50, 100, 'All'];
 
 export function ExportTicketPdfModal({ open, onOpenChange, currentUser }) {
+    const { t, lang } = useLanguage();
     const [statusFilter, setStatusFilter] = useState('all');
     const [typeFilter, setTypeFilter] = useState('all');
     const [deptFilter, setDeptFilter] = useState('all');
@@ -52,6 +30,23 @@ export function ExportTicketPdfModal({ open, onOpenChange, currentUser }) {
     const [isExporting, setIsExporting] = useState(false);
 
     const logoImgRef = useRef(null);
+
+    const ticketTypes = useMemo(() => [
+        { id: 'all', label: t('ticket_all_types') },
+        { id: 'account_registration', label: t('ticket_type_account_reg') },
+        { id: 'whatsapp_change', label: t('ticket_type_wa_change') },
+        { id: 'whatsapp_unlink', label: t('ticket_type_wa_unlink') },
+        { id: 'password_reset', label: t('ticket_type_pwd_reset') },
+        { id: 'department_transfer', label: t('ticket_type_dept_transfer') },
+    ], [t]);
+
+    const statusOptions = useMemo(() => [
+        { id: 'all', label: t('ticket_all_status') },
+        { id: 'approved', label: t('ticket_status_approved') },
+        { id: 'pending_admin', label: t('ticket_status_pending_admin') },
+        { id: 'pending_hod', label: t('ticket_status_pending_hod') },
+        { id: 'rejected', label: t('ticket_status_rejected') },
+    ], [t]);
 
     // Preload logo for jsPDF without transparent canvas issues
     useEffect(() => {
@@ -101,7 +96,7 @@ export function ExportTicketPdfModal({ open, onOpenChange, currentUser }) {
         if (!val) return '-';
         const d = new Date(val);
         if (isNaN(d.getTime())) return String(val);
-        return d.toLocaleString('en-GB', { 
+        return d.toLocaleString(lang === 'id' ? 'id-ID' : 'en-GB', { 
             day: '2-digit', 
             month: '2-digit', 
             year: 'numeric',
@@ -112,11 +107,11 @@ export function ExportTicketPdfModal({ open, onOpenChange, currentUser }) {
 
     const getTypeLabel = (type) => {
         switch (type) {
-            case 'account_registration': return 'Registrasi Akun Baru';
-            case 'whatsapp_change': return 'Ganti Nomor WA';
-            case 'whatsapp_unlink': return 'Lepas Nomor WA';
-            case 'password_reset': return 'Reset Password';
-            case 'department_transfer': return 'Mutasi Departemen';
+            case 'account_registration': return t('ticket_type_account_reg');
+            case 'whatsapp_change': return t('ticket_type_wa_change');
+            case 'whatsapp_unlink': return t('ticket_type_wa_unlink');
+            case 'password_reset': return t('ticket_type_pwd_reset');
+            case 'department_transfer': return t('ticket_type_dept_transfer');
             default: return type || '-';
         }
     };
@@ -149,12 +144,12 @@ export function ExportTicketPdfModal({ open, onOpenChange, currentUser }) {
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(11);
         doc.setTextColor(28, 27, 14); // #1c1b0e (Telunas charcoal)
-        doc.text('Laporan Rekapitulasi Tiket Persetujuan & Registrasi Staf', 10, 71);
+        doc.text(t('ticket_pdf_doc_title'), 10, 71);
 
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(8);
         doc.setTextColor(120, 120, 120);
-        const filterSubtitle = `Status: ${STATUS_OPTIONS.find(s => s.id === statusFilter)?.label || 'Semua'} | Tipe: ${TICKET_TYPES.find(t => t.id === typeFilter)?.label || 'Semua'} | Dept: ${deptFilter === 'all' ? 'Semua Departemen' : deptFilter}`;
+        const filterSubtitle = `Status: ${statusOptions.find(s => s.id === statusFilter)?.label || 'All'} | Type: ${ticketTypes.find(tItem => tItem.id === typeFilter)?.label || 'All'} | Dept: ${deptFilter === 'all' ? t('all_departments') : deptFilter}`;
         doc.text(filterSubtitle, 10, 76);
 
         // Filter and slice data
@@ -164,59 +159,59 @@ export function ExportTicketPdfModal({ open, onOpenChange, currentUser }) {
         }
 
         // Table Rows
-        const tableData = displayList.map(t => {
-            const staffName = t.staff_name || t.user?.staff_name || t.user?.name || '-';
-            const email = t.email || t.user?.email || '';
+        const tableData = displayList.map(tItem => {
+            const staffName = tItem.staff_name || tItem.user?.staff_name || tItem.user?.name || '-';
+            const email = tItem.email || tItem.user?.email || '';
             const staffCol = email ? `${staffName}\n(${email})` : staffName;
 
-            const deptCol = t.subdivision ? `${t.department || '-'}\n[${t.subdivision}]` : (t.department || '-');
+            const deptCol = tItem.subdivision ? `${tItem.department || '-'}\n[${tItem.subdivision}]` : (tItem.department || '-');
 
             let reqCol = '-';
-            if (t.type === 'whatsapp_change') {
-                reqCol = `${t.current_value || '-'} -> ${t.requested_value || '-'}`;
-            } else if (t.type === 'whatsapp_unlink') {
-                reqCol = `Unlink: ${t.current_value || '-'}`;
-            } else if (t.type === 'department_transfer') {
-                reqCol = `${t.current_value || '-'} -> ${t.requested_value || '-'}`;
-            } else if (t.requested_value) {
-                reqCol = t.requested_value.startsWith('$2y$') ? 'Reset Password Hash' : t.requested_value;
+            if (tItem.type === 'whatsapp_change') {
+                reqCol = `${tItem.current_value || '-'} -> ${tItem.requested_value || '-'}`;
+            } else if (tItem.type === 'whatsapp_unlink') {
+                reqCol = `Unlink: ${tItem.current_value || '-'}`;
+            } else if (tItem.type === 'department_transfer') {
+                reqCol = `${tItem.current_value || '-'} -> ${tItem.requested_value || '-'}`;
+            } else if (tItem.requested_value) {
+                reqCol = tItem.requested_value.startsWith('$2y$') ? 'Reset Password' : tItem.requested_value;
             }
 
             // HOD Review
             let hodCol = '-';
-            if (t.hod_reviewed_at) {
-                const hodName = t.hod ? (t.hod.staff_name || t.hod.name) : 'HOD';
-                const notes = t.hod_notes ? `\n"${t.hod_notes}"` : '';
-                hodCol = `${hodName}\n${formatDateTime(t.hod_reviewed_at)}${notes}`;
-            } else if (t.status === 'pending_hod') {
-                hodCol = '[Menunggu Tinjauan]';
+            if (tItem.hod_reviewed_at) {
+                const hodName = tItem.hod ? (tItem.hod.staff_name || tItem.hod.name) : 'HOD';
+                const notes = tItem.hod_notes ? `\n"${tItem.hod_notes}"` : '';
+                hodCol = `${hodName}\n${formatDateTime(tItem.hod_reviewed_at)}${notes}`;
+            } else if (tItem.status === 'pending_hod') {
+                hodCol = `[${t('ticket_status_pending_hod')}]`;
             }
 
             // Admin Review
             let adminCol = '-';
-            if (t.admin_reviewed_at) {
-                const adminName = t.admin ? (t.admin.staff_name || t.admin.name) : 'Admin';
-                const notes = t.admin_notes ? `\n"${t.admin_notes}"` : '';
-                adminCol = `${adminName}\n${formatDateTime(t.admin_reviewed_at)}${notes}`;
-            } else if (t.status === 'pending_admin') {
-                adminCol = '[Menunggu ACC]';
+            if (tItem.admin_reviewed_at) {
+                const adminName = tItem.admin ? (tItem.admin.staff_name || tItem.admin.name) : 'Admin';
+                const notes = tItem.admin_notes ? `\n"${tItem.admin_notes}"` : '';
+                adminCol = `${adminName}\n${formatDateTime(tItem.admin_reviewed_at)}${notes}`;
+            } else if (tItem.status === 'pending_admin') {
+                adminCol = `[${t('ticket_status_pending_admin')}]`;
             }
 
             // Status Label
             let statusLabel = 'PENDING';
-            if (t.status === 'approved') statusLabel = 'APPROVED';
-            else if (t.status === 'pending_admin') statusLabel = 'PERLU ACC';
-            else if (t.status === 'pending_hod') statusLabel = 'MENUNGGU HOD';
-            else if (String(t.status).includes('rejected')) statusLabel = 'DITOLAK';
+            if (tItem.status === 'approved') statusLabel = 'APPROVED';
+            else if (tItem.status === 'pending_admin') statusLabel = lang === 'id' ? 'PERLU ACC' : 'NEEDS ACC';
+            else if (tItem.status === 'pending_hod') statusLabel = lang === 'id' ? 'MENUNGGU HOD' : 'PENDING HOD';
+            else if (String(tItem.status).includes('rejected')) statusLabel = lang === 'id' ? 'DITOLAK' : 'REJECTED';
 
             return [
-                t.ticket_number || '-',
-                formatDateTime(t.created_at),
-                sanitizePdfText(getTypeLabel(t.type)),
+                tItem.ticket_number || '-',
+                formatDateTime(tItem.created_at),
+                sanitizePdfText(getTypeLabel(tItem.type)),
                 sanitizePdfText(staffCol),
                 sanitizePdfText(deptCol),
                 sanitizePdfText(reqCol),
-                sanitizePdfText(t.reason || '-'),
+                sanitizePdfText(tItem.reason || '-'),
                 sanitizePdfText(hodCol),
                 sanitizePdfText(adminCol),
                 statusLabel,
@@ -226,7 +221,7 @@ export function ExportTicketPdfModal({ open, onOpenChange, currentUser }) {
         if (tableData.length === 0) {
             tableData.push([
                 {
-                    content: 'Tidak ada data tiket yang cocok dengan kriteria filter yang dipilih.',
+                    content: t('ticket_empty_filter'),
                     colSpan: 10,
                     styles: { halign: 'center', textColor: [120, 120, 120], fontStyle: 'italic', cellPadding: 8 }
                 }
@@ -236,7 +231,18 @@ export function ExportTicketPdfModal({ open, onOpenChange, currentUser }) {
         autoTable(doc, {
             startY: 80,
             margin: { left: 10, right: 10, bottom: 20 },
-            head: [['No. Tiket', 'Pengajuan', 'Tipe Permintaan', 'Staf / Pemohon', 'Departemen', 'Nilai / Permintaan', 'Alasan', 'Tinjauan HOD', 'Keputusan Admin', 'Status']],
+            head: [[
+                t('ticket_pdf_col_no'),
+                t('ticket_pdf_col_date'),
+                t('ticket_pdf_col_type'),
+                t('ticket_pdf_col_staff'),
+                t('ticket_department'),
+                t('ticket_pdf_col_detail'),
+                t('ticket_reason_label'),
+                t('ticket_pdf_col_hod'),
+                t('ticket_pdf_col_admin'),
+                t('ticket_pdf_col_status')
+            ]],
             body: tableData,
             theme: 'grid',
             styles: {
@@ -272,9 +278,9 @@ export function ExportTicketPdfModal({ open, onOpenChange, currentUser }) {
                     const val = String(data.cell.raw || '');
                     if (val === 'APPROVED') {
                         data.cell.styles.textColor = [22, 163, 74]; // Green
-                    } else if (val.includes('PERLU ACC') || val.includes('MENUNGGU')) {
+                    } else if (val.includes('ACC') || val.includes('HOD')) {
                         data.cell.styles.textColor = [234, 88, 12]; // Amber/Orange
-                    } else if (val === 'DITOLAK') {
+                    } else if (val === 'DITOLAK' || val === 'REJECTED') {
                         data.cell.styles.textColor = [220, 38, 38]; // Red
                     }
                 }
@@ -287,9 +293,9 @@ export function ExportTicketPdfModal({ open, onOpenChange, currentUser }) {
                 doc.setFontSize(7.5);
                 doc.setFont('helvetica', 'italic');
                 doc.setTextColor(150, 150, 150);
-                doc.text(`Dicetak pada: ${new Date().toLocaleString('id-ID')} | Dicetak oleh: ${currentUser?.name || 'Administrator'}`, data.settings.margin.left, pageHeight - 8);
+                doc.text(`${t('ticket_pdf_generated_at')}: ${new Date().toLocaleString(lang === 'id' ? 'id-ID' : 'en-US')} | ${t('ticket_pdf_by_admin')}: ${currentUser?.name || 'Administrator'}`, data.settings.margin.left, pageHeight - 8);
 
-                const pageStr = `Halaman ${data.pageNumber}`;
+                const pageStr = `${lang === 'id' ? 'Halaman' : 'Page'} ${data.pageNumber}`;
                 doc.text(pageStr, pageWidth - data.settings.margin.right - 15, pageHeight - 8);
             }
         });
@@ -316,14 +322,14 @@ export function ExportTicketPdfModal({ open, onOpenChange, currentUser }) {
         return () => {
             if (previewUrl) URL.revokeObjectURL(previewUrl);
         };
-    }, [tickets, limit, open, isLoadingData]);
+    }, [tickets, limit, open, isLoadingData, lang]);
 
     const handleDownload = () => {
         setIsExporting(true);
         try {
             const doc = generatePdf();
             const dateStr = new Date().toISOString().slice(0, 10);
-            doc.save(`Telunas_Laporan_Tiket_${dateStr}.pdf`);
+            doc.save(`Telunas_Ticket_Report_${dateStr}.pdf`);
         } catch (e) {
             console.error("Export error:", e);
         } finally {
@@ -342,23 +348,23 @@ export function ExportTicketPdfModal({ open, onOpenChange, currentUser }) {
                             </div>
                             <div>
                                 <DialogTitle className="text-xl font-bold text-[#FAFAFA]">
-                                    Ekspor Laporan Tiket (PDF)
+                                    {t('ticket_pdf_modal_title')}
                                 </DialogTitle>
                                 <DialogDescription className="text-xs text-[#A19F8D] mt-0.5">
-                                    Unduh dokumen PDF rekapitulasi seluruh pengajuan tiket persetujuan dan registrasi staf.
+                                    {t('ticket_pdf_modal_desc')}
                                 </DialogDescription>
                             </div>
                         </div>
 
                         <a
-                            href="https://docs.google.com/spreadsheets/d/1uMJNUgTPw-WuA_colsbIzSeVegO9QivjOZ_nAPZ1HWo/edit"
+                            href="https://docs.google.com/spreadsheets/d/1uMJNUgTPw-WuA_colsbIzSeVegO9QivjOZ_nAPZ1HWo/edit?usp=sharing"
                             target="_blank"
                             rel="noreferrer"
                             className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-950/40 text-emerald-300 hover:bg-emerald-900/50 border border-emerald-500/40 transition-colors"
-                            title="Buka Google Spreadsheet Sinkronisasi Tiket"
+                            title={t('ticket_open_sheet_btn')}
                         >
                             <ExternalLink className="w-3.5 h-3.5" />
-                            <span>Buka Spreadsheet</span>
+                            <span>{t('ticket_open_sheet_btn')}</span>
                         </a>
                     </div>
                 </DialogHeader>
@@ -367,13 +373,15 @@ export function ExportTicketPdfModal({ open, onOpenChange, currentUser }) {
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 py-3 border-b border-[#3B3929]/70 bg-[#2A281E]/40 p-3 rounded-xl mt-2">
                     {/* Status */}
                     <div>
-                        <label className="text-[10px] uppercase font-bold text-[#A19F8D] tracking-wider block mb-1">Status</label>
+                        <label className="text-[10px] uppercase font-bold text-[#A19F8D] tracking-wider block mb-1">
+                            {t('ticket_pdf_filter_status')}
+                        </label>
                         <select
                             value={statusFilter}
                             onChange={(e) => setStatusFilter(e.target.value)}
                             className="w-full bg-[#1C1B0E] border border-[#3B3929] text-[#FAFAFA] rounded-lg text-xs py-1.5 px-2 focus:border-[#C9AA71] focus:ring-1 focus:ring-[#C9AA71]"
                         >
-                            {STATUS_OPTIONS.map(s => (
+                            {statusOptions.map(s => (
                                 <option key={s.id} value={s.id}>{s.label}</option>
                             ))}
                         </select>
@@ -381,27 +389,31 @@ export function ExportTicketPdfModal({ open, onOpenChange, currentUser }) {
 
                     {/* Tipe Tiket */}
                     <div>
-                        <label className="text-[10px] uppercase font-bold text-[#A19F8D] tracking-wider block mb-1">Tipe Permohonan</label>
+                        <label className="text-[10px] uppercase font-bold text-[#A19F8D] tracking-wider block mb-1">
+                            {t('ticket_pdf_filter_type')}
+                        </label>
                         <select
                             value={typeFilter}
                             onChange={(e) => setTypeFilter(e.target.value)}
                             className="w-full bg-[#1C1B0E] border border-[#3B3929] text-[#FAFAFA] rounded-lg text-xs py-1.5 px-2 focus:border-[#C9AA71] focus:ring-1 focus:ring-[#C9AA71]"
                         >
-                            {TICKET_TYPES.map(t => (
-                                <option key={t.id} value={t.id}>{t.label}</option>
+                            {ticketTypes.map(tItem => (
+                                <option key={tItem.id} value={tItem.id}>{tItem.label}</option>
                             ))}
                         </select>
                     </div>
 
                     {/* Departemen */}
                     <div>
-                        <label className="text-[10px] uppercase font-bold text-[#A19F8D] tracking-wider block mb-1">Departemen</label>
+                        <label className="text-[10px] uppercase font-bold text-[#A19F8D] tracking-wider block mb-1">
+                            {t('ticket_pdf_filter_dept')}
+                        </label>
                         <select
                             value={deptFilter}
                             onChange={(e) => setDeptFilter(e.target.value)}
                             className="w-full bg-[#1C1B0E] border border-[#3B3929] text-[#FAFAFA] rounded-lg text-xs py-1.5 px-2 focus:border-[#C9AA71] focus:ring-1 focus:ring-[#C9AA71]"
                         >
-                            <option value="all">Semua Departemen</option>
+                            <option value="all">{t('all_departments')}</option>
                             {DEPARTMENTS.map(d => (
                                 <option key={d} value={d}>{d}</option>
                             ))}
@@ -410,14 +422,18 @@ export function ExportTicketPdfModal({ open, onOpenChange, currentUser }) {
 
                     {/* Limit Rows */}
                     <div>
-                        <label className="text-[10px] uppercase font-bold text-[#A19F8D] tracking-wider block mb-1">Batas Baris</label>
+                        <label className="text-[10px] uppercase font-bold text-[#A19F8D] tracking-wider block mb-1">
+                            {t('ticket_pdf_max_rows')}
+                        </label>
                         <select
                             value={limit}
                             onChange={(e) => setLimit(e.target.value)}
                             className="w-full bg-[#1C1B0E] border border-[#3B3929] text-[#FAFAFA] rounded-lg text-xs py-1.5 px-2 focus:border-[#C9AA71] focus:ring-1 focus:ring-[#C9AA71]"
                         >
                             {LIMITS.map(l => (
-                                <option key={l} value={l}>{l === 'All' ? 'Semua (Tanpa Batas)' : `${l} Tiket Terkini`}</option>
+                                <option key={l} value={l}>
+                                    {l === 'All' ? (lang === 'id' ? 'Semua (Tanpa Batas)' : 'All (Unlimited)') : `${l} ${lang === 'id' ? 'Tiket Terkini' : 'Recent Tickets'}`}
+                                </option>
                             ))}
                         </select>
                     </div>
@@ -428,24 +444,26 @@ export function ExportTicketPdfModal({ open, onOpenChange, currentUser }) {
                     {isLoadingData ? (
                         <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-[#1C1B0E]/80 backdrop-blur-sm z-10 text-white">
                             <Loader2 className="w-7 h-7 animate-spin text-[#C9AA71]" />
-                            <p className="text-xs font-semibold text-[#A19F8D]">Mengambil data tiket...</p>
+                            <p className="text-xs font-semibold text-[#A19F8D]">
+                                {lang === 'id' ? 'Mengambil data tiket...' : 'Fetching ticket data...'}
+                            </p>
                         </div>
                     ) : previewUrl ? (
                         <iframe
                             src={previewUrl}
                             className="w-full h-full min-h-[350px] border-0"
-                            title="Pratinjau PDF Laporan Tiket"
+                            title={t('ticket_pdf_modal_title')}
                         />
                     ) : (
                         <div className="flex items-center justify-center h-full text-xs text-muted-foreground">
-                            Membuat pratinjau PDF...
+                            {t('ticket_pdf_preview_loading')}
                         </div>
                     )}
                 </div>
 
                 <DialogFooter className="flex items-center justify-between mt-4 pt-3 border-t border-[#3B3929]">
                     <div className="text-xs text-[#A19F8D]">
-                        Total: <strong className="text-[#FAFAFA]">{tickets.length}</strong> tiket ditemukan
+                        Total: <strong className="text-[#FAFAFA]">{tickets.length}</strong> {lang === 'id' ? 'tiket ditemukan' : 'tickets found'}
                     </div>
 
                     <div className="flex items-center gap-2">
@@ -455,7 +473,7 @@ export function ExportTicketPdfModal({ open, onOpenChange, currentUser }) {
                             onClick={() => onOpenChange(false)}
                             className="border-[#3B3929] text-[#FAFAFA] hover:bg-[#2A281E]"
                         >
-                            Tutup
+                            {t('ticket_modal_btn_cancel')}
                         </Button>
                         <Button
                             type="button"
@@ -468,7 +486,7 @@ export function ExportTicketPdfModal({ open, onOpenChange, currentUser }) {
                             ) : (
                                 <Download className="w-4 h-4" />
                             )}
-                            <span>Unduh PDF</span>
+                            <span>{t('ticket_pdf_download_btn')}</span>
                         </Button>
                     </div>
                 </DialogFooter>
