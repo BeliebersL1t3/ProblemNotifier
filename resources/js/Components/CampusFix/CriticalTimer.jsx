@@ -2,18 +2,18 @@ import React, { useState, useEffect } from 'react';
 import { Timer, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-export function CriticalTimer({ deadline, status, className, variant = 'badge' }) {
+export function CriticalTimer({ deadline, status, className, variant = 'badge', isArchived = false }) {
     const [now, setNow] = useState(Date.now());
 
     useEffect(() => {
-        if (!deadline || status === 'solved') return;
+        if (!deadline || status === 'solved' || isArchived) return;
         const interval = setInterval(() => {
             setNow(Date.now());
         }, 1000);
         return () => clearInterval(interval);
-    }, [deadline, status]);
+    }, [deadline, status, isArchived]);
 
-    if (!deadline || status === 'solved') return null;
+    if (!deadline || status === 'solved' || isArchived) return null;
 
     let targetTime; if (/^\d+$/.test(deadline)) { targetTime = parseInt(deadline, 10); if (targetTime < 10000000000) targetTime *= 1000; } else { targetTime = Date.parse(deadline); } if (isNaN(targetTime) || targetTime <= 0) return null;
 

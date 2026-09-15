@@ -263,6 +263,8 @@ function DashboardInner() {
     // 3. Unclaimed overdue issues (status === 'open')
     const openOverdueCriticals = useMemo(() => {
         return issues.filter(i => {
+            const isArchived = Boolean(i.isArchived || i.statusDisplay === '0' || i.displayStatus === '0');
+            if (isArchived) return false;
             if (i.status !== 'open' || i.priority !== 'critical' || !i.deadline) return false;
             let deadlineTime = parseInt(i.deadline, 10);
             if (isNaN(deadlineTime) || deadlineTime <= 0) return false;
@@ -274,6 +276,8 @@ function DashboardInner() {
     // 4. In Progress overdue issues (status === 'progress')
     const progressOverdueCriticals = useMemo(() => {
         return issues.filter(i => {
+            const isArchived = Boolean(i.isArchived || i.statusDisplay === '0' || i.displayStatus === '0');
+            if (isArchived) return false;
             if (i.status !== 'progress' || i.priority !== 'critical' || !i.deadline) return false;
             let deadlineTime = parseInt(i.deadline, 10);
             if (isNaN(deadlineTime) || deadlineTime <= 0) return false;

@@ -196,15 +196,17 @@ export function TakeJobModal({ issue, onClose }) {
                                 <CriticalTimer
                                     deadline={issue.deadline}
                                     status={issue.status}
+                                    isArchived={Boolean(issue.isArchived || issue.statusDisplay === '0' || issue.displayStatus === '0')}
                                     className="absolute right-2 top-2"
                                 />
                             </div>
                             <div className="p-3.5 space-y-2">
-                                {issue.priority === 'critical' && issue.deadline && (
+                                {issue.priority === 'critical' && issue.deadline && !issue.isArchived && (
                                     <div className="mb-2">
                                         <CriticalTimer
                                             deadline={issue.deadline}
                                             status={issue.status}
+                                            isArchived={Boolean(issue.isArchived || issue.statusDisplay === '0' || issue.displayStatus === '0')}
                                             variant="banner"
                                         />
                                     </div>

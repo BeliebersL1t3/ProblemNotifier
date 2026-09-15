@@ -215,14 +215,16 @@ export function ResolveIssueSheet({ issue, onClose }) {
                                 <CriticalTimer
                                     deadline={issue.deadline}
                                     status={issue.status}
+                                    isArchived={Boolean(issue.isArchived || issue.statusDisplay === '0' || issue.displayStatus === '0')}
                                     className="absolute right-3 top-3"
                                 />
                             </div>
                             <div className="p-3">
-                                {issue.priority === 'critical' && issue.deadline && issue.status !== 'solved' && (
+                                {issue.priority === 'critical' && issue.deadline && issue.status !== 'solved' && !issue.isArchived && (
                                     <CriticalTimer
                                         deadline={issue.deadline}
                                         status={issue.status}
+                                        isArchived={Boolean(issue.isArchived || issue.statusDisplay === '0' || issue.displayStatus === '0')}
                                         variant="banner"
                                         className="mb-2"
                                     />

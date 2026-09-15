@@ -81,14 +81,16 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
     // DENSITY 10 — MICRO MATRIX VIEW
     // =========================================================================
     if (density === '10') {
-        const isEmergency = (issue.category || '').toLowerCase() === 'emergency' || String(issue.id || '').startsWith('SOS');
-        const isCritical = !isEmergency && issue.priority === 'critical';
+        const isEmergency = !isArchived && ((issue.category || '').toLowerCase() === 'emergency' || String(issue.id || '').startsWith('SOS'));
+        const isCritical = !isArchived && !isEmergency && issue.priority === 'critical';
         const isSolved = issue.status === 'solved';
         const isPending = issue.status === 'pending';
         const isProgress = issue.status === 'progress';
 
-        const statusColor = isSolved
-            ? 'border-emerald-500/80 bg-emerald-500/10 text-emerald-400'
+        const statusColor = isArchived
+            ? 'border-stone-700 bg-stone-800/20 text-stone-400'
+            : isSolved
+                ? 'border-emerald-500/80 bg-emerald-500/10 text-emerald-400'
             : isPending
                 ? 'border-orange-500/80 bg-orange-500/10 text-orange-400'
                 : isProgress
@@ -182,8 +184,8 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
     // DENSITY 5 — COMPACT VIEW
     // =========================================================================
     if (density === '5') {
-        const isEmergency = (issue.category || '').toLowerCase() === 'emergency' || String(issue.id || '').startsWith('SOS');
-        const isCritical = !isEmergency && issue.priority === 'critical';
+        const isEmergency = !isArchived && ((issue.category || '').toLowerCase() === 'emergency' || String(issue.id || '').startsWith('SOS'));
+        const isCritical = !isArchived && !isEmergency && issue.priority === 'critical';
         const isSolved = issue.status === 'solved';
         const isPending = issue.status === 'pending';
 
@@ -193,17 +195,19 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
                 onClick={() => onSelect(issue)}
                 className={cn(
                     "group flex flex-col overflow-hidden rounded-xl border text-left transition-all duration-200 hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 min-w-0 w-full bg-surface",
-                    isEmergency
-                        ? isSolved
-                            ? "border-red-500/50 bg-red-950/10 shadow-[0_0_15px_rgba(239,68,68,0.2)] ring-1 ring-red-500/50"
-                            : "border-red-500 bg-red-950/25 border-2 ring-1 ring-red-500 z-10 relative"
-                        : isCritical
+                    isArchived
+                        ? "border-stone-700/60 bg-surface shadow-card opacity-90 hover:opacity-100"
+                        : isEmergency
                             ? isSolved
-                                ? "border-amber-500/50 bg-amber-950/10 shadow-[0_0_15px_rgba(245,158,11,0.2)] ring-1 ring-amber-500/50"
-                                : "border-amber-500 bg-amber-950/20 border-2 ring-1 ring-amber-500 z-10 relative"
-                            : isPending
-                                ? "border-orange-500/50 shadow-card hover:shadow-card-hover ring-1 ring-orange-500/30"
-                                : "border-border shadow-card hover:shadow-card-hover focus-visible:ring-ring"
+                                ? "border-red-500/50 bg-red-950/10 shadow-[0_0_15px_rgba(239,68,68,0.2)] ring-1 ring-red-500/50"
+                                : "border-red-500 bg-red-950/25 border-2 ring-1 ring-red-500 z-10 relative"
+                            : isCritical
+                                ? isSolved
+                                    ? "border-amber-500/50 bg-amber-950/10 shadow-[0_0_15px_rgba(245,158,11,0.2)] ring-1 ring-amber-500/50"
+                                    : "border-amber-500 bg-amber-950/20 border-2 ring-1 ring-amber-500 z-10 relative"
+                                : isPending
+                                    ? "border-orange-500/50 shadow-card hover:shadow-card-hover ring-1 ring-orange-500/30"
+                                    : "border-border shadow-card hover:shadow-card-hover focus-visible:ring-ring"
                 )}
             >
                 <div className="relative aspect-[16/10] overflow-hidden bg-muted group/img">
@@ -236,10 +240,11 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
                             <span>Riwayat</span>
                         </div>
                     )}
-                    {isCritical && !canEdit && !canDelete && (
+                    {isCritical && !canEdit && !canDelete && !isArchived && (
                         <CriticalTimer
                             deadline={issue.deadline}
                             status={issue.status}
+                            isArchived={isArchived}
                             className="absolute right-2 top-2 scale-90 origin-top-right"
                         />
                     )}
@@ -294,10 +299,11 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
                 </div>
 
                 <div className="flex flex-1 flex-col gap-2 p-3 min-w-0 w-full">
-                    {isCritical && issue.deadline && !isSolved && (
+                    {isCritical && issue.deadline && !isSolved && !isArchived && (
                         <CriticalTimer
                             deadline={issue.deadline}
                             status={issue.status}
+                            isArchived={isArchived}
                             variant="banner"
                         />
                     )}
@@ -451,8 +457,8 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
     // =========================================================================
     // DENSITY 3 — STANDARD DETAILED VIEW (DEFAULT)
     // =========================================================================
-    const isEmergency = (issue.category || '').toLowerCase() === 'emergency' || String(issue.id || '').startsWith('SOS');
-    const isCritical = !isEmergency && issue.priority === 'critical';
+    const isEmergency = !isArchived && ((issue.category || '').toLowerCase() === 'emergency' || String(issue.id || '').startsWith('SOS'));
+    const isCritical = !isArchived && !isEmergency && issue.priority === 'critical';
 
     return (
         <button
@@ -460,17 +466,19 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
             onClick={() => onSelect(issue)}
             className={cn(
                 "group flex flex-col overflow-hidden rounded-xl border text-left transition-all duration-200 hover:-translate-y-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 min-w-0 w-full",
-                isEmergency
-                    ? issue.status === 'solved'
-                        ? "border-red-500/50 bg-red-950/10 shadow-[0_0_15px_rgba(239,68,68,0.2)] ring-1 ring-red-500/50"
-                        : "border-red-500 bg-red-950/25 border-2 ring-1 ring-red-500 z-10 relative"
-                    : isCritical
+                isArchived
+                    ? "border-stone-700/60 bg-surface shadow-card opacity-90 hover:opacity-100"
+                    : isEmergency
                         ? issue.status === 'solved'
-                            ? "border-amber-500/50 bg-amber-950/10 shadow-[0_0_15px_rgba(245,158,11,0.2)] ring-1 ring-amber-500/50"
-                            : "border-amber-500 bg-amber-950/20 border-2 ring-1 ring-amber-500 z-10 relative"
-                        : issue.status === 'pending'
-                            ? "border-orange-500/50 bg-surface shadow-card hover:shadow-card-hover focus-visible:ring-ring ring-1 ring-orange-500/30"
-                            : "border-border bg-surface shadow-card hover:shadow-card-hover focus-visible:ring-ring"
+                            ? "border-red-500/50 bg-red-950/10 shadow-[0_0_15px_rgba(239,68,68,0.2)] ring-1 ring-red-500/50"
+                            : "border-red-500 bg-red-950/25 border-2 ring-1 ring-red-500 z-10 relative"
+                        : isCritical
+                            ? issue.status === 'solved'
+                                ? "border-amber-500/50 bg-amber-950/10 shadow-[0_0_15px_rgba(245,158,11,0.2)] ring-1 ring-amber-500/50"
+                                : "border-amber-500 bg-amber-950/20 border-2 ring-1 ring-amber-500 z-10 relative"
+                            : issue.status === 'pending'
+                                ? "border-orange-500/50 bg-surface shadow-card hover:shadow-card-hover focus-visible:ring-ring ring-1 ring-orange-500/30"
+                                : "border-border bg-surface shadow-card hover:shadow-card-hover focus-visible:ring-ring"
             )}
         >
             <div className="relative aspect-[4/3] overflow-hidden bg-muted group/img">
@@ -509,10 +517,11 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
                         <span>Archived</span>
                     </div>
                 )}
-                {isCritical && !canEdit && !canDelete && (
+                {isCritical && !canEdit && !canDelete && !isArchived && (
                     <CriticalTimer
                         deadline={issue.deadline}
                         status={issue.status}
+                        isArchived={isArchived}
                         className="absolute right-3 top-3"
                     />
                 )}
@@ -567,10 +576,11 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
             </div>
 
             <div className="flex flex-1 flex-col gap-2 p-4 min-w-0 w-full">
-                {isCritical && issue.deadline && issue.status !== 'solved' && (
+                {isCritical && issue.deadline && issue.status !== 'solved' && !isArchived && (
                     <CriticalTimer
                         deadline={issue.deadline}
                         status={issue.status}
+                        isArchived={isArchived}
                         variant="banner"
                     />
                 )}
