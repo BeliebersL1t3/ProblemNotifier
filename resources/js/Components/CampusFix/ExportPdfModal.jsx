@@ -508,8 +508,8 @@ export function ExportPdfModal({ open, onOpenChange }) {
             theme: 'grid',
             styles: { 
                 font: 'helvetica', 
-                fontSize: 8,
-                cellPadding: 3,
+                fontSize: 7.5, 
+                cellPadding: 2.5,
             },
             headStyles: { 
                 fillColor: [227, 209, 170], // Telunas tan/gold
@@ -523,17 +523,17 @@ export function ExportPdfModal({ open, onOpenChange }) {
             },
             columnStyles: {
                 0: { cellWidth: 22 }, // ID
-                1: { cellWidth: 18 }, // Submitted
+                1: { cellWidth: 20 }, // Submitted
                 2: { cellWidth: 18 }, // Taken
                 3: { cellWidth: 18 }, // Solved
                 4: { cellWidth: 16 }, // Duration
-                5: { cellWidth: 42 }, // Problem
+                5: { cellWidth: 40 }, // Problem
                 6: { cellWidth: 20 }, // Location
                 7: { cellWidth: 32 }, // Dept / Tags
                 8: { cellWidth: 20 }, // Category
                 9: { cellWidth: 22 }, // Reporter
                 10: { cellWidth: 22, fontStyle: 'bold' }, // Status
-                11: { cellWidth: 18, fontStyle: 'bold' }, // Priority
+                11: { cellWidth: 20, fontStyle: 'bold' }, // Priority
             },
             didParseCell: function(data) {
                 // Color code Priority column (Index 11)
@@ -556,6 +556,7 @@ export function ExportPdfModal({ open, onOpenChange }) {
                     const rawStatus = String(data.cell.raw || '');
                     if (rawStatus.startsWith('ARCHIVED')) {
                         data.cell.styles.textColor = [190, 24, 93]; // Rose-700
+                        data.cell.styles.fontSize = 6.5; // Compact font for ARCHIVED and timestamp
                     } else if (rawStatus === 'SOLVED') {
                         data.cell.styles.textColor = [22, 163, 74]; // Green
                     } else if (rawStatus === 'PROGRESS') {
