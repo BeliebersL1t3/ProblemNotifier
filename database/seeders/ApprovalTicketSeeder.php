@@ -33,7 +33,7 @@ class ApprovalTicketSeeder extends Seeder
         $tickets = [
             // 1. Pending HOD - Account Registration (GR)
             [
-                'ticket_number' => 'TKT-202609-0101',
+                'ticket_number' => 'REG-20260914-0101',
                 'type' => 'account_registration',
                 'status' => 'pending_hod',
                 'user_id' => null,
@@ -50,7 +50,7 @@ class ApprovalTicketSeeder extends Seeder
 
             // 2. Pending HOD - WhatsApp Change (IT)
             [
-                'ticket_number' => 'TKT-202609-0102',
+                'ticket_number' => 'WA-20260914-0102',
                 'type' => 'whatsapp_change',
                 'status' => 'pending_hod',
                 'user_id' => $userDani ? $userDani->id : null,
@@ -67,7 +67,7 @@ class ApprovalTicketSeeder extends Seeder
 
             // 3. Pending Admin - Account Registration (HR / Transportasi) - Approved by HOD
             [
-                'ticket_number' => 'TKT-202609-0103',
+                'ticket_number' => 'REG-20260914-0103',
                 'type' => 'account_registration',
                 'status' => 'pending_admin',
                 'user_id' => null,
@@ -87,7 +87,7 @@ class ApprovalTicketSeeder extends Seeder
 
             // 4. Pending Admin - WhatsApp Unlink (GR / Bar) - Approved by HOD
             [
-                'ticket_number' => 'TKT-202609-0104',
+                'ticket_number' => 'WA-20260914-0104',
                 'type' => 'whatsapp_unlink',
                 'status' => 'pending_admin',
                 'user_id' => $userLia ? $userLia->id : null,
@@ -107,7 +107,7 @@ class ApprovalTicketSeeder extends Seeder
 
             // 5. Pending Admin - Password Reset (Procurement) - Approved by HOD
             [
-                'ticket_number' => 'TKT-202609-0105',
+                'ticket_number' => 'PWD-20260914-0105',
                 'type' => 'password_reset',
                 'status' => 'pending_admin',
                 'user_id' => $userBudiProc ? $userBudiProc->id : null,
@@ -127,7 +127,7 @@ class ApprovalTicketSeeder extends Seeder
 
             // 6. Approved - Account Registration (HK) - Fully ACC by HOD & Admin
             [
-                'ticket_number' => 'TKT-202609-0106',
+                'ticket_number' => 'REG-20260911-0106',
                 'type' => 'account_registration',
                 'status' => 'approved',
                 'user_id' => $userSitiHK ? $userSitiHK->id : null,
@@ -150,7 +150,7 @@ class ApprovalTicketSeeder extends Seeder
 
             // 7. Approved - WhatsApp Change (Kitchen) - Fully ACC
             [
-                'ticket_number' => 'TKT-202609-0107',
+                'ticket_number' => 'WA-20260912-0107',
                 'type' => 'whatsapp_change',
                 'status' => 'approved',
                 'user_id' => $userRickyKitchen ? $userRickyKitchen->id : null,
@@ -173,7 +173,7 @@ class ApprovalTicketSeeder extends Seeder
 
             // 8. Rejected - Account Registration (Kitchen) - Rejected by HOD
             [
-                'ticket_number' => 'TKT-202609-0108',
+                'ticket_number' => 'REG-20260912-0108',
                 'type' => 'account_registration',
                 'status' => 'rejected',
                 'user_id' => null,
@@ -194,7 +194,7 @@ class ApprovalTicketSeeder extends Seeder
 
             // 9. Rejected - WhatsApp Change (Finance) - Rejected by Admin
             [
-                'ticket_number' => 'TKT-202609-0109',
+                'ticket_number' => 'WA-20260913-0109',
                 'type' => 'whatsapp_change',
                 'status' => 'rejected',
                 'user_id' => $userIwanFin ? $userIwanFin->id : null,
@@ -215,7 +215,7 @@ class ApprovalTicketSeeder extends Seeder
 
             // 10. Pending HOD - Password Reset (GR / Spa)
             [
-                'ticket_number' => 'TKT-202609-0110',
+                'ticket_number' => 'PWD-20260914-0110',
                 'type' => 'password_reset',
                 'status' => 'pending_hod',
                 'user_id' => $userSariSpa ? $userSariSpa->id : null,
