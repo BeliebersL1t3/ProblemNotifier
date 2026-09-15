@@ -324,8 +324,17 @@ export function ExportPdfModal({ open, onOpenChange }) {
 
         const formatDateTime = (val) => {
             if (!val) return '-';
-            const d = new Date(val);
-            if (isNaN(d.getTime())) return val;
+            let d;
+            if (typeof val === 'number') {
+                d = new Date(val);
+            } else if (/^\d+$/.test(String(val).trim())) {
+                let num = parseInt(val, 10);
+                if (num < 10000000000) num *= 1000;
+                d = new Date(num);
+            } else {
+                d = new Date(val);
+            }
+            if (isNaN(d.getTime())) return String(val);
             return d.toLocaleString('en-GB', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).replace(',', '');
         };
 
@@ -396,6 +405,16 @@ export function ExportPdfModal({ open, onOpenChange }) {
                 solvedCell = `${formatDateTime(i.solvedAt)}${solverName}`;
             }
 
+            let statusCell = (i.status || 'OPEN').toUpperCase();
+            if (i.isArchived) {
+                const archiveLog = (i.editLogs || []).slice().reverse().find(l => l && (l.type === 'archive' || String(l.changes).toLowerCase().includes('arsip') || String(l.changes).toLowerCase().includes('archive')));
+                const rawArchiveDate = i.archivedAtStr || i.archivedAt || archiveLog?.date;
+                const formattedArchivedDate = rawArchiveDate ? formatDateTime(rawArchiveDate) : null;
+                statusCell = formattedArchivedDate && formattedArchivedDate !== '-'
+                    ? `ARCHIVED\n${formattedArchivedDate}`
+                    : 'ARCHIVED';
+            }
+
             tableData.push([
                 i.id.replace('TEL-', ''),
                 formatDateTime(i.reportedAt),
@@ -407,7 +426,7 @@ export function ExportPdfModal({ open, onOpenChange }) {
                 combinedDeptTags,
                 sanitizePdfText(categories.find(c => c.id === i.category)?.label || i.category),
                 sanitizePdfText(i.reporter),
-                i.isArchived ? 'ARCHIVED' : (i.status || 'OPEN').toUpperCase(),
+                statusCell,
                 (i.priority || 'LOW').toUpperCase()
             ]);
 
@@ -534,13 +553,14 @@ export function ExportPdfModal({ open, onOpenChange }) {
                 }
                 // Color code Status column (Index 10)
                 if (data.section === 'body' && data.column.index === 10) {
-                    if (data.cell.raw === 'ARCHIVED') {
+                    const rawStatus = String(data.cell.raw || '');
+                    if (rawStatus.startsWith('ARCHIVED')) {
                         data.cell.styles.textColor = [190, 24, 93]; // Rose-700
-                    } else if (data.cell.raw === 'SOLVED') {
+                    } else if (rawStatus === 'SOLVED') {
                         data.cell.styles.textColor = [22, 163, 74]; // Green
-                    } else if (data.cell.raw === 'PROGRESS') {
+                    } else if (rawStatus === 'PROGRESS') {
                         data.cell.styles.textColor = [37, 99, 235]; // Blue
-                    } else if (data.cell.raw === 'PENDING') {
+                    } else if (rawStatus === 'PENDING') {
                         data.cell.styles.textColor = [234, 88, 12]; // Orange
                     } else {
                         data.cell.styles.textColor = [220, 38, 38]; // Red (Open)
