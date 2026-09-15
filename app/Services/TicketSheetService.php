@@ -231,7 +231,39 @@ class TicketSheetService
     }
 
     /**
-     * Apply header styling, cell wrapping, and status-based conditional formatting rules.
+     * Get color palette for a given ticket status
+     */
+    public static function getStatusTheme(string $status): array
+    {
+        if (str_contains($status, 'hod') && !str_contains($status, 'rejected')) {
+            return [
+                'rowBg'     => ['red' => 254 / 255, 'green' => 249 / 255, 'blue' => 195 / 255], // Pastel Amber (#FEF9C3)
+                'badgeBg'   => ['red' => 253 / 255, 'green' => 224 / 255, 'blue' => 71 / 255],  // Rich Amber (#FDE047)
+                'badgeText' => ['red' => 146 / 255, 'green' => 64 / 255,  'blue' => 14 / 255],  // Dark Amber (#92400E)
+            ];
+        } elseif (str_contains($status, 'admin') && !str_contains($status, 'rejected')) {
+            return [
+                'rowBg'     => ['red' => 224 / 255, 'green' => 242 / 255, 'blue' => 254 / 255], // Pastel Sky (#E0F2FE)
+                'badgeBg'   => ['red' => 186 / 255, 'green' => 230 / 255, 'blue' => 253 / 255], // Rich Sky (#BAE6FD)
+                'badgeText' => ['red' => 3 / 255,   'green' => 105 / 255, 'blue' => 161 / 255], // Dark Sky (#0369A1)
+            ];
+        } elseif ($status === 'approved') {
+            return [
+                'rowBg'     => ['red' => 220 / 255, 'green' => 252 / 255, 'blue' => 231 / 255], // Pastel Green (#DCFCE7)
+                'badgeBg'   => ['red' => 187 / 255, 'green' => 247 / 255, 'blue' => 208 / 255], // Rich Green (#BBF7D0)
+                'badgeText' => ['red' => 21 / 255,  'green' => 128 / 255, 'blue' => 61 / 255],  // Dark Green (#15803D)
+            ];
+        } else { // rejected
+            return [
+                'rowBg'     => ['red' => 255 / 255, 'green' => 228 / 255, 'blue' => 230 / 255], // Pastel Rose (#FFE4E6)
+                'badgeBg'   => ['red' => 254 / 255, 'green' => 205 / 255, 'blue' => 211 / 255], // Rich Rose (#FECDD3)
+                'badgeText' => ['red' => 190 / 255, 'green' => 18 / 255,  'blue' => 60 / 255],  // Dark Rose (#BE123C)
+            ];
+        }
+    }
+
+    /**
+     * Apply header styling, direct row status colors, and conditional formatting rules.
      */
     public function setupSheetFormatting(): void
     {
@@ -247,7 +279,6 @@ class TicketSheetService
                 if ($sheet->getProperties()->getTitle() === $this->sheetName) {
                     $sheetId = $sheet->getProperties()->getSheetId();
                     $existingRules = $sheet->getConditionalFormats() ?: [];
-                    // Clear existing rules to avoid duplicate rules
                     if (!empty($existingRules)) {
                         $deleteRequests = [];
                         for ($i = count($existingRules) - 1; $i >= 0; $i--) {
@@ -299,100 +330,79 @@ class TicketSheetService
                 ]
             ]);
 
-            // 2. Wrap text & center vertical alignment for data rows (Rows 2-1000)
-            $requests[] = new Request([
-                'repeatCell' => [
-                    'range' => [
-                        'sheetId'          => $sheetId,
-                        'startRowIndex'    => 1,
-                        'endRowIndex'      => 1000,
-                        'startColumnIndex' => 0,
-                        'endColumnIndex'   => 19,
-                    ],
-                    'cell' => [
-                        'userEnteredFormat' => [
-                            'wrapStrategy'      => 'WRAP',
-                            'verticalAlignment' => 'MIDDLE',
-                        ]
-                    ],
-                    'fields' => 'userEnteredFormat(wrapStrategy,verticalAlignment)',
-                ]
-            ]);
+            // 2. Direct Row Colors for existing tickets
+            $tickets = ApprovalTicket::orderBy('id')->get();
+            foreach ($tickets as $idx => $t) {
+                $rowIndex = $idx + 1; // 0-based: row 1 is 2nd row in spreadsheet
+                $theme = self::getStatusTheme($t->status);
 
-            // 3. Conditional Formatting Rules
-            // A. Status Column Badge (Column K, index 10 to 11): Vibrant background with bold colored text
-            $statusBadgeRules = [
-                [
-                    'formula' => '=$K2="Menunggu ACC HOD"',
-                    'bg'      => ['red' => 254 / 255, 'green' => 240 / 255, 'blue' => 138 / 255], // Amber/Yellow
-                    'text'    => ['red' => 146 / 255, 'green' => 64 / 255,  'blue' => 14 / 255],
-                ],
-                [
-                    'formula' => '=$K2="Menunggu ACC Admin"',
-                    'bg'      => ['red' => 186 / 255, 'green' => 230 / 255, 'blue' => 253 / 255], // Blue
-                    'text'    => ['red' => 3 / 255,   'green' => 105 / 255, 'blue' => 161 / 255],
-                ],
-                [
-                    'formula' => '=$K2="Disetujui (ACC Final)"',
-                    'bg'      => ['red' => 187 / 255, 'green' => 247 / 255, 'blue' => 208 / 255], // Green
-                    'text'    => ['red' => 21 / 255,  'green' => 128 / 255, 'blue' => 61 / 255],
-                ],
-                [
-                    'formula' => '=$K2="Ditolak"',
-                    'bg'      => ['red' => 254 / 255, 'green' => 205 / 255, 'blue' => 211 / 255], // Red
-                    'text'    => ['red' => 190 / 255, 'green' => 18 / 255,  'blue' => 60 / 255],
-                ],
-            ];
-
-            foreach ($statusBadgeRules as $r) {
+                // Row background (Columns 0 to 18)
                 $requests[] = new Request([
-                    'addConditionalFormatRule' => [
-                        'rule' => [
-                            'ranges' => [[
-                                'sheetId'          => $sheetId,
-                                'startRowIndex'    => 1,
-                                'endRowIndex'      => 1000,
-                                'startColumnIndex' => 10,
-                                'endColumnIndex'   => 11,
-                            ]],
-                            'booleanRule' => [
-                                'condition' => [
-                                    'type'   => 'CUSTOM_FORMULA',
-                                    'values' => [['userEnteredValue' => $r['formula']]],
-                                ],
-                                'format' => [
-                                    'backgroundColor' => $r['bg'],
-                                    'textFormat'      => ['bold' => true, 'foregroundColor' => $r['text']],
-                                ],
-                            ],
+                    'repeatCell' => [
+                        'range' => [
+                            'sheetId'          => $sheetId,
+                            'startRowIndex'    => $rowIndex,
+                            'endRowIndex'      => $rowIndex + 1,
+                            'startColumnIndex' => 0,
+                            'endColumnIndex'   => 19,
                         ],
-                        'index' => count($requests),
+                        'cell' => [
+                            'userEnteredFormat' => [
+                                'backgroundColor'   => $theme['rowBg'],
+                                'wrapStrategy'      => 'WRAP',
+                                'verticalAlignment' => 'MIDDLE',
+                            ]
+                        ],
+                        'fields' => 'userEnteredFormat(backgroundColor,wrapStrategy,verticalAlignment)',
+                    ]
+                ]);
+
+                // Status badge cell (Column 10 / Column K)
+                $requests[] = new Request([
+                    'repeatCell' => [
+                        'range' => [
+                            'sheetId'          => $sheetId,
+                            'startRowIndex'    => $rowIndex,
+                            'endRowIndex'      => $rowIndex + 1,
+                            'startColumnIndex' => 10,
+                            'endColumnIndex'   => 11,
+                        ],
+                        'cell' => [
+                            'userEnteredFormat' => [
+                                'backgroundColor'   => $theme['badgeBg'],
+                                'textFormat'        => [
+                                    'bold'            => true,
+                                    'foregroundColor' => $theme['badgeText'],
+                                ],
+                                'wrapStrategy'      => 'WRAP',
+                                'verticalAlignment' => 'MIDDLE',
+                            ]
+                        ],
+                        'fields' => 'userEnteredFormat(backgroundColor,textFormat,wrapStrategy,verticalAlignment)',
                     ]
                 ]);
             }
 
-            // B. Whole Row Soft Pastel Tint (Columns A to S, index 0 to 19):
-            // Allows instant visual status recognition when looking at Ticket Number, Staff, Email, etc.
-            $rowTintRules = [
-                [
-                    'formula' => '=$K2="Menunggu ACC HOD"',
-                    'bg'      => ['red' => 254 / 255, 'green' => 249 / 255, 'blue' => 195 / 255], // Soft Amber
-                ],
-                [
-                    'formula' => '=$K2="Menunggu ACC Admin"',
-                    'bg'      => ['red' => 224 / 255, 'green' => 242 / 255, 'blue' => 254 / 255], // Soft Blue
-                ],
-                [
-                    'formula' => '=$K2="Disetujui (ACC Final)"',
-                    'bg'      => ['red' => 220 / 255, 'green' => 252 / 255, 'blue' => 231 / 255], // Soft Green
-                ],
-                [
-                    'formula' => '=$K2="Ditolak"',
-                    'bg'      => ['red' => 255 / 255, 'green' => 228 / 255, 'blue' => 230 / 255], // Soft Rose
-                ],
+            // 3. Conditional Formatting Rules using SEARCH for automatic ongoing updates
+            $cfRules = [
+                // Column K Badges
+                ['formula' => '=ISNUMBER(SEARCH("HOD", $K2))', 'range' => [10, 11], 'bg' => ['red' => 253/255, 'green' => 224/255, 'blue' => 71/255], 'text' => ['red' => 146/255, 'green' => 64/255, 'blue' => 14/255]],
+                ['formula' => '=ISNUMBER(SEARCH("Admin", $K2))', 'range' => [10, 11], 'bg' => ['red' => 186/255, 'green' => 230/255, 'blue' => 253/255], 'text' => ['red' => 3/255, 'green' => 105/255, 'blue' => 161/255]],
+                ['formula' => '=ISNUMBER(SEARCH("Setuju", $K2))', 'range' => [10, 11], 'bg' => ['red' => 187/255, 'green' => 247/255, 'blue' => 208/255], 'text' => ['red' => 21/255, 'green' => 128/255, 'blue' => 61/255]],
+                ['formula' => '=ISNUMBER(SEARCH("Tolak", $K2))', 'range' => [10, 11], 'bg' => ['red' => 254/255, 'green' => 205/255, 'blue' => 211/255], 'text' => ['red' => 190/255, 'green' => 18/255, 'blue' => 60/255]],
+
+                // Rows A:S Tint
+                ['formula' => '=ISNUMBER(SEARCH("HOD", $K2))', 'range' => [0, 19], 'bg' => ['red' => 254/255, 'green' => 249/255, 'blue' => 195/255], 'text' => null],
+                ['formula' => '=ISNUMBER(SEARCH("Admin", $K2))', 'range' => [0, 19], 'bg' => ['red' => 224/255, 'green' => 242/255, 'blue' => 254/255], 'text' => null],
+                ['formula' => '=ISNUMBER(SEARCH("Setuju", $K2))', 'range' => [0, 19], 'bg' => ['red' => 220/255, 'green' => 252/255, 'blue' => 231/255], 'text' => null],
+                ['formula' => '=ISNUMBER(SEARCH("Tolak", $K2))', 'range' => [0, 19], 'bg' => ['red' => 255/255, 'green' => 228/255, 'blue' => 230/255], 'text' => null],
             ];
 
-            foreach ($rowTintRules as $r) {
+            foreach ($cfRules as $idx => $r) {
+                $format = ['backgroundColor' => $r['bg']];
+                if (!empty($r['text'])) {
+                    $format['textFormat'] = ['bold' => true, 'foregroundColor' => $r['text']];
+                }
                 $requests[] = new Request([
                     'addConditionalFormatRule' => [
                         'rule' => [
@@ -400,20 +410,18 @@ class TicketSheetService
                                 'sheetId'          => $sheetId,
                                 'startRowIndex'    => 1,
                                 'endRowIndex'      => 1000,
-                                'startColumnIndex' => 0,
-                                'endColumnIndex'   => 19,
+                                'startColumnIndex' => $r['range'][0],
+                                'endColumnIndex'   => $r['range'][1],
                             ]],
                             'booleanRule' => [
                                 'condition' => [
                                     'type'   => 'CUSTOM_FORMULA',
                                     'values' => [['userEnteredValue' => $r['formula']]],
                                 ],
-                                'format' => [
-                                    'backgroundColor' => $r['bg'],
-                                ],
+                                'format' => $format,
                             ],
                         ],
-                        'index' => count($requests),
+                        'index' => $idx,
                     ]
                 ]);
             }
@@ -460,15 +468,81 @@ class TicketSheetService
                     $body,
                     ['valueInputOption' => 'USER_ENTERED']
                 );
+                $finalRow = $targetRow;
             } else {
                 // Append new row
                 $body = new ValueRange(['values' => [$rowValues]]);
-                $sheets->spreadsheets_values->append(
+                $appendRes = $sheets->spreadsheets_values->append(
                     $this->spreadsheetId,
                     "{$this->sheetName}!A:S",
                     $body,
                     ['valueInputOption' => 'USER_ENTERED']
                 );
+                $updatedRange = $appendRes->getUpdates()?->getUpdatedRange();
+                $finalRow = null;
+                if ($updatedRange && preg_match('/!A(\d+):/', $updatedRange, $m)) {
+                    $finalRow = (int)$m[1];
+                }
+            }
+
+            // Paint status color on the synced row directly
+            if ($finalRow !== null) {
+                $spreadsheet = $sheets->spreadsheets->get($this->spreadsheetId);
+                $sheetId = 0;
+                foreach ($spreadsheet->getSheets() as $sheet) {
+                    if ($sheet->getProperties()->getTitle() === $this->sheetName) {
+                        $sheetId = $sheet->getProperties()->getSheetId();
+                        break;
+                    }
+                }
+
+                $theme = self::getStatusTheme($ticket->status);
+                $rowIndex = $finalRow - 1; // 0-based
+                $paintRequests = [
+                    new Request([
+                        'repeatCell' => [
+                            'range' => [
+                                'sheetId'          => $sheetId,
+                                'startRowIndex'    => $rowIndex,
+                                'endRowIndex'      => $rowIndex + 1,
+                                'startColumnIndex' => 0,
+                                'endColumnIndex'   => 19,
+                            ],
+                            'cell' => [
+                                'userEnteredFormat' => [
+                                    'backgroundColor'   => $theme['rowBg'],
+                                    'wrapStrategy'      => 'WRAP',
+                                    'verticalAlignment' => 'MIDDLE',
+                                ]
+                            ],
+                            'fields' => 'userEnteredFormat(backgroundColor,wrapStrategy,verticalAlignment)',
+                        ]
+                    ]),
+                    new Request([
+                        'repeatCell' => [
+                            'range' => [
+                                'sheetId'          => $sheetId,
+                                'startRowIndex'    => $rowIndex,
+                                'endRowIndex'      => $rowIndex + 1,
+                                'startColumnIndex' => 10,
+                                'endColumnIndex'   => 11,
+                            ],
+                            'cell' => [
+                                'userEnteredFormat' => [
+                                    'backgroundColor'   => $theme['badgeBg'],
+                                    'textFormat'        => [
+                                        'bold'            => true,
+                                        'foregroundColor' => $theme['badgeText'],
+                                    ],
+                                    'wrapStrategy'      => 'WRAP',
+                                    'verticalAlignment' => 'MIDDLE',
+                                ]
+                            ],
+                            'fields' => 'userEnteredFormat(backgroundColor,textFormat,wrapStrategy,verticalAlignment)',
+                        ]
+                    ])
+                ];
+                $sheets->spreadsheets->batchUpdate($this->spreadsheetId, new BatchUpdateSpreadsheetRequest(['requests' => $paintRequests]));
             }
 
             return true;
