@@ -4,12 +4,14 @@ import {
     Ticket, CheckCircle2, XCircle, Clock, AlertCircle, 
     ArrowRight, UserCheck, Shield, Phone, Mail, Building2,
     Check, X, FileText, Search, Filter, RefreshCw, Crown, User,
-    Sparkles, ChevronRight, ArrowLeft
+    Sparkles, ChevronRight, ArrowLeft, ExternalLink, Loader2
 } from 'lucide-react';
 
 import { IssuesProvider } from '@/context/IssuesContext';
 import { CampusFixHeader } from '@/Components/CampusFix/CampusFixHeader';
 import { MobileBottomNav } from '@/Components/CampusFix/MobileBottomNav';
+import { ExportTicketPdfModal } from '@/Components/Tickets/ExportTicketPdfModal';
+import axios from 'axios';
 import { useAuth } from '@/hooks/useAuth';
 import { DEPARTMENTS, getDepartmentTheme } from '@/constants/departments';
 
@@ -50,6 +52,28 @@ function TicketsInner({
 
     const isUserAdmin = currentUser?.role === 'admin';
     const isUserHOD = Boolean(currentUser?.is_hod);
+
+    const [exportPdfOpen, setExportPdfOpen] = useState(false);
+    const [isSyncingSheet, setIsSyncingSheet] = useState(false);
+    const [syncToast, setSyncToast] = useState('');
+
+    const handleSyncSheet = async () => {
+        if (isSyncingSheet) return;
+        setIsSyncingSheet(true);
+        setSyncToast('');
+        try {
+            const res = await axios.post('/tickets/sync-sheet');
+            if (res.data?.success) {
+                setSyncToast(res.data.message);
+                setTimeout(() => setSyncToast(''), 5000);
+            }
+        } catch (err) {
+            setSyncToast('Gagal sinkronisasi spreadsheet.');
+            setTimeout(() => setSyncToast(''), 5000);
+        } finally {
+            setIsSyncingSheet(false);
+        }
+    };
 
     const handleFilterChange = (newStatus, newType, newSearch, newDept) => {
         router.get(route('tickets.index'), {
@@ -444,8 +468,59 @@ function TicketsInner({
                             >
                                 <RefreshCw className="w-4 h-4" />
                             </button>
+
+                            {/* Admin Controls: Export PDF & Google Spreadsheet */}
+                            {isUserAdmin && (
+                                <div className="flex items-center gap-1.5 ml-auto sm:ml-0">
+                                    <button
+                                        type="button"
+                                        onClick={() => setExportPdfOpen(true)}
+                                        className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r from-[#C9AA71] to-[#B39355] hover:brightness-110 text-[#1C1B0E] font-bold text-xs shadow-md transition-all shrink-0"
+                                        title="Ekspor PDF Rekapitulasi Tiket"
+                                    >
+                                        <FileText className="w-4 h-4" />
+                                        <span className="hidden sm:inline">Export PDF</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={handleSyncSheet}
+                                        disabled={isSyncingSheet}
+                                        className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#1C1B0E] hover:bg-[#2A281E] text-emerald-400 border border-emerald-500/30 text-xs font-semibold transition-all shrink-0 disabled:opacity-60"
+                                        title="Sinkronisasi Ulang ke Google Spreadsheet"
+                                    >
+                                        {isSyncingSheet ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                                        <span className="hidden sm:inline">Sync Sheet</span>
+                                    </button>
+                                    <a
+                                        href="https://docs.google.com/spreadsheets/d/1uMJNUgTPw-WuA_colsbIzSeVegO9QivjOZ_nAPZ1HWo/edit?usp=sharing"
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="flex items-center gap-1.5 p-2 rounded-xl bg-[#1C1B0E] hover:bg-[#2A281E] text-emerald-300 border border-emerald-500/30 transition-colors shrink-0"
+                                        title="Buka Google Spreadsheet Tiket"
+                                    >
+                                        <ExternalLink className="w-4 h-4" />
+                                    </a>
+                                </div>
+                            )}
                         </div>
                     </div>
+
+                    {/* Sync Toast Feedback */}
+                    {syncToast && (
+                        <div className="p-3 rounded-xl border border-emerald-500/40 bg-emerald-950/60 text-emerald-200 text-xs flex items-center justify-between gap-3 shadow-lg">
+                            <div className="flex items-center gap-2">
+                                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                                <span>{syncToast}</span>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setSyncToast('')}
+                                className="text-emerald-400 hover:text-white px-2 py-0.5 text-xs font-bold"
+                            >
+                                ✕
+                            </button>
+                        </div>
+                    )}
 
                     {/* Tickets Listing */}
                     {tickets?.data?.length === 0 ? (
@@ -793,6 +868,15 @@ function TicketsInner({
                         </form>
                     </div>
                 </div>
+            )}
+
+            {/* Modal Ekspor PDF Rekapitulasi Tiket (Admin Only) */}
+            {isUserAdmin && (
+                <ExportTicketPdfModal
+                    open={exportPdfOpen}
+                    onOpenChange={setExportPdfOpen}
+                    currentUser={currentUser}
+                />
             )}
 
             <MobileBottomNav />

@@ -493,4 +493,72 @@ class ApprovalTicketController extends Controller
             default => 'Permohonan Tiket',
         };
     }
+
+    /**
+     * Fetch all filtered tickets data for PDF export (Admin Only)
+     */
+    public function exportData(Request $request)
+    {
+        $user = Auth::user();
+        if (!$user || !$user->isAdmin()) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+        }
+
+        $query = ApprovalTicket::with(['user', 'hod', 'admin'])->latest();
+
+        if ($request->filled('department') && $request->department !== 'all') {
+            $query->where('department', $request->department);
+        }
+
+        if ($request->filled('status') && $request->status !== 'all') {
+            $query->where('status', $request->status);
+        }
+
+        if ($request->filled('type') && $request->type !== 'all') {
+            $query->where('type', $request->type);
+        }
+
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('ticket_number', 'like', "%{$search}%")
+                  ->orWhere('staff_name', 'like', "%{$search}%")
+                  ->orWhere('department', 'like', "%{$search}%")
+                  ->orWhere('email', 'like', "%{$search}%");
+            });
+        }
+
+        $tickets = $query->get();
+
+        return response()->json([
+            'success' => true,
+            'data'    => $tickets,
+        ]);
+    }
+
+    /**
+     * Manually trigger Google Sheet sync for all tickets (Admin Only)
+     */
+    public function syncSheet(\App\Services\TicketSheetService $service)
+    {
+        $user = Auth::user();
+        if (!$user || !$user->isAdmin()) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+        }
+
+        try {
+            $count = $service->syncAllTickets();
+            return response()->json([
+                'success' => true,
+                'message' => "Berhasil sinkronisasi {$count} tiket ke Google Spreadsheet!",
+                'count'   => $count,
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal sinkronisasi: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
 }
+

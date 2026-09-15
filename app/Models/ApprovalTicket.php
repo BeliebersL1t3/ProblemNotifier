@@ -36,6 +36,17 @@ class ApprovalTicket extends Model
         'admin_reviewed_at' => 'datetime',
     ];
 
+    protected static function booted()
+    {
+        static::saved(function (ApprovalTicket $ticket) {
+            try {
+                app(\App\Services\TicketSheetService::class)->syncTicket($ticket);
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::error("Failed to auto-sync ticket {$ticket->ticket_number} to Google Sheet: " . $e->getMessage());
+            }
+        });
+    }
+
     public function user()
     {
         return $this->belongsTo(User::class, 'user_id');
