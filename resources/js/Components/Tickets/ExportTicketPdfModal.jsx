@@ -105,6 +105,16 @@ export function ExportTicketPdfModal({ open, onOpenChange, currentUser }) {
         }).replace(',', '');
     };
 
+    const formatPhone = (phone) => {
+        if (!phone || phone === '-') return '-';
+        let digits = String(phone).replace(/\D/g, '');
+        if (digits.startsWith('00')) digits = digits.slice(2);
+        else if (digits.startsWith('0')) digits = digits.slice(1);
+        if (digits.startsWith('8')) digits = '62' + digits;
+        if (!digits) return '-';
+        return `+${digits}`;
+    };
+
     const getTypeLabel = (type) => {
         switch (type) {
             case 'account_registration': return t('ticket_type_account_reg');
@@ -168,13 +178,17 @@ export function ExportTicketPdfModal({ open, onOpenChange, currentUser }) {
 
             let reqCol = '-';
             if (tItem.type === 'whatsapp_change') {
-                reqCol = `${tItem.current_value || '-'} -> ${tItem.requested_value || '-'}`;
+                reqCol = `${formatPhone(tItem.current_value)} -> ${formatPhone(tItem.requested_value)}`;
             } else if (tItem.type === 'whatsapp_unlink') {
-                reqCol = `Unlink: ${tItem.current_value || '-'}`;
+                reqCol = `Unlink: ${formatPhone(tItem.current_value)}`;
+            } else if (tItem.type === 'account_registration') {
+                reqCol = formatPhone(tItem.requested_value);
             } else if (tItem.type === 'department_transfer') {
-                reqCol = `${tItem.current_value || '-'} -> ${tItem.requested_value || '-'}`;
+                reqCol = `${tItem.current_value || '-'} -> ${tItem.requested_value ? tItem.requested_value.replace('::', ' — ') : '-'}`;
+            } else if (tItem.type === 'password_reset' || (tItem.requested_value && tItem.requested_value.startsWith('$2y$'))) {
+                reqCol = lang === 'id' ? 'Reset Kata Sandi Diminta' : 'Password Reset Requested';
             } else if (tItem.requested_value) {
-                reqCol = tItem.requested_value.startsWith('$2y$') ? 'Reset Password' : tItem.requested_value;
+                reqCol = tItem.requested_value;
             }
 
             // HOD Review

@@ -148,6 +148,16 @@ function TicketsInner({
         });
     };
 
+    const formatDisplayPhone = (phone) => {
+        if (!phone || phone === '-') return '-';
+        let digits = String(phone).replace(/\D/g, '');
+        if (digits.startsWith('00')) digits = digits.slice(2);
+        else if (digits.startsWith('0')) digits = digits.slice(1);
+        if (digits.startsWith('8')) digits = '62' + digits;
+        if (!digits) return '-';
+        return `+${digits}`;
+    };
+
     const getTypeBadge = (type) => {
         switch (type) {
             case 'account_registration':
@@ -614,7 +624,7 @@ function TicketsInner({
                                                     <div className="space-y-1">
                                                         <span className="text-[#A19F8D]">{t('ticket_requested_wa')}:</span>
                                                         <p className="font-mono font-bold text-[#C9AA71] text-sm">
-                                                            +{ticket.requested_value}
+                                                            {formatDisplayPhone(ticket.requested_value)}
                                                         </p>
                                                     </div>
                                                 )}
@@ -623,12 +633,12 @@ function TicketsInner({
                                                     <div className="space-y-1.5">
                                                         <div className="flex items-center gap-2">
                                                             <span className="text-[#A19F8D]">{t('ticket_old_wa')}:</span>
-                                                            <span className="font-mono text-[#FAFAFA]">+{ticket.current_value || '-'}</span>
+                                                            <span className="font-mono text-[#FAFAFA]">{formatDisplayPhone(ticket.current_value)}</span>
                                                         </div>
                                                         <div className="flex items-center gap-2">
                                                             <span className="text-[#A19F8D]">{t('ticket_requested')}:</span>
                                                             <span className="font-mono font-bold text-emerald-400">
-                                                                {ticket.requested_value ? `+${ticket.requested_value}` : t('ticket_unlink_number')}
+                                                                {ticket.requested_value ? formatDisplayPhone(ticket.requested_value) : t('ticket_unlink_number')}
                                                             </span>
                                                         </div>
                                                     </div>

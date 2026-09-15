@@ -84,6 +84,76 @@ class TicketSheetService
         };
     }
 
+    public static function formatPhone(?string $phone): string
+    {
+        if (!$phone || trim($phone) === '' || $phone === '-') {
+            return '-';
+        }
+
+        $digits = preg_replace('/\D/', '', $phone);
+        if (empty($digits)) {
+            return '-';
+        }
+
+        // Strip leading 00 or 0
+        if (str_starts_with($digits, '00')) {
+            $digits = substr($digits, 2);
+        } elseif (str_starts_with($digits, '0')) {
+            $digits = substr($digits, 1);
+        }
+
+        // Prepend Indonesian country code 62 if missing
+        if (str_starts_with($digits, '8')) {
+            $digits = '62' . $digits;
+        }
+
+        // Single quote prefix forces Google Sheets to treat +62... as a string, left-aligned, without dropping the +
+        return "'+{$digits}";
+    }
+
+    public static function formatValues(ApprovalTicket $ticket): array
+    {
+        $current = $ticket->current_value;
+        $requested = $ticket->requested_value;
+
+        switch ($ticket->type) {
+            case 'whatsapp_change':
+                return [
+                    self::formatPhone($current),
+                    self::formatPhone($requested),
+                ];
+
+            case 'whatsapp_unlink':
+                return [
+                    self::formatPhone($current),
+                    'Lepas Tautan (Unlink)',
+                ];
+
+            case 'account_registration':
+                return [
+                    '-',
+                    self::formatPhone($requested),
+                ];
+
+            case 'password_reset':
+                return [
+                    '-',
+                    'Reset Kata Sandi Diminta',
+                ];
+
+            case 'department_transfer':
+                $curr = $current ?: ($ticket->department ?: '-');
+                $req = $requested ? str_replace('::', ' — ', $requested) : '-';
+                return [$curr, $req];
+
+            default:
+                if ($requested && str_starts_with($requested, '$2y$')) {
+                    $requested = 'Reset Kata Sandi Diminta';
+                }
+                return [$current ?: '-', $requested ?: '-'];
+        }
+    }
+
     public function formatTicketRow(ApprovalTicket $ticket): array
     {
         $ticket->loadMissing(['user', 'hod', 'admin']);
@@ -107,6 +177,8 @@ class TicketSheetService
         $hodName = $ticket->hod ? ($ticket->hod->staff_name ?: $ticket->hod->name) : '';
         $adminName = $ticket->admin ? ($ticket->admin->staff_name ?: $ticket->admin->name) : '';
 
+        [$formattedCurrent, $formattedRequested] = self::formatValues($ticket);
+
         return [
             $ticket->ticket_number,
             $createdAt,
@@ -115,8 +187,8 @@ class TicketSheetService
             $ticket->email ?: ($ticket->user?->email ?: ''),
             $ticket->department ?: '',
             $ticket->subdivision ?: '',
-            $ticket->current_value ?: '-',
-            $ticket->requested_value ?: '-',
+            $formattedCurrent,
+            $formattedRequested,
             $ticket->reason ?: '-',
             self::formatStatusLabel($ticket->status),
             $hodName ?: '-',
