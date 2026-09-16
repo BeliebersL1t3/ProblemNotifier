@@ -1209,8 +1209,8 @@ class IssueController extends Controller
             }
 
             $authUser = auth()->user();
-            if (!$this->isAuthorizedToModifyIssue($authUser, $currentRow)) {
-                $userDept = $authUser?->department ?? 'lain';
+            if ($authUser && !$this->isAuthorizedToModifyIssue($authUser, $currentRow)) {
+                $userDept = $authUser->department ?? 'lain';
                 return response()->json([
                     'success' => false,
                     'message' => "Akses Ditolak: Anda saat ini bertugas di departemen {$userDept}. Riwayat isu dari departemen terdahulu hanya dapat dilihat (Read-Only).",
@@ -1351,8 +1351,8 @@ class IssueController extends Controller
             }
 
             $authUser = auth()->user();
-            if (!$this->isAuthorizedToModifyIssue($authUser, $currentRow)) {
-                $userDept = $authUser?->department ?? 'lain';
+            if ($authUser && !$this->isAuthorizedToModifyIssue($authUser, $currentRow)) {
+                $userDept = $authUser->department ?? 'lain';
                 return response()->json([
                     'success' => false,
                     'message' => "Akses Ditolak: Anda saat ini bertugas di departemen {$userDept}. Riwayat isu dari departemen terdahulu hanya dapat dilihat (Read-Only).",

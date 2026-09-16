@@ -144,6 +144,8 @@ class OperationsApiTest extends TestCase
 
     public function test_sync_calendar_endpoint(): void
     {
+        $admin = User::factory()->create(['role' => 'admin']);
+
         $googleMock = Mockery::mock(GoogleService::class);
         $googleMock->shouldReceive('syncAllToGoogleCalendar')
             ->once()
@@ -151,7 +153,7 @@ class OperationsApiTest extends TestCase
 
         $this->app->instance(GoogleService::class, $googleMock);
 
-        $response = $this->postJson('/api/operations/sync-calendar');
+        $response = $this->actingAs($admin)->postJson('/api/operations/sync-calendar');
 
         $response->assertOk()
             ->assertJson([

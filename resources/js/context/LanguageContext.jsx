@@ -41,7 +41,7 @@ const translations = {
         
         // Dashboard Page
         facility_dashboard: 'Community facility dashboard',
-        dashboard_desc: "Report what's broken, claim a job, and log the fix — connected directly to Google Sheets & Drive.",
+        dashboard_desc: "Report what's broken, claim a job, and log the fix — connected directly to Google Sheets.",
         sync_sheets: 'Sync Sheets',
         total_reports: 'Total Reports',
         needs_fixing: 'Needs Fixing',
@@ -497,7 +497,7 @@ const translations = {
 
         // Dashboard Page
         facility_dashboard: 'Dashboard Fasilitas Komunitas',
-        dashboard_desc: 'Laporkan kerusakan, klaim pekerjaan, dan catat perbaikan — terhubung langsung ke Google Sheets & Drive.',
+        dashboard_desc: 'Laporkan kerusakan, klaim pekerjaan, dan catat perbaikan — terhubung langsung ke Google Sheets.',
         sync_sheets: 'Sinkronkan Sheets',
         total_reports: 'Total Laporan',
         needs_fixing: 'Perlu Perbaikan',

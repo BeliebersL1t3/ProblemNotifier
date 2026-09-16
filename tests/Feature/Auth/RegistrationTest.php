@@ -23,9 +23,22 @@ class RegistrationTest extends TestCase
             'email' => 'test@example.com',
             'password' => 'password',
             'password_confirmation' => 'password',
+            'department' => 'Kitchen',
+            'whatsapp_number' => '6281234567890',
         ]);
 
-        $this->assertAuthenticated();
-        $response->assertRedirect(route('dashboard', absolute: false));
+        $this->assertGuest();
+        $response->assertRedirect(route('login'));
+        $this->assertDatabaseHas('users', [
+            'email' => 'test@example.com',
+            'department' => 'Kitchen',
+            'approval_status' => 'pending_hod',
+            'is_active' => false,
+        ]);
+        $this->assertDatabaseHas('approval_tickets', [
+            'type' => 'account_registration',
+            'email' => 'test@example.com',
+            'status' => 'pending_hod',
+        ]);
     }
 }

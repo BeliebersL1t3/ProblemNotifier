@@ -176,18 +176,6 @@ class ProfileController extends Controller
     }
 
     /**
-     * API endpoint: Link WhatsApp phone number to matching User from WhatsApp claiming.
-     * Deprecated: Self-registration via WhatsApp bot is disabled.
-     */
-    public function linkStaffFromWhatsApp(Request $request)
-    {
-        return response()->json([
-            'success' => false,
-            'message' => 'Pendaftaran nomor WhatsApp mandiri via WhatsApp telah dinonaktifkan. Pendaftaran akun atau perubahan nomor hanya dapat dilakukan via Web Dashboard.'
-        ], 403);
-    }
-
-    /**
      * API endpoint: Reset password for a verified WhatsApp linked user.
      */
     public function resetPasswordViaWhatsApp(Request $request)

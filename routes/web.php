@@ -68,7 +68,6 @@ Route::middleware('auth')->group(function () {
 // CampusFix API Endpoints
 Route::prefix('api')->group(function () {
     Route::get('/staff-directory', [ProfileController::class, 'staffDirectory']);
-    Route::post('/link-whatsapp-staff', [ProfileController::class, 'linkStaffFromWhatsApp']);
     Route::post('/reset-whatsapp-password', [ProfileController::class, 'resetPasswordViaWhatsApp']);
     Route::get('/issues', [IssueController::class, 'index']);
     Route::get('/issues/lookup/{id?}', [IssueController::class, 'lookup']);

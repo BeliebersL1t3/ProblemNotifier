@@ -40,68 +40,15 @@ class WhatsAppStaffApiTest extends TestCase
             ->assertJsonPath('data.0.staff_name', 'Budi');
     }
 
-    public function test_link_whatsapp_staff_requires_phone(): void
+    public function test_deprecated_link_whatsapp_staff_route_is_not_found(): void
     {
         $response = $this->postJson('/api/link-whatsapp-staff', [
             'staff_name' => 'Budi',
             'department' => 'Engineer',
-        ]);
-
-        $response->assertStatus(400)
-            ->assertJson([
-                'success' => false,
-                'message' => 'Phone required',
-            ]);
-    }
-
-    public function test_link_whatsapp_staff_successfully_links_user(): void
-    {
-        $user = User::factory()->create([
-            'name'            => 'Budi Santoso',
-            'staff_name'      => 'Budi',
-            'department'      => 'Engineer',
-            'whatsapp_number' => null,
-        ]);
-
-        $response = $this->postJson('/api/link-whatsapp-staff', [
-            'staff_name'      => 'Budi',
-            'department'      => 'Engineer',
             'whatsapp_number' => '081234567890',
         ]);
 
-        $response->assertOk()
-            ->assertJson([
-                'success' => true,
-                'user'    => [
-                    'id'              => $user->id,
-                    'whatsapp_number' => '6281234567890',
-                ],
-            ]);
-
-        $this->assertEquals('6281234567890', $user->fresh()->whatsapp_number);
-    }
-
-    public function test_link_whatsapp_staff_rejects_overwrite_of_different_phone(): void
-    {
-        $user = User::factory()->create([
-            'name'            => 'Budi Santoso',
-            'staff_name'      => 'Budi',
-            'department'      => 'Engineer',
-            'whatsapp_number' => '628111111111',
-        ]);
-
-        $response = $this->postJson('/api/link-whatsapp-staff', [
-            'staff_name'      => 'Budi',
-            'department'      => 'Engineer',
-            'whatsapp_number' => '082222222222',
-        ]);
-
-        $response->assertStatus(403)
-            ->assertJson([
-                'success' => false,
-            ]);
-
-        $this->assertEquals('628111111111', $user->fresh()->whatsapp_number);
+        $response->assertStatus(404);
     }
 
     public function test_reset_whatsapp_password_returns_password(): void
@@ -138,12 +85,32 @@ class WhatsAppStaffApiTest extends TestCase
             ]);
     }
 
-    public function test_user_can_update_whatsapp_number_via_profile(): void
+    public function test_admin_can_update_whatsapp_number_immediately(): void
+    {
+        Http::fake();
+
+        $admin = User::factory()->create([
+            'role'            => 'admin',
+            'whatsapp_number' => null,
+        ]);
+
+        $response = $this->actingAs($admin)
+            ->patch('/profile/whatsapp', [
+                'whatsapp_number' => '08555666777',
+            ]);
+
+        $response->assertRedirect('/profile');
+        $this->assertEquals('628555666777', $admin->fresh()->whatsapp_number);
+    }
+
+    public function test_regular_user_updating_whatsapp_creates_approval_ticket(): void
     {
         Http::fake();
 
         $user = User::factory()->create([
-            'whatsapp_number' => null,
+            'role'            => 'department',
+            'department'      => 'Kitchen',
+            'whatsapp_number' => '628111111111',
         ]);
 
         $response = $this->actingAs($user)
@@ -152,6 +119,13 @@ class WhatsAppStaffApiTest extends TestCase
             ]);
 
         $response->assertRedirect('/profile');
-        $this->assertEquals('628555666777', $user->fresh()->whatsapp_number);
+        $this->assertEquals('628111111111', $user->fresh()->whatsapp_number);
+        $this->assertDatabaseHas('approval_tickets', [
+            'type'            => 'whatsapp_change',
+            'user_id'         => $user->id,
+            'current_value'   => '628111111111',
+            'requested_value' => '628555666777',
+            'status'          => 'pending_hod',
+        ]);
     }
 }

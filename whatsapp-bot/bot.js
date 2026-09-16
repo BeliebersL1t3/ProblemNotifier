@@ -677,7 +677,7 @@ const MENU_TEXT_ID =
 `3. 🔧 *!perbaiki* / *perbaiki* / *selesai* / *fix*\n   → Selesaikan masalah dengan deskripsi & foto bukti.\n\n` +
 `4. ⏳ *!tunda* / *tunda* / *tertunda* / *pending*\n   → Tandai pekerjaan sebagai tertunda dengan foto alasan.\n\n` +
 `5. 🤝 *!claim* (di Grup)\n   → Balas notifikasi masalah di grup untuk klaim instan (otomatis mengenali akun Anda).\n\n` +
-`6. 👤 *!whoami* / *!iam <Nama>*\n   → Cek status akun WA Anda atau daftarkan nama staf.\n\n` +
+`6. 👤 *!whoami*\n   → Cek status profil akun WhatsApp terdaftar Anda.\n\n` +
 `7. 📊 *!status* / *!masalah*\n   → Cek status masalah berdasarkan departemen.\n\n` +
 `8. 📖 *menu id* / *menu en*\n   → Buka menu panduan Bahasa Indonesia / English.\n\n` +
 `9. ❌ *batal* / *reset*\n   → Batalkan percakapan & kembali ke awal.`;
@@ -690,7 +690,7 @@ const MENU_TEXT_EN =
 `3. 🔧 *!solve* / *solve* / *fix*\n   → Resolve an issue with fix description & proof photo.\n\n` +
 `4. ⏳ *!pending* / *pending* / *delay*\n   → Mark a job as pending with reason & proof photo.\n\n` +
 `5. 🤝 *!claim* (in Group)\n   → Reply directly to an issue notification to claim instantly (auto-detects your account).\n\n` +
-`6. 👤 *!whoami* / *!iam <Name>*\n   → Check your linked WA account profile or bind your staff name.\n\n` +
+`6. 👤 *!whoami*\n   → Check your linked WhatsApp staff account profile.\n\n` +
 `7. 📊 *!status* / *!issues*\n   → Check active/solved issue status by department.\n\n` +
 `8. 📖 *menu en* / *menu id*\n   → Open English / Indonesian guide menu.\n\n` +
 `9. ❌ *cancel* / *reset*\n   → Cancel current operation & reset to menu.`;
@@ -918,37 +918,18 @@ async function startSock() {
                 unregisteredTracker.delete(rawSenderPhone);
             }
 
-            // --- 0. Global Self-Service Identity & Registration Commands (Works in DM & Groups) ---
+            // --- 0. Global Self-Service Identity Command (Works in DM & Groups) ---
             if (lower === '!whoami' || lower === '!profil' || lower === '!akun' || lower === 'whoami' || lower === 'profil') {
-                if (registeredUser) {
-                    const displayPhone = registeredUser.realPhone || (senderPhone.length <= 13 ? senderPhone : (registeredUser.phone || senderPhone));
-                    const hasSubdivision = registeredUser.subdivision && registeredUser.subdivision.toLowerCase() !== (registeredUser.department || '').toLowerCase();
-                    let profileMsg = `📱 *PROFIL WHATSAPP TELUNAS* 📱\n\n`;
-                    profileMsg += `• *Nama Tampilan:* ${registeredUser.name || registeredUser.staff_name}\n`;
-                    profileMsg += `• *Departemen:* ${registeredUser.department || '-'}${hasSubdivision ? ` [${registeredUser.department} • ${registeredUser.subdivision}]` : ''}\n`;
-                    profileMsg += `• *Nomor WhatsApp:* +${displayPhone}\n`;
-                    profileMsg += `• *Status:* ✅ Terverifikasi (${registeredUser.source === 'dashboard_profile' ? 'Dashboard Profile' : 'WhatsApp Link'})\n\n`;
-                    profileMsg += `💡 _Setiap kali Anda mengetik !claim atau membuat laporan, sistem akan otomatis mencatat atas nama Anda._\n\n`;
-                    profileMsg += `🔑 _Lupa password Web Dashboard? Reply pesan ini atau ketik *!password* untuk melihat password akun Anda._`;
-                    await reply(profileMsg);
-                } else {
-                    let unregMsg = `📱 *PROFIL WHATSAPP TELUNAS* 📱\n\n`;
-                    const mappedReal = deviceMappings[rawSenderPhone] || deviceMappings[senderPhone];
-                    if (mappedReal) {
-                        unregMsg += `• *Nomor WhatsApp:* +${mappedReal}\n`;
-                    } else if (rawSenderPhone.length <= 13) {
-                        unregMsg += `• *Nomor WhatsApp:* +${rawSenderPhone}\n`;
-                    } else {
-                        unregMsg += `• *Nomor/ID WA:* +${rawSenderPhone} _(WhatsApp Privacy Device ID)_\n`;
-                    }
-                    unregMsg += `• *Status:* ⚠️ Belum Terdaftar\n\n`;
-                    unregMsg += `Nomor WhatsApp Anda belum terdaftar di Web Dashboard Telunas.\n\n`;
-                    unregMsg += `📌 *Cara Pendaftaran:*\n`;
-                    unregMsg += `1. Registrasi akun mandiri di Web Dashboard (${BASE_URL}/register) dengan verifikasi HOD & Admin, ATAU\n`;
-                    unregMsg += `2. Hubungi Admin / HOD Departemen Anda untuk mendaftarkan nomor ini.\n\n`;
-                    unregMsg += `_Catatan: Pendaftaran mandiri via WhatsApp telah dinonaktifkan._`;
-                    await reply(unregMsg);
-                }
+                const displayPhone = registeredUser.realPhone || (senderPhone.length <= 13 ? senderPhone : (registeredUser.phone || senderPhone));
+                const hasSubdivision = registeredUser.subdivision && registeredUser.subdivision.toLowerCase() !== (registeredUser.department || '').toLowerCase();
+                let profileMsg = `📱 *PROFIL WHATSAPP TELUNAS* 📱\n\n`;
+                profileMsg += `• *Nama Tampilan:* ${registeredUser.name || registeredUser.staff_name}\n`;
+                profileMsg += `• *Departemen:* ${registeredUser.department || '-'}${hasSubdivision ? ` [${registeredUser.department} • ${registeredUser.subdivision}]` : ''}\n`;
+                profileMsg += `• *Nomor WhatsApp:* +${displayPhone}\n`;
+                profileMsg += `• *Status:* ✅ Terverifikasi (${registeredUser.source === 'dashboard_profile' ? 'Dashboard Profile' : 'WhatsApp Link'})\n\n`;
+                profileMsg += `💡 _Setiap kali Anda mengetik !claim atau membuat laporan, sistem akan otomatis mencatat atas nama Anda._\n\n`;
+                profileMsg += `🔑 _Lupa password Web Dashboard? Reply pesan ini atau ketik *!password* untuk melihat password akun Anda._`;
+                await reply(profileMsg);
                 continue;
             }
 
@@ -957,14 +938,6 @@ async function startSock() {
             const isPasswordRequest = passwordKeywords.some(kw => lower === kw || lower.startsWith(kw + ' '));
 
             if (isPasswordRequest) {
-                if (!registeredUser) {
-                    await reply(
-                        `🔒 *AKSES DITOLAK — NOMOR BELUM TERDAFTAR* 🔒\n\n` +
-                        `Nomor WhatsApp Anda (+${rawSenderPhone}) belum terhubung dengan akun staf manapun di Web Dashboard.\n\n` +
-                        `Fitur pengecekan password hanya dapat digunakan oleh akun staf yang sudah terverifikasi.`
-                    );
-                    continue;
-                }
 
                 try {
                     const targetPhone = registeredUser.realPhone || senderPhone || rawSenderPhone;

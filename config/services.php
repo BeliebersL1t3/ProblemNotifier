@@ -43,8 +43,4 @@ return [
         'calendar_id'             => env('GOOGLE_CALENDAR_ID'),
     ],
 
-    'imgbb' => [
-        'key' => env('IMGBB_API_KEY'),
-    ],
-
 ];
