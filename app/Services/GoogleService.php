@@ -5,9 +5,6 @@ namespace App\Services;
 use Google\Client;
 use Google\Service\Calendar as GoogleCalendar;
 use Google\Service\Calendar\Event as GoogleCalendarEvent;
-use Google\Service\Drive;
-use Google\Service\Drive\DriveFile;
-use Google\Service\Drive\Permission;
 use Google\Service\Sheets;
 use Google\Service\Sheets\ValueRange;
 use Google\Service\Sheets\BatchUpdateValuesRequest;
@@ -18,12 +15,10 @@ use Illuminate\Support\Facades\Log;
 class GoogleService
 {
     private Client $client;
-    private Drive $drive;
     private Sheets $sheets;
     private ?GoogleCalendar $calendar = null;
     private string $spreadsheetId;
     private string $opsSpreadsheetId;
-    private string $folderId;
     private string $calendarId;
     private string $sheetName = 'Sheet1';
 
@@ -31,14 +26,12 @@ class GoogleService
     {
         $this->client = new Client();
         $this->client->setAuthConfig(storage_path(config('services.google.credentials_path')));
-        $this->client->addScope([Drive::DRIVE, Sheets::SPREADSHEETS, GoogleCalendar::CALENDAR]);
+        $this->client->addScope([Sheets::SPREADSHEETS, GoogleCalendar::CALENDAR]);
 
-        $this->drive            = new Drive($this->client);
         $this->sheets           = new Sheets($this->client);
         $this->calendar         = new GoogleCalendar($this->client);
         $this->spreadsheetId    = (string) (config('services.google.spreadsheet_id') ?: env('GOOGLE_SPREADSHEET_ID', ''));
         $this->opsSpreadsheetId = (string) (config('services.google.ops_spreadsheet_id') ?: (env('GOOGLE_OPS_SPREADSHEET_ID') ?: $this->spreadsheetId));
-        $this->folderId         = (string) (config('services.google.drive_folder_id') ?: env('GOOGLE_DRIVE_FOLDER_ID', ''));
         $this->calendarId       = (string) (config('services.google.calendar_id') ?: env('GOOGLE_CALENDAR_ID', ''));
     }
 
@@ -927,16 +920,16 @@ class GoogleService
             $batch = new \Google\Service\Sheets\BatchUpdateSpreadsheetRequest(['requests' => [$addReq]]);
             $this->sheets->spreadsheets->batchUpdate($this->opsSpreadsheetId, $batch);
 
-            // Write header row (14 columns A–N)
+            // Write header row (15 columns A–O)
             $body = new ValueRange(['values' => $this->opsHeaders()]);
             $this->sheets->spreadsheets_values->update(
                 $this->opsSpreadsheetId,
-                "{$sheetName}!A1:N1",
+                "{$sheetName}!A1:O1",
                 $body,
                 ['valueInputOption' => 'RAW']
             );
 
-            // Bold the header and set wrap
+            // Apply professional styling and rules
             $spreadsheet = $this->sheets->spreadsheets->get($this->opsSpreadsheetId);
             $newSheetId  = null;
             foreach ($spreadsheet->getSheets() as $sheet) {
@@ -946,34 +939,7 @@ class GoogleService
                 }
             }
             if ($newSheetId !== null) {
-                $boldReq = new \Google\Service\Sheets\Request([
-                    'repeatCell' => [
-                        'range' => [
-                            'sheetId'          => $newSheetId,
-                            'startRowIndex'    => 0,
-                            'endRowIndex'      => 1,
-                            'startColumnIndex' => 0,
-                            'endColumnIndex'   => 14,
-                        ],
-                        'cell'   => ['userEnteredFormat' => ['textFormat' => ['bold' => true]]],
-                        'fields' => 'userEnteredFormat.textFormat.bold',
-                    ]
-                ]);
-                $wrapReq = new \Google\Service\Sheets\Request([
-                    'repeatCell' => [
-                        'range' => [
-                            'sheetId'          => $newSheetId,
-                            'startRowIndex'    => 0,
-                            'endRowIndex'      => 1000,
-                            'startColumnIndex' => 0,
-                            'endColumnIndex'   => 14,
-                        ],
-                        'cell'   => ['userEnteredFormat' => ['wrapStrategy' => 'WRAP', 'verticalAlignment' => 'TOP']],
-                        'fields' => 'userEnteredFormat(wrapStrategy,verticalAlignment)',
-                    ]
-                ]);
-                $fmtBatch = new \Google\Service\Sheets\BatchUpdateSpreadsheetRequest(['requests' => [$boldReq, $wrapReq]]);
-                $this->sheets->spreadsheets->batchUpdate($this->opsSpreadsheetId, $fmtBatch);
+                $this->setupOpsSheetFormatting($newSheetId);
             }
 
             Cache::forget('google_ops_sheets_list');
@@ -1442,5 +1408,401 @@ class GoogleService
             default                                                                             => '6',  // Tangerine / Orange (Default Ops)
         };
     }
+
+    /**
+     * Automatically format an Operations sheet with frozen header, clean column widths,
+     * elegant Navy/Slate headers, and conditional status/priority badges.
+     */
+    public function setupOpsSheetFormatting(int $sheetId): void
+    {
+        $requests = [];
+
+        // 1. Delete existing conditional format rules on this sheet to avoid duplicates
+        try {
+            $spreadsheetObj = $this->sheets->spreadsheets->get($this->opsSpreadsheetId);
+            foreach ($spreadsheetObj->getSheets() as $sh) {
+                if ($sh->getProperties()->getSheetId() === $sheetId) {
+                    $existingRules = $sh->getConditionalFormats() ?: [];
+                    for ($i = count($existingRules) - 1; $i >= 0; $i--) {
+                        $requests[] = new \Google\Service\Sheets\Request([
+                            'deleteConditionalFormatRule' => [
+                                'sheetId' => $sheetId,
+                                'index'   => $i,
+                            ]
+                        ]);
+                    }
+                    break;
+                }
+            }
+        } catch (\Throwable $e) {}
+
+        // 2. Freeze the first header row (baris 1 selalu terlihat saat di-scroll)
+        $requests[] = new \Google\Service\Sheets\Request([
+            'updateSheetProperties' => [
+                'properties' => [
+                    'sheetId' => $sheetId,
+                    'gridProperties' => [
+                        'frozenRowCount' => 1,
+                    ],
+                ],
+                'fields' => 'gridProperties.frozenRowCount',
+            ]
+        ]);
+
+        // 3. Set text wrap and middle vertical alignment for all data cells (0–1000 rows, 15 columns A–O)
+        $requests[] = new \Google\Service\Sheets\Request([
+            'repeatCell' => [
+                'range' => [
+                    'sheetId'          => $sheetId,
+                    'startRowIndex'    => 0,
+                    'endRowIndex'      => 1000,
+                    'startColumnIndex' => 0,
+                    'endColumnIndex'   => 15,
+                ],
+                'cell' => [
+                    'userEnteredFormat' => [
+                        'wrapStrategy'      => 'WRAP',
+                        'verticalAlignment' => 'MIDDLE',
+                    ]
+                ],
+                'fields' => 'userEnteredFormat(wrapStrategy,verticalAlignment)',
+            ]
+        ]);
+
+        // 4. Header row styling (Navy/Slate #1E293B, White bold text, centered)
+        $requests[] = new \Google\Service\Sheets\Request([
+            'repeatCell' => [
+                'range' => [
+                    'sheetId'          => $sheetId,
+                    'startRowIndex'    => 0,
+                    'endRowIndex'      => 1,
+                    'startColumnIndex' => 0,
+                    'endColumnIndex'   => 15,
+                ],
+                'cell' => [
+                    'userEnteredFormat' => [
+                        'backgroundColor'     => ['red' => 0.12, 'green' => 0.16, 'blue' => 0.23],
+                        'textFormat'          => ['bold' => true, 'foregroundColor' => ['red' => 1.0, 'green' => 1.0, 'blue' => 1.0]],
+                        'horizontalAlignment' => 'CENTER',
+                        'verticalAlignment'   => 'MIDDLE',
+                    ]
+                ],
+                'fields' => 'userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,verticalAlignment)',
+            ]
+        ]);
+
+        // 5. Center-aligned columns (ID: 0, Dept: 1, StartDate: 6, EndDate: 7, Priority: 8, Status: 9, CreatedAt: 10, CompletedAt: 11)
+        $centerCols = [0, 1, 6, 7, 8, 9, 10, 11];
+        foreach ($centerCols as $cIdx) {
+            $requests[] = new \Google\Service\Sheets\Request([
+                'repeatCell' => [
+                    'range' => [
+                        'sheetId'          => $sheetId,
+                        'startRowIndex'    => 1,
+                        'endRowIndex'      => 1000,
+                        'startColumnIndex' => $cIdx,
+                        'endColumnIndex'   => $cIdx + 1,
+                    ],
+                    'cell' => [
+                        'userEnteredFormat' => [
+                            'horizontalAlignment' => 'CENTER',
+                        ]
+                    ],
+                    'fields' => 'userEnteredFormat.horizontalAlignment',
+                ]
+            ]);
+        }
+
+        // 6. Set clean column widths
+        $colWidths = [
+            0  => 120, // A: ID
+            1  => 120, // B: Department
+            2  => 240, // C: Title
+            3  => 280, // D: Description
+            4  => 140, // E: Location
+            5  => 130, // F: Photo URL
+            6  => 115, // G: Start Date
+            7  => 115, // H: End Date
+            8  => 105, // I: Priority
+            9  => 145, // J: Status
+            10 => 135, // K: Created At
+            11 => 135, // L: Completed At
+            12 => 125, // M: Created By
+            13 => 240, // N: Notes
+            14 => 125, // O: Google Event ID
+        ];
+        foreach ($colWidths as $cIndex => $widthPx) {
+            $requests[] = new \Google\Service\Sheets\Request([
+                'updateDimensionProperties' => [
+                    'range' => [
+                        'sheetId'    => $sheetId,
+                        'dimension'  => 'COLUMNS',
+                        'startIndex' => $cIndex,
+                        'endIndex'   => $cIndex + 1,
+                    ],
+                    'properties' => [
+                        'pixelSize' => $widthPx,
+                    ],
+                    'fields' => 'pixelSize',
+                ]
+            ]);
+        }
+
+        // 7. Conditional formatting for Status (Column J, index 9)
+        $statusRules = [
+            [
+                'formula' => '=$J2="done"',
+                'bg'      => ['red' => 0.82, 'green' => 0.98, 'blue' => 0.90],
+                'text'    => ['red' => 0.02, 'green' => 0.37, 'blue' => 0.27],
+            ],
+            [
+                'formula' => '=$J2="in_progress"',
+                'bg'      => ['red' => 0.88, 'green' => 0.95, 'blue' => 0.99],
+                'text'    => ['red' => 0.01, 'green' => 0.41, 'blue' => 0.63],
+            ],
+            [
+                'formula' => '=$J2="todo"',
+                'bg'      => ['red' => 0.99, 'green' => 0.95, 'blue' => 0.78],
+                'text'    => ['red' => 0.57, 'green' => 0.25, 'blue' => 0.05],
+            ],
+            [
+                'formula' => '=$J2="deleted_from_calendar"',
+                'bg'      => ['red' => 0.99, 'green' => 0.89, 'blue' => 0.89],
+                'text'    => ['red' => 0.60, 'green' => 0.11, 'blue' => 0.11],
+            ],
+        ];
+
+        foreach ($statusRules as $idx => $r) {
+            $requests[] = new \Google\Service\Sheets\Request([
+                'addConditionalFormatRule' => [
+                    'rule' => [
+                        'ranges' => [[
+                            'sheetId'          => $sheetId,
+                            'startRowIndex'    => 1,
+                            'endRowIndex'      => 1000,
+                            'startColumnIndex' => 9,
+                            'endColumnIndex'   => 10,
+                        ]],
+                        'booleanRule' => [
+                            'condition' => [
+                                'type'   => 'CUSTOM_FORMULA',
+                                'values' => [['userEnteredValue' => $r['formula']]],
+                            ],
+                            'format' => [
+                                'backgroundColor' => $r['bg'],
+                                'textFormat'      => ['bold' => true, 'foregroundColor' => $r['text']],
+                            ],
+                        ],
+                    ],
+                    'index' => $idx,
+                ]
+            ]);
+        }
+
+        // 8. Conditional formatting for Priority (Column I, index 8)
+        $priorityRules = [
+            [
+                'formula' => '=$I2="critical"',
+                'bg'      => ['red' => 0.99, 'green' => 0.88, 'blue' => 0.88],
+                'text'    => ['red' => 0.72, 'green' => 0.07, 'blue' => 0.07],
+            ],
+            [
+                'formula' => '=$I2="high"',
+                'bg'      => ['red' => 1.0, 'green' => 0.93, 'blue' => 0.83],
+                'text'    => ['red' => 0.60, 'green' => 0.20, 'blue' => 0.07],
+            ],
+        ];
+
+        foreach ($priorityRules as $pIdx => $pr) {
+            $requests[] = new \Google\Service\Sheets\Request([
+                'addConditionalFormatRule' => [
+                    'rule' => [
+                        'ranges' => [[
+                            'sheetId'          => $sheetId,
+                            'startRowIndex'    => 1,
+                            'endRowIndex'      => 1000,
+                            'startColumnIndex' => 8,
+                            'endColumnIndex'   => 9,
+                        ]],
+                        'booleanRule' => [
+                            'condition' => [
+                                'type'   => 'CUSTOM_FORMULA',
+                                'values' => [['userEnteredValue' => $pr['formula']]],
+                            ],
+                            'format' => [
+                                'backgroundColor' => $pr['bg'],
+                                'textFormat'      => ['bold' => true, 'foregroundColor' => $pr['text']],
+                            ],
+                        ],
+                    ],
+                    'index' => count($statusRules) + $pIdx,
+                ]
+            ]);
+        }
+
+        try {
+            $batch = new \Google\Service\Sheets\BatchUpdateSpreadsheetRequest(['requests' => $requests]);
+            $this->sheets->spreadsheets->batchUpdate($this->opsSpreadsheetId, $batch);
+        } catch (\Throwable $e) {
+            Log::warning("Failed to apply formatting on Ops sheet ID {$sheetId}: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Format all Ops_<Dept> sheet tabs in the Operations spreadsheet.
+     */
+    public function formatAllOpsSheets(): array
+    {
+        $spreadsheet = $this->sheets->spreadsheets->get($this->opsSpreadsheetId);
+        $count = 0;
+        foreach ($spreadsheet->getSheets() as $sh) {
+            $title = $sh->getProperties()->getTitle();
+            if (str_starts_with($title, 'Ops_') && $title !== 'Ops_Sheet1') {
+                $sheetId = $sh->getProperties()->getSheetId();
+                $this->setupOpsSheetFormatting($sheetId);
+                $count++;
+            }
+        }
+        return ['formatted' => $count, 'message' => "Berhasil merapikan format tampilan {$count} sheet operasional."];
+    }
+
+    /**
+     * Pull modifications from Google Calendar back into Google Sheets.
+     * Updates dates or titles for existing tasks, and marks deleted/cancelled events
+     * as 'deleted_from_calendar' (soft-hide).
+     */
+    public function pullFromGoogleCalendar(): array
+    {
+        if (empty($this->calendarId) || !$this->calendar) {
+            return ['updated' => 0, 'deleted' => 0, 'message' => 'GOOGLE_CALENDAR_ID not configured'];
+        }
+
+        try {
+            // 1. Fetch events from Google Calendar (including showDeleted to catch cancelled ones)
+            $optParams = [
+                'maxResults'   => 2500,
+                'singleEvents' => true,
+                'showDeleted'  => true,
+            ];
+            $eventsList = $this->calendar->events->listEvents($this->calendarId, $optParams);
+            $eventsMap = [];
+
+            foreach ($eventsList->getItems() as $ev) {
+                $eventsMap[$ev->getId()] = $ev;
+            }
+
+            // 2. Fetch all current ops tasks from Google Sheets
+            $opsTasks = $this->getAllOpsWorkItems(true);
+            $updatedCount = 0;
+            $deletedCount = 0;
+            $batchUpdates = [];
+
+            foreach ($opsTasks as $task) {
+                $eventId = trim($task['googleEventId'] ?? '');
+                if (empty($eventId)) continue;
+
+                $sheetName = $this->ensureOpsDeptSheet($task['department']);
+                $row = $task['rowIndex'];
+
+                if (!isset($eventsMap[$eventId])) {
+                    continue;
+                }
+
+                $event = $eventsMap[$eventId];
+                $isCancelled = ($event->getStatus() === 'cancelled');
+
+                if ($isCancelled) {
+                    if ($task['status'] === 'deleted_from_calendar') {
+                        continue;
+                    }
+
+                    // Soft-hide: status -> 'deleted_from_calendar'
+                    $now = date('Y-m-d H:i');
+                    $noteUpdate = trim($task['notes'] . " [Dihapus di G-Cal: {$now}]");
+
+                    $batchUpdates[] = [
+                        'range'  => "{$sheetName}!J{$row}:J{$row}",
+                        'values' => [['deleted_from_calendar']],
+                    ];
+                    $batchUpdates[] = [
+                        'range'  => "{$sheetName}!N{$row}:N{$row}",
+                        'values' => [[$noteUpdate]],
+                    ];
+                    $deletedCount++;
+                    continue;
+                }
+
+                // Parse Google Calendar dates
+                $gStart = $event->getStart()->getDate() ?: substr($event->getStart()->getDateTime(), 0, 10);
+                $gEndRaw = $event->getEnd()->getDate() ?: substr($event->getEnd()->getDateTime(), 0, 10);
+
+                if (!empty($gEndRaw)) {
+                    // Google Calendar all-day end date is exclusive, subtract 1 day for inclusive end date
+                    $gEnd = date('Y-m-d', strtotime($gEndRaw . ' -1 day'));
+                    if ($gEnd < $gStart) {
+                        $gEnd = $gStart;
+                    }
+                } else {
+                    $gEnd = $gStart;
+                }
+
+                $gSummary = trim($event->getSummary() ?? '');
+                // Clean department prefix e.g. "[Engineer] My Task" -> "My Task"
+                $cleanedTitle = preg_replace('/^\[.*?\]\s*/', '', $gSummary);
+
+                $hasDateChange = ($gStart && $gStart !== $task['startDate']) || ($gEnd && $gEnd !== $task['endDate']);
+                $hasTitleChange = ($cleanedTitle && $cleanedTitle !== $task['title'] && $cleanedTitle !== $gSummary);
+
+                if ($hasDateChange || $hasTitleChange) {
+                    if ($hasTitleChange) {
+                        $batchUpdates[] = [
+                            'range'  => "{$sheetName}!C{$row}:C{$row}",
+                            'values' => [[$cleanedTitle]],
+                        ];
+                    }
+                    if ($hasDateChange) {
+                        $batchUpdates[] = [
+                            'range'  => "{$sheetName}!G{$row}:H{$row}",
+                            'values' => [[$gStart, $gEnd]],
+                        ];
+                    }
+                    $updatedCount++;
+                }
+            }
+
+            // Execute batch update on Google Sheets
+            if (!empty($batchUpdates)) {
+                $data = [];
+                foreach ($batchUpdates as $u) {
+                    $vr = new ValueRange();
+                    $vr->setRange($u['range']);
+                    $vr->setValues($u['values']);
+                    $data[] = $vr;
+                }
+                $req = new \Google\Service\Sheets\BatchUpdateValuesRequest([
+                    'valueInputOption' => 'USER_ENTERED',
+                    'data'             => $data,
+                ]);
+                $this->sheets->spreadsheets_values->batchUpdate($this->opsSpreadsheetId, $req);
+            }
+
+            // Clear cache so website updates instantly
+            $this->clearCache();
+            Cache::forget('ops_all_work_items');
+            foreach ($this->listOpsSheets(false) as $sh) {
+                Cache::forget("ops_rows_{$sh}");
+            }
+
+            return [
+                'updated' => $updatedCount,
+                'deleted' => $deletedCount,
+                'message' => "Sinkronisasi berhasil: {$updatedCount} tugas diperbarui, {$deletedCount} tugas ditandai dihapus dari Google Calendar.",
+            ];
+        } catch (\Throwable $e) {
+            Log::error('Pull from Google Calendar error: ' . $e->getMessage());
+            throw $e;
+        }
+    }
 }
+
 

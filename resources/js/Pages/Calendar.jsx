@@ -4,7 +4,7 @@ import {
     Calendar as CalendarIcon, Briefcase, RefreshCw, Plus,
     ClipboardList, Clock, CheckCircle2, Loader2, X, Building2,
     Trash2, ChevronLeft, ChevronRight, RotateCcw, CalendarCheck, Cloud,
-    Search, ArrowRight, Check, FileText
+    Search, ArrowRight, Check, FileText, ArrowDownToLine, ArrowUpToLine, AlertTriangle
 } from 'lucide-react';
 import { CampusFixHeader } from '@/Components/CampusFix/CampusFixHeader';
 import { MobileBottomNav } from '@/Components/CampusFix/MobileBottomNav';
@@ -950,7 +950,7 @@ function CalendarAddWorkModal({ initialStartDate = '', initialEndDate = '', init
 function CalendarInner() {
     const { t, lang } = useLanguage();
     const { tasks, setTasks, loading, error, reload } = useAllOpsTasks();
-    const { isDeptUser, department: userDept, staffName, canAccessCalendar, canExportReports } = useAuth();
+    const { isDeptUser, department: userDept, staffName, canAccessCalendar, canExportReports, canSyncCalendar } = useAuth();
 
     // Multi-Department Selection: Defaults to ALL departments for everyone
     const [selectedDepartments, setSelectedDepartments] = useState(ALL_DEPARTMENTS);
@@ -1295,20 +1295,30 @@ function CalendarInner() {
         setPreviewImage({ src, title, subtitle });
     };
 
+    const [showDeletedGCal, setShowDeletedGCal] = useState(false);
+
+    const deletedGCalCount = useMemo(() => {
+        return tasks.filter(m => m.status === 'deleted_from_calendar').length;
+    }, [tasks]);
+
     // Filter tasks based on selected departments (consolidated department mapping)
     const filteredTasks = useMemo(() => {
-        if (selectedDepartments.length === ALL_DEPARTMENTS.length) return tasks;
         return tasks.filter(m => {
+            if (m.status === 'deleted_from_calendar' && !showDeletedGCal) {
+                return false;
+            }
+            if (selectedDepartments.length === ALL_DEPARTMENTS.length) return true;
             const norm = normalizeDepartment(m.department || m.dept);
             return selectedDepartments.includes(norm);
         });
-    }, [tasks, selectedDepartments]);
+    }, [tasks, selectedDepartments, showDeletedGCal]);
 
     const totalTasks = filteredTasks.length;
-    const activeTasks = filteredTasks.filter(m => m.status === 'active').length;
+    const activeTasks = filteredTasks.filter(m => m.status === 'active' || m.status === 'todo' || m.status === 'in_progress').length;
     const doneTasks = filteredTasks.filter(m => m.status === 'done').length;
 
     const [syncingCalendar, setSyncingCalendar] = useState(false);
+    const [pullingCalendar, setPullingCalendar] = useState(false);
     const [syncMsg, setSyncMsg] = useState(null);
 
     const handleSyncGoogleCalendar = async () => {
@@ -1321,7 +1331,7 @@ function CalendarInner() {
             });
             const json = await parseResponseSafeJson(res);
             if (json.success) {
-                setSyncMsg({ type: 'success', text: json.data?.message || 'Sinkronisasi Google Calendar berhasil!' });
+                setSyncMsg({ type: 'success', text: json.data?.message || 'Sinkronisasi ke Google Calendar berhasil!' });
                 reload(true, true);
             } else {
                 setSyncMsg({ type: 'error', text: json.message || 'Gagal sinkronisasi Google Calendar' });
@@ -1330,6 +1340,29 @@ function CalendarInner() {
             setSyncMsg({ type: 'error', text: e.message || 'Gagal sinkronisasi Google Calendar' });
         } finally {
             setSyncingCalendar(false);
+            setTimeout(() => setSyncMsg(null), 6000);
+        }
+    };
+
+    const handlePullGoogleCalendar = async () => {
+        setPullingCalendar(true);
+        setSyncMsg(null);
+        try {
+            const res = await fetch('/api/operations/pull-calendar', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': getCsrfToken() },
+            });
+            const json = await parseResponseSafeJson(res);
+            if (json.success) {
+                setSyncMsg({ type: 'success', text: json.data?.message || 'Berhasil menarik pembaruan dari Google Calendar!' });
+                reload(true, true);
+            } else {
+                setSyncMsg({ type: 'error', text: json.message || 'Gagal menarik data dari Google Calendar' });
+            }
+        } catch (e) {
+            setSyncMsg({ type: 'error', text: e.message || 'Gagal menarik data dari Google Calendar' });
+        } finally {
+            setPullingCalendar(false);
             setTimeout(() => setSyncMsg(null), 6000);
         }
     };
@@ -1443,20 +1476,58 @@ function CalendarInner() {
                                 {t('refresh') || 'Refresh'}
                             </button>
 
-                            <button
-                                type="button"
-                                onClick={handleSyncGoogleCalendar}
-                                disabled={syncingCalendar}
-                                title="Sinkronkan seluruh jadwal ke Google Calendar"
-                                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-[#1C1B0E] text-[#E3D1AA] border border-[#C9AA71]/40 hover:border-[#C9AA71] hover:bg-[#C9AA71]/10 transition-all hover:scale-105 cursor-pointer backdrop-blur-sm shadow-sm disabled:opacity-50"
-                            >
-                                {syncingCalendar ? (
-                                    <Loader2 className="h-3.5 w-3.5 animate-spin text-[#C9AA71]" />
-                                ) : (
-                                    <Cloud className="h-3.5 w-3.5 text-[#C9AA71]" />
-                                )}
-                                <span>{syncingCalendar ? 'Syncing...' : 'Sync Google Calendar'}</span>
-                            </button>
+                            {canSyncCalendar && (
+                                <>
+                                    {/* Pull from Google Calendar */}
+                                    <button
+                                        type="button"
+                                        onClick={handlePullGoogleCalendar}
+                                        disabled={pullingCalendar || syncingCalendar}
+                                        title={lang === 'id' ? 'Tarik perubahan jadwal dari Google Calendar' : 'Pull updates from Google Calendar'}
+                                        className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-[#1C1B0E] text-sky-300 border border-sky-500/40 hover:border-sky-400 hover:bg-sky-950/30 transition-all hover:scale-105 cursor-pointer backdrop-blur-sm shadow-sm disabled:opacity-50"
+                                    >
+                                        {pullingCalendar ? (
+                                            <Loader2 className="h-3.5 w-3.5 animate-spin text-sky-400" />
+                                        ) : (
+                                            <ArrowDownToLine className="h-3.5 w-3.5 text-sky-400" />
+                                        )}
+                                        <span>{pullingCalendar ? (lang === 'id' ? 'Menarik...' : 'Pulling...') : (lang === 'id' ? 'Tarik dari G-Cal' : 'Pull G-Cal')}</span>
+                                    </button>
+
+                                    {/* Push to Google Calendar */}
+                                    <button
+                                        type="button"
+                                        onClick={handleSyncGoogleCalendar}
+                                        disabled={syncingCalendar || pullingCalendar}
+                                        title={lang === 'id' ? 'Kirim/perbarui seluruh jadwal ke Google Calendar' : 'Sync all schedules to Google Calendar'}
+                                        className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-[#1C1B0E] text-[#E3D1AA] border border-[#C9AA71]/40 hover:border-[#C9AA71] hover:bg-[#C9AA71]/10 transition-all hover:scale-105 cursor-pointer backdrop-blur-sm shadow-sm disabled:opacity-50"
+                                    >
+                                        {syncingCalendar ? (
+                                            <Loader2 className="h-3.5 w-3.5 animate-spin text-[#C9AA71]" />
+                                        ) : (
+                                            <ArrowUpToLine className="h-3.5 w-3.5 text-[#C9AA71]" />
+                                        )}
+                                        <span>{syncingCalendar ? (lang === 'id' ? 'Mengirim...' : 'Pushing...') : (lang === 'id' ? 'Kirim ke G-Cal' : 'Push G-Cal')}</span>
+                                    </button>
+
+                                    {/* Toggle Deleted in G-Cal */}
+                                    {deletedGCalCount > 0 && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowDeletedGCal(prev => !prev)}
+                                            title={lang === 'id' ? 'Tampilkan atau sembunyikan tugas yang sempat dihapus di Google Calendar' : 'Toggle tasks deleted from Google Calendar'}
+                                            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer backdrop-blur-sm shadow-sm ${
+                                                showDeletedGCal
+                                                    ? 'bg-red-950/60 text-red-300 border-red-500/80 ring-1 ring-red-500/50'
+                                                    : 'bg-[#1C1B0E] text-muted-foreground border-[#3B3929] hover:border-red-500/40 hover:text-red-300'
+                                            }`}
+                                        >
+                                            <AlertTriangle className="h-3.5 w-3.5 text-red-400" />
+                                            <span>{lang === 'id' ? 'Dihapus di G-Cal' : 'G-Cal Deleted'} ({deletedGCalCount})</span>
+                                        </button>
+                                    )}
+                                </>
+                            )}
 
                             {canExportReports ? (
                                 <button

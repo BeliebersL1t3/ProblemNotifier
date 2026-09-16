@@ -94,6 +94,11 @@ class User extends Authenticatable
         return !empty($perms[$permission]);
     }
 
+    public function canSyncCalendar(): bool
+    {
+        return $this->isAdmin() || $this->isHOD() || $this->hasPermission('can_sync_google_calendar');
+    }
+
     public function canViewDepartment(string $department): bool
     {
         if ($this->isAdmin()) {

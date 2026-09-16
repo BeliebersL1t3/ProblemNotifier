@@ -3,7 +3,7 @@ import {
     ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock,
     CheckCircle2, Plus, MapPin, ZoomIn, CheckCheck,
     Edit2, Trash2, Building2, Check, ChevronDown, Search, X,
-    MousePointerClick, Sparkles, User, StickyNote, Layers
+    MousePointerClick, Sparkles, User, StickyNote, Layers, AlertTriangle
 } from 'lucide-react';
 import { getDepartmentTheme } from '@/constants/departments';
 import { ALL_DEPARTMENTS, normalizeDepartment } from '@/constants/staff';
@@ -1197,6 +1197,7 @@ export function OperationsCalendarView({
                                     <div className="space-y-1 overflow-hidden flex-1 flex flex-col justify-start">
                                         {cell.tasks?.slice(0, 2).map((item) => {
                                             const isDone = item.status === 'done';
+                                            const isDeletedGCal = item.status === 'deleted_from_calendar';
                                             const itemDept = item.department || item.dept;
                                             const itemTheme = getDepartmentTheme(itemDept);
                                             const deptColor = itemTheme.bg === '#212121' ? '#FFFFFF' : itemTheme.bg;
@@ -1235,17 +1236,19 @@ export function OperationsCalendarView({
                                                             el.scrollIntoView({ behavior: 'smooth', block: 'center' });
                                                         }
                                                     }}
-                                                    className="truncate px-1.5 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 transition-all shadow-xs cursor-pointer hover:scale-[1.02] hover:brightness-125"
+                                                    className={`truncate px-1.5 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 transition-all shadow-xs cursor-pointer hover:scale-[1.02] hover:brightness-125 ${isDeletedGCal ? 'opacity-70 border-dashed border-red-500/80 bg-red-950/30' : ''}`}
                                                     style={{
-                                                        backgroundColor: cellBlockInfo ? `${cellDeptColor}30` : `${itemTheme.bg}25`,
-                                                        color: cellBlockInfo ? '#FFFFFF' : deptColor,
-                                                        borderLeft: `3px solid ${cellDeptColor || itemTheme.bg}`,
-                                                        borderTop: `1px solid ${cellDeptColor || itemTheme.bg}35`,
-                                                        borderRight: `1px solid ${cellDeptColor || itemTheme.bg}35`,
-                                                        borderBottom: `1px solid ${cellDeptColor || itemTheme.bg}35`,
+                                                        backgroundColor: isDeletedGCal ? 'rgba(239, 68, 68, 0.15)' : (cellBlockInfo ? `${cellDeptColor}30` : `${itemTheme.bg}25`),
+                                                        color: isDeletedGCal ? '#FCA5A5' : (cellBlockInfo ? '#FFFFFF' : deptColor),
+                                                        borderLeft: `3px ${isDeletedGCal ? 'dashed' : 'solid'} ${isDeletedGCal ? '#EF4444' : (cellDeptColor || itemTheme.bg)}`,
+                                                        borderTop: `1px ${isDeletedGCal ? 'dashed' : 'solid'} ${isDeletedGCal ? '#EF4444' : (cellDeptColor || itemTheme.bg)}35`,
+                                                        borderRight: `1px ${isDeletedGCal ? 'dashed' : 'solid'} ${isDeletedGCal ? '#EF4444' : (cellDeptColor || itemTheme.bg)}35`,
+                                                        borderBottom: `1px ${isDeletedGCal ? 'dashed' : 'solid'} ${isDeletedGCal ? '#EF4444' : (cellDeptColor || itemTheme.bg)}35`,
                                                     }}
                                                 >
-                                                    {isDone ? (
+                                                    {isDeletedGCal ? (
+                                                        <AlertTriangle className="h-2.5 w-2.5 shrink-0 text-red-400" />
+                                                    ) : isDone ? (
                                                         <CheckCircle2 className="h-2.5 w-2.5 shrink-0" style={{ color: cellDeptColor || deptColor }} />
                                                     ) : (
                                                         <Clock className="h-2.5 w-2.5 shrink-0 opacity-80" style={{ color: cellDeptColor || deptColor }} />
@@ -1253,12 +1256,17 @@ export function OperationsCalendarView({
                                                     {cellBlockInfo?.totalBlocks > 1 && (
                                                         <span className="font-mono text-[9px] font-black opacity-90">#{cellBlockNum}</span>
                                                     )}
+                                                    {isDeletedGCal && (
+                                                        <span className="font-mono text-[8px] font-bold px-1 rounded bg-red-950/80 text-red-300 border border-red-800/80">
+                                                            Dihapus G-Cal
+                                                        </span>
+                                                    )}
                                                     {item.location && (
                                                         <span className="font-mono text-[8px] font-bold opacity-90 shrink-0 px-1 rounded bg-black/40 text-[#FAFAFA] border border-white/10">
                                                             {item.location}
                                                         </span>
                                                     )}
-                                                    <span className="truncate">{item.title}</span>
+                                                    <span className={`truncate ${isDeletedGCal ? 'line-through opacity-75' : ''}`}>{item.title}</span>
                                                 </div>
                                             );
                                         })}
@@ -1499,25 +1507,32 @@ export function OperationsCalendarView({
                                                         ✨ {ranges.length} {t('date_block') || 'Rentang'}
                                                     </span>
                                                 )}
-                                                <span
-                                                    className={`px-2 py-0.5 rounded-lg text-[9px] font-bold flex items-center gap-1 ${
-                                                        isDone
-                                                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
-                                                            : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                                                    }`}
-                                                >
-                                                    {isDone ? (
-                                                        <>
-                                                            <Check className="h-2.5 w-2.5 stroke-[3]" />
-                                                            <span>{t('done_work') || 'Selesai'}</span>
-                                                        </>
-                                                    ) : (
-                                                        <>
-                                                            <Clock className="h-2.5 w-2.5" />
-                                                            <span>{t('status_active') || 'Aktif'}</span>
-                                                        </>
-                                                    )}
-                                                </span>
+                                                {item.status === 'deleted_from_calendar' ? (
+                                                    <span className="px-2 py-0.5 rounded-lg text-[9px] font-bold flex items-center gap-1 bg-red-950/80 text-red-300 border border-red-700">
+                                                        <AlertTriangle className="h-2.5 w-2.5 text-red-400" />
+                                                        <span>{lang === 'id' ? 'Dihapus di Google Calendar' : 'Deleted in Google Calendar'}</span>
+                                                    </span>
+                                                ) : (
+                                                    <span
+                                                        className={`px-2 py-0.5 rounded-lg text-[9px] font-bold flex items-center gap-1 ${
+                                                            isDone
+                                                                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                                                                : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                                                        }`}
+                                                    >
+                                                        {isDone ? (
+                                                            <>
+                                                                <Check className="h-2.5 w-2.5 stroke-[3]" />
+                                                                <span>{t('done_work') || 'Selesai'}</span>
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <Clock className="h-2.5 w-2.5" />
+                                                                <span>{t('status_active') || 'Aktif'}</span>
+                                                            </>
+                                                        )}
+                                                    </span>
+                                                )}
                                                 {isCardSelected && (
                                                     <span 
                                                         className="px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-wider flex items-center gap-1 shadow-sm animate-pulse"

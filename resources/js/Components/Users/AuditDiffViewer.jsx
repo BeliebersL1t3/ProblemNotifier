@@ -30,6 +30,7 @@ const PERMISSION_CONFIG = {
     can_delete_issues: 'Hapus Isu',
     can_access_analytics: 'Akses Analytics',
     can_access_calendar: 'Akses Kalender Operasional',
+    can_sync_google_calendar: 'Sinkronisasi Google Calendar',
     can_export_reports: 'Export Laporan Excel/PDF',
     can_manage_categories: 'Kelola Kategori Isu',
 };

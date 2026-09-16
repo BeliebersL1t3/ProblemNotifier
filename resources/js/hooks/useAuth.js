@@ -44,6 +44,7 @@ export function useAuth() {
         canDeleteIssues:        hasPermission('can_delete_issues', false),
         canAccessAnalytics:     hasPermission('can_access_analytics', true),
         canAccessCalendar:      hasPermission('can_access_calendar', true),
+        canSyncCalendar:        isAdmin || Boolean(user?.is_hod) || hasPermission('can_sync_google_calendar', false),
         canExportReports:       hasPermission('can_export_reports', true),
         canManageCategories:    hasPermission('can_manage_categories', false),
     };

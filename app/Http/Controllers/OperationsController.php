@@ -331,10 +331,59 @@ class OperationsController extends Controller
     }
 
     /** POST /api/operations/sync-calendar */
-    public function syncCalendar()
+    public function syncCalendar(Request $request)
     {
+        $user = $request->user();
+        if (!$user || !$user->canSyncCalendar()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Akses ditolak: Hanya Admin, HOD, atau staf dengan izin khusus yang dapat menyinkronkan kalender.'
+            ], 403);
+        }
+
         try {
             $result = $this->googleService->syncAllToGoogleCalendar();
+            return response()->json([
+                'success' => true,
+                'data'    => $result,
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /** POST /api/operations/pull-calendar */
+    public function pullCalendar(Request $request)
+    {
+        $user = $request->user();
+        if (!$user || !$user->canSyncCalendar()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Akses ditolak: Hanya Admin, HOD, atau staf dengan izin khusus yang dapat menarik pembaruan dari Google Calendar.'
+            ], 403);
+        }
+
+        try {
+            $result = $this->googleService->pullFromGoogleCalendar();
+            return response()->json([
+                'success' => true,
+                'data'    => $result,
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /** POST /api/operations/format-sheets */
+    public function formatSheets(Request $request)
+    {
+        $user = $request->user();
+        if (!$user || !$user->canSyncCalendar()) {
+            return response()->json(['success' => false, 'message' => 'Akses ditolak.'], 403);
+        }
+
+        try {
+            $result = $this->googleService->formatAllOpsSheets();
             return response()->json([
                 'success' => true,
                 'data'    => $result,

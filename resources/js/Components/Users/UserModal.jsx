@@ -31,6 +31,7 @@ export function UserModal({ isOpen, onClose, user = null, onSaved }) {
         can_delete_issues: false,
         can_access_analytics: true,
         can_access_calendar: true,
+        can_sync_google_calendar: false,
         can_export_reports: true,
         can_manage_categories: false,
     });
@@ -58,6 +59,7 @@ export function UserModal({ isOpen, onClose, user = null, onSaved }) {
                     can_delete_issues:        user.permissions?.can_delete_issues ?? false,
                     can_access_analytics:     user.permissions?.can_access_analytics ?? true,
                     can_access_calendar:      user.permissions?.can_access_calendar ?? true,
+                    can_sync_google_calendar: user.permissions?.can_sync_google_calendar ?? false,
                     can_export_reports:       user.permissions?.can_export_reports ?? true,
                     can_manage_categories:    user.permissions?.can_manage_categories ?? false,
                 });
@@ -78,6 +80,7 @@ export function UserModal({ isOpen, onClose, user = null, onSaved }) {
                     can_delete_issues: false,
                     can_access_analytics: true,
                     can_access_calendar: true,
+                    can_sync_google_calendar: false,
                     can_export_reports: true,
                     can_manage_categories: false,
                 });
@@ -96,6 +99,7 @@ export function UserModal({ isOpen, onClose, user = null, onSaved }) {
                 can_delete_issues: true,
                 can_access_analytics: true,
                 can_access_calendar: true,
+                can_sync_google_calendar: true,
                 can_export_reports: true,
                 can_manage_categories: true,
             });
@@ -106,6 +110,7 @@ export function UserModal({ isOpen, onClose, user = null, onSaved }) {
                 can_delete_issues: false,
                 can_access_analytics: true,
                 can_access_calendar: true,
+                can_sync_google_calendar: false,
                 can_export_reports: false,
                 can_manage_categories: false,
             });
@@ -116,6 +121,7 @@ export function UserModal({ isOpen, onClose, user = null, onSaved }) {
                 can_delete_issues: false,
                 can_access_analytics: true,
                 can_access_calendar: true,
+                can_sync_google_calendar: false,
                 can_export_reports: true,
                 can_manage_categories: false,
             });
@@ -531,6 +537,11 @@ export function UserModal({ isOpen, onClose, user = null, onSaved }) {
                                         key: 'can_access_calendar',
                                         label: 'Akses Kalender Operasional',
                                         desc: 'Menampilkan tab kalender jadwal penugasan resort.',
+                                    },
+                                    {
+                                        key: 'can_sync_google_calendar',
+                                        label: 'Sinkronisasi Google Calendar (Tarik & Dorong)',
+                                        desc: 'Mengizinkan pengguna menarik pembaruan jadwal dari Google Calendar atau menyinkronkan tugas ke Google Calendar.',
                                     },
                                     {
                                         key: 'can_export_reports',
