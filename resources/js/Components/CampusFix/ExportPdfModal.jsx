@@ -19,6 +19,7 @@ import {
 import { useIssues } from '@/context/IssuesContext';
 import { Loader2, Download, FileText, ChevronDown, Layers, Wrench, Send, AtSign, Globe } from 'lucide-react';
 import { normalizeDepartment } from '@/constants/staff';
+import { formatDurationLabel } from '@/lib/duration';
 
 // Mobile-friendly collapsible section
 function CollapsibleSection({ label, toggleLabel, onToggleAll, children, defaultOpen = true }) {
@@ -340,7 +341,8 @@ export function ExportPdfModal({ open, onOpenChange }) {
 
         const cleanDuration = (val) => {
             if (!val || typeof val !== 'string') return '-';
-            return val.replace(/(\d+\.\d+)/g, (match) => Math.round(parseFloat(match)));
+            const formatted = formatDurationLabel(val);
+            return formatted.replace(/(\d+\.\d+)/g, (match) => Math.round(parseFloat(match)));
         };
 
         const sanitizePdfText = (str) => {

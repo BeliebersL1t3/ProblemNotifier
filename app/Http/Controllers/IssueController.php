@@ -1182,12 +1182,17 @@ class IssueController extends Controller
                 if ($diffInMinutes < 60) {
                     $durationLabel = "Solved in {$diffInMinutes} minute" . ($diffInMinutes === 1 ? '' : 's');
                 } else {
-                    $diffInHours = round($diffInMinutes / 60);
-                    if ($diffInHours < 48) {
+                    $diffInHours = intdiv($diffInMinutes, 60);
+                    if ($diffInHours < 24) {
                         $durationLabel = "Solved in {$diffInHours} hour" . ($diffInHours == 1 ? '' : 's');
                     } else {
-                        $diffInDays = round($diffInHours / 24);
-                        $durationLabel = "Solved in {$diffInDays} day" . ($diffInDays == 1 ? '' : 's');
+                        $diffInDays = intdiv($diffInHours, 24);
+                        $remHours = $diffInHours % 24;
+                        if ($remHours === 0) {
+                            $durationLabel = "Solved in {$diffInDays} day" . ($diffInDays == 1 ? '' : 's');
+                        } else {
+                            $durationLabel = "Solved in {$diffInDays} day" . ($diffInDays == 1 ? '' : 's') . " {$remHours} hour" . ($remHours == 1 ? '' : 's');
+                        }
                     }
                 }
             }

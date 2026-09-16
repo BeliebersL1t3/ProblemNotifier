@@ -531,73 +531,7 @@ function AnalyticsInner() {
         };
     }, [timeFilteredIssues, showArchivedInTimeline]);
 
-    // Perspective Breakdown Counts (Admin Macro vs Department Relational)
-    const perspectiveStats = useMemo(() => {
-        if (!timeFilteredIssues) {
-            return null;
-        }
 
-        // Active issues only: Do not include archived issues in department perspective counts
-        const activeIssues = timeFilteredIssues.filter(i => !i.isArchived);
-
-        if (isDeptUser && department) {
-            const userDeptNorm = normalizeDepartment(department).toLowerCase();
-            let incoming = 0;
-            let outgoing = 0;
-            let tagged = 0;
-
-            activeIssues.forEach(issue => {
-                const assigned = safeArray(issue.assignedDepartments).map(d => normalizeDepartment(d).toLowerCase());
-                const tags = safeArray(issue.taggedDepartments).map(d => normalizeDepartment(d).toLowerCase());
-                const originDept = normalizeDepartment(issue.department || '').toLowerCase();
-
-                const isAssigned = assigned.includes(userDeptNorm) || (assigned.length === 0 && originDept === userDeptNorm);
-                const isOrigin = originDept === userDeptNorm;
-                const isTagged = tags.includes(userDeptNorm);
-
-                if (isAssigned) incoming++;
-                if (isOrigin) outgoing++;
-                if (isTagged) tagged++;
-            });
-
-            return {
-                isDept: true,
-                badgeIcon: '👤',
-                title: `${t('dept_perspective_title') || (lang === 'id' ? 'Perspektif Departemen' : 'Department Perspective')}: ${department}`,
-                desc: t('dept_perspective_desc') || (lang === 'id' ? 'Menampilkan hubungan kerja departemen Anda dengan tim lain.' : 'Showing your department’s interactions with other teams.'),
-                stat1: { count: incoming, label: lang === 'id' ? 'Tugas Masuk' : 'Incoming', icon: '📥', mode: 'assigned', title: t('tooltip_incoming_dept') },
-                stat2: { count: outgoing, label: lang === 'id' ? 'Permintaan Keluar' : 'Outgoing', icon: '📤', mode: 'origin', title: t('tooltip_outgoing_dept') },
-                stat3: { count: tagged, label: lang === 'id' ? 'Di-tag / CC' : 'Tagged', icon: '📢', mode: 'tagged', title: t('tooltip_tagged_dept') },
-                total: activeIssues.length
-            };
-        } else {
-            // Admin Resort-wide Perspective
-            let assigned = 0;
-            let origin = 0;
-            let tagged = 0;
-
-            activeIssues.forEach(issue => {
-                const assigns = safeArray(issue.assignedDepartments);
-                const tags = safeArray(issue.taggedDepartments);
-                const originDept = (issue.department || '').trim();
-
-                if (assigns.length > 0) assigned++;
-                if (originDept && !['emergency', 'undefined', 'unknown'].includes(originDept.toLowerCase())) origin++;
-                if (tags.length > 0 && !tags.includes('None')) tagged++;
-            });
-
-            return {
-                isDept: false,
-                badgeIcon: '👑',
-                title: lang === 'id' ? 'Perspektif Admin (Seluruh Resort)' : 'Admin Perspective (Resort-wide Overview)',
-                desc: lang === 'id' ? 'Menampilkan beban kerja perbaikan dan aktivitas pelaporan di seluruh departemen resort.' : 'Showing repair workload and reporting activity across all resort departments.',
-                stat1: { count: assigned, label: lang === 'id' ? 'Beban Tugas' : 'Assigned Work', icon: '🎯', mode: 'assigned', title: t('tooltip_assigned_dept') },
-                stat2: { count: origin, label: lang === 'id' ? 'Laporan Dibuat' : 'Origin Reports', icon: '🏠', mode: 'origin', title: t('tooltip_origin_dept') },
-                stat3: { count: tagged, label: lang === 'id' ? 'Tiket Di-tag' : 'Tagged Tickets', icon: '📢', mode: 'tagged', title: t('tooltip_tagged_dept') },
-                total: activeIssues.length
-            };
-        }
-    }, [isDeptUser, department, timeFilteredIssues, t, lang]);
 
     const analyticsCards = [
         {
@@ -1718,68 +1652,7 @@ function AnalyticsInner() {
 
                     {/* Department Chart */}
                     <div className="chart-card bg-surface p-6 rounded-2xl shadow-sm border border-border/50 flex flex-col items-center">
-                        {/* Context Summary Banner for Both Admin and Department Users */}
-                        {perspectiveStats && (
-                            <div className="w-full bg-[#1C1B0E]/90 border border-[#3B3929] rounded-xl p-3.5 mb-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs shadow-sm">
-                                <div className="flex items-center gap-2.5">
-                                    <div className="p-1.5 rounded-lg bg-[#C9AA71]/15 text-[#C9AA71] border border-[#C9AA71]/30 font-bold shrink-0">
-                                        {perspectiveStats.badgeIcon}
-                                    </div>
-                                    <div>
-                                        <p className="font-bold text-foreground">
-                                            {perspectiveStats.title}
-                                        </p>
-                                        <p className="text-[11px] text-muted-foreground">
-                                            {perspectiveStats.desc}
-                                        </p>
-                                    </div>
-                                </div>
-                                <div className="flex items-center gap-1.5 font-mono text-[11px] flex-wrap self-stretch sm:self-auto justify-start sm:justify-end">
-                                    <button
-                                        type="button"
-                                        onClick={() => setDeptFilterMode(perspectiveStats.stat1.mode)}
-                                        className={`px-2.5 py-1 rounded-lg border transition-all cursor-pointer flex items-center gap-1 ${
-                                            deptFilterMode === perspectiveStats.stat1.mode
-                                                ? 'bg-blue-500/25 text-blue-300 border-blue-400 font-bold shadow-xs'
-                                                : 'bg-blue-500/10 text-blue-300/80 border-blue-500/20 hover:bg-blue-500/20 hover:text-blue-200'
-                                        }`}
-                                        title={perspectiveStats.stat1.title}
-                                    >
-                                        <span>{perspectiveStats.stat1.icon}</span>
-                                        <strong>{perspectiveStats.stat1.count}</strong>
-                                        <span className="text-[10px] opacity-90">{perspectiveStats.stat1.label}</span>
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setDeptFilterMode(perspectiveStats.stat2.mode)}
-                                        className={`px-2.5 py-1 rounded-lg border transition-all cursor-pointer flex items-center gap-1 ${
-                                            deptFilterMode === perspectiveStats.stat2.mode
-                                                ? 'bg-amber-500/25 text-amber-300 border-amber-400 font-bold shadow-xs'
-                                                : 'bg-amber-500/10 text-amber-300/80 border-amber-500/20 hover:bg-amber-500/20 hover:text-amber-200'
-                                        }`}
-                                        title={perspectiveStats.stat2.title}
-                                    >
-                                        <span>{perspectiveStats.stat2.icon}</span>
-                                        <strong>{perspectiveStats.stat2.count}</strong>
-                                        <span className="text-[10px] opacity-90">{perspectiveStats.stat2.label}</span>
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setDeptFilterMode(perspectiveStats.stat3.mode)}
-                                        className={`px-2.5 py-1 rounded-lg border transition-all cursor-pointer flex items-center gap-1 ${
-                                            deptFilterMode === perspectiveStats.stat3.mode
-                                                ? 'bg-pink-500/25 text-pink-300 border-pink-400 font-bold shadow-xs'
-                                                : 'bg-pink-500/10 text-pink-300/80 border-pink-500/20 hover:bg-pink-500/20 hover:text-pink-200'
-                                        }`}
-                                        title={perspectiveStats.stat3.title}
-                                    >
-                                        <span>{perspectiveStats.stat3.icon}</span>
-                                        <strong>{perspectiveStats.stat3.count}</strong>
-                                        <span className="text-[10px] opacity-90">{perspectiveStats.stat3.label}</span>
-                                    </button>
-                                </div>
-                            </div>
-                        )}
+
 
                         <div className="flex items-center justify-between w-full mb-4 gap-2 flex-wrap">
                             <div>

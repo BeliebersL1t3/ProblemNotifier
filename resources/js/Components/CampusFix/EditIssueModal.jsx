@@ -45,6 +45,7 @@ import { getDepartmentTheme } from '@/constants/departments';
 import { useLanguage } from '@/context/LanguageContext';
 import { useAuth } from '@/hooks/useAuth';
 import { InlineAnalogClockPicker } from './CircularTimePickerModal';
+import { formatDurationLabel } from '@/lib/duration';
 
 const MAIN_LOCATIONS = ['TPI', 'TBR', 'Kantor'];
 
@@ -1165,7 +1166,7 @@ export function EditIssueModal({ issue, open, onOpenChange, onSuccess }) {
                                 <div className="space-y-2 text-xs text-muted-foreground bg-black/30 p-3 rounded-lg border border-green-500/10">
                                     <div className="flex justify-between font-mono">
                                         <span>Resolved by: <strong className="text-green-300">{issue.solver || 'Technician'}</strong></span>
-                                        {issue.durationLabel && <span>⏱️ {issue.durationLabel}</span>}
+                                        {issue.durationLabel && <span>⏱️ {formatDurationLabel(issue.durationLabel)}</span>}
                                     </div>
                                     <p className="text-foreground/90 whitespace-pre-wrap">"{issue.fixDescription}"</p>
                                     {issue.proofImageUrl && (

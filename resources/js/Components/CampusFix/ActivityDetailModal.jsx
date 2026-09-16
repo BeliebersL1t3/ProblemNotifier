@@ -28,6 +28,7 @@ import { useLanguage } from '@/context/LanguageContext';
 import { getDepartmentForStaff, normalizeDepartment } from '@/constants/staff';
 import { getDepartmentTheme } from '@/constants/departments';
 import { useAuth } from '@/hooks/useAuth';
+import { formatDurationLabel, computeDurationFromTimestamps } from '@/lib/duration';
 
 export function ActivityDetailModal({ issue, onClose, onOpenCardModal, onEdit, onRestore }) {
     const { t, lang } = useLanguage();
@@ -152,13 +153,7 @@ export function ActivityDetailModal({ issue, onClose, onOpenCardModal, onEdit, o
         };
 
         const computeDurationLabel = (createdTime, solveTime) => {
-            if (!createdTime || !solveTime || solveTime <= createdTime) return 'Solved';
-            const diffMinutes = Math.max(1, Math.round((solveTime - createdTime) / 60000));
-            if (diffMinutes < 60) return `Solved in ${diffMinutes} minute${diffMinutes === 1 ? '' : 's'}`;
-            const diffHours = Math.round(diffMinutes / 60);
-            if (diffHours < 48) return `Solved in ${diffHours} hour${diffHours === 1 ? '' : 's'}`;
-            const diffDays = Math.round(diffHours / 24);
-            return `Solved in ${diffDays} day${diffDays === 1 ? '' : 's'}`;
+            return computeDurationFromTimestamps(createdTime, solveTime);
         };
 
         // Collect all raw progression events
@@ -838,7 +833,7 @@ export function ActivityDetailModal({ issue, onClose, onOpenCardModal, onEdit, o
                                             <Clock className="w-4 h-4 text-green-400 shrink-0 mt-0.5" />
                                             <div>
                                                 <p className="text-muted-foreground">{lang === 'id' ? 'Total Waktu Penyelesaian' : 'Total Duration'}</p>
-                                                <p className="font-semibold text-green-300">{step.data.durationLabel}</p>
+                                                <p className="font-semibold text-green-300">{formatDurationLabel(step.data.durationLabel)}</p>
                                             </div>
                                         </div>
                                     </div>

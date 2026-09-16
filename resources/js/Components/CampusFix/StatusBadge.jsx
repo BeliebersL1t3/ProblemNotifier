@@ -1,5 +1,6 @@
 import { AlertTriangle, CheckCircle2, Clock, PauseCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { formatDurationLabel } from '@/lib/duration';
 
 const STATUS_LABEL = {
     open: 'Needs Fixing',
@@ -24,6 +25,7 @@ const STATUS_ICON = {
 
 export function StatusBadge({ status, label, className }) {
     const Icon = STATUS_ICON[status];
+    const displayLabel = status === 'solved' && label ? formatDurationLabel(label) : (label ?? STATUS_LABEL[status]);
     return (
         <span
             className={cn(
@@ -33,7 +35,7 @@ export function StatusBadge({ status, label, className }) {
             )}
         >
             <Icon className="h-3.5 w-3.5" aria-hidden />
-            {label ?? STATUS_LABEL[status]}
+            {displayLabel}
         </span>
     );
 }
