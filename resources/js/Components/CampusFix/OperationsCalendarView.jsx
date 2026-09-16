@@ -1726,8 +1726,8 @@ export function OperationsCalendarView({
                                             ) : <div />}
 
                                             <div className="flex items-center gap-1.5">
-                                                {/* Restore Deleted G-Cal Task Button */}
-                                                {item.status === 'deleted_from_calendar' && canSyncCalendar && onRestoreTask && (
+                                                {/* Restore Deleted G-Cal Task Button (Only for Admin or HOD of the task's department) */}
+                                                {item.status === 'deleted_from_calendar' && canSyncCalendar && canManageTask && onRestoreTask && (
                                                     <button
                                                         type="button"
                                                         disabled={restoringTaskId === item.id}

@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Http\Controllers\OperationsController;
+use App\Models\CalendarSyncLog;
 use App\Services\GoogleService;
 use Illuminate\Console\Command;
 
@@ -28,9 +29,28 @@ class SyncGoogleCalendar extends Command
                 $operationsController->sendCalendarDeletionNotification($result['newlyDeletedTasks']);
             }
 
+            CalendarSyncLog::record(
+                action: 'AUTO_SYNC',
+                performedBy: 'System Scheduler',
+                status: 'success',
+                details: [
+                    'updated_tasks' => $updated,
+                    'deleted_tasks' => $deleted,
+                ],
+                message: "Auto-sync berhasil: {$updated} diperbarui, {$deleted} ditandai dihapus."
+            );
+
             return 0;
         } catch (\Throwable $e) {
             $this->error("Failed to sync Google Calendar: " . $e->getMessage());
+
+            CalendarSyncLog::record(
+                action: 'AUTO_SYNC',
+                performedBy: 'System Scheduler',
+                status: 'failed',
+                message: $e->getMessage()
+            );
+
             return 1;
         }
     }

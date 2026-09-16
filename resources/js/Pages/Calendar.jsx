@@ -4,7 +4,8 @@ import {
     Calendar as CalendarIcon, Briefcase, RefreshCw, Plus,
     ClipboardList, Clock, CheckCircle2, Loader2, X, Building2,
     Trash2, ChevronLeft, ChevronRight, RotateCcw, CalendarCheck, Cloud,
-    Search, ArrowRight, Check, FileText, ArrowDownToLine, ArrowUpToLine, AlertTriangle
+    Search, ArrowRight, Check, FileText, ArrowDownToLine, ArrowUpToLine, AlertTriangle,
+    History
 } from 'lucide-react';
 import { CampusFixHeader } from '@/Components/CampusFix/CampusFixHeader';
 import { MobileBottomNav } from '@/Components/CampusFix/MobileBottomNav';
@@ -14,6 +15,7 @@ import { OperationsCalendarView, parseTaskRanges, formatDateShort } from '@/Comp
 import { ImageLightboxModal } from '@/Components/CampusFix/ImageLightboxModal';
 import { ImageDropzone } from '@/Components/CampusFix/ImageDropzone';
 import { ExportCalendarPdfModal } from '@/Components/CampusFix/ExportCalendarPdfModal';
+import CalendarSyncLogsModal from '@/Components/CampusFix/CalendarSyncLogsModal';
 import { ALL_DEPARTMENTS, normalizeDepartment } from '@/constants/staff';
 import { getDepartmentTheme } from '@/constants/departments';
 import { useAuth } from '@/hooks/useAuth';
@@ -1319,6 +1321,7 @@ function CalendarInner() {
 
     const [syncingCalendar, setSyncingCalendar] = useState(false);
     const [pullingCalendar, setPullingCalendar] = useState(false);
+    const [logsModalOpen, setLogsModalOpen] = useState(false);
     const [syncMsg, setSyncMsg] = useState(null);
 
     const handleSyncGoogleCalendar = async () => {
@@ -1537,6 +1540,17 @@ function CalendarInner() {
                                         <span>{syncingCalendar ? (lang === 'id' ? 'Mengirim...' : 'Pushing...') : (lang === 'id' ? 'Kirim ke G-Cal' : 'Push G-Cal')}</span>
                                     </button>
 
+                                    {/* History / Sync Logs */}
+                                    <button
+                                        type="button"
+                                        onClick={() => setLogsModalOpen(true)}
+                                        title={lang === 'id' ? 'Lihat riwayat aktivitas sinkronisasi Google Calendar' : 'View Google Calendar sync history'}
+                                        className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-[#1C1B0E] text-[#FAFAFA] border border-[#3B3929] hover:border-[#C9AA71]/60 hover:text-[#C9AA71] transition-all hover:scale-105 cursor-pointer backdrop-blur-sm shadow-sm"
+                                    >
+                                        <History className="h-3.5 w-3.5 text-[#C9AA71]" />
+                                        <span>{lang === 'id' ? 'Riwayat' : 'History'}</span>
+                                    </button>
+
                                     {/* Toggle Deleted in G-Cal */}
                                     {deletedGCalCount > 0 && (
                                         <button
@@ -1679,6 +1693,13 @@ function CalendarInner() {
                 open={exportModalOpen}
                 onOpenChange={setExportModalOpen}
                 tasks={tasks}
+            />
+
+            {/* Calendar Sync Activity Logs Modal */}
+            <CalendarSyncLogsModal
+                isOpen={logsModalOpen}
+                onClose={() => setLogsModalOpen(false)}
+                lang={lang}
             />
 
             <MobileBottomNav currentTab="calendar" />

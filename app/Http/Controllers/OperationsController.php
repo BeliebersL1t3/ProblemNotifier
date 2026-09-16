@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\CalendarSyncLog;
 use App\Models\DashboardNotification;
 use App\Models\User;
 use App\Services\GoogleService;
@@ -347,11 +348,26 @@ class OperationsController extends Controller
 
         try {
             $result = $this->googleService->syncAllToGoogleCalendar();
+
+            CalendarSyncLog::record(
+                action: 'MANUAL_PUSH',
+                performedBy: $user->staff_name ?: ($user->name ?: 'Admin'),
+                status: 'success',
+                details: ['synced' => $result['synced'] ?? 0],
+                message: $result['message'] ?? 'Sinkronisasi seluruh jadwal ke Google Calendar berhasil.'
+            );
+
             return response()->json([
                 'success' => true,
                 'data'    => $result,
             ]);
         } catch (\Throwable $e) {
+            CalendarSyncLog::record(
+                action: 'MANUAL_PUSH',
+                performedBy: $user->staff_name ?: ($user->name ?: 'Admin'),
+                status: 'failed',
+                message: $e->getMessage()
+            );
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
     }
@@ -372,11 +388,29 @@ class OperationsController extends Controller
             if (!empty($result['newlyDeletedTasks'])) {
                 $this->sendCalendarDeletionNotification($result['newlyDeletedTasks']);
             }
+
+            CalendarSyncLog::record(
+                action: 'MANUAL_PULL',
+                performedBy: $user->staff_name ?: ($user->name ?: 'Admin'),
+                status: 'success',
+                details: [
+                    'updated' => $result['updated'] ?? 0,
+                    'deleted' => $result['deleted'] ?? 0,
+                ],
+                message: $result['message'] ?? 'Tarik pembaruan dari Google Calendar berhasil.'
+            );
+
             return response()->json([
                 'success' => true,
                 'data'    => $result,
             ]);
         } catch (\Throwable $e) {
+            CalendarSyncLog::record(
+                action: 'MANUAL_PULL',
+                performedBy: $user->staff_name ?: ($user->name ?: 'Admin'),
+                status: 'failed',
+                message: $e->getMessage()
+            );
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
     }
@@ -397,16 +431,67 @@ class OperationsController extends Controller
             'department' => 'required|string',
         ]);
 
+        $taskDept = $request->input('department');
+
+        // Department-level restriction for HOD: non-admin can only restore tasks of their own department
+        if (!$user->isAdmin()) {
+            $userDept = strtolower(trim($user->department ?? ''));
+            $targetDept = strtolower(trim($taskDept ?? ''));
+            if ($userDept !== $targetDept && !str_contains($userDept, $targetDept) && !str_contains($targetDept, $userDept)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Akses ditolak: Anda hanya dapat memulihkan jadwal milik departemen Anda sendiri (' . ($user->department ?: '-') . ').'
+                ], 403);
+            }
+        }
+
         try {
-            $result = $this->googleService->restoreTask($request->input('department'), $request->input('id'));
+            $result = $this->googleService->restoreTask($taskDept, $request->input('id'));
+
+            CalendarSyncLog::record(
+                action: 'RESTORE_TASK',
+                performedBy: $user->staff_name ?: ($user->name ?: 'User'),
+                status: 'success',
+                department: $taskDept,
+                taskId: $request->input('id'),
+                taskTitle: $result['task']['title'] ?? null,
+                details: [
+                    'google_event_id' => $result['task']['googleEventId'] ?? '',
+                ],
+                message: $result['message'] ?? 'Jadwal berhasil dipulihkan.'
+            );
+
             return response()->json([
                 'success' => true,
                 'message' => $result['message'],
                 'data'    => $result['task'],
             ]);
         } catch (\Throwable $e) {
+            CalendarSyncLog::record(
+                action: 'RESTORE_TASK',
+                performedBy: $user->staff_name ?: ($user->name ?: 'User'),
+                status: 'failed',
+                department: $taskDept,
+                taskId: $request->input('id'),
+                message: $e->getMessage()
+            );
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
+    }
+
+    /** GET /api/operations/calendar-logs */
+    public function calendarLogs(Request $request)
+    {
+        $user = $request->user();
+        if (!$user || !$user->canSyncCalendar()) {
+            return response()->json(['success' => false, 'message' => 'Akses ditolak.'], 403);
+        }
+
+        $logs = CalendarSyncLog::orderBy('id', 'desc')->limit(50)->get();
+        return response()->json([
+            'success' => true,
+            'data'    => $logs,
+        ]);
     }
 
     /** POST /api/operations/format-sheets */
