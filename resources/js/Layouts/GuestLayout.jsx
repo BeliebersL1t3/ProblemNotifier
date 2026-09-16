@@ -14,7 +14,7 @@ export default function GuestLayout({ children }) {
             />
 
             {/* Content Container */}
-            <div className="relative z-10 flex w-full max-w-4xl flex-col md:flex-row overflow-hidden rounded-2xl bg-white/95 shadow-[0_20px_50px_rgba(0,0,0,0.3)] backdrop-blur-md">
+            <div className="relative z-10 flex w-full max-w-4xl flex-col md:flex-row overflow-hidden rounded-2xl bg-white/95 text-gray-900 shadow-[0_20px_50px_rgba(0,0,0,0.3)] backdrop-blur-md">
                 
                 {/* Left Side: Branding */}
                 <div className="flex flex-col items-center justify-center bg-gray-50/50 p-10 md:w-1/2 border-b md:border-b-0 md:border-r border-gray-200">

@@ -89,7 +89,7 @@ export default function Register() {
                             id="department"
                             name="department"
                             value={data.department}
-                            className="mt-1 block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500 bg-white"
+                            className="mt-1 block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500 bg-white text-gray-900 font-medium"
                             onChange={(e) => {
                                 const val = e.target.value;
                                 setData(prev => ({
@@ -100,9 +100,9 @@ export default function Register() {
                             }}
                             required
                         >
-                            <option value="">-- Pilih Departemen --</option>
+                            <option value="" className="text-gray-500 bg-white">-- Pilih Departemen --</option>
                             {DEPARTMENT_OPTIONS.map((dept) => (
-                                <option key={dept.value} value={dept.value}>
+                                <option key={dept.value} value={dept.value} className="text-gray-900 bg-white">
                                     {dept.label}
                                 </option>
                             ))}
@@ -117,12 +117,12 @@ export default function Register() {
                                 id="subdivision"
                                 name="subdivision"
                                 value={data.subdivision}
-                                className="mt-1 block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500 bg-white"
+                                className="mt-1 block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500 bg-white text-gray-900 font-medium"
                                 onChange={(e) => setData('subdivision', e.target.value)}
                             >
-                                <option value="">-- Tanpa Subdivisi Khusus ({data.department}) --</option>
+                                <option value="" className="text-gray-500 bg-white">-- Tanpa Subdivisi Khusus ({data.department}) --</option>
                                 {specificSubdivisions.map((sub) => (
-                                    <option key={sub} value={sub}>
+                                    <option key={sub} value={sub} className="text-gray-900 bg-white">
                                         {sub}
                                     </option>
                                 ))}
@@ -132,9 +132,9 @@ export default function Register() {
                                 id="subdivision"
                                 name="subdivision"
                                 disabled
-                                className="mt-1 block w-full rounded-md border-gray-200 bg-gray-50 text-gray-400 text-sm shadow-sm cursor-not-allowed"
+                                className="mt-1 block w-full rounded-md border-gray-200 bg-gray-50 text-gray-500 text-sm shadow-sm cursor-not-allowed"
                             >
-                                <option value="">
+                                <option value="" className="text-gray-500 bg-gray-50">
                                     {!data.department 
                                         ? '-- Pilih Departemen Dahulu --' 
                                         : `Tidak ada subdivisi khusus (${data.department})`}
