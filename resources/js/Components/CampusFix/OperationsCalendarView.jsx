@@ -3,7 +3,8 @@ import {
     ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock,
     CheckCircle2, Plus, MapPin, ZoomIn, CheckCheck,
     Edit2, Trash2, Building2, Check, ChevronDown, Search, X,
-    MousePointerClick, Sparkles, User, StickyNote, Layers, AlertTriangle
+    MousePointerClick, Sparkles, User, StickyNote, Layers, AlertTriangle,
+    RotateCcw, Loader2
 } from 'lucide-react';
 import { getDepartmentTheme } from '@/constants/departments';
 import { ALL_DEPARTMENTS, normalizeDepartment } from '@/constants/staff';
@@ -428,6 +429,9 @@ export function OperationsCalendarView({
     highlightTaskId = null,
     highlightedDates = [],
     onClearHighlight,
+    onRestoreTask,
+    restoringTaskId = null,
+    canSyncCalendar = false,
 }) {
     const { isAdmin, isDeptUser, department: userDept } = useAuth();
     const todayStr = toDateString(new Date());
@@ -1690,6 +1694,23 @@ export function OperationsCalendarView({
                                             </div>
                                         )}
 
+                                        {/* Deleted in Google Calendar Warning Banner */}
+                                        {item.status === 'deleted_from_calendar' && (
+                                            <div className="p-2.5 rounded-xl border border-red-500/50 bg-red-950/40 text-xs text-red-200 flex items-start gap-2 shadow-inner">
+                                                <AlertTriangle className="h-4 w-4 text-red-400 shrink-0 mt-0.5" />
+                                                <div className="flex-1 min-w-0">
+                                                    <span className="font-bold text-red-300 block">
+                                                        {lang === 'id' ? 'Jadwal Dihapus di Google Calendar' : 'Deleted from Google Calendar'}
+                                                    </span>
+                                                    <span className="text-[11px] text-red-300/80 block mt-0.5">
+                                                        {lang === 'id' 
+                                                            ? 'Data ini disembunyikan secara default. Anda dapat memulihkannya kembali ke Google Calendar.'
+                                                            : 'This task is hidden by default. You can restore it back to Google Calendar.'}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        )}
+
                                         {/* Photo & Actions Bar */}
                                         <div className="flex items-center justify-between gap-2 pt-1.5 border-t border-[#3B3929]/60">
                                             {displayImg ? (
@@ -1705,7 +1726,29 @@ export function OperationsCalendarView({
                                             ) : <div />}
 
                                             <div className="flex items-center gap-1.5">
-                                                {canManageTask && !isDone && (
+                                                {/* Restore Deleted G-Cal Task Button */}
+                                                {item.status === 'deleted_from_calendar' && canSyncCalendar && onRestoreTask && (
+                                                    <button
+                                                        type="button"
+                                                        disabled={restoringTaskId === item.id}
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            if (window.confirm(lang === 'id' ? `Pulihkan tugas "${item.title}" kembali ke Google Calendar?` : `Restore "${item.title}" to Google Calendar?`)) {
+                                                                onRestoreTask(item);
+                                                            }
+                                                        }}
+                                                        className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-amber-950/70 text-amber-300 hover:bg-amber-900 border border-amber-500/50 transition-all flex items-center gap-1.5 cursor-pointer shadow-sm disabled:opacity-50"
+                                                    >
+                                                        {restoringTaskId === item.id ? (
+                                                            <Loader2 className="h-3 w-3 animate-spin text-amber-400" />
+                                                        ) : (
+                                                            <RotateCcw className="h-3 w-3 text-amber-400" />
+                                                        )}
+                                                        <span>{restoringTaskId === item.id ? (lang === 'id' ? 'Memulihkan...' : 'Restoring...') : (lang === 'id' ? 'Pulihkan ke G-Cal' : 'Restore to G-Cal')}</span>
+                                                    </button>
+                                                )}
+
+                                                {canManageTask && !isDone && item.status !== 'deleted_from_calendar' && (
                                                     <button
                                                         type="button"
                                                         onClick={() => onMarkDone?.(item)}
@@ -1715,7 +1758,7 @@ export function OperationsCalendarView({
                                                         {t('done_work') || 'Selesai'}
                                                     </button>
                                                 )}
-                                                {canManageTask && onEdit && !isDone && (
+                                                {canManageTask && onEdit && !isDone && item.status !== 'deleted_from_calendar' && (
                                                     <button
                                                         type="button"
                                                         onClick={() => onEdit?.(item)}
@@ -1725,7 +1768,7 @@ export function OperationsCalendarView({
                                                         <Edit2 className="h-3 w-3" style={{ color: deptColor }} />
                                                     </button>
                                                 )}
-                                                {canManageTask && !isDone && (
+                                                {canManageTask && !isDone && item.status !== 'deleted_from_calendar' && (
                                                     <button
                                                         type="button"
                                                         onClick={() => onDelete?.(item)}

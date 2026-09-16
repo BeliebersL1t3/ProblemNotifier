@@ -1697,6 +1697,8 @@ class GoogleService
             $deletedCount = 0;
             $batchUpdates = [];
 
+            $newlyDeletedTasks = [];
+
             foreach ($opsTasks as $task) {
                 $eventId = trim($task['googleEventId'] ?? '');
                 if (empty($eventId)) continue;
@@ -1729,6 +1731,14 @@ class GoogleService
                         'values' => [[$noteUpdate]],
                     ];
                     $deletedCount++;
+                    $newlyDeletedTasks[] = [
+                        'id'         => $task['id'],
+                        'title'      => $task['title'],
+                        'department' => $task['department'],
+                        'location'   => $task['location'] ?? '',
+                        'startDate'  => $task['startDate'] ?? '',
+                        'endDate'    => $task['endDate'] ?? '',
+                    ];
                     continue;
                 }
 
@@ -1794,14 +1804,92 @@ class GoogleService
             }
 
             return [
-                'updated' => $updatedCount,
-                'deleted' => $deletedCount,
-                'message' => "Sinkronisasi berhasil: {$updatedCount} tugas diperbarui, {$deletedCount} tugas ditandai dihapus dari Google Calendar.",
+                'updated'           => $updatedCount,
+                'deleted'           => $deletedCount,
+                'newlyDeletedTasks' => $newlyDeletedTasks,
+                'message'           => "Sinkronisasi berhasil: {$updatedCount} tugas diperbarui, {$deletedCount} tugas ditandai dihapus dari Google Calendar.",
             ];
         } catch (\Throwable $e) {
             Log::error('Pull from Google Calendar error: ' . $e->getMessage());
             throw $e;
         }
+    }
+
+    /**
+     * Restore a task that was deleted from Google Calendar.
+     * Recreates event in Google Calendar, resets status in sheet to 'todo',
+     * and clears the deletion marker in notes.
+     */
+    public function restoreTask(string $dept, string $taskId): array
+    {
+        $allTasks = $this->getOpsWorkItems($dept, true);
+        $targetTask = null;
+        foreach ($allTasks as $t) {
+            if ($t['id'] === $taskId) {
+                $targetTask = $t;
+                break;
+            }
+        }
+
+        if (!$targetTask) {
+            throw new \Exception("Task ID {$taskId} tidak ditemukan di departemen {$dept}.");
+        }
+
+        // 1. Recreate Google Calendar event (empty existing event ID forces insert)
+        $taskToSync = $targetTask;
+        $taskToSync['googleEventId'] = '';
+        $taskToSync['status'] = 'todo';
+        $newEventId = $this->syncOpsTaskToCalendar($taskToSync);
+
+        // 2. Update Google Sheet row (Status -> 'todo', GoogleEventId -> $newEventId, Notes -> append restore log)
+        $sheetName = $this->ensureOpsDeptSheet($dept);
+        $row = $targetTask['rowIndex'];
+        $now = date('Y-m-d H:i');
+        $cleanNotes = trim(preg_replace('/\[Dihapus di G-Cal:.*?\]/', '', $targetTask['notes'] ?? ''));
+        $noteUpdate = trim($cleanNotes . " [Dipulihkan ke G-Cal: {$now}]");
+
+        $batchUpdates = [
+            [
+                'range'  => "{$sheetName}!J{$row}:J{$row}",
+                'values' => [['todo']],
+            ],
+            [
+                'range'  => "{$sheetName}!N{$row}:N{$row}",
+                'values' => [[$noteUpdate]],
+            ],
+            [
+                'range'  => "{$sheetName}!O{$row}:O{$row}",
+                'values' => [[$newEventId ?? '']],
+            ],
+        ];
+
+        $data = [];
+        foreach ($batchUpdates as $u) {
+            $vr = new ValueRange();
+            $vr->setRange($u['range']);
+            $vr->setValues($u['values']);
+            $data[] = $vr;
+        }
+        $req = new \Google\Service\Sheets\BatchUpdateValuesRequest([
+            'valueInputOption' => 'USER_ENTERED',
+            'data'             => $data,
+        ]);
+        $this->sheets->spreadsheets_values->batchUpdate($this->opsSpreadsheetId, $req);
+
+        // Clear cache
+        $this->clearCache();
+        Cache::forget('ops_all_work_items');
+        Cache::forget("ops_rows_{$sheetName}");
+
+        $targetTask['status'] = 'todo';
+        $targetTask['notes'] = $noteUpdate;
+        $targetTask['googleEventId'] = $newEventId ?? '';
+
+        return [
+            'success' => true,
+            'message' => "Jadwal '{$targetTask['title']}' berhasil dipulihkan dan ditambahkan kembali ke Google Calendar.",
+            'task'    => $targetTask,
+        ];
     }
 }
 

@@ -1367,6 +1367,33 @@ function CalendarInner() {
         }
     };
 
+    const [restoringTaskId, setRestoringTaskId] = useState(null);
+
+    const handleRestoreTask = async (task) => {
+        if (!task?.id || !task?.department) return;
+        setRestoringTaskId(task.id);
+        setSyncMsg(null);
+        try {
+            const res = await fetch('/api/operations/restore-task', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': getCsrfToken() },
+                body: JSON.stringify({ id: task.id, department: task.department }),
+            });
+            const json = await parseResponseSafeJson(res);
+            if (json.success) {
+                setSyncMsg({ type: 'success', text: json.message || 'Jadwal berhasil dipulihkan!' });
+                reload(true, true);
+            } else {
+                setSyncMsg({ type: 'error', text: json.message || 'Gagal memulihkan jadwal' });
+            }
+        } catch (e) {
+            setSyncMsg({ type: 'error', text: e.message || 'Gagal memulihkan jadwal' });
+        } finally {
+            setRestoringTaskId(null);
+            setTimeout(() => setSyncMsg(null), 6000);
+        }
+    };
+
     if (!canAccessCalendar) {
         return (
             <div className="min-h-screen bg-[#1C1B0E] text-[#FAFAFA] flex flex-col justify-between relative overflow-hidden">
@@ -1612,6 +1639,9 @@ function CalendarInner() {
                                 setHighlightedDates([]);
                                 setHighlightTaskId(null);
                             }}
+                            onRestoreTask={handleRestoreTask}
+                            restoringTaskId={restoringTaskId}
+                            canSyncCalendar={canSyncCalendar}
                         />
                     )}
                 </div>

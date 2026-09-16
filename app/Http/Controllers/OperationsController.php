@@ -2,9 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\DashboardNotification;
+use App\Models\User;
 use App\Services\GoogleService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class OperationsController extends Controller
 {
@@ -365,9 +369,40 @@ class OperationsController extends Controller
 
         try {
             $result = $this->googleService->pullFromGoogleCalendar();
+            if (!empty($result['newlyDeletedTasks'])) {
+                $this->sendCalendarDeletionNotification($result['newlyDeletedTasks']);
+            }
             return response()->json([
                 'success' => true,
                 'data'    => $result,
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /** POST /api/operations/restore-task */
+    public function restoreTask(Request $request)
+    {
+        $user = $request->user();
+        if (!$user || !$user->canSyncCalendar()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Akses ditolak: Hanya Admin, HOD, atau staf dengan izin khusus yang dapat memulihkan jadwal.'
+            ], 403);
+        }
+
+        $request->validate([
+            'id'         => 'required|string',
+            'department' => 'required|string',
+        ]);
+
+        try {
+            $result = $this->googleService->restoreTask($request->input('department'), $request->input('id'));
+            return response()->json([
+                'success' => true,
+                'message' => $result['message'],
+                'data'    => $result['task'],
             ]);
         } catch (\Throwable $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
@@ -390,6 +425,83 @@ class OperationsController extends Controller
             ]);
         } catch (\Throwable $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Send WhatsApp alert to department group and HODs when a calendar event is deleted.
+     */
+    public function sendCalendarDeletionNotification(array $deletedTasks): void
+    {
+        if (empty($deletedTasks)) {
+            return;
+        }
+
+        foreach ($deletedTasks as $task) {
+            $title = $task['title'] ?? 'Tanpa Judul';
+            $dept  = $task['department'] ?? 'General';
+            $loc   = !empty($task['location']) ? $task['location'] : '-';
+            $start = !empty($task['startDate']) ? date('d M Y', strtotime($task['startDate'])) : '-';
+            $end   = !empty($task['endDate']) ? date('d M Y', strtotime($task['endDate'])) : $start;
+            $dates = ($start === $end || empty($task['endDate'])) ? $start : "{$start} s/d {$end}";
+
+            $waMsg = "⚠️ *[PERINGATAN OPERASIONAL]*\n"
+                   . "Tugas/Jadwal telah *dihapus dari Google Calendar*!\n\n"
+                   . "📋 *Judul:* {$title}\n"
+                   . "🏢 *Departemen:* {$dept}\n"
+                   . "📍 *Lokasi:* {$loc}\n"
+                   . "📅 *Jadwal:* {$dates}\n\n"
+                   . "ℹ️ _Status di website telah disembunyikan (soft-hide). Anda dapat melihat atau memulihkan jadwal ini melalui menu Kalender di website._";
+
+            // 1. Send to WhatsApp group for this department
+            try {
+                Http::connectTimeout(2)->timeout(3)->post('http://localhost:3000/notify', [
+                    'message'             => $waMsg,
+                    'department'          => $dept,
+                    'assignedDepartments' => [$dept],
+                ]);
+            } catch (\Throwable $e) {
+                Log::warning("G-Cal deletion WA group alert skipped: " . $e->getMessage());
+            }
+
+            // 2. Send direct WA message to HODs of the department
+            try {
+                $hods = User::where('role', 'hod')
+                    ->where(function ($q) use ($dept) {
+                        $q->where('department', $dept)
+                          ->orWhere('department', 'like', "%{$dept}%");
+                    })
+                    ->whereNotNull('whatsapp_number')
+                    ->where('whatsapp_number', '!=', '')
+                    ->get();
+
+                foreach ($hods as $hod) {
+                    $cleanPhone = preg_replace('/[^0-9]/', '', $hod->whatsapp_number);
+                    if (!empty($cleanPhone)) {
+                        Http::connectTimeout(2)->timeout(3)->post('http://localhost:3000/notify-direct', [
+                            'phone'   => $cleanPhone,
+                            'message' => $waMsg,
+                        ]);
+                    }
+                }
+            } catch (\Throwable $e) {
+                Log::warning("G-Cal deletion WA HOD direct alert skipped: " . $e->getMessage());
+            }
+
+            // 3. Create DashboardNotification for web in-app alerts
+            try {
+                DashboardNotification::create([
+                    'department'  => $dept,
+                    'role_target' => 'department_user',
+                    'type'        => 'calendar_alert',
+                    'title'       => 'Jadwal Dihapus di Google Calendar',
+                    'message'     => "Jadwal '{$title}' ({$dept}) telah dihapus dari Google Calendar.",
+                    'link'        => '/calendar',
+                    'is_read'     => false,
+                ]);
+            } catch (\Throwable $e) {
+                Log::warning("G-Cal deletion dashboard alert skipped: " . $e->getMessage());
+            }
         }
     }
 }
