@@ -207,6 +207,21 @@ function getStaffByPhone(phone) {
     return null;
 }
 
+// On-demand staff directory sync with 10-second debounce
+let lastOnDemandSync = 0;
+async function checkOrSyncStaff(senderPhone, rawSenderPhone) {
+    let user = getStaffByPhone(senderPhone) || getStaffByPhone(rawSenderPhone);
+    if (!user) {
+        const now = Date.now();
+        if (now - lastOnDemandSync > 10000) {
+            lastOnDemandSync = now;
+            await syncStaffDirectory();
+            user = getStaffByPhone(senderPhone) || getStaffByPhone(rawSenderPhone);
+        }
+    }
+    return user;
+}
+
 // Persistent Device LID <-> Phone Mapping
 let deviceMappings = {};
 function loadDeviceMappings() {
@@ -752,26 +767,33 @@ async function startSock() {
             const senderJid = msg.key.participant || from;
             const rawSenderPhone = String(senderJid).replace(/[^0-9]/g, '');
             const senderPhone = await resolveSenderPhone(sock, from, msg);
-            const registeredUser = getStaffByPhone(senderPhone) || getStaffByPhone(rawSenderPhone);
+            const registeredUser = await checkOrSyncStaff(senderPhone, rawSenderPhone);
             const lower = text.toLowerCase().trim();
 
             const isGroup = from.endsWith('@g.us');
 
-            // --- STRICT DM POLICY FOR UNREGISTERED USERS ---
-            // In private DM, non-registered numbers can ONLY receive the registration flow guidance.
-            if (!isGroup && !registeredUser) {
-                const displayPhone = (rawSenderPhone && rawSenderPhone.length <= 13) ? rawSenderPhone : (senderPhone || rawSenderPhone);
-                await reply(
-                    `🔒 *AKSES TERBATAS — TELUNAS RESORT BOT* 🔒\n\n` +
-                    `Nomor WhatsApp Anda (+${displayPhone}) belum terdaftar sebagai akun staf di Web Dashboard Telunas.\n\n` +
-                    `📌 *Alur Pendaftaran Akun Staf:*\n` +
-                    `1. Buka Web Dashboard Telunas di: ${BASE_URL}/register\n` +
-                    `2. Isi formulir pendaftaran: nama lengkap, email, nomor WhatsApp (+${displayPhone}), dan pilih departemen Anda.\n` +
-                    `3. Permohonan pendaftaran Anda akan diverifikasi oleh Head of Department (HOD) dan disetujui final oleh Administrator.\n` +
-                    `4. Setelah disetujui, akun Anda aktif dan nomor ini otomatis dapat berinteraksi penuh dengan Bot WhatsApp Telunas.\n\n` +
-                    `_Catatan: Pendaftaran mandiri via WhatsApp telah dinonaktifkan. Silakan mendaftar melalui Web Dashboard di atas atau hubungi HOD / Admin departemen Anda._`
-                );
-                continue;
+            // --- STRICT ACCESS RESTRICTION: UNREGISTERED NUMBERS CANNOT INTERACT AT ALL ---
+            if (!registeredUser) {
+                // Clear any leftover state
+                userStates.delete(senderPhone);
+                userStates.delete(rawSenderPhone);
+                userStates.delete(from);
+
+                if (isGroup) {
+                    // In WhatsApp groups: silent drop (completely ignore, do not respond or interact)
+                    continue;
+                } else {
+                    // In private DM: firmly reject with access denied notice
+                    const displayPhone = (rawSenderPhone && rawSenderPhone.length <= 13) ? rawSenderPhone : (senderPhone || rawSenderPhone);
+                    await reply(
+                        `🔒 *AKSES DITOLAK — NOMOR TIDAK TERDAFTAR*\n\n` +
+                        `Nomor WhatsApp Anda (+${displayPhone}) tidak terdaftar dalam sistem Telunas Issue Tracker.\n\n` +
+                        `Bot ini hanya dapat diakses dan digunakan oleh staf resmi yang telah terdaftar di Web Dashboard.\n\n` +
+                        `📌 *Pendaftaran Akun Staf:*\n` +
+                        `Silakan mendaftar melalui Web Dashboard di ${BASE_URL}/register atau hubungi HOD / Admin departemen Anda.`
+                    );
+                    continue;
+                }
             }
 
             // --- 0. Global Self-Service Identity & Registration Commands (Works in DM & Groups) ---
