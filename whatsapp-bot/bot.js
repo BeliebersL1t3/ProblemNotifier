@@ -222,6 +222,110 @@ async function checkOrSyncStaff(senderPhone, rawSenderPhone) {
     return user;
 }
 
+// --- UNREGISTERED NUMBER TRACKER (ANTI-SPAM RATE LIMIT & SECURITY ALERTS) ---
+// Map<trackingKey, { count, firstAttempt, lastAttempt, lastRejectedReply, alertSent, sampleMessages }>
+const unregisteredTracker = new Map();
+
+// Periodic cleanup of stale tracker entries (older than 24 hours)
+setInterval(() => {
+    const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+    for (const [key, data] of unregisteredTracker.entries()) {
+        if (data.lastAttempt < cutoff) {
+            unregisteredTracker.delete(key);
+        }
+    }
+}, 60 * 60 * 1000);
+
+function trackUnregisteredAttempt(phone, text, isGroup) {
+    const now = Date.now();
+    let record = unregisteredTracker.get(phone);
+    if (!record) {
+        record = {
+            count: 0,
+            firstAttempt: now,
+            lastAttempt: now,
+            lastRejectedReply: 0,
+            alertSent: false,
+            sampleMessages: []
+        };
+        unregisteredTracker.set(phone, record);
+    }
+
+    record.count += 1;
+    record.lastAttempt = now;
+    if (text) {
+        const snippet = text.length > 80 ? text.substring(0, 77) + '...' : text;
+        record.sampleMessages.push(snippet);
+        if (record.sampleMessages.length > 3) {
+            record.sampleMessages.shift();
+        }
+    }
+
+    // Rate Limiting (Opsi 3): Only reply rejection in DM once per 1 hour (3,600,000 ms)
+    const ONE_HOUR = 60 * 60 * 1000;
+    let shouldReplyDm = false;
+    if (!isGroup) {
+        if (now - record.lastRejectedReply >= ONE_HOUR) {
+            shouldReplyDm = true;
+            record.lastRejectedReply = now;
+        }
+    }
+
+    // Alert Trigger (Opsi 1): Alert when attempts reach 3 or more and alert hasn't been sent yet
+    let shouldAlert = false;
+    if (record.count >= 3 && !record.alertSent) {
+        record.alertSent = true;
+        shouldAlert = true;
+    }
+
+    return { record, shouldReplyDm, shouldAlert };
+}
+
+async function sendUnauthorizedAccessAlert(sock, displayPhone, record, isGroup, text) {
+    try {
+        const lastSnippet = text ? (text.length > 100 ? text.substring(0, 97) + '...' : text) : (record.sampleMessages[record.sampleMessages.length - 1] || '-');
+        const alertMsg = 
+            `⚠️ *PERINGATAN KEAMANAN: PERCOBAAN AKSES TIDAK SAH* ⚠️\n\n` +
+            `Terdeteksi aktivitas berulang dari nomor WhatsApp yang *TIDAK TERDAFTAR*:\n` +
+            `• *Nomor Pengirim:* +${displayPhone}\n` +
+            `• *Frekuensi:* ${record.count} kali percobaan\n` +
+            `• *Pesan Terakhir:* "${lastSnippet}"\n` +
+            `• *Kanal:* ${isGroup ? 'Grup WhatsApp' : 'Direct Message (DM)'}\n\n` +
+            `_🛡️ Tindakan Bot:_ Interaksi telah diblokir secara otomatis.\n` +
+            `_💡 Catatan:_ Jika nomor ini milik staf resmi, mohon HOD / Admin mendaftarkan dan menyetujui akun mereka melalui Web Dashboard di ${BASE_URL}/users`;
+
+        // 1. Send alert to General Group if configured
+        if (botConfig.generalGroupId) {
+            try {
+                await sock.sendMessage(botConfig.generalGroupId, { text: alertMsg });
+                console.log(`[Security Alert] Sent unauthorized access warning to General Group for +${displayPhone}`);
+            } catch (errG) {
+                console.error(`[Security Alert] Failed sending to General Group:`, errG.message);
+            }
+        }
+
+        // 2. Also notify registered Admins via DM
+        const notifiedAdminPhones = new Set();
+        for (const [p, staff] of Object.entries(staffPhones)) {
+            if (staff.role === 'admin' && staff.realPhone) {
+                const adminPhone = staff.realPhone;
+                if (!notifiedAdminPhones.has(adminPhone)) {
+                    notifiedAdminPhones.add(adminPhone);
+                    const adminJid = `${adminPhone}@s.whatsapp.net`;
+                    try {
+                        await sock.sendMessage(adminJid, { text: alertMsg });
+                        console.log(`[Security Alert] Sent unauthorized access warning to Admin DM (+${adminPhone})`);
+                    } catch (errAdmin) {
+                        console.error(`[Security Alert] Failed sending to Admin DM (+${adminPhone}):`, errAdmin.message);
+                    }
+                }
+            }
+        }
+    } catch (e) {
+        console.error(`[Security Alert] Error dispatching alert:`, e.message);
+    }
+}
+
 // Persistent Device LID <-> Phone Mapping
 let deviceMappings = {};
 function loadDeviceMappings() {
@@ -779,21 +883,39 @@ async function startSock() {
                 userStates.delete(rawSenderPhone);
                 userStates.delete(from);
 
+                const displayPhone = (rawSenderPhone && rawSenderPhone.length <= 13) ? rawSenderPhone : (senderPhone || rawSenderPhone);
+                const trackingKey = senderPhone || rawSenderPhone;
+
+                // Track attempt for anti-spam rate limiting & security alert
+                const { record, shouldReplyDm, shouldAlert } = trackUnregisteredAttempt(trackingKey, text, isGroup);
+
+                // If attempts threshold reached (>= 3 attempts), send security alert to Admin & General Group
+                if (shouldAlert) {
+                    await sendUnauthorizedAccessAlert(sock, displayPhone, record, isGroup, text);
+                }
+
                 if (isGroup) {
                     // In WhatsApp groups: silent drop (completely ignore, do not respond or interact)
                     continue;
                 } else {
-                    // In private DM: firmly reject with access denied notice
-                    const displayPhone = (rawSenderPhone && rawSenderPhone.length <= 13) ? rawSenderPhone : (senderPhone || rawSenderPhone);
-                    await reply(
-                        `🔒 *AKSES DITOLAK — NOMOR TIDAK TERDAFTAR*\n\n` +
-                        `Nomor WhatsApp Anda (+${displayPhone}) tidak terdaftar dalam sistem Telunas Issue Tracker.\n\n` +
-                        `Bot ini hanya dapat diakses dan digunakan oleh staf resmi yang telah terdaftar di Web Dashboard.\n\n` +
-                        `📌 *Pendaftaran Akun Staf:*\n` +
-                        `Silakan mendaftar melalui Web Dashboard di ${BASE_URL}/register atau hubungi HOD / Admin departemen Anda.`
-                    );
+                    // In private DM: rate limited rejection (maximum once per 1 hour)
+                    if (shouldReplyDm) {
+                        await reply(
+                            `🔒 *AKSES DITOLAK — NOMOR TIDAK TERDAFTAR*\n\n` +
+                            `Nomor WhatsApp Anda (+${displayPhone}) tidak terdaftar dalam sistem Telunas Issue Tracker.\n\n` +
+                            `Bot ini hanya dapat diakses dan digunakan oleh staf resmi yang telah terdaftar di Web Dashboard.\n\n` +
+                            `📌 *Pendaftaran Akun Staf:*\n` +
+                            `Silakan mendaftar melalui Web Dashboard di ${BASE_URL}/register atau hubungi HOD / Admin departemen Anda.`
+                        );
+                    } else {
+                        console.log(`[Rate Limit] Suppressed repeat rejection DM to +${displayPhone} (last reply within 1h). Attempt #${record.count}`);
+                    }
                     continue;
                 }
+            } else {
+                // User is registered: clear any lingering tracking history
+                unregisteredTracker.delete(senderPhone);
+                unregisteredTracker.delete(rawSenderPhone);
             }
 
             // --- 0. Global Self-Service Identity & Registration Commands (Works in DM & Groups) ---
