@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import axios from 'axios';
 import { useAuth } from '@/hooks/useAuth';
 import { getOfflineQueue, addToOfflineQueue, removeFromOfflineQueue, dataUrlToFile } from '@/lib/offlineQueue';
+import { OfflineSyncToast } from '@/Components/CampusFix/OfflineSyncToast';
 
 // Fixed 10-category system — no custom categories
 export const DEFAULT_CATEGORIES = [
@@ -161,6 +162,16 @@ export function IssuesProvider({ children }) {
 
     const [outboxCount, setOutboxCount] = useState(() => getOfflineQueue().length);
     const [isSyncingOutbox, setIsSyncingOutbox] = useState(false);
+    const [outboxSyncToast, setOutboxSyncToast] = useState(null);
+    const dismissOutboxSyncToast = useCallback(() => setOutboxSyncToast(null), []);
+
+    useEffect(() => {
+        if (!outboxSyncToast) return;
+        const timer = setTimeout(() => {
+            setOutboxSyncToast(null);
+        }, 7000);
+        return () => clearTimeout(timer);
+    }, [outboxSyncToast]);
 
     // Sync items in offline outbox back to server with original timestamp
     const syncOfflineOutbox = useCallback(async () => {
@@ -168,6 +179,7 @@ export function IssuesProvider({ children }) {
         if (queue.length === 0 || !navigator.onLine) return;
 
         setIsSyncingOutbox(true);
+        const successfullySynced = [];
         try {
             for (const item of queue) {
                 const formData = new FormData();
@@ -199,10 +211,29 @@ export function IssuesProvider({ children }) {
 
                 if (res.data?.success) {
                     removeFromOfflineQueue(item.id);
+                    const reportedMs = new Date(item.reportedAt || item.queuedAt).getTime();
+                    const diffMins = Math.max(1, Math.round((Date.now() - reportedMs) / 60000));
+                    let delayText = `${diffMins} menit`;
+                    if (diffMins >= 60) {
+                        const h = Math.floor(diffMins / 60);
+                        const m = diffMins % 60;
+                        delayText = m > 0 ? `${h} jam ${m} menit` : `${h} jam`;
+                    }
+                    successfullySynced.push({
+                        title: item.title,
+                        delayText,
+                    });
                 }
             }
             setOutboxCount(getOfflineQueue().length);
             await fetchIssues(true);
+
+            if (successfullySynced.length > 0) {
+                setOutboxSyncToast({
+                    items: successfullySynced,
+                    timestamp: Date.now(),
+                });
+            }
         } catch (err) {
             console.warn('Background outbox sync paused (will resume on reconnection):', err);
         } finally {
@@ -529,10 +560,17 @@ export function IssuesProvider({ children }) {
             outboxCount,
             isSyncingOutbox,
             syncOfflineOutbox,
+            outboxSyncToast,
+            dismissOutboxSyncToast,
         };
-    }, [issues, rawIssues, archivedIssues, loadingArchived, fetchArchivedIssues, restoreIssue, loading, error, fetchIssues, addIssue, updateIssue, deleteIssue, claimIssue, resolveIssue, pendingIssue, updateIssueCategory, availableSheets, currentSheet, setCurrentSheet, createNewPeriod, deletePeriod, fetchSheets, outboxCount, isSyncingOutbox, syncOfflineOutbox]);
+    }, [issues, rawIssues, archivedIssues, loadingArchived, fetchArchivedIssues, restoreIssue, loading, error, fetchIssues, addIssue, updateIssue, deleteIssue, claimIssue, resolveIssue, pendingIssue, updateIssueCategory, availableSheets, currentSheet, setCurrentSheet, createNewPeriod, deletePeriod, fetchSheets, outboxCount, isSyncingOutbox, syncOfflineOutbox, outboxSyncToast, dismissOutboxSyncToast]);
 
-    return <IssuesContext.Provider value={value}>{children}</IssuesContext.Provider>;
+    return (
+        <IssuesContext.Provider value={value}>
+            {children}
+            <OfflineSyncToast toast={outboxSyncToast} onDismiss={dismissOutboxSyncToast} />
+        </IssuesContext.Provider>
+    );
 }
 
 export function useIssues() {
