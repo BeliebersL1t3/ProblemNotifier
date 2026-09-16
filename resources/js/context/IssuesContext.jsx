@@ -183,6 +183,10 @@ export function IssuesProvider({ children }) {
                 if (item.deadline) formData.append('deadline', item.deadline);
                 // Keep the exact original timestamp of when the user tried to submit!
                 formData.append('reportedAt', item.reportedAt);
+                formData.append('isOfflineQueued', '1');
+                if (item.queuedAt) {
+                    formData.append('queuedAt', new Date(item.queuedAt).toISOString());
+                }
 
                 if (item.imageDataUrl) {
                     const file = dataUrlToFile(item.imageDataUrl, item.imageName || 'photo.jpg');

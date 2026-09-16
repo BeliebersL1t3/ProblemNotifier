@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { MapPin, Building, ZoomIn, Edit3, Trash2, RotateCcw } from 'lucide-react';
+import { MapPin, Building, ZoomIn, Edit3, Trash2, RotateCcw, Clock } from 'lucide-react';
 import { StatusBadge } from './StatusBadge';
 import { cn } from '@/lib/utils';
 import DelayDetailModal from './DelayDetailModal';
@@ -8,6 +8,7 @@ import { CriticalTimer } from './CriticalTimer';
 import { getDepartmentForStaff, normalizeDepartment } from '@/constants/staff';
 import { getDepartmentTheme } from '@/constants/departments';
 import { useAuth } from '@/hooks/useAuth';
+import { useLanguage } from '@/context/LanguageContext';
 
 const FALLBACK_IMAGE = '/barrier-placeholder.svg';
 
@@ -33,6 +34,7 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
     const [selectedDelay, setSelectedDelay] = useState(null);
     const [previewImage, setPreviewImage] = useState(null);
     const { isAdmin, isDeptUser, department } = useAuth();
+    const { lang } = useLanguage();
 
     const isArchived = Boolean(issue?.isArchived || issue?.statusDisplay === '0' || issue?.displayStatus === '0');
     const archiveLog = (issue?.editLogs || []).slice().reverse().find(l => l && (l.type === 'archive' || String(l.changes).toLowerCase().includes('arsip') || String(l.changes).toLowerCase().includes('archive')));
@@ -431,6 +433,22 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
                             <span className="truncate">By {issue.reporter}</span>
                             <span className="shrink-0">{formatDate(issue.reportedAt)}</span>
                         </div>
+                        {issue.isLateUpload && (
+                            <div 
+                                className="text-amber-500 dark:text-amber-400 font-medium flex items-center justify-between text-[9px] pt-0.5 border-t border-border/30"
+                                title={lang === 'id' 
+                                    ? `Laporan tertunda di antrean offline (+${issue.lateDuration || ''}) karena kendala sinyal Wi-Fi.` 
+                                    : `Report delayed in offline outbox (+${issue.lateDuration || ''}) due to lost Wi-Fi connection.`}
+                            >
+                                <span className="flex items-center gap-1">
+                                    <Clock className="w-2.5 h-2.5 text-amber-500 shrink-0" />
+                                    <span className="font-semibold">{lang === 'id' ? 'Telat Terkirim' : 'Late Send'}</span>
+                                </span>
+                                <span className="font-mono font-medium text-amber-600 dark:text-amber-300 shrink-0">
+                                    +{issue.lateDuration || '>5m'}
+                                </span>
+                            </div>
+                        )}
                         {isArchived && (
                             <div className="text-stone-400 font-medium flex items-center justify-between text-[9px] pt-0.5 border-t border-border/30">
                                 <span className="flex items-center gap-1 text-stone-300">
@@ -750,6 +768,23 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
                         <span>Reported by {issue.reporter}</span>
                         <span>{formatDate(issue.reportedAt)}</span>
                     </div>
+                    {issue.isLateUpload && (
+                        <div 
+                            className="text-amber-500 dark:text-amber-400 font-medium flex items-center justify-between text-[11px] pt-1.5 border-t border-border/40"
+                            title={lang === 'id' 
+                                ? `Laporan tertunda di antrean offline (+${issue.lateDuration || ''}) karena kendala sinyal Wi-Fi saat mengirim.` 
+                                : `Report delayed in offline outbox (+${issue.lateDuration || ''}) due to lost Wi-Fi connection.`}
+                        >
+                            <span className="flex items-center gap-1.5">
+                                <Clock className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                                <span className="font-semibold">{lang === 'id' ? 'Laporan Telat Terkirim' : 'Late Send Report'}</span>
+                                <span className="text-[10px] text-muted-foreground">({lang === 'id' ? 'Kendala Sinyal Wi-Fi' : 'Wi-Fi Disconnected'})</span>
+                            </span>
+                            <span className="font-mono font-semibold text-amber-600 dark:text-amber-300 shrink-0">
+                                +{issue.lateDuration || '>5m'}
+                            </span>
+                        </div>
+                    )}
                     {isArchived && (
                         <div className="text-stone-400 font-medium flex items-center justify-between text-[11px] pt-1.5 border-t border-border/40">
                             <span className="flex items-center gap-1.5 text-stone-300">

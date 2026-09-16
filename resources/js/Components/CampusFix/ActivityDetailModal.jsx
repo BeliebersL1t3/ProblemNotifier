@@ -149,6 +149,9 @@ export function ActivityDetailModal({ issue, onClose, onOpenCardModal, onEdit, o
                 taggedDepartments: issue.taggedDepartments || [],
                 description: issue.description,
                 imageUrl: issue.imageUrl,
+                isLateUpload: issue.isLateUpload,
+                lateDuration: issue.lateDuration,
+                uploadedAtDateStr: issue.uploadedAt ? formatDateTime(issue.uploadedAt) : (issue.uploadedAtStr ? formatDateTime(issue.uploadedAtStr) : null),
             }
         };
 
@@ -559,6 +562,33 @@ export function ActivityDetailModal({ issue, onClose, onOpenCardModal, onEdit, o
                                             📅 {step.dateStr}
                                         </span>
                                     </div>
+
+                                    {step.data.isLateUpload && (
+                                        <div className="mt-3 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-start gap-2.5 text-xs text-amber-300">
+                                            <Clock className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                                            <div className="space-y-1 w-full">
+                                                <div className="flex items-center justify-between gap-2 flex-wrap">
+                                                    <span className="font-bold text-amber-400">
+                                                        {lang === 'id' ? '⏳ Laporan Susulan / Telat Terkirim' : '⏳ Delayed / Late Send Report'}
+                                                    </span>
+                                                    <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono text-[10px] font-semibold border border-amber-500/30">
+                                                        +{step.data.lateDuration || '>5m'}
+                                                    </span>
+                                                </div>
+                                                <p className="text-stone-300 text-[11px] leading-relaxed">
+                                                    {lang === 'id'
+                                                        ? 'Laporan sempat tertahan di antrean offline karena perangkat kehilangan koneksi Wi-Fi saat mengirim di website, dan baru berhasil disinkronkan ke server setelah terhubung kembali.'
+                                                        : 'Report was queued in offline outbox due to Wi-Fi connection loss on the website, and was synced once the device reconnected.'}
+                                                </p>
+                                                <div className="flex items-center gap-4 text-[10px] text-stone-400 font-mono pt-0.5 flex-wrap">
+                                                    <span>📡 {lang === 'id' ? 'Waktu Input:' : 'Input Time:'} {step.dateStr}</span>
+                                                    {step.data.uploadedAtDateStr && (
+                                                        <span>🌐 {lang === 'id' ? 'Waktu Sinkron Server:' : 'Server Sync:'} {step.data.uploadedAtDateStr}</span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
 
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3 text-xs">
                                         <div className="flex items-start gap-2 bg-[#2A281E]/60 p-2.5 rounded-lg border border-[#3B3929]/50">

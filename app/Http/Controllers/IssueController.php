@@ -488,7 +488,9 @@ class IssueController extends Controller
 
                         $lower = strtolower($cleanChanges);
                         $type = 'edit';
-                        if (str_contains($lower, 'klaim') || str_contains($lower, 'claim') || str_contains($lower, 'diambil')) {
+                        if (str_contains($cleanChanges, '[LATE_SEND]') || str_contains($lower, 'terlambat terkirim') || str_contains($lower, 'laporan susulan') || str_contains($lower, 'antrean offline')) {
+                            $type = 'late_upload';
+                        } else if (str_contains($lower, 'klaim') || str_contains($lower, 'claim') || str_contains($lower, 'diambil')) {
                             $type = 'claim';
                         } else if (str_contains($lower, 'diselesaikan') || str_contains($lower, 'solved') || str_contains($lower, 'selesai')) {
                             $type = 'solve';
@@ -584,6 +586,21 @@ class IssueController extends Controller
                         }
                     }
 
+                    $isLateUpload = false;
+                    $lateDuration = null;
+                    $uploadedAt = null;
+
+                    foreach ($editLogs as $log) {
+                        if (($log['type'] ?? '') === 'late_upload' || str_contains($log['changes'] ?? '', '[LATE_SEND]')) {
+                            $isLateUpload = true;
+                            $uploadedAt = $log['date'] ?? null;
+                            if (preg_match('/\(\+([^\)]+?)\s+tertunda/i', $log['changes'] ?? '', $durMatches)) {
+                                $lateDuration = trim($durMatches[1]);
+                            }
+                            break;
+                        }
+                    }
+
                     $issues[] = [
                         'id'             => $latestRow[0],
                         'rowIndex'       => $latestRowIndex,
@@ -616,6 +633,10 @@ class IssueController extends Controller
                         'pendingBy'      => $latestRow[19] ?? '',
                         'pendingImageUrl'=> $this->resolveImageUrl($latestRow[20] ?? ''),
                         'editLogs'       => $editLogs,
+                        'isLateUpload'   => $isLateUpload,
+                        'lateDuration'   => $lateDuration,
+                        'uploadedAt'     => !empty($uploadedAt) ? (strtotime($uploadedAt) ? strtotime($uploadedAt) * 1000 : $uploadedAt) : null,
+                        'uploadedAtStr'  => $uploadedAt,
                         'isArchived'     => $isArchived,
                         'archivedAt'     => !empty($archivedAt) ? (strtotime($archivedAt) ? strtotime($archivedAt) * 1000 : $archivedAt) : null,
                         'archivedAtStr'  => $archivedAt,
@@ -811,9 +832,32 @@ class IssueController extends Controller
                 $deptCode = $deptCodes[$dept] ?? (!empty($dept) ? strtoupper(substr($dept, 0, 3)) : 'GEN');
             }
 
-            $submittedAt = !empty($request->reportedAt)
-                ? Carbon::parse($request->reportedAt)->toIso8601String()
-                : Carbon::now()->toIso8601String();
+            $now = Carbon::now();
+            $isOfflineQueued = $request->boolean('isOfflineQueued') || $request->input('isOfflineQueued') === '1' || !empty($request->queuedAt);
+
+            $reportedTime = !empty($request->reportedAt)
+                ? Carbon::parse($request->reportedAt)
+                : $now;
+
+            $submittedAt = $reportedTime->toIso8601String();
+
+            // Detect late send: explicitly queued offline OR diff between reported time and server receive time >= 5 minutes
+            $diffMinutes = max(0, $reportedTime->diffInMinutes($now, false));
+            $isLateUpload = $isOfflineQueued || ($diffMinutes >= 5);
+
+            $lateDurationText = '';
+            $initialLog = '';
+
+            if ($isLateUpload) {
+                if ($diffMinutes >= 60) {
+                    $hours = floor($diffMinutes / 60);
+                    $remMins = $diffMinutes % 60;
+                    $lateDurationText = $remMins > 0 ? "{$hours} jam {$remMins} menit" : "{$hours} jam";
+                } else {
+                    $lateDurationText = max(1, $diffMinutes) . " menit";
+                }
+                $initialLog = "[" . $now->format('M d, Y H:i:s') . "] Sistem: [LATE_SEND] Laporan susulan / terlambat terkirim (+{$lateDurationText} tertunda di antrean offline karena kehilangan sinyal Wi-Fi)";
+            }
 
             $dateMonth = Carbon::parse($submittedAt)->format('dmy'); // e.g. 190826
             
@@ -875,7 +919,7 @@ class IssueController extends Controller
                 $taggedDeptsStr, // 21 tagged_departments (info only)
                 $dept ?: ($isEmergency ? 'Emergency' : 'General'), // 22 origin_department
                 $assignedDeptsStr, // 23 assigned_department (responsible to fix)
-                '', // 24 Edit History (Column Y: empty on creation)
+                $initialLog, // 24 Edit History (Column Y: stores late send note if applicable)
                 '1', // 25 Display Status (Column Z: 1 = active)
             ];
 
@@ -891,6 +935,10 @@ class IssueController extends Controller
                 // High-Impact S.O.S Emergency Broadcast Template
                 $cleanDesc = trim(str_replace('[EMERGENCY FAST-TRACK]', '', $request->description ?? ''));
                 $descBlock = !empty($cleanDesc) ? "\n\n📝 *SITUATION DETAILS:*\n\"{$cleanDesc}\"" : "";
+
+                if ($isLateUpload) {
+                    $descBlock .= "\n\n⏳ *CATATAN PENGIRIMAN:* Laporan susulan / terlambat terkirim (+{$lateDurationText} tertunda di antrean offline karena kehilangan sinyal Wi-Fi)";
+                }
 
                 $message = "🚨🚨🚨 *EMERGENCY S.O.S ALERT* 🚨🚨🚨\n"
                     . "⚡ *IMMEDIATE ACTION REQUIRED (NOW)* ⚡\n\n"
@@ -935,6 +983,10 @@ class IssueController extends Controller
                 $cleanDesc = trim($request->description ?? '');
                 $descBlock = !empty($cleanDesc) ? "\n\n📝 *Description:*\n\"{$cleanDesc}\"" : "";
 
+                $lateNotice = $isLateUpload 
+                    ? "\n⏳ *Catatan:* Laporan susulan / terlambat terkirim (+{$lateDurationText} tertunda di antrean offline karena kehilangan sinyal Wi-Fi)" 
+                    : "";
+
                 $catName = ucwords(str_replace('-', ' ', $request->category ?? 'General'));
 
                 $message = "📋 *New Issue Submitted!*{$priorityStr}\n\n"
@@ -945,6 +997,7 @@ class IssueController extends Controller
                     . "{$assignedStr}"
                     . "{$taggedStr}\n"
                     . "*Reporter:* {$request->reporter}"
+                    . "{$lateNotice}"
                     . "{$descBlock}\n\n"
                     . "*ID:* {$id}";
             }
