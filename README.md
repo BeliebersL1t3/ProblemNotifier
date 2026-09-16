@@ -6,7 +6,7 @@
 
 <p align="center">
   <b>A comprehensive, real-time facility maintenance, operational scheduling & incident tracking system built specifically for Telunas Resorts.</b><br>
-  Combines a modern web application, native desktop client, Google Sheets two-way cloud synchronization, operational work board, multi-sheet analytics, granular RBAC security, audit logging, and an intelligent WhatsApp Community Bot integration.
+  Combines a modern web application, native desktop client, Google Sheets two-way cloud synchronization, 2-way Google Calendar synchronization, operational work board, multi-sheet analytics, offline outbox with late-send detection, granular RBAC security, audit logging, and an intelligent WhatsApp Community Bot integration with strict access control.
 </p>
 
 <p align="center">
@@ -15,6 +15,7 @@
   <img src="https://img.shields.io/badge/Inertia.js-v2-9553E9?style=for-the-badge&logo=inertia&logoColor=white" alt="Inertia.js">
   <img src="https://img.shields.io/badge/TailwindCSS-v3-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white" alt="TailwindCSS">
   <img src="https://img.shields.io/badge/WhatsApp_Bot-Baileys-25D366?style=for-the-badge&logo=whatsapp&logoColor=white" alt="WhatsApp Bot">
+  <img src="https://img.shields.io/badge/Google_Calendar-2--Way_Sync-4285F4?style=for-the-badge&logo=google-calendar&logoColor=white" alt="Google Calendar">
   <img src="https://img.shields.io/badge/Storage-Local_%2B_Google_Sheets-34A853?style=for-the-badge&logo=google-sheets&logoColor=white" alt="Google Sheets">
 </p>
 
@@ -33,11 +34,17 @@ Staff members can report, claim, delay (*pending*), and resolve maintenance tick
 ### 🖥️ 1. Interactive Web Dashboard (`/dashboard`)
 - **Live Kanban / Task Columns**: Real-time task board divided into `Open (Unclaimed)`, `In Progress`, `Pending (Delayed)`, and `Solved`.
 - **Emergency Fast-Track (SOS)**: Instant emergency trigger with pulsing audio alarms, priority countdown timers, and auto-generated `SOS-` ticket IDs.
+- **Multi-Location Tagging**: Support for selecting multiple resort locations (`TPI`, `TBR`, `Kantor`) simultaneously with custom detail specs.
 - **Full Ticket Lifecycle Management**:
   - **Claim Job**: Tag staff identity and update state to in-progress.
   - **Mark Pending**: Specify postponement reason and attach delay photo proof.
   - **Mark Solved**: Submit resolution notes and final completion photo proof.
   - **Edit & Categorize**: Update department, location, and issue category on the fly.
+- **Offline Outbox & Late-Send Detection**:
+  - If Wi-Fi signal drops while submitting, the ticket is safely queued locally in device memory preserving the original incident timestamp.
+  - When connection is restored, tickets automatically sync to the server and are flagged as **Late Send (`⏳ Telat Terkirim`)** with delay duration (`+X menit/jam`).
+  - **Interactive Toast Notification**: Floating toast popup in bottom-right corner alerts staff when offline reports are successfully synced.
+  - Visual badges on **Issue Cards** and a dedicated alert container in **Activity Detail Timeline (Step 1)** comparing Input Time vs. Server Sync Time.
 - **Interactive Lightbox & Magnifier**: High-resolution image preview with interactive zoom magnifier for inspecting damage and proof photos.
 - **Bilingual Interface**: Seamlessly switch between **Bahasa Indonesia (ID)** and **English (EN)**.
 - **Sheet Period Selector**: Switch between operational years/periods or generate new archive sheets directly from the header.
@@ -78,15 +85,25 @@ Full-fledged operational scheduling and project timeline manager:
 - **Interactive Calendar Matrix**:
   - View multi-day maintenance schedules, resort improvement projects, and ongoing tasks across departments.
   - Multi-department filter with quick-toggle chips and color-coded schedule blocks.
+  - Location pills showing exact locations (`TPI`, `TBR`, `Kantor`).
 - **Drag-and-Drop Date Range Picker**:
   - Mini calendar range picker with multi-block selection and visual drag highlighting.
 - **Task Lifecycle & Progress**:
   - Status indicators for `Aktif (Active)`, `Selesai (Done)`, and `Tertunda (Pending)`.
   - Photo attachment proof with in-modal image lightbox.
-- **Two-Way Google Calendar Sync**:
-  - One-click synchronization exporting scheduled tasks directly to external Google Calendars.
+- **2-Way Google Calendar Synchronization**:
+  - Push tasks from Telunas Issue Tracker to Google Calendar.
+  - Pull updates and deletions from Google Calendar back to the web dashboard.
+  - **Automated Scheduler**: Background scheduler (`calendar:sync-gcal`) automatically syncs every 5 minutes.
+  - **Smart Soft Deletion & Restore Protection**:
+    - When a task is deleted on Google Calendar, the data is preserved in Google Sheets and flagged with `Dihapus dari Google Calendar`.
+    - **Restore Restriction**: Only **Administrators** or the **Head of Department (HOD)** of the task's department can restore deleted tasks.
+    - Instant alert notifications sent to WhatsApp Bot and Dashboard notification center.
+  - **Calendar Sync Activity Logs Modal**: Dedicated audit viewer displaying history of created, updated, deleted, and restored calendar events.
 - **Export Calendar Schedule PDF**:
   - Clean, print-ready schedule exports formatted with custom resort typography and branding.
+- **Automated Ops Spreadsheet Formatting**:
+  - Automatically styles the Google Sheets operations tab with elegant dark navy headers (`#1E293B`), white bold text, frozen top row, clean gridlines, and badge color highlights.
 
 ---
 
@@ -94,7 +111,8 @@ Full-fledged operational scheduling and project timeline manager:
 Enterprise-grade user management and security administration:
 
 - **Role Presets**:
-  - **Administrator**: Full system access, period/sheet creation, and user management.
+  - **Administrator**: Full system access, period/sheet creation, user approvals, and audit log inspection.
+  - **Head of Department (HOD)**: Supervisory rights over department tasks, user approval verification, and restoration authority.
   - **Department User**: Scoped task management with customizable department views.
   - **Viewer (Peninjau)**: Read-only access for monitoring and reporting.
 - **Granular Capability & Barrier Toggles**:
@@ -103,8 +121,11 @@ Enterprise-grade user management and security administration:
   - `can_delete_issues`: Secure issue deletion to authorized personnel only.
   - `can_access_analytics`: Enable or restrict access to performance analytics and charts.
   - `can_access_calendar`: Control access to operational work board schedules.
+  - `can_sync_google_calendar`: Control authority to trigger manual two-way Google Calendar synchronization.
   - `can_export_reports`: Permit or disable PDF and Excel report generation.
   - `can_manage_categories`: Manage and reassign category definitions.
+- **Registration Approval Workflow**:
+  - Self-registered staff accounts require review by Department HOD and final approval by Administrator before activating.
 - **WhatsApp Phone Auto-Linking**:
   - Links staff WhatsApp numbers for instant recognition when interacting with the Bot.
 - **Safe Soft Deletion (Archive / Restore)**:
@@ -128,8 +149,17 @@ Transparent accountability and compliance logging:
 ---
 
 ### 🤖 6. WhatsApp Community Bot (`whatsapp-bot/bot.js`)
-Powered by `@whiskeysockets/baileys`, the bot runs alongside the web platform with multi-group intelligent routing:
+Powered by `@whiskeysockets/baileys`, the bot runs alongside the web platform with multi-group intelligent routing and strict access controls:
 
+- **Strict Access Restriction (Verified Staff Only)**:
+  - **Group Chats**: Any message or command from unregistered phone numbers is **silently ignored** (*silent drop*), preventing spam and disruptions in staff groups.
+  - **Private DM**: Non-registered numbers receive a firm rejection notice (`🔒 AKSES DITOLAK`) with instructions to register via the Web Dashboard.
+- **Anti-Spam Rate Limiting**:
+  - Rejection messages in DM are rate-limited to **maximum 1 reply per hour** per number to conserve message quota and avoid WhatsApp spam flags.
+- **Automated Security Alerts to Admin & General Group**:
+  - If an unregistered number attempts $\ge 3$ interactions, the bot automatically dispatches a formatted security alert to the **General Announcement Group** and **Direct Message (DM) to all registered Administrators**.
+- **On-Demand Staff Directory Sync**:
+  - Automatically syncs with `/api/staff-directory` on incoming messages (with 10-second debounce) so newly approved staff can interact immediately without waiting for background timers.
 - **18 Department Sub-Group Routing**: Automatically detects and routes notifications to the appropriate department sub-group chats (`Engineer`, `IT`, `Security`, `Housekeeping`, `F&B`, `Pest Control`, `Fasilitas`, `Service`, `Bar`, `GR`, `Spa`, `TiRek`, `OE`, `Procurement`, `Sales/Marketing`, `Reservasi`, `Finance`, `Tekong`) plus the **General Announcement Group**.
 - **Per-Group Tag Customization**:
   - **General Group**: Receives full department tags (e.g. `*Tags:* @Engineer @IT` or `*Tags:* @ALL`).
@@ -145,6 +175,7 @@ Powered by `@whiskeysockets/baileys`, the bot runs alongside the web platform wi
 
 ### 🗄️ 7. Hybrid Storage Architecture
 - **Tabular Data**: Synced with **Google Sheets API v4** for real-time collaborative cloud access, reporting, and backup.
+- **Calendar Data**: Synchronized with **Google Calendar API** with 2-way sync and background cron scheduler.
 - **Image Storage**: **100% Local Storage** (`public/uploads/`) with strict MIME validation (`jpg`, `jpeg`, `png`, `webp`), 5MB file size limit, and automatic filename sanitization. Eliminates third-party image hosting dependency and rate limits.
 
 ---
@@ -158,6 +189,8 @@ Powered by `@whiskeysockets/baileys`, the bot runs alongside the web platform wi
 | `!perbaiki` / `perbaiki` / `selesai` | `!solve` / `solve` / `fix` | 🔧 Resolve an issue with fix description & photo proof |
 | `!tunda` / `tunda` / `tertunda` | `!pending` / `pending` / `delay` | ⏳ Mark job as pending with reason & delay photo proof |
 | `!claim <Nama>` *(in Group)* | `!claim <Name>` *(in Group)* | 🤝 Reply to issue notification to claim the task |
+| `!whoami` / `!profil` / `!akun` | `!whoami` / `!profile` / `!account` | 📱 Check verified staff identity, department, and WhatsApp link |
+| `!password` | `!password` | 🔑 Request Web Dashboard account login credentials |
 | `!status` / `!masalah` | `!status` / `!issues` | 📊 Check active/solved issue summary by department |
 | `menu ID` | `menu EN` | 📖 Open full command guide in Indonesian / English |
 | `batal` / `reset` | `cancel` / `reset` | ❌ Cancel active conversation & return to main state |
@@ -172,8 +205,8 @@ Powered by `@whiskeysockets/baileys`, the bot runs alongside the web platform wi
 - **Charts & Data Visualization**: [Recharts](https://recharts.org/), [Anime.js](https://animejs.com/)
 - **Styling & UI**: [Tailwind CSS](https://tailwindcss.com/), [Lucide React Icons](https://lucide.dev/), [Shadcn UI components](https://ui.shadcn.com/)
 - **WhatsApp Integration**: [@whiskeysockets/baileys](https://github.com/WhiskeySockets/Baileys), Axios, Pino, Form-Data
+- **Calendar & Spreadsheet Integration**: Google APIs Client (`Google_Service_Sheets`, `Google_Service_Calendar`)
 - **Desktop Wrapper**: [Electron 34](https://www.electronjs.org/)
-- **Database & Cloud Storage**: Google Sheets API v4 via `google/apiclient`
 - **Asset Bundler**: [Vite](https://vitejs.dev/)
 
 ---
@@ -184,7 +217,7 @@ Powered by `@whiskeysockets/baileys`, the bot runs alongside the web platform wi
 - **PHP** >= 8.2 (with `gd`, `fileinfo`, `curl`, `mbstring`, `pdo_sqlite` or `pdo_mysql` extensions enabled)
 - **Composer** >= 2.x
 - **Node.js** >= 18.x and **npm**
-- **Google Cloud Service Account JSON Key** (with Google Sheets API enabled)
+- **Google Cloud Service Account JSON Key** (with Google Sheets API and Google Calendar API enabled)
 
 ---
 
@@ -209,8 +242,9 @@ php artisan key:generate
 # Save your Google Cloud credentials JSON file to the project root as:
 # google-credentials.json
 
-# 6. Configure .env with your Google Sheet ID:
+# 6. Configure .env with your Google Sheet ID & Google Calendar ID:
 # GOOGLE_SHEET_ID=your_google_spreadsheet_id_here
+# GOOGLE_CALENDAR_ID=your_google_calendar_id_here
 
 # 7. Run database migrations
 php artisan migrate
@@ -221,7 +255,7 @@ npm run build
 
 ---
 
-### 3. Running the Web Application
+### 3. Running the Web Application & Scheduler
 
 To run the application locally:
 
@@ -229,11 +263,14 @@ To run the application locally:
 # Terminal 1: Start Laravel Development Server
 php artisan serve
 
-# Terminal 2: Start Vite Dev Server (Optional for development hot-reloading)
+# Terminal 2: Start Laravel Task Scheduler (for 5-min Google Calendar auto-sync)
+php artisan schedule:work
+
+# Terminal 3: Start Vite Dev Server (Optional for development hot-reloading)
 npm run dev
 ```
 
-The web dashboard is now accessible at `http://localhost:8000`.
+The web dashboard is accessible at `http://localhost:8000`.
 
 ---
 
@@ -268,6 +305,7 @@ npm run electron
 
 ## 🛡️ Security & Privacy
 
+- **Strict Access Verification**: Non-staff numbers are forbidden from issuing bot commands or spamming resort group chats.
 - **API Keys & Secrets**: `.env`, `google-credentials.json`, `auth_info_baileys/`, and `config.json` are strictly excluded from version control via `.gitignore`.
 - **Upload Hardening**: Restricts uploaded files to `image/jpeg`, `image/png`, `image/webp` (max 5MB) with server-side extension sanitization.
 - **Bcrypt Password Hashing**: All user authentication accounts are hashed using standard Bcrypt.
