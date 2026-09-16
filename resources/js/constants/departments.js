@@ -178,6 +178,11 @@ export function getDepartmentDarkColor(deptName) {
     return darkenHex(baseColor, 0.35);
 }
 
+export function getDepartmentVeryDarkColor(deptName) {
+    const baseColor = getDepartmentColor(deptName);
+    return darkenHex(baseColor, 0.60);
+}
+
 export function getShortDepartmentName(dept) {
     if (!dept) return '';
     const d = dept.trim().toLowerCase();

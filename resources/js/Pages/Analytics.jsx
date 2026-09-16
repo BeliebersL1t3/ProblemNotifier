@@ -15,7 +15,7 @@ import {
 import { IssuesProvider, useIssues, DEFAULT_CATEGORIES } from '@/context/IssuesContext';
 import { useLanguage } from '@/context/LanguageContext';
 import { ALL_DEPARTMENTS, normalizeDepartment } from '@/constants/staff';
-import { getDepartmentColor, getDepartmentTheme, getDepartmentTextColor, getDepartmentLightColor, getDepartmentDarkColor } from '@/constants/departments';
+import { getDepartmentColor, getDepartmentTheme, getDepartmentTextColor, getDepartmentLightColor, getDepartmentDarkColor, getDepartmentVeryDarkColor } from '@/constants/departments';
 import { CampusFixHeader } from '@/Components/CampusFix/CampusFixHeader';
 import { MobileBottomNav } from '@/Components/CampusFix/MobileBottomNav';
 import { ScrollToTop } from '@/Components/CampusFix/ScrollToTop';
@@ -722,24 +722,32 @@ function AnalyticsInner() {
         const counts = {};
         const userDeptNorm = isDeptUser && department ? normalizeDepartment(department).toLowerCase() : null;
 
-        const addDeptCount = (deptName, isSolved) => {
+        const getIssueState = (issue) => {
+            if (issue.status === 'solved') return 'solved';
+            if (issue.status === 'open') return 'unclaimed';
+            return 'inProgress'; // 'progress', 'pending', etc.
+        };
+
+        const addDeptCount = (deptName, state) => {
             if (!deptName) return;
             const trimmed = deptName.trim();
             const lower = trimmed.toLowerCase();
             if (!trimmed || lower === 'emergency' || lower === 'undefined' || lower === 'unknown' || lower === 'all' || lower === 'none') return;
             if (!counts[trimmed]) {
-                counts[trimmed] = { total: 0, solved: 0, active: 0 };
+                counts[trimmed] = { total: 0, unclaimed: 0, inProgress: 0, solved: 0 };
             }
             counts[trimmed].total += 1;
-            if (isSolved) {
+            if (state === 'solved') {
                 counts[trimmed].solved += 1;
+            } else if (state === 'inProgress') {
+                counts[trimmed].inProgress += 1;
             } else {
-                counts[trimmed].active += 1;
+                counts[trimmed].unclaimed += 1;
             }
         };
 
         timeFilteredIssues.filter(i => !i.isArchived).forEach(issue => {
-            const isSolved = issue.status === 'solved';
+            const state = getIssueState(issue);
 
             if (isDeptUser && userDeptNorm) {
                 // =========================================================================
@@ -754,22 +762,22 @@ function AnalyticsInner() {
                     // INCOMING (Pekerjaan Masuk untuk kita): Siapa yang melapor / menugaskan tiket ke departemen kita?
                     const isAssignedToMe = assigns.some(d => normalizeDepartment(d).toLowerCase() === userDeptNorm) || (assigns.length === 0 && originNorm === userDeptNorm);
                     if (isAssignedToMe) {
-                        addDeptCount(rawOrigin || 'Unknown', isSolved);
+                        addDeptCount(rawOrigin || 'Unknown', state);
                     }
                 } else if (deptFilterMode === 'origin') {
                     // OUTGOING (Permintaan Keluar dari kita): Tiket yang dilaporkan oleh kita ditugaskan ke departemen mana?
                     if (originNorm === userDeptNorm) {
                         if (assigns.length > 0) {
-                            assigns.forEach(d => addDeptCount(d, isSolved));
+                            assigns.forEach(d => addDeptCount(d, state));
                         } else {
-                            addDeptCount(rawOrigin || department, isSolved);
+                            addDeptCount(rawOrigin || department, state);
                         }
                     }
                 } else if (deptFilterMode === 'tagged') {
                     // TAGGED (Di-tag / CC): Siapa pelapor tiket di mana kita di-tag?
                     const isTaggedMe = tags.some(d => normalizeDepartment(d).toLowerCase() === userDeptNorm);
                     if (isTaggedMe) {
-                        addDeptCount(rawOrigin, isSolved);
+                        addDeptCount(rawOrigin, state);
                     }
                 } else {
                     // ALL SCOPE: Seluruh departemen yang berinteraksi dengan kita
@@ -779,16 +787,16 @@ function AnalyticsInner() {
                     }
                     assigns.forEach(d => { if (d && d !== 'ALL') partnerDepts.add(d); });
                     tags.forEach(d => { if (d && d !== 'ALL' && d !== 'None') partnerDepts.add(d); });
-                    partnerDepts.forEach(d => addDeptCount(d, isSolved));
+                    partnerDepts.forEach(d => addDeptCount(d, state));
                 }
             } else {
                 // =========================================================================
                 // ADMIN MACRO PERSPECTIVE (Resort-wide Workload & Reporting)
                 // =========================================================================
                 if (deptFilterMode === 'origin') {
-                    addDeptCount(issue.department, isSolved);
+                    addDeptCount(issue.department, state);
                 } else if (deptFilterMode === 'tagged') {
-                    safeArray(issue.taggedDepartments).forEach(d => addDeptCount(d, isSolved));
+                    safeArray(issue.taggedDepartments).forEach(d => addDeptCount(d, state));
                 } else if (deptFilterMode === 'all') {
                     const depts = new Set();
                     const rawOrigin = (issue.department || '').trim();
@@ -797,14 +805,14 @@ function AnalyticsInner() {
                     }
                     safeArray(issue.assignedDepartments).forEach(d => { if (d && d !== 'ALL') depts.add(d); });
                     safeArray(issue.taggedDepartments).forEach(d => { if (d && d !== 'ALL' && d !== 'None') depts.add(d); });
-                    depts.forEach(dept => addDeptCount(dept, isSolved));
+                    depts.forEach(dept => addDeptCount(dept, state));
                 } else {
                     // Default: 'assigned'
                     const assigns = safeArray(issue.assignedDepartments);
                     if (assigns.length > 0) {
-                        assigns.forEach(d => addDeptCount(d, isSolved));
+                        assigns.forEach(d => addDeptCount(d, state));
                     } else {
-                        addDeptCount(issue.department, isSolved);
+                        addDeptCount(issue.department, state);
                     }
                 }
             }
@@ -816,17 +824,21 @@ function AnalyticsInner() {
                 const shortName = getDeptAbbreviation(dept);
                 const stat = counts[dept];
                 const total = stat.total || 0;
+                const unclaimed = stat.unclaimed || 0;
+                const inProgress = stat.inProgress || 0;
                 const solved = stat.solved || 0;
-                const active = stat.active || 0;
-                const solvedPct = total > 0 ? Math.round((solved / total) * 100) : 0;
+                const handled = inProgress + solved;
+                const solvedPct = handled > 0 ? Math.round((solved / handled) * 100) : 0;
                 return { 
                     name: dept, 
                     shortName: shortName,
                     displayName: totalDepts > 6 ? shortName : dept,
                     Issues: total,
                     total: total,
+                    unclaimed: unclaimed,
+                    inProgress: inProgress,
                     solved: solved,
-                    active: active,
+                    handled: handled,
                     solvedPct: solvedPct,
                 };
             })
@@ -837,13 +849,21 @@ function AnalyticsInner() {
     }, [timeFilteredIssues, deptLimit, deptFilterMode, isDeptUser, department]);
 
     const deptSummaryStats = useMemo(() => {
+        let unclaimed = 0;
+        let inProgress = 0;
         let solved = 0;
-        let active = 0;
         departmentData.forEach(d => {
+            unclaimed += (d.unclaimed || 0);
+            inProgress += (d.inProgress || 0);
             solved += (d.solved || 0);
-            active += (d.active || 0);
         });
-        return { solved, active, total: solved + active };
+        return { 
+            unclaimed, 
+            inProgress, 
+            solved, 
+            handled: inProgress + solved, 
+            total: unclaimed + inProgress + solved 
+        };
     }, [departmentData]);
 
     // Timeline Data -> Activity Log
@@ -1853,18 +1873,27 @@ function AnalyticsInner() {
                                     )}
                                 </div>
 
-                                {/* Dual-Tone Status Legend */}
-                                <div className="flex items-center gap-3 bg-[#2A281E] px-3 py-1 rounded-lg border border-[#3B3929] text-[11px]">
-                                    <div className="flex items-center gap-1.5 font-semibold text-[#FAFAFA]" title={lang === 'id' ? 'Warna terang menunjukkan tiket yang sudah selesai' : 'Light tone indicates finished issues'}>
-                                        <span className="w-3.5 h-2.5 rounded-[3px] bg-[#B0BEC5] border border-white/20 inline-block shadow-xs"></span>
-                                        <span className="text-muted-foreground">{t('finished_status') || 'Finished'}:</span>
-                                        <span className="font-bold text-emerald-400 font-mono">{deptSummaryStats.solved}</span>
+                                {/* Tri-Tone Status Legend (2 Bars, 3 Lifecycle States) */}
+                                <div className="flex flex-wrap items-center gap-3 bg-[#2A281E] px-3 py-1 rounded-lg border border-[#3B3929] text-[11px]">
+                                    {/* Batang 1: Belum Diambil */}
+                                    <div className="flex items-center gap-1.5 font-semibold text-[#FAFAFA]" title={lang === 'id' ? 'Batang 1 (Warna Gelap): Belum diambil sama sekali' : 'Bar 1 (Dark tone): Not taken / unclaimed'}>
+                                        <span className="w-3 h-2.5 rounded-[3px] bg-[#2C2B22] border border-[#5A5540] inline-block shadow-xs"></span>
+                                        <span className="text-muted-foreground">{lang === 'id' ? 'Belum Diambil' : 'Unclaimed'}:</span>
+                                        <span className="font-bold text-[#C9AA71] font-mono">{deptSummaryStats.unclaimed}</span>
                                     </div>
                                     <div className="h-3 w-px bg-[#3B3929]"></div>
-                                    <div className="flex items-center gap-1.5 font-semibold text-[#FAFAFA]" title={lang === 'id' ? 'Warna gelap menunjukkan tiket yang belum selesai / aktif' : 'Dark tone indicates unresolved / active issues'}>
-                                        <span className="w-3.5 h-2.5 rounded-[3px] bg-[#37474F] border border-black/40 inline-block shadow-xs"></span>
-                                        <span className="text-muted-foreground">{t('still_being_done') || 'Still Being Done'}:</span>
-                                        <span className="font-bold text-amber-400 font-mono">{deptSummaryStats.active}</span>
+                                    {/* Batang 2 Segmen 1: Sedang Dikerjakan */}
+                                    <div className="flex items-center gap-1.5 font-semibold text-[#FAFAFA]" title={lang === 'id' ? 'Batang 2 (Warna Sedang): Sedang dikerjakan' : 'Bar 2 (Mid tone): In progress'}>
+                                        <span className="w-3 h-2.5 rounded-[3px] bg-[#E58C36] border border-white/20 inline-block shadow-xs"></span>
+                                        <span className="text-muted-foreground">{lang === 'id' ? 'Sedang Dikerjakan' : 'In Progress'}:</span>
+                                        <span className="font-bold text-amber-400 font-mono">{deptSummaryStats.inProgress}</span>
+                                    </div>
+                                    <div className="h-3 w-px bg-[#3B3929]"></div>
+                                    {/* Batang 2 Segmen 2: Sudah Selesai */}
+                                    <div className="flex items-center gap-1.5 font-semibold text-[#FAFAFA]" title={lang === 'id' ? 'Batang 2 (Warna Terang): Sudah selesai' : 'Bar 2 (Light tone): Finished / solved'}>
+                                        <span className="w-3 h-2.5 rounded-[3px] bg-[#B0BEC5] border border-white/30 inline-block shadow-xs"></span>
+                                        <span className="text-muted-foreground">{lang === 'id' ? 'Selesai' : 'Solved'}:</span>
+                                        <span className="font-bold text-emerald-400 font-mono">{deptSummaryStats.solved}</span>
                                     </div>
                                 </div>
 
@@ -1913,8 +1942,9 @@ function AnalyticsInner() {
                                                     if (!active || !payload || !payload.length) return null;
                                                     const item = payload[0]?.payload;
                                                     if (!item) return null;
+                                                    const veryDarkColor = getDepartmentVeryDarkColor(item.name);
+                                                    const baseColor = getDepartmentColor(item.name);
                                                     const lightColor = getDepartmentLightColor(item.name);
-                                                    const darkColor = getDepartmentDarkColor(item.name);
                                                     const isSelected = selectedDepartmentFilters.some(d => d.toLowerCase() === item.name.toLowerCase());
                                                     return (
                                                         <div 
@@ -1922,7 +1952,7 @@ function AnalyticsInner() {
                                                                 e.stopPropagation();
                                                                 handleDepartmentBarClick({ name: item.name });
                                                             }}
-                                                            className={`bg-[#2A281E] border ${isSelected ? 'border-[#C9AA71] ring-2 ring-[#C9AA71]/40' : 'border-[#3B3929]'} rounded-xl p-3.5 shadow-2xl text-xs space-y-2.5 min-w-[230px] cursor-pointer hover:border-[#C9AA71] transition-all select-none`}
+                                                            className={`bg-[#2A281E] border ${isSelected ? 'border-[#C9AA71] ring-2 ring-[#C9AA71]/40' : 'border-[#3B3929]'} rounded-xl p-3.5 shadow-2xl text-xs space-y-2.5 min-w-[245px] cursor-pointer hover:border-[#C9AA71] transition-all select-none`}
                                                         >
                                                             <div className="flex items-center justify-between gap-2 border-b border-[#3B3929] pb-2">
                                                                 <span className="font-bold text-[#C9AA71] text-sm">{item.name}</span>
@@ -1935,25 +1965,49 @@ function AnalyticsInner() {
                                                                     <span className="text-muted-foreground">{lang === 'id' ? 'Total Masalah' : 'Total Issues'}:</span>
                                                                     <span className="font-bold font-mono text-sm">{item.total}</span>
                                                                 </div>
+
+                                                                {/* Batang 1: Belum Diambil (Warna Gelap Departemen) */}
                                                                 <div 
                                                                     className="flex items-center justify-between font-semibold px-2 py-1 rounded-md border" 
-                                                                    style={{ backgroundColor: `${lightColor}18`, borderColor: `${lightColor}45`, color: '#FAFAFA' }}
+                                                                    style={{ backgroundColor: `${veryDarkColor}50`, borderColor: `${veryDarkColor}90`, color: '#FAFAFA' }}
                                                                 >
                                                                     <span className="flex items-center gap-1.5">
-                                                                        <span className="w-2.5 h-2.5 rounded-xs inline-block shadow-sm" style={{ backgroundColor: lightColor }}></span>
-                                                                        <span>{lang === 'id' ? 'Selesai (Finished)' : 'Finished / Solved'}:</span>
+                                                                        <span className="w-2.5 h-2.5 rounded-xs inline-block shadow-sm border border-white/20" style={{ backgroundColor: veryDarkColor }}></span>
+                                                                        <span>{lang === 'id' ? '1. Belum Diambil' : '1. Unclaimed'}:</span>
                                                                     </span>
-                                                                    <span className="font-mono">{item.solved} <span className="text-[10px] opacity-75">({item.solvedPct}%)</span></span>
+                                                                    <span className="font-mono">{item.unclaimed} <span className="text-[10px] opacity-75">({item.total > 0 ? Math.round((item.unclaimed / item.total) * 100) : 0}%)</span></span>
                                                                 </div>
-                                                                <div 
-                                                                    className="flex items-center justify-between font-semibold px-2 py-1 rounded-md border" 
-                                                                    style={{ backgroundColor: `${darkColor}25`, borderColor: `${darkColor}65`, color: '#FAFAFA' }}
-                                                                >
-                                                                    <span className="flex items-center gap-1.5">
-                                                                        <span className="w-2.5 h-2.5 rounded-xs inline-block shadow-sm" style={{ backgroundColor: darkColor }}></span>
-                                                                        <span>{lang === 'id' ? 'Sedang Dikerjakan' : 'Still Being Done'}:</span>
-                                                                    </span>
-                                                                    <span className="font-mono">{item.active} <span className="text-[10px] opacity-75">({item.total > 0 ? 100 - item.solvedPct : 0}%)</span></span>
+
+                                                                {/* Batang 2: Sudah Diambil (Stacked: Sedang Dikerjakan + Selesai) */}
+                                                                <div className="p-2 rounded-lg bg-[#1C1B0E]/70 border border-[#3B3929] space-y-1.5">
+                                                                    <div className="flex items-center justify-between text-[11px] font-bold text-[#C9AA71] border-b border-[#3B3929]/50 pb-1">
+                                                                        <span>{lang === 'id' ? '2. Diambil & Selesai' : '2. Handled Bar'}:</span>
+                                                                        <span className="font-mono">{item.handled} <span className="text-[10px] opacity-80 font-normal">({item.total > 0 ? Math.round((item.handled / item.total) * 100) : 0}%)</span></span>
+                                                                    </div>
+                                                                    
+                                                                    {/* Sedang Dikerjakan */}
+                                                                    <div 
+                                                                        className="flex items-center justify-between font-semibold px-1.5 py-0.5 rounded text-[11px]" 
+                                                                        style={{ backgroundColor: `${baseColor}20`, color: '#FAFAFA' }}
+                                                                    >
+                                                                        <span className="flex items-center gap-1.5">
+                                                                            <span className="w-2 h-2 rounded-xs inline-block shadow-sm" style={{ backgroundColor: baseColor }}></span>
+                                                                            <span>{lang === 'id' ? 'Sedang Dikerjakan' : 'In Progress'}:</span>
+                                                                        </span>
+                                                                        <span className="font-mono">{item.inProgress} <span className="text-[10px] opacity-75">({item.handled > 0 ? Math.round((item.inProgress / item.handled) * 100) : 0}%)</span></span>
+                                                                    </div>
+
+                                                                    {/* Sudah Selesai */}
+                                                                    <div 
+                                                                        className="flex items-center justify-between font-semibold px-1.5 py-0.5 rounded text-[11px]" 
+                                                                        style={{ backgroundColor: `${lightColor}20`, color: '#FAFAFA' }}
+                                                                    >
+                                                                        <span className="flex items-center gap-1.5">
+                                                                            <span className="w-2 h-2 rounded-xs inline-block shadow-sm" style={{ backgroundColor: lightColor }}></span>
+                                                                            <span>{lang === 'id' ? 'Sudah Selesai' : 'Solved'}:</span>
+                                                                        </span>
+                                                                        <span className="font-mono">{item.solved} <span className="text-[10px] opacity-75">({item.handled > 0 ? Math.round((item.solved / item.handled) * 100) : 0}%)</span></span>
+                                                                    </div>
                                                                 </div>
                                                             </div>
                                                             {/* Click to filter hint */}
@@ -1965,10 +2019,57 @@ function AnalyticsInner() {
                                                     );
                                                 }}
                                             />
-                                            {/* Sub-bar 1: Finished / Solved (Light Tone) */}
+                                            {/* Batang 1: Belum Diambil sama sekali (Warna Gelap Departemen) */}
+                                            <Bar 
+                                                dataKey="unclaimed" 
+                                                name={lang === 'id' ? 'Belum Diambil' : 'Unclaimed'} 
+                                                stackId="unclaimed"
+                                                radius={[4, 4, 0, 0]}
+                                                onClick={(data) => handleDepartmentBarClick(data)}
+                                                cursor="pointer"
+                                            >
+                                                {departmentData.map((entry, index) => {
+                                                    const isSelected = selectedDepartmentFilters.some(d => d.toLowerCase() === entry.name.toLowerCase());
+                                                    const veryDarkColor = getDepartmentVeryDarkColor(entry.name);
+                                                    return (
+                                                        <Cell 
+                                                            key={`cell-unclaimed-${index}`} 
+                                                            fill={veryDarkColor}
+                                                            stroke={isSelected ? '#F59E0B' : 'transparent'}
+                                                            strokeWidth={isSelected ? 1.5 : 0}
+                                                            opacity={selectedDepartmentFilters.length > 0 ? (isSelected ? 1 : 0.35) : 1}
+                                                        />
+                                                    );
+                                                })}
+                                            </Bar>
+                                            {/* Batang 2 Bagian Bawah: Sedang Dikerjakan (Warna Utama / Sedang Departemen) */}
+                                            <Bar 
+                                                dataKey="inProgress" 
+                                                name={lang === 'id' ? 'Sedang Dikerjakan' : 'In Progress'} 
+                                                stackId="handled"
+                                                radius={entry => entry?.solved > 0 ? [0, 0, 0, 0] : [4, 4, 0, 0]}
+                                                onClick={(data) => handleDepartmentBarClick(data)}
+                                                cursor="pointer"
+                                            >
+                                                {departmentData.map((entry, index) => {
+                                                    const isSelected = selectedDepartmentFilters.some(d => d.toLowerCase() === entry.name.toLowerCase());
+                                                    const baseColor = getDepartmentColor(entry.name);
+                                                    return (
+                                                        <Cell 
+                                                            key={`cell-inprogress-${index}`} 
+                                                            fill={baseColor}
+                                                            stroke={isSelected ? '#F59E0B' : 'transparent'}
+                                                            strokeWidth={isSelected ? 1.5 : 0}
+                                                            opacity={selectedDepartmentFilters.length > 0 ? (isSelected ? 1 : 0.35) : 1}
+                                                        />
+                                                    );
+                                                })}
+                                            </Bar>
+                                            {/* Batang 2 Bagian Atas: Sudah Selesai (Warna Terang Departemen) */}
                                             <Bar 
                                                 dataKey="solved" 
-                                                name={t('finished_status') || 'Finished'} 
+                                                name={lang === 'id' ? 'Sudah Selesai' : 'Solved'} 
+                                                stackId="handled"
                                                 radius={[4, 4, 0, 0]}
                                                 onClick={(data) => handleDepartmentBarClick(data)}
                                                 cursor="pointer"
@@ -1980,28 +2081,6 @@ function AnalyticsInner() {
                                                         <Cell 
                                                             key={`cell-solved-${index}`} 
                                                             fill={lightColor}
-                                                            stroke={isSelected ? '#F59E0B' : 'transparent'}
-                                                            strokeWidth={isSelected ? 1.5 : 0}
-                                                            opacity={selectedDepartmentFilters.length > 0 ? (isSelected ? 1 : 0.35) : 1}
-                                                        />
-                                                    );
-                                                })}
-                                            </Bar>
-                                            {/* Sub-bar 2: Still Being Done / Active (Dark Tone) */}
-                                            <Bar 
-                                                dataKey="active" 
-                                                name={t('still_being_done') || 'Still Being Done'} 
-                                                radius={[4, 4, 0, 0]}
-                                                onClick={(data) => handleDepartmentBarClick(data)}
-                                                cursor="pointer"
-                                            >
-                                                {departmentData.map((entry, index) => {
-                                                    const isSelected = selectedDepartmentFilters.some(d => d.toLowerCase() === entry.name.toLowerCase());
-                                                    const darkColor = getDepartmentDarkColor(entry.name);
-                                                    return (
-                                                        <Cell 
-                                                            key={`cell-active-${index}`} 
-                                                            fill={darkColor}
                                                             stroke={isSelected ? '#F59E0B' : 'transparent'}
                                                             strokeWidth={isSelected ? 1.5 : 0}
                                                             opacity={selectedDepartmentFilters.length > 0 ? (isSelected ? 1 : 0.35) : 1}
