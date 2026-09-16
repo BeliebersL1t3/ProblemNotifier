@@ -585,9 +585,22 @@ function AnalyticsInner() {
             activeAccent: 'bg-status-solved/30 text-status-solved',
         },
         {
-            key: 'emergency',
+            key: 'critical',
             status: 'critical',
-            label: lang === 'id' ? 'Darurat / Kritis' : 'Emergency / Critical',
+            label: lang === 'id' ? 'Prioritas Kritis' : 'Critical Priority',
+            value: analyticsStats.criticalCount,
+            badge: analyticsStats.criticalActive > 0 
+                ? (lang === 'id' ? `${analyticsStats.criticalActive} aktif` : `${analyticsStats.criticalActive} active`)
+                : null,
+            Icon: AlertTriangle,
+            accent: 'bg-amber-500/15 text-amber-400',
+            activeRing: 'ring-amber-500 border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.35)]',
+            activeAccent: 'bg-amber-500/30 text-amber-400',
+        },
+        {
+            key: 'emergency',
+            status: 'emergency',
+            label: lang === 'id' ? 'Insiden Darurat' : 'Emergency SOS',
             value: analyticsStats.emergencyTotal,
             badge: analyticsStats.emergencyActive > 0 
                 ? (lang === 'id' ? `${analyticsStats.emergencyActive} aktif` : `${analyticsStats.emergencyActive} active`)
@@ -1134,19 +1147,24 @@ function AnalyticsInner() {
             // 1. Combinable Status & Priority Filters (matches current status of the issue)
             if (selectedStatusFilters.length > 0) {
                 const isCriticalSelected = selectedStatusFilters.includes('critical');
-                const selectedStatuses = selectedStatusFilters.filter(f => f !== 'critical');
+                const isEmergencySelected = selectedStatusFilters.includes('emergency');
+                const selectedStatuses = selectedStatusFilters.filter(f => f !== 'critical' && f !== 'emergency');
 
                 const currentStatus = ev.originalIssue?.status;
                 const isEmergencyIssue = (ev.originalIssue?.category || '').toLowerCase() === 'emergency' || String(ev.issueId || '').startsWith('SOS');
                 const isCriticalIssue = !isEmergencyIssue && ev.originalIssue?.priority === 'critical';
 
-                let matchesStatus = true;
-                if (selectedStatuses.length > 0 && isCriticalSelected) {
-                    matchesStatus = selectedStatuses.includes(currentStatus) || isCriticalIssue || isEmergencyIssue;
+                let matchesSpecial = false;
+                if (isCriticalSelected && isCriticalIssue) matchesSpecial = true;
+                if (isEmergencySelected && isEmergencyIssue) matchesSpecial = true;
+
+                let matchesStatus = false;
+                if (selectedStatuses.length > 0 && (isCriticalSelected || isEmergencySelected)) {
+                    matchesStatus = selectedStatuses.includes(currentStatus) || matchesSpecial;
                 } else if (selectedStatuses.length > 0) {
                     matchesStatus = selectedStatuses.includes(currentStatus);
-                } else if (isCriticalSelected) {
-                    matchesStatus = isCriticalIssue || isEmergencyIssue;
+                } else {
+                    matchesStatus = matchesSpecial;
                 }
 
                 if (!matchesStatus) return false;
@@ -1463,7 +1481,7 @@ function AnalyticsInner() {
                             <div>
                                 <div className="flex items-center gap-2.5 flex-wrap">
                                     <h2 className="text-base sm:text-lg font-extrabold text-[#FAFAFA] flex items-center gap-2">
-                                        <span>{lang === 'id' ? 'Pemantauan Insiden Darurat & Krisis Kritis' : 'Emergency & Critical Incident Tracking'}</span>
+                                        <span>{lang === 'id' ? 'Pemantauan Insiden Darurat (SOS Fast-Track)' : 'Emergency Incident Tracking (SOS Fast-Track)'}</span>
                                     </h2>
                                     <span className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-red-950/60 border border-red-500/40 text-red-300">
                                         {lang === 'id' ? 'Ditugaskan ke SEMUA Tim' : 'Assigned to ALL Teams'}
@@ -1518,11 +1536,11 @@ function AnalyticsInner() {
                             <button
                                 type="button"
                                 onClick={() => {
-                                    handleStatusCardClick('critical');
+                                    handleStatusCardClick('emergency');
                                     recentActivityRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
                                 }}
                                 className={`px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 flex items-center gap-2 border cursor-pointer shadow-md select-none ${
-                                    selectedStatusFilters.includes('critical')
+                                    selectedStatusFilters.includes('emergency')
                                         ? 'bg-red-600 hover:bg-red-500 text-white border-red-400 ring-2 ring-red-500/50 scale-105'
                                         : 'bg-red-950/40 hover:bg-red-900/60 text-red-300 border-red-800/60 hover:border-red-500'
                                 }`}
@@ -1530,7 +1548,7 @@ function AnalyticsInner() {
                             >
                                 <AlertTriangle className="h-3.5 w-3.5" />
                                 <span>
-                                    {selectedStatusFilters.includes('critical')
+                                    {selectedStatusFilters.includes('emergency')
                                         ? (lang === 'id' ? '✕ Lepas Filter Darurat' : '✕ Clear Emergency Filter')
                                         : (lang === 'id' ? 'Lihat Tiket Darurat' : 'View Emergency Tickets')}
                                 </span>
@@ -2058,8 +2076,8 @@ function AnalyticsInner() {
                         </div>
                     </div>
 
-                    {/* Mini 6-Card Status Filter Bar (Including Dedicated Emergency Card) */}
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 w-full">
+                    {/* Mini 7-Card Status & Priority Filter Bar (Separating Critical & Emergency) */}
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-2.5 w-full">
                         {analyticsCards.map(({ key, status, label, value, badge, Icon, accent, activeRing, activeAccent }) => {
                             const isActive = (status === 'all' && selectedStatusFilters.length === 0) || 
                                              (status !== 'all' && selectedStatusFilters.includes(status));
@@ -2213,7 +2231,8 @@ function AnalyticsInner() {
                                     progress: t('in_progress') || (lang === 'id' ? 'Dalam Proses' : 'In Progress'),
                                     pending: t('pending') || (lang === 'id' ? 'Tertunda' : 'Pending'),
                                     solved: t('resolved') || (lang === 'id' ? 'Terselesaikan' : 'Resolved'),
-                                    critical: lang === 'id' ? 'Darurat / Kritis' : 'Emergency / Critical',
+                                    critical: lang === 'id' ? 'Prioritas Kritis' : 'Critical Priority',
+                                    emergency: lang === 'id' ? 'Insiden Darurat' : 'Emergency SOS',
                                     archived: lang === 'id' ? 'Diarsipkan' : 'Archived',
                                 };
                                 const stLabel = statusLabels[st] || st;
@@ -2222,14 +2241,16 @@ function AnalyticsInner() {
                                     <span 
                                         key={st} 
                                         className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold border ${
-                                            st === 'critical'
+                                            st === 'emergency'
                                                 ? 'bg-red-500/25 text-red-300 border-red-500/40 ring-1 ring-red-500/30'
-                                                : st === 'archived'
-                                                    ? 'bg-rose-500/25 text-rose-300 border-rose-500/40 ring-1 ring-rose-500/30'
-                                                    : 'bg-green-500/20 text-green-300 border-green-500/30'
+                                                : st === 'critical'
+                                                    ? 'bg-amber-500/25 text-amber-300 border-amber-500/40 ring-1 ring-amber-500/30'
+                                                    : st === 'archived'
+                                                        ? 'bg-rose-500/25 text-rose-300 border-rose-500/40 ring-1 ring-rose-500/30'
+                                                        : 'bg-green-500/20 text-green-300 border-green-500/30'
                                         }`}
                                     >
-                                        <span>{st === 'archived' ? '📦' : st === 'critical' ? '🚨' : '✓'} {stLabel}</span>
+                                        <span>{st === 'archived' ? '📦' : st === 'emergency' ? '🚨' : st === 'critical' ? '⚡' : '✓'} {stLabel}</span>
                                         <button 
                                             type="button" 
                                             onClick={() => setSelectedStatusFilters(prev => prev.filter(s => s !== st))}
