@@ -1412,9 +1412,9 @@ async function startSock() {
             if (state.step === STEPS.SOS_AWAITING_TITLE) {
                 state.data.title = text;
                 await reply(getMsg(
-                    'Where are you located right now? Reply with a number or type your location:\n' +
+                    'Where are you located right now? Reply with number(s) (can select multiple with spaces, e.g. "1 2" for TPI & TBR), or type your location:\n' +
                     '1. TPI\n2. TBR\n3. Kantor\n4. Other (type location)',
-                    'Di mana lokasi Anda saat ini? Balas dengan nomor atau ketik lokasi Anda:\n' +
+                    'Di mana lokasi Anda saat ini? Balas dengan nomor (bisa pilih lebih dari 1 dengan spasi, contoh: "1 2" untuk TPI & TBR), atau ketik lokasi Anda:\n' +
                     '1. TPI\n2. TBR\n3. Kantor\n4. Lainnya (ketik lokasi)'
                 ));
                 state.step = STEPS.SOS_AWAITING_LOC;
@@ -1423,9 +1423,23 @@ async function startSock() {
 
             if (state.step === STEPS.SOS_AWAITING_LOC) {
                 const LOCATION_QUICK = { '1': 'TPI', '2': 'TBR', '3': 'Kantor' };
-                if (LOCATION_QUICK[text]) {
-                    state.data.location = LOCATION_QUICK[text];
-                } else if (text === '4') {
+                const parts = text.split(/[\s,]+/).filter(Boolean);
+                const matchedLocs = [];
+                let hasOther = false;
+
+                for (const p of parts) {
+                    if (LOCATION_QUICK[p]) {
+                        if (!matchedLocs.includes(LOCATION_QUICK[p])) {
+                            matchedLocs.push(LOCATION_QUICK[p]);
+                        }
+                    } else if (p === '4') {
+                        hasOther = true;
+                    }
+                }
+
+                if (matchedLocs.length > 0) {
+                    state.data.location = matchedLocs.join(', ');
+                } else if (hasOther || text === '4') {
                     state.data.location = 'Telunas Resort';
                 } else {
                     state.data.location = text;
@@ -1608,9 +1622,9 @@ async function startSock() {
                 if (state.step === STEPS.AWAITING_DESC) {
                     state.data.description = text;
                     await reply(getMsg(
-                        'Where is this located? Reply with a number for quick-select, or just type your location:\n' +
+                        'Where is this located? Reply with number(s) (can select multiple with spaces, e.g. "1 2" for TPI & TBR), or just type your location:\n' +
                         '1. TPI\n2. TBR\n3. Kantor\n4. Other (type location)',
-                        'Di mana lokasinya? Balas dengan nomor pilihan cepat, atau ketik lokasi Anda:\n' +
+                        'Di mana lokasinya? Balas dengan nomor pilihan (bisa pilih lebih dari 1 dengan spasi, contoh: "1 2" untuk TPI & TBR), atau ketik lokasi Anda:\n' +
                         '1. TPI\n2. TBR\n3. Kantor\n4. Lainnya (ketik lokasi)'
                     ));
                     state.step = STEPS.AWAITING_LOC;
@@ -1619,16 +1633,30 @@ async function startSock() {
 
                 if (state.step === STEPS.AWAITING_LOC) {
                     const LOCATION_QUICK = { '1': 'TPI', '2': 'TBR', '3': 'Kantor' };
+                    const parts = text.split(/[\s,]+/).filter(Boolean);
+                    const matchedLocs = [];
+                    let hasOther = false;
 
-                    if (LOCATION_QUICK[text]) {
-                        state.data.location = LOCATION_QUICK[text];
+                    for (const p of parts) {
+                        if (LOCATION_QUICK[p]) {
+                            if (!matchedLocs.includes(LOCATION_QUICK[p])) {
+                                matchedLocs.push(LOCATION_QUICK[p]);
+                            }
+                        } else if (p === '4') {
+                            hasOther = true;
+                        }
+                    }
+
+                    if (matchedLocs.length > 0) {
+                        const locStr = matchedLocs.join(', ');
+                        state.data.location = locStr;
                         await reply(getMsg(
-                            `📍 Location set to *${LOCATION_QUICK[text]}*. Any more specific area within ${LOCATION_QUICK[text]}? (e.g. "Room 12") — or type *skip* to continue.`,
-                            `📍 Lokasi diatur ke *${LOCATION_QUICK[text]}*. Ada area lebih spesifik di ${LOCATION_QUICK[text]}? (contoh: "Kamar 12") — atau ketik *skip* untuk lanjut.`
+                            `📍 Location set to *${locStr}*. Any more specific area within ${locStr}? (e.g. "Room 12") — or type *skip* to continue.`,
+                            `📍 Lokasi diatur ke *${locStr}*. Ada area lebih spesifik di ${locStr}? (contoh: "Kamar 12") — atau ketik *skip* untuk lanjut.`
                         ));
                         state.step = STEPS.AWAITING_LOC_DETAIL;
                         continue;
-                    } else if (text === '4') {
+                    } else if (hasOther || text === '4') {
                         await reply(getMsg('Please type the location:', 'Harap ketik lokasinya:'));
                         state.step = STEPS.AWAITING_LOC_DETAIL;
                         state.data.location = '';

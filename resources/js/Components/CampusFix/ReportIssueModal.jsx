@@ -36,7 +36,7 @@ export function ReportIssueModal({ open, onOpenChange }) {
     const [originDept, setOriginDept] = useState('');
     const [reporter, setReporter] = useState('');
     const [title, setTitle] = useState('');
-    const [locMain, setLocMain] = useState('');      // 'TPI' | 'TBR' | 'Kantor' | ''
+    const [locMains, setLocMains] = useState([]);    // ['TPI', 'TBR', 'Kantor']
     const [locDetail, setLocDetail] = useState('');  // Optional specifics
     const [category, setCategory] = useState('broken');
     const [description, setDescription] = useState('');
@@ -76,7 +76,11 @@ export function ReportIssueModal({ open, onOpenChange }) {
                     const d = JSON.parse(saved);
                     if (d.title) setTitle(d.title);
                     if (d.description) setDescription(d.description);
-                    if (d.locMain) setLocMain(d.locMain);
+                    if (Array.isArray(d.locMains)) {
+                        setLocMains(d.locMains);
+                    } else if (d.locMain) {
+                        setLocMains([d.locMain]);
+                    }
                     if (d.locDetail) setLocDetail(d.locDetail);
                     if (d.category) setCategory(d.category);
                     if (d.priority) setPriority(d.priority);
@@ -109,7 +113,7 @@ export function ReportIssueModal({ open, onOpenChange }) {
                 originDept,
                 reporter,
                 title,
-                locMain,
+                locMains,
                 locDetail,
                 category,
                 description,
@@ -122,7 +126,7 @@ export function ReportIssueModal({ open, onOpenChange }) {
                 localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
             }
         } catch (e) {}
-    }, [open, originDept, reporter, title, locMain, locDetail, category, description, priority, deadline, assignedDepts, taggedDepts]);
+    }, [open, originDept, reporter, title, locMains, locDetail, category, description, priority, deadline, assignedDepts, taggedDepts]);
 
     const clearDraft = () => {
         try {
@@ -147,9 +151,10 @@ export function ReportIssueModal({ open, onOpenChange }) {
         setReporter(''); // reset reporter when dept changes
     };
 
-    // Build the full location string: "TBR - Room 12" or just "TBR"
-    const location = locMain
-        ? (locDetail.trim() ? `${locMain} - ${locDetail.trim()}` : locMain)
+    // Build the full location string: "TPI, TBR - Room 12" or just "TPI, TBR"
+    const mainLocStr = locMains.join(', ');
+    const location = mainLocStr
+        ? (locDetail.trim() ? `${mainLocStr} - ${locDetail.trim()}` : mainLocStr)
         : locDetail.trim();
 
     const MAIN_LOCATIONS = ['TPI', 'TBR', 'Kantor'];
@@ -160,7 +165,7 @@ export function ReportIssueModal({ open, onOpenChange }) {
         setOriginDept(isDeptUser && department ? department : '');
         setReporter(isDeptUser && staffName ? staffName : '');
         setTitle('');
-        setLocMain('');
+        setLocMains([]);
         setLocDetail('');
         setCategory('broken');
         setDescription('');
@@ -414,28 +419,31 @@ export function ReportIssueModal({ open, onOpenChange }) {
                             <Label>Location</Label>
                             {/* Main location quick-select */}
                             <div className="flex gap-2">
-                                {MAIN_LOCATIONS.map(loc => (
-                                    <button
-                                        key={loc}
-                                        type="button"
-                                        disabled={isSubmitting}
-                                        onClick={() => setLocMain(prev => prev === loc ? '' : loc)}
-                                        className={`flex-1 py-2 text-sm font-semibold rounded-lg border transition-colors ${
-                                            locMain === loc
-                                                ? 'bg-primary text-primary-foreground border-primary'
-                                                : 'bg-surface text-muted-foreground border-border hover:border-primary/50'
-                                        }`}
-                                    >
-                                        {loc}
-                                    </button>
-                                ))}
+                                {MAIN_LOCATIONS.map(loc => {
+                                    const isSelected = locMains.includes(loc);
+                                    return (
+                                        <button
+                                            key={loc}
+                                            type="button"
+                                            disabled={isSubmitting}
+                                            onClick={() => setLocMains(prev => prev.includes(loc) ? prev.filter(l => l !== loc) : [...prev, loc])}
+                                            className={`flex-1 py-2 text-sm font-semibold rounded-lg border transition-colors cursor-pointer ${
+                                                isSelected
+                                                    ? 'bg-primary text-primary-foreground border-primary shadow-sm'
+                                                    : 'bg-surface text-muted-foreground border-border hover:border-primary/50'
+                                            }`}
+                                        >
+                                            {isSelected ? `✓ ${loc}` : loc}
+                                        </button>
+                                    );
+                                })}
                             </div>
                             {/* Optional detail/specific location */}
                             <Input
                                 id="location"
                                 value={locDetail}
                                 onChange={(e) => setLocDetail(e.target.value)}
-                                placeholder={locMain ? `More specific in ${locMain}… (optional)` : 'Or just type a location…'}
+                                placeholder={locMains.length > 0 ? `More specific in ${locMains.join(', ')}… (optional)` : 'Or just type a location…'}
                                 disabled={isSubmitting}
                             />
                         </div>

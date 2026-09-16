@@ -37,7 +37,7 @@ export function EmergencyIssueModal({ open, onOpenChange }) {
     const [reporter, setReporter] = useState('');
     const [title, setTitle] = useState('');
     const [selectedPreset, setSelectedPreset] = useState('');
-    const [locMain, setLocMain] = useState('');
+    const [locMains, setLocMains] = useState([]);
     const [locDetail, setLocDetail] = useState('');
     const [description, setDescription] = useState('');
     const [imageFile, setImageFile] = useState(null);
@@ -119,8 +119,9 @@ export function EmergencyIssueModal({ open, onOpenChange }) {
         }
     };
 
-    const location = locMain
-        ? (locDetail.trim() ? `${locMain} - ${locDetail.trim()}` : locMain)
+    const mainLocStr = locMains.join(', ');
+    const location = mainLocStr
+        ? (locDetail.trim() ? `${mainLocStr} - ${locDetail.trim()}` : mainLocStr)
         : locDetail.trim();
 
     const MAIN_LOCATIONS = ['TPI', 'TBR', 'Kantor'];
@@ -131,7 +132,7 @@ export function EmergencyIssueModal({ open, onOpenChange }) {
         setReporter(isDeptUser && staffName ? staffName : '');
         setTitle('');
         setSelectedPreset('');
-        setLocMain('');
+        setLocMains([]);
         setLocDetail('');
         setDescription('');
         setImageFile(null);
@@ -370,27 +371,30 @@ export function EmergencyIssueModal({ open, onOpenChange }) {
                             <span className="text-xs text-red-400">*</span>
                         </Label>
                         <div className="flex gap-2">
-                            {MAIN_LOCATIONS.map(loc => (
-                                <button
-                                    key={loc}
-                                    type="button"
-                                    disabled={isSubmitting}
-                                    onClick={() => setLocMain(prev => prev === loc ? '' : loc)}
-                                    className={`flex-1 py-1.5 text-xs font-bold rounded-lg border transition-colors cursor-pointer ${
-                                        locMain === loc
-                                            ? 'bg-red-600 text-white border-red-400 shadow-sm'
-                                            : 'bg-black/40 text-red-300 border-red-900/60 hover:border-red-500/50'
-                                    }`}
-                                >
-                                    {loc}
-                                </button>
-                            ))}
+                            {MAIN_LOCATIONS.map(loc => {
+                                const isSelected = locMains.includes(loc);
+                                return (
+                                    <button
+                                        key={loc}
+                                        type="button"
+                                        disabled={isSubmitting}
+                                        onClick={() => setLocMains(prev => prev.includes(loc) ? prev.filter(l => l !== loc) : [...prev, loc])}
+                                        className={`flex-1 py-1.5 text-xs font-bold rounded-lg border transition-colors cursor-pointer ${
+                                            isSelected
+                                                ? 'bg-red-600 text-white border-red-400 shadow-sm'
+                                                : 'bg-black/40 text-red-300 border-red-900/60 hover:border-red-500/50'
+                                        }`}
+                                    >
+                                        {isSelected ? `✓ ${loc}` : loc}
+                                    </button>
+                                );
+                            })}
                         </div>
                         <Input
                             id="sos-location"
                             value={locDetail}
                             onChange={(e) => setLocDetail(e.target.value)}
-                            placeholder={locMain ? `More specific in ${locMain}… (optional)` : (lang === 'id' ? 'Ketik lokasi spesifik...' : 'Or type specific location…')}
+                            placeholder={locMains.length > 0 ? `More specific in ${locMains.join(', ')}… (optional)` : (lang === 'id' ? 'Ketik lokasi spesifik...' : 'Or type specific location…')}
                             disabled={isSubmitting}
                             className="border-red-900/50 bg-black/50 text-white placeholder:text-red-800 focus-visible:ring-red-500"
                         />

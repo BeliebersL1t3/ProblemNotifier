@@ -90,7 +90,7 @@ export function EditIssueModal({ issue, open, onOpenChange, onSuccess }) {
 
     // Section 1: Initial Issue Fields
     const [title, setTitle] = useState('');
-    const [locMain, setLocMain] = useState('');
+    const [locMains, setLocMains] = useState([]);
     const [locDetail, setLocDetail] = useState('');
     const [category, setCategory] = useState('broken');
     const [description, setDescription] = useState('');
@@ -149,15 +149,18 @@ export function EditIssueModal({ issue, open, onOpenChange, onSuccess }) {
 
             // Parse location
             const rawLoc = issue.location || '';
-            const matchedMain = MAIN_LOCATIONS.find(loc => rawLoc.startsWith(loc));
-            if (matchedMain) {
-                setLocMain(matchedMain);
-                const remainder = rawLoc.replace(new RegExp(`^${matchedMain}\\s*[-–—:]?\\s*`), '');
-                setLocDetail(remainder);
-            } else {
-                setLocMain('');
-                setLocDetail(rawLoc);
-            }
+            const foundMains = MAIN_LOCATIONS.filter(loc => {
+                const regex = new RegExp(`\\b${loc}\\b`, 'i');
+                return regex.test(rawLoc);
+            });
+            setLocMains(foundMains);
+
+            let remainder = rawLoc;
+            foundMains.forEach(loc => {
+                remainder = remainder.replace(new RegExp(`\\b${loc}\\b`, 'gi'), '');
+            });
+            remainder = remainder.replace(/^[\s,–—:-]+|[\s,–—:-]+$/g, '').trim();
+            setLocDetail(remainder);
 
             // Parse deadline
             if (issue.priority === 'critical' && issue.deadline) {
@@ -231,8 +234,9 @@ export function EditIssueModal({ issue, open, onOpenChange, onSuccess }) {
         }
     }, [issue, open]);
 
-    const location = locMain
-        ? (locDetail.trim() ? `${locMain} - ${locDetail.trim()}` : locMain)
+    const mainLocStr = locMains.join(', ');
+    const location = mainLocStr
+        ? (locDetail.trim() ? `${mainLocStr} - ${locDetail.trim()}` : mainLocStr)
         : locDetail.trim();
 
     const valid = !canEditReport || (title.trim() && location.trim() && description.trim() && assignedDepts.length > 0);
@@ -663,25 +667,29 @@ export function EditIssueModal({ issue, open, onOpenChange, onSuccess }) {
                                         {lang === 'id' ? 'Lokasi' : 'Location'} <span className="text-red-400">*</span>
                                     </Label>
                                     <div className="flex flex-wrap gap-1.5 mb-1.5">
-                                        {MAIN_LOCATIONS.map((loc) => (
-                                            <button
-                                                key={loc}
-                                                type="button"
-                                                onClick={() => setLocMain(locMain === loc ? '' : loc)}
-                                                className={`px-3 py-1 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
-                                                    locMain === loc
-                                                        ? 'bg-[#C9AA71] text-[#1C1B0E] border-[#C9AA71] shadow-sm'
-                                                        : 'bg-[#2A281E] text-muted-foreground border-[#3B3929] hover:text-foreground'
-                                                }`}
-                                            >
-                                                📍 {loc}
-                                            </button>
-                                        ))}
+                                        {MAIN_LOCATIONS.map((loc) => {
+                                            const isSelected = locMains.includes(loc);
+                                            return (
+                                                <button
+                                                    key={loc}
+                                                    type="button"
+                                                    disabled={isSubmitting}
+                                                    onClick={() => setLocMains(prev => prev.includes(loc) ? prev.filter(l => l !== loc) : [...prev, loc])}
+                                                    className={`px-3 py-1 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
+                                                        isSelected
+                                                            ? 'bg-[#C9AA71] text-[#1C1B0E] border-[#C9AA71] shadow-sm'
+                                                            : 'bg-[#2A281E] text-muted-foreground border-[#3B3929] hover:text-foreground'
+                                                    }`}
+                                                >
+                                                    {isSelected ? `✓ ${loc}` : `📍 ${loc}`}
+                                                </button>
+                                            );
+                                        })}
                                     </div>
                                     <Input
                                         value={locDetail}
                                         onChange={(e) => setLocDetail(e.target.value)}
-                                        placeholder={lang === 'id' ? 'Detail spesifik (contoh: Villa 5, Dining Room)' : 'Specific detail (e.g. Villa 5, Dining Room)'}
+                                        placeholder={locMains.length > 0 ? (lang === 'id' ? `Detail spesifik di ${locMains.join(', ')}... (opsional)` : `Specific detail in ${locMains.join(', ')}... (optional)`) : (lang === 'id' ? 'Detail spesifik (contoh: Villa 5, Dining Room)' : 'Specific detail (e.g. Villa 5, Dining Room)')}
                                         disabled={isSubmitting}
                                         className="bg-[#2A281E] border-[#3B3929] text-xs h-9"
                                     />

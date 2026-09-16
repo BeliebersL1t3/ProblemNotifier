@@ -1253,6 +1253,11 @@ export function OperationsCalendarView({
                                                     {cellBlockInfo?.totalBlocks > 1 && (
                                                         <span className="font-mono text-[9px] font-black opacity-90">#{cellBlockNum}</span>
                                                     )}
+                                                    {item.location && (
+                                                        <span className="font-mono text-[8px] font-bold opacity-90 shrink-0 px-1 rounded bg-black/40 text-[#FAFAFA] border border-white/10">
+                                                            {item.location}
+                                                        </span>
+                                                    )}
                                                     <span className="truncate">{item.title}</span>
                                                 </div>
                                             );
@@ -1849,9 +1854,16 @@ export function OperationsCalendarView({
                         {hoveredMore.tasks.map((tItem) => {
                             const tTheme = getDepartmentTheme(tItem.department || tItem.dept);
                             return (
-                                <div key={tItem.id} className="text-[11px] flex items-center gap-1.5 truncate">
-                                    <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: tTheme.bg }} />
-                                    <span className="truncate font-bold text-[#FAFAFA]">{tItem.title}</span>
+                                <div key={tItem.id} className="text-[11px] flex items-center justify-between gap-1.5">
+                                    <div className="flex items-center gap-1.5 truncate flex-1 min-w-0">
+                                        <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: tTheme.bg }} />
+                                        <span className="truncate font-bold text-[#FAFAFA]">{tItem.title}</span>
+                                    </div>
+                                    {tItem.location && (
+                                        <span className="text-[9px] text-[#C9AA71] font-medium shrink-0 max-w-[80px] truncate">
+                                            📍 {tItem.location}
+                                        </span>
+                                    )}
                                 </div>
                             );
                         })}
