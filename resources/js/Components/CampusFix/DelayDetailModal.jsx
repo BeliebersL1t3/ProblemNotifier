@@ -5,7 +5,7 @@ import {
     DialogHeader,
     DialogTitle,
     DialogDescription,
-} from '@/Components/ui/Dialog';
+} from '@/Components/UI/Dialog';
 
 import { ImageLightboxModal } from './ImageLightboxModal';
 import { useState } from 'react';

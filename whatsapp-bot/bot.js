@@ -9,10 +9,17 @@ const fs = require('fs');
 const app = express();
 app.use(express.json());
 
-// ─── Server URL ────────────────────────────────────────────────────────────────
-// Dev (Laragon):   http://TelunasIssueTracker.test
-// Production:      http://telunas.local
-const BASE_URL = 'http://TelunasIssueTracker.test';
+// ─── Server URL & Environment Configuration ──────────────────────────────────
+// Defaults to Laragon dev domain on Windows, or environment variable on Linux
+let envBaseUrl = process.env.BASE_URL || process.env.APP_URL;
+if (!envBaseUrl && fs.existsSync('.env')) {
+    try {
+        const envContent = fs.readFileSync('.env', 'utf8');
+        const match = envContent.match(/^BASE_URL=(.+)$/m) || envContent.match(/^APP_URL=(.+)$/m);
+        if (match) envBaseUrl = match[1].trim();
+    } catch (e) {}
+}
+const BASE_URL = envBaseUrl || 'http://TelunasIssueTracker.test';
 // ───────────────────────────────────────────────────────────────────────────────
 
 const userStates = new Map();
@@ -2989,7 +2996,7 @@ setInterval(async () => {
     }
 }, 15000); // Check every 15 seconds
 
-const PORT = 3000;
+const PORT = process.env.BOT_PORT || process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`Notification API listening on port ${PORT}`);
 });
