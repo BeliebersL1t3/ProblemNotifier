@@ -39,8 +39,12 @@ return [
         'credentials_path'    => env('GOOGLE_CREDENTIALS_PATH', 'app/google-credentials.json'),
         'spreadsheet_id'          => env('GOOGLE_SPREADSHEET_ID'),
         'ops_spreadsheet_id'      => env('GOOGLE_OPS_SPREADSHEET_ID'),
-        'tickets_spreadsheet_id'  => env('GOOGLE_TICKETS_SPREADSHEET_ID', '1uMJNUgTPw-WuA_colsbIzSeVegO9QivjOZ_nAPZ1HWo'),
+        'tickets_spreadsheet_id'  => env('GOOGLE_TICKETS_SPREADSHEET_ID'),
         'calendar_id'             => env('GOOGLE_CALENDAR_ID'),
+    ],
+
+    'bot' => [
+        'api_key' => env('BOT_API_KEY', 'telunas_bot_secure_token_change_in_production'),
     ],
 
 ];

@@ -11,8 +11,16 @@ class WhatsAppStaffApiTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_staff_directory_requires_bot_api_key(): void
+    {
+        $response = $this->getJson('/api/staff-directory');
+        $response->assertStatus(401);
+    }
+
     public function test_staff_directory_returns_users_with_whatsapp(): void
     {
+        $botKey = config('services.bot.api_key');
+
         // User with WhatsApp
         User::factory()->create([
             'name'            => 'Budi Engineer',
@@ -29,7 +37,9 @@ class WhatsAppStaffApiTest extends TestCase
             'whatsapp_number' => null,
         ]);
 
-        $response = $this->getJson('/api/staff-directory');
+        $response = $this->getJson('/api/staff-directory', [
+            'X-Bot-Key' => $botKey,
+        ]);
 
         $response->assertOk()
             ->assertJson([
@@ -53,6 +63,8 @@ class WhatsAppStaffApiTest extends TestCase
 
     public function test_reset_whatsapp_password_returns_password(): void
     {
+        $botKey = config('services.bot.api_key');
+
         $user = User::factory()->create([
             'name'            => 'Agus HK',
             'staff_name'      => 'Agus',
@@ -63,6 +75,8 @@ class WhatsAppStaffApiTest extends TestCase
 
         $response = $this->postJson('/api/reset-whatsapp-password', [
             'whatsapp_number' => '08999999999',
+        ], [
+            'X-Bot-Key' => $botKey,
         ]);
 
         $response->assertOk()
@@ -75,8 +89,12 @@ class WhatsAppStaffApiTest extends TestCase
 
     public function test_reset_whatsapp_password_returns_404_if_not_found(): void
     {
+        $botKey = config('services.bot.api_key');
+
         $response = $this->postJson('/api/reset-whatsapp-password', [
             'whatsapp_number' => '08000000000',
+        ], [
+            'X-Bot-Key' => $botKey,
         ]);
 
         $response->assertStatus(404)

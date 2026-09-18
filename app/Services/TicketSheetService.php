@@ -20,7 +20,7 @@ class TicketSheetService
     public function __construct()
     {
         $this->spreadsheetId = (string) (config('services.google.tickets_spreadsheet_id') 
-            ?: env('GOOGLE_TICKETS_SPREADSHEET_ID', '1uMJNUgTPw-WuA_colsbIzSeVegO9QivjOZ_nAPZ1HWo'));
+            ?: env('GOOGLE_TICKETS_SPREADSHEET_ID', ''));
     }
 
     private function getSheetsService(): Sheets

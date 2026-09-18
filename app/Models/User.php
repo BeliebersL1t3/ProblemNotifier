@@ -54,6 +54,31 @@ class User extends Authenticatable
         ];
     }
 
+    /**
+     * Safely encrypt raw_password in the database so credentials are never stored in cleartext.
+     */
+    protected function rawPassword(): \Illuminate\Database\Eloquent\Casts\Attribute
+    {
+        return \Illuminate\Database\Eloquent\Casts\Attribute::make(
+            get: function ($value) {
+                if (empty($value)) return null;
+                try {
+                    return \Illuminate\Support\Facades\Crypt::decryptString($value);
+                } catch (\Throwable $e) {
+                    return $value;
+                }
+            },
+            set: function ($value) {
+                if (empty($value)) return null;
+                try {
+                    return \Illuminate\Support\Facades\Crypt::encryptString($value);
+                } catch (\Throwable $e) {
+                    return $value;
+                }
+            }
+        );
+    }
+
     public function isAdmin(): bool
     {
         return $this->role === 'admin';

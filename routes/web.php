@@ -67,36 +67,46 @@ Route::middleware('auth')->group(function () {
 
 // CampusFix API Endpoints
 Route::prefix('api')->group(function () {
-    Route::get('/staff-directory', [ProfileController::class, 'staffDirectory']);
-    Route::post('/reset-whatsapp-password', [ProfileController::class, 'resetPasswordViaWhatsApp']);
-    Route::get('/issues', [IssueController::class, 'index']);
-    Route::get('/issues/lookup/{id?}', [IssueController::class, 'lookup']);
-    Route::post('/issues', [IssueController::class, 'store']);
-    Route::match(['post', 'patch'], '/issues/{rowIndex}/update', [IssueController::class, 'update']);
-    Route::delete('/issues/{rowIndex}', [IssueController::class, 'destroy']);
-    Route::post('/issues/{rowIndex}/claim', [IssueController::class, 'claim']);
-    Route::post('/issues/{rowIndex}/pending', [IssueController::class, 'pending']);
-    Route::post('/issues/{rowIndex}/resolve', [IssueController::class, 'resolve']);
-    Route::post('/issues/{rowIndex}/restore', [IssueController::class, 'restore']);
-    Route::post('/issues/{rowIndex}/category', [IssueController::class, 'updateCategory']);
-    // Sheet (period/year) management
-    Route::get('/sheets', [IssueController::class, 'listSheets']);
-    Route::post('/sheets', [IssueController::class, 'createSheet']);
-    Route::delete('/sheets', [IssueController::class, 'deleteSheet']);
-    // Categories management
-    Route::get('/categories', [CategoryController::class, 'index']);
-    Route::post('/categories', [CategoryController::class, 'store']);
-    Route::post('/categories/delete-and-reassign', [CategoryController::class, 'destroyAndReassign']);
-    // Operations — Department Work Board
-    Route::get('/operations', [OperationsController::class, 'index']);
-    Route::post('/operations', [OperationsController::class, 'store']);
-    Route::post('/operations/sync-calendar', [OperationsController::class, 'syncCalendar']);
-    Route::post('/operations/pull-calendar', [OperationsController::class, 'pullCalendar']);
-    Route::post('/operations/restore-task', [OperationsController::class, 'restoreTask']);
-    Route::get('/operations/calendar-logs', [OperationsController::class, 'calendarLogs']);
-    Route::post('/operations/format-sheets', [OperationsController::class, 'formatSheets']);
-    Route::match(['patch', 'post'], '/operations/{rowIndex}', [OperationsController::class, 'update']);
-    Route::delete('/operations/{rowIndex}', [OperationsController::class, 'destroy']);
+    // Strictly Bot-Only Endpoints
+    Route::middleware('bot.key')->group(function () {
+        Route::get('/staff-directory', [ProfileController::class, 'staffDirectory']);
+        Route::post('/reset-whatsapp-password', [ProfileController::class, 'resetPasswordViaWhatsApp']);
+    });
+
+    // Endpoints Accessible by Logged-in Web Users OR Authenticated WhatsApp Bot
+    Route::middleware('bot.or.auth')->group(function () {
+        Route::get('/issues', [IssueController::class, 'index']);
+        Route::get('/issues/lookup/{id?}', [IssueController::class, 'lookup']);
+        Route::post('/issues', [IssueController::class, 'store']);
+        Route::match(['post', 'patch'], '/issues/{rowIndex}/update', [IssueController::class, 'update']);
+        Route::delete('/issues/{rowIndex}', [IssueController::class, 'destroy']);
+        Route::post('/issues/{rowIndex}/claim', [IssueController::class, 'claim']);
+        Route::post('/issues/{rowIndex}/pending', [IssueController::class, 'pending']);
+        Route::post('/issues/{rowIndex}/resolve', [IssueController::class, 'resolve']);
+        Route::post('/issues/{rowIndex}/restore', [IssueController::class, 'restore']);
+        Route::post('/issues/{rowIndex}/category', [IssueController::class, 'updateCategory']);
+
+        // Sheet (period/year) management
+        Route::get('/sheets', [IssueController::class, 'listSheets']);
+        Route::post('/sheets', [IssueController::class, 'createSheet']);
+        Route::delete('/sheets', [IssueController::class, 'deleteSheet']);
+
+        // Categories management
+        Route::get('/categories', [CategoryController::class, 'index']);
+        Route::post('/categories', [CategoryController::class, 'store']);
+        Route::post('/categories/delete-and-reassign', [CategoryController::class, 'destroyAndReassign']);
+
+        // Operations — Department Work Board
+        Route::get('/operations', [OperationsController::class, 'index']);
+        Route::post('/operations', [OperationsController::class, 'store']);
+        Route::post('/operations/sync-calendar', [OperationsController::class, 'syncCalendar']);
+        Route::post('/operations/pull-calendar', [OperationsController::class, 'pullCalendar']);
+        Route::post('/operations/restore-task', [OperationsController::class, 'restoreTask']);
+        Route::get('/operations/calendar-logs', [OperationsController::class, 'calendarLogs']);
+        Route::post('/operations/format-sheets', [OperationsController::class, 'formatSheets']);
+        Route::match(['patch', 'post'], '/operations/{rowIndex}', [OperationsController::class, 'update']);
+        Route::delete('/operations/{rowIndex}', [OperationsController::class, 'destroy']);
+    });
     // Admin User Management & Audit Logs
     Route::middleware('auth')->group(function () {
         Route::get('/users', [UserController::class, 'index']);

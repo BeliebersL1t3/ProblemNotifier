@@ -19,6 +19,29 @@ class IssueApiTest extends TestCase
     {
         parent::setUp();
         Http::fake();
+        $defaultUser = User::factory()->create(['role' => 'admin']);
+        $this->actingAs($defaultUser);
+    }
+
+    public function test_unauthenticated_guest_cannot_access_issues_api(): void
+    {
+        auth()->logout();
+        $response = $this->getJson('/api/issues');
+        $response->assertStatus(401);
+    }
+
+    public function test_bot_api_key_can_access_issues_api_without_session(): void
+    {
+        auth()->logout();
+        $googleMock = Mockery::mock(GoogleService::class);
+        $googleMock->shouldReceive('listSheets')->atLeast()->once()->andReturn(['2026']);
+        $googleMock->shouldReceive('setSheet')->atLeast()->once();
+        $googleMock->shouldReceive('getRows')->atLeast()->once()->andReturn([]);
+        $this->app->instance(GoogleService::class, $googleMock);
+
+        $botKey = config('services.bot.api_key');
+        $response = $this->getJson('/api/issues', ['X-Bot-Key' => $botKey]);
+        $response->assertOk();
     }
 
     public function test_can_list_sheets(): void

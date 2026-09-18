@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { usePage } from '@inertiajs/react';
 import { Button } from '@/Components/UI/Button';
 import {
     Dialog,
@@ -19,6 +20,7 @@ const LIMITS = [10, 25, 50, 100, 'All'];
 
 export function ExportTicketPdfModal({ open, onOpenChange, currentUser }) {
     const { t, lang } = useLanguage();
+    const { tickets_sheet_url } = usePage().props;
     const [statusFilter, setStatusFilter] = useState('all');
     const [typeFilter, setTypeFilter] = useState('all');
     const [deptFilter, setDeptFilter] = useState('all');
@@ -370,16 +372,18 @@ export function ExportTicketPdfModal({ open, onOpenChange, currentUser }) {
                             </div>
                         </div>
 
-                        <a
-                            href="https://docs.google.com/spreadsheets/d/1uMJNUgTPw-WuA_colsbIzSeVegO9QivjOZ_nAPZ1HWo/edit?usp=sharing"
-                            target="_blank"
-                            rel="noreferrer"
-                            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-950/40 text-emerald-300 hover:bg-emerald-900/50 border border-emerald-500/40 transition-colors"
-                            title={t('ticket_open_sheet_btn')}
-                        >
-                            <ExternalLink className="w-3.5 h-3.5" />
-                            <span>{t('ticket_open_sheet_btn')}</span>
-                        </a>
+                        {tickets_sheet_url && (
+                            <a
+                                href={tickets_sheet_url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-950/40 text-emerald-300 hover:bg-emerald-900/50 border border-emerald-500/40 transition-colors"
+                                title={t('ticket_open_sheet_btn')}
+                            >
+                                <ExternalLink className="w-3.5 h-3.5" />
+                                <span>{t('ticket_open_sheet_btn')}</span>
+                            </a>
+                        )}
                     </div>
                 </DialogHeader>
 

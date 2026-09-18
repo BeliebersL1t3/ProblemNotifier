@@ -13,6 +13,20 @@ class OperationsApiTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $user = User::factory()->create(['role' => 'admin', 'department' => 'Engineer']);
+        $this->actingAs($user);
+    }
+
+    public function test_unauthenticated_guest_cannot_access_operations(): void
+    {
+        auth()->logout();
+        $response = $this->getJson('/api/operations?dept=Engineer');
+        $response->assertStatus(401);
+    }
+
     public function test_can_fetch_operations_data(): void
     {
         $googleMock = Mockery::mock(GoogleService::class);

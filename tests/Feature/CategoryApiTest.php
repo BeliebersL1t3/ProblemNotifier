@@ -16,6 +16,15 @@ class CategoryApiTest extends TestCase
     {
         parent::setUp();
         Storage::fake('local');
+        $user = \App\Models\User::factory()->create(['role' => 'admin']);
+        $this->actingAs($user);
+    }
+
+    public function test_unauthenticated_guest_cannot_access_categories(): void
+    {
+        auth()->logout();
+        $response = $this->getJson('/api/categories');
+        $response->assertStatus(401);
     }
 
     public function test_can_list_default_categories(): void

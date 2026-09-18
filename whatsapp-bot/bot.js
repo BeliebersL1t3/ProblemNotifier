@@ -20,9 +20,68 @@ if (!envBaseUrl && fs.existsSync('.env')) {
     } catch (e) {}
 }
 const BASE_URL = envBaseUrl || 'http://TelunasIssueTracker.test';
+
+// Bot Security Token
+let botApiKey = process.env.BOT_API_KEY;
+if (!botApiKey && fs.existsSync('.env')) {
+    try {
+        const envContent = fs.readFileSync('.env', 'utf8');
+        const match = envContent.match(/^BOT_API_KEY=(.+)$/m);
+        if (match) botApiKey = match[1].trim();
+    } catch (e) {}
+}
+if (!botApiKey && fs.existsSync('../.env')) {
+    try {
+        const envContent = fs.readFileSync('../.env', 'utf8');
+        const match = envContent.match(/^BOT_API_KEY=(.+)$/m);
+        if (match) botApiKey = match[1].trim();
+    } catch (e) {}
+}
+const BOT_API_KEY = botApiKey || 'telunas_bot_secure_token_change_in_production';
+axios.defaults.headers.common['X-Bot-Key'] = BOT_API_KEY;
 // ───────────────────────────────────────────────────────────────────────────────
 
-const userStates = new Map();
+// Memory Leak Prevention: userStates with 20-minute TTL
+const rawUserStates = new Map();
+const userStates = {
+    get(key) {
+        const item = rawUserStates.get(key);
+        if (!item) return undefined;
+        if (Date.now() - (item._timestamp || 0) > 20 * 60 * 1000) {
+            rawUserStates.delete(key);
+            return undefined;
+        }
+        return item;
+    },
+    set(key, val) {
+        if (val && typeof val === 'object') {
+            val._timestamp = Date.now();
+        }
+        rawUserStates.set(key, val);
+        return this;
+    },
+    has(key) {
+        return this.get(key) !== undefined;
+    },
+    delete(key) {
+        return rawUserStates.delete(key);
+    },
+    clear() {
+        return rawUserStates.clear();
+    },
+    entries() {
+        return rawUserStates.entries();
+    }
+};
+
+setInterval(() => {
+    const now = Date.now();
+    for (const [key, val] of rawUserStates.entries()) {
+        if (now - (val?._timestamp || 0) > 20 * 60 * 1000) {
+            rawUserStates.delete(key);
+        }
+    }
+}, 5 * 60 * 1000);
 
 // Multi-group & Community Configuration
 let botConfig = {

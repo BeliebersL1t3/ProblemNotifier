@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Head, Link, router } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import { 
     Ticket, CheckCircle2, XCircle, Clock, AlertCircle, 
     ArrowRight, UserCheck, Shield, Phone, Mail, Building2,
@@ -35,6 +35,7 @@ function TicketsInner({
 }) {
     const { t, lang } = useLanguage();
     const { user: currentUser } = useAuth();
+    const { tickets_sheet_url } = usePage().props;
     const [search, setSearch] = useState(filters?.search || '');
     const [statusFilter, setStatusFilter] = useState(filters?.status || 'all');
     const [typeFilter, setTypeFilter] = useState(filters?.type || 'all');
@@ -503,15 +504,17 @@ function TicketsInner({
                                         {isSyncingSheet ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
                                         <span className="hidden sm:inline">{t('ticket_sync_sheet_btn')}</span>
                                     </button>
-                                    <a
-                                        href="https://docs.google.com/spreadsheets/d/1uMJNUgTPw-WuA_colsbIzSeVegO9QivjOZ_nAPZ1HWo/edit?usp=sharing"
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        className="flex items-center gap-1.5 p-2 rounded-xl bg-[#1C1B0E] hover:bg-[#2A281E] text-emerald-300 border border-emerald-500/30 transition-colors shrink-0"
-                                        title={t('ticket_open_sheet_btn')}
-                                    >
-                                        <ExternalLink className="w-4 h-4" />
-                                    </a>
+                                    {tickets_sheet_url && (
+                                        <a
+                                            href={tickets_sheet_url}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="flex items-center gap-1.5 p-2 rounded-xl bg-[#1C1B0E] hover:bg-[#2A281E] text-emerald-300 border border-emerald-500/30 transition-colors shrink-0"
+                                            title={t('ticket_open_sheet_btn')}
+                                        >
+                                            <ExternalLink className="w-4 h-4" />
+                                        </a>
+                                    )}
                                 </div>
                             )}
                         </div>
