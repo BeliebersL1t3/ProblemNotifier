@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, lazy, Suspense } from 'react';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { 
     Ticket, CheckCircle2, XCircle, Clock, AlertCircle, 
@@ -10,7 +10,8 @@ import {
 import { IssuesProvider } from '@/context/IssuesContext';
 import { CampusFixHeader } from '@/Components/CampusFix/CampusFixHeader';
 import { MobileBottomNav } from '@/Components/CampusFix/MobileBottomNav';
-import { ExportTicketPdfModal } from '@/Components/Tickets/ExportTicketPdfModal';
+
+const ExportTicketPdfModal = lazy(() => import('@/Components/Tickets/ExportTicketPdfModal').then(m => ({ default: m.ExportTicketPdfModal })));
 import axios from 'axios';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/context/LanguageContext';
@@ -886,12 +887,14 @@ function TicketsInner({
             )}
 
             {/* Modal Ekspor PDF Rekapitulasi Tiket (Admin Only) */}
-            {isUserAdmin && (
-                <ExportTicketPdfModal
-                    open={exportPdfOpen}
-                    onOpenChange={setExportPdfOpen}
-                    currentUser={currentUser}
-                />
+            {isUserAdmin && exportPdfOpen && (
+                <Suspense fallback={null}>
+                    <ExportTicketPdfModal
+                        open={exportPdfOpen}
+                        onOpenChange={setExportPdfOpen}
+                        currentUser={currentUser}
+                    />
+                </Suspense>
             )}
 
             <MobileBottomNav />

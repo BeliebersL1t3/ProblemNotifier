@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Services\GoogleService;
+use App\Services\IssueSheetRepository;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
@@ -190,20 +191,19 @@ class IssueController extends Controller
         $userDept = $user->department ?? '';
         if (empty($userDept)) return false;
 
-        $rawAssigned = !empty($currentRow[23]) ? $currentRow[23] : (!empty($currentRow[21]) ? $currentRow[21] : '');
-        $assignedList = !empty($rawAssigned) ? array_map('trim', explode(',', $rawAssigned)) : [];
+        $assignedList = IssueSheetRepository::getAssignedDepartments($currentRow);
         $assignedListUpper = array_map('strtoupper', $assignedList);
         if (empty($assignedList) || in_array('ALL', $assignedListUpper)) {
             return true;
         }
 
-        $originDept = $currentRow[22] ?? '';
+        $originDept = $currentRow[IssueSheetRepository::COL_ORIGIN_DEPT] ?? '';
         $userSubdiv = $user->subdivision ?? '';
 
-        $assignedNorm = array_map(fn($d) => $this->normalizeDeptKey($d), $assignedList);
-        $userDeptNorm = $this->normalizeDeptKey($userDept);
-        $userSubdivNorm = !empty($userSubdiv) ? $this->normalizeDeptKey($userSubdiv) : '';
-        $originNorm = !empty($originDept) ? $this->normalizeDeptKey($originDept) : '';
+        $assignedNorm = array_map(fn($d) => IssueSheetRepository::normalizeDeptKey($d), $assignedList);
+        $userDeptNorm = IssueSheetRepository::normalizeDeptKey($userDept);
+        $userSubdivNorm = !empty($userSubdiv) ? IssueSheetRepository::normalizeDeptKey($userSubdiv) : '';
+        $originNorm = !empty($originDept) ? IssueSheetRepository::normalizeDeptKey($originDept) : '';
 
         return in_array($userDeptNorm, $assignedNorm) ||
                (!empty($userSubdivNorm) && in_array($userSubdivNorm, $assignedNorm)) ||
@@ -432,12 +432,12 @@ class IssueController extends Controller
                 // Group all rows by Issue ID to support versioned append-only rows
                 $grouped = [];
                 foreach ($rows as $index => $row) {
-                    if (empty($row[0])) {
+                    $id = IssueSheetRepository::getId($row);
+                    if (empty($id)) {
                         continue;
                     }
-                    $id = trim($row[0]);
                     $grouped[$id][] = [
-                        'row'      => array_pad($row, 26, ''),
+                        'row'      => IssueSheetRepository::padRow($row),
                         'rowIndex' => $index + 2,
                     ];
                 }
@@ -447,8 +447,7 @@ class IssueController extends Controller
                     $latestRow = $latestItem['row'];
                     $latestRowIndex = $latestItem['rowIndex'];
 
-                    $displayStatus = trim($latestRow[25] ?? '');
-                    $isArchived = ($displayStatus === '0');
+                    $isArchived = IssueSheetRepository::isArchived($latestRow);
 
                     // Filter by archive status
                     if ($showArchived && !$isArchived) {

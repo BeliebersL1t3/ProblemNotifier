@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { Head } from '@inertiajs/react';
-import { useMemo, useState, useEffect, useRef } from 'react';
+import { useMemo, useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { 
     Loader2, Wrench, Sparkles, Laptop, Anchor, ShieldAlert, Utensils, Building, Hammer, Zap,
     Droplets, Building2, Bug, Tag, User, HelpCircle, Download, AlertTriangle, Layers, Database, Clock, CheckSquare, Check, Eye, ChevronRight,
@@ -19,7 +19,8 @@ import { getDepartmentColor, getDepartmentTheme, getDepartmentTextColor, getDepa
 import { CampusFixHeader } from '@/Components/CampusFix/CampusFixHeader';
 import { MobileBottomNav } from '@/Components/CampusFix/MobileBottomNav';
 import { ScrollToTop } from '@/Components/CampusFix/ScrollToTop';
-import { ExportPdfModal } from '@/Components/CampusFix/ExportPdfModal';
+
+const ExportPdfModal = lazy(() => import('@/Components/CampusFix/ExportPdfModal').then(m => ({ default: m.ExportPdfModal })));
 import { ActivityDetailModal } from '@/Components/CampusFix/ActivityDetailModal';
 import { TakeJobModal } from '@/Components/CampusFix/TakeJobModal';
 import { ResolveIssueSheet } from '@/Components/CampusFix/ResolveIssueSheet';
@@ -2829,7 +2830,11 @@ function AnalyticsInner() {
                 </div>
             </main>
             <ScrollToTop />
-            <ExportPdfModal open={exportOpen} onOpenChange={setExportOpen} />
+            {exportOpen && (
+                <Suspense fallback={null}>
+                    <ExportPdfModal open={exportOpen} onOpenChange={setExportOpen} />
+                </Suspense>
+            )}
             <ActivityDetailModal 
                 issue={selectedActivityIssue} 
                 onClose={() => setSelectedActivityIssue(null)} 
