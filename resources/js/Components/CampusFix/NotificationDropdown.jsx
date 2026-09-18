@@ -45,28 +45,47 @@ export default function NotificationDropdown({ isMobile = false }) {
     }, []);
 
     const markAsRead = async (id) => {
+        // Optimistic UI update
+        setData((prev) => {
+            const wasUnread = [...prev.tickets, ...prev.issues].some((item) => item.id === id && !item.is_read);
+            if (!wasUnread) return prev;
+            return {
+                ...prev,
+                unread_count: Math.max(0, (prev.unread_count || 1) - 1),
+                tickets: prev.tickets.map((item) => item.id === id ? { ...item, is_read: true } : item),
+                issues: prev.issues.map((item) => item.id === id ? { ...item, is_read: true } : item),
+            };
+        });
+
         try {
             await fetch(`/notifications/${id}/read`, {
                 method: 'POST',
                 headers: {
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
                     'Accept': 'application/json',
-                }
+                },
+                keepalive: true,
             });
-            fetchNotifications();
         } catch (e) {}
     };
 
     const markAllAsRead = async () => {
+        setData((prev) => ({
+            ...prev,
+            unread_count: 0,
+            tickets: prev.tickets.map((item) => ({ ...item, is_read: true })),
+            issues: prev.issues.map((item) => ({ ...item, is_read: true })),
+        }));
+
         try {
             await fetch('/notifications/read-all', {
                 method: 'POST',
                 headers: {
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
                     'Accept': 'application/json',
-                }
+                },
+                keepalive: true,
             });
-            fetchNotifications();
         } catch (e) {}
     };
 
@@ -229,7 +248,11 @@ export default function NotificationDropdown({ isMobile = false }) {
                                                 {item.link && (
                                                     <Link
                                                         href={item.link}
-                                                        onClick={() => setIsOpen(false)}
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            if (!item.is_read) markAsRead(item.id);
+                                                            setIsOpen(false);
+                                                        }}
                                                         className="text-[11px] text-[#C9AA71] hover:text-[#FAFAFA] font-bold flex items-center gap-0.5 hover:underline"
                                                     >
                                                         {item.link.includes('profile') ? 'Lihat Profil' : item.link.includes('users') ? 'Kelola Akun' : 'Lihat Tiket'} <ExternalLink className="w-2.5 h-2.5" />
@@ -276,7 +299,11 @@ export default function NotificationDropdown({ isMobile = false }) {
                                                 {item.link && (
                                                     <Link
                                                         href={item.link}
-                                                        onClick={() => setIsOpen(false)}
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            if (!item.is_read) markAsRead(item.id);
+                                                            setIsOpen(false);
+                                                        }}
                                                         className="text-[11px] text-[#C9AA71] hover:text-[#FAFAFA] font-bold flex items-center gap-0.5 hover:underline"
                                                     >
                                                         Lihat Isu <ExternalLink className="w-2.5 h-2.5" />
