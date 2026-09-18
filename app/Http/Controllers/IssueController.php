@@ -27,6 +27,64 @@ class IssueController extends Controller
         }
     }
 
+    /**
+     * Formats any deadline representation (timestamp ms, string date, etc.) into readable 'Y-m-d H:i:s' in Asia/Jakarta.
+     */
+    private function formatDeadlineToReadable(?string $rawDeadline): string
+    {
+        if (empty($rawDeadline)) {
+            return '';
+        }
+        $rawDeadline = trim($rawDeadline);
+        if ($rawDeadline === 'undefined' || $rawDeadline === 'null') {
+            return '';
+        }
+        // Numeric epoch timestamp
+        if (is_numeric($rawDeadline)) {
+            $timestamp = (float)$rawDeadline;
+            if ($timestamp < 10000000000) {
+                $timestamp *= 1000;
+            }
+            try {
+                return \Carbon\Carbon::createFromTimestampMs($timestamp, 'Asia/Jakarta')->format('Y-m-d H:i:s');
+            } catch (\Throwable $e) {
+                return $rawDeadline;
+            }
+        }
+        // Date string
+        try {
+            return \Carbon\Carbon::parse($rawDeadline, 'Asia/Jakarta')->format('Y-m-d H:i:s');
+        } catch (\Throwable $e) {
+            return $rawDeadline;
+        }
+    }
+
+    /**
+     * Parses any deadline string/number into numeric millisecond timestamp.
+     */
+    private function parseDeadlineToTimestampMs(?string $rawDeadline): ?float
+    {
+        if (empty($rawDeadline)) {
+            return null;
+        }
+        $rawDeadline = trim($rawDeadline);
+        if ($rawDeadline === 'undefined' || $rawDeadline === 'null') {
+            return null;
+        }
+        if (is_numeric($rawDeadline)) {
+            $timestamp = (float)$rawDeadline;
+            if ($timestamp < 10000000000) {
+                $timestamp *= 1000;
+            }
+            return $timestamp > 0 ? $timestamp : null;
+        }
+        try {
+            return (float)(\Carbon\Carbon::parse($rawDeadline, 'Asia/Jakarta')->timestamp * 1000);
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
     private function notifyIssueProgress(?string $department, string $title, string $message, ?string $issueId = null): void
     {
         if (empty($department)) {
@@ -911,7 +969,7 @@ class IssueController extends Controller
                 '', // proofImageUrl
                 '', // durationLabel
                 $request->priority ?? 'low',
-                $request->deadline ?? '',
+                $this->formatDeadlineToReadable($request->deadline ?? ''),
                 '', // 18 pendingReason
                 '', // 19 pendingBy
                 '', // 20 pendingImageUrl
@@ -955,12 +1013,14 @@ class IssueController extends Controller
                 if ($request->priority === 'critical') {
                     $priorityStr = "\n🚨 *PRIORITY: CRITICAL*";
                     if (!empty($request->deadline)) {
-                        $deadlineMs = (float) $request->deadline;
-                        $minutes = round(($deadlineMs - (now()->timestamp * 1000)) / 60000);
-                        if ($minutes <= 0) {
-                            $priorityStr .= " *(DEADLINE: NOW)*";
-                        } else {
-                            $priorityStr .= " *(DEADLINE: {$minutes}m)*";
+                        $deadlineMs = $this->parseDeadlineToTimestampMs($request->deadline);
+                        if ($deadlineMs) {
+                            $minutes = round(($deadlineMs - (now()->timestamp * 1000)) / 60000);
+                            if ($minutes <= 0) {
+                                $priorityStr .= " *(DEADLINE: NOW)*";
+                            } else {
+                                $priorityStr .= " *(DEADLINE: {$minutes}m)*";
+                            }
                         }
                     }
                 } else if ($request->priority === 'high') {
@@ -1675,10 +1735,13 @@ class IssueController extends Controller
 
                 if ($request->has('deadline')) {
                     $rawDeadline = trim($request->input('deadline', ''));
-                    if ($rawDeadline !== 'undefined' && $rawDeadline !== ($currentRow[17] ?? '')) {
-                        $newDeadline = $rawDeadline;
-                        $changes[] = "Deadline updated";
-                        $updateCols['R'] = $newDeadline;
+                    if ($rawDeadline !== 'undefined') {
+                        $readableDeadline = $this->formatDeadlineToReadable($rawDeadline);
+                        if ($readableDeadline !== ($currentRow[17] ?? '')) {
+                            $newDeadline = $readableDeadline;
+                            $changes[] = "Deadline updated";
+                            $updateCols['R'] = $newDeadline;
+                        }
                     }
                 }
 

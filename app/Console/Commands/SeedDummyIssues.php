@@ -636,23 +636,23 @@ class SeedDummyIssues extends Command
                 }
 
                 // CRITICAL TIMER / DEADLINE HANDLING:
-                // Rule: Strictly numeric millisecond timestamp string for critical issues. Empty string for non-critical issues.
+                // Rule: Strictly readable date string (Y-m-d H:i:s WIB) for critical issues. Empty string for non-critical issues.
                 $deadline = '';
                 if (!empty($t['isCritical']) || $t['priority'] === 'critical') {
                     if ($isNewestSheet) {
                         if ($t['status'] === 'open') {
                             // Active critical countdown: 45 minutes from now
-                            $deadline = (string)(Carbon::now()->addMinutes(45)->timestamp * 1000);
+                            $deadline = Carbon::now('Asia/Jakarta')->addMinutes(45)->format('Y-m-d H:i:s');
                         } elseif ($t['status'] === 'progress') {
                             // Overdue critical issue: 20 minutes ago (triggers critical overdue badge & banner)
-                            $deadline = (string)(Carbon::now()->subMinutes(20)->timestamp * 1000);
+                            $deadline = Carbon::now('Asia/Jakarta')->subMinutes(20)->format('Y-m-d H:i:s');
                         } else {
                             // Solved critical issue
-                            $deadline = (string)($submittedAtCarbon->copy()->addMinutes(30)->timestamp * 1000);
+                            $deadline = $submittedAtCarbon->copy()->timezone('Asia/Jakarta')->addMinutes(30)->format('Y-m-d H:i:s');
                         }
                     } else {
-                        // Historical sheets: deadline in ms relative to submission
-                        $deadline = (string)($submittedAtCarbon->copy()->addMinutes(60)->timestamp * 1000);
+                        // Historical sheets: deadline relative to submission
+                        $deadline = $submittedAtCarbon->copy()->timezone('Asia/Jakarta')->addMinutes(60)->format('Y-m-d H:i:s');
                     }
                 }
 

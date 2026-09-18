@@ -20,6 +20,7 @@ import {
 } from '@/Components/UI/Select';
 import { ImageDropzone } from './ImageDropzone';
 import { useIssues } from '@/context/IssuesContext';
+import { parseDeadlineToMs } from '@/lib/utils';
 import { 
     Loader2, 
     AlertTriangle, 
@@ -164,10 +165,15 @@ export function EditIssueModal({ issue, open, onOpenChange, onSuccess }) {
 
             // Parse deadline
             if (issue.priority === 'critical' && issue.deadline) {
-                const dMs = parseInt(issue.deadline, 10);
-                setCustomDeadlineMs(dMs);
-                const diffMins = Math.max(1, Math.round((dMs - (issue.reportedAt || Date.now())) / 60000));
-                setDeadlineMinutes(String(diffMins || '15'));
+                const dMs = parseDeadlineToMs(issue.deadline);
+                if (dMs) {
+                    setCustomDeadlineMs(dMs);
+                    const diffMins = Math.max(1, Math.round((dMs - (issue.reportedAt || Date.now())) / 60000));
+                    setDeadlineMinutes(String(diffMins || '15'));
+                } else {
+                    setCustomDeadlineMs(null);
+                    setDeadlineMinutes('15');
+                }
             } else {
                 setCustomDeadlineMs(null);
                 setDeadlineMinutes('15');

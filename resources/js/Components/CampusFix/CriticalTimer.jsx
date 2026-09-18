@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Timer, AlertTriangle } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, parseDeadlineToMs } from '@/lib/utils';
 
 export function CriticalTimer({ deadline, status, className, variant = 'badge', isArchived = false }) {
     const [now, setNow] = useState(Date.now());
@@ -15,7 +15,8 @@ export function CriticalTimer({ deadline, status, className, variant = 'badge', 
 
     if (!deadline || status === 'solved' || isArchived) return null;
 
-    let targetTime; if (/^\d+$/.test(deadline)) { targetTime = parseInt(deadline, 10); if (targetTime < 10000000000) targetTime *= 1000; } else { targetTime = Date.parse(deadline); } if (isNaN(targetTime) || targetTime <= 0) return null;
+    const targetTime = parseDeadlineToMs(deadline);
+    if (!targetTime) return null;
 
     const diff = targetTime - now;
     const isOverdue = diff <= 0;

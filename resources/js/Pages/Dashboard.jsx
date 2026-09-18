@@ -31,6 +31,7 @@ import {
 } from '@/Components/UI/Dialog';
 import { useAuth } from '@/hooks/useAuth';
 import { ErrorBoundary } from '@/Components/CampusFix/ErrorBoundary';
+import { parseDeadlineToMs } from '@/lib/utils';
 
 
 let sharedAudioContext = null;
@@ -266,9 +267,8 @@ function DashboardInner() {
             const isArchived = Boolean(i.isArchived || i.statusDisplay === '0' || i.displayStatus === '0');
             if (isArchived) return false;
             if (i.status !== 'open' || i.priority !== 'critical' || !i.deadline) return false;
-            let deadlineTime = parseInt(i.deadline, 10);
-            if (isNaN(deadlineTime) || deadlineTime <= 0) return false;
-            if (deadlineTime < 10000000000) deadlineTime *= 1000;
+            const deadlineTime = parseDeadlineToMs(i.deadline);
+            if (!deadlineTime) return false;
             return now >= deadlineTime;
         });
     }, [issues, now]);
@@ -279,9 +279,8 @@ function DashboardInner() {
             const isArchived = Boolean(i.isArchived || i.statusDisplay === '0' || i.displayStatus === '0');
             if (isArchived) return false;
             if (i.status !== 'progress' || i.priority !== 'critical' || !i.deadline) return false;
-            let deadlineTime = parseInt(i.deadline, 10);
-            if (isNaN(deadlineTime) || deadlineTime <= 0) return false;
-            if (deadlineTime < 10000000000) deadlineTime *= 1000;
+            const deadlineTime = parseDeadlineToMs(i.deadline);
+            if (!deadlineTime) return false;
             return now >= deadlineTime;
         });
     }, [issues, now]);
@@ -305,8 +304,8 @@ function DashboardInner() {
         const MILESTONES = [5, 10, 15, 30, 60];
 
         progressOverdueCriticals.forEach(issue => {
-            let deadlineTime = parseInt(issue.deadline, 10);
-            if (deadlineTime < 10000000000) deadlineTime *= 1000;
+            const deadlineTime = parseDeadlineToMs(issue.deadline);
+            if (!deadlineTime) return;
             const overdueMins = Math.floor((now - deadlineTime) / 60000);
 
             MILESTONES.forEach(m => {

@@ -2909,6 +2909,29 @@ app.post('/notify', async (req, res) => {
 });
 
 // --- BACKGROUND ESCALATION LOOP ---
+function parseDeadlineToMs(deadline) {
+    if (!deadline) return null;
+    if (typeof deadline === 'number') {
+        let t = deadline;
+        if (t < 10000000000) t *= 1000;
+        return t > 0 ? t : null;
+    }
+    const str = String(deadline).trim();
+    if (!str || str === 'undefined' || str === 'null') return null;
+
+    if (/^\d+$/.test(str)) {
+        let t = parseInt(str, 10);
+        if (t < 10000000000) t *= 1000;
+        return t > 0 ? t : null;
+    }
+
+    let parsed = Date.parse(str.replace(' ', 'T'));
+    if (isNaN(parsed) || parsed <= 0) {
+        parsed = Date.parse(str);
+    }
+    return (!isNaN(parsed) && parsed > 0) ? parsed : null;
+}
+
 // Tracks alerted milestones per issue to ensure NO rapid-fire spam
 const triggeredMilestones = new Set(); // Stores 'issueId-milestone' keys
 
@@ -2929,12 +2952,8 @@ setInterval(async () => {
                 const isUnresolved = issue.status === 'open' || issue.status === 'progress';
                 if (!isUnresolved || issue.priority !== 'critical' || !issue.deadline) continue;
 
-                let deadlineTime = parseInt(issue.deadline, 10);
-                if (isNaN(deadlineTime) || deadlineTime <= 0) continue;
-
-                if (deadlineTime < 10000000000) {
-                    deadlineTime = deadlineTime * 1000;
-                }
+                const deadlineTime = parseDeadlineToMs(issue.deadline);
+                if (!deadlineTime) continue;
 
                 if (now < deadlineTime) continue; // Deadline not reached yet
 
