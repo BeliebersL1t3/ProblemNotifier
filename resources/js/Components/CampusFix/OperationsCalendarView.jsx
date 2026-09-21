@@ -1214,7 +1214,12 @@ export function OperationsCalendarView({
                                         {!activeCardHighlightId && totalTaskCount > 0 && (
                                             pendingTaskCount > 0 ? (
                                                 <span
-                                                    className="px-1.5 py-0.2 text-[10px] font-extrabold rounded-md flex items-center gap-1 shadow-xs bg-[#C9AA71]/20 text-[#E3D1AA] border border-[#C9AA71]/60"
+                                                    className="px-1.5 py-0.2 text-[10px] font-extrabold rounded-md flex items-center gap-1 shadow-xs"
+                                                    style={{
+                                                        backgroundColor: primaryTheme?.bg ? `${primaryTheme.bg}30` : 'rgba(201, 170, 113, 0.2)',
+                                                        color: primaryTheme?.bg === '#212121' ? '#FFFFFF' : (primaryTheme?.bg || '#E3D1AA'),
+                                                        border: `1px solid ${primaryTheme?.bg || '#C9AA71'}60`
+                                                    }}
                                                     title={`${pendingTaskCount} ${t('pending_tasks') || 'tugas aktif tersisa'}`}
                                                 >
                                                     {pendingTaskCount}
