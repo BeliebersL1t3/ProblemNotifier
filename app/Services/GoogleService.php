@@ -1548,25 +1548,46 @@ class GoogleService
             ]);
         }
 
-        // 7. Conditional formatting for Status (Column J, index 9)
+        // 7. Light clean horizontal grid borders for rows
+        $requests[] = new \Google\Service\Sheets\Request([
+            'updateBorders' => [
+                'range' => [
+                    'sheetId'          => $sheetId,
+                    'startRowIndex'    => 0,
+                    'endRowIndex'      => 1000,
+                    'startColumnIndex' => 0,
+                    'endColumnIndex'   => 15,
+                ],
+                'bottom' => [
+                    'style' => 'SOLID',
+                    'color' => ['red' => 0.85, 'green' => 0.88, 'blue' => 0.90],
+                ],
+                'innerHorizontal' => [
+                    'style' => 'SOLID',
+                    'color' => ['red' => 0.90, 'green' => 0.92, 'blue' => 0.94],
+                ],
+            ]
+        ]);
+
+        // 8. Conditional formatting for Status (Column J, index 9)
         $statusRules = [
             [
-                'formula' => '=$J2="done"',
+                'formula' => '=OR($J2="done", $J2="completed", $J2="solved")',
                 'bg'      => ['red' => 0.82, 'green' => 0.98, 'blue' => 0.90],
                 'text'    => ['red' => 0.02, 'green' => 0.37, 'blue' => 0.27],
             ],
             [
-                'formula' => '=$J2="in_progress"',
+                'formula' => '=OR($J2="active", $J2="in_progress")',
                 'bg'      => ['red' => 0.88, 'green' => 0.95, 'blue' => 0.99],
                 'text'    => ['red' => 0.01, 'green' => 0.41, 'blue' => 0.63],
             ],
             [
-                'formula' => '=$J2="todo"',
+                'formula' => '=OR($J2="todo", $J2="pending")',
                 'bg'      => ['red' => 0.99, 'green' => 0.95, 'blue' => 0.78],
                 'text'    => ['red' => 0.57, 'green' => 0.25, 'blue' => 0.05],
             ],
             [
-                'formula' => '=$J2="deleted_from_calendar"',
+                'formula' => '=OR($J2="deleted_from_calendar", $J2="deleted")',
                 'bg'      => ['red' => 0.99, 'green' => 0.89, 'blue' => 0.89],
                 'text'    => ['red' => 0.60, 'green' => 0.11, 'blue' => 0.11],
             ],
@@ -1599,7 +1620,7 @@ class GoogleService
             ]);
         }
 
-        // 8. Conditional formatting for Priority (Column I, index 8)
+        // 9. Conditional formatting for Priority (Column I, index 8)
         $priorityRules = [
             [
                 'formula' => '=$I2="critical"',
@@ -1659,11 +1680,75 @@ class GoogleService
             $title = $sh->getProperties()->getTitle();
             if (str_starts_with($title, 'Ops_') && $title !== 'Ops_Sheet1') {
                 $sheetId = $sh->getProperties()->getSheetId();
+                
+                // Write standard header row (A1:O1)
+                try {
+                    $body = new ValueRange(['values' => $this->opsHeaders()]);
+                    $this->sheets->spreadsheets_values->update(
+                        $this->opsSpreadsheetId,
+                        "{$title}!A1:O1",
+                        $body,
+                        ['valueInputOption' => 'RAW']
+                    );
+                } catch (\Throwable $e) {
+                    Log::warning("Failed to write headers for {$title}: " . $e->getMessage());
+                }
+
                 $this->setupOpsSheetFormatting($sheetId);
                 $count++;
             }
         }
         return ['formatted' => $count, 'message' => "Berhasil merapikan format tampilan {$count} sheet operasional."];
+    }
+
+    /**
+     * Reset all data rows in the issue spreadsheet to white background,
+     * restoring the clean original look with only Column F (Status) formatted.
+     */
+    public function resetIssueSheetRowColors(?string $sheetName = null): void
+    {
+        $targetSheet = $sheetName ?: $this->sheetName;
+        $this->clearCache();
+
+        $spreadsheet = $this->sheets->spreadsheets->get($this->spreadsheetId);
+        $sheetId = 0;
+        foreach ($spreadsheet->getSheets() as $sheet) {
+            if ($sheet->getProperties()->getTitle() === $targetSheet) {
+                $sheetId = $sheet->getProperties()->getSheetId();
+                break;
+            }
+        }
+
+        $requests = [
+            // Reset background of data rows (rows 1 to 1000, 0-indexed, columns A to Z) to white
+            new \Google\Service\Sheets\Request([
+                'repeatCell' => [
+                    'range' => [
+                        'sheetId'          => $sheetId,
+                        'startRowIndex'    => 1, // Skip row 0 (header)
+                        'endRowIndex'      => 1000,
+                        'startColumnIndex' => 0,
+                        'endColumnIndex'   => 26,
+                    ],
+                    'cell' => [
+                        'userEnteredFormat' => [
+                            'backgroundColor' => ['red' => 1.0, 'green' => 1.0, 'blue' => 1.0],
+                        ]
+                    ],
+                    'fields' => 'userEnteredFormat.backgroundColor'
+                ]
+            ])
+        ];
+
+        try {
+            $batchUpdateRequest = new \Google\Service\Sheets\BatchUpdateSpreadsheetRequest(['requests' => $requests]);
+            $this->sheets->spreadsheets->batchUpdate($this->spreadsheetId, $batchUpdateRequest);
+        } catch (\Throwable $e) {
+            Log::warning("Failed to reset row colors on issue sheet {$targetSheet}: " . $e->getMessage());
+        }
+
+        // Re-apply status conditional formatting on Column F
+        $this->setupSheetFormatting($sheetId);
     }
 
     /**

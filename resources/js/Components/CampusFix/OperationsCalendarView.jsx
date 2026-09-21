@@ -4,7 +4,7 @@ import {
     CheckCircle2, Plus, MapPin, ZoomIn, CheckCheck,
     Edit2, Trash2, Building2, Check, ChevronDown, Search, X,
     MousePointerClick, Sparkles, User, StickyNote, Layers, AlertTriangle,
-    RotateCcw, Loader2
+    RotateCcw, Loader2, SlidersHorizontal, FileText
 } from 'lucide-react';
 import { getDepartmentTheme } from '@/constants/departments';
 import { ALL_DEPARTMENTS, normalizeDepartment } from '@/constants/staff';
@@ -444,6 +444,30 @@ export function OperationsCalendarView({
     const [selectedBlockFilter, setSelectedBlockFilter] = useState(null); // null = all blocks, or block index number (0, 1, 2, ...)
     const [agendaViewMode, setAgendaViewMode] = useState('date'); // 'date' | 'all'
     const [allTasksRange, setAllTasksRange] = useState(1); // 1 | 3 | 6 | 'all'
+
+    // ─── Display Options State (Persisted in localStorage) ─────────────────────
+    const [displayOptions, setDisplayOptions] = useState(() => {
+        try {
+            const saved = localStorage.getItem('ops_calendar_display_options');
+            if (saved) return JSON.parse(saved);
+        } catch (e) {}
+        return {
+            showLocation: true,
+            showTaskName: true,
+            showDepartment: false,
+            showStatusIcon: true,
+        };
+    });
+
+    useEffect(() => {
+        try {
+            localStorage.setItem('ops_calendar_display_options', JSON.stringify(displayOptions));
+        } catch (e) {}
+    }, [displayOptions]);
+
+    const toggleDisplayOption = (key) => {
+        setDisplayOptions(prev => ({ ...prev, [key]: !prev[key] }));
+    };
 
     // Sync highlightTaskId if provided from outside (e.g. search)
     useEffect(() => {
@@ -1070,7 +1094,11 @@ export function OperationsCalendarView({
                     <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
                         {calendarDays.map((cell) => {
                             const isSelected = cell.dateStr === selectedDateStr;
-                            const taskCount = cell.tasks?.length || 0;
+                            const totalTaskCount = cell.tasks?.length || 0;
+                            const pendingTasks = (cell.tasks || []).filter(
+                                item => item.status !== 'done' && item.status !== 'deleted_from_calendar'
+                            );
+                            const pendingTaskCount = pendingTasks.length;
                             const primaryDept = cell.tasks?.[0]?.department || cell.tasks?.[0]?.dept;
                             const primaryTheme = primaryDept ? getDepartmentTheme(primaryDept) : null;
 
@@ -1183,17 +1211,22 @@ export function OperationsCalendarView({
                                             ) : null}
                                         </div>
 
-                                        {!activeCardHighlightId && taskCount > 0 && (
-                                            <span
-                                                className="px-1.5 py-0.2 text-[10px] font-extrabold rounded-md flex items-center gap-1 shadow-xs"
-                                                style={{
-                                                    backgroundColor: primaryTheme?.bg ? `${primaryTheme.bg}30` : 'rgba(201, 170, 113, 0.2)',
-                                                    color: primaryTheme?.bg === '#212121' ? '#FFFFFF' : (primaryTheme?.bg || '#E3D1AA'),
-                                                    border: `1px solid ${primaryTheme?.bg || '#C9AA71'}60`
-                                                }}
-                                            >
-                                                {taskCount}
-                                            </span>
+                                        {!activeCardHighlightId && totalTaskCount > 0 && (
+                                            pendingTaskCount > 0 ? (
+                                                <span
+                                                    className="px-1.5 py-0.2 text-[10px] font-extrabold rounded-md flex items-center gap-1 shadow-xs bg-[#C9AA71]/20 text-[#E3D1AA] border border-[#C9AA71]/60"
+                                                    title={`${pendingTaskCount} ${t('pending_tasks') || 'tugas aktif tersisa'}`}
+                                                >
+                                                    {pendingTaskCount}
+                                                </span>
+                                            ) : (
+                                                <span
+                                                    className="px-1.5 py-0.2 text-[9px] font-extrabold rounded-md flex items-center gap-0.5 shadow-xs bg-emerald-950/60 text-emerald-300 border border-emerald-500/50"
+                                                    title={t('all_tasks_completed') || 'Semua tugas selesai'}
+                                                >
+                                                    <Check className="h-2.5 w-2.5 text-emerald-400" />
+                                                </span>
+                                            )
                                         )}
                                     </div>
 
@@ -1250,12 +1283,14 @@ export function OperationsCalendarView({
                                                         borderBottom: `1px ${isDeletedGCal ? 'dashed' : 'solid'} ${isDeletedGCal ? '#EF4444' : (cellDeptColor || itemTheme.bg)}35`,
                                                     }}
                                                 >
-                                                    {isDeletedGCal ? (
-                                                        <AlertTriangle className="h-2.5 w-2.5 shrink-0 text-red-400" />
-                                                    ) : isDone ? (
-                                                        <CheckCircle2 className="h-2.5 w-2.5 shrink-0" style={{ color: cellDeptColor || deptColor }} />
-                                                    ) : (
-                                                        <Clock className="h-2.5 w-2.5 shrink-0 opacity-80" style={{ color: cellDeptColor || deptColor }} />
+                                                    {displayOptions.showStatusIcon && (
+                                                        isDeletedGCal ? (
+                                                            <AlertTriangle className="h-2.5 w-2.5 shrink-0 text-red-400" />
+                                                        ) : isDone ? (
+                                                            <CheckCircle2 className="h-2.5 w-2.5 shrink-0" style={{ color: cellDeptColor || deptColor }} />
+                                                        ) : (
+                                                            <Clock className="h-2.5 w-2.5 shrink-0 opacity-80" style={{ color: cellDeptColor || deptColor }} />
+                                                        )
                                                     )}
                                                     {cellBlockInfo?.totalBlocks > 1 && (
                                                         <span className="font-mono text-[9px] font-black opacity-90">#{cellBlockNum}</span>
@@ -1265,17 +1300,33 @@ export function OperationsCalendarView({
                                                             Dihapus G-Cal
                                                         </span>
                                                     )}
-                                                    {item.location && (
+                                                    {displayOptions.showDepartment && itemDept && (
+                                                        <span
+                                                            className="font-mono text-[8px] font-black shrink-0 px-1 rounded uppercase tracking-wider"
+                                                            style={{
+                                                                backgroundColor: `${cellDeptColor || deptColor}30`,
+                                                                color: cellDeptColor || deptColor,
+                                                                border: `1px solid ${cellDeptColor || deptColor}50`
+                                                            }}
+                                                        >
+                                                            {itemDept}
+                                                        </span>
+                                                    )}
+                                                    {displayOptions.showLocation && item.location && (
                                                         <span className="font-mono text-[8px] font-bold opacity-90 shrink-0 px-1 rounded bg-black/40 text-[#FAFAFA] border border-white/10">
                                                             {item.location}
                                                         </span>
                                                     )}
-                                                    <span className={`truncate ${isDeletedGCal ? 'line-through opacity-75' : ''}`}>{item.title}</span>
+                                                    {displayOptions.showTaskName ? (
+                                                        <span className={`truncate ${isDeletedGCal ? 'line-through opacity-75' : ''}`}>{item.title}</span>
+                                                    ) : !displayOptions.showLocation && !displayOptions.showDepartment ? (
+                                                        <span className="truncate opacity-75 text-[9px]">({item.title})</span>
+                                                    ) : null}
                                                 </div>
                                             );
                                         })}
 
-                                        {taskCount > 2 && (
+                                        {totalTaskCount > 2 && (
                                             <div
                                                 onMouseEnter={(e) => {
                                                     e.stopPropagation();
@@ -1289,13 +1340,83 @@ export function OperationsCalendarView({
                                                 }}
                                                 className="text-[9px] font-bold text-[#A19F8D] hover:text-[#C9AA71] px-1 block opacity-80 cursor-pointer transition-colors"
                                             >
-                                                +{taskCount - 2} {t('more') || 'lainnya'}
+                                                +{totalTaskCount - 2} {t('more') || 'lainnya'}
                                             </div>
                                         )}
                                     </div>
                                 </div>
                             );
                         })}
+                    </div>
+
+                    {/* ─── Display Options Toolbar (Directly Beneath Calendar Grid) ─── */}
+                    <div className="mt-3.5 pt-3 border-t border-[#3B3929]/70 flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5 text-xs text-[#A19F8D] font-bold">
+                            <SlidersHorizontal className="h-3.5 w-3.5 text-[#C9AA71]" />
+                            <span>{t('display_options') || 'Tampilan Kartu'}:</span>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                            <button
+                                type="button"
+                                onClick={() => toggleDisplayOption('showLocation')}
+                                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${
+                                    displayOptions.showLocation
+                                        ? 'bg-[#C9AA71]/25 border-[#C9AA71] text-[#E3D1AA] shadow-xs'
+                                        : 'bg-[#1C1B0E]/60 border-[#3B3929] text-[#A19F8D]/70 hover:text-[#FAFAFA]'
+                                }`}
+                                title="Tampilkan/sembunyikan lokasi tugas"
+                            >
+                                <MapPin className="h-3 w-3" />
+                                <span>{t('location') || 'Lokasi'}</span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => toggleDisplayOption('showTaskName')}
+                                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${
+                                    displayOptions.showTaskName
+                                        ? 'bg-[#C9AA71]/25 border-[#C9AA71] text-[#E3D1AA] shadow-xs'
+                                        : 'bg-[#1C1B0E]/60 border-[#3B3929] text-[#A19F8D]/70 hover:text-[#FAFAFA]'
+                                }`}
+                                title="Tampilkan/sembunyikan judul tugas"
+                            >
+                                <FileText className="h-3 w-3" />
+                                <span>{t('task_name') || 'Nama Tugas'}</span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => toggleDisplayOption('showDepartment')}
+                                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${
+                                    displayOptions.showDepartment
+                                        ? 'bg-[#C9AA71]/25 border-[#C9AA71] text-[#E3D1AA] shadow-xs'
+                                        : 'bg-[#1C1B0E]/60 border-[#3B3929] text-[#A19F8D]/70 hover:text-[#FAFAFA]'
+                                }`}
+                                title="Tampilkan/sembunyikan label departemen"
+                            >
+                                <Building2 className="h-3 w-3" />
+                                <span>{t('department') || 'Departemen'}</span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => toggleDisplayOption('showStatusIcon')}
+                                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${
+                                    displayOptions.showStatusIcon
+                                        ? 'bg-[#C9AA71]/25 border-[#C9AA71] text-[#E3D1AA] shadow-xs'
+                                        : 'bg-[#1C1B0E]/60 border-[#3B3929] text-[#A19F8D]/70 hover:text-[#FAFAFA]'
+                                }`}
+                                title="Tampilkan/sembunyikan ikon status pengerjaan"
+                            >
+                                <Clock className="h-3 w-3" />
+                                <span>{t('status_icon') || 'Ikon Status'}</span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setDisplayOptions({ showLocation: true, showTaskName: true, showDepartment: false, showStatusIcon: true })}
+                                className="text-[10px] text-[#A19F8D] hover:text-[#C9AA71] px-1.5 py-1 transition-colors cursor-pointer underline ml-1"
+                                title={t('reset_display') || 'Reset Tampilan'}
+                            >
+                                {t('reset') || 'Reset'}
+                            </button>
+                        </div>
                     </div>
                 </div>
 

@@ -456,6 +456,13 @@ const translations = {
         ticket_sync_success_toast: 'Successfully synced tickets to Google Sheet!',
         ticket_sync_failed_toast: 'Failed to sync Google Spreadsheet.',
         view_all_tickets: 'View All Approval Tickets',
+        display_options: 'Card Display',
+        location: 'Location',
+        task_name: 'Task Name',
+        status_icon: 'Status Icon',
+        reset_display: 'Reset Display',
+        pending_tasks: 'pending tasks',
+        all_tasks_completed: 'All tasks completed',
     },
     id: {
         // Header & Nav
@@ -912,6 +919,13 @@ const translations = {
         ticket_sync_success_toast: 'Berhasil menyinkronkan data tiket ke Google Spreadsheet!',
         ticket_sync_failed_toast: 'Gagal sinkronisasi spreadsheet.',
         view_all_tickets: 'Buka Semua Persetujuan Tiket',
+        display_options: 'Tampilan Kartu',
+        location: 'Lokasi',
+        task_name: 'Nama Tugas',
+        status_icon: 'Ikon Status',
+        reset_display: 'Reset Tampilan',
+        pending_tasks: 'tugas aktif tersisa',
+        all_tasks_completed: 'Semua tugas selesai',
     }
 };
 
