@@ -252,8 +252,15 @@ class ProfileController extends Controller
             }
         }
 
-        $extension = strtolower($file->getClientOriginalExtension() ?: 'png');
-        $filename = 'avatar_' . $user->id . '_' . time() . '_' . \Illuminate\Support\Str::random(6) . '.' . $extension;
+        // Detect safe extension from server MIME inspection (not client provided filename)
+        $extension = strtolower($file->extension() ?: ($file->guessExtension() ?: 'png'));
+        if (!in_array($extension, ['jpg', 'jpeg', 'png', 'webp'])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Format file tidak didukung.',
+            ], 422);
+        }
+        $filename = 'avatar_' . $user->id . '_' . time() . '_' . \Illuminate\Support\Str::random(12) . '.' . $extension;
 
         $file->move($avatarsDir, $filename);
 

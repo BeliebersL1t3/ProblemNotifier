@@ -15,10 +15,20 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->web(append: [
             \App\Http\Middleware\HandleInertiaRequests::class,
             \Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets::class,
+            \App\Http\Middleware\SecurityHeaders::class,
         ]);
 
         $middleware->validateCsrfTokens(except: [
-            'api/*',
+            'api/staff-directory',
+            'api/reset-whatsapp-password',
+            'api/issues',
+            'api/issues/*',
+            'api/sheets',
+            'api/sheets/*',
+            'api/categories',
+            'api/categories/*',
+            'api/operations',
+            'api/operations/*',
         ]);
 
         $middleware->alias([

@@ -152,4 +152,46 @@ class SecurityHardeningTest extends TestCase
                 'success' => false,
             ]);
     }
+
+    public function test_security_headers_are_present_on_web_requests(): void
+    {
+        $response = $this->get('/login');
+
+        $response->assertHeader('X-Frame-Options', 'SAMEORIGIN');
+        $response->assertHeader('X-Content-Type-Options', 'nosniff');
+        $response->assertHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    }
+
+    public function test_avatar_upload_uses_safe_server_extension(): void
+    {
+        $user = User::factory()->create([
+            'role'      => 'department',
+            'is_active' => true,
+        ]);
+
+        $image = UploadedFile::fake()->image('test_photo.PNG', 200, 200);
+
+        $response = $this->actingAs($user)->post('/profile/avatar', [
+            'avatar' => $image,
+        ], [
+            'Accept' => 'application/json',
+        ]);
+
+        $response->assertOk()
+            ->assertJson([
+                'success' => true,
+            ]);
+
+        $updatedUser = $user->fresh();
+        $this->assertNotEmpty($updatedUser->avatar);
+        // Extension should be lowercased safe extension (png)
+        $this->assertStringEndsWith('.png', $updatedUser->avatar);
+
+        // Clean up uploaded test avatar
+        $avatarPath = public_path('uploads/avatars/' . $updatedUser->avatar);
+        if (file_exists($avatarPath)) {
+            @unlink($avatarPath);
+        }
+    }
 }
+

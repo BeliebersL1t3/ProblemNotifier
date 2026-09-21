@@ -70,12 +70,12 @@ Route::middleware('auth')->group(function () {
 
     // PDF Export Email Dispatch
     Route::get('/api/export/recipients', [ExportEmailController::class, 'getRecipients'])->name('export.recipients');
-    Route::post('/api/export/email-pdf', [ExportEmailController::class, 'sendPdfReport'])->name('export.emailPdf');
+    Route::post('/api/export/email-pdf', [ExportEmailController::class, 'sendPdfReport'])->middleware('throttle:10,1')->name('export.emailPdf');
 
     // Automated Monthly Report Scheduling (Admin & HOD)
     Route::get('/api/report-schedule', [ReportScheduleController::class, 'getSettings'])->name('report.schedule.get');
     Route::post('/api/report-schedule', [ReportScheduleController::class, 'updateSettings'])->name('report.schedule.update');
-    Route::post('/api/report-schedule/test', [ReportScheduleController::class, 'testDispatch'])->name('report.schedule.test');
+    Route::post('/api/report-schedule/test', [ReportScheduleController::class, 'testDispatch'])->middleware('throttle:5,1')->name('report.schedule.test');
 
     // Mandatory Real Email Transition
     Route::post('/api/user/update-real-email', [EmailUpdateController::class, 'updateRealEmail'])->name('user.updateRealEmail');
@@ -92,14 +92,14 @@ Route::prefix('api')->group(function () {
     // Strictly Bot-Only Endpoints
     Route::middleware('bot.key')->group(function () {
         Route::get('/staff-directory', [ProfileController::class, 'staffDirectory']);
-        Route::post('/reset-whatsapp-password', [ProfileController::class, 'resetPasswordViaWhatsApp']);
+        Route::post('/reset-whatsapp-password', [ProfileController::class, 'resetPasswordViaWhatsApp'])->middleware('throttle:15,1');
     });
 
     // Endpoints Accessible by Logged-in Web Users OR Authenticated WhatsApp Bot
     Route::middleware('bot.or.auth')->group(function () {
         Route::get('/issues', [IssueController::class, 'index']);
         Route::get('/issues/lookup/{id?}', [IssueController::class, 'lookup']);
-        Route::post('/issues', [IssueController::class, 'store']);
+        Route::post('/issues', [IssueController::class, 'store'])->middleware('throttle:45,1');
         Route::match(['post', 'patch'], '/issues/{rowIndex}/update', [IssueController::class, 'update']);
         Route::delete('/issues/{rowIndex}', [IssueController::class, 'destroy']);
         Route::post('/issues/{rowIndex}/claim', [IssueController::class, 'claim']);
