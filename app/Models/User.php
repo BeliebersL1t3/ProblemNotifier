@@ -44,6 +44,7 @@ class User extends Authenticatable
 
     protected $appends = [
         'avatar_url',
+        'is_dummy_email',
     ];
 
     protected function casts(): array
@@ -58,6 +59,32 @@ class User extends Authenticatable
             'rejected_at'             => 'datetime',
             'google_token_expires_at' => 'datetime',
         ];
+    }
+
+    /**
+     * Check if the account is currently using a placeholder or dummy email.
+     */
+    public function hasDummyEmail(): bool
+    {
+        if (empty($this->email)) {
+            return true;
+        }
+
+        $email = strtolower(trim($this->email));
+        $dummyDomains = ['telunas.com', 'example.com', 'test.com', 'dummy.com', 'localhost'];
+
+        foreach ($dummyDomains as $domain) {
+            if (str_ends_with($email, '@' . $domain)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public function getIsDummyEmailAttribute(): bool
+    {
+        return $this->hasDummyEmail();
     }
 
     /**

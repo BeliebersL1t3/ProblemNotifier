@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\ApprovalTicketController;
+use App\Http\Controllers\Auth\EmailUpdateController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\ExportEmailController;
 use App\Http\Controllers\GoogleAuthController;
@@ -75,6 +76,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/api/report-schedule', [ReportScheduleController::class, 'getSettings'])->name('report.schedule.get');
     Route::post('/api/report-schedule', [ReportScheduleController::class, 'updateSettings'])->name('report.schedule.update');
     Route::post('/api/report-schedule/test', [ReportScheduleController::class, 'testDispatch'])->name('report.schedule.test');
+
+    // Mandatory Real Email Transition
+    Route::post('/api/user/update-real-email', [EmailUpdateController::class, 'updateRealEmail'])->name('user.updateRealEmail');
 
     // Google OAuth (Gmail API) Connection
     Route::get('/auth/google/redirect', [GoogleAuthController::class, 'redirect'])->name('google.redirect');

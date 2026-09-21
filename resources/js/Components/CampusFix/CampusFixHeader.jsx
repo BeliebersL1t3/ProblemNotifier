@@ -5,6 +5,7 @@ import { Link } from '@inertiajs/react';
 import { Input } from '@/Components/UI/Input';
 import { useIssues } from '@/context/IssuesContext';
 import { NewPeriodModal } from '@/Components/CampusFix/NewPeriodModal';
+import { MandatoryRealEmailModal } from '@/Components/CampusFix/MandatoryRealEmailModal';
 import { useSlashTransition } from '@/Components/CampusFix/SlashTransition';
 import { useLanguage } from '@/context/LanguageContext';
 import { useAuth } from '@/hooks/useAuth';
@@ -506,6 +507,7 @@ export function CampusFixHeader({ mode = 'dashboard', query, onQueryChange, onRe
             </div>
 
             <NewPeriodModal open={periodModalOpen} onOpenChange={setPeriodModalOpen} mode={mode} />
+            <MandatoryRealEmailModal user={user} />
         </header>
     </>
     );

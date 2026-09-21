@@ -53,6 +53,11 @@ class MonthlyReportService
 
         // Case A: Test Dispatch for a specific user
         if ($testUser) {
+            if ($testUser->hasDummyEmail()) {
+                $results['errors'][] = "Akun Anda saat ini masih menggunakan email dummy ({$testUser->email}). Harap hubungkan alamat email asli Anda terlebih dahulu.";
+                return $results;
+            }
+
             $schedule = ReportSchedule::getOrCreateForUser($testUser);
             $scope = ($testUser->role === 'admin')
                 ? ($schedule->departments ?: ['ALL'])
@@ -86,6 +91,16 @@ class MonthlyReportService
         foreach ($activeSchedules as $schedule) {
             $user = $schedule->user;
             if (!$user || !$user->is_active || empty($user->email)) {
+                continue;
+            }
+
+            // Guard: Skip dummy/placeholder emails to prevent SMTP bounces
+            if ($user->hasDummyEmail()) {
+                Log::warning("Monthly report automated dispatch skipped for user #{$user->id} ({$user->name}) - email '{$user->email}' is a placeholder/dummy domain.");
+                $schedule->update([
+                    'last_dispatch_status'  => 'skipped',
+                    'last_dispatch_summary' => "Skipped: Account email ({$user->email}) is still a placeholder. Please connect a real email.",
+                ]);
                 continue;
             }
 
