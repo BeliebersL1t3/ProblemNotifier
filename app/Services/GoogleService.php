@@ -694,6 +694,75 @@ class GoogleService
         $this->sheets->spreadsheets->batchUpdate($this->spreadsheetId, $batchUpdateRequest);
     }
 
+    /**
+     * Batch colors multiple rows based on category in a single API call,
+     * maintaining the pastel category/department palette.
+     */
+    public function batchColorRowsByCategory(array $rowCategories, ?string $sheetName = null): void
+    {
+        $targetSheet = $sheetName ?: $this->sheetName;
+        $spreadsheet = $this->sheets->spreadsheets->get($this->spreadsheetId);
+        $sheetId = 0;
+        foreach ($spreadsheet->getSheets() as $sheet) {
+            if ($sheet->getProperties()->getTitle() === $targetSheet) {
+                $sheetId = $sheet->getProperties()->getSheetId();
+                break;
+            }
+        }
+
+        $categoryColors = [
+            'broken'         => ['red' => 0.99, 'green' => 0.88, 'blue' => 0.88], // Pastel Red
+            'plumbing'       => ['red' => 0.86, 'green' => 0.92, 'blue' => 0.99], // Pastel Blue
+            'electrical'     => ['red' => 0.99, 'green' => 0.95, 'blue' => 0.78], // Pastel Yellow
+            'structural'     => ['red' => 1.00, 'green' => 0.93, 'blue' => 0.83], // Pastel Orange
+            'pest-hygiene'   => ['red' => 0.82, 'green' => 0.98, 'blue' => 0.90], // Pastel Emerald
+            'it-technology'  => ['red' => 0.93, 'green' => 0.91, 'blue' => 0.99], // Pastel Violet
+            'marine-outdoor' => ['red' => 0.81, 'green' => 0.98, 'blue' => 0.99], // Pastel Cyan
+            'safety-hazard'  => ['red' => 0.99, 'green' => 0.85, 'blue' => 0.85], // Soft Red
+            'guest-issues'   => ['red' => 0.99, 'green' => 0.90, 'blue' => 0.95], // Pastel Pink
+            'other'          => ['red' => 0.95, 'green' => 0.96, 'blue' => 0.97], // Pastel Gray
+        ];
+
+        $requests = [];
+        foreach ($rowCategories as $rowIndex => $category) {
+            $catKey = strtolower(trim((string)$category));
+            $bgColor = $categoryColors[$catKey] ?? null;
+
+            if (!$bgColor) {
+                $hash = md5($catKey);
+                $r = (hexdec(substr($hash, 0, 2)) / 255.0 + 1.0) / 2.0;
+                $g = (hexdec(substr($hash, 2, 2)) / 255.0 + 1.0) / 2.0;
+                $b = (hexdec(substr($hash, 4, 2)) / 255.0 + 1.0) / 2.0;
+                $bgColor = ['red' => $r, 'green' => $g, 'blue' => $b];
+            }
+
+            $requests[] = new \Google\Service\Sheets\Request([
+                'repeatCell' => [
+                    'range' => [
+                        'sheetId'          => $sheetId,
+                        'startRowIndex'    => $rowIndex - 1, // 0-based
+                        'endRowIndex'      => $rowIndex,
+                        'startColumnIndex' => 0,
+                        'endColumnIndex'   => 26 // A to Z
+                    ],
+                    'cell' => [
+                        'userEnteredFormat' => [
+                            'backgroundColor'   => $bgColor,
+                            'wrapStrategy'      => 'WRAP',
+                            'verticalAlignment' => 'TOP',
+                        ]
+                    ],
+                    'fields' => 'userEnteredFormat(backgroundColor,wrapStrategy,verticalAlignment)'
+                ]
+            ]);
+        }
+
+        if (!empty($requests)) {
+            $batchUpdateRequest = new \Google\Service\Sheets\BatchUpdateSpreadsheetRequest(['requests' => $requests]);
+            $this->sheets->spreadsheets->batchUpdate($this->spreadsheetId, $batchUpdateRequest);
+        }
+    }
+
     /** Format all rows in the active sheet to enable multiline paragraph text wrapping and top vertical alignment. */
     public function formatSheetWrap(?string $sheetName = null): void
     {

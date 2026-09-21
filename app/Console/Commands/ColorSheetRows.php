@@ -32,17 +32,10 @@ class ColorSheetRows extends Command
             }
 
             try {
-                $google->batchColorRows($rowColors);
+                $google->batchColorRowsByCategory($rowColors, $sheetName);
                 $this->info("  ✓ Applied category/department pastel colors to [{$sheetName}].");
             } catch (\Throwable $e) {
                 $this->warn("  ✗ Failed on [{$sheetName}]: " . $e->getMessage());
-            }
-
-            try {
-                $google->setupActiveSheetFormatting($sheetName);
-                $this->info("  ✓ Verified Column F status rules on [{$sheetName}].");
-            } catch (\Throwable $e) {
-                $this->warn("  ✗ Could not apply rules to [{$sheetName}]: " . $e->getMessage());
             }
 
             $google->clearCache($sheetName);
