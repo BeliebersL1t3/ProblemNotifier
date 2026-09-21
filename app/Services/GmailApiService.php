@@ -171,8 +171,15 @@ class GmailApiService
 
         $email = (new Email())
             ->from($senderAddress)
-            ->subject($subject)
-            ->html($htmlBody);
+            ->subject($subject);
+
+        // Embed logo as inline CID attachment so it displays seamlessly in Gmail without external URL dependency
+        $logoPath = public_path('logo.png');
+        if (file_exists($logoPath)) {
+            $email->embedFromPath($logoPath, 'telunas-logo', 'image/png');
+        }
+
+        $email->html($htmlBody);
 
         foreach ($recipients as $recipient) {
             $email->addTo($recipient);

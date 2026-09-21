@@ -1,12 +1,15 @@
 @php
     $logoPath = public_path('logo.png');
-    $logoUrl = asset('logo.png');
+    $logoUrl = null;
     if (isset($message) && method_exists($message, 'embed') && file_exists($logoPath)) {
         try {
             $logoUrl = $message->embed($logoPath);
         } catch (\Throwable $e) {
-            $logoUrl = asset('logo.png');
+            $logoUrl = null;
         }
+    }
+    if (!$logoUrl) {
+        $logoUrl = 'cid:telunas-logo';
     }
     $reportRef = 'TEL-CF-' . date('Ymd') . '-' . strtoupper(substr(md5($emailSubject . microtime()), 0, 4));
 @endphp
