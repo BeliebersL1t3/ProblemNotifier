@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { usePage } from '@inertiajs/react';
+import axios from 'axios';
 import { Button } from '@/Components/UI/Button';
 import {
     Dialog,
@@ -17,7 +18,11 @@ import {
     SelectValue,
 } from '@/Components/UI/Select';
 import { useIssues } from '@/context/IssuesContext';
-import { Loader2, Download, FileText, ChevronDown, Layers, Wrench, Send, AtSign, Globe } from 'lucide-react';
+import { useLanguage } from '@/context/LanguageContext';
+import { 
+    Loader2, Download, FileText, ChevronDown, Layers, Wrench, Send, AtSign, Globe,
+    Mail, Check, CheckCircle2, AlertCircle, X, Users, User, Plus, Sparkles
+} from 'lucide-react';
 import { normalizeDepartment } from '@/constants/staff';
 import { formatDurationLabel } from '@/lib/duration';
 
@@ -78,6 +83,19 @@ export function ExportPdfModal({ open, onOpenChange }) {
     const [includeAuditReason, setIncludeAuditReason] = useState(true);
     const [includeDelayTimeline, setIncludeDelayTimeline] = useState(true);
     const [includeArchived, setIncludeArchived] = useState(false);
+
+    const { t, lang } = useLanguage();
+
+    // Email dispatch state
+    const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
+    const [isSendingEmail, setIsSendingEmail] = useState(false);
+    const [emailRecipients, setEmailRecipients] = useState([]);
+    const [recipientInput, setRecipientInput] = useState('');
+    const [emailSubject, setEmailSubject] = useState('');
+    const [emailMessage, setEmailMessage] = useState('');
+    const [availableRecipients, setAvailableRecipients] = useState({ users: [], by_department: {}, hods: [] });
+    const [isLoadingRecipients, setIsLoadingRecipients] = useState(false);
+    const [emailStatusToast, setEmailStatusToast] = useState(null);
 
     const DEPARTMENTS = [
         'Engineer', 'Tekong', 'Pest Control', 'Security', 'Fasilitas', 
@@ -657,6 +675,209 @@ export function ExportPdfModal({ open, onOpenChange }) {
         }
     };
 
+    // Calculate filtered issues count for summary & email metadata
+    const filteredIssuesCount = useMemo(() => {
+        let allSelectedIssues = [];
+        selectedSheets.forEach(sheet => {
+            if (downloadedIssues[sheet]) {
+                const sheetIssues = downloadedIssues[sheet].map(i => ({ ...i, __sheetName: sheet }));
+                allSelectedIssues = allSelectedIssues.concat(sheetIssues);
+            }
+        });
+
+        if (isAdmin && includeArchived && Array.isArray(archivedIssues)) {
+            const relevantArchived = archivedIssues
+                .filter(i => selectedSheets.includes(i.sheet || i._sheet || currentSheet))
+                .map(i => ({ ...i, __sheetName: i.sheet || i._sheet || currentSheet }));
+            allSelectedIssues = allSelectedIssues.concat(relevantArchived);
+        }
+
+        return allSelectedIssues.filter(issue => {
+            if (issue.isArchived) {
+                // Included if admin checked includeArchived
+            } else if (issue.status === 'pending') {
+                if (!selectedStatuses.includes('pending') && !selectedStatuses.includes('progress')) return false;
+            } else {
+                const sMap = { 'open': 'open', 'progress': 'progress', 'solved': 'solved' };
+                if (!selectedStatuses.includes(sMap[issue.status])) return false;
+            }
+            if (selectedCategories.length > 0 && issue.category && !selectedCategories.includes(issue.category)) return false;
+
+            if (deptFilterMode === 'my_scope' && userDept) {
+                const isRelated = normalizeDepartment(issue.department) === userDept ||
+                                  (Array.isArray(issue.assignedDepartments) && issue.assignedDepartments.some(d => normalizeDepartment(d) === userDept)) ||
+                                  (Array.isArray(issue.taggedDepartments) && issue.taggedDepartments.some(d => normalizeDepartment(d) === userDept));
+                if (!isRelated) return false;
+            } else if (deptFilterMode === 'to_fix' && userDept) {
+                const isAssigned = Array.isArray(issue.assignedDepartments) && issue.assignedDepartments.some(d => normalizeDepartment(d) === userDept);
+                if (!isAssigned) return false;
+            } else if (deptFilterMode === 'my_reports' && userDept) {
+                if (normalizeDepartment(issue.department) !== userDept) return false;
+            } else if (deptFilterMode === 'mentions' && userDept) {
+                const isTagged = Array.isArray(issue.taggedDepartments) && issue.taggedDepartments.some(d => normalizeDepartment(d) === userDept);
+                if (!isTagged) return false;
+            } else if (deptFilterMode === 'all') {
+                const isDeptSelected = selectedDepartments.some(d => {
+                    const normD = normalizeDepartment(d);
+                    const origMatch = normalizeDepartment(issue.department) === normD;
+                    const assignMatch = Array.isArray(issue.assignedDepartments) && issue.assignedDepartments.some(a => normalizeDepartment(a) === normD);
+                    const tagMatch = Array.isArray(issue.taggedDepartments) && issue.taggedDepartments.some(t => normalizeDepartment(t) === normD);
+                    return origMatch || assignMatch || tagMatch;
+                });
+                if (!isDeptSelected) return false;
+            }
+            return true;
+        }).length;
+    }, [selectedSheets, downloadedIssues, isAdmin, includeArchived, archivedIssues, currentSheet, selectedStatuses, selectedCategories, deptFilterMode, userDept, selectedDepartments]);
+
+    const handleOpenEmailModal = async () => {
+        setIsEmailModalOpen(true);
+        setEmailStatusToast(null);
+
+        const scopeLabels = {
+            'all': 'All Scope',
+            'my_scope': `My Scope (${auth?.user?.department || 'You'})`,
+            'to_fix': 'To Fix',
+            'my_reports': 'My Reports',
+            'mentions': 'Mentions',
+        };
+        const scopeStr = scopeLabels[deptFilterMode] || 'General Scope';
+        const dateStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+        setEmailSubject(`[Telunas CampusFix] Issue Report - ${scopeStr} (${dateStr})`);
+
+        if (!availableRecipients.users || availableRecipients.users.length === 0) {
+            setIsLoadingRecipients(true);
+            try {
+                const res = await axios.get('/api/export/recipients');
+                if (res.data?.success) {
+                    setAvailableRecipients(res.data);
+                }
+            } catch (err) {
+                console.error('Failed to load recipients list', err);
+            } finally {
+                setIsLoadingRecipients(false);
+            }
+        }
+    };
+
+    const toggleRecipientEmail = (email) => {
+        if (!email) return;
+        const lower = email.toLowerCase().trim();
+        setEmailRecipients(prev => 
+            prev.includes(lower) 
+                ? prev.filter(e => e !== lower)
+                : [...prev, lower]
+        );
+    };
+
+    const toggleAllHods = () => {
+        const hodEmails = (availableRecipients.hods || [])
+            .map(h => (h.email || '').toLowerCase().trim())
+            .filter(Boolean);
+        if (hodEmails.length === 0) return;
+
+        const allSelected = hodEmails.every(e => emailRecipients.includes(e));
+        if (allSelected) {
+            setEmailRecipients(prev => prev.filter(e => !hodEmails.includes(e)));
+        } else {
+            setEmailRecipients(prev => Array.from(new Set([...prev, ...hodEmails])));
+        }
+    };
+
+    const toggleDepartmentRecipients = (dept) => {
+        const deptUsers = (availableRecipients.by_department?.[dept] || [])
+            .map(u => (u.email || '').toLowerCase().trim())
+            .filter(Boolean);
+        if (deptUsers.length === 0) return;
+
+        const allSelected = deptUsers.every(e => emailRecipients.includes(e));
+        if (allSelected) {
+            setEmailRecipients(prev => prev.filter(e => !deptUsers.includes(e)));
+        } else {
+            setEmailRecipients(prev => Array.from(new Set([...prev, ...deptUsers])));
+        }
+    };
+
+    const handleAddCustomEmail = (e) => {
+        if (e) e.preventDefault();
+        const trimmed = recipientInput.trim().toLowerCase();
+        if (!trimmed) return;
+
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(trimmed)) {
+            setEmailStatusToast({
+                type: 'error',
+                message: lang === 'id' ? 'Format email tidak valid: ' + trimmed : 'Invalid email format: ' + trimmed,
+            });
+            return;
+        }
+
+        if (!emailRecipients.includes(trimmed)) {
+            setEmailRecipients(prev => [...prev, trimmed]);
+        }
+        setRecipientInput('');
+        setEmailStatusToast(null);
+    };
+
+    const handleRemoveRecipient = (email) => {
+        setEmailRecipients(prev => prev.filter(e => e !== email));
+    };
+
+    const handleSendEmail = async () => {
+        if (emailRecipients.length === 0) {
+            setEmailStatusToast({
+                type: 'error',
+                message: t('no_recipients_selected') || 'Please select or add at least one recipient email.',
+            });
+            return;
+        }
+
+        setIsSendingEmail(true);
+        setEmailStatusToast(null);
+
+        try {
+            const doc = buildPdfDocument();
+            const pdfBlob = doc.output('blob');
+            const pdfFilename = `Telunas_Report_${new Date().toISOString().split('T')[0]}.pdf`;
+
+            const formData = new FormData();
+            formData.append('pdf_file', pdfBlob, pdfFilename);
+            formData.append('recipients', JSON.stringify(emailRecipients));
+            formData.append('subject', emailSubject || 'Telunas Issue Report');
+            formData.append('message', emailMessage || '');
+            formData.append('meta', JSON.stringify({
+                scope: deptFilterMode,
+                sheets: selectedSheets,
+                total_issues: filteredIssuesCount,
+            }));
+
+            const res = await axios.post('/api/export/email-pdf', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' },
+            });
+
+            if (res.data?.success) {
+                setEmailStatusToast({
+                    type: 'success',
+                    message: res.data.message || (t('email_sent_success') || 'Report successfully sent via email!'),
+                });
+            } else {
+                setEmailStatusToast({
+                    type: 'error',
+                    message: res.data?.message || (t('email_send_failed') || 'Failed to send email.'),
+                });
+            }
+        } catch (err) {
+            console.error('Email dispatch error', err);
+            const serverMsg = err.response?.data?.message || err.message;
+            setEmailStatusToast({
+                type: 'error',
+                message: serverMsg || (t('email_send_failed') || 'Failed to send email.'),
+            });
+        } finally {
+            setIsSendingEmail(false);
+        }
+    };
+
     return (
         <Dialog open={open} onOpenChange={(o) => { if (!isExporting) onOpenChange(o); }}>
             <DialogContent className="max-h-[100dvh] overflow-hidden flex flex-col w-full sm:max-w-6xl h-[100dvh] sm:h-[85vh] sm:max-h-[95vh] rounded-none sm:rounded-2xl">
@@ -980,25 +1201,310 @@ export function ExportPdfModal({ open, onOpenChange }) {
                     </div>
                 </div>
 
-                <DialogFooter className="shrink-0 mt-2">
+                <DialogFooter className="shrink-0 mt-2 flex flex-col sm:flex-row items-center justify-between gap-2">
                     <Button
                         type="button"
                         variant="outline"
                         onClick={() => onOpenChange(false)}
-                        disabled={isExporting}
+                        disabled={isExporting || isSendingEmail}
+                        className="w-full sm:w-auto"
                     >
-                        Cancel
+                        {t('cancel') || 'Cancel'}
                     </Button>
-                    <Button
-                        type="button"
-                        onClick={handleDownload}
-                        disabled={isExporting || selectedStatuses.length === 0 || selectedCategories.length === 0}
-                        className="gap-2"
-                    >
-                        {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                        {isExporting ? 'Downloading...' : 'Download PDF'}
-                    </Button>
+                    <div className="flex items-center gap-2 w-full sm:w-auto">
+                        <Button
+                            type="button"
+                            onClick={handleOpenEmailModal}
+                            disabled={isExporting || isSendingEmail || selectedStatuses.length === 0 || selectedCategories.length === 0}
+                            className="gap-2 bg-[#2A281E] border border-[#C9AA71]/60 text-[#F5DEB3] hover:bg-[#C9AA71]/20 hover:border-[#C9AA71] transition-all flex-1 sm:flex-initial"
+                        >
+                            <Mail className="h-4 w-4 text-[#C9AA71]" />
+                            {t('send_via_email') || 'Send via Email'}
+                        </Button>
+                        <Button
+                            type="button"
+                            onClick={handleDownload}
+                            disabled={isExporting || isSendingEmail || selectedStatuses.length === 0 || selectedCategories.length === 0}
+                            className="gap-2 flex-1 sm:flex-initial"
+                        >
+                            {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                            {isExporting ? (t('downloading') || 'Downloading...') : (t('download_pdf') || 'Download PDF')}
+                        </Button>
+                    </div>
                 </DialogFooter>
+
+                {/* Email Dispatch Overlay */}
+                {isEmailModalOpen && (
+                    <div className="absolute inset-0 z-50 bg-[#1C1B0E] p-4 sm:p-6 flex flex-col overflow-hidden animate-in fade-in duration-200">
+                        {/* Overlay Header */}
+                        <div className="flex items-center justify-between pb-3 border-b border-[#3B3929] shrink-0">
+                            <div className="flex items-center gap-2.5">
+                                <div className="p-2 rounded-xl bg-[#2A281E] border border-[#C9AA71]/40 text-[#C9AA71]">
+                                    <Mail className="h-5 w-5" />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-bold text-[#FAFAFA]">
+                                        {t('email_report_title') || 'Send Report via Email'}
+                                    </h3>
+                                    <p className="text-xs text-muted-foreground">
+                                        {lang === 'id' 
+                                            ? 'Kirimkan lampiran laporan PDF ini langsung ke alamat email staf, HOD, atau manajemen.'
+                                            : 'Send this generated PDF report directly to staff, HODs, or management email addresses.'}
+                                    </p>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => { setIsEmailModalOpen(false); setEmailStatusToast(null); }}
+                                className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-[#2A281E] transition-all"
+                            >
+                                <X className="h-5 w-5" />
+                            </button>
+                        </div>
+
+                        {/* Status Toast Banner */}
+                        {emailStatusToast && (
+                            <div className={`mt-3 p-3 rounded-xl border text-xs flex items-start gap-2.5 shrink-0 ${
+                                emailStatusToast.type === 'success'
+                                    ? 'bg-emerald-950/70 border-emerald-500/80 text-emerald-200'
+                                    : 'bg-rose-950/70 border-rose-500/80 text-rose-200'
+                            }`}>
+                                {emailStatusToast.type === 'success' ? (
+                                    <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400 mt-0.5" />
+                                ) : (
+                                    <AlertCircle className="h-4 w-4 shrink-0 text-rose-400 mt-0.5" />
+                                )}
+                                <div className="flex-1">
+                                    <p className="font-semibold">{emailStatusToast.message}</p>
+                                    {emailStatusToast.type === 'error' && (
+                                        <p className="text-[11px] opacity-80 mt-1">
+                                            {lang === 'id' 
+                                                ? 'Catatan: Pastikan pengaturan SMTP (MAIL_HOST, MAIL_USERNAME, MAIL_PASSWORD) pada file .env server sudah diisi.'
+                                                : 'Note: Ensure SMTP settings (MAIL_HOST, MAIL_USERNAME, MAIL_PASSWORD) in your .env file are configured.'}
+                                        </p>
+                                    )}
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setEmailStatusToast(null)}
+                                    className="opacity-70 hover:opacity-100"
+                                >
+                                    <X className="h-3.5 w-3.5" />
+                                </button>
+                            </div>
+                        )}
+
+                        {/* Scrollable Form Body */}
+                        <div className="flex-1 overflow-y-auto py-4 space-y-4 pr-1">
+                            {/* Quick Select Recipients */}
+                            <div className="p-3.5 rounded-xl bg-[#2A281E]/60 border border-[#3B3929] space-y-2.5">
+                                <div className="flex items-center justify-between">
+                                    <label className="text-xs font-bold text-[#C9AA71] uppercase tracking-wider flex items-center gap-1.5">
+                                        <Users className="h-3.5 w-3.5" />
+                                        <span>{t('quick_select_recipients') || 'Quick Select Recipients'}</span>
+                                    </label>
+                                    {isLoadingRecipients && (
+                                        <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+                                            <Loader2 className="h-3 w-3 animate-spin" />
+                                            Loading directory...
+                                        </span>
+                                    )}
+                                </div>
+
+                                {/* HOD & Department Quick Buttons */}
+                                <div className="flex flex-wrap gap-1.5">
+                                    {/* All HODs Button */}
+                                    {availableRecipients.hods?.length > 0 && (
+                                        <button
+                                            type="button"
+                                            onClick={toggleAllHods}
+                                            className={`px-2.5 py-1 text-xs font-semibold rounded-lg border transition-all flex items-center gap-1.5 ${
+                                                availableRecipients.hods.every(h => emailRecipients.includes((h.email || '').toLowerCase()))
+                                                    ? 'bg-[#C9AA71] text-[#1C1B0E] border-[#C9AA71] shadow-sm'
+                                                    : 'bg-[#1C1B0E] text-[#C9AA71] border-[#C9AA71]/40 hover:bg-[#C9AA71]/15'
+                                            }`}
+                                        >
+                                            <Sparkles className="w-3 h-3" />
+                                            <span>{t('all_hods') || 'All HODs'} ({availableRecipients.hods.length})</span>
+                                        </button>
+                                    )}
+
+                                    {/* Department Pills */}
+                                    {Object.keys(availableRecipients.by_department || {}).map(dept => {
+                                        const deptUsers = availableRecipients.by_department[dept] || [];
+                                        if (deptUsers.length === 0) return null;
+                                        const allDeptSelected = deptUsers.every(u => emailRecipients.includes((u.email || '').toLowerCase()));
+
+                                        return (
+                                            <button
+                                                key={dept}
+                                                type="button"
+                                                onClick={() => toggleDepartmentRecipients(dept)}
+                                                className={`px-2 py-0.5 text-xs font-medium rounded-lg border transition-all flex items-center gap-1 ${
+                                                    allDeptSelected
+                                                        ? 'bg-primary text-primary-foreground border-primary'
+                                                        : 'bg-[#1C1B0E] text-muted-foreground border-[#3B3929] hover:border-primary/50 hover:text-foreground'
+                                                }`}
+                                            >
+                                                <span>{dept}</span>
+                                                <span className="text-[10px] px-1 py-0.2 rounded-full bg-[#2A281E]">
+                                                    {deptUsers.length}
+                                                </span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            {/* Selected Recipients & Manual Input */}
+                            <div className="space-y-2">
+                                <label className="text-xs font-semibold text-foreground flex items-center justify-between">
+                                    <span>{t('email_recipients') || 'Recipients'} ({emailRecipients.length})</span>
+                                    {emailRecipients.length > 0 && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setEmailRecipients([])}
+                                            className="text-[11px] text-muted-foreground hover:text-rose-400 transition-colors"
+                                        >
+                                            Clear All
+                                        </button>
+                                    )}
+                                </label>
+
+                                {/* Selected Chips */}
+                                <div className="min-h-[42px] p-2 rounded-xl bg-[#2A281E]/40 border border-[#3B3929] flex flex-wrap gap-1.5 items-center">
+                                    {emailRecipients.length === 0 ? (
+                                        <span className="text-xs text-muted-foreground italic px-1">
+                                            {t('no_recipients_selected') || 'No recipients selected. Choose from above or type below.'}
+                                        </span>
+                                    ) : (
+                                        emailRecipients.map(email => {
+                                            const matchedUser = availableRecipients.users?.find(u => (u.email || '').toLowerCase() === email);
+                                            return (
+                                                <span
+                                                    key={email}
+                                                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs bg-[#2A281E] border border-[#C9AA71]/40 text-[#FAFAFA] shadow-sm animate-in fade-in zoom-in-95 duration-100"
+                                                >
+                                                    <span className="font-medium">
+                                                        {matchedUser ? `${matchedUser.name} (${matchedUser.department || 'Staff'})` : email}
+                                                    </span>
+                                                    {matchedUser && (
+                                                        <span className="text-[10px] text-muted-foreground">
+                                                            &lt;{email}&gt;
+                                                        </span>
+                                                    )}
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleRemoveRecipient(email)}
+                                                        className="p-0.5 rounded-full hover:bg-rose-500/20 text-muted-foreground hover:text-rose-300"
+                                                    >
+                                                        <X className="h-3 w-3" />
+                                                    </button>
+                                                </span>
+                                            );
+                                        })
+                                    )}
+                                </div>
+
+                                {/* Custom Email Input Box */}
+                                <form onSubmit={handleAddCustomEmail} className="flex gap-2 pt-1">
+                                    <input
+                                        type="email"
+                                        value={recipientInput}
+                                        onChange={(e) => setRecipientInput(e.target.value)}
+                                        placeholder={t('email_recipients_placeholder') || 'Type an email and press Enter or click Add...'}
+                                        className="flex-1 px-3 py-2 text-xs rounded-xl bg-[#2A281E] border border-[#3B3929] text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-[#C9AA71]"
+                                    />
+                                    <Button
+                                        type="submit"
+                                        variant="outline"
+                                        size="sm"
+                                        className="text-xs gap-1 border-[#3B3929] hover:border-[#C9AA71]"
+                                    >
+                                        <Plus className="h-3.5 w-3.5" />
+                                        Add
+                                    </Button>
+                                </form>
+                            </div>
+
+                            {/* Subject */}
+                            <div className="space-y-1.5">
+                                <label className="text-xs font-semibold text-foreground">
+                                    {t('email_subject') || 'Subject'}
+                                </label>
+                                <input
+                                    type="text"
+                                    value={emailSubject}
+                                    onChange={(e) => setEmailSubject(e.target.value)}
+                                    placeholder={t('email_subject_placeholder') || 'Subject...'}
+                                    className="w-full px-3 py-2 text-xs rounded-xl bg-[#2A281E] border border-[#3B3929] text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-[#C9AA71]"
+                                />
+                            </div>
+
+                            {/* Personal Note */}
+                            <div className="space-y-1.5">
+                                <label className="text-xs font-semibold text-foreground">
+                                    {t('email_message') || 'Personal Note (Optional)'}
+                                </label>
+                                <textarea
+                                    rows={3}
+                                    value={emailMessage}
+                                    onChange={(e) => setEmailMessage(e.target.value)}
+                                    placeholder={t('email_message_placeholder') || 'Add any additional notes or instructions for the recipients...'}
+                                    className="w-full px-3 py-2 text-xs rounded-xl bg-[#2A281E] border border-[#3B3929] text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-[#C9AA71] resize-none"
+                                />
+                            </div>
+
+                            {/* Attachment Details Pill */}
+                            <div className="p-3 rounded-xl bg-[#242217] border border-[#C9AA71]/40 flex items-center justify-between text-xs">
+                                <div className="flex items-center gap-2">
+                                    <FileText className="h-4 w-4 text-[#C9AA71]" />
+                                    <div>
+                                        <p className="font-bold text-[#FAFAFA]">
+                                            Telunas_Report_{new Date().toISOString().split('T')[0]}.pdf
+                                        </p>
+                                        <p className="text-[11px] text-muted-foreground">
+                                            {filteredIssuesCount} issues included • Scope: {deptFilterMode} • Periods: {selectedSheets.join(', ') || 'All'}
+                                        </p>
+                                    </div>
+                                </div>
+                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#C9AA71]/20 text-[#C9AA71] border border-[#C9AA71]/30">
+                                    PDF ATTACHMENT
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* Overlay Footer */}
+                        <div className="pt-3 border-t border-[#3B3929] flex items-center justify-between gap-2 shrink-0">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => { setIsEmailModalOpen(false); setEmailStatusToast(null); }}
+                                disabled={isSendingEmail}
+                            >
+                                Back to Preview
+                            </Button>
+                            <Button
+                                type="button"
+                                onClick={handleSendEmail}
+                                disabled={isSendingEmail || emailRecipients.length === 0}
+                                className="gap-2 bg-[#C9AA71] text-[#1C1B0E] hover:bg-[#b89960] font-bold"
+                            >
+                                {isSendingEmail ? (
+                                    <>
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                        <span>{t('sending_email') || 'Sending Email...'}</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Send className="h-4 w-4" />
+                                        <span>{t('send_email_button') || 'Send Email'} ({emailRecipients.length})</span>
+                                    </>
+                                )}
+                            </Button>
+                        </div>
+                    </div>
+                )}
             </DialogContent>
         </Dialog>
     );

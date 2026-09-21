@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\ApprovalTicketController;
 use App\Http\Controllers\CategoryController;
+use App\Http\Controllers\ExportEmailController;
 use App\Http\Controllers\IssueController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\OperationsController;
@@ -63,6 +64,10 @@ Route::middleware('auth')->group(function () {
     Route::get('/notifications', [NotificationController::class, 'getNotifications'])->name('notifications.index');
     Route::post('/notifications/{id}/read', [NotificationController::class, 'markAsRead'])->name('notifications.read');
     Route::post('/notifications/read-all', [NotificationController::class, 'markAllAsRead'])->name('notifications.readAll');
+
+    // PDF Export Email Dispatch
+    Route::get('/api/export/recipients', [ExportEmailController::class, 'getRecipients'])->name('export.recipients');
+    Route::post('/api/export/email-pdf', [ExportEmailController::class, 'sendPdfReport'])->name('export.emailPdf');
 });
 
 // CampusFix API Endpoints
