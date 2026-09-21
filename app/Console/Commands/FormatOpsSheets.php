@@ -12,13 +12,13 @@ class FormatOpsSheets extends Command
 
     public function handle(GoogleService $google): int
     {
-        $this->info("Starting Operations Google Sheets beautification...");
+        $this->info("Starting Operations Google Sheets beautification & notes migration...");
 
         try {
-            $result = $google->formatAllOpsSheets();
-            $this->info("✓ " . ($result['message'] ?? 'Successfully formatted sheets.'));
+            $migration = $google->migrateOpsNotesToScheduleBlocks();
+            $this->info("✓ " . ($migration['message'] ?? 'Successfully migrated notes & schedule blocks.'));
         } catch (\Throwable $e) {
-            $this->error("Failed to format operations sheets: " . $e->getMessage());
+            $this->error("Failed to migrate operations notes: " . $e->getMessage());
             return Command::FAILURE;
         }
 

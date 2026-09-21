@@ -247,8 +247,9 @@ class OperationsController extends Controller
             'startDate'   => 'nullable|string',
             'endDate'     => 'nullable|string',
             'priority'    => 'nullable|in:low,normal,urgent',
-            'notes'       => 'nullable|string',
-            'createdBy'   => 'nullable|string|max:100',
+            'notes'          => 'nullable|string',
+            'scheduleBlocks' => 'nullable|string',
+            'createdBy'      => 'nullable|string|max:100',
         ]);
 
         // If authenticated user is a department user, force their department & staff_name
@@ -287,7 +288,7 @@ class OperationsController extends Controller
         $fields = $request->only([
             'title', 'description', 'location', 'photoUrl',
             'startDate', 'endDate', 'priority', 'status',
-            'completedAt', 'notes',
+            'completedAt', 'notes', 'scheduleBlocks',
         ]);
 
         if (!$dept) {

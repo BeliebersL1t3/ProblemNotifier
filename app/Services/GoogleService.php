@@ -958,7 +958,7 @@ class GoogleService
     }
 
     /**
-     * Headers for an Operations sheet.
+     * Headers for an Operations sheet (16 columns: A to P).
      */
     private function opsHeaders(): array
     {
@@ -966,8 +966,47 @@ class GoogleService
             'ID', 'Department', 'Title', 'Description', 'Location',
             'Photo URL', 'Start Date', 'End Date', 'Priority',
             'Status', 'Created At', 'Completed At', 'Created By', 'Notes',
-            'Google Event ID'
+            'Google Event ID', 'Schedule Blocks'
         ]];
+    }
+
+    /**
+     * Parse clean note and ranges from notes (Col N) and scheduleBlocks (Col P).
+     */
+    public function extractNotesAndRanges(?string $rawNotes, ?string $rawBlocks = null, ?string $start = null, ?string $end = null): array
+    {
+        $cleanNotes = trim((string)$rawNotes);
+        $ranges = [];
+
+        // 1. If Column P has JSON blocks
+        if (!empty($rawBlocks)) {
+            $decoded = json_decode(trim($rawBlocks), true);
+            if (is_array($decoded) && !empty($decoded)) {
+                $ranges = $decoded;
+            }
+        }
+
+        // 2. If Column N has legacy [SCHEDULE_RANGES: ...]
+        if (preg_match('/\[SCHEDULE_RANGES:\s*(\[.*?\])\s*\]/s', $cleanNotes, $m)) {
+            if (empty($ranges)) {
+                $decoded = json_decode($m[1], true);
+                if (is_array($decoded) && !empty($decoded)) {
+                    $ranges = $decoded;
+                }
+            }
+            $cleanNotes = trim(str_replace($m[0], '', $cleanNotes));
+        }
+
+        // 3. Fallback to start/end date
+        if (empty($ranges) && (!empty($start) || !empty($end))) {
+            $ranges = [['startDate' => $start ?: $end, 'endDate' => $end ?: $start]];
+        }
+
+        return [
+            'notes'          => $cleanNotes,
+            'scheduleBlocks' => !empty($ranges) && count($ranges) > 1 ? json_encode(array_values($ranges)) : '',
+            'ranges'         => $ranges,
+        ];
     }
 
     /**
@@ -989,11 +1028,11 @@ class GoogleService
             $batch = new \Google\Service\Sheets\BatchUpdateSpreadsheetRequest(['requests' => [$addReq]]);
             $this->sheets->spreadsheets->batchUpdate($this->opsSpreadsheetId, $batch);
 
-            // Write header row (15 columns A–O)
+            // Write header row (16 columns A–P)
             $body = new ValueRange(['values' => $this->opsHeaders()]);
             $this->sheets->spreadsheets_values->update(
                 $this->opsSpreadsheetId,
-                "{$sheetName}!A1:O1",
+                "{$sheetName}!A1:P1",
                 $body,
                 ['valueInputOption' => 'RAW']
             );
@@ -1033,7 +1072,7 @@ class GoogleService
             try {
                 $response = $this->sheets->spreadsheets_values->get(
                     $this->opsSpreadsheetId,
-                    "{$sheetName}!A2:O"
+                    "{$sheetName}!A2:P"
                 );
                 $rows = $response->getValues() ?? [];
             } catch (\Throwable $e) {
@@ -1042,25 +1081,28 @@ class GoogleService
 
             $items = [];
             foreach ($rows as $idx => $row) {
-                $row = array_pad($row, 15, '');
+                $row = array_pad($row, 16, '');
                 if (empty($row[0])) continue; // Skip blank rows
+                $ext = $this->extractNotesAndRanges($row[13] ?? '', $row[15] ?? '', $row[6] ?? '', $row[7] ?? '');
                 $items[] = [
-                    'rowIndex'      => $idx + 2,
-                    'id'            => $row[0],
-                    'department'    => $row[1],
-                    'title'         => $row[2],
-                    'description'   => $row[3],
-                    'location'      => $row[4],
-                    'photoUrl'      => $row[5],
-                    'startDate'     => $row[6],
-                    'endDate'       => $row[7],
-                    'priority'      => $row[8] ?: 'normal',
-                    'status'        => $row[9] ?: 'active',
-                    'createdAt'     => $row[10],
-                    'completedAt'   => $row[11],
-                    'createdBy'     => $row[12],
-                    'notes'         => $row[13],
-                    'googleEventId' => $row[14],
+                    'rowIndex'       => $idx + 2,
+                    'id'             => $row[0],
+                    'department'     => $row[1],
+                    'title'          => $row[2],
+                    'description'    => $row[3],
+                    'location'       => $row[4],
+                    'photoUrl'       => $row[5],
+                    'startDate'      => $row[6],
+                    'endDate'        => $row[7],
+                    'priority'       => $row[8] ?: 'normal',
+                    'status'         => $row[9] ?: 'active',
+                    'createdAt'      => $row[10],
+                    'completedAt'    => $row[11],
+                    'createdBy'      => $row[12],
+                    'notes'          => $ext['notes'],
+                    'googleEventId'  => $row[14],
+                    'scheduleBlocks' => $ext['scheduleBlocks'],
+                    'ranges'         => $ext['ranges'],
                 ];
             }
             return $items;
@@ -1086,7 +1128,7 @@ class GoogleService
                     return [];
                 }
 
-                $ranges = array_map(fn($s) => "{$s}!A2:O", $deptSheets);
+                $ranges = array_map(fn($s) => "{$s}!A2:P", $deptSheets);
 
                 $batchResponse = $this->sheets->spreadsheets_values->batchGet(
                     $this->opsSpreadsheetId,
@@ -1104,32 +1146,36 @@ class GoogleService
 
                     $rows = $vr->getValues() ?? [];
                     foreach ($rows as $idx => $row) {
-                        $row = array_pad($row, 15, '');
+                        $row = array_pad($row, 16, '');
                         if (empty($row[0])) continue;
+                        $ext = $this->extractNotesAndRanges($row[13] ?? '', $row[15] ?? '', $row[6] ?? '', $row[7] ?? '');
                         $allItems[] = [
-                            'rowIndex'      => $idx + 2,
-                            'id'            => $row[0],
-                            'department'    => $row[1] ?: $deptName,
-                            'title'         => $row[2],
-                            'description'   => $row[3],
-                            'location'      => $row[4],
-                            'photoUrl'      => $row[5],
-                            'startDate'     => $row[6],
-                            'endDate'       => $row[7],
-                            'priority'      => $row[8] ?: 'normal',
-                            'status'        => $row[9] ?: 'active',
-                            'createdAt'     => $row[10],
-                            'completedAt'   => $row[11],
-                            'createdBy'     => $row[12],
-                            'notes'         => $row[13],
-                            'googleEventId' => $row[14],
+                            'rowIndex'       => $idx + 2,
+                            'id'             => $row[0],
+                            'department'     => $row[1] ?: $deptName,
+                            'title'          => $row[2],
+                            'description'    => $row[3],
+                            'location'       => $row[4],
+                            'photoUrl'       => $row[5],
+                            'startDate'      => $row[6],
+                            'endDate'        => $row[7],
+                            'priority'       => $row[8] ?: 'normal',
+                            'status'         => $row[9] ?: 'active',
+                            'createdAt'      => $row[10],
+                            'completedAt'    => $row[11],
+                            'createdBy'      => $row[12],
+                            'notes'          => $ext['notes'],
+                            'googleEventId'  => $row[14],
+                            'scheduleBlocks' => $ext['scheduleBlocks'],
+                            'ranges'         => $ext['ranges'],
                         ];
                     }
                 }
 
                 return $allItems;
             } catch (\Throwable $e) {
-                return Cache::get('ops_all_work_items', []);
+                Log::error('getAllOpsWorkItems batchGet error: ' . $e->getMessage());
+                return [];
             }
         });
     }
@@ -1150,6 +1196,13 @@ class GoogleService
         ]);
         $googleEventId = $this->syncOpsTaskToCalendar($taskToSync);
 
+        $ext = $this->extractNotesAndRanges(
+            $data['notes'] ?? '',
+            $data['scheduleBlocks'] ?? '',
+            $data['startDate'] ?? '',
+            $data['endDate'] ?? ''
+        );
+
         $row = [
             $id,
             $dept,
@@ -1164,14 +1217,15 @@ class GoogleService
             $now,
             '',
             $data['createdBy']   ?? 'Admin',
-            $data['notes']       ?? '',
+            $ext['notes'],
             $googleEventId       ?: '',
+            $ext['scheduleBlocks'],
         ];
 
-        $body = new ValueRange(['values' => [array_pad($row, 15, '')]]);
+        $body = new ValueRange(['values' => [array_pad($row, 16, '')]]);
         $this->sheets->spreadsheets_values->append(
             $this->opsSpreadsheetId,
-            "{$sheetName}!A:O",
+            "{$sheetName}!A:P",
             $body,
             ['valueInputOption' => 'RAW', 'insertDataOption' => 'INSERT_ROWS']
         );
@@ -1190,9 +1244,9 @@ class GoogleService
         // Fetch current row to merge
         $response = $this->sheets->spreadsheets_values->get(
             $this->opsSpreadsheetId,
-            "{$sheetName}!A{$rowIndex}:O{$rowIndex}"
+            "{$sheetName}!A{$rowIndex}:P{$rowIndex}"
         );
-        $existing = array_pad($response->getValues()[0] ?? [], 15, '');
+        $existing = array_pad($response->getValues()[0] ?? [], 16, '');
 
         // Merge changed fields
         if (array_key_exists('title', $fields))       $existing[2]  = $fields['title'];
@@ -1204,7 +1258,14 @@ class GoogleService
         if (array_key_exists('priority', $fields))    $existing[8]  = $fields['priority'];
         if (array_key_exists('status', $fields))      $existing[9]  = $fields['status'];
         if (array_key_exists('completedAt', $fields)) $existing[11] = $fields['completedAt'];
-        if (array_key_exists('notes', $fields))       $existing[13] = $fields['notes'];
+
+        if (array_key_exists('notes', $fields) || array_key_exists('scheduleBlocks', $fields)) {
+            $rawNotes = array_key_exists('notes', $fields) ? $fields['notes'] : $existing[13];
+            $rawBlocks = array_key_exists('scheduleBlocks', $fields) ? $fields['scheduleBlocks'] : $existing[15];
+            $ext = $this->extractNotesAndRanges($rawNotes, $rawBlocks, $existing[6], $existing[7]);
+            $existing[13] = $ext['notes'];
+            $existing[15] = $ext['scheduleBlocks'];
+        }
 
         // Sync with Google Calendar
         $taskToSync = [
@@ -1518,7 +1579,7 @@ class GoogleService
             ]
         ]);
 
-        // 3. Set text wrap for standard data cells (Cols A-M, 0-13) and CLIP for metadata cells (Cols N-O, 13-15)
+        // 3. Set text wrap for readable data cells (Cols A-N, 0-14 including Notes)
         $requests[] = new \Google\Service\Sheets\Request([
             'repeatCell' => [
                 'range' => [
@@ -1526,7 +1587,7 @@ class GoogleService
                     'startRowIndex'    => 1,
                     'endRowIndex'      => 1000,
                     'startColumnIndex' => 0,
-                    'endColumnIndex'   => 13,
+                    'endColumnIndex'   => 14,
                 ],
                 'cell' => [
                     'userEnteredFormat' => [
@@ -1538,15 +1599,15 @@ class GoogleService
             ]
         ]);
 
-        // CLIP metadata columns (Notes: Col 13, Google Event ID: Col 14) so long JSON does not expand row height
+        // CLIP metadata columns (Google Event ID: Col 14, Schedule Blocks: Col 15) so long technical strings do not expand row height
         $requests[] = new \Google\Service\Sheets\Request([
             'repeatCell' => [
                 'range' => [
                     'sheetId'          => $sheetId,
                     'startRowIndex'    => 1,
                     'endRowIndex'      => 1000,
-                    'startColumnIndex' => 13,
-                    'endColumnIndex'   => 15,
+                    'startColumnIndex' => 14,
+                    'endColumnIndex'   => 16,
                 ],
                 'cell' => [
                     'userEnteredFormat' => [
@@ -1558,7 +1619,7 @@ class GoogleService
             ]
         ]);
 
-        // 4. Header row styling (Navy #1E293B, White bold text, centered, middle-aligned)
+        // 4. Header row styling (Navy #1E293B, White bold text, centered, middle-aligned, 16 columns A–P)
         $requests[] = new \Google\Service\Sheets\Request([
             'repeatCell' => [
                 'range' => [
@@ -1566,7 +1627,7 @@ class GoogleService
                     'startRowIndex'    => 0,
                     'endRowIndex'      => 1,
                     'startColumnIndex' => 0,
-                    'endColumnIndex'   => 15,
+                    'endColumnIndex'   => 16,
                 ],
                 'cell' => [
                     'userEnteredFormat' => [
@@ -1580,8 +1641,8 @@ class GoogleService
             ]
         ]);
 
-        // 5. Center-aligned columns for clean presentation (ID, Dept, Dates, Priority, Status, Timestamps)
-        $centerCols = [0, 1, 6, 7, 8, 9, 10, 11];
+        // 5. Center-aligned columns for clean presentation (ID, Dept, Dates, Priority, Status, Timestamps, EventID, ScheduleBlocks)
+        $centerCols = [0, 1, 6, 7, 8, 9, 10, 11, 14, 15];
         foreach ($centerCols as $cIdx) {
             $requests[] = new \Google\Service\Sheets\Request([
                 'repeatCell' => [
@@ -1618,8 +1679,9 @@ class GoogleService
             10 => 165, // K: Created At (ISO timestamp on single line)
             11 => 165, // L: Completed At
             12 => 130, // M: Created By
-            13 => 180, // N: Notes (clipped)
-            14 => 160, // O: Google Event ID (clipped)
+            13 => 220, // N: Notes (human-readable, wrapped)
+            14 => 150, // O: Google Event ID (clipped)
+            15 => 180, // P: Schedule Blocks (clipped)
         ];
         foreach ($colWidths as $cIndex => $widthPx) {
             $requests[] = new \Google\Service\Sheets\Request([
@@ -1638,7 +1700,7 @@ class GoogleService
             ]);
         }
 
-        // 7. Clean horizontal row dividers
+        // 7. Clean horizontal row dividers (columns A-P)
         $requests[] = new \Google\Service\Sheets\Request([
             'updateBorders' => [
                 'range' => [
@@ -1646,7 +1708,7 @@ class GoogleService
                     'startRowIndex'    => 0,
                     'endRowIndex'      => 1000,
                     'startColumnIndex' => 0,
-                    'endColumnIndex'   => 15,
+                    'endColumnIndex'   => 16,
                 ],
                 'bottom' => [
                     'style' => 'SOLID',
@@ -1755,12 +1817,12 @@ class GoogleService
             if (str_starts_with($title, 'Ops_') && $title !== 'Ops_Sheet1') {
                 $sheetId = $sh->getProperties()->getSheetId();
                 
-                // Write standard header row (A1:O1)
+                // Write standard header row (A1:P1, 16 columns)
                 try {
                     $body = new ValueRange(['values' => $this->opsHeaders()]);
                     $this->sheets->spreadsheets_values->update(
                         $this->opsSpreadsheetId,
-                        "{$title}!A1:O1",
+                        "{$title}!A1:P1",
                         $body,
                         ['valueInputOption' => 'RAW']
                     );
@@ -1773,6 +1835,104 @@ class GoogleService
             }
         }
         return ['formatted' => $count, 'message' => "Berhasil merapikan format tampilan {$count} sheet operasional."];
+    }
+
+    /**
+     * Migrate existing tasks across all Ops_* tabs:
+     * 1. Updates header to A1:P1 with "Schedule Blocks".
+     * 2. Scans Column N (Notes); if it contains [SCHEDULE_RANGES: ...], extracts
+     *    clean note into Column N and moves the JSON string to Column P.
+     */
+    public function migrateOpsNotesToScheduleBlocks(): array
+    {
+        $spreadsheet = $this->sheets->spreadsheets->get($this->opsSpreadsheetId);
+        $migratedRows = 0;
+        $processedSheets = 0;
+
+        foreach ($spreadsheet->getSheets() as $sh) {
+            $title = $sh->getProperties()->getTitle();
+            if (!str_starts_with($title, 'Ops_') || $title === 'Ops_Sheet1') {
+                continue;
+            }
+            $sheetId = $sh->getProperties()->getSheetId();
+            $processedSheets++;
+
+            // 1. Ensure header row A1:P1
+            try {
+                $headerBody = new ValueRange(['values' => $this->opsHeaders()]);
+                $this->sheets->spreadsheets_values->update(
+                    $this->opsSpreadsheetId,
+                    "{$title}!A1:P1",
+                    $headerBody,
+                    ['valueInputOption' => 'RAW']
+                );
+            } catch (\Throwable $e) {
+                Log::warning("Header update failed on {$title}: " . $e->getMessage());
+            }
+
+            // 2. Read existing data rows A2:P
+            try {
+                $response = $this->sheets->spreadsheets_values->get(
+                    $this->opsSpreadsheetId,
+                    "{$title}!A2:P"
+                );
+                $rows = $response->getValues() ?? [];
+            } catch (\Throwable $e) {
+                $rows = [];
+            }
+
+            if (empty($rows)) {
+                $this->setupOpsSheetFormatting($sheetId);
+                continue;
+            }
+
+            $batchUpdates = [];
+            foreach ($rows as $idx => $row) {
+                $row = array_pad($row, 16, '');
+                $rowIndex = $idx + 2;
+                $rawNotes = $row[13] ?? '';
+                $existingBlocks = $row[15] ?? '';
+
+                if (str_contains($rawNotes, '[SCHEDULE_RANGES:')) {
+                    $ext = $this->extractNotesAndRanges($rawNotes, $existingBlocks, $row[6] ?? '', $row[7] ?? '');
+                    $batchUpdates[] = [
+                        'range'  => "{$title}!N{$rowIndex}:P{$rowIndex}",
+                        'values' => [[$ext['notes'], $row[14] ?? '', $ext['scheduleBlocks']]],
+                    ];
+                    $migratedRows++;
+                }
+            }
+
+            if (!empty($batchUpdates)) {
+                $data = [];
+                foreach ($batchUpdates as $u) {
+                    $vr = new ValueRange();
+                    $vr->setRange($u['range']);
+                    $vr->setValues($u['values']);
+                    $data[] = $vr;
+                }
+                $req = new \Google\Service\Sheets\BatchUpdateValuesRequest([
+                    'valueInputOption' => 'RAW',
+                    'data'             => $data,
+                ]);
+                $this->sheets->spreadsheets_values->batchUpdate($this->opsSpreadsheetId, $req);
+            }
+
+            // 3. Re-apply formatting to include Column P
+            $this->setupOpsSheetFormatting($sheetId);
+        }
+
+        $this->clearCache();
+        Cache::forget('ops_all_work_items');
+        foreach ($this->listOpsSheets(false) as $sh) {
+            Cache::forget("ops_rows_{$sh}");
+        }
+
+        return [
+            'sheets'       => $processedSheets,
+            'migratedRows' => $migratedRows,
+            'message'      => "Migrasi selesai: {$migratedRows} baris pada {$processedSheets} sheet diperbarui.",
+        ];
     }
 
     /**

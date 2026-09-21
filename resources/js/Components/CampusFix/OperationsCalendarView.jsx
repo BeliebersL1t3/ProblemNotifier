@@ -60,6 +60,14 @@ export function parseTaskRanges(task) {
     if (Array.isArray(task.ranges) && task.ranges.length > 0) {
         return task.ranges;
     }
+    if (task.scheduleBlocks) {
+        try {
+            const parsed = typeof task.scheduleBlocks === 'string' ? JSON.parse(task.scheduleBlocks) : task.scheduleBlocks;
+            if (Array.isArray(parsed) && parsed.length > 0) {
+                return parsed;
+            }
+        } catch {}
+    }
     if (task.notes && task.notes.includes('[SCHEDULE_RANGES:')) {
         try {
             const match = task.notes.match(/\[SCHEDULE_RANGES:\s*(\[.*?\])\s*\]/);

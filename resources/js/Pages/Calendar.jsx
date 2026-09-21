@@ -657,11 +657,9 @@ function CalendarAddWorkModal({ initialStartDate = '', initialEndDate = '', init
         const overallStart = validBlocks[0].startDate;
         const overallEnd = validBlocks.reduce((max, b) => b.endDate > max ? b.endDate : max, validBlocks[0].endDate);
 
-        // Serialize multi-range schedule metadata into notes if more than 1 block
-        let finalNotes = form.notes || '';
-        if (validBlocks.length > 1) {
-            finalNotes = (finalNotes ? `${finalNotes}\n` : '') + `[SCHEDULE_RANGES: ${JSON.stringify(validBlocks)}]`;
-        }
+        // Clean human notes
+        const cleanNotes = (form.notes || '').trim();
+        const scheduleBlocks = validBlocks.length > 1 ? JSON.stringify(validBlocks) : '';
 
         try {
             const fd = new FormData();
@@ -671,7 +669,10 @@ function CalendarAddWorkModal({ initialStartDate = '', initialEndDate = '', init
             fd.append('location', form.location || '');
             fd.append('startDate', overallStart);
             fd.append('endDate', overallEnd);
-            fd.append('notes', finalNotes);
+            fd.append('notes', cleanNotes);
+            if (scheduleBlocks) {
+                fd.append('scheduleBlocks', scheduleBlocks);
+            }
             if (form.photoFile) {
                 fd.append('photo', form.photoFile);
             }
