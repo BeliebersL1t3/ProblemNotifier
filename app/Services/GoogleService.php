@@ -1518,15 +1518,15 @@ class GoogleService
             ]
         ]);
 
-        // 3. Set text wrap and middle vertical alignment for all data cells (0–1000 rows, 15 columns A–O)
+        // 3. Set text wrap for standard data cells (Cols A-M, 0-13) and CLIP for metadata cells (Cols N-O, 13-15)
         $requests[] = new \Google\Service\Sheets\Request([
             'repeatCell' => [
                 'range' => [
                     'sheetId'          => $sheetId,
-                    'startRowIndex'    => 0,
+                    'startRowIndex'    => 1,
                     'endRowIndex'      => 1000,
                     'startColumnIndex' => 0,
-                    'endColumnIndex'   => 15,
+                    'endColumnIndex'   => 13,
                 ],
                 'cell' => [
                     'userEnteredFormat' => [
@@ -1538,7 +1538,27 @@ class GoogleService
             ]
         ]);
 
-        // 4. Header row styling (Navy/Slate #1E293B, White bold text, centered)
+        // CLIP metadata columns (Notes: Col 13, Google Event ID: Col 14) so long JSON does not expand row height
+        $requests[] = new \Google\Service\Sheets\Request([
+            'repeatCell' => [
+                'range' => [
+                    'sheetId'          => $sheetId,
+                    'startRowIndex'    => 1,
+                    'endRowIndex'      => 1000,
+                    'startColumnIndex' => 13,
+                    'endColumnIndex'   => 15,
+                ],
+                'cell' => [
+                    'userEnteredFormat' => [
+                        'wrapStrategy'      => 'CLIP',
+                        'verticalAlignment' => 'MIDDLE',
+                    ]
+                ],
+                'fields' => 'userEnteredFormat(wrapStrategy,verticalAlignment)',
+            ]
+        ]);
+
+        // 4. Header row styling (Navy #1E293B, White bold text, centered, middle-aligned)
         $requests[] = new \Google\Service\Sheets\Request([
             'repeatCell' => [
                 'range' => [
@@ -1550,7 +1570,7 @@ class GoogleService
                 ],
                 'cell' => [
                     'userEnteredFormat' => [
-                        'backgroundColor'     => ['red' => 0.12, 'green' => 0.16, 'blue' => 0.23],
+                        'backgroundColor'     => ['red' => 0.118, 'green' => 0.161, 'blue' => 0.231],
                         'textFormat'          => ['bold' => true, 'foregroundColor' => ['red' => 1.0, 'green' => 1.0, 'blue' => 1.0]],
                         'horizontalAlignment' => 'CENTER',
                         'verticalAlignment'   => 'MIDDLE',
@@ -1560,7 +1580,7 @@ class GoogleService
             ]
         ]);
 
-        // 5. Center-aligned columns (ID: 0, Dept: 1, StartDate: 6, EndDate: 7, Priority: 8, Status: 9, CreatedAt: 10, CompletedAt: 11)
+        // 5. Center-aligned columns for clean presentation (ID, Dept, Dates, Priority, Status, Timestamps)
         $centerCols = [0, 1, 6, 7, 8, 9, 10, 11];
         foreach ($centerCols as $cIdx) {
             $requests[] = new \Google\Service\Sheets\Request([
@@ -1575,30 +1595,31 @@ class GoogleService
                     'cell' => [
                         'userEnteredFormat' => [
                             'horizontalAlignment' => 'CENTER',
+                            'verticalAlignment'   => 'MIDDLE',
                         ]
                     ],
-                    'fields' => 'userEnteredFormat.horizontalAlignment',
+                    'fields' => 'userEnteredFormat(horizontalAlignment,verticalAlignment)',
                 ]
             ]);
         }
 
-        // 6. Set clean column widths
+        // 6. Set proportional column widths (anti-wrapping for IDs and timestamps)
         $colWidths = [
-            0  => 120, // A: ID
-            1  => 120, // B: Department
-            2  => 240, // C: Title
-            3  => 280, // D: Description
-            4  => 140, // E: Location
-            5  => 130, // F: Photo URL
-            6  => 115, // G: Start Date
-            7  => 115, // H: End Date
-            8  => 105, // I: Priority
-            9  => 145, // J: Status
-            10 => 135, // K: Created At
-            11 => 135, // L: Completed At
-            12 => 125, // M: Created By
-            13 => 240, // N: Notes
-            14 => 125, // O: Google Event ID
+            0  => 150, // A: ID (e.g. ops-6a8e94935dfe2 without line break)
+            1  => 110, // B: Department
+            2  => 230, // C: Title
+            3  => 260, // D: Description
+            4  => 120, // E: Location
+            5  => 110, // F: Photo URL
+            6  => 110, // G: Start Date
+            7  => 110, // H: End Date
+            8  => 100, // I: Priority
+            9  => 110, // J: Status
+            10 => 165, // K: Created At (ISO timestamp on single line)
+            11 => 165, // L: Completed At
+            12 => 130, // M: Created By
+            13 => 180, // N: Notes (clipped)
+            14 => 160, // O: Google Event ID (clipped)
         ];
         foreach ($colWidths as $cIndex => $widthPx) {
             $requests[] = new \Google\Service\Sheets\Request([
@@ -1617,7 +1638,7 @@ class GoogleService
             ]);
         }
 
-        // 7. Light clean horizontal grid borders for rows
+        // 7. Clean horizontal row dividers
         $requests[] = new \Google\Service\Sheets\Request([
             'updateBorders' => [
                 'range' => [
@@ -1629,11 +1650,11 @@ class GoogleService
                 ],
                 'bottom' => [
                     'style' => 'SOLID',
-                    'color' => ['red' => 0.85, 'green' => 0.88, 'blue' => 0.90],
+                    'color' => ['red' => 0.82, 'green' => 0.85, 'blue' => 0.88],
                 ],
                 'innerHorizontal' => [
                     'style' => 'SOLID',
-                    'color' => ['red' => 0.90, 'green' => 0.92, 'blue' => 0.94],
+                    'color' => ['red' => 0.89, 'green' => 0.91, 'blue' => 0.93],
                 ],
             ]
         ]);
@@ -1642,23 +1663,23 @@ class GoogleService
         $statusRules = [
             [
                 'formula' => '=OR($J2="done", $J2="completed", $J2="solved")',
-                'bg'      => ['red' => 0.82, 'green' => 0.98, 'blue' => 0.90],
-                'text'    => ['red' => 0.02, 'green' => 0.37, 'blue' => 0.27],
+                'bg'      => ['red' => 0.863, 'green' => 0.988, 'blue' => 0.906], // Soft Emerald #DCFCE7
+                'text'    => ['red' => 0.082, 'green' => 0.502, 'blue' => 0.239], // Dark Green #15803D
             ],
             [
                 'formula' => '=OR($J2="active", $J2="in_progress")',
-                'bg'      => ['red' => 0.88, 'green' => 0.95, 'blue' => 0.99],
-                'text'    => ['red' => 0.01, 'green' => 0.41, 'blue' => 0.63],
+                'bg'      => ['red' => 0.878, 'green' => 0.949, 'blue' => 0.996], // Soft Sky #E0F2FE
+                'text'    => ['red' => 0.012, 'green' => 0.412, 'blue' => 0.631], // Dark Blue #0369A1
             ],
             [
                 'formula' => '=OR($J2="todo", $J2="pending")',
-                'bg'      => ['red' => 0.99, 'green' => 0.95, 'blue' => 0.78],
-                'text'    => ['red' => 0.57, 'green' => 0.25, 'blue' => 0.05],
+                'bg'      => ['red' => 0.996, 'green' => 0.953, 'blue' => 0.780], // Soft Yellow #FEF3C7
+                'text'    => ['red' => 0.706, 'green' => 0.325, 'blue' => 0.035], // Dark Amber #B45309
             ],
             [
-                'formula' => '=OR($J2="deleted_from_calendar", $J2="deleted")',
-                'bg'      => ['red' => 0.99, 'green' => 0.89, 'blue' => 0.89],
-                'text'    => ['red' => 0.60, 'green' => 0.11, 'blue' => 0.11],
+                'formula' => '=OR($J2="cancelled", $J2="deleted_from_calendar", $J2="deleted")',
+                'bg'      => ['red' => 0.945, 'green' => 0.961, 'blue' => 0.976], // Soft Slate #F1F5F9
+                'text'    => ['red' => 0.392, 'green' => 0.455, 'blue' => 0.545], // Dark Slate #64748B
             ],
         ];
 
@@ -1692,14 +1713,24 @@ class GoogleService
         // 9. Conditional formatting for Priority (Column I, index 8)
         $priorityRules = [
             [
-                'formula' => '=$I2="critical"',
-                'bg'      => ['red' => 0.99, 'green' => 0.88, 'blue' => 0.88],
-                'text'    => ['red' => 0.72, 'green' => 0.07, 'blue' => 0.07],
+                'formula' => '=OR($I2="urgent", $I2="critical")',
+                'bg'      => ['red' => 0.996, 'green' => 0.886, 'blue' => 0.886], // Soft Red #FEE2E2
+                'text'    => ['red' => 0.725, 'green' => 0.110, 'blue' => 0.110], // Dark Red #B91C1C
             ],
             [
                 'formula' => '=$I2="high"',
-                'bg'      => ['red' => 1.0, 'green' => 0.93, 'blue' => 0.83],
-                'text'    => ['red' => 0.60, 'green' => 0.20, 'blue' => 0.07],
+                'bg'      => ['red' => 1.000, 'green' => 0.929, 'blue' => 0.835], // Soft Orange #FFEDD5
+                'text'    => ['red' => 0.761, 'green' => 0.255, 'blue' => 0.047], // Dark Orange #C2410C
+            ],
+            [
+                'formula' => '=$I2="normal"',
+                'bg'      => ['red' => 0.941, 'green' => 0.992, 'blue' => 0.957], // Soft Neutral Green #F0FDF4
+                'text'    => ['red' => 0.086, 'green' => 0.396, 'blue' => 0.204], // Muted Green #166534
+            ],
+            [
+                'formula' => '=$I2="low"',
+                'bg'      => ['red' => 0.945, 'green' => 0.961, 'blue' => 0.976], // Soft Gray #F1F5F9
+                'text'    => ['red' => 0.392, 'green' => 0.455, 'blue' => 0.545], // Muted Gray #64748B
             ],
         ];
 
