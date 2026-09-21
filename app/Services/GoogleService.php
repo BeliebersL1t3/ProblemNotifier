@@ -1659,28 +1659,17 @@ class GoogleService
             ]
         ]);
 
-        // 8. Conditional formatting for Status (Column J, index 9)
+        // 8. Conditional formatting for Status (Column J, index 9) using TEXT_EQ
         $statusRules = [
-            [
-                'formula' => '=OR($J2="done", $J2="completed", $J2="solved")',
-                'bg'      => ['red' => 0.863, 'green' => 0.988, 'blue' => 0.906], // Soft Emerald #DCFCE7
-                'text'    => ['red' => 0.082, 'green' => 0.502, 'blue' => 0.239], // Dark Green #15803D
-            ],
-            [
-                'formula' => '=OR($J2="active", $J2="in_progress")',
-                'bg'      => ['red' => 0.878, 'green' => 0.949, 'blue' => 0.996], // Soft Sky #E0F2FE
-                'text'    => ['red' => 0.012, 'green' => 0.412, 'blue' => 0.631], // Dark Blue #0369A1
-            ],
-            [
-                'formula' => '=OR($J2="todo", $J2="pending")',
-                'bg'      => ['red' => 0.996, 'green' => 0.953, 'blue' => 0.780], // Soft Yellow #FEF3C7
-                'text'    => ['red' => 0.706, 'green' => 0.325, 'blue' => 0.035], // Dark Amber #B45309
-            ],
-            [
-                'formula' => '=OR($J2="cancelled", $J2="deleted_from_calendar", $J2="deleted")',
-                'bg'      => ['red' => 0.945, 'green' => 0.961, 'blue' => 0.976], // Soft Slate #F1F5F9
-                'text'    => ['red' => 0.392, 'green' => 0.455, 'blue' => 0.545], // Dark Slate #64748B
-            ],
+            ['value' => 'done', 'bg' => ['red' => 0.863, 'green' => 0.988, 'blue' => 0.906], 'text' => ['red' => 0.082, 'green' => 0.502, 'blue' => 0.239]],
+            ['value' => 'completed', 'bg' => ['red' => 0.863, 'green' => 0.988, 'blue' => 0.906], 'text' => ['red' => 0.082, 'green' => 0.502, 'blue' => 0.239]],
+            ['value' => 'solved', 'bg' => ['red' => 0.863, 'green' => 0.988, 'blue' => 0.906], 'text' => ['red' => 0.082, 'green' => 0.502, 'blue' => 0.239]],
+            ['value' => 'active', 'bg' => ['red' => 0.878, 'green' => 0.949, 'blue' => 0.996], 'text' => ['red' => 0.012, 'green' => 0.412, 'blue' => 0.631]],
+            ['value' => 'in_progress', 'bg' => ['red' => 0.878, 'green' => 0.949, 'blue' => 0.996], 'text' => ['red' => 0.012, 'green' => 0.412, 'blue' => 0.631]],
+            ['value' => 'todo', 'bg' => ['red' => 0.996, 'green' => 0.953, 'blue' => 0.780], 'text' => ['red' => 0.706, 'green' => 0.325, 'blue' => 0.035]],
+            ['value' => 'pending', 'bg' => ['red' => 0.996, 'green' => 0.953, 'blue' => 0.780], 'text' => ['red' => 0.706, 'green' => 0.325, 'blue' => 0.035]],
+            ['value' => 'cancelled', 'bg' => ['red' => 0.945, 'green' => 0.961, 'blue' => 0.976], 'text' => ['red' => 0.392, 'green' => 0.455, 'blue' => 0.545]],
+            ['value' => 'deleted_from_calendar', 'bg' => ['red' => 0.945, 'green' => 0.961, 'blue' => 0.976], 'text' => ['red' => 0.392, 'green' => 0.455, 'blue' => 0.545]],
         ];
 
         foreach ($statusRules as $idx => $r) {
@@ -1696,8 +1685,8 @@ class GoogleService
                         ]],
                         'booleanRule' => [
                             'condition' => [
-                                'type'   => 'CUSTOM_FORMULA',
-                                'values' => [['userEnteredValue' => $r['formula']]],
+                                'type'   => 'TEXT_EQ',
+                                'values' => [['userEnteredValue' => $r['value']]],
                             ],
                             'format' => [
                                 'backgroundColor' => $r['bg'],
@@ -1710,28 +1699,13 @@ class GoogleService
             ]);
         }
 
-        // 9. Conditional formatting for Priority (Column I, index 8)
+        // 9. Conditional formatting for Priority (Column I, index 8) using TEXT_EQ
         $priorityRules = [
-            [
-                'formula' => '=OR($I2="urgent", $I2="critical")',
-                'bg'      => ['red' => 0.996, 'green' => 0.886, 'blue' => 0.886], // Soft Red #FEE2E2
-                'text'    => ['red' => 0.725, 'green' => 0.110, 'blue' => 0.110], // Dark Red #B91C1C
-            ],
-            [
-                'formula' => '=$I2="high"',
-                'bg'      => ['red' => 1.000, 'green' => 0.929, 'blue' => 0.835], // Soft Orange #FFEDD5
-                'text'    => ['red' => 0.761, 'green' => 0.255, 'blue' => 0.047], // Dark Orange #C2410C
-            ],
-            [
-                'formula' => '=$I2="normal"',
-                'bg'      => ['red' => 0.941, 'green' => 0.992, 'blue' => 0.957], // Soft Neutral Green #F0FDF4
-                'text'    => ['red' => 0.086, 'green' => 0.396, 'blue' => 0.204], // Muted Green #166534
-            ],
-            [
-                'formula' => '=$I2="low"',
-                'bg'      => ['red' => 0.945, 'green' => 0.961, 'blue' => 0.976], // Soft Gray #F1F5F9
-                'text'    => ['red' => 0.392, 'green' => 0.455, 'blue' => 0.545], // Muted Gray #64748B
-            ],
+            ['value' => 'urgent', 'bg' => ['red' => 0.996, 'green' => 0.886, 'blue' => 0.886], 'text' => ['red' => 0.725, 'green' => 0.110, 'blue' => 0.110]],
+            ['value' => 'critical', 'bg' => ['red' => 0.996, 'green' => 0.886, 'blue' => 0.886], 'text' => ['red' => 0.725, 'green' => 0.110, 'blue' => 0.110]],
+            ['value' => 'high', 'bg' => ['red' => 1.000, 'green' => 0.929, 'blue' => 0.835], 'text' => ['red' => 0.761, 'green' => 0.255, 'blue' => 0.047]],
+            ['value' => 'normal', 'bg' => ['red' => 0.941, 'green' => 0.992, 'blue' => 0.957], 'text' => ['red' => 0.086, 'green' => 0.396, 'blue' => 0.204]],
+            ['value' => 'low', 'bg' => ['red' => 0.945, 'green' => 0.961, 'blue' => 0.976], 'text' => ['red' => 0.392, 'green' => 0.455, 'blue' => 0.545]],
         ];
 
         foreach ($priorityRules as $pIdx => $pr) {
@@ -1747,8 +1721,8 @@ class GoogleService
                         ]],
                         'booleanRule' => [
                             'condition' => [
-                                'type'   => 'CUSTOM_FORMULA',
-                                'values' => [['userEnteredValue' => $pr['formula']]],
+                                'type'   => 'TEXT_EQ',
+                                'values' => [['userEnteredValue' => $pr['value']]],
                             ],
                             'format' => [
                                 'backgroundColor' => $pr['bg'],
