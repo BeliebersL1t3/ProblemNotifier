@@ -561,17 +561,9 @@ class MonthlyReportService
         if ($avgMins < 60) {
             return "{$avgMins} Mins";
         }
-        $hours = (int)floor($avgMins / 60);
-        $remMins = $avgMins % 60;
-        if ($hours < 24) {
-            return $remMins > 0 ? "{$hours}h {$remMins}m" : "{$hours} Hours";
-        }
-        $days = (int)floor($hours / 24);
-        $remHours = $hours % 24;
-        if ($remHours > 0) {
-            return "{$days}d {$remHours}h";
-        }
-        return $days === 1 ? "1 Day" : "{$days} Days";
+        $hours = round($avgMins / 60, 1);
+        $formattedHours = ($hours == (int)$hours) ? (int)$hours : $hours;
+        return $formattedHours == 1 ? "1 Hour" : "{$formattedHours} Hours";
     }
 
     /**
