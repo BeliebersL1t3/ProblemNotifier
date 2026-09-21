@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Mail\ExportReportMail;
 use App\Models\User;
+use App\Services\GmailApiService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -12,6 +13,9 @@ use Symfony\Component\Mailer\Exception\TransportExceptionInterface;
 
 class ExportEmailController extends Controller
 {
+    public function __construct(
+        protected GmailApiService $gmailApiService
+    ) {}
     /**
      * Fetch active staff directory with valid email addresses for recipient selection.
      */
@@ -120,6 +124,42 @@ class ExportEmailController extends Controller
         $uploadedFile = $request->file('pdf_file');
         $originalFilename = $uploadedFile->getClientOriginalName() ?: ('Telunas_Report_' . date('Y-m-d') . '.pdf');
 
+        // Check if user has connected their personal Google/Gmail account
+        if ($sender && $sender->hasGoogleMailConnected()) {
+            try {
+                $htmlBody = view('emails.export_report', [
+                    'emailSubject'     => $subject,
+                    'customMessage'    => $customMessage,
+                    'senderName'       => $senderName,
+                    'senderDepartment' => $senderDept,
+                    'reportMeta'       => $reportMeta,
+                    'pdfFilename'      => $originalFilename,
+                ])->render();
+
+                $this->gmailApiService->sendEmail(
+                    user: $sender,
+                    recipients: $validRecipients,
+                    subject: $subject,
+                    htmlBody: $htmlBody,
+                    pdfFile: $uploadedFile,
+                    pdfFilename: $originalFilename
+                );
+
+                $accountEmail = $sender->google_email ?: $sender->email;
+                return response()->json([
+                    'success'          => true,
+                    'message'          => "Laporan PDF berhasil dikirimkan langsung dari akun Gmail Anda ({$accountEmail}) ke " . count($validRecipients) . " penerima.",
+                    'sent_via'         => 'gmail_api',
+                    'sender_email'     => $accountEmail,
+                    'recipients_count' => count($validRecipients),
+                    'recipients'       => $validRecipients,
+                ]);
+            } catch (\Throwable $e) {
+                Log::warning('Gmail API send failed, falling back to system mailer: ' . $e->getMessage());
+                // Fall back to system mailer below if Gmail API encountered an issue
+            }
+        }
+
         try {
             $mailable = new ExportReportMail(
                 emailSubject: $subject,
@@ -137,6 +177,8 @@ class ExportEmailController extends Controller
             return response()->json([
                 'success'          => true,
                 'message'          => 'Laporan PDF berhasil dikirimkan via email ke ' . count($validRecipients) . ' penerima.',
+                'sent_via'         => 'smtp',
+                'sender_email'     => config('mail.from.address'),
                 'recipients_count' => count($validRecipients),
                 'recipients'       => $validRecipients,
             ]);

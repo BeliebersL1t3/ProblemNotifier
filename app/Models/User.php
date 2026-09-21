@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
-#[Hidden(['password', 'raw_password', 'remember_token'])]
+#[Hidden(['password', 'raw_password', 'remember_token', 'google_access_token', 'google_refresh_token'])]
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
@@ -35,6 +35,11 @@ class User extends Authenticatable
         'whatsapp_number',
         'permissions',
         'avatar',
+        'google_id',
+        'google_email',
+        'google_access_token',
+        'google_refresh_token',
+        'google_token_expires_at',
     ];
 
     protected $appends = [
@@ -51,7 +56,16 @@ class User extends Authenticatable
             'is_active'               => 'boolean',
             'notify_whatsapp_tickets' => 'boolean',
             'rejected_at'             => 'datetime',
+            'google_token_expires_at' => 'datetime',
         ];
+    }
+
+    /**
+     * Check if user has connected their Google account for Gmail dispatch.
+     */
+    public function hasGoogleMailConnected(): bool
+    {
+        return !empty($this->google_refresh_token) || !empty($this->google_access_token);
     }
 
     /**

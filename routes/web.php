@@ -3,6 +3,7 @@
 use App\Http\Controllers\ApprovalTicketController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\ExportEmailController;
+use App\Http\Controllers\GoogleAuthController;
 use App\Http\Controllers\IssueController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\OperationsController;
@@ -68,6 +69,12 @@ Route::middleware('auth')->group(function () {
     // PDF Export Email Dispatch
     Route::get('/api/export/recipients', [ExportEmailController::class, 'getRecipients'])->name('export.recipients');
     Route::post('/api/export/email-pdf', [ExportEmailController::class, 'sendPdfReport'])->name('export.emailPdf');
+
+    // Google OAuth (Gmail API) Connection
+    Route::get('/auth/google/redirect', [GoogleAuthController::class, 'redirect'])->name('google.redirect');
+    Route::get('/auth/google/callback', [GoogleAuthController::class, 'callback'])->name('google.callback');
+    Route::post('/auth/google/disconnect', [GoogleAuthController::class, 'disconnect'])->name('google.disconnect');
+    Route::get('/api/google/status', [GoogleAuthController::class, 'status'])->name('google.status');
 });
 
 // CampusFix API Endpoints

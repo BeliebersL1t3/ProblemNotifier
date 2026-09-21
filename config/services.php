@@ -36,11 +36,14 @@ return [
     ],
 
     'google' => [
-        'credentials_path'    => env('GOOGLE_CREDENTIALS_PATH', 'app/google-credentials.json'),
+        'credentials_path'        => env('GOOGLE_CREDENTIALS_PATH', 'app/google-credentials.json'),
         'spreadsheet_id'          => env('GOOGLE_SPREADSHEET_ID'),
         'ops_spreadsheet_id'      => env('GOOGLE_OPS_SPREADSHEET_ID'),
         'tickets_spreadsheet_id'  => env('GOOGLE_TICKETS_SPREADSHEET_ID'),
         'calendar_id'             => env('GOOGLE_CALENDAR_ID'),
+        'client_id'               => env('GOOGLE_CLIENT_ID'),
+        'client_secret'           => env('GOOGLE_CLIENT_SECRET'),
+        'redirect_uri'            => env('GOOGLE_REDIRECT_URI') ?: 'http://localhost:8000/auth/google/callback',
     ],
 
     'bot' => [
