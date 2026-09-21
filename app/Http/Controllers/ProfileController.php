@@ -95,7 +95,9 @@ class ProfileController extends Controller
             $user->save();
 
             try {
-                \Illuminate\Support\Facades\Http::timeout(1)->post('http://localhost:3000/sync-staff');
+                \Illuminate\Support\Facades\Http::withHeaders([
+                    'X-Bot-Key' => config('services.bot.api_key'),
+                ])->timeout(1)->post('http://localhost:3000/sync-staff');
             } catch (\Exception $e) {}
 
             return Redirect::route('profile.edit')->with('status', 'whatsapp-updated');
@@ -187,19 +189,34 @@ class ProfileController extends Controller
             $cleanPhone = '62' . substr($cleanPhone, 1);
         }
 
-        $user = null;
-        if (!empty($userId)) {
-            $user = \App\Models\User::find($userId);
+        if (empty($cleanPhone)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Nomor WhatsApp pengirim wajib disertakan untuk verifikasi identitas.',
+            ], 422);
         }
-        if (!$user && !empty($cleanPhone)) {
-            $user = \App\Models\User::where('whatsapp_number', $cleanPhone)->first();
-        }
+
+        // Look up user strictly by registered WhatsApp number
+        $user = \App\Models\User::where('whatsapp_number', $cleanPhone)
+            ->where('is_active', true)
+            ->first();
 
         if (!$user) {
-            return response()->json(['success' => false, 'message' => 'Akun tidak ditemukan atau nomor WhatsApp belum ditautkan.'], 404);
+            return response()->json([
+                'success' => false,
+                'message' => 'Akun tidak ditemukan atau nomor WhatsApp ini belum ditautkan ke akun aktif manapun.',
+            ], 404);
         }
 
-        // Return current actual password without modifying/resetting it
+        // If user_id is provided, strictly ensure it matches the owner of this WhatsApp number (anti-tamper / IDOR prevention)
+        if (!empty($userId) && (int)$user->id !== (int)$userId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validasi gagal: ID akun tidak sesuai dengan nomor WhatsApp yang terdaftar.',
+            ], 403);
+        }
+
+        // Return current actual password for verified account
         $currentPassword = $user->raw_password ?: 'telunas123';
 
         return response()->json([

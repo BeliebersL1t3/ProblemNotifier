@@ -37,7 +37,10 @@ if (!botApiKey && fs.existsSync('../.env')) {
         if (match) botApiKey = match[1].trim();
     } catch (e) {}
 }
-const BOT_API_KEY = botApiKey || 'telunas_bot_secure_token_change_in_production';
+const BOT_API_KEY = botApiKey || '';
+if (!BOT_API_KEY) {
+    console.warn('[Security Warning] BOT_API_KEY is not set in .env! Bot communication with Laravel will fail.');
+}
 axios.defaults.headers.common['X-Bot-Key'] = BOT_API_KEY;
 // ───────────────────────────────────────────────────────────────────────────────
 
@@ -2730,6 +2733,16 @@ Example: *2* or your full name.`;
 }
 
 // --- EXPRESS SERVER FOR NOTIFICATIONS & REAL-TIME SYNC ---
+const authenticateInbound = (req, res, next) => {
+    const inboundKey = req.headers['x-bot-key'] || req.query.key;
+    if (BOT_API_KEY && inboundKey === BOT_API_KEY) {
+        return next();
+    }
+    return res.status(401).json({ success: false, error: 'Unauthorized: Missing or invalid bot security key.' });
+};
+
+app.use(['/sync-staff', '/api/sync-staff', '/notify-direct', '/api/notify-direct', '/notify', '/api/notify'], authenticateInbound);
+
 app.post(['/sync-staff', '/api/sync-staff'], async (req, res) => {
     const result = await syncStaffDirectory();
     res.json(result);
@@ -3075,8 +3088,8 @@ setInterval(async () => {
 }, 15000); // Check every 15 seconds
 
 const PORT = process.env.BOT_PORT || process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`Notification API listening on port ${PORT}`);
+app.listen(PORT, '127.0.0.1', () => {
+    console.log(`Notification API listening on 127.0.0.1:${PORT}`);
 });
 
 startSock();

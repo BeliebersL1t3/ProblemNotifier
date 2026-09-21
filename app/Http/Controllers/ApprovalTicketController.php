@@ -144,7 +144,9 @@ class ApprovalTicketController extends Controller
             }
             $user->save();
             try {
-                Http::timeout(1)->post('http://localhost:3000/sync-staff');
+                Http::withHeaders([
+                    'X-Bot-Key' => config('services.bot.api_key'),
+                ])->timeout(1)->post('http://localhost:3000/sync-staff');
             } catch (\Throwable $e) {}
             return back()->with('status', 'whatsapp-updated');
         }
@@ -448,7 +450,9 @@ class ApprovalTicketController extends Controller
 
             // Sync WhatsApp bot memory in real-time
             try {
-                Http::timeout(1)->post('http://localhost:3000/sync-staff');
+                Http::withHeaders([
+                    'X-Bot-Key' => config('services.bot.api_key'),
+                ])->timeout(1)->post('http://localhost:3000/sync-staff');
             } catch (\Throwable $e) {}
 
             // Notify user

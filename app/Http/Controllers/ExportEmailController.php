@@ -21,6 +21,14 @@ class ExportEmailController extends Controller
      */
     public function getRecipients(): JsonResponse
     {
+        $user = auth()->user();
+        if ($user && !$user->isAdmin() && !$user->hasPermission('can_export_reports')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized. Anda tidak memiliki izin untuk melihat daftar penerima laporan.',
+            ], 403);
+        }
+
         $users = User::query()
             ->where('is_active', true)
             ->whereNotNull('email')
@@ -114,6 +122,13 @@ class ExportEmailController extends Controller
         }
 
         $sender = auth()->user();
+        if ($sender && !$sender->isAdmin() && !$sender->hasPermission('can_export_reports')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized. Anda tidak memiliki izin untuk mengekspor atau mengirim laporan email.',
+            ], 403);
+        }
+
         $senderName = $sender ? $sender->name : 'Telunas Staff';
         $senderDept = $sender ? ($sender->department ?: 'General') : 'Telunas Resorts';
         $senderEmail = $sender ? $sender->email : null;

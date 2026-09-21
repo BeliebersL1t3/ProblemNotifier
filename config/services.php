@@ -47,7 +47,6 @@ return [
     ],
 
     'bot' => [
-        'api_key' => env('BOT_API_KEY', 'telunas_bot_secure_token_change_in_production'),
+        'api_key' => env('BOT_API_KEY'),
     ],
-
 ];

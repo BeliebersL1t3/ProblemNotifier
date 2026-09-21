@@ -21,7 +21,9 @@ class TicketNotificationService
         }
 
         try {
-            $response = Http::connectTimeout(2)->timeout(3)->post('http://localhost:3000/notify-direct', [
+            $response = Http::withHeaders([
+                'X-Bot-Key' => config('services.bot.api_key'),
+            ])->connectTimeout(2)->timeout(3)->post('http://localhost:3000/notify-direct', [
                 'phone' => $cleanPhone,
                 'message' => $message,
             ]);

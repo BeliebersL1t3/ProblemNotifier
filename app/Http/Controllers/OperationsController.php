@@ -23,6 +23,16 @@ class OperationsController extends Controller
     /** GET /api/operations?dept=Engineer&sheets=2026,2027 or dept=all */
     public function index(Request $request)
     {
+        if (auth()->check()) {
+            $user = auth()->user();
+            if (!$user->isAdmin() && !$user->hasPermission('can_access_calendar')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unauthorized. Akses ke kalender operasional dibatasi.',
+                ], 403);
+            }
+        }
+
         $dept = trim($request->query('dept', 'all'));
         $isAll = empty($dept) || strtolower($dept) === 'all';
 
@@ -237,6 +247,16 @@ class OperationsController extends Controller
     /** POST /api/operations */
     public function store(Request $request)
     {
+        if (auth()->check()) {
+            $user = auth()->user();
+            if (!$user->isAdmin() && (!$user->hasPermission('can_access_calendar') || !$user->hasPermission('can_manage_issues'))) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unauthorized. Anda tidak memiliki izin untuk membuat jadwal operasional.',
+                ], 403);
+            }
+        }
+
         $data = $request->validate([
             'dept'        => 'required|string|max:100',
             'title'       => 'required|string|max:200',
@@ -284,6 +304,16 @@ class OperationsController extends Controller
     /** PATCH or POST /api/operations/{rowIndex} */
     public function update(Request $request, int $rowIndex)
     {
+        if (auth()->check()) {
+            $user = auth()->user();
+            if (!$user->isAdmin() && (!$user->hasPermission('can_access_calendar') || !$user->hasPermission('can_manage_issues'))) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unauthorized. Anda tidak memiliki izin untuk mengubah jadwal operasional.',
+                ], 403);
+            }
+        }
+
         $dept   = $request->input('dept');
         $fields = $request->only([
             'title', 'description', 'location', 'photoUrl',
@@ -322,6 +352,16 @@ class OperationsController extends Controller
     /** DELETE /api/operations/{rowIndex} */
     public function destroy(Request $request, int $rowIndex)
     {
+        if (auth()->check()) {
+            $user = auth()->user();
+            if (!$user->isAdmin() && (!$user->hasPermission('can_access_calendar') || !$user->hasPermission('can_manage_issues'))) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unauthorized. Anda tidak memiliki izin untuk menghapus jadwal operasional.',
+                ], 403);
+            }
+        }
+
         $dept = $request->input('dept');
         if (!$dept) {
             return response()->json(['success' => false, 'message' => 'dept is required'], 422);
@@ -541,7 +581,9 @@ class OperationsController extends Controller
 
             // 1. Send to WhatsApp group for this department
             try {
-                Http::connectTimeout(2)->timeout(3)->post('http://localhost:3000/notify', [
+                Http::withHeaders([
+                    'X-Bot-Key' => config('services.bot.api_key'),
+                ])->connectTimeout(2)->timeout(3)->post('http://localhost:3000/notify', [
                     'message'             => $waMsg,
                     'department'          => $dept,
                     'assignedDepartments' => [$dept],
@@ -564,7 +606,9 @@ class OperationsController extends Controller
                 foreach ($hods as $hod) {
                     $cleanPhone = preg_replace('/[^0-9]/', '', $hod->whatsapp_number);
                     if (!empty($cleanPhone)) {
-                        Http::connectTimeout(2)->timeout(3)->post('http://localhost:3000/notify-direct', [
+                        Http::withHeaders([
+                            'X-Bot-Key' => config('services.bot.api_key'),
+                        ])->connectTimeout(2)->timeout(3)->post('http://localhost:3000/notify-direct', [
                             'phone'   => $cleanPhone,
                             'message' => $waMsg,
                         ]);

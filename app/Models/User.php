@@ -156,7 +156,7 @@ class User extends Authenticatable
             return true;
         }
 
-        $perms = $this->permissions ?? [];
+        $perms = $this->permissions ?? \App\Http\Controllers\UserController::getDefaultPermissions($this->role ?? 'department');
         return !empty($perms[$permission]);
     }
 

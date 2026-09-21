@@ -21,7 +21,9 @@ class IssueController extends Controller
     private function notifyWhatsApp(array $payload): void
     {
         try {
-            Http::connectTimeout(1)->timeout(1)->post('http://localhost:3000/notify', $payload);
+            Http::withHeaders([
+                'X-Bot-Key' => config('services.bot.api_key'),
+            ])->connectTimeout(1)->timeout(1)->post('http://localhost:3000/notify', $payload);
         } catch (\Throwable $e) {
             // Non-blocking: ignore if bot is offline
         }
@@ -813,6 +815,17 @@ class IssueController extends Controller
 
     public function store(Request $request)
     {
+        // Enforce authorization for authenticated web users (BOLA protection)
+        if (auth()->check()) {
+            $user = auth()->user();
+            if (!$user->isAdmin() && !$user->hasPermission('can_manage_issues')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unauthorized. Anda tidak memiliki izin untuk membuat isu.',
+                ], 403);
+            }
+        }
+
         try {
             $request->validate([
                 'title'       => 'required|string|max:255',
