@@ -4,7 +4,8 @@ import { useMemo, useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { 
     Loader2, Wrench, Sparkles, Laptop, Anchor, ShieldAlert, Utensils, Building, Hammer, Zap,
     Droplets, Building2, Bug, Tag, User, HelpCircle, Download, AlertTriangle, Layers, Database, Clock, CheckSquare, Check, Eye, ChevronRight,
-    ClipboardList, PauseCircle, CheckCircle2, Filter, SlidersHorizontal, ChevronDown, ChevronUp, Archive
+    ClipboardList, PauseCircle, CheckCircle2, Filter, SlidersHorizontal, ChevronDown, ChevronUp, Archive,
+    Calendar
 } from 'lucide-react';
 import anime from 'animejs';
 import {
@@ -21,6 +22,7 @@ import { MobileBottomNav } from '@/Components/CampusFix/MobileBottomNav';
 import { ScrollToTop } from '@/Components/CampusFix/ScrollToTop';
 
 const ExportPdfModal = lazy(() => import('@/Components/CampusFix/ExportPdfModal').then(m => ({ default: m.ExportPdfModal })));
+import { MonthlyReportScheduleModal } from '@/Components/CampusFix/MonthlyReportScheduleModal';
 import { ActivityDetailModal } from '@/Components/CampusFix/ActivityDetailModal';
 import { TakeJobModal } from '@/Components/CampusFix/TakeJobModal';
 import { ResolveIssueSheet } from '@/Components/CampusFix/ResolveIssueSheet';
@@ -251,7 +253,7 @@ const CustomDepartmentBar = (props) => {
 
 function AnalyticsInner() {
     const { issues, archivedIssues, fetchArchivedIssues, restoreIssue, loading: contextLoading, error, fetchIssues, availableSheets, currentSheet } = useIssues();
-    const { isAdmin, isDeptUser, department, canAccessAnalytics, canExportReports, canViewAllDepartments } = useAuth();
+    const { isAdmin, isHOD, isDeptUser, department, canAccessAnalytics, canExportReports, canViewAllDepartments } = useAuth();
     const [selectedSheets, setSelectedSheets] = useState(() => {
         return currentSheet ? [currentSheet] : (availableSheets && availableSheets.length > 0 ? [availableSheets[0]] : ['2026']);
     });
@@ -442,6 +444,7 @@ function AnalyticsInner() {
     const [timelineLimit, setTimelineLimit] = useState(20);
     const [searchQuery, setSearchQuery] = useState('');
     const [exportOpen, setExportOpen] = useState(false);
+    const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
     const [selectedActivityIssue, setSelectedActivityIssue] = useState(null);
     const [cardModalTarget, setCardModalTarget] = useState(null);
 
@@ -1455,6 +1458,20 @@ function AnalyticsInner() {
                                 <Download className="h-4 w-4 opacity-40" />
                                 <span>{t('export_pdf')} ({lang === 'id' ? 'Dibatasi' : 'Restricted'})</span>
                             </div>
+                        )}
+
+                        {(isAdmin || isHOD) && (
+                            <Tooltip content={lang === 'id' ? 'Atur jadwal pengiriman rekap PDF bulanan otomatis' : 'Configure automated monthly PDF report'} position="top">
+                                <button
+                                    type="button"
+                                    onClick={() => setScheduleModalOpen(true)}
+                                    className="px-3.5 py-2 rounded-xl text-xs font-bold transition-all duration-200 flex items-center gap-2 bg-[#242217] text-[#C9AA71] hover:bg-[#C9AA71]/20 border border-[#C9AA71]/60 shadow-sm hover:shadow-md active:scale-95 cursor-pointer font-extrabold"
+                                    title={lang === 'id' ? 'Jadwal Laporan Bulanan (Admin & HOD)' : 'Automated Monthly Report Settings'}
+                                >
+                                    <Calendar className="h-4 w-4 text-[#C9AA71]" />
+                                    <span>{lang === 'id' ? 'Jadwal Bulanan' : 'Monthly Schedule'}</span>
+                                </button>
+                            </Tooltip>
                         )}
                     </div>
                 </div>
@@ -2834,6 +2851,9 @@ function AnalyticsInner() {
                 <Suspense fallback={null}>
                     <ExportPdfModal open={exportOpen} onOpenChange={setExportOpen} />
                 </Suspense>
+            )}
+            {scheduleModalOpen && (
+                <MonthlyReportScheduleModal open={scheduleModalOpen} onOpenChange={setScheduleModalOpen} />
             )}
             <ActivityDetailModal 
                 issue={selectedActivityIssue} 

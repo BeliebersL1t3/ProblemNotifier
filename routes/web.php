@@ -8,6 +8,7 @@ use App\Http\Controllers\IssueController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\OperationsController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\ReportScheduleController;
 use App\Http\Controllers\UserController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
@@ -69,6 +70,11 @@ Route::middleware('auth')->group(function () {
     // PDF Export Email Dispatch
     Route::get('/api/export/recipients', [ExportEmailController::class, 'getRecipients'])->name('export.recipients');
     Route::post('/api/export/email-pdf', [ExportEmailController::class, 'sendPdfReport'])->name('export.emailPdf');
+
+    // Automated Monthly Report Scheduling (Admin & HOD)
+    Route::get('/api/report-schedule', [ReportScheduleController::class, 'getSettings'])->name('report.schedule.get');
+    Route::post('/api/report-schedule', [ReportScheduleController::class, 'updateSettings'])->name('report.schedule.update');
+    Route::post('/api/report-schedule/test', [ReportScheduleController::class, 'testDispatch'])->name('report.schedule.test');
 
     // Google OAuth (Gmail API) Connection
     Route::get('/auth/google/redirect', [GoogleAuthController::class, 'redirect'])->name('google.redirect');

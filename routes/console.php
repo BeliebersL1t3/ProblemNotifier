@@ -13,4 +13,10 @@ Schedule::command('calendar:sync-gcal')
     ->withoutOverlapping()
     ->runInBackground();
 
+Schedule::command('report:send-monthly')
+    ->dailyAt('08:00')
+    ->withoutOverlapping()
+    ->runInBackground();
+
+
 

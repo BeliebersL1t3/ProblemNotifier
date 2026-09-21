@@ -87,6 +87,16 @@
                                 {{ $emailSubject }}
                             </h2>
 
+                            @if(!empty($isNoReply))
+                            <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom: 20px;">
+                                <tr>
+                                    <td style="background-color: #FEF3C7; border: 1px solid #FDE68A; border-left: 3px solid #D97706; border-radius: 6px; padding: 10px 14px; font-size: 12px; color: #92400E; line-height: 1.45;">
+                                        <strong>Automated Monthly Dispatch (No-Reply):</strong> This periodic operations report was compiled automatically by the Telunas CampusFix system. Replies to this email address are not monitored.
+                                    </td>
+                                </tr>
+                            </table>
+                            @endif
+
                             <!-- Custom Sender's Memo (if provided) -->
                             @if(!empty($customMessage))
                             <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom: 24px;">

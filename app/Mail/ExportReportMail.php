@@ -20,6 +20,7 @@ class ExportReportMail extends Mailable
     public string $senderDepartment;
     public ?string $senderEmail;
     public array $reportMeta;
+    public bool $isNoReply;
     protected $pdfFile;
     protected string $pdfFilename;
 
@@ -34,7 +35,8 @@ class ExportReportMail extends Mailable
         array $reportMeta,
         $pdfFile,
         string $pdfFilename = 'Telunas_Report.pdf',
-        ?string $senderEmail = null
+        ?string $senderEmail = null,
+        bool $isNoReply = false
     ) {
         $this->emailSubject = $emailSubject;
         $this->customMessage = $customMessage;
@@ -44,6 +46,7 @@ class ExportReportMail extends Mailable
         $this->reportMeta = $reportMeta;
         $this->pdfFile = $pdfFile;
         $this->pdfFilename = $pdfFilename;
+        $this->isNoReply = $isNoReply;
     }
 
     /**
@@ -52,11 +55,16 @@ class ExportReportMail extends Mailable
     public function envelope(): Envelope
     {
         $systemFromAddress = config('mail.from.address', 'no-reply@telunasresorts.com');
-        $fromDisplayName = "{$this->senderName} ({$this->senderDepartment}) via Telunas Tracker";
 
-        $replyToList = [];
-        if (!empty($this->senderEmail) && filter_var($this->senderEmail, FILTER_VALIDATE_EMAIL)) {
-            $replyToList[] = new Address($this->senderEmail, "{$this->senderName} ({$this->senderDepartment})");
+        if ($this->isNoReply) {
+            $fromDisplayName = "Telunas CampusFix (No-Reply)";
+            $replyToList = [new Address('no-reply@telunasresorts.com', 'Telunas No-Reply')];
+        } else {
+            $fromDisplayName = "{$this->senderName} ({$this->senderDepartment}) via Telunas Tracker";
+            $replyToList = [];
+            if (!empty($this->senderEmail) && filter_var($this->senderEmail, FILTER_VALIDATE_EMAIL)) {
+                $replyToList[] = new Address($this->senderEmail, "{$this->senderName} ({$this->senderDepartment})");
+            }
         }
 
         return new Envelope(
@@ -80,6 +88,7 @@ class ExportReportMail extends Mailable
                 'senderDepartment' => $this->senderDepartment,
                 'reportMeta'       => $this->reportMeta,
                 'pdfFilename'      => $this->pdfFilename,
+                'isNoReply'        => $this->isNoReply,
             ],
         );
     }
