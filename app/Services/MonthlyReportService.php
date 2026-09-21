@@ -25,12 +25,6 @@ class MonthlyReportService
      */
     public function runMonthlyDispatch(bool $force = false, ?User $testUser = null): array
     {
-        $schedule = ReportSchedule::getOrCreateConfig();
-
-        if (!$force && !$testUser && !$schedule->is_enabled) {
-            return ['status' => 'skipped', 'message' => 'Automated monthly reports are currently disabled.'];
-        }
-
         // Determine target period (defaults to previous month)
         $targetMonth = Carbon::now()->subMonth();
         $periodLabel = $targetMonth->translatedFormat('F Y');
@@ -59,7 +53,11 @@ class MonthlyReportService
 
         // Case A: Test Dispatch for a specific user
         if ($testUser) {
-            $scope = ($testUser->role === 'admin') ? 'all' : ($testUser->department ?: 'all');
+            $schedule = ReportSchedule::getOrCreateForUser($testUser);
+            $scope = ($testUser->role === 'admin')
+                ? ($schedule->departments ?: ['ALL'])
+                : ($testUser->department ?: 'all');
+
             $success = $this->sendReportToRecipient(
                 recipientEmail: $testUser->email,
                 recipientName: $testUser->name,
@@ -72,7 +70,7 @@ class MonthlyReportService
 
             if ($success) {
                 $results['dispatched_count']++;
-                $results['recipients'][] = "{$testUser->email} ({$scope})";
+                $results['recipients'][] = "{$testUser->email}";
             } else {
                 $results['errors'][] = "Failed to dispatch test report to {$testUser->email}.";
             }
@@ -80,103 +78,51 @@ class MonthlyReportService
             return $results;
         }
 
-        // Case B: Scheduled automated dispatch
-        $processedEmails = [];
+        // Case B: Scheduled automated dispatch (runs for all active users who enabled their personal report)
+        $activeSchedules = ReportSchedule::with('user')
+            ->where('is_enabled', true)
+            ->get();
 
-        // 1. Dispatch to Admins (All Scope)
-        if ($schedule->send_to_admins) {
-            $admins = User::where('role', 'admin')
-                ->where('is_active', true)
-                ->whereNotNull('email')
-                ->get();
+        foreach ($activeSchedules as $schedule) {
+            $user = $schedule->user;
+            if (!$user || !$user->is_active || empty($user->email)) {
+                continue;
+            }
 
-            foreach ($admins as $admin) {
-                if (in_array(strtolower($admin->email), $processedEmails)) continue;
+            $isAdmin = ($user->role === 'admin');
+            $isHOD = (bool)$user->is_hod;
 
-                $success = $this->sendReportToRecipient(
-                    recipientEmail: $admin->email,
-                    recipientName: $admin->name,
-                    scope: 'all',
-                    allIssues: $issues,
-                    periodLabel: $periodLabel,
-                    periodSlug: $periodSlug,
-                    includeDelayTimeline: $schedule->include_delay_timeline
-                );
+            if (!$isAdmin && !$isHOD) {
+                continue;
+            }
 
-                if ($success) {
-                    $results['dispatched_count']++;
-                    $results['recipients'][] = "{$admin->email} (Admin - All Scope)";
-                    $processedEmails[] = strtolower($admin->email);
-                } else {
-                    $results['errors'][] = "Failed to send to admin: {$admin->email}";
-                }
+            $scope = $isAdmin
+                ? ($schedule->departments ?: ['ALL'])
+                : ($user->department ?: 'all');
+
+            $success = $this->sendReportToRecipient(
+                recipientEmail: $user->email,
+                recipientName: $user->name,
+                scope: $scope,
+                allIssues: $issues,
+                periodLabel: $periodLabel,
+                periodSlug: $periodSlug,
+                includeDelayTimeline: $schedule->include_delay_timeline
+            );
+
+            $schedule->update([
+                'last_dispatched_at'     => now(),
+                'last_dispatch_status'   => $success ? 'success' : 'failed',
+                'last_dispatch_summary'  => $success ? "Dispatched successfully for period {$periodLabel}." : "Failed to dispatch email.",
+            ]);
+
+            if ($success) {
+                $results['dispatched_count']++;
+                $results['recipients'][] = "{$user->email} (" . ($isAdmin ? 'Admin' : 'HOD') . ")";
+            } else {
+                $results['errors'][] = "Failed to send to {$user->email}";
             }
         }
-
-        // 2. Dispatch to HODs (Department-Scoped)
-        if ($schedule->send_to_all_hods) {
-            $hods = User::where('is_hod', true)
-                ->where('is_active', true)
-                ->whereNotNull('email')
-                ->get();
-
-            foreach ($hods as $hod) {
-                if (in_array(strtolower($hod->email), $processedEmails)) continue;
-
-                $deptScope = $hod->department ?: 'all';
-                $success = $this->sendReportToRecipient(
-                    recipientEmail: $hod->email,
-                    recipientName: $hod->name,
-                    scope: $deptScope,
-                    allIssues: $issues,
-                    periodLabel: $periodLabel,
-                    periodSlug: $periodSlug,
-                    includeDelayTimeline: $schedule->include_delay_timeline
-                );
-
-                if ($success) {
-                    $results['dispatched_count']++;
-                    $results['recipients'][] = "{$hod->email} (HOD - {$deptScope})";
-                    $processedEmails[] = strtolower($hod->email);
-                } else {
-                    $results['errors'][] = "Failed to send to HOD: {$hod->email}";
-                }
-            }
-        }
-
-        // 3. Additional custom recipients (All Scope)
-        if (!empty($schedule->additional_recipients) && is_array($schedule->additional_recipients)) {
-            foreach ($schedule->additional_recipients as $customEmail) {
-                $customEmail = trim($customEmail);
-                if (!filter_var($customEmail, FILTER_VALIDATE_EMAIL)) continue;
-                if (in_array(strtolower($customEmail), $processedEmails)) continue;
-
-                $success = $this->sendReportToRecipient(
-                    recipientEmail: $customEmail,
-                    recipientName: 'Management Recipient',
-                    scope: 'all',
-                    allIssues: $issues,
-                    periodLabel: $periodLabel,
-                    periodSlug: $periodSlug,
-                    includeDelayTimeline: $schedule->include_delay_timeline
-                );
-
-                if ($success) {
-                    $results['dispatched_count']++;
-                    $results['recipients'][] = "{$customEmail} (Custom - All Scope)";
-                    $processedEmails[] = strtolower($customEmail);
-                } else {
-                    $results['errors'][] = "Failed to send to: {$customEmail}";
-                }
-            }
-        }
-
-        // Update schedule execution status
-        $schedule->update([
-            'last_dispatched_at'     => now(),
-            'last_dispatch_status'   => empty($results['errors']) ? 'success' : ($results['dispatched_count'] > 0 ? 'partial' : 'failed'),
-            'last_dispatch_summary'  => "Dispatched to {$results['dispatched_count']} recipients for period {$periodLabel}.",
-        ]);
 
         return $results;
     }
@@ -187,7 +133,7 @@ class MonthlyReportService
     protected function sendReportToRecipient(
         string $recipientEmail,
         string $recipientName,
-        string $scope,
+        string|array $scope,
         array $allIssues,
         string $periodLabel,
         string $periodSlug,
@@ -197,8 +143,14 @@ class MonthlyReportService
             // Filter issues based on scope
             $filteredIssues = $this->filterIssuesByScope($allIssues, $scope);
 
-            $scopeLabel = ($scope === 'all' || empty($scope)) ? 'All Departments' : ucwords(str_replace('_', ' ', $scope));
-            $scopeSlug = strtolower(str_replace(' ', '_', $scopeLabel));
+            if (is_array($scope)) {
+                $hasAll = empty($scope) || in_array('all', array_map('strtolower', $scope));
+                $scopeLabel = $hasAll ? 'All Departments' : implode(', ', array_map('trim', $scope));
+                $scopeSlug = $hasAll ? 'all' : strtolower(preg_replace('/[^a-zA-Z0-9_]/', '_', implode('_', $scope)));
+            } else {
+                $scopeLabel = ($scope === 'all' || empty($scope)) ? 'All Departments' : ucwords(str_replace(['_', '-'], ' ', $scope));
+                $scopeSlug = strtolower(str_replace(' ', '_', $scopeLabel));
+            }
 
             // Calculate metrics
             $totalCount = count($filteredIssues);
@@ -236,7 +188,7 @@ class MonthlyReportService
 
             $mailable = new ExportReportMail(
                 emailSubject: $subject,
-                customMessage: "Please find attached the official monthly campus operations and facility resolution report for {$periodLabel} ({$scopeLabel}). This document has been compiled automatically for executive review.",
+                customMessage: "Please find attached your personal monthly campus operations and facility resolution report for {$periodLabel} ({$scopeLabel}). This document has been compiled automatically based on your subscription settings.",
                 senderName: 'Telunas CampusFix',
                 senderDepartment: 'Automated Dispatch',
                 reportMeta: [
@@ -265,24 +217,36 @@ class MonthlyReportService
 
     /**
      * Filter issues for a specific department scope.
+     * Supports either a single department string or an array of selected departments.
      */
-    protected function filterIssuesByScope(array $issues, string $scope): array
+    protected function filterIssuesByScope(array $issues, string|array $scope): array
     {
-        if ($scope === 'all' || empty($scope)) {
-            return $issues;
+        if (is_array($scope)) {
+            $lowerScopes = array_map('strtolower', $scope);
+            if (empty($scope) || in_array('all', $lowerScopes)) {
+                return $issues;
+            }
+            $normalizedScopes = array_map([IssueSheetRepository::class, 'normalizeDeptKey'], $scope);
+        } else {
+            if ($scope === 'all' || empty($scope)) {
+                return $issues;
+            }
+            $normalizedScopes = [IssueSheetRepository::normalizeDeptKey($scope)];
         }
 
-        $normalizedScope = IssueSheetRepository::normalizeDeptKey($scope);
-
-        return array_values(array_filter($issues, function ($issue) use ($normalizedScope) {
+        return array_values(array_filter($issues, function ($issue) use ($normalizedScopes) {
             $originDept = IssueSheetRepository::normalizeDeptKey($issue['department'] ?? '');
-            if ($originDept === $normalizedScope) return true;
+            if (in_array($originDept, $normalizedScopes)) return true;
 
             $assignedDepts = array_map([IssueSheetRepository::class, 'normalizeDeptKey'], (array)($issue['assignedDepartments'] ?? []));
-            if (in_array($normalizedScope, $assignedDepts)) return true;
+            foreach ($assignedDepts as $ad) {
+                if (in_array($ad, $normalizedScopes)) return true;
+            }
 
             $taggedDepts = array_map([IssueSheetRepository::class, 'normalizeDeptKey'], (array)($issue['taggedDepartments'] ?? []));
-            if (in_array($normalizedScope, $taggedDepts)) return true;
+            foreach ($taggedDepts as $td) {
+                if (in_array($td, $normalizedScopes)) return true;
+            }
 
             return false;
         }));

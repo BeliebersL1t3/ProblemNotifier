@@ -10,32 +10,30 @@ import {
 } from '@/Components/UI/Dialog';
 import { Button } from '@/Components/UI/Button';
 import { 
-    Calendar, Clock, Users, ShieldCheck, Mail, Send, Loader2, CheckCircle2, 
-    AlertCircle, Plus, X, Sparkles, Sliders, FileText, BellRing
+    Calendar, Clock, ShieldCheck, Mail, Send, Loader2, CheckCircle2, 
+    AlertCircle, X, Sliders, BellRing, Building2, Check, User
 } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
 
 export function MonthlyReportScheduleModal({ open, onOpenChange }) {
-    const { t, lang } = useLanguage();
+    const { t } = useLanguage();
 
     const [isLoading, setIsLoading] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [isTesting, setIsTesting] = useState(false);
     const [toastMessage, setToastMessage] = useState(null);
 
-    // Form state
-    const [isEnabled, setIsEnabled] = useState(false);
-    const [dayOfMonth, setDayOfMonth] = useState(1);
-    const [dispatchTime, setDispatchTime] = useState('08:00');
-    const [sendToAllHods, setSendToAllHods] = useState(true);
-    const [sendToAdmins, setSendToAdmins] = useState(true);
-    const [includeDelayTimeline, setIncludeDelayTimeline] = useState(true);
-    const [additionalRecipients, setAdditionalRecipients] = useState([]);
-    const [emailInput, setEmailInput] = useState('');
-    const [lastDispatchedAt, setLastDispatchedAt] = useState(null);
-    const [lastDispatchSummary, setLastDispatchSummary] = useState(null);
+    // Current user context
+    const [currentUser, setCurrentUser] = useState(null);
+    const [availableDepartments, setAvailableDepartments] = useState([]);
 
-    // Fetch existing settings on open
+    // Personal Form State
+    const [isEnabled, setIsEnabled] = useState(false);
+    const [includeDelayTimeline, setIncludeDelayTimeline] = useState(true);
+    const [selectedDepartments, setSelectedDepartments] = useState(['ALL']);
+    const [lastDispatchedAt, setLastDispatchedAt] = useState(null);
+
+    // Fetch personal settings on modal open
     useEffect(() => {
         if (open) {
             fetchSettings();
@@ -48,65 +46,73 @@ export function MonthlyReportScheduleModal({ open, onOpenChange }) {
         setIsLoading(true);
         try {
             const res = await axios.get('/api/report-schedule');
-            if (res.data?.success && res.data?.config) {
-                const c = res.data.config;
+            if (res.data?.success) {
+                const c = res.data.config || {};
+                const u = res.data.user || {};
+                setCurrentUser(u);
+                setAvailableDepartments(res.data.availableDepartments || []);
+
                 setIsEnabled(Boolean(c.is_enabled));
-                setDayOfMonth(c.day_of_month || 1);
-                setDispatchTime(c.dispatch_time || '08:00');
-                setSendToAllHods(Boolean(c.send_to_all_hods));
-                setSendToAdmins(Boolean(c.send_to_admins));
                 setIncludeDelayTimeline(Boolean(c.include_delay_timeline));
-                setAdditionalRecipients(Array.isArray(c.additional_recipients) ? c.additional_recipients : []);
                 setLastDispatchedAt(c.last_dispatched_at);
-                setLastDispatchSummary(c.last_dispatch_summary);
+
+                if (u.isAdmin) {
+                    const depts = Array.isArray(c.departments) && c.departments.length > 0 
+                        ? c.departments 
+                        : ['ALL'];
+                    setSelectedDepartments(depts);
+                } else {
+                    setSelectedDepartments([u.department || 'General']);
+                }
             }
         } catch (err) {
-            console.error('Failed to load report schedule', err);
+            console.error('Failed to load personal report schedule', err);
+            setToastMessage({ type: 'error', text: 'Gagal memuat preferensi jadwal laporan.' });
         } finally {
             setIsLoading(false);
         }
     };
 
-    const handleAddEmail = (e) => {
-        e?.preventDefault();
-        const trimmed = emailInput.trim().toLowerCase();
-        if (!trimmed) return;
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(trimmed)) {
-            setToastMessage({ type: 'error', text: 'Format alamat email tidak valid.' });
+    const handleToggleDept = (dept) => {
+        if (dept === 'ALL') {
+            setSelectedDepartments(['ALL']);
             return;
         }
-        if (additionalRecipients.includes(trimmed)) {
-            setEmailInput('');
-            return;
-        }
-        setAdditionalRecipients(prev => [...prev, trimmed]);
-        setEmailInput('');
-        setToastMessage(null);
-    };
 
-    const handleRemoveEmail = (email) => {
-        setAdditionalRecipients(prev => prev.filter(e => e !== email));
+        let updated = selectedDepartments.filter(d => d !== 'ALL');
+        if (updated.includes(dept)) {
+            updated = updated.filter(d => d !== dept);
+        } else {
+            updated.push(dept);
+        }
+
+        // If no departments selected, fallback to ALL
+        if (updated.length === 0) {
+            updated = ['ALL'];
+        }
+
+        setSelectedDepartments(updated);
     };
 
     const handleSave = async () => {
         setIsSaving(true);
         setToastMessage(null);
         try {
-            const res = await axios.post('/api/report-schedule', {
+            const payload = {
                 is_enabled: isEnabled,
-                day_of_month: parseInt(dayOfMonth),
-                dispatch_time: dispatchTime,
-                send_to_all_hods: sendToAllHods,
-                send_to_admins: sendToAdmins,
                 include_delay_timeline: includeDelayTimeline,
-                additional_recipients: additionalRecipients,
-            });
+            };
+
+            if (currentUser?.isAdmin) {
+                payload.departments = selectedDepartments;
+            }
+
+            const res = await axios.post('/api/report-schedule', payload);
 
             if (res.data?.success) {
                 setToastMessage({
                     type: 'success',
-                    text: res.data.message || 'Pengaturan laporan bulanan berhasil disimpan!'
+                    text: res.data.message || 'Pengaturan laporan bulanan pribadi berhasil disimpan!'
                 });
             }
         } catch (err) {
@@ -141,6 +147,8 @@ export function MonthlyReportScheduleModal({ open, onOpenChange }) {
         }
     };
 
+    const isAllSelected = selectedDepartments.includes('ALL');
+
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-w-2xl bg-[#1C1B0E] border border-[#3B3929] text-[#E2DFD2] p-0 overflow-hidden rounded-2xl shadow-2xl">
@@ -153,17 +161,17 @@ export function MonthlyReportScheduleModal({ open, onOpenChange }) {
                         </div>
                         <div>
                             <DialogTitle className="text-lg font-bold text-[#FAFAFA] tracking-wide">
-                                Automated Monthly Report Settings
+                                Monthly Report Subscription
                             </DialogTitle>
                             <DialogDescription className="text-xs text-[#A19F8D] mt-0.5">
-                                Jadwal rekapitulasi laporan bulanan resmi otomatis untuk Admin &amp; HOD.
+                                Langganan laporan bulanan resmi otomatis untuk akun Anda (dikirim setiap tanggal 1 pukul 08:00 WIB).
                             </DialogDescription>
                         </div>
                     </div>
                 </div>
 
                 {/* Body Content */}
-                <div className="px-6 py-5 max-h-[70vh] overflow-y-auto space-y-5">
+                <div className="px-6 py-5 max-h-[70vh] overflow-y-auto space-y-4">
 
                     {/* Toast Alert */}
                     {toastMessage && (
@@ -187,10 +195,31 @@ export function MonthlyReportScheduleModal({ open, onOpenChange }) {
                     {isLoading ? (
                         <div className="py-12 flex flex-col items-center justify-center text-[#A19F8D] gap-2">
                             <Loader2 className="h-6 w-6 animate-spin text-[#C9AA71]" />
-                            <span className="text-xs">Memuat konfigurasi jadwal...</span>
+                            <span className="text-xs">Memuat preferensi laporan...</span>
                         </div>
                     ) : (
                         <>
+                            {/* Personal Account Information Card */}
+                            <div className="p-3.5 rounded-xl bg-[#242217] border border-[#3B3929] flex items-center justify-between gap-3">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-2 rounded-lg bg-[#1C1B0E] text-[#C9AA71]">
+                                        <Mail className="h-4 w-4" />
+                                    </div>
+                                    <div>
+                                        <div className="text-xs font-semibold text-[#FAFAFA] flex items-center gap-2">
+                                            <span>Email Penerima:</span>
+                                            <span className="text-[#C9AA71] font-mono">{currentUser?.email || '-'}</span>
+                                        </div>
+                                        <div className="text-[11px] text-[#A19F8D] mt-0.5">
+                                            Akun: <strong className="text-white">{currentUser?.name}</strong> &bull; Peran: <span className="capitalize text-[#C9AA71]">{currentUser?.isAdmin ? 'Administrator' : `HOD (${currentUser?.department})`}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <span className="px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wider uppercase bg-[#C9AA71]/15 border border-[#C9AA71]/30 text-[#C9AA71]">
+                                    Personal
+                                </span>
+                            </div>
+
                             {/* Master Toggle Card */}
                             <div className={`p-4 rounded-xl border transition-all flex items-center justify-between gap-4 ${
                                 isEnabled 
@@ -203,10 +232,10 @@ export function MonthlyReportScheduleModal({ open, onOpenChange }) {
                                     </div>
                                     <div>
                                         <div className="text-sm font-bold text-[#FAFAFA]">
-                                            Aktifkan Pengiriman Otomatis Setiap Bulan
+                                            Aktifkan Pengiriman Laporan Bulanan Saya
                                         </div>
                                         <div className="text-xs text-[#A19F8D]">
-                                            Sistem akan membuat PDF dan mengirimkan email laporan secara berkala.
+                                            Dikirim otomatis ke email Anda setiap tanggal 1 pukul 08:00 WIB.
                                         </div>
                                     </div>
                                 </div>
@@ -221,166 +250,107 @@ export function MonthlyReportScheduleModal({ open, onOpenChange }) {
                                 </label>
                             </div>
 
-                            {/* Schedule Timing Options */}
-                            <div className="p-4 rounded-xl bg-[#242217] border border-[#3B3929] space-y-3">
-                                <div className="text-xs font-bold uppercase tracking-wider text-[#C9AA71] flex items-center gap-1.5">
-                                    <Clock className="h-3.5 w-3.5" />
-                                    <span>Waktu &amp; Tanggal Eksekusi</span>
-                                </div>
-
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                                    <div>
-                                        <label className="text-xs text-[#A19F8D] block mb-1">
-                                            Tanggal Pengiriman Bulanan
-                                        </label>
-                                        <select
-                                            value={dayOfMonth}
-                                            onChange={(e) => setDayOfMonth(parseInt(e.target.value))}
-                                            className="w-full bg-[#1C1B0E] border border-[#3B3929] rounded-lg px-3 py-2 text-xs text-[#FAFAFA] focus:outline-none focus:border-[#C9AA71]"
-                                        >
-                                            <option value={1}>Tanggal 1 (Awal Bulan - Rekap Bulan Lalu)</option>
-                                            <option value={2}>Tanggal 2</option>
-                                            <option value={5}>Tanggal 5</option>
-                                            <option value={10}>Tanggal 10</option>
-                                            <option value={15}>Tanggal 15</option>
-                                            <option value={20}>Tanggal 20</option>
-                                            <option value={25}>Tanggal 25</option>
-                                            <option value={28}>Tanggal 28 (Akhir Bulan)</option>
-                                        </select>
+                            {/* Department Scope Configuration */}
+                            {currentUser?.isAdmin ? (
+                                /* Admin: Multi-Select Departments */
+                                <div className="p-4 rounded-xl bg-[#242217] border border-[#3B3929] space-y-3">
+                                    <div className="flex items-center justify-between">
+                                        <div className="text-xs font-bold uppercase tracking-wider text-[#C9AA71] flex items-center gap-1.5">
+                                            <Building2 className="h-3.5 w-3.5" />
+                                            <span>Pilih Cakupan Departemen (Multi-Select)</span>
+                                        </div>
+                                        <span className="text-[10px] text-[#A19F8D]">
+                                            {isAllSelected ? 'Seluruh Resort' : `${selectedDepartments.length} Departemen Dipilih`}
+                                        </span>
                                     </div>
+                                    <p className="text-[11px] text-[#A19F8D]">
+                                        Tentukan departemen mana saja yang ingin disertakan ke dalam laporan bulanan Anda:
+                                    </p>
 
-                                    <div>
-                                        <label className="text-xs text-[#A19F8D] block mb-1">
-                                            Jam Pengiriman (WIB)
-                                        </label>
-                                        <select
-                                            value={dispatchTime}
-                                            onChange={(e) => setDispatchTime(e.target.value)}
-                                            className="w-full bg-[#1C1B0E] border border-[#3B3929] rounded-lg px-3 py-2 text-xs text-[#FAFAFA] focus:outline-none focus:border-[#C9AA71]"
+                                    <div className="flex flex-wrap gap-2 pt-1">
+                                        {/* All Departments Chip */}
+                                        <button
+                                            type="button"
+                                            onClick={() => handleToggleDept('ALL')}
+                                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 border transition-all ${
+                                                isAllSelected
+                                                    ? 'bg-[#C9AA71] text-[#1C1B0E] border-[#C9AA71] shadow'
+                                                    : 'bg-[#1C1B0E] text-[#A19F8D] border-[#3B3929] hover:border-[#C9AA71]/60'
+                                            }`}
                                         >
-                                            <option value="07:00">07:00 WIB (Pagi Hari)</option>
-                                            <option value="08:00">08:00 WIB (Jam Kerja Masuk)</option>
-                                            <option value="09:00">09:00 WIB</option>
-                                            <option value="12:00">12:00 WIB (Siang)</option>
-                                            <option value="17:00">17:00 WIB (Sore)</option>
-                                        </select>
-                                    </div>
-                                </div>
-                            </div>
+                                            {isAllSelected && <Check className="h-3 w-3 stroke-[3]" />}
+                                            <span>Semua Departemen (All Scope)</span>
+                                        </button>
 
-                            {/* Recipients & Smart Scoping */}
-                            <div className="p-4 rounded-xl bg-[#242217] border border-[#3B3929] space-y-3">
-                                <div className="text-xs font-bold uppercase tracking-wider text-[#C9AA71] flex items-center gap-1.5">
-                                    <Users className="h-3.5 w-3.5" />
-                                    <span>Penerima &amp; Cakupan Laporan (Smart Scoping)</span>
-                                </div>
-
-                                <div className="space-y-2.5 pt-1">
-                                    {/* HOD Checkbox */}
-                                    <label className="flex items-start gap-3 p-2.5 rounded-lg bg-[#1C1B0E] border border-[#2E2C1E] cursor-pointer hover:border-[#3B3929] transition-all">
-                                        <input
-                                            type="checkbox"
-                                            checked={sendToAllHods}
-                                            onChange={(e) => setSendToAllHods(e.target.checked)}
-                                            className="mt-0.5 rounded text-[#C9AA71] focus:ring-[#C9AA71] h-4 w-4 bg-[#242217] border-[#3B3929]"
-                                        />
-                                        <div>
-                                            <div className="text-xs font-semibold text-[#FAFAFA]">
-                                                Kirim ke Semua HOD Departemen (Department Scoped)
-                                            </div>
-                                            <div className="text-[11px] text-[#A19F8D] mt-0.5">
-                                                Setiap HOD otomatis hanya menerima laporan bulanan yang difilter spesifik untuk departemen mereka (Housekeeping, FB, Engineering, IT, dll).
-                                            </div>
-                                        </div>
-                                    </label>
-
-                                    {/* Admin Checkbox */}
-                                    <label className="flex items-start gap-3 p-2.5 rounded-lg bg-[#1C1B0E] border border-[#2E2C1E] cursor-pointer hover:border-[#3B3929] transition-all">
-                                        <input
-                                            type="checkbox"
-                                            checked={sendToAdmins}
-                                            onChange={(e) => setSendToAdmins(e.target.checked)}
-                                            className="mt-0.5 rounded text-[#C9AA71] focus:ring-[#C9AA71] h-4 w-4 bg-[#242217] border-[#3B3929]"
-                                        />
-                                        <div>
-                                            <div className="text-xs font-semibold text-[#FAFAFA]">
-                                                Kirim ke Administrator / Management (All Scope)
-                                            </div>
-                                            <div className="text-[11px] text-[#A19F8D] mt-0.5">
-                                                Admin menerima rekap komprehensif seluruh departemen dan seluruh villa resort.
-                                            </div>
-                                        </div>
-                                    </label>
-
-                                    {/* Include Delay Timeline */}
-                                    <label className="flex items-start gap-3 p-2.5 rounded-lg bg-[#1C1B0E] border border-[#2E2C1E] cursor-pointer hover:border-[#3B3929] transition-all">
-                                        <input
-                                            type="checkbox"
-                                            checked={includeDelayTimeline}
-                                            onChange={(e) => setIncludeDelayTimeline(e.target.checked)}
-                                            className="mt-0.5 rounded text-[#C9AA71] focus:ring-[#C9AA71] h-4 w-4 bg-[#242217] border-[#3B3929]"
-                                        />
-                                        <div>
-                                            <div className="text-xs font-semibold text-[#FAFAFA]">
-                                                Sertakan Catatan &amp; Alasan Tiket Pending (Delay Timeline)
-                                            </div>
-                                            <div className="text-[11px] text-[#A19F8D] mt-0.5">
-                                                Menampilkan catatan alasan keterlambatan pada tiket yang berstatus Pending di dalam PDF.
-                                            </div>
-                                        </div>
-                                    </label>
-                                </div>
-
-                                {/* Custom Extra Emails */}
-                                <div className="pt-2">
-                                    <label className="text-xs text-[#A19F8D] block mb-1.5 font-medium">
-                                        Email Tambahan (Opsional - misal Direksi/Owner)
-                                    </label>
-                                    <form onSubmit={handleAddEmail} className="flex gap-2 mb-2">
-                                        <input
-                                            type="email"
-                                            placeholder="ketik email lalu tekan Enter / Tambah..."
-                                            value={emailInput}
-                                            onChange={(e) => setEmailInput(e.target.value)}
-                                            className="flex-1 bg-[#1C1B0E] border border-[#3B3929] rounded-lg px-3 py-1.5 text-xs text-[#FAFAFA] placeholder:text-[#615F52] focus:outline-none focus:border-[#C9AA71]"
-                                        />
-                                        <Button
-                                            type="submit"
-                                            variant="secondary"
-                                            className="px-3 py-1.5 text-xs bg-[#2E2C1E] text-[#C9AA71] border border-[#3B3929] hover:bg-[#3B3929]"
-                                        >
-                                            <Plus className="h-3.5 w-3.5 mr-1" />
-                                            Tambah
-                                        </Button>
-                                    </form>
-
-                                    {additionalRecipients.length > 0 && (
-                                        <div className="flex flex-wrap gap-1.5">
-                                            {additionalRecipients.map(email => (
-                                                <span
-                                                    key={email}
-                                                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] bg-[#1C1B0E] border border-[#3B3929] text-[#FAFAFA]"
+                                        {/* Individual Department Chips */}
+                                        {availableDepartments.map(dept => {
+                                            const isSelected = !isAllSelected && selectedDepartments.includes(dept);
+                                            return (
+                                                <button
+                                                    key={dept}
+                                                    type="button"
+                                                    onClick={() => handleToggleDept(dept)}
+                                                    className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 border transition-all ${
+                                                        isSelected
+                                                            ? 'bg-[#C9AA71]/20 text-[#C9AA71] border-[#C9AA71]'
+                                                            : 'bg-[#1C1B0E] text-[#A19F8D] border-[#3B3929] hover:border-[#615F52]'
+                                                    }`}
                                                 >
-                                                    <Mail className="h-3 w-3 text-[#C9AA71]" />
-                                                    {email}
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => handleRemoveEmail(email)}
-                                                        className="text-[#A19F8D] hover:text-rose-400"
-                                                    >
-                                                        <X className="h-3 w-3" />
-                                                    </button>
-                                                </span>
-                                            ))}
-                                        </div>
-                                    )}
+                                                    {isSelected && <Check className="h-3 w-3 text-[#C9AA71] stroke-[2.5]" />}
+                                                    <span>{dept}</span>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
                                 </div>
+                            ) : (
+                                /* HOD: Locked Department Card */
+                                <div className="p-4 rounded-xl bg-[#242217] border border-[#3B3929] space-y-2">
+                                    <div className="text-xs font-bold uppercase tracking-wider text-[#C9AA71] flex items-center gap-1.5">
+                                        <Building2 className="h-3.5 w-3.5" />
+                                        <span>Cakupan Departemen (Terkunci)</span>
+                                    </div>
+                                    <div className="p-3 rounded-lg bg-[#1C1B0E] border border-[#2E2C1E] flex items-center justify-between">
+                                        <div className="flex items-center gap-2.5">
+                                            <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+                                            <span className="text-xs font-bold text-white">
+                                                Departemen {currentUser?.department || 'General'}
+                                            </span>
+                                        </div>
+                                        <span className="text-[10px] text-[#A19F8D] bg-[#2E2C1E] px-2 py-0.5 rounded">
+                                            Khusus HOD
+                                        </span>
+                                    </div>
+                                    <p className="text-[11px] text-[#A19F8D] leading-relaxed">
+                                        Sebagai Kepala Departemen, laporan Anda secara otomatis difilter khusus untuk masalah dan perbaikan di departemen Anda.
+                                    </p>
+                                </div>
+                            )}
+
+                            {/* Additional Options */}
+                            <div className="p-4 rounded-xl bg-[#242217] border border-[#3B3929] space-y-2">
+                                <label className="flex items-start gap-3 cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        checked={includeDelayTimeline}
+                                        onChange={(e) => setIncludeDelayTimeline(e.target.checked)}
+                                        className="mt-0.5 rounded text-[#C9AA71] focus:ring-[#C9AA71] h-4 w-4 bg-[#242217] border-[#3B3929]"
+                                    />
+                                    <div>
+                                        <div className="text-xs font-semibold text-[#FAFAFA]">
+                                            Sertakan Catatan &amp; Alasan Tiket Pending (Delay Timeline)
+                                        </div>
+                                        <div className="text-[11px] text-[#A19F8D] mt-0.5">
+                                            Menampilkan catatan kendala atau alasan penundaan tiket Pending di dalam berkas PDF.
+                                        </div>
+                                    </div>
+                                </label>
                             </div>
 
-                            {/* Execution Log & Status */}
+                            {/* Execution Log */}
                             {lastDispatchedAt && (
                                 <div className="p-3 rounded-xl bg-[#1C1B0E] border border-[#2E2C1E] text-xs text-[#A19F8D] flex items-center justify-between">
-                                    <span>Pengiriman Terakhir:</span>
+                                    <span>Pengiriman Terakhir Anda:</span>
                                     <span className="font-semibold text-[#FAFAFA]">
                                         {new Date(lastDispatchedAt).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })}
                                     </span>
@@ -408,7 +378,7 @@ export function MonthlyReportScheduleModal({ open, onOpenChange }) {
                         ) : (
                             <>
                                 <Send className="h-3.5 w-3.5 mr-1.5" />
-                                Kirim Percobaan Sekarang (Test Run)
+                                Kirim Uji Coba Laporan Sekarang
                             </>
                         )}
                     </Button>

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\ReportSchedule;
+use App\Models\User;
 use App\Services\MonthlyReportService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -11,64 +12,96 @@ use Illuminate\Support\Facades\Log;
 class ReportScheduleController extends Controller
 {
     /**
-     * Get the current monthly report schedule settings.
+     * Get the personal monthly report schedule settings for the authenticated user.
      */
-    public function getSettings(): JsonResponse
+    public function getSettings(Request $request): JsonResponse
     {
-        $user = auth()->user();
+        $user = $request->user();
         if (!$user || (!$user->is_hod && $user->role !== 'admin')) {
             return response()->json(['error' => 'Unauthorized. Admin or HOD access required.'], 403);
         }
 
-        $config = ReportSchedule::getOrCreateConfig();
-        $config->load('updatedByUser:id,name,department');
+        $config = ReportSchedule::getOrCreateForUser($user);
+
+        // Fetch distinct departments from actual users
+        $allDepartments = User::whereNotNull('department')
+            ->where('department', '!=', '')
+            ->pluck('department')
+            ->unique()
+            ->sort()
+            ->values()
+            ->all();
 
         return response()->json([
             'success' => true,
             'config'  => $config,
+            'user'    => [
+                'id'         => $user->id,
+                'name'       => $user->name,
+                'email'      => $user->email,
+                'role'       => $user->role,
+                'is_hod'     => (bool)$user->is_hod,
+                'department' => $user->department,
+                'isAdmin'    => ($user->role === 'admin'),
+            ],
+            'availableDepartments' => $allDepartments,
         ]);
     }
 
     /**
-     * Update the monthly report schedule settings.
+     * Update the personal monthly report schedule settings.
      */
     public function updateSettings(Request $request): JsonResponse
     {
-        $user = auth()->user();
+        $user = $request->user();
         if (!$user || (!$user->is_hod && $user->role !== 'admin')) {
             return response()->json(['error' => 'Unauthorized. Admin or HOD access required.'], 403);
         }
 
+        $isAdmin = ($user->role === 'admin');
+
         $validated = $request->validate([
             'is_enabled'             => 'required|boolean',
-            'day_of_month'           => 'required|integer|min:1|max:28',
-            'dispatch_time'          => 'required|string|max:10',
-            'send_to_all_hods'       => 'required|boolean',
-            'send_to_admins'         => 'required|boolean',
-            'additional_recipients'  => 'nullable|array',
-            'additional_recipients.*'=> 'email',
             'include_delay_timeline' => 'required|boolean',
+            'departments'            => 'nullable|array',
+            'departments.*'          => 'string',
         ]);
 
-        $config = ReportSchedule::getOrCreateConfig();
-        $validated['updated_by'] = $user->id;
+        $config = ReportSchedule::getOrCreateForUser($user);
 
-        $config->update($validated);
-        $config->load('updatedByUser:id,name,department');
+        $updateData = [
+            'is_enabled'             => (bool)$validated['is_enabled'],
+            'include_delay_timeline' => (bool)$validated['include_delay_timeline'],
+            'updated_by'             => $user->id,
+        ];
+
+        if ($isAdmin) {
+            $selectedDepts = $request->input('departments', ['ALL']);
+            if (empty($selectedDepts) || in_array('ALL', $selectedDepts)) {
+                $updateData['departments'] = ['ALL'];
+            } else {
+                $updateData['departments'] = array_values(array_unique(array_filter($selectedDepts)));
+            }
+        } else {
+            // HOD department is strictly locked to their account's department
+            $updateData['departments'] = array_values(array_filter([$user->department ?: 'General']));
+        }
+
+        $config->update($updateData);
 
         return response()->json([
             'success' => true,
-            'message' => 'Pengaturan laporan bulanan otomatis berhasil disimpan.',
+            'message' => 'Pengaturan laporan bulanan pribadi berhasil disimpan.',
             'config'  => $config,
         ]);
     }
 
     /**
-     * Trigger an immediate test dispatch to the current user's email.
+     * Trigger an immediate personal test dispatch to the current user's email.
      */
-    public function testDispatch(MonthlyReportService $monthlyReportService): JsonResponse
+    public function testDispatch(Request $request, MonthlyReportService $monthlyReportService): JsonResponse
     {
-        $user = auth()->user();
+        $user = $request->user();
         if (!$user || (!$user->is_hod && $user->role !== 'admin')) {
             return response()->json(['error' => 'Unauthorized. Admin or HOD access required.'], 403);
         }
