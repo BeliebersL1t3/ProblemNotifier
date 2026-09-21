@@ -391,6 +391,75 @@ class MonthlyReportService
                 $rawTagged = trim($latestRow[IssueSheetRepository::COL_TAGGED_DEPTS] ?? '');
                 $taggedDepartments = !empty($rawTagged) ? array_values(array_filter(array_map('trim', explode(',', $rawTagged)))) : [];
 
+                // Taken date: look across versions if not in latest row
+                $takenRaw = trim($latestRow[IssueSheetRepository::COL_TAKEN_DATE] ?? '');
+                if (empty($takenRaw)) {
+                    foreach (array_reverse($versions) as $vr) {
+                        if (!empty($vr[IssueSheetRepository::COL_TAKEN_DATE])) {
+                            $takenRaw = trim($vr[IssueSheetRepository::COL_TAKEN_DATE]);
+                            break;
+                        }
+                    }
+                }
+                $takenTimestamp = $this->parseTimestamp($takenRaw);
+
+                // Solved date: look across versions if not in latest row
+                $solvedRaw = trim($latestRow[IssueSheetRepository::COL_SOLVED_DATE] ?? '');
+                if (empty($solvedRaw)) {
+                    foreach (array_reverse($versions) as $vr) {
+                        if (!empty($vr[IssueSheetRepository::COL_SOLVED_DATE])) {
+                            $solvedRaw = trim($vr[IssueSheetRepository::COL_SOLVED_DATE]);
+                            break;
+                        }
+                    }
+                }
+                $solvedTimestamp = $this->parseTimestamp($solvedRaw);
+
+                // Reference cutoff time for calculating elapsed duration (cap to month end if archived month)
+                $referenceTime = ($monthEnd !== null && $monthEnd < time()) ? $monthEnd : time();
+
+                // Compute context-specific duration and subtitle
+                $durationLabel = '-';
+                $durationSub = '';
+
+                if ($rawStatus === 'solved') {
+                    $existingDur = trim($latestRow[IssueSheetRepository::COL_DURATION] ?? '');
+                    if (!empty($existingDur) && $existingDur !== '-') {
+                        $durationLabel = $existingDur;
+                        $durationSub = 'Turnaround';
+                    } elseif ($solvedTimestamp > 0 && $timestamp > 0 && $solvedTimestamp > $timestamp) {
+                        $durationLabel = $this->formatDurationDiff($solvedTimestamp - $timestamp);
+                        $durationSub = 'Turnaround';
+                    } else {
+                        $durationLabel = 'Resolved';
+                    }
+                } elseif ($rawStatus === 'progress') {
+                    // Time elapsed since the issue was taken/claimed by staff
+                    $progStart = $takenTimestamp > 0 ? $takenTimestamp : $timestamp;
+                    if ($progStart > 0 && $referenceTime > $progStart) {
+                        $durationLabel = $this->formatDurationDiff($referenceTime - $progStart);
+                        $durationSub = $takenTimestamp > 0 ? 'Since taken' : 'In progress';
+                    } else {
+                        $durationLabel = 'In progress';
+                    }
+                } elseif ($rawStatus === 'open') {
+                    // How long it has been uploaded and not yet taken
+                    if ($timestamp > 0 && $referenceTime > $timestamp) {
+                        $durationLabel = $this->formatDurationDiff($referenceTime - $timestamp);
+                        $durationSub = 'Untaken';
+                    } else {
+                        $durationLabel = 'Untaken';
+                    }
+                } elseif ($rawStatus === 'pending') {
+                    $pendStart = $takenTimestamp > 0 ? $takenTimestamp : $timestamp;
+                    if ($pendStart > 0 && $referenceTime > $pendStart) {
+                        $durationLabel = $this->formatDurationDiff($referenceTime - $pendStart);
+                        $durationSub = 'Awaiting parts';
+                    } else {
+                        $durationLabel = 'Pending';
+                    }
+                }
+
                 $parsedIssues[] = [
                     'id'                  => $id,
                     'title'               => $safeTitle,
@@ -403,14 +472,16 @@ class MonthlyReportService
                     'reporter'            => $safeReporter ?: 'Staff',
                     'status'              => $rawStatus,
                     'taker'               => trim($latestRow[IssueSheetRepository::COL_TAKER] ?? ''),
+                    'takenAt'             => $takenRaw,
                     'solvedBy'            => trim($latestRow[IssueSheetRepository::COL_SOLVED_BY] ?? ''),
-                    'solvedAt'            => trim($latestRow[IssueSheetRepository::COL_SOLVED_DATE] ?? ''),
+                    'solvedAt'            => $solvedRaw,
                     'reportedAt'          => $createdRaw,
                     'reportedAtFormatted' => $timestamp > 0 ? date('d M Y', $timestamp) : ($createdRaw ?: '-'),
                     'priority'            => $priority,
                     'pendingReason'       => trim($latestRow[IssueSheetRepository::COL_PENDING_REASON] ?? ''),
                     'pendingBy'           => trim($latestRow[IssueSheetRepository::COL_PENDING_BY] ?? ''),
-                    'durationLabel'       => trim($latestRow[IssueSheetRepository::COL_DURATION] ?? '-'),
+                    'durationLabel'       => $durationLabel,
+                    'durationSub'         => $durationSub,
                 ];
             }
 
@@ -422,7 +493,34 @@ class MonthlyReportService
     }
 
     /**
-     * Calculate human-readable average duration for resolved issues.
+     * Format a seconds difference into clean human-readable duration (e.g. '7d 13h', '5d 6h', '41 Hours', '2h 15m').
+     */
+    protected function formatDurationDiff(int $seconds): string
+    {
+        $minutes = (int)round($seconds / 60);
+        if ($minutes < 1) {
+            return '< 1 min';
+        }
+        if ($minutes < 60) {
+            return "{$minutes}m";
+        }
+        $hours = (int)floor($minutes / 60);
+        $remMinutes = $minutes % 60;
+        if ($hours < 24) {
+            return $remMinutes > 0 ? "{$hours}h {$remMinutes}m" : "{$hours} Hours";
+        }
+        $days = (int)floor($hours / 24);
+        $remHours = $hours % 24;
+        if ($days < 30) {
+            return $remHours > 0 ? "{$days}d {$remHours}h" : ($days === 1 ? "1 Day" : "{$days} Days");
+        }
+        $months = (int)floor($days / 30);
+        $remDays = $days % 30;
+        return $remDays > 0 ? "{$months}mo {$remDays}d" : ($months === 1 ? "1 Month" : "{$months} Months");
+    }
+
+    /**
+     * Calculate human-readable average duration for resolved issues in standard English.
      */
     protected function calculateAverageDuration(array $issues): string
     {
@@ -431,13 +529,13 @@ class MonthlyReportService
             $status = strtolower($issue['status'] ?? '');
             if ($status !== 'solved') continue;
 
-            // Try durationLabel if present (e.g., "2 Jam 15 Menit", "45 Menit", "1 Hari")
+            // Try durationLabel if present (e.g., "Solved in 41 hours", "2 Jam 15 Menit", "1 Hari")
             $durStr = trim($issue['durationLabel'] ?? '');
             if (!empty($durStr) && $durStr !== '-') {
                 $mins = 0;
-                if (preg_match('/(\d+)\s*hari/i', $durStr, $m)) $mins += ((int)$m[1]) * 1440;
-                if (preg_match('/(\d+)\s*(?:jam|hr|h)\b/i', $durStr, $m)) $mins += ((int)$m[1]) * 60;
-                if (preg_match('/(\d+)\s*(?:menit|min|m)\b/i', $durStr, $m)) $mins += (int)$m[1];
+                if (preg_match('/(\d+)\s*(?:hari|days|d)\b/i', $durStr, $m)) $mins += ((int)$m[1]) * 1440;
+                if (preg_match('/(\d+)\s*(?:jam|hours|hour|hr|h)\b/i', $durStr, $m)) $mins += ((int)$m[1]) * 60;
+                if (preg_match('/(\d+)\s*(?:menit|minutes|mins|min|m)\b/i', $durStr, $m)) $mins += (int)$m[1];
                 if ($mins > 0) {
                     $durationsInMinutes[] = $mins;
                     continue;
@@ -461,16 +559,19 @@ class MonthlyReportService
 
         $avgMins = (int)(array_sum($durationsInMinutes) / count($durationsInMinutes));
         if ($avgMins < 60) {
-            return "{$avgMins} Menit";
+            return "{$avgMins} Mins";
         }
-        $hours = floor($avgMins / 60);
+        $hours = (int)floor($avgMins / 60);
         $remMins = $avgMins % 60;
         if ($hours < 24) {
-            return $remMins > 0 ? "{$hours}j {$remMins}m" : "{$hours} Jam";
+            return $remMins > 0 ? "{$hours}h {$remMins}m" : "{$hours} Hours";
         }
-        $days = floor($hours / 24);
+        $days = (int)floor($hours / 24);
         $remHours = $hours % 24;
-        return $remHours > 0 ? "{$days}h {$remHours}j" : "{$days} Hari";
+        if ($remHours > 0) {
+            return "{$days}d {$remHours}h";
+        }
+        return $days === 1 ? "1 Day" : "{$days} Days";
     }
 
     /**

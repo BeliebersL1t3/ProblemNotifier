@@ -189,11 +189,11 @@
                 <div class="kpi-sub">Awaiting parts / supplies</div>
             </td>
             <td class="kpi-card" style="width: 20%;">
-                <div class="kpi-label">Avg. Duration</div>
+                <div class="kpi-label">Avg. Turnaround</div>
                 <div class="kpi-value" style="font-size: 11pt; color: #4B5563; padding-top: 3px;">
                     {{ $avgDuration ?? 'N/A' }}
                 </div>
-                <div class="kpi-sub">Resolution turnaround</div>
+                <div class="kpi-sub">Resolved issues turnaround</div>
             </td>
         </tr>
     </table>
@@ -209,8 +209,8 @@
                 <th style="width: 10%;">Category</th>
                 <th style="width: 12%;">Reporter</th>
                 <th style="width: 12%;">Handled By</th>
-                <th style="width: 7%;">Duration</th>
-                <th style="width: 6%;">Priority</th>
+                <th style="width: 8%;">Duration</th>
+                <th style="width: 5%;">Priority</th>
                 <th style="width: 6%; text-align: center;">Status</th>
             </tr>
         </thead>
@@ -245,7 +245,12 @@
                             <span style="color: #9CA3AF;">-</span>
                         @endif
                     </td>
-                    <td>{{ $issue['durationLabel'] ?? '-' }}</td>
+                    <td>
+                        <strong style="color: #374151; font-size: 6.5pt;">{{ $issue['durationLabel'] ?? '-' }}</strong>
+                        @if(!empty($issue['durationSub']))
+                            <div style="font-size: 5.5pt; color: #6B7280; margin-top: 1px;">{{ $issue['durationSub'] }}</div>
+                        @endif
+                    </td>
                     <td>
                         <span class="badge badge-{{ $priority }}">
                             {{ strtoupper($priority) }}
