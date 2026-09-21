@@ -112,6 +112,7 @@ class ExportEmailController extends Controller
         $sender = auth()->user();
         $senderName = $sender ? $sender->name : 'Telunas Staff';
         $senderDept = $sender ? ($sender->department ?: 'General') : 'Telunas Resorts';
+        $senderEmail = $sender ? $sender->email : null;
 
         $subject = trim($request->input('subject'));
         $customMessage = $request->input('message');
@@ -127,7 +128,8 @@ class ExportEmailController extends Controller
                 senderDepartment: $senderDept,
                 reportMeta: $reportMeta,
                 pdfFile: $uploadedFile,
-                pdfFilename: $originalFilename
+                pdfFilename: $originalFilename,
+                senderEmail: $senderEmail
             );
 
             Mail::to($validRecipients)->send($mailable);

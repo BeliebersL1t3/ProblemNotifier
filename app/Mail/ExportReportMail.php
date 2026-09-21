@@ -4,6 +4,7 @@ namespace App\Mail;
 
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
+use Illuminate\Mail\Mailables\Address;
 use Illuminate\Mail\Mailables\Attachment;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
@@ -17,6 +18,7 @@ class ExportReportMail extends Mailable
     public ?string $customMessage;
     public string $senderName;
     public string $senderDepartment;
+    public ?string $senderEmail;
     public array $reportMeta;
     protected $pdfFile;
     protected string $pdfFilename;
@@ -31,12 +33,14 @@ class ExportReportMail extends Mailable
         string $senderDepartment,
         array $reportMeta,
         $pdfFile,
-        string $pdfFilename = 'Telunas_Report.pdf'
+        string $pdfFilename = 'Telunas_Report.pdf',
+        ?string $senderEmail = null
     ) {
         $this->emailSubject = $emailSubject;
         $this->customMessage = $customMessage;
         $this->senderName = $senderName;
         $this->senderDepartment = $senderDepartment;
+        $this->senderEmail = $senderEmail;
         $this->reportMeta = $reportMeta;
         $this->pdfFile = $pdfFile;
         $this->pdfFilename = $pdfFilename;
@@ -47,7 +51,17 @@ class ExportReportMail extends Mailable
      */
     public function envelope(): Envelope
     {
+        $systemFromAddress = config('mail.from.address', 'no-reply@telunasresorts.com');
+        $fromDisplayName = "{$this->senderName} ({$this->senderDepartment}) via Telunas Tracker";
+
+        $replyToList = [];
+        if (!empty($this->senderEmail) && filter_var($this->senderEmail, FILTER_VALIDATE_EMAIL)) {
+            $replyToList[] = new Address($this->senderEmail, "{$this->senderName} ({$this->senderDepartment})");
+        }
+
         return new Envelope(
+            from: new Address($systemFromAddress, $fromDisplayName),
+            replyTo: $replyToList,
             subject: $this->emailSubject,
         );
     }
