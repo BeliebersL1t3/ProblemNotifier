@@ -29,7 +29,7 @@ class GoogleAuthController extends Controller
         session(['google_oauth_return_to' => $returnUrl]);
 
         try {
-            $authUrl = $this->gmailApiService->getAuthUrl();
+            $authUrl = $this->gmailApiService->getAuthUrl(loginHint: $user->email);
             return redirect()->away($authUrl);
         } catch (\Throwable $e) {
             Log::error('Google OAuth Redirect Failed: ' . $e->getMessage());

@@ -41,11 +41,14 @@ class GmailApiService
     /**
      * Generate the Google OAuth authorization URL.
      */
-    public function getAuthUrl(?string $state = null): string
+    public function getAuthUrl(?string $state = null, ?string $loginHint = null): string
     {
         $client = $this->getOAuthClient();
         if ($state) {
             $client->setState($state);
+        }
+        if ($loginHint && filter_var($loginHint, FILTER_VALIDATE_EMAIL)) {
+            $client->setLoginHint($loginHint);
         }
         return $client->createAuthUrl();
     }
@@ -67,6 +70,24 @@ class GmailApiService
         // Fetch user profile from Google to get real Google email & ID
         $oauth2 = new Oauth2($client);
         $userInfo = $oauth2->userinfo->get();
+
+        // Strict Check: Google email MUST match registered user email
+        $googleEmail = strtolower(trim((string) $userInfo->email));
+        $registeredEmail = strtolower(trim((string) $user->email));
+
+        if ($googleEmail !== $registeredEmail) {
+            // Revoke token immediately if mismatched
+            try {
+                $client->revokeToken();
+            } catch (\Throwable $e) {
+                // Ignore revoke errors
+            }
+
+            throw new \Exception(
+                "Email Google yang dipilih ({$userInfo->email}) tidak sesuai dengan email akun terdaftar Anda ({$user->email}). " .
+                "Silakan gunakan akun Google yang sama, atau perbarui alamat email pada profil akun Anda terlebih dahulu."
+            );
+        }
 
         $expiresAt = null;
         if (!empty($token['expires_in'])) {
