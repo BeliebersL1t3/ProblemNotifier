@@ -292,24 +292,24 @@ class GoogleService
         // 3. Add Conditional Formatting Rules ONLY for Status (Column F - Index 5 to 6)
         $rules = [
             [
-                'formula' => '=$F1="open"',
-                'bg'      => ['red' => 0.95, 'green' => 0.15, 'blue' => 0.15],
-                'text'    => ['red' => 1.0, 'green' => 1.0, 'blue' => 1.0],
+                'formula' => '=$F2="open"',
+                'bg'      => ['red' => 0.99, 'green' => 0.89, 'blue' => 0.89], // Soft Rose / Light Red
+                'text'    => ['red' => 0.60, 'green' => 0.11, 'blue' => 0.11], // Dark Red
             ],
             [
-                'formula' => '=$F1="progress"',
-                'bg'      => ['red' => 1.0, 'green' => 0.92, 'blue' => 0.01],
-                'text'    => ['red' => 0.0, 'green' => 0.0, 'blue' => 0.0],
+                'formula' => '=$F2="progress"',
+                'bg'      => ['red' => 0.88, 'green' => 0.95, 'blue' => 0.99], // Soft Sky Blue
+                'text'    => ['red' => 0.01, 'green' => 0.41, 'blue' => 0.63], // Dark Blue
             ],
             [
-                'formula' => '=$F1="solved"',
-                'bg'      => ['red' => 0.15, 'green' => 0.68, 'blue' => 0.38],
-                'text'    => ['red' => 1.0, 'green' => 1.0, 'blue' => 1.0],
+                'formula' => '=$F2="solved"',
+                'bg'      => ['red' => 0.82, 'green' => 0.98, 'blue' => 0.90], // Soft Mint / Green
+                'text'    => ['red' => 0.02, 'green' => 0.37, 'blue' => 0.27], // Dark Green
             ],
             [
-                'formula' => '=$F1="pending"',
-                'bg'      => ['red' => 0.95, 'green' => 0.45, 'blue' => 0.07],
-                'text'    => ['red' => 1.0, 'green' => 1.0, 'blue' => 1.0],
+                'formula' => '=$F2="pending"',
+                'bg'      => ['red' => 0.99, 'green' => 0.95, 'blue' => 0.78], // Soft Amber / Yellow
+                'text'    => ['red' => 0.57, 'green' => 0.25, 'blue' => 0.05], // Dark Amber
             ],
         ];
 
@@ -319,7 +319,7 @@ class GoogleService
                     'rule' => [
                         'ranges' => [[
                             'sheetId'          => $sheetId,
-                            'startRowIndex'    => 0,
+                            'startRowIndex'    => 1, // Skip header row 1
                             'endRowIndex'      => 1000,
                             'startColumnIndex' => 5, // COLUMN F ONLY (0-based: A=0, B=1, C=2, D=3, E=4, F=5)
                             'endColumnIndex'   => 6,
