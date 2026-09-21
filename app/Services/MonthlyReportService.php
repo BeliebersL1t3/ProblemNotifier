@@ -32,12 +32,24 @@ class MonthlyReportService
         }
 
         // Determine target period (defaults to previous month)
-        $previousMonth = Carbon::now()->subMonth();
-        $periodLabel = $previousMonth->translatedFormat('F Y');
-        $periodSlug = $previousMonth->format('Y-m');
+        $targetMonth = Carbon::now()->subMonth();
+        $periodLabel = $targetMonth->translatedFormat('F Y');
+        $periodSlug = $targetMonth->format('Y-m');
 
         // Fetch issues from Google Sheets
-        $issues = $this->fetchIssuesForPeriod($previousMonth);
+        $issues = $this->fetchIssuesForPeriod($targetMonth);
+
+        // Test dispatch fallback: if previous month has 0 issues, fallback to current month or active issues
+        if ($testUser && empty($issues)) {
+            $targetMonth = Carbon::now();
+            $periodLabel = $targetMonth->translatedFormat('F Y');
+            $periodSlug = $targetMonth->format('Y-m');
+            $issues = $this->fetchIssuesForPeriod($targetMonth);
+
+            if (empty($issues)) {
+                $issues = $this->fetchIssuesForPeriod(null);
+            }
+        }
 
         $results = [
             'dispatched_count' => 0,
@@ -278,12 +290,13 @@ class MonthlyReportService
 
     /**
      * Fetch all issues for a given period from Google Sheets.
+     * Groups versioned append-only rows and picks the latest active state.
      */
-    protected function fetchIssuesForPeriod(Carbon $targetMonth): array
+    protected function fetchIssuesForPeriod(?Carbon $targetMonth = null): array
     {
         try {
             $allSheets = $this->googleService->listSheets();
-            $targetYear = $targetMonth->format('Y');
+            $targetYear = $targetMonth ? $targetMonth->format('Y') : date('Y');
 
             // Select sheet matching year (e.g. "2026"), or fallback to newest
             $sheetToUse = in_array($targetYear, $allSheets) ? $targetYear : (!empty($allSheets[0]) ? $allSheets[0] : null);
@@ -299,45 +312,105 @@ class MonthlyReportService
                 return [];
             }
 
-            $monthStart = $targetMonth->copy()->startOfMonth()->timestamp;
-            $monthEnd = $targetMonth->copy()->endOfMonth()->timestamp;
+            // Group all rows by Issue ID to handle append-only updates
+            $grouped = [];
+            foreach ($rows as $row) {
+                if (empty($row)) continue;
+                $id = IssueSheetRepository::getId($row);
+                if (empty($id) || strtolower($id) === 'id') continue;
+                $grouped[$id][] = IssueSheetRepository::padRow($row);
+            }
+
+            $monthStart = $targetMonth ? $targetMonth->copy()->startOfMonth()->timestamp : null;
+            $monthEnd = $targetMonth ? $targetMonth->copy()->endOfMonth()->timestamp : null;
 
             $parsedIssues = [];
-            foreach ($rows as $rowIndex => $row) {
-                if (empty($row) || IssueSheetRepository::isArchived($row)) continue;
-                $row = IssueSheetRepository::padRow($row);
+            foreach ($grouped as $id => $versions) {
+                $latestRow = end($versions);
 
-                $id = trim($row[IssueSheetRepository::COL_ID] ?? '');
-                if (empty($id) || strtolower($id) === 'id') continue;
+                // Skip archived records
+                if (IssueSheetRepository::isArchived($latestRow)) {
+                    continue;
+                }
 
-                $createdRaw = $row[IssueSheetRepository::COL_CREATED_DATE] ?? '';
+                // Field fallback across versions for safety
+                $safeTitle = (!empty($latestRow[IssueSheetRepository::COL_TITLE]) && $latestRow[IssueSheetRepository::COL_TITLE] !== 'undefined') ? $latestRow[IssueSheetRepository::COL_TITLE] : '';
+                $safeDesc  = (!empty($latestRow[IssueSheetRepository::COL_DESCRIPTION]) && $latestRow[IssueSheetRepository::COL_DESCRIPTION] !== 'undefined') ? $latestRow[IssueSheetRepository::COL_DESCRIPTION] : '';
+                $safeLoc   = (!empty($latestRow[IssueSheetRepository::COL_LOCATION]) && $latestRow[IssueSheetRepository::COL_LOCATION] !== 'undefined') ? $latestRow[IssueSheetRepository::COL_LOCATION] : '';
+                $safeCat   = (!empty($latestRow[IssueSheetRepository::COL_CATEGORY]) && $latestRow[IssueSheetRepository::COL_CATEGORY] !== 'undefined') ? $latestRow[IssueSheetRepository::COL_CATEGORY] : '';
+                $safeDept  = (!empty($latestRow[IssueSheetRepository::COL_ORIGIN_DEPT]) && $latestRow[IssueSheetRepository::COL_ORIGIN_DEPT] !== 'undefined') ? $latestRow[IssueSheetRepository::COL_ORIGIN_DEPT] : '';
+
+                if (empty($safeTitle) || empty($safeDesc) || empty($safeLoc) || empty($safeCat) || empty($safeDept)) {
+                    foreach (array_reverse($versions) as $vr) {
+                        if (empty($safeTitle) && !empty($vr[IssueSheetRepository::COL_TITLE]) && $vr[IssueSheetRepository::COL_TITLE] !== 'undefined') $safeTitle = $vr[IssueSheetRepository::COL_TITLE];
+                        if (empty($safeDesc) && !empty($vr[IssueSheetRepository::COL_DESCRIPTION]) && $vr[IssueSheetRepository::COL_DESCRIPTION] !== 'undefined') $safeDesc = $vr[IssueSheetRepository::COL_DESCRIPTION];
+                        if (empty($safeLoc) && !empty($vr[IssueSheetRepository::COL_LOCATION]) && $vr[IssueSheetRepository::COL_LOCATION] !== 'undefined') $safeLoc = $vr[IssueSheetRepository::COL_LOCATION];
+                        if (empty($safeCat) && !empty($vr[IssueSheetRepository::COL_CATEGORY]) && $vr[IssueSheetRepository::COL_CATEGORY] !== 'undefined') $safeCat = $vr[IssueSheetRepository::COL_CATEGORY];
+                        if (empty($safeDept) && !empty($vr[IssueSheetRepository::COL_ORIGIN_DEPT]) && $vr[IssueSheetRepository::COL_ORIGIN_DEPT] !== 'undefined') $safeDept = $vr[IssueSheetRepository::COL_ORIGIN_DEPT];
+                    }
+                }
+
+                // Reporter fallback
+                $safeReporter = (!empty($latestRow[IssueSheetRepository::COL_REPORTER]) && $latestRow[IssueSheetRepository::COL_REPORTER] !== 'undefined') ? $latestRow[IssueSheetRepository::COL_REPORTER] : '';
+                if (empty($safeReporter)) {
+                    foreach (array_reverse($versions) as $vr) {
+                        if (!empty($vr[IssueSheetRepository::COL_REPORTER]) && $vr[IssueSheetRepository::COL_REPORTER] !== 'undefined') {
+                            $safeReporter = $vr[IssueSheetRepository::COL_REPORTER];
+                            break;
+                        }
+                    }
+                }
+
+                // Created date: use first version or latest row
+                $firstRow = $versions[0];
+                $createdRaw = !empty($firstRow[IssueSheetRepository::COL_CREATED_DATE])
+                    ? $firstRow[IssueSheetRepository::COL_CREATED_DATE]
+                    : (!empty($latestRow[IssueSheetRepository::COL_CREATED_DATE]) ? $latestRow[IssueSheetRepository::COL_CREATED_DATE] : '');
                 $timestamp = $this->parseTimestamp($createdRaw);
 
-                // Check if issue falls within target month (if timestamp valid)
-                if ($timestamp > 0) {
+                // Date filtering by month (if targetMonth specified)
+                if ($monthStart !== null && $monthEnd !== null && $timestamp > 0) {
                     if ($timestamp < $monthStart || $timestamp > $monthEnd) {
-                        // Skip if created outside target month
                         continue;
                     }
                 }
 
+                // Status normalization
+                $rawStatus = strtolower(trim($latestRow[IssueSheetRepository::COL_STATUS] ?? 'open'));
+                if ($rawStatus === 'in progress' || $rawStatus === 'in_progress') {
+                    $rawStatus = 'progress';
+                }
+
+                // Priority normalization
+                $rawPriority = strtolower(trim($latestRow[IssueSheetRepository::COL_PRIORITY] ?? 'low'));
+                $priority = in_array($rawPriority, ['critical', 'emergency', 'urgent', 'high'])
+                    ? 'high'
+                    : (in_array($rawPriority, ['medium', 'med']) ? 'med' : 'low');
+
+                // Tagged departments
+                $rawTagged = trim($latestRow[IssueSheetRepository::COL_TAGGED_DEPTS] ?? '');
+                $taggedDepartments = !empty($rawTagged) ? array_values(array_filter(array_map('trim', explode(',', $rawTagged)))) : [];
+
                 $parsedIssues[] = [
                     'id'                  => $id,
-                    'title'               => trim($row[IssueSheetRepository::COL_TITLE] ?? ''),
-                    'location'            => trim($row[IssueSheetRepository::COL_LOCATION] ?? ''),
-                    'description'         => trim($row[IssueSheetRepository::COL_DESCRIPTION] ?? ''),
-                    'department'          => trim($row[IssueSheetRepository::COL_ORIGIN_DEPT] ?? ''),
-                    'assignedDepartments'=> IssueSheetRepository::getAssignedDepartments($row),
-                    'category'            => trim($row[IssueSheetRepository::COL_CATEGORY] ?? ''),
-                    'reporter'            => trim($row[IssueSheetRepository::COL_REPORTER] ?? ''),
-                    'status'              => strtolower(trim($row[IssueSheetRepository::COL_STATUS] ?? 'open')),
-                    'taker'               => trim($row[IssueSheetRepository::COL_TAKER] ?? ''),
-                    'solvedBy'            => trim($row[IssueSheetRepository::COL_SOLVED_BY] ?? ''),
+                    'title'               => $safeTitle,
+                    'location'            => $safeLoc,
+                    'description'         => $safeDesc,
+                    'department'          => $safeDept ?: 'General',
+                    'assignedDepartments'=> IssueSheetRepository::getAssignedDepartments($latestRow),
+                    'taggedDepartments'  => $taggedDepartments,
+                    'category'            => $safeCat,
+                    'reporter'            => $safeReporter ?: 'Staff',
+                    'status'              => $rawStatus,
+                    'taker'               => trim($latestRow[IssueSheetRepository::COL_TAKER] ?? ''),
+                    'solvedBy'            => trim($latestRow[IssueSheetRepository::COL_SOLVED_BY] ?? ''),
+                    'solvedAt'            => trim($latestRow[IssueSheetRepository::COL_SOLVED_DATE] ?? ''),
                     'reportedAt'          => $createdRaw,
-                    'reportedAtFormatted' => $timestamp > 0 ? date('d M Y', $timestamp) : $createdRaw,
-                    'priority'            => !empty($row[IssueSheetRepository::COL_IS_EMERGENCY]) ? 'high' : 'low',
-                    'pendingReason'       => trim($row[IssueSheetRepository::COL_PENDING_TIMELINE] ?? ''),
-                    'durationLabel'       => '-',
+                    'reportedAtFormatted' => $timestamp > 0 ? date('d M Y', $timestamp) : ($createdRaw ?: '-'),
+                    'priority'            => $priority,
+                    'pendingReason'       => trim($latestRow[IssueSheetRepository::COL_PENDING_REASON] ?? ''),
+                    'pendingBy'           => trim($latestRow[IssueSheetRepository::COL_PENDING_BY] ?? ''),
+                    'durationLabel'       => trim($latestRow[IssueSheetRepository::COL_DURATION] ?? '-'),
                 ];
             }
 
@@ -353,14 +426,51 @@ class MonthlyReportService
      */
     protected function calculateAverageDuration(array $issues): string
     {
-        $solvedCount = 0;
-        foreach ($issues as $i) {
-            if (strtolower($i['status'] ?? '') === 'solved') {
-                $solvedCount++;
+        $durationsInMinutes = [];
+        foreach ($issues as $issue) {
+            $status = strtolower($issue['status'] ?? '');
+            if ($status !== 'solved') continue;
+
+            // Try durationLabel if present (e.g., "2 Jam 15 Menit", "45 Menit", "1 Hari")
+            $durStr = trim($issue['durationLabel'] ?? '');
+            if (!empty($durStr) && $durStr !== '-') {
+                $mins = 0;
+                if (preg_match('/(\d+)\s*hari/i', $durStr, $m)) $mins += ((int)$m[1]) * 1440;
+                if (preg_match('/(\d+)\s*(?:jam|hr|h)\b/i', $durStr, $m)) $mins += ((int)$m[1]) * 60;
+                if (preg_match('/(\d+)\s*(?:menit|min|m)\b/i', $durStr, $m)) $mins += (int)$m[1];
+                if ($mins > 0) {
+                    $durationsInMinutes[] = $mins;
+                    continue;
+                }
+            }
+
+            // Fallback: calculate from reportedAt and solvedAt timestamps
+            $repTime = $this->parseTimestamp($issue['reportedAt'] ?? null);
+            $solvTime = $this->parseTimestamp($issue['solvedAt'] ?? null);
+            if ($repTime > 0 && $solvTime > $repTime) {
+                $diffMins = (int)(($solvTime - $repTime) / 60);
+                if ($diffMins > 0) {
+                    $durationsInMinutes[] = $diffMins;
+                }
             }
         }
 
-        return $solvedCount > 0 ? "~4 Hours" : "-";
+        if (empty($durationsInMinutes)) {
+            return "-";
+        }
+
+        $avgMins = (int)(array_sum($durationsInMinutes) / count($durationsInMinutes));
+        if ($avgMins < 60) {
+            return "{$avgMins} Menit";
+        }
+        $hours = floor($avgMins / 60);
+        $remMins = $avgMins % 60;
+        if ($hours < 24) {
+            return $remMins > 0 ? "{$hours}j {$remMins}m" : "{$hours} Jam";
+        }
+        $days = floor($hours / 24);
+        $remHours = $hours % 24;
+        return $remHours > 0 ? "{$days}h {$remHours}j" : "{$days} Hari";
     }
 
     /**

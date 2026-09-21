@@ -234,7 +234,7 @@
                         @endif
                     </td>
                     <td>{{ $issue['department'] ?? '-' }}</td>
-                    <td>{{ $issue['category'] ?? '-' }}</td>
+                    <td>{{ !empty($issue['category']) ? ucwords(str_replace(['-', '_'], ' ', $issue['category'])) : '-' }}</td>
                     <td>{{ $issue['reporter'] ?? '-' }}</td>
                     <td>
                         @if(!empty($issue['solvedBy']))

@@ -5,33 +5,33 @@ namespace App\Services;
 class IssueSheetRepository
 {
     // Sheet Column Index Constants (0-indexed)
-    public const COL_ID                        = 0;
-    public const COL_TITLE                     = 1;
-    public const COL_LOCATION                  = 2;
-    public const COL_DESCRIPTION               = 3;
-    public const COL_REPORTER                  = 4;
-    public const COL_REPORTER_ROLE             = 5;
-    public const COL_IMAGE_URL                 = 6;
-    public const COL_STATUS                    = 7;
-    public const COL_TAKER                     = 8;
-    public const COL_SOLVED_BY                 = 9;
-    public const COL_SOLVED_IMAGE              = 10;
-    public const COL_SOLVED_DATE               = 11;
-    public const COL_CREATED_DATE              = 12;
-    public const COL_CATEGORY                  = 13;
-    public const COL_IS_EMERGENCY              = 14;
-    public const COL_VOICE_NOTE_URL            = 15;
-    public const COL_VOICE_NOTE_DURATION       = 16;
-    public const COL_SOLVED_VOICE_NOTE_URL     = 17;
-    public const COL_SOLVED_VOICE_NOTE_DURATION = 18;
-    public const COL_ACTION_TAKEN              = 19;
-    public const COL_PENDING_TIMELINE          = 20;
-    public const COL_LEGACY_ASSIGNED           = 21;
-    public const COL_ORIGIN_DEPT               = 22;
-    public const COL_TAGGED_DEPTS              = 23;
-    public const COL_EDIT_LOGS                 = 24;
-    public const COL_ARCHIVE_STATUS            = 25;
-    public const TOTAL_COLUMNS                 = 26;
+    public const COL_ID                   = 0;
+    public const COL_TITLE                = 1;
+    public const COL_DESCRIPTION          = 2;
+    public const COL_LOCATION             = 3;
+    public const COL_CATEGORY             = 4;
+    public const COL_STATUS               = 5;
+    public const COL_REPORTER             = 6;
+    public const COL_CREATED_DATE         = 7;
+    public const COL_IMAGE_URL            = 8;
+    public const COL_TAKER                = 9;
+    public const COL_TAKEN_DATE           = 10;
+    public const COL_SOLVED_BY            = 11;
+    public const COL_SOLVED_DATE          = 12;
+    public const COL_ACTION_TAKEN         = 13;
+    public const COL_PROOF_IMAGE          = 14;
+    public const COL_DURATION             = 15;
+    public const COL_PRIORITY             = 16;
+    public const COL_DEADLINE             = 17;
+    public const COL_PENDING_REASON       = 18;
+    public const COL_PENDING_BY           = 19;
+    public const COL_PENDING_IMAGE        = 20;
+    public const COL_TAGGED_DEPTS         = 21;
+    public const COL_ORIGIN_DEPT          = 22;
+    public const COL_ASSIGNED_DEPTS       = 23;
+    public const COL_EDIT_LOGS            = 24;
+    public const COL_ARCHIVE_STATUS       = 25;
+    public const TOTAL_COLUMNS            = 26;
 
     /**
      * Determine if a sheet row represents an archived issue.
@@ -63,9 +63,9 @@ class IssueSheetRepository
      */
     public static function getAssignedDepartments(array $row): array
     {
-        $raw = !empty($row[self::COL_TAGGED_DEPTS])
-            ? $row[self::COL_TAGGED_DEPTS]
-            : (!empty($row[self::COL_LEGACY_ASSIGNED]) ? $row[self::COL_LEGACY_ASSIGNED] : '');
+        $raw = !empty($row[self::COL_ASSIGNED_DEPTS])
+            ? $row[self::COL_ASSIGNED_DEPTS]
+            : (!empty($row[self::COL_TAGGED_DEPTS]) ? $row[self::COL_TAGGED_DEPTS] : '');
 
         if (empty($raw)) {
             return [];
