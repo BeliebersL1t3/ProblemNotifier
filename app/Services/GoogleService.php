@@ -1752,6 +1752,117 @@ class GoogleService
     }
 
     /**
+     * Color all rows in the active issue sheet according to each row's Department,
+     * while preserving the soft pastel conditional formatting on Column F (Status).
+     */
+    public function colorSheetRowsByDepartment(?string $sheetName = null): int
+    {
+        $targetSheet = $sheetName ?: $this->sheetName;
+        $this->setSheet($targetSheet);
+        $this->clearCache();
+
+        $rows = $this->getRows(true);
+        if (empty($rows)) {
+            return 0;
+        }
+
+        $spreadsheet = $this->sheets->spreadsheets->get($this->spreadsheetId);
+        $sheetId = 0;
+        foreach ($spreadsheet->getSheets() as $sheet) {
+            if ($sheet->getProperties()->getTitle() === $targetSheet) {
+                $sheetId = $sheet->getProperties()->getSheetId();
+                break;
+            }
+        }
+
+        $deptColors = [
+            'hk'              => ['red' => 0.88, 'green' => 0.98, 'blue' => 0.92], // Mint (#8CEDAE pastel)
+            'housekeeping'    => ['red' => 0.88, 'green' => 0.98, 'blue' => 0.92],
+            'pest control'    => ['red' => 0.88, 'green' => 0.98, 'blue' => 0.92],
+            'it'              => ['red' => 0.88, 'green' => 0.97, 'blue' => 0.99], // Aqua (#87DEF4 pastel)
+            'it-technology'   => ['red' => 0.88, 'green' => 0.97, 'blue' => 0.99],
+            'it & technology' => ['red' => 0.88, 'green' => 0.97, 'blue' => 0.99],
+            'prc'             => ['red' => 0.86, 'green' => 0.94, 'blue' => 0.99], // Azure (#19A6ED pastel)
+            'proc'            => ['red' => 0.86, 'green' => 0.94, 'blue' => 0.99],
+            'procurement'     => ['red' => 0.86, 'green' => 0.94, 'blue' => 0.99],
+            'eng'             => ['red' => 0.88, 'green' => 0.94, 'blue' => 0.99], // Sky (#61A6F1 pastel)
+            'engineer'        => ['red' => 0.88, 'green' => 0.94, 'blue' => 0.99],
+            'engineering'     => ['red' => 0.88, 'green' => 0.94, 'blue' => 0.99],
+            'maintenance'     => ['red' => 0.88, 'green' => 0.94, 'blue' => 0.99],
+            'fas'             => ['red' => 0.99, 'green' => 0.96, 'blue' => 0.84], // Sunny (#F2CD5A pastel)
+            'fasilitas'       => ['red' => 0.99, 'green' => 0.96, 'blue' => 0.84],
+            'facility'        => ['red' => 0.99, 'green' => 0.96, 'blue' => 0.84],
+            'security'        => ['red' => 0.99, 'green' => 0.96, 'blue' => 0.84],
+            'sec'             => ['red' => 0.99, 'green' => 0.96, 'blue' => 0.84],
+            'hr'              => ['red' => 0.92, 'green' => 0.93, 'blue' => 0.98], // Lavender (#737FCC pastel)
+            'human resources' => ['red' => 0.92, 'green' => 0.93, 'blue' => 0.98],
+            'gr'              => ['red' => 1.00, 'green' => 0.94, 'blue' => 0.85], // Tangerine (#FDB256 pastel)
+            'gre'             => ['red' => 1.00, 'green' => 0.94, 'blue' => 0.85],
+            'guest relations' => ['red' => 1.00, 'green' => 0.94, 'blue' => 0.85],
+            'kitchen'         => ['red' => 0.99, 'green' => 0.89, 'blue' => 0.90], // Cranberry (#EE6E78 pastel)
+            'f&b'             => ['red' => 0.99, 'green' => 0.89, 'blue' => 0.90],
+            'fnb'             => ['red' => 0.99, 'green' => 0.89, 'blue' => 0.90],
+            'kit'             => ['red' => 0.99, 'green' => 0.89, 'blue' => 0.90],
+            'finance'         => ['red' => 0.89, 'green' => 0.98, 'blue' => 0.85], // Kiwi (#76E553 pastel)
+            'reservasi'       => ['red' => 0.86, 'green' => 0.91, 'blue' => 1.00], // Cobalt (#0058FF pastel)
+            'sales'           => ['red' => 0.86, 'green' => 0.91, 'blue' => 1.00],
+            'oe'              => ['red' => 0.98, 'green' => 0.89, 'blue' => 0.99], // Amethyst (#F09BFF pastel)
+        ];
+
+        $requests = [];
+        foreach ($rows as $index => $row) {
+            $rowIndex = $index + 2; // 1-based (Row 1 is header)
+
+            $id = trim($row[0] ?? '');
+            $code = strtolower(explode('-', $id)[0] ?? '');
+            $originDept = strtolower(trim($row[22] ?? ''));
+            $assignedDept = strtolower(trim($row[23] ?? ''));
+            $reporter = trim($row[6] ?? '');
+
+            $deptKey = $assignedDept ?: ($originDept ?: $code);
+            if (empty($deptKey) && preg_match('/\((.*?)\)/', $reporter, $m)) {
+                $deptKey = strtolower(trim($m[1]));
+            }
+
+            $bgColor = $deptColors[$deptKey] ?? ($deptColors[$code] ?? null);
+            if (!$bgColor) {
+                $cat = strtolower(trim($row[4] ?? ''));
+                $bgColor = $deptColors[$cat] ?? ['red' => 0.98, 'green' => 0.98, 'blue' => 0.98];
+            }
+
+            $requests[] = new \Google\Service\Sheets\Request([
+                'repeatCell' => [
+                    'range' => [
+                        'sheetId'          => $sheetId,
+                        'startRowIndex'    => $rowIndex - 1, // 0-based
+                        'endRowIndex'      => $rowIndex,
+                        'startColumnIndex' => 0,
+                        'endColumnIndex'   => 24, // A to X
+                    ],
+                    'cell' => [
+                        'userEnteredFormat' => [
+                            'backgroundColor'   => $bgColor,
+                            'wrapStrategy'      => 'WRAP',
+                            'verticalAlignment' => 'TOP',
+                        ]
+                    ],
+                    'fields' => 'userEnteredFormat(backgroundColor,wrapStrategy,verticalAlignment)'
+                ]
+            ]);
+        }
+
+        if (!empty($requests)) {
+            $batchUpdateRequest = new \Google\Service\Sheets\BatchUpdateSpreadsheetRequest(['requests' => $requests]);
+            $this->sheets->spreadsheets->batchUpdate($this->spreadsheetId, $batchUpdateRequest);
+        }
+
+        // Re-apply Column F Status conditional formatting on top
+        $this->setupSheetFormatting($sheetId);
+
+        return count($rows);
+    }
+
+    /**
      * Pull modifications from Google Calendar back into Google Sheets.
      * Updates dates or titles for existing tasks, and marks deleted/cancelled events
      * as 'deleted_from_calendar' (soft-hide).

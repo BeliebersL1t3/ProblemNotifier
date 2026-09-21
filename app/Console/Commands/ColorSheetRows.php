@@ -29,41 +29,19 @@ class ColorSheetRows extends Command
         }
 
         foreach ($allSheets as $sheetName) {
-            $google->setSheet($sheetName);
-            $rows = $google->getRows(true);
-            if (empty($rows)) {
-                $this->info("Skipping empty sheet [{$sheetName}].");
-                continue;
-            }
-
-            $this->info("Processing " . count($rows) . " rows in sheet [{$sheetName}]...");
-
-            // 1. Re-color each row by its category
-            foreach ($rows as $index => $row) {
-                $rowIndex = $index + 2; // Row 1 is header
-                $category = $row[4] ?? 'other'; // Column E is category
-                try {
-                    $google->colorRowByCategory($rowIndex, $category);
-                    $this->line("  ✓ Row {$rowIndex} [{$category}] colored");
-                    usleep(150000); // 0.15s delay to prevent API quota limits
-                } catch (\Throwable $e) {
-                    $this->warn("  ✗ Row {$rowIndex} failed: " . $e->getMessage());
-                }
-            }
-
-            // 2. Clear old whole-row rules & apply conditional format ONLY to Column F
+            $this->info("Applying department colors to rows in [{$sheetName}]...");
             try {
-                $google->setupActiveSheetFormatting($sheetName);
-                $this->info("  ✓ Applied Column F status rules, text wrapping & top alignment to [{$sheetName}].");
+                $count = $google->colorSheetRowsByDepartment($sheetName);
+                $this->info("  ✓ Applied department colors to {$count} rows and restored soft Status rules on [{$sheetName}].");
             } catch (\Throwable $e) {
-                $this->warn("  ✗ Could not apply rules to [{$sheetName}]: " . $e->getMessage());
+                $this->warn("  ✗ Failed on [{$sheetName}]: " . $e->getMessage());
             }
 
             $google->clearCache($sheetName);
         }
 
         $this->newLine();
-        $this->info("Done! Category colors restored and Status rules isolated to Column F across all sheets.");
+        $this->info("Done! Department colors restored and Status rules applied to Column F across all sheets.");
 
         return Command::SUCCESS;
     }
