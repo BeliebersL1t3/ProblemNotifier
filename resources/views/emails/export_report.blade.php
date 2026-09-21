@@ -133,11 +133,22 @@
                                             <tr>
                                                 <td>
                                                     <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: #8C8270; margin-bottom: 4px;">
-                                                        Scope Coverage
+                                                        Department Filter
                                                     </div>
-                                                    <div style="font-size: 15px; font-weight: 700; color: #1F2937; text-transform: capitalize;">
+                                                    @php
+                                                        $rawScope = strtolower((string)($reportMeta['scope'] ?? 'all'));
+                                                        $scopeMap = [
+                                                            'all'        => 'All Departments',
+                                                            'my_scope'   => 'My Scope',
+                                                            'to_fix'     => 'To Fix',
+                                                            'my_reports' => 'My Reports',
+                                                            'mentions'   => 'Mentions',
+                                                        ];
+                                                        $scopeLabel = $scopeMap[$rawScope] ?? ucwords(str_replace('_', ' ', $reportMeta['scope']));
+                                                    @endphp
+                                                    <div style="font-size: 15px; font-weight: 700; color: #1F2937;">
                                                         <span style="display: inline-block; background-color: #ECE5D8; color: #4A3E2C; padding: 3px 10px; border-radius: 4px; font-size: 12px; font-weight: 700; letter-spacing: 0.5px;">
-                                                            {{ $reportMeta['scope'] ?? 'All Scope' }}
+                                                            {{ $scopeLabel }}
                                                         </span>
                                                     </div>
                                                     <div style="font-size: 11px; color: #6B7280; margin-top: 6px;">
