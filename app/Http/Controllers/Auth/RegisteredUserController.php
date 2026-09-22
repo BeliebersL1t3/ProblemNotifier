@@ -25,35 +25,92 @@ class RegisteredUserController extends Controller
     }
 
     /**
+     * Check if a phone number is already registered (real-time validation).
+     */
+    public function checkPhone(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $rawPhone = $request->input('phone', '');
+        [$canonicalPhone, $zeroPhone] = $this->normalizePhoneVariants($rawPhone);
+
+        if (empty($canonicalPhone) || strlen($canonicalPhone) < 9) {
+            return response()->json([
+                'available' => true,
+            ]);
+        }
+
+        $conflict = User::whereIn('whatsapp_number', array_unique([$canonicalPhone, $zeroPhone]))->first();
+
+        if ($conflict) {
+            $deptLabel = !empty($conflict->department) ? " ({$conflict->department})" : '';
+            return response()->json([
+                'available' => false,
+                'message' => "Nomor WhatsApp ini sudah terdaftar oleh akun {$conflict->name}{$deptLabel}.",
+            ]);
+        }
+
+        return response()->json([
+            'available' => true,
+        ]);
+    }
+
+    /**
+     * Normalize raw phone number into [canonical (628...), zero (08...)]
+     *
+     * @return array{0: string, 1: string}
+     */
+    protected function normalizePhoneVariants(?string $rawPhone): array
+    {
+        $clean = preg_replace('/[^0-9]/', '', (string)$rawPhone);
+        if (empty($clean)) {
+            return ['', ''];
+        }
+
+        if (str_starts_with($clean, '0')) {
+            $canonical = '62' . substr($clean, 1);
+        } elseif (str_starts_with($clean, '8')) {
+            $canonical = '62' . $clean;
+        } else {
+            $canonical = $clean;
+        }
+
+        $zero = str_starts_with($canonical, '62') ? ('0' . substr($canonical, 2)) : $canonical;
+
+        return [$canonical, $zero];
+    }
+
+    /**
      * Handle an incoming registration request.
      *
      * @throws ValidationException
      */
     public function store(Request $request): RedirectResponse
     {
+        [$canonicalPhone, $zeroPhone] = $this->normalizePhoneVariants($request->whatsapp_number);
+
         $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|string|lowercase|email|max:255|unique:'.User::class,
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
             'department' => 'required|string|max:100',
             'subdivision' => 'nullable|string|max:100',
-            'whatsapp_number' => 'required|string|max:30',
+            'whatsapp_number' => [
+                'required',
+                'string',
+                'max:30',
+                function ($attribute, $value, $fail) use ($canonicalPhone, $zeroPhone) {
+                    if (empty($canonicalPhone) || strlen($canonicalPhone) < 10) {
+                        $fail('Nomor WhatsApp tidak valid (terlalu pendek).');
+                        return;
+                    }
+
+                    $conflict = User::whereIn('whatsapp_number', array_unique([$canonicalPhone, $zeroPhone]))->first();
+                    if ($conflict) {
+                        $deptLabel = !empty($conflict->department) ? " ({$conflict->department})" : '';
+                        $fail("Nomor WhatsApp ini sudah terdaftar oleh akun {$conflict->name}{$deptLabel}.");
+                    }
+                },
+            ],
         ]);
-
-        $cleanPhone = preg_replace('/[^0-9]/', '', $request->whatsapp_number);
-        if (empty($cleanPhone)) {
-            throw ValidationException::withMessages([
-                'whatsapp_number' => 'Nomor WhatsApp tidak valid.',
-            ]);
-        }
-
-        // Check if phone number is already registered by active user
-        $conflict = User::where('whatsapp_number', $cleanPhone)->first();
-        if ($conflict) {
-            throw ValidationException::withMessages([
-                'whatsapp_number' => "Nomor WhatsApp ini sudah terdaftar oleh akun {$conflict->name} ({$conflict->department}).",
-            ]);
-        }
 
         $user = User::create([
             'name' => $request->name,
@@ -61,7 +118,7 @@ class RegisteredUserController extends Controller
             'password' => Hash::make($request->password),
             'department' => $request->department,
             'subdivision' => $request->subdivision,
-            'whatsapp_number' => $cleanPhone,
+            'whatsapp_number' => $canonicalPhone,
             'role' => 'department',
             'is_active' => false,
             'approval_status' => 'pending_hod',
@@ -79,7 +136,7 @@ class RegisteredUserController extends Controller
             'subdivision' => $user->subdivision,
             'staff_name' => $user->name,
             'email' => $user->email,
-            'requested_value' => $cleanPhone,
+            'requested_value' => $canonicalPhone,
             'status' => 'pending_hod',
             'reason' => 'Pendaftaran akun mandiri dari Web Dashboard',
         ]);

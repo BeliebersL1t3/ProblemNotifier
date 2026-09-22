@@ -1,3 +1,5 @@
+import { useState, useRef } from 'react';
+import axios from 'axios';
 import InputError from '@/Components/InputError';
 import InputLabel from '@/Components/InputLabel';
 import PrimaryButton from '@/Components/PrimaryButton';
@@ -5,6 +7,7 @@ import TextInput from '@/Components/TextInput';
 import GuestLayout from '@/Layouts/GuestLayout';
 import { Head, Link, useForm } from '@inertiajs/react';
 import { DEPARTMENT_SUBDIVISIONS, normalizeDepartment } from '@/constants/departments';
+import { CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 
 const DEPARTMENT_OPTIONS = [
     { value: 'HR', label: 'HR (Human Resources)' },
@@ -30,6 +33,50 @@ export default function Register() {
         subdivision: '',
         whatsapp_number: '',
     });
+
+    const [phoneStatus, setPhoneStatus] = useState('idle'); // 'idle' | 'checking' | 'available' | 'taken'
+    const [phoneCheckError, setPhoneCheckError] = useState('');
+    const [isCheckingPhone, setIsCheckingPhone] = useState(false);
+    const checkTimeoutRef = useRef(null);
+
+    const checkPhoneAvailability = async (phone) => {
+        const clean = (phone || '').replace(/[^0-9]/g, '');
+        if (clean.length < 9) {
+            setPhoneStatus('idle');
+            setPhoneCheckError('');
+            return;
+        }
+
+        setIsCheckingPhone(true);
+        try {
+            const res = await axios.post('/register/check-phone', { phone });
+            if (res.data.available === false) {
+                setPhoneStatus('taken');
+                setPhoneCheckError(res.data.message || 'Nomor WhatsApp ini sudah terdaftar.');
+            } else {
+                setPhoneStatus('available');
+                setPhoneCheckError('');
+            }
+        } catch (err) {
+            console.error('Failed to check phone availability:', err);
+        } finally {
+            setIsCheckingPhone(false);
+        }
+    };
+
+    const handlePhoneChange = (val) => {
+        setPhoneStatus('idle');
+        setPhoneCheckError('');
+        if (checkTimeoutRef.current) {
+            clearTimeout(checkTimeoutRef.current);
+        }
+        const clean = (val || '').replace(/[^0-9]/g, '');
+        if (clean.length >= 10) {
+            checkTimeoutRef.current = setTimeout(() => {
+                checkPhoneAvailability(val);
+            }, 600);
+        }
+    };
 
     const normDept = normalizeDepartment(data.department);
     const rawSubs = data.department 
@@ -153,16 +200,45 @@ export default function Register() {
                             id="whatsapp_number"
                             name="whatsapp_number"
                             value={data.whatsapp_number}
-                            className="block w-full pl-9 text-sm font-mono"
+                            className={`block w-full pl-9 pr-10 text-sm font-mono transition-colors ${
+                                phoneStatus === 'taken' || errors.whatsapp_number
+                                    ? 'border-red-500 focus:border-red-500 focus:ring-red-500 ring-1 ring-red-500'
+                                    : phoneStatus === 'available'
+                                    ? 'border-emerald-500 focus:border-emerald-500 focus:ring-emerald-500 ring-1 ring-emerald-500/50'
+                                    : ''
+                            }`}
                             placeholder="08123456789 atau 628123456789"
-                            onChange={(e) => setData('whatsapp_number', e.target.value)}
+                            onChange={(e) => {
+                                setData('whatsapp_number', e.target.value);
+                                handlePhoneChange(e.target.value);
+                            }}
+                            onBlur={() => checkPhoneAvailability(data.whatsapp_number)}
                             required
                         />
+                        <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                            {isCheckingPhone && <Loader2 className="w-4 h-4 text-gray-400 animate-spin" />}
+                            {!isCheckingPhone && phoneStatus === 'available' && !errors.whatsapp_number && (
+                                <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                            )}
+                            {!isCheckingPhone && (phoneStatus === 'taken' || errors.whatsapp_number) && (
+                                <AlertCircle className="w-4 h-4 text-red-500" />
+                            )}
+                        </div>
                     </div>
                     <p className="mt-1 text-[11px] text-gray-400">
                         Nomor ini digunakan untuk interaksi bot WhatsApp Telunas & penerimaan tiket.
                     </p>
-                    <InputError message={errors.whatsapp_number} className="mt-1" />
+                    {(phoneCheckError || errors.whatsapp_number) ? (
+                        <p className="mt-1 text-xs text-red-600 font-medium flex items-center gap-1">
+                            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                            <span>{phoneCheckError || errors.whatsapp_number}</span>
+                        </p>
+                    ) : phoneStatus === 'available' ? (
+                        <p className="mt-1 text-xs text-emerald-600 font-medium flex items-center gap-1">
+                            <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                            <span>Nomor WhatsApp tersedia.</span>
+                        </p>
+                    ) : null}
                 </div>
 
                 <div>
