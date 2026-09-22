@@ -358,6 +358,13 @@ function DashboardInner() {
         }).length;
     }, [issues, department, canViewAllDepartments, isAdmin, user, staffName]);
 
+    // Auto-hide fallback: if user has no past contributions, ensure view mode doesn't get stuck on past_contributions
+    useEffect(() => {
+        if (pastContribCount === 0 && deptViewMode === 'past_contributions') {
+            setDeptViewMode('all');
+        }
+    }, [pastContribCount, deptViewMode]);
+
     const visible = useMemo(() => {
         const q = query.trim().toLowerCase();
         const sourceIssues = showArchiveTab ? (archivedIssues || []) : issues;
@@ -836,18 +843,20 @@ function DashboardInner() {
                                 >
                                     📢 {t('mentioned_me')}
                                 </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setDeptViewMode('past_contributions')}
-                                    className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-                                        deptViewMode === 'past_contributions'
-                                            ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-sm font-extrabold'
-                                            : 'text-muted-foreground hover:text-foreground'
-                                    }`}
-                                    title="Isu dari departemen lama yang pernah Anda buat atau tangani"
-                                >
-                                    <span>🔒 {lang === 'id' ? 'Riwayat Kontribusi' : 'Past Contributions'}</span>
-                                    {pastContribCount > 0 && (
+                                {pastContribCount > 0 && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setDeptViewMode('past_contributions')}
+                                        className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                                            deptViewMode === 'past_contributions'
+                                                ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-sm font-extrabold'
+                                                : 'text-muted-foreground hover:text-foreground'
+                                        }`}
+                                        title={lang === 'id' 
+                                            ? `Menampilkan ${pastContribCount} isu riwayat kontribusi dari departemen Anda sebelumnya` 
+                                            : `Shows ${pastContribCount} past contribution issue(s) from your former department(s)`}
+                                    >
+                                        <span>🔒 {lang === 'id' ? 'Riwayat Kontribusi' : 'Past Contributions'}</span>
                                         <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
                                             deptViewMode === 'past_contributions'
                                                 ? 'bg-[#1C1B0E] text-[#C9AA71]'
@@ -855,8 +864,8 @@ function DashboardInner() {
                                         }`}>
                                             {pastContribCount}
                                         </span>
-                                    )}
-                                </button>
+                                    </button>
+                                )}
                             </div>
                         )}
 

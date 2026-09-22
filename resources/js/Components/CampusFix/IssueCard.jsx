@@ -65,6 +65,11 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
     ));
 
     const isPastContribution = Boolean(issue?._isPastContribution);
+    const pastContribTooltip = isPastContribution
+        ? (lang === 'id'
+            ? `Isu riwayat kontribusi Anda saat bertugas di departemen ${issue.department || 'sebelumnya'}. Akses dalam mode lihat detail (Read-Only).`
+            : `Past contribution issue from your former department (${issue.department || 'previous'}). View-only mode.`)
+        : '';
     const canEdit = !isPastContribution && (isAdmin || canEditReport || canEditClaim || canEditPending || canEditSolved);
     const canDelete = !isPastContribution && isAdmin;
 
@@ -169,7 +174,7 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
                         <span className="text-muted-foreground truncate">{issue.location || '-'}</span>
                     )}
                     {isPastContribution && (
-                        <span className="text-[9px] font-bold text-amber-300 shrink-0" title="Riwayat Kontribusi (Read-Only)">
+                        <span className="text-[9px] font-bold text-amber-300 shrink-0 cursor-help" title={pastContribTooltip}>
                             🔒
                         </span>
                     )}
@@ -238,7 +243,10 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
                         className="absolute left-2 top-2 scale-90 origin-top-left"
                     />
                     {isPastContribution && (
-                        <div className="absolute left-2 top-8 z-10 flex items-center gap-1 rounded bg-[#1C1B0E]/90 text-amber-300 border border-amber-500/40 px-1.5 py-0.2 text-[9px] font-bold shadow-xs">
+                        <div 
+                            className="absolute left-2 top-8 z-10 flex items-center gap-1 rounded bg-[#1C1B0E]/90 text-amber-300 border border-amber-500/40 px-1.5 py-0.2 text-[9px] font-bold shadow-xs cursor-help"
+                            title={pastContribTooltip}
+                        >
                             <span>🔒</span>
                             <span>Riwayat</span>
                         </div>
@@ -525,7 +533,10 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
                     className="absolute left-3 top-3"
                 />
                 {isPastContribution && (
-                    <div className="absolute left-3 top-11 z-10 flex items-center gap-1.5 rounded-md bg-[#1C1B0E]/90 text-amber-300 border border-amber-500/40 px-2 py-0.5 text-[10px] font-bold shadow-md backdrop-blur-xs">
+                    <div 
+                        className="absolute left-3 top-11 z-10 flex items-center gap-1.5 rounded-md bg-[#1C1B0E]/90 text-amber-300 border border-amber-500/40 px-2 py-0.5 text-[10px] font-bold shadow-md backdrop-blur-xs cursor-help"
+                        title={pastContribTooltip}
+                    >
                         <span>🔒</span>
                         <span>Riwayat ({issue.department})</span>
                     </div>
