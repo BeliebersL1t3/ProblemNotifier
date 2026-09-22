@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import axios from 'axios';
 import { Bell, Check, Clock, Ticket, AlertCircle, ExternalLink, CheckCheck, Crown, X } from 'lucide-react';
 import { Link } from '@inertiajs/react';
 import { useLanguage } from '@/context/LanguageContext';
@@ -13,10 +14,9 @@ export default function NotificationDropdown({ isMobile = false }) {
 
     const fetchNotifications = async () => {
         try {
-            const res = await fetch('/notifications');
-            if (res.ok) {
-                const json = await res.json();
-                setData(json);
+            const res = await axios.get('/notifications');
+            if (res.data) {
+                setData(res.data);
             }
         } catch (e) {
             // Ignore offline/background polling errors
@@ -58,15 +58,12 @@ export default function NotificationDropdown({ isMobile = false }) {
         });
 
         try {
-            await fetch(`/notifications/${id}/read`, {
-                method: 'POST',
-                headers: {
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                    'Accept': 'application/json',
-                },
-                keepalive: true,
-            });
-        } catch (e) {}
+            await axios.post(`/notifications/${id}/read`);
+        } catch (e) {
+            console.error('Failed to mark notification as read:', e);
+            // Re-sync with server state on failure
+            fetchNotifications();
+        }
     };
 
     const markAllAsRead = async () => {
@@ -78,15 +75,12 @@ export default function NotificationDropdown({ isMobile = false }) {
         }));
 
         try {
-            await fetch('/notifications/read-all', {
-                method: 'POST',
-                headers: {
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                    'Accept': 'application/json',
-                },
-                keepalive: true,
-            });
-        } catch (e) {}
+            await axios.post('/notifications/read-all');
+        } catch (e) {
+            console.error('Failed to mark all notifications as read:', e);
+            // Re-sync with server state on failure
+            fetchNotifications();
+        }
     };
 
     const unreadTicketsCount = data.tickets.filter(t => !t.is_read).length;
@@ -241,24 +235,43 @@ export default function NotificationDropdown({ isMobile = false }) {
                                             <p className="text-[#E3D1AA] text-[11px] mt-1 leading-snug">
                                                 {item.message}
                                             </p>
-                                            <div className="flex items-center justify-between mt-2 pt-1 border-t border-[#3B3929]/40">
-                                                <span className="text-[10px] text-[#A19F8D]">
-                                                    {new Date(item.created_at).toLocaleDateString('id-ID', { hour: '2-digit', minute: '2-digit' })}
-                                                </span>
-                                                {item.link && (
-                                                    <Link
-                                                        href={item.link}
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            if (!item.is_read) markAsRead(item.id);
-                                                            setIsOpen(false);
-                                                        }}
-                                                        className="text-[11px] text-[#C9AA71] hover:text-[#FAFAFA] font-bold flex items-center gap-0.5 hover:underline"
-                                                    >
-                                                        {item.link.includes('profile') ? 'Lihat Profil' : item.link.includes('users') ? 'Kelola Akun' : 'Lihat Tiket'} <ExternalLink className="w-2.5 h-2.5" />
-                                                    </Link>
-                                                )}
-                                            </div>
+                                             <div className="flex items-center justify-between mt-2 pt-1 border-t border-[#3B3929]/40 gap-2">
+                                                 <span className="text-[10px] text-[#A19F8D] shrink-0">
+                                                     {new Date(item.created_at).toLocaleDateString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+                                                 </span>
+                                                 <div className="flex items-center gap-2">
+                                                     {!item.is_read ? (
+                                                         <button
+                                                             type="button"
+                                                             onClick={(e) => {
+                                                                 e.stopPropagation();
+                                                                 markAsRead(item.id);
+                                                             }}
+                                                             className="text-[10px] text-[#C9AA71] hover:text-[#FAFAFA] flex items-center gap-1 font-semibold py-0.5 px-1.5 rounded bg-[#C9AA71]/10 hover:bg-[#C9AA71]/20 transition"
+                                                             title="Tandai sudah dibaca"
+                                                         >
+                                                             <Check className="w-2.5 h-2.5" /> Tandai baca
+                                                         </button>
+                                                     ) : (
+                                                         <span className="text-[10px] text-[#A19F8D]/60 flex items-center gap-0.5 font-medium">
+                                                             <Check className="w-2.5 h-2.5 opacity-50" /> Dibaca
+                                                         </span>
+                                                     )}
+                                                     {item.link && (
+                                                         <Link
+                                                             href={item.link}
+                                                             onClick={(e) => {
+                                                                 e.stopPropagation();
+                                                                 if (!item.is_read) markAsRead(item.id);
+                                                                 setIsOpen(false);
+                                                             }}
+                                                             className="text-[11px] text-[#C9AA71] hover:text-[#FAFAFA] font-bold flex items-center gap-0.5 hover:underline ml-1"
+                                                         >
+                                                             {item.link.includes('profile') ? 'Lihat Profil' : item.link.includes('users') ? 'Kelola Akun' : 'Lihat Tiket'} <ExternalLink className="w-2.5 h-2.5" />
+                                                         </Link>
+                                                     )}
+                                                 </div>
+                                             </div>
                                         </div>
                                     </div>
                                 ))
@@ -292,23 +305,42 @@ export default function NotificationDropdown({ isMobile = false }) {
                                             <p className="text-[#E3D1AA] text-[11px] mt-1 leading-snug">
                                                 {item.message}
                                             </p>
-                                            <div className="flex items-center justify-between mt-2 pt-1 border-t border-[#3B3929]/40">
-                                                <span className="text-[10px] text-[#A19F8D]">
+                                            <div className="flex items-center justify-between mt-2 pt-1 border-t border-[#3B3929]/40 gap-2">
+                                                <span className="text-[10px] text-[#A19F8D] shrink-0">
                                                     {new Date(item.created_at).toLocaleDateString('id-ID', { hour: '2-digit', minute: '2-digit' })}
                                                 </span>
-                                                {item.link && (
-                                                    <Link
-                                                        href={item.link}
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            if (!item.is_read) markAsRead(item.id);
-                                                            setIsOpen(false);
-                                                        }}
-                                                        className="text-[11px] text-[#C9AA71] hover:text-[#FAFAFA] font-bold flex items-center gap-0.5 hover:underline"
-                                                    >
-                                                        Lihat Isu <ExternalLink className="w-2.5 h-2.5" />
-                                                    </Link>
-                                                )}
+                                                <div className="flex items-center gap-2">
+                                                    {!item.is_read ? (
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                markAsRead(item.id);
+                                                            }}
+                                                            className="text-[10px] text-[#C9AA71] hover:text-[#FAFAFA] flex items-center gap-1 font-semibold py-0.5 px-1.5 rounded bg-[#C9AA71]/10 hover:bg-[#C9AA71]/20 transition"
+                                                            title="Tandai sudah dibaca"
+                                                        >
+                                                            <Check className="w-2.5 h-2.5" /> Tandai baca
+                                                        </button>
+                                                    ) : (
+                                                        <span className="text-[10px] text-[#A19F8D]/60 flex items-center gap-0.5 font-medium">
+                                                            <Check className="w-2.5 h-2.5 opacity-50" /> Dibaca
+                                                        </span>
+                                                    )}
+                                                    {item.link && (
+                                                        <Link
+                                                            href={item.link}
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                if (!item.is_read) markAsRead(item.id);
+                                                                setIsOpen(false);
+                                                            }}
+                                                            className="text-[11px] text-[#C9AA71] hover:text-[#FAFAFA] font-bold flex items-center gap-0.5 hover:underline ml-1"
+                                                        >
+                                                            Lihat Isu <ExternalLink className="w-2.5 h-2.5" />
+                                                        </Link>
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
                                     </div>

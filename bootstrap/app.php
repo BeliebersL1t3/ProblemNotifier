@@ -29,6 +29,8 @@ return Application::configure(basePath: dirname(__DIR__))
             'api/categories/*',
             'api/operations',
             'api/operations/*',
+            'notifications/*',
+            'notifications/read-all',
         ]);
 
         $middleware->alias([

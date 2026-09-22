@@ -47,10 +47,22 @@ class NotificationController extends Controller
     public function markAsRead(Request $request, $id): JsonResponse
     {
         $user = Auth::user();
-        $notification = DashboardNotification::forUser($user)->findOrFail($id);
+        if (!$user) {
+            return response()->json(['error' => 'Unauthenticated'], 401);
+        }
+
+        $notification = DashboardNotification::forUser($user)->find($id);
+        if (!$notification) {
+            return response()->json(['error' => 'Notification not found or access denied'], 404);
+        }
+
         $notification->update(['is_read' => true]);
 
-        return response()->json(['success' => true]);
+        return response()->json([
+            'success' => true,
+            'id' => (int) $id,
+            'is_read' => true,
+        ]);
     }
 
     /**
@@ -59,10 +71,17 @@ class NotificationController extends Controller
     public function markAllAsRead(Request $request): JsonResponse
     {
         $user = Auth::user();
-        DashboardNotification::forUser($user)
+        if (!$user) {
+            return response()->json(['error' => 'Unauthenticated'], 401);
+        }
+
+        $affected = DashboardNotification::forUser($user)
             ->where('is_read', false)
             ->update(['is_read' => true]);
 
-        return response()->json(['success' => true]);
+        return response()->json([
+            'success' => true,
+            'affected' => $affected,
+        ]);
     }
 }
