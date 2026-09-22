@@ -5,7 +5,7 @@ import {
     AlertCircle, Loader2, Sparkles, Mail, Tag, ShieldCheck, RefreshCw,
     Phone, MessageSquare, Check, Smartphone, Unlink, Trash2,
     Users as UsersIcon, ChevronRight, ShieldAlert, Camera, UploadCloud,
-    Image as ImageIcon, X, Ticket, Clock, ArrowRightLeft
+    Image as ImageIcon, X, Ticket, Clock, ArrowRightLeft, Globe, Crown
 } from 'lucide-react';
 
 import { IssuesProvider } from '@/context/IssuesContext';
@@ -28,7 +28,10 @@ export default function ProfilePage(props) {
 
 function ProfileInner({ pendingTicket, pendingTransferTicket, notifyWhatsAppTickets, status }) {
     const { t, lang } = useLanguage();
-    const { user, isAdmin, isHOD, isDeptUser, department, subdivision, staffName, whatsappNumber, avatarUrl } = useAuth();
+    const { 
+        user, isAdmin, isHOD, isDeptUser, department, subdivision, staffName, whatsappNumber, avatarUrl,
+        canViewAllDepartments, canManageIssues, canDeleteIssues, canExportReports, canAccessCalendar, canAccessAnalytics
+    } = useAuth();
     const canDirectUpdateWa = isAdmin || isHOD;
     const currentDeptTheme = department ? getDepartmentTheme(department) : { bg: '#C9AA71', text: '#1C1B0E' };
 
@@ -520,6 +523,83 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, notifyWhatsAppTick
                                                     </p>
                                                 </div>
                                             )}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Active Account Permissions Card */}
+                            <div className="rounded-2xl border border-[#3B3929] bg-[#2A281E]/60 p-5 shadow-xl space-y-3">
+                                <div className="flex items-center gap-2">
+                                    <ShieldCheck className="h-4 w-4 text-[#C9AA71]" />
+                                    <h3 className="text-xs font-bold uppercase tracking-wider text-[#E3D1AA]">
+                                        {lang === 'id' ? 'Wewenang & Hak Akses Akun' : 'Account Special Permissions'}
+                                    </h3>
+                                </div>
+                                <div className="space-y-2 pt-1 text-xs">
+                                    {isAdmin && (
+                                        <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-start gap-2.5">
+                                            <ShieldCheck className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                                            <div>
+                                                <p className="font-bold text-amber-200">Full Administrator Access</p>
+                                                <p className="text-[11px] text-[#A19F8D]">Wewenang penuh untuk mengatur seluruh sistem, staf, tiket, dan isu.</p>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {isHOD && (
+                                        <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-start gap-2.5">
+                                            <Crown className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                                            <div>
+                                                <p className="font-bold text-amber-200">Head of Department (HOD)</p>
+                                                <p className="text-[11px] text-[#A19F8D]">Pimpinan departemen dengan wewenang persetujuan tiket dan manajemen tim.</p>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {canViewAllDepartments && !isAdmin && (
+                                        <div className="p-2.5 rounded-xl bg-sky-500/10 border border-sky-500/30 flex items-start gap-2.5">
+                                            <Globe className="w-4 h-4 text-sky-400 shrink-0 mt-0.5" />
+                                            <div>
+                                                <p className="font-bold text-sky-300">Akses Lintas Seluruh Departemen</p>
+                                                <p className="text-[11px] text-[#A19F8D]">Anda memiliki izin istimewa untuk memantau dan memfilter isu dari semua divisi resort Telunas di dashboard.</p>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {canManageIssues && !isAdmin && (
+                                        <div className="p-2 rounded-lg bg-[#1C1B0E] border border-[#3B3929] flex items-center justify-between text-[11px]">
+                                            <span className="text-[#FAFAFA] font-medium flex items-center gap-1.5">
+                                                <Check className="w-3.5 h-3.5 text-emerald-400" /> Kelola & Edit Isu
+                                            </span>
+                                            <span className="text-emerald-400 font-bold text-[10px] bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">Aktif</span>
+                                        </div>
+                                    )}
+
+                                    {canExportReports && !isAdmin && (
+                                        <div className="p-2 rounded-lg bg-[#1C1B0E] border border-[#3B3929] flex items-center justify-between text-[11px]">
+                                            <span className="text-[#FAFAFA] font-medium flex items-center gap-1.5">
+                                                <Check className="w-3.5 h-3.5 text-emerald-400" /> Ekspor Laporan (PDF & Excel)
+                                            </span>
+                                            <span className="text-emerald-400 font-bold text-[10px] bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">Aktif</span>
+                                        </div>
+                                    )}
+
+                                    {canAccessCalendar && !isAdmin && (
+                                        <div className="p-2 rounded-lg bg-[#1C1B0E] border border-[#3B3929] flex items-center justify-between text-[11px]">
+                                            <span className="text-[#FAFAFA] font-medium flex items-center gap-1.5">
+                                                <Check className="w-3.5 h-3.5 text-emerald-400" /> Akses Kalender Operasional
+                                            </span>
+                                            <span className="text-emerald-400 font-bold text-[10px] bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">Aktif</span>
+                                        </div>
+                                    )}
+
+                                    {canAccessAnalytics && !isAdmin && (
+                                        <div className="p-2 rounded-lg bg-[#1C1B0E] border border-[#3B3929] flex items-center justify-between text-[11px]">
+                                            <span className="text-[#FAFAFA] font-medium flex items-center gap-1.5">
+                                                <Check className="w-3.5 h-3.5 text-emerald-400" /> Akses Halaman Grafik Analitik
+                                            </span>
+                                            <span className="text-emerald-400 font-bold text-[10px] bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">Aktif</span>
                                         </div>
                                     )}
                                 </div>

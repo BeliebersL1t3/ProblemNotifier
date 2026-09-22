@@ -1,6 +1,6 @@
 import { Head } from '@inertiajs/react';
 import { useMemo, useState, useEffect, useRef } from 'react';
-import { Loader2, RefreshCw, SearchX, LayoutGrid, Grid3X3, Layers, Search, MapPin, Trash2, AlertTriangle, CalendarPlus } from 'lucide-react';
+import { Loader2, RefreshCw, SearchX, LayoutGrid, Grid3X3, Layers, Search, MapPin, Trash2, AlertTriangle, CalendarPlus, Globe } from 'lucide-react';
 import { getDepartmentTheme } from '@/constants/departments';
 
 import { useLanguage } from '@/context/LanguageContext';
@@ -341,72 +341,101 @@ function DashboardInner() {
         const q = query.trim().toLowerCase();
         const sourceIssues = showArchiveTab ? (archivedIssues || []) : issues;
 
-        // For department users, pre-filter to their department scope, ALWAYS including island-wide emergency alerts and past contributions
-        const deptScoped = isDeptUser && department && !canViewAllDepartments
-            ? sourceIssues.reduce((acc, issue) => {
-                const isReportedByCurrentMe = isReportedByMe(issue);
+        // Determine active department scope context
+        const normUserDept = department ? normalizeDepartment(department) : null;
+        const normDeptFilter = (deptFilter && deptFilter !== 'all') ? normalizeDepartment(deptFilter) : null;
+        // The effective department being inspected (either specific dropdown selection, or the user's primary dept)
+        const targetDept = normDeptFilter || normUserDept;
 
-                // If user specifically selects "Reported By Me" tab, only include issues they personally created!
-                if (deptViewMode === 'origin') {
-                    if (isReportedByCurrentMe) {
-                        const inCurrentDept = normalizeDepartment(issue.department) === normalizeDepartment(department);
-                        acc.push(inCurrentDept ? issue : { ...issue, _isPastContribution: true });
-                    }
-                    return acc;
+        // Apply Scope Perspective Tab Filtering
+        const deptScoped = sourceIssues.reduce((acc, issue) => {
+            const assigned = (Array.isArray(issue.assignedDepartments) 
+                ? issue.assignedDepartments 
+                : (issue.assignedDepartments ? String(issue.assignedDepartments).split(',') : [])
+            ).map(d => normalizeDepartment(d.trim()));
+
+            const tagged = (Array.isArray(issue.taggedDepartments) 
+                ? issue.taggedDepartments 
+                : (issue.taggedDepartments ? String(issue.taggedDepartments).split(',') : [])
+            ).map(d => normalizeDepartment(d.trim()));
+
+            const originDept = normalizeDepartment(issue.department || '');
+            const isAssignedToTarget = Boolean(targetDept && assigned.includes(targetDept));
+            const isTaggedToTarget = Boolean(targetDept && tagged.includes(targetDept));
+            const isOriginOfTarget = Boolean(targetDept && originDept === targetDept);
+
+            const isReportedByCurrentMe = isReportedByMe(issue);
+            const isPastContrib = isPastContributor(issue);
+
+            // 1. Tab "Reported By Me" (Dibuat Oleh Saya Pribadi)
+            if (deptViewMode === 'origin') {
+                if (isReportedByCurrentMe) {
+                    const inCurrentDept = normUserDept && originDept === normUserDept;
+                    acc.push(inCurrentDept ? issue : { ...issue, _isPastContribution: true });
                 }
+                return acc;
+            }
 
-                // 🚨 Emergency & critical fast-track issues are island-wide alerts, ALWAYS in scope for everyone!
-                const isEmergency = (issue.category || '').toLowerCase() === 'emergency' 
-                    || String(issue.id || '').startsWith('SOS')
-                    || (Array.isArray(issue.assignedDepartments) ? issue.assignedDepartments : [issue.assignedDepartments]).some(d => String(d).trim().toUpperCase() === 'ALL')
-                    || (Array.isArray(issue.taggedDepartments) ? issue.taggedDepartments : [issue.taggedDepartments]).some(d => String(d).trim().toUpperCase() === 'ALL');
-
-                if (isEmergency) {
-                    if (deptViewMode !== 'past_contributions') {
-                        acc.push(issue);
-                    }
-                    return acc;
-                }
-
-                const normUserDept = normalizeDepartment(department);
-                const assigned = (Array.isArray(issue.assignedDepartments) 
-                    ? issue.assignedDepartments 
-                    : (issue.assignedDepartments ? String(issue.assignedDepartments).split(',') : [])
-                ).map(d => normalizeDepartment(d.trim()));
-                const tagged = (Array.isArray(issue.taggedDepartments) 
-                    ? issue.taggedDepartments 
-                    : (issue.taggedDepartments ? String(issue.taggedDepartments).split(',') : [])
-                ).map(d => normalizeDepartment(d.trim()));
-                const isOrigin = normalizeDepartment(issue.department) === normUserDept;
-                const isAssigned = assigned.includes(normUserDept);
-                const isTagged = tagged.includes(normUserDept);
-
-                const inCurrentDeptScope = isAssigned || isOrigin || isTagged;
-
-                if (inCurrentDeptScope) {
-                    if (deptViewMode === 'past_contributions') return acc;
-                    if (deptViewMode === 'assigned' && !isAssigned) return acc;
-                    if (deptViewMode === 'tagged' && !isTagged) return acc;
+            // 2. Tab "To Fix" (Tugas Perbaikan Departemen)
+            if (deptViewMode === 'assigned') {
+                if (isAssignedToTarget) {
                     acc.push(issue);
-                    return acc;
                 }
+                return acc;
+            }
 
-                // If outside current dept scope, check if user personally touched/contributed to this issue in the past
-                if (isPastContributor(issue)) {
-                    if (deptViewMode === 'assigned' || deptViewMode === 'tagged') {
-                        return acc;
-                    }
+            // 3. Tab "Mentioned Me" (Departemen Ditandai / Dimention)
+            if (deptViewMode === 'tagged') {
+                if (isTaggedToTarget) {
+                    acc.push(issue);
+                }
+                return acc;
+            }
+
+            // 4. Tab "Past Contributions" (Riwayat Kontribusi Departemen Lama)
+            if (deptViewMode === 'past_contributions') {
+                const inCurrentDeptScope = normUserDept && (assigned.includes(normUserDept) || tagged.includes(normUserDept) || originDept === normUserDept);
+                if (isPastContrib && !inCurrentDeptScope) {
                     acc.push({
                         ...issue,
                         _isPastContribution: true,
                     });
                 }
-
                 return acc;
-              }, [])
-            : (deptViewMode === 'origin'
-                ? sourceIssues.filter(issue => isReportedByMe(issue))
-                : sourceIssues);
+            }
+
+            // 5. Tab "All My Scope" (Default Scope)
+            // If user has full resort access and no specific department is selected, include all
+            if (canViewAllDepartments && !normDeptFilter) {
+                acc.push(issue);
+                return acc;
+            }
+
+            // 🚨 Emergency & critical fast-track issues are island-wide alerts, ALWAYS in scope for everyone in "All My Scope"
+            const isEmergency = (issue.category || '').toLowerCase() === 'emergency' 
+                || String(issue.id || '').startsWith('SOS')
+                || assigned.some(d => String(d).trim().toUpperCase() === 'ALL')
+                || tagged.some(d => String(d).trim().toUpperCase() === 'ALL');
+
+            if (isEmergency) {
+                acc.push(issue);
+                return acc;
+            }
+
+            if (isAssignedToTarget || isOriginOfTarget || isTaggedToTarget) {
+                acc.push(issue);
+                return acc;
+            }
+
+            if (isPastContrib) {
+                acc.push({
+                    ...issue,
+                    _isPastContribution: true,
+                });
+            }
+
+            return acc;
+        }, []);
 
         const filtered = deptScoped.filter((issue) => {
             const matchesQuery =
@@ -423,10 +452,7 @@ function DashboardInner() {
                 ? true
                 : issue.status === statusFilter;
 
-            const isEmergency = (issue.category || '').toLowerCase() === 'emergency'
-                || String(issue.id || '').startsWith('SOS');
-
-            const matchesDept = deptFilter === 'all' || isEmergency ? true : (
+            const matchesDept = (deptFilter === 'all' || deptViewMode !== 'all') ? true : (
                 (Array.isArray(issue.assignedDepartments) && issue.assignedDepartments.includes(deptFilter)) ||
                 issue.assignedDepartments === deptFilter ||
                 issue.department === deptFilter || 
@@ -739,6 +765,17 @@ function DashboardInner() {
                     />
 
                     <div className="flex items-center gap-2.5 flex-wrap w-full md:w-auto justify-between md:justify-end">
+                        {canViewAllDepartments && !isAdmin && (
+                            <div 
+                                className="hidden md:inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-sky-500/10 border border-sky-500/30 text-sky-300 text-xs font-semibold shadow-xs shrink-0"
+                                title={lang === 'id' 
+                                    ? 'Wewenang Akun: Anda memiliki izin akses untuk memantau isu seluruh departemen resort Telunas.' 
+                                    : 'Account Permission: You have permission to view and monitor all Telunas resort departments.'}
+                            >
+                                <Globe className="h-3.5 w-3.5 text-sky-400 shrink-0" />
+                                <span>{lang === 'id' ? 'Lintas Seluruh Departemen' : 'All Departments Access'}</span>
+                            </div>
+                        )}
                         {isDeptUser && (
                             <div className="flex items-center rounded-xl bg-[#2A281E] p-1 border border-[#3B3929] text-xs font-bold shrink-0 max-w-full overflow-x-auto no-scrollbar flex-nowrap gap-0.5 shadow-sm">
                                 <button

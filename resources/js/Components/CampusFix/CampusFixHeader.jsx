@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Plus, Search, CalendarPlus, BarChart3, LayoutDashboard, Calendar, User, X, Ticket } from 'lucide-react';
+import { Plus, Search, CalendarPlus, BarChart3, LayoutDashboard, Calendar, User, X, Ticket, Globe } from 'lucide-react';
 import { Button } from '@/Components/UI/Button';
 import { Link } from '@inertiajs/react';
 import { Input } from '@/Components/UI/Input';
@@ -16,7 +16,7 @@ import NotificationDropdown from '@/Components/CampusFix/NotificationDropdown';
 export function CampusFixHeader({ mode = 'dashboard', query, onQueryChange, onReport, onEmergency, onNewPeriod, searchDropdown }) {
     const { currentSheet } = useIssues();
     const { lang, setLang, t } = useLanguage();
-    const { user, isAdmin, department, staffName, canAccessAnalytics, canAccessCalendar, avatarUrl } = useAuth();
+    const { user, isAdmin, department, staffName, canAccessAnalytics, canAccessCalendar, canViewAllDepartments, avatarUrl } = useAuth();
     const userDept = user?.department || department;
     const deptTheme = userDept ? getDepartmentTheme(userDept) : (isAdmin ? { bg: '#C9AA71', text: '#1C1B0E' } : { bg: '#607D8B', text: '#FFFFFF' });
     const [searchFocused, setSearchFocused] = useState(false);
@@ -499,6 +499,15 @@ export function CampusFixHeader({ mode = 'dashboard', query, onQueryChange, onRe
                                     title={department}
                                 >
                                     {getShortDepartmentName(department)}
+                                </span>
+                            )}
+                            {canViewAllDepartments && !isAdmin && (
+                                <span 
+                                    className="hidden sm:inline-flex items-center gap-1 text-[9px] uppercase px-1.5 py-0.5 rounded font-black tracking-wider bg-sky-500/20 text-sky-300 border border-sky-500/30 shrink-0"
+                                    title={lang === 'id' ? 'Wewenang Akun: Akses Lintas Seluruh Departemen' : 'Account Permission: All Departments Access'}
+                                >
+                                    <Globe className="h-2.5 w-2.5" />
+                                    <span>ALL</span>
                                 </span>
                             )}
                         </Link>

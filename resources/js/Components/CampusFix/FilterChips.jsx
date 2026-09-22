@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/Components/UI/Sheet';
-import { SlidersHorizontal, Wrench, Droplets, Zap, Building2, Bug, Monitor, Anchor, ShieldAlert, UserRound, HelpCircle, LayoutGrid, Building, Lock } from 'lucide-react';
+import { SlidersHorizontal, Wrench, Droplets, Zap, Building2, Bug, Monitor, Anchor, ShieldAlert, UserRound, HelpCircle, LayoutGrid, Building, Lock, Globe } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
 import { ALL_DEPARTMENTS } from '@/constants/staff';
 import { getDepartmentTheme } from '@/constants/departments';
@@ -78,6 +78,7 @@ export function FilterChips({ categoryFilter, onCategoryChange, deptFilter, onDe
                     <button
                         type="button"
                         onClick={() => setDeptSheetOpen(true)}
+                        title={!isAdmin && canViewAllDepartments ? (lang === 'id' ? 'Wewenang Khusus: Anda dapat memilih dan memantau isu seluruh departemen' : 'Special Permission: You can view and filter all resort departments') : undefined}
                         className={cn(
                             'flex items-center justify-between gap-1.5 rounded-xl border px-3 py-2 text-xs font-semibold transition-all sm:rounded-full sm:py-1.5 sm:px-4 cursor-pointer',
                             deptFilter !== 'all'
@@ -86,8 +87,17 @@ export function FilterChips({ categoryFilter, onCategoryChange, deptFilter, onDe
                         )}
                     >
                         <div className="flex items-center gap-1.5 truncate">
-                            <Building className="h-3.5 w-3.5 shrink-0 text-blue-500" />
+                            {!isAdmin && canViewAllDepartments ? (
+                                <Globe className="h-3.5 w-3.5 shrink-0 text-sky-400" />
+                            ) : (
+                                <Building className="h-3.5 w-3.5 shrink-0 text-blue-500" />
+                            )}
                             <span className="truncate">{deptFilter !== 'all' ? deptFilter : t('department')}</span>
+                            {!isAdmin && canViewAllDepartments && deptFilter === 'all' && (
+                                <span className="text-[9px] px-1 py-0.2 rounded bg-sky-500/20 text-sky-300 font-extrabold uppercase">
+                                    ALL
+                                </span>
+                            )}
                         </div>
                         <span className="text-[10px] opacity-60">▼</span>
                     </button>
