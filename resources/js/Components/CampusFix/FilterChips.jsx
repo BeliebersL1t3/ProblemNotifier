@@ -31,7 +31,7 @@ const CATEGORY_FILTERS = [
 const DEPARTMENT_FILTERS = ALL_DEPARTMENTS;
 
 export function FilterChips({ categoryFilter, onCategoryChange, deptFilter, onDeptChange }) {
-    const { t } = useLanguage();
+    const { t, lang } = useLanguage();
     const { isAdmin, isDeptUser, department: userDept, canViewAllDepartments } = useAuth();
     const canSelectDept = isAdmin || canViewAllDepartments;
     const [catSheetOpen, setCatSheetOpen] = useState(false);
