@@ -80,11 +80,17 @@ const HEADER_FONT = {
     color: { argb: 'FF1C1B0E' },
 };
 
-const THIN_BORDER = {
-    top: { style: 'thin', color: { argb: 'FFD1D5DB' } },
-    left: { style: 'thin', color: { argb: 'FFD1D5DB' } },
-    bottom: { style: 'thin', color: { argb: 'FFD1D5DB' } },
-    right: { style: 'thin', color: { argb: 'FFD1D5DB' } },
+// High-Contrast Crisp Borders
+const CELL_BORDER_COLOR = 'FF94A3B8'; // Slate-400 (sharp, clear cell gridlines)
+const GROUP_BORDER_COLOR = 'FF334155'; // Slate-700 (solid distinct divider between column groups)
+const HEADER_BORDER_COLOR = 'FF9A7B38'; // Dark Tan/Gold border for header cells
+const HEADER_BOTTOM_BORDER_COLOR = 'FF1C1B0E'; // Charcoal dark bottom border for header
+
+const CRISP_BORDER = {
+    top: { style: 'thin', color: { argb: CELL_BORDER_COLOR } },
+    left: { style: 'thin', color: { argb: CELL_BORDER_COLOR } },
+    bottom: { style: 'thin', color: { argb: CELL_BORDER_COLOR } },
+    right: { style: 'thin', color: { argb: CELL_BORDER_COLOR } },
 };
 
 const STATUS_STYLES = {
@@ -191,12 +197,17 @@ export async function generateExcelReport(issues = [], options = {}) {
 
         const kpiTableHeaders = ['Status / Kondisi', 'Jumlah Tiket', 'Persentase (%)'];
         const kpiHeadRow = kpiSheet.addRow(kpiTableHeaders);
-        kpiHeadRow.height = 20;
+        kpiHeadRow.height = 22;
         kpiHeadRow.eachCell((cell) => {
             cell.fill = TELUNAS_GOLD_FILL;
             cell.font = HEADER_FONT;
             cell.alignment = { vertical: 'middle', horizontal: 'center' };
-            cell.border = THIN_BORDER;
+            cell.border = {
+                top: { style: 'thin', color: { argb: HEADER_BORDER_COLOR } },
+                bottom: { style: 'medium', color: { argb: HEADER_BOTTOM_BORDER_COLOR } },
+                left: { style: 'thin', color: { argb: CELL_BORDER_COLOR } },
+                right: { style: 'thin', color: { argb: CELL_BORDER_COLOR } },
+            };
         });
 
         const statusData = [
@@ -210,17 +221,22 @@ export async function generateExcelReport(issues = [], options = {}) {
 
         statusData.forEach((row, idx) => {
             const r = kpiSheet.addRow(row);
-            r.height = 19;
+            r.height = 20;
             const isTotal = idx === statusData.length - 1;
+            const isEvenRow = idx % 2 === 1;
             r.eachCell((cell, colNum) => {
                 cell.font = { name: 'Segoe UI', size: 9.5, bold: isTotal };
-                cell.border = THIN_BORDER;
+                cell.border = CRISP_BORDER;
                 cell.alignment = {
                     vertical: 'middle',
                     horizontal: colNum === 1 ? 'left' : 'center',
                 };
                 if (isTotal) {
                     cell.fill = SECTION_HEADER_FILL;
+                } else if (isEvenRow) {
+                    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF5EFE6' } };
+                } else {
+                    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFFF' } };
                 }
             });
         });
@@ -239,12 +255,17 @@ export async function generateExcelReport(issues = [], options = {}) {
 
         const deptHeaders = ['Departemen Penanggung Jawab', 'Total Tiket', 'Selesai', 'Pending', 'Tingkat Selesai (%)'];
         const deptHeadRow = kpiSheet.addRow(deptHeaders);
-        deptHeadRow.height = 20;
+        deptHeadRow.height = 22;
         deptHeadRow.eachCell((cell) => {
             cell.fill = TELUNAS_GOLD_FILL;
             cell.font = HEADER_FONT;
             cell.alignment = { vertical: 'middle', horizontal: 'center' };
-            cell.border = THIN_BORDER;
+            cell.border = {
+                top: { style: 'thin', color: { argb: HEADER_BORDER_COLOR } },
+                bottom: { style: 'medium', color: { argb: HEADER_BOTTOM_BORDER_COLOR } },
+                left: { style: 'thin', color: { argb: CELL_BORDER_COLOR } },
+                right: { style: 'thin', color: { argb: CELL_BORDER_COLOR } },
+            };
         });
 
         // Aggregate by department
@@ -266,17 +287,23 @@ export async function generateExcelReport(issues = [], options = {}) {
         });
 
         const sortedDepts = Object.entries(deptStats).sort((a, b) => b[1].total - a[1].total);
-        sortedDepts.forEach(([dName, stat]) => {
+        sortedDepts.forEach(([dName, stat], idx) => {
             const completion = stat.total > 0 ? `${((stat.solved / stat.total) * 100).toFixed(1)}%` : '0%';
             const r = kpiSheet.addRow([dName, stat.total, stat.solved, stat.pending, completion]);
-            r.height = 19;
+            r.height = 20;
+            const isEvenRow = idx % 2 === 1;
             r.eachCell((cell, colNum) => {
                 cell.font = { name: 'Segoe UI', size: 9.5 };
-                cell.border = THIN_BORDER;
+                cell.border = CRISP_BORDER;
                 cell.alignment = {
                     vertical: 'middle',
                     horizontal: colNum === 1 ? 'left' : 'center',
                 };
+                if (isEvenRow) {
+                    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF5EFE6' } };
+                } else {
+                    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFFF' } };
+                }
             });
         });
 
@@ -298,25 +325,36 @@ export async function generateExcelReport(issues = [], options = {}) {
         views: [{ state: 'frozen', ySplit: 1, showGridLines: true }],
     });
 
+    // Column configurations with widened widths (prevents Excel filter arrow overlap)
+    // and isGroupEnd markers for thematic vertical dividers (Opsi 2)
     const columnsConfig = [
-        { header: 'ID Tiket', key: 'id', width: 14, align: 'center' },
-        { header: 'Tanggal Lapor', key: 'reportedAt', width: 18, align: 'center' },
-        { header: 'Lokasi / Kamar', key: 'location', width: 22, align: 'left' },
-        { header: 'Judul Masalah', key: 'title', width: 38, align: 'left' },
-        { header: 'Kategori', key: 'category', width: 20, align: 'left' },
-        { header: 'Departemen Utama', key: 'department', width: 22, align: 'left' },
-        { header: 'Departemen Terkait (Tags)', key: 'tags', width: 24, align: 'left' },
-        { header: 'Status', key: 'status', width: 14, align: 'center' },
-        { header: 'Prioritas', key: 'priority', width: 12, align: 'center' },
-        { header: 'Pelapor', key: 'reporter', width: 20, align: 'left' },
-        { header: 'Diambil Oleh', key: 'taker', width: 20, align: 'left' },
-        { header: 'Waktu Diambil', key: 'takenAt', width: 18, align: 'center' },
-        { header: 'Diselesaikan Oleh', key: 'solver', width: 20, align: 'left' },
-        { header: 'Waktu Selesai', key: 'solvedAt', width: 18, align: 'center' },
-        { header: 'Durasi Pengerjaan', key: 'duration', width: 18, align: 'center' },
-        { header: 'Alasan Pending / Timeline', key: 'pendingReason', width: 34, align: 'left' },
-        { header: 'Catatan Solved', key: 'solvedNotes', width: 36, align: 'left' },
-        { header: 'Status Arsip', key: 'isArchived', width: 14, align: 'center' },
+        // Kelompok 1: Identifikasi & Lokasi
+        { header: 'ID Tiket', key: 'id', width: 16, align: 'center' },
+        { header: 'Tanggal Lapor', key: 'reportedAt', width: 22, align: 'center' },
+        { header: 'Lokasi / Kamar', key: 'location', width: 26, align: 'left', isGroupEnd: true },
+
+        // Kelompok 2: Detail Masalah & Departemen
+        { header: 'Judul Masalah', key: 'title', width: 42, align: 'left' },
+        { header: 'Kategori', key: 'category', width: 22, align: 'left' },
+        { header: 'Departemen Utama', key: 'department', width: 24, align: 'left' },
+        { header: 'Departemen Terkait (Tags)', key: 'tags', width: 26, align: 'left', isGroupEnd: true },
+
+        // Kelompok 3: Status & Penanggung Jawab
+        { header: 'Status', key: 'status', width: 16, align: 'center' },
+        { header: 'Prioritas', key: 'priority', width: 15, align: 'center' },
+        { header: 'Pelapor', key: 'reporter', width: 22, align: 'left', isGroupEnd: true },
+
+        // Kelompok 4: Penanganan & Timeline Waktu
+        { header: 'Diambil Oleh', key: 'taker', width: 22, align: 'left' },
+        { header: 'Waktu Diambil', key: 'takenAt', width: 22, align: 'center' },
+        { header: 'Diselesaikan Oleh', key: 'solver', width: 24, align: 'left' },
+        { header: 'Waktu Selesai', key: 'solvedAt', width: 22, align: 'center' },
+        { header: 'Durasi Pengerjaan', key: 'duration', width: 25, align: 'center', isGroupEnd: true },
+
+        // Kelompok 5: Catatan Tambahan & Status Arsip
+        { header: 'Alasan Pending / Timeline', key: 'pendingReason', width: 36, align: 'left' },
+        { header: 'Catatan Solved', key: 'solvedNotes', width: 38, align: 'left' },
+        { header: 'Status Arsip', key: 'isArchived', width: 16, align: 'center', isGroupEnd: true },
     ];
 
     dataSheet.columns = columnsConfig.map(col => ({
@@ -325,14 +363,23 @@ export async function generateExcelReport(issues = [], options = {}) {
         width: col.width,
     }));
 
-    // Header styling
+    // Header styling with dark bottom line and group divider
     const dataHeadRow = dataSheet.getRow(1);
-    dataHeadRow.height = 26;
-    dataHeadRow.eachCell((cell) => {
+    dataHeadRow.height = 28;
+    dataHeadRow.eachCell((cell, colNumber) => {
+        const config = columnsConfig[colNumber - 1];
+        const isGroupEnd = config?.isGroupEnd;
         cell.fill = TELUNAS_GOLD_FILL;
         cell.font = HEADER_FONT;
         cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
-        cell.border = THIN_BORDER;
+        cell.border = {
+            top: { style: 'thin', color: { argb: HEADER_BORDER_COLOR } },
+            bottom: { style: 'medium', color: { argb: HEADER_BOTTOM_BORDER_COLOR } },
+            left: { style: 'thin', color: { argb: HEADER_BORDER_COLOR } },
+            right: isGroupEnd
+                ? { style: 'medium', color: { argb: GROUP_BORDER_COLOR } }
+                : { style: 'thin', color: { argb: HEADER_BORDER_COLOR } },
+        };
     });
 
     // Auto-filter on entire column range
@@ -393,17 +440,28 @@ export async function generateExcelReport(issues = [], options = {}) {
         };
 
         const row = dataSheet.addRow(rowData);
-        row.height = 20;
+        row.height = 21;
 
-        // Subtle alternating background
+        // Distinct alternating background: Telunas soft linen cream vs crisp white
         const isEven = index % 2 === 1;
         const defaultFill = isEven
-            ? { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFDFBF7' } }
+            ? { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF5EFE6' } }
             : { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFFF' } };
 
         row.eachCell((cell, colNumber) => {
             const config = columnsConfig[colNumber - 1];
-            cell.border = THIN_BORDER;
+            const isGroupEnd = config?.isGroupEnd;
+
+            // Crisp cell borders with thicker group divider on group boundaries
+            cell.border = {
+                top: { style: 'thin', color: { argb: CELL_BORDER_COLOR } },
+                bottom: { style: 'thin', color: { argb: CELL_BORDER_COLOR } },
+                left: { style: 'thin', color: { argb: CELL_BORDER_COLOR } },
+                right: isGroupEnd
+                    ? { style: 'medium', color: { argb: GROUP_BORDER_COLOR } }
+                    : { style: 'thin', color: { argb: CELL_BORDER_COLOR } },
+            };
+
             cell.font = { name: 'Segoe UI', size: 9 };
             cell.fill = defaultFill;
             cell.alignment = {
