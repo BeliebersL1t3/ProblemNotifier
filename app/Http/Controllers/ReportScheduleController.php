@@ -62,16 +62,32 @@ class ReportScheduleController extends Controller
 
         $validated = $request->validate([
             'is_enabled'             => 'required|boolean',
+            'report_format'          => 'required|string|in:pdf,excel,both',
+            'selected_statuses'      => 'nullable|array',
+            'selected_statuses.*'    => 'string|in:solved,pending,progress,open,archived',
+            'include_kpi_summary'    => 'required|boolean',
             'include_delay_timeline' => 'required|boolean',
+            'include_solution_notes' => 'required|boolean',
+            'include_audit_trail'    => 'required|boolean',
             'departments'            => 'nullable|array',
             'departments.*'          => 'string',
         ]);
 
         $config = ReportSchedule::getOrCreateForUser($user);
 
+        $selectedStatuses = $request->input('selected_statuses', ['solved', 'pending', 'progress', 'open']);
+        if (empty($selectedStatuses)) {
+            $selectedStatuses = ['solved', 'pending', 'progress', 'open'];
+        }
+
         $updateData = [
             'is_enabled'             => (bool)$validated['is_enabled'],
+            'report_format'          => $validated['report_format'],
+            'selected_statuses'      => array_values(array_unique($selectedStatuses)),
+            'include_kpi_summary'    => (bool)$validated['include_kpi_summary'],
             'include_delay_timeline' => (bool)$validated['include_delay_timeline'],
+            'include_solution_notes' => (bool)$validated['include_solution_notes'],
+            'include_audit_trail'    => (bool)$validated['include_audit_trail'],
             'updated_by'             => $user->id,
         ];
 

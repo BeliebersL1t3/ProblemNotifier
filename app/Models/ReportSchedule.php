@@ -10,10 +10,15 @@ class ReportSchedule extends Model
     protected $fillable = [
         'user_id',
         'is_enabled',
+        'report_format',
         'departments',
+        'selected_statuses',
+        'include_kpi_summary',
+        'include_delay_timeline',
+        'include_solution_notes',
+        'include_audit_trail',
         'day_of_month',
         'dispatch_time',
-        'include_delay_timeline',
         'last_dispatched_at',
         'last_dispatch_status',
         'last_dispatch_summary',
@@ -23,7 +28,11 @@ class ReportSchedule extends Model
     protected $casts = [
         'is_enabled'             => 'boolean',
         'departments'            => 'array',
+        'selected_statuses'      => 'array',
+        'include_kpi_summary'    => 'boolean',
         'include_delay_timeline' => 'boolean',
+        'include_solution_notes' => 'boolean',
+        'include_audit_trail'    => 'boolean',
         'last_dispatched_at'     => 'datetime',
     ];
 
@@ -48,11 +57,16 @@ class ReportSchedule extends Model
         return self::firstOrCreate(
             ['user_id' => $user->id],
             [
-                'is_enabled'             => false,
+                'is_enabled'             => false, // Always default to OFF unless explicitly toggled ON by user
+                'report_format'          => 'both', // 'pdf', 'excel', 'both'
                 'departments'            => $defaultDepartments,
+                'selected_statuses'      => ['solved', 'pending', 'progress', 'open'],
+                'include_kpi_summary'    => true,
+                'include_delay_timeline' => true,
+                'include_solution_notes' => true,
+                'include_audit_trail'    => false,
                 'day_of_month'           => 1,
                 'dispatch_time'          => '08:00',
-                'include_delay_timeline' => true,
                 'updated_by'             => $user->id,
             ]
         );

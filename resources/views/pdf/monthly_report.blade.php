@@ -164,6 +164,7 @@
     </table>
 
     <!-- KPI Summary Row -->
+    @if(!empty($includeKpiSummary))
     <table class="kpi-table">
         <tr>
             <td class="kpi-card" style="width: 20%;">
@@ -197,6 +198,7 @@
             </td>
         </tr>
     </table>
+    @endif
 
     <!-- Issues Table -->
     <table class="issues-table">
@@ -262,10 +264,40 @@
                         </span>
                     </td>
                 </tr>
-                @if(!empty($includeDelayTimeline) && $status === 'pending' && !empty($issue['pendingReason']))
+                @if(!empty($includeDelayTimeline) && $status === 'pending')
+                    @php
+                        $hasTimeline = !empty($issue['pendingTimeline']) && is_array($issue['pendingTimeline']);
+                        $hasReason = !empty($issue['pendingReason']);
+                    @endphp
+                    @if($hasTimeline || $hasReason)
+                    <tr>
+                        <td colspan="10" style="background-color: #FFFBEB; color: #B45309; font-size: 6.5pt; padding: 3px 6px; border-top: none;">
+                            <strong>⏱️ Delay Timeline / Reason:</strong>
+                            @if($hasTimeline)
+                                @foreach($issue['pendingTimeline'] as $tItem)
+                                    &bull; {{ !empty($tItem['date']) ? "[{$tItem['date']}] " : '' }}{{ $tItem['by'] ?? 'Staff' }}: {{ $tItem['reason'] ?? '' }}
+                                @endforeach
+                            @else
+                                {{ $issue['pendingReason'] }} (Logged by: {{ $issue['pendingBy'] ?? 'Staff' }})
+                            @endif
+                        </td>
+                    </tr>
+                    @endif
+                @endif
+                @if(!empty($includeSolutionNotes) && $status === 'solved' && (!empty($issue['solutionNote']) || !empty($issue['notes'])))
                 <tr>
-                    <td colspan="10" style="background-color: #FFFBEB; color: #B45309; font-size: 6.5pt; padding: 3px 6px;">
-                        <em>Delay Reason: {{ $issue['pendingReason'] }} (Logged by: {{ $issue['pendingBy'] ?? 'Staff' }})</em>
+                    <td colspan="10" style="background-color: #F0FDF4; color: #166534; font-size: 6.5pt; padding: 3px 6px; border-top: none;">
+                        <strong>📝 Solution Note:</strong> {{ $issue['solutionNote'] ?? $issue['notes'] }} (Resolved by: {{ $issue['solvedBy'] ?? 'Staff' }})
+                    </td>
+                </tr>
+                @endif
+                @if(!empty($includeAuditTrail) && !empty($issue['editLogs']) && is_array($issue['editLogs']))
+                <tr>
+                    <td colspan="10" style="background-color: #F0F9FF; color: #0369A1; font-size: 6.5pt; padding: 3px 6px; border-top: none;">
+                        <strong>📜 Audit &amp; Lifecycle Trail:</strong>
+                        @foreach($issue['editLogs'] as $log)
+                            &bull; [{{ strtoupper($log['type'] ?? 'log') }}] {{ $log['date'] ?? '' }} ({{ $log['by'] ?? 'Staff' }}): {{ $log['changes'] ?? $log['reason'] ?? 'Updated' }}
+                        @endforeach
                     </td>
                 </tr>
                 @endif

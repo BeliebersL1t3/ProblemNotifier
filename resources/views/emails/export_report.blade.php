@@ -207,9 +207,10 @@
                             </table>
 
                             <!-- Official PDF Document Attachment Card -->
-                            <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #FAF8F5; border: 1px solid #DCD4C4; border-radius: 8px; margin-bottom: 20px;">
+                            @if(!empty($pdfFilename))
+                            <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #FAF8F5; border: 1px solid #DCD4C4; border-radius: 8px; margin-bottom: 12px;">
                                 <tr>
-                                    <td style="padding: 14px 16px;">
+                                    <td style="padding: 12px 16px;">
                                         <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
                                             <tr>
                                                 <!-- PDF Badge Icon -->
@@ -236,10 +237,44 @@
                                     </td>
                                 </tr>
                             </table>
+                            @endif
+
+                            <!-- Official Excel Spreadsheet Attachment Card -->
+                            @if(!empty($excelFilename))
+                            <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #F0FDF4; border: 1px solid #BBF7D0; border-radius: 8px; margin-bottom: 20px;">
+                                <tr>
+                                    <td style="padding: 12px 16px;">
+                                        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                                            <tr>
+                                                <!-- Excel Badge Icon -->
+                                                <td width="42" valign="middle" align="center" style="padding-right: 12px;">
+                                                    <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="background-color: #15803D; border-radius: 6px; width: 38px; height: 38px;">
+                                                        <tr>
+                                                            <td align="center" valign="middle" style="color: #FFFFFF; font-size: 10px; font-weight: 800; letter-spacing: 0.5px; font-family: Arial, sans-serif;">
+                                                                XLSX
+                                                            </td>
+                                                        </tr>
+                                                    </table>
+                                                </td>
+                                                <!-- Document Details -->
+                                                <td valign="middle">
+                                                    <div style="font-size: 13px; font-weight: 700; color: #14532D; word-break: break-all; line-height: 1.3;">
+                                                        {{ $excelFilename }}
+                                                    </div>
+                                                    <div style="font-size: 11px; color: #166534; margin-top: 2px;">
+                                                        Raw Data &amp; KPI Spreadsheet Workbook &bull; Attached to this email
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                            </table>
+                            @endif
 
                             <!-- Archival & Viewing Instructions -->
                             <p style="margin: 0; font-size: 13px; color: #6B7280; line-height: 1.55;">
-                                The full detailed report has been generated and securely attached as a high-resolution PDF document for your review, printing, and archival compliance.
+                                The full detailed report has been compiled and securely attached to this email according to your subscription preferences for your review, analysis, and records.
                             </p>
 
                         </td>

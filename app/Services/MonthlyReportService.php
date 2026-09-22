@@ -14,7 +14,8 @@ use Illuminate\Support\Facades\Storage;
 class MonthlyReportService
 {
     public function __construct(
-        protected GoogleService $googleService
+        protected GoogleService $googleService,
+        protected MonthlyExcelReportService $excelReportService
     ) {}
 
     /**
@@ -70,7 +71,7 @@ class MonthlyReportService
                 allIssues: $issues,
                 periodLabel: $periodLabel,
                 periodSlug: $periodSlug,
-                includeDelayTimeline: $schedule->include_delay_timeline
+                schedule: $schedule
             );
 
             if ($success) {
@@ -122,7 +123,7 @@ class MonthlyReportService
                 allIssues: $issues,
                 periodLabel: $periodLabel,
                 periodSlug: $periodSlug,
-                includeDelayTimeline: $schedule->include_delay_timeline
+                schedule: $schedule
             );
 
             $schedule->update([
@@ -143,7 +144,7 @@ class MonthlyReportService
     }
 
     /**
-     * Send monthly report PDF to a single recipient with appropriate scoping.
+     * Send monthly report PDF and/or Excel to a single recipient with appropriate scoping and customizations.
      */
     protected function sendReportToRecipient(
         string $recipientEmail,
@@ -152,11 +153,34 @@ class MonthlyReportService
         array $allIssues,
         string $periodLabel,
         string $periodSlug,
-        bool $includeDelayTimeline = true
+        ?ReportSchedule $schedule = null
     ): bool {
         try {
-            // Filter issues based on scope
+            // Options from user's personal report schedule
+            $reportFormat = $schedule ? ($schedule->report_format ?: 'both') : 'both';
+            $selectedStatuses = $schedule && !empty($schedule->selected_statuses)
+                ? $schedule->selected_statuses
+                : ['solved', 'pending', 'progress', 'open'];
+            $includeKpiSummary = $schedule ? (bool)$schedule->include_kpi_summary : true;
+            $includeDelayTimeline = $schedule ? (bool)$schedule->include_delay_timeline : true;
+            $includeSolutionNotes = $schedule ? (bool)$schedule->include_solution_notes : true;
+            $includeAuditTrail = $schedule ? (bool)$schedule->include_audit_trail : false;
+
+            // 1. Filter issues based on department scope
             $filteredIssues = $this->filterIssuesByScope($allIssues, $scope);
+
+            // 2. Filter issues based on selected statuses
+            if (!empty($selectedStatuses) && is_array($selectedStatuses)) {
+                $lowerStatuses = array_map('strtolower', $selectedStatuses);
+                $filteredIssues = array_values(array_filter($filteredIssues, function ($issue) use ($lowerStatuses) {
+                    $st = strtolower($issue['status'] ?? 'open');
+                    $isArchived = !empty($issue['isArchived']);
+                    if ($isArchived && in_array('archived', $lowerStatuses)) {
+                        return true;
+                    }
+                    return in_array($st, $lowerStatuses);
+                }));
+            }
 
             if (is_array($scope)) {
                 $hasAll = empty($scope) || in_array('all', array_map('strtolower', $scope));
@@ -180,25 +204,52 @@ class MonthlyReportService
                 elseif ($status === 'pending') $pendingCount++;
             }
 
-            $pdfData = [
-                'reportTitle'          => "Monthly Report — {$scopeLabel}",
-                'periodLabel'          => $periodLabel,
-                'scopeLabel'           => $scopeLabel,
-                'totalCount'           => $totalCount,
-                'solvedCount'          => $solvedCount,
-                'progressCount'        => $progressCount,
-                'pendingCount'         => $pendingCount,
-                'avgDuration'          => $this->calculateAverageDuration($filteredIssues),
-                'issues'               => $filteredIssues,
-                'includeDelayTimeline' => $includeDelayTimeline,
-            ];
+            $pdfContent = null;
+            $pdfFilename = null;
+            if ($reportFormat === 'pdf' || $reportFormat === 'both') {
+                $pdfData = [
+                    'reportTitle'          => "Monthly Report — {$scopeLabel}",
+                    'periodLabel'          => $periodLabel,
+                    'scopeLabel'           => $scopeLabel,
+                    'totalCount'           => $totalCount,
+                    'solvedCount'          => $solvedCount,
+                    'progressCount'        => $progressCount,
+                    'pendingCount'         => $pendingCount,
+                    'avgDuration'          => $this->calculateAverageDuration($filteredIssues),
+                    'issues'               => $filteredIssues,
+                    'includeKpiSummary'    => $includeKpiSummary,
+                    'includeDelayTimeline' => $includeDelayTimeline,
+                    'includeSolutionNotes' => $includeSolutionNotes,
+                    'includeAuditTrail'    => $includeAuditTrail,
+                ];
 
-            // Render PDF in memory
-            $pdf = Pdf::loadView('pdf.monthly_report', $pdfData)
-                ->setPaper('a4', 'landscape');
-            $pdfContent = $pdf->output();
+                // Render PDF in memory
+                $pdf = Pdf::loadView('pdf.monthly_report', $pdfData)
+                    ->setPaper('a4', 'landscape');
+                $pdfContent = $pdf->output();
+                $pdfFilename = "Telunas_Monthly_Report_{$scopeSlug}_{$periodSlug}.pdf";
+            }
 
-            $pdfFilename = "Telunas_Monthly_Report_{$scopeSlug}_{$periodSlug}.pdf";
+            $excelContent = null;
+            $excelFilename = null;
+            if ($reportFormat === 'excel' || $reportFormat === 'both') {
+                $excelContent = $this->excelReportService->generateExcelReport($filteredIssues, [
+                    'periodLabel'          => $periodLabel,
+                    'scopeLabel'           => $scopeLabel,
+                    'includeKpiSummary'    => $includeKpiSummary,
+                    'includeDelayTimeline' => $includeDelayTimeline,
+                    'includeSolutionNotes' => $includeSolutionNotes,
+                    'includeAuditTrail'    => $includeAuditTrail,
+                ]);
+                $excelFilename = "Telunas_Monthly_Report_{$scopeSlug}_{$periodSlug}.xlsx";
+            }
+
+            $formatLabel = match ($reportFormat) {
+                'pdf'   => 'PDF Document',
+                'excel' => 'Excel Spreadsheet',
+                default => 'PDF & Excel Spreadsheet',
+            };
+
             $subject = "[Telunas CampusFix] Monthly Report - {$scopeLabel} ({$periodLabel})";
 
             $mailable = new ExportReportMail(
@@ -210,17 +261,20 @@ class MonthlyReportService
                     'scope'        => $scopeLabel,
                     'sheets'       => $periodLabel,
                     'total_issues' => $totalCount,
+                    'format'       => $formatLabel,
                     'is_no_reply'  => true,
                 ],
                 pdfFile: $pdfContent,
                 pdfFilename: $pdfFilename,
                 senderEmail: null,
-                isNoReply: true
+                isNoReply: true,
+                excelFile: $excelContent,
+                excelFilename: $excelFilename
             );
 
             Mail::to($recipientEmail)->send($mailable);
 
-            Log::info("Monthly report sent to {$recipientEmail} [Scope: {$scopeLabel}]");
+            Log::info("Monthly report sent to {$recipientEmail} [Scope: {$scopeLabel}, Format: {$reportFormat}]");
             return true;
         } catch (\Throwable $e) {
             Log::error("Failed to generate or send monthly report to {$recipientEmail}: " . $e->getMessage(), [

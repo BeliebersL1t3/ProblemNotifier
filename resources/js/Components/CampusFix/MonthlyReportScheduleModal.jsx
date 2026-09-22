@@ -11,9 +11,18 @@ import {
 import { Button } from '@/Components/UI/Button';
 import { 
     Calendar, Clock, ShieldCheck, Mail, Send, Loader2, CheckCircle2, 
-    AlertCircle, X, Sliders, BellRing, Building2, Check, User
+    AlertCircle, X, Sliders, BellRing, Building2, Check, User,
+    FileText, FileSpreadsheet, Layers, BarChart3, Wrench, History
 } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
+
+const STATUS_OPTIONS = [
+    { id: 'solved', label: 'Selesai (Solved)', color: 'text-emerald-400 bg-emerald-500/15 border-emerald-500/30' },
+    { id: 'progress', label: 'In Progress', color: 'text-blue-400 bg-blue-500/15 border-blue-500/30' },
+    { id: 'pending', label: 'Pending Delay', color: 'text-amber-400 bg-amber-500/15 border-amber-500/30' },
+    { id: 'open', label: 'Terbuka (Open)', color: 'text-rose-400 bg-rose-500/15 border-rose-500/30' },
+    { id: 'archived', label: 'Terarsip (Archived)', color: 'text-gray-400 bg-gray-500/15 border-gray-500/30' },
+];
 
 export function MonthlyReportScheduleModal({ open, onOpenChange }) {
     const { t } = useLanguage();
@@ -29,7 +38,12 @@ export function MonthlyReportScheduleModal({ open, onOpenChange }) {
 
     // Personal Form State
     const [isEnabled, setIsEnabled] = useState(false);
+    const [reportFormat, setReportFormat] = useState('both'); // 'pdf', 'excel', 'both'
+    const [selectedStatuses, setSelectedStatuses] = useState(['solved', 'pending', 'progress', 'open']);
+    const [includeKpiSummary, setIncludeKpiSummary] = useState(true);
     const [includeDelayTimeline, setIncludeDelayTimeline] = useState(true);
+    const [includeSolutionNotes, setIncludeSolutionNotes] = useState(true);
+    const [includeAuditTrail, setIncludeAuditTrail] = useState(false);
     const [selectedDepartments, setSelectedDepartments] = useState(['ALL']);
     const [lastDispatchedAt, setLastDispatchedAt] = useState(null);
 
@@ -53,7 +67,14 @@ export function MonthlyReportScheduleModal({ open, onOpenChange }) {
                 setAvailableDepartments(res.data.availableDepartments || []);
 
                 setIsEnabled(Boolean(c.is_enabled));
-                setIncludeDelayTimeline(Boolean(c.include_delay_timeline));
+                setReportFormat(c.report_format || 'both');
+                setSelectedStatuses(Array.isArray(c.selected_statuses) && c.selected_statuses.length > 0 
+                    ? c.selected_statuses 
+                    : ['solved', 'pending', 'progress', 'open']);
+                setIncludeKpiSummary(c.include_kpi_summary !== undefined ? Boolean(c.include_kpi_summary) : true);
+                setIncludeDelayTimeline(c.include_delay_timeline !== undefined ? Boolean(c.include_delay_timeline) : true);
+                setIncludeSolutionNotes(c.include_solution_notes !== undefined ? Boolean(c.include_solution_notes) : true);
+                setIncludeAuditTrail(Boolean(c.include_audit_trail));
                 setLastDispatchedAt(c.last_dispatched_at);
 
                 if (u.isAdmin) {
@@ -94,13 +115,29 @@ export function MonthlyReportScheduleModal({ open, onOpenChange }) {
         setSelectedDepartments(updated);
     };
 
+    const handleToggleStatus = (statusId) => {
+        if (selectedStatuses.includes(statusId)) {
+            if (selectedStatuses.length === 1) {
+                return; // minimal 1 status aktif
+            }
+            setSelectedStatuses(selectedStatuses.filter(s => s !== statusId));
+        } else {
+            setSelectedStatuses([...selectedStatuses, statusId]);
+        }
+    };
+
     const handleSave = async () => {
         setIsSaving(true);
         setToastMessage(null);
         try {
             const payload = {
                 is_enabled: isEnabled,
+                report_format: reportFormat,
+                selected_statuses: selectedStatuses,
+                include_kpi_summary: includeKpiSummary,
                 include_delay_timeline: includeDelayTimeline,
+                include_solution_notes: includeSolutionNotes,
+                include_audit_trail: includeAuditTrail,
             };
 
             if (currentUser?.isAdmin) {
@@ -250,7 +287,92 @@ export function MonthlyReportScheduleModal({ open, onOpenChange }) {
                                 </label>
                             </div>
 
-                            {/* Department Scope Configuration */}
+                            {/* SECTION 1: PILIHAN FORMAT LAPORAN */}
+                            <div className="p-4 rounded-xl bg-[#242217] border border-[#3B3929] space-y-3">
+                                <div className="text-xs font-bold uppercase tracking-wider text-[#C9AA71] flex items-center gap-1.5">
+                                    <Layers className="h-3.5 w-3.5" />
+                                    <span>Pilih Format Berkas Laporan</span>
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                                    {/* Opsi Both */}
+                                    <button
+                                        type="button"
+                                        onClick={() => setReportFormat('both')}
+                                        className={`p-3 rounded-xl border text-left transition-all relative flex flex-col justify-between ${
+                                            reportFormat === 'both'
+                                                ? 'bg-[#2E2816] border-[#C9AA71] shadow-md shadow-[#C9AA71]/10'
+                                                : 'bg-[#1C1B0E] border-[#3B3929] hover:border-[#615F52]'
+                                        }`}
+                                    >
+                                        <div className="flex items-center justify-between mb-2">
+                                            <div className="flex items-center gap-1.5 text-[#C9AA71]">
+                                                <FileText className="h-4 w-4" />
+                                                <span className="text-xs font-bold">+</span>
+                                                <FileSpreadsheet className="h-4 w-4 text-emerald-400" />
+                                            </div>
+                                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-[#C9AA71]/20 text-[#C9AA71] border border-[#C9AA71]/30">
+                                                Lengkap
+                                            </span>
+                                        </div>
+                                        <div>
+                                            <div className="text-xs font-bold text-white">Keduanya Sekaligus</div>
+                                            <div className="text-[10px] text-[#A19F8D] mt-0.5 leading-tight">
+                                                PDF cetak resmi &amp; Excel spreadsheet lengkap dalam 1 email.
+                                            </div>
+                                        </div>
+                                    </button>
+
+                                    {/* Opsi Excel */}
+                                    <button
+                                        type="button"
+                                        onClick={() => setReportFormat('excel')}
+                                        className={`p-3 rounded-xl border text-left transition-all flex flex-col justify-between ${
+                                            reportFormat === 'excel'
+                                                ? 'bg-[#152E20] border-emerald-500 shadow-md shadow-emerald-500/10'
+                                                : 'bg-[#1C1B0E] border-[#3B3929] hover:border-[#615F52]'
+                                        }`}
+                                    >
+                                        <div className="flex items-center justify-between mb-2">
+                                            <FileSpreadsheet className="h-4 w-4 text-emerald-400" />
+                                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                                                .XLSX
+                                            </span>
+                                        </div>
+                                        <div>
+                                            <div className="text-xs font-bold text-white">Excel Saja</div>
+                                            <div className="text-[10px] text-[#A19F8D] mt-0.5 leading-tight">
+                                                Spreadsheet dengan auto-filter, 2 sheet &amp; border kontras.
+                                            </div>
+                                        </div>
+                                    </button>
+
+                                    {/* Opsi PDF */}
+                                    <button
+                                        type="button"
+                                        onClick={() => setReportFormat('pdf')}
+                                        className={`p-3 rounded-xl border text-left transition-all flex flex-col justify-between ${
+                                            reportFormat === 'pdf'
+                                                ? 'bg-[#331D1D] border-rose-500 shadow-md shadow-rose-500/10'
+                                                : 'bg-[#1C1B0E] border-[#3B3929] hover:border-[#615F52]'
+                                        }`}
+                                    >
+                                        <div className="flex items-center justify-between mb-2">
+                                            <FileText className="h-4 w-4 text-rose-400" />
+                                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-400 border border-rose-500/30">
+                                                .PDF
+                                            </span>
+                                        </div>
+                                        <div>
+                                            <div className="text-xs font-bold text-white">PDF Saja</div>
+                                            <div className="text-[10px] text-[#A19F8D] mt-0.5 leading-tight">
+                                                Dokumen resmi A4 landscape siap cetak atau presentasi.
+                                            </div>
+                                        </div>
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* SECTION 2: CAKUPAN DEPARTEMEN */}
                             {currentUser?.isAdmin ? (
                                 /* Admin: Multi-Select Departments */
                                 <div className="p-4 rounded-xl bg-[#242217] border border-[#3B3929] space-y-3">
@@ -327,24 +449,123 @@ export function MonthlyReportScheduleModal({ open, onOpenChange }) {
                                 </div>
                             )}
 
-                            {/* Additional Options */}
-                            <div className="p-4 rounded-xl bg-[#242217] border border-[#3B3929] space-y-2">
-                                <label className="flex items-start gap-3 cursor-pointer">
-                                    <input
-                                        type="checkbox"
-                                        checked={includeDelayTimeline}
-                                        onChange={(e) => setIncludeDelayTimeline(e.target.checked)}
-                                        className="mt-0.5 rounded text-[#C9AA71] focus:ring-[#C9AA71] h-4 w-4 bg-[#242217] border-[#3B3929]"
-                                    />
-                                    <div>
-                                        <div className="text-xs font-semibold text-[#FAFAFA]">
-                                            Sertakan Catatan &amp; Alasan Tiket Pending (Delay Timeline)
-                                        </div>
-                                        <div className="text-[11px] text-[#A19F8D] mt-0.5">
-                                            Menampilkan catatan kendala atau alasan penundaan tiket Pending di dalam berkas PDF.
-                                        </div>
+                            {/* SECTION 3: FILTER STATUS TIKET */}
+                            <div className="p-4 rounded-xl bg-[#242217] border border-[#3B3929] space-y-3">
+                                <div className="flex items-center justify-between">
+                                    <div className="text-xs font-bold uppercase tracking-wider text-[#C9AA71] flex items-center gap-1.5">
+                                        <Sliders className="h-3.5 w-3.5" />
+                                        <span>Filter Status Tiket yang Disertakan</span>
                                     </div>
-                                </label>
+                                    <span className="text-[10px] text-[#A19F8D]">
+                                        {selectedStatuses.length} Status Dipilih
+                                    </span>
+                                </div>
+                                <div className="flex flex-wrap gap-2 pt-0.5">
+                                    {STATUS_OPTIONS.map(opt => {
+                                        const isChecked = selectedStatuses.includes(opt.id);
+                                        return (
+                                            <button
+                                                key={opt.id}
+                                                type="button"
+                                                onClick={() => handleToggleStatus(opt.id)}
+                                                className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 border transition-all ${
+                                                    isChecked
+                                                        ? opt.color
+                                                        : 'bg-[#1C1B0E] text-[#6B7280] border-[#3B3929] opacity-60 hover:opacity-100'
+                                                }`}
+                                            >
+                                                {isChecked && <Check className="h-3 w-3 stroke-[3]" />}
+                                                <span>{opt.label}</span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            {/* SECTION 4: KUSTOMISASI MODULAR KONTEN */}
+                            <div className="p-4 rounded-xl bg-[#242217] border border-[#3B3929] space-y-3">
+                                <div className="text-xs font-bold uppercase tracking-wider text-[#C9AA71] flex items-center gap-1.5">
+                                    <BarChart3 className="h-3.5 w-3.5" />
+                                    <span>Komponen &amp; Detail Isi Laporan</span>
+                                </div>
+                                
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                                    {/* 1. Ringkasan KPI */}
+                                    <label className="p-3 rounded-xl bg-[#1C1B0E] border border-[#3B3929] flex items-start gap-3 cursor-pointer hover:border-[#615F52] transition-colors">
+                                        <input
+                                            type="checkbox"
+                                            checked={includeKpiSummary}
+                                            onChange={(e) => setIncludeKpiSummary(e.target.checked)}
+                                            className="mt-0.5 rounded text-[#C9AA71] focus:ring-[#C9AA71] h-4 w-4 bg-[#242217] border-[#3B3929]"
+                                        />
+                                        <div>
+                                            <div className="text-xs font-bold text-[#FAFAFA] flex items-center gap-1.5">
+                                                <BarChart3 className="h-3.5 w-3.5 text-[#C9AA71]" />
+                                                <span>Ringkasan Metrik &amp; KPI</span>
+                                            </div>
+                                            <div className="text-[10px] text-[#A19F8D] mt-0.5 leading-tight">
+                                                Tabel rekapitulasi status operasional &amp; performa per departemen.
+                                            </div>
+                                        </div>
+                                    </label>
+
+                                    {/* 2. Delay Timeline */}
+                                    <label className="p-3 rounded-xl bg-[#1C1B0E] border border-[#3B3929] flex items-start gap-3 cursor-pointer hover:border-[#615F52] transition-colors">
+                                        <input
+                                            type="checkbox"
+                                            checked={includeDelayTimeline}
+                                            onChange={(e) => setIncludeDelayTimeline(e.target.checked)}
+                                            className="mt-0.5 rounded text-[#C9AA71] focus:ring-[#C9AA71] h-4 w-4 bg-[#242217] border-[#3B3929]"
+                                        />
+                                        <div>
+                                            <div className="text-xs font-bold text-[#FAFAFA] flex items-center gap-1.5">
+                                                <Clock className="h-3.5 w-3.5 text-amber-400" />
+                                                <span>Alasan &amp; Timeline Pending</span>
+                                            </div>
+                                            <div className="text-[10px] text-[#A19F8D] mt-0.5 leading-tight">
+                                                Rincian kendala sparepart/vendor pada tiket yang tertunda.
+                                            </div>
+                                        </div>
+                                    </label>
+
+                                    {/* 3. Solution Notes */}
+                                    <label className="p-3 rounded-xl bg-[#1C1B0E] border border-[#3B3929] flex items-start gap-3 cursor-pointer hover:border-[#615F52] transition-colors">
+                                        <input
+                                            type="checkbox"
+                                            checked={includeSolutionNotes}
+                                            onChange={(e) => setIncludeSolutionNotes(e.target.checked)}
+                                            className="mt-0.5 rounded text-[#C9AA71] focus:ring-[#C9AA71] h-4 w-4 bg-[#242217] border-[#3B3929]"
+                                        />
+                                        <div>
+                                            <div className="text-xs font-bold text-[#FAFAFA] flex items-center gap-1.5">
+                                                <Wrench className="h-3.5 w-3.5 text-emerald-400" />
+                                                <span>Catatan Solusi (Solved Notes)</span>
+                                            </div>
+                                            <div className="text-[10px] text-[#A19F8D] mt-0.5 leading-tight">
+                                                Catatan perbaikan dan tindakan teknis pada tiket selesai.
+                                            </div>
+                                        </div>
+                                    </label>
+
+                                    {/* 4. Audit Trail */}
+                                    <label className="p-3 rounded-xl bg-[#1C1B0E] border border-[#3B3929] flex items-start gap-3 cursor-pointer hover:border-[#615F52] transition-colors">
+                                        <input
+                                            type="checkbox"
+                                            checked={includeAuditTrail}
+                                            onChange={(e) => setIncludeAuditTrail(e.target.checked)}
+                                            className="mt-0.5 rounded text-[#C9AA71] focus:ring-[#C9AA71] h-4 w-4 bg-[#242217] border-[#3B3929]"
+                                        />
+                                        <div>
+                                            <div className="text-xs font-bold text-[#FAFAFA] flex items-center gap-1.5">
+                                                <History className="h-3.5 w-3.5 text-blue-400" />
+                                                <span>Riwayat Perubahan (Audit Trail)</span>
+                                            </div>
+                                            <div className="text-[10px] text-[#A19F8D] mt-0.5 leading-tight">
+                                                Jejak lengkap siapa yang klaim, ubah status, atau edit tiket.
+                                            </div>
+                                        </div>
+                                    </label>
+                                </div>
                             </div>
 
                             {/* Execution Log */}
@@ -373,7 +594,7 @@ export function MonthlyReportScheduleModal({ open, onOpenChange }) {
                         {isTesting ? (
                             <>
                                 <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
-                                Membuat &amp; Mengirim PDF Tes...
+                                Membuat &amp; Mengirim Laporan Tes...
                             </>
                         ) : (
                             <>

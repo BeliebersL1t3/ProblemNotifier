@@ -21,8 +21,10 @@ class ExportReportMail extends Mailable
     public ?string $senderEmail;
     public array $reportMeta;
     public bool $isNoReply;
+    public ?string $pdfFilename;
+    public ?string $excelFilename;
     protected $pdfFile;
-    protected string $pdfFilename;
+    protected $excelFile;
 
     /**
      * Create a new message instance.
@@ -33,10 +35,12 @@ class ExportReportMail extends Mailable
         string $senderName,
         string $senderDepartment,
         array $reportMeta,
-        $pdfFile,
-        string $pdfFilename = 'Telunas_Report.pdf',
+        $pdfFile = null,
+        ?string $pdfFilename = 'Telunas_Report.pdf',
         ?string $senderEmail = null,
-        bool $isNoReply = false
+        bool $isNoReply = false,
+        $excelFile = null,
+        ?string $excelFilename = 'Telunas_Report.xlsx'
     ) {
         $this->emailSubject = $emailSubject;
         $this->customMessage = $customMessage;
@@ -47,6 +51,8 @@ class ExportReportMail extends Mailable
         $this->pdfFile = $pdfFile;
         $this->pdfFilename = $pdfFilename;
         $this->isNoReply = $isNoReply;
+        $this->excelFile = $excelFile;
+        $this->excelFilename = $excelFilename;
     }
 
     /**
@@ -87,7 +93,8 @@ class ExportReportMail extends Mailable
                 'senderName'       => $this->senderName,
                 'senderDepartment' => $this->senderDepartment,
                 'reportMeta'       => $this->reportMeta,
-                'pdfFilename'      => $this->pdfFilename,
+                'pdfFilename'      => $this->pdfFile ? $this->pdfFilename : null,
+                'excelFilename'    => $this->excelFile ? $this->excelFilename : null,
                 'isNoReply'        => $this->isNoReply,
             ],
         );
@@ -100,29 +107,41 @@ class ExportReportMail extends Mailable
      */
     public function attachments(): array
     {
-        if (is_string($this->pdfFile) && file_exists($this->pdfFile)) {
-            return [
-                Attachment::fromPath($this->pdfFile)
-                    ->as($this->pdfFilename)
-                    ->withMime('application/pdf'),
-            ];
+        $attachments = [];
+
+        // 1. PDF Attachment
+        if ($this->pdfFile) {
+            if (is_string($this->pdfFile) && file_exists($this->pdfFile)) {
+                $attachments[] = Attachment::fromPath($this->pdfFile)
+                    ->as($this->pdfFilename ?: 'Telunas_Report.pdf')
+                    ->withMime('application/pdf');
+            } elseif (is_object($this->pdfFile) && method_exists($this->pdfFile, 'getRealPath')) {
+                $attachments[] = Attachment::fromPath($this->pdfFile->getRealPath())
+                    ->as($this->pdfFilename ?: 'Telunas_Report.pdf')
+                    ->withMime('application/pdf');
+            } elseif (is_string($this->pdfFile)) {
+                $attachments[] = Attachment::fromData(fn () => $this->pdfFile, $this->pdfFilename ?: 'Telunas_Report.pdf')
+                    ->withMime('application/pdf');
+            }
         }
 
-        if (is_object($this->pdfFile) && method_exists($this->pdfFile, 'getRealPath')) {
-            return [
-                Attachment::fromPath($this->pdfFile->getRealPath())
-                    ->as($this->pdfFilename)
-                    ->withMime('application/pdf'),
-            ];
+        // 2. Excel Attachment
+        if ($this->excelFile) {
+            $xlsxMime = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+            if (is_string($this->excelFile) && file_exists($this->excelFile)) {
+                $attachments[] = Attachment::fromPath($this->excelFile)
+                    ->as($this->excelFilename ?: 'Telunas_Report.xlsx')
+                    ->withMime($xlsxMime);
+            } elseif (is_object($this->excelFile) && method_exists($this->excelFile, 'getRealPath')) {
+                $attachments[] = Attachment::fromPath($this->excelFile->getRealPath())
+                    ->as($this->excelFilename ?: 'Telunas_Report.xlsx')
+                    ->withMime($xlsxMime);
+            } elseif (is_string($this->excelFile)) {
+                $attachments[] = Attachment::fromData(fn () => $this->excelFile, $this->excelFilename ?: 'Telunas_Report.xlsx')
+                    ->withMime($xlsxMime);
+            }
         }
 
-        if (is_string($this->pdfFile)) {
-            return [
-                Attachment::fromData(fn () => $this->pdfFile, $this->pdfFilename)
-                    ->withMime('application/pdf'),
-            ];
-        }
-
-        return [];
+        return $attachments;
     }
 }
