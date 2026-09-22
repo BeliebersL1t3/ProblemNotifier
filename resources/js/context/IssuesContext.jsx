@@ -3,6 +3,7 @@ import axios from 'axios';
 import { useAuth } from '@/hooks/useAuth';
 import { getOfflineQueue, addToOfflineQueue, removeFromOfflineQueue, dataUrlToFile } from '@/lib/offlineQueue';
 import { OfflineSyncToast } from '@/Components/CampusFix/OfflineSyncToast';
+import { normalizeDepartment } from '@/constants/staff';
 
 // Fixed 10-category system — no custom categories
 export const DEFAULT_CATEGORIES = [
@@ -25,7 +26,7 @@ export function IssuesProvider({ children }) {
     const [rawIssues, setRawIssues] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    const { isDeptUser, department, isAdmin } = useAuth();
+    const { isDeptUser, department, isAdmin, canViewAllDepartments, staffName, user } = useAuth();
 
     // --- Sheet (Period/Year) state ---
     const [availableSheets, setAvailableSheets] = useState([]);
@@ -45,7 +46,9 @@ export function IssuesProvider({ children }) {
             if (res.data?.success) {
                 const sheets = res.data.data || [];
                 setAvailableSheets(sheets);
-                if (!localStorage.getItem('campusfix_sheet') && res.data.newest) {
+                const saved = localStorage.getItem('campusfix_sheet');
+                if ((!saved || (saved !== 'all' && !sheets.includes(saved))) && res.data.newest) {
+                    localStorage.setItem('campusfix_sheet', res.data.newest);
                     setCurrentSheetState(res.data.newest);
                 }
             }
@@ -145,20 +148,61 @@ export function IssuesProvider({ children }) {
         };
     }, [fetchIssues]);
 
-    // Scope issues for department accounts
+    // Helper: Check if current user personally contributed to this issue in the past
+    const isPastContributor = useCallback((issue) => {
+        if (!user) return false;
+        const myNames = [user.name, user.staff_name, staffName].filter(Boolean).map(n => String(n).trim().toLowerCase());
+        const matchesUser = (val) => {
+            if (!val) return false;
+            const s = String(val).trim().toLowerCase();
+            return myNames.some(name => s === name || s.includes(name) || name.includes(s));
+        };
+
+        if (issue.user_id && String(issue.user_id) === String(user.id)) return true;
+        if (matchesUser(issue.reporter)) return true;
+        if (matchesUser(issue.taker)) return true;
+        if (matchesUser(issue.solver)) return true;
+        if (matchesUser(issue.pendingBy)) return true;
+
+        if (Array.isArray(issue.pendingTimeline)) {
+            if (issue.pendingTimeline.some(item => matchesUser(item?.by || item?.staff))) return true;
+        }
+
+        if (Array.isArray(issue.editLogs)) {
+            if (issue.editLogs.some(log => matchesUser(log?.by || log?.user || log?.author))) return true;
+        }
+
+        return false;
+    }, [user, staffName]);
+
+    // Scope issues for department accounts: respect canViewAllDepartments and preserve past contributions
     const issues = useMemo(() => {
-        if (!isDeptUser || !department) return rawIssues;
+        if (isAdmin || canViewAllDepartments || !isDeptUser || !department) return rawIssues;
+        const normUserDept = normalizeDepartment(department);
         return rawIssues.filter(issue => {
-            const assigned = Array.isArray(issue.assignedDepartments) 
+            // Emergency alerts are always in scope
+            const isEmergency = (issue.category || '').toLowerCase() === 'emergency' 
+                || String(issue.id || '').startsWith('SOS');
+            if (isEmergency) return true;
+
+            // Past contributions are always kept in scope so they can be viewed in Past Contributions tab
+            if (isPastContributor(issue)) return true;
+
+            const assigned = (Array.isArray(issue.assignedDepartments) 
                 ? issue.assignedDepartments 
-                : (issue.assignedDepartments ? String(issue.assignedDepartments).split(',').map(s => s.trim()) : []);
-            const tagged = Array.isArray(issue.taggedDepartments) 
+                : (issue.assignedDepartments ? String(issue.assignedDepartments).split(',') : [])
+            ).map(d => normalizeDepartment(d.trim()));
+
+            const tagged = (Array.isArray(issue.taggedDepartments) 
                 ? issue.taggedDepartments 
-                : (issue.taggedDepartments ? String(issue.taggedDepartments).split(',').map(s => s.trim()) : []);
-            const orig = (issue.department || '').trim();
-            return assigned.includes(department) || tagged.includes(department) || orig === department;
+                : (issue.taggedDepartments ? String(issue.taggedDepartments).split(',') : [])
+            ).map(d => normalizeDepartment(d.trim()));
+
+            const orig = normalizeDepartment(issue.department || '');
+
+            return assigned.includes(normUserDept) || tagged.includes(normUserDept) || orig === normUserDept;
         });
-    }, [rawIssues, isDeptUser, department]);
+    }, [rawIssues, isAdmin, canViewAllDepartments, isDeptUser, department, isPastContributor]);
 
     const [outboxCount, setOutboxCount] = useState(() => getOfflineQueue().length);
     const [isSyncingOutbox, setIsSyncingOutbox] = useState(false);
