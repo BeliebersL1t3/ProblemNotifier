@@ -29,6 +29,9 @@ return Application::configure(basePath: dirname(__DIR__))
             'api/categories/*',
             'api/operations',
             'api/operations/*',
+            'api/users',
+            'api/users/*',
+            'api/user-audit-logs',
             'notifications/*',
             'notifications/read-all',
         ]);

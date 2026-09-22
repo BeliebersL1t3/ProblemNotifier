@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import axios from 'axios';
 import { Head, Link } from '@inertiajs/react';
 import { 
     Users as UsersIcon, Plus, Search, Shield, ShieldCheck, ShieldAlert, 
@@ -96,33 +97,24 @@ function UsersInner({ initialUsers, initialStats }) {
         if (selectedUserIds.length === 0) return;
         setBatchQuickProcessing(true);
         try {
-            const res = await fetch('/api/users/batch-permissions', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+            const res = await axios.post('/api/users/batch-permissions', {
+                user_ids: selectedUserIds,
+                permissions: {
+                    can_view_all_departments: enabled,
                 },
-                body: JSON.stringify({
-                    user_ids: selectedUserIds,
-                    permissions: {
-                        can_view_all_departments: enabled,
-                    },
-                }),
             });
-            const data = await res.json();
-            if (data.success) {
+            if (res.data?.success) {
                 showToast(
-                    enabled 
-                        ? `Akses semua departemen dinyalakan untuk ${data.updated_count} akun.` 
-                        : `Akses dibatasi ke departemen sendiri untuk ${data.updated_count} akun.`
+                    lang === 'id' 
+                        ? `${selectedUserIds.length} akun berhasil ${enabled ? 'diberikan akses' : 'dibatasi dari'} semua departemen.`
+                        : `${selectedUserIds.length} accounts successfully ${enabled ? 'granted access to' : 'restricted from'} all departments.`
                 );
-                handleBatchSuccess(data.updated_users || []);
+                fetchUsers();
             } else {
-                showToast(data.message || 'Gagal mengubah izin.', true);
+                showToast(res.data?.message || 'Gagal memperbarui wewenang akun', true);
             }
         } catch (e) {
-            showToast('Terjadi kesalahan jaringan.', true);
+            showToast(e.response?.data?.message || 'Terjadi kesalahan sistem', true);
         } finally {
             setBatchQuickProcessing(false);
         }
@@ -138,13 +130,10 @@ function UsersInner({ initialUsers, initialStats }) {
             if (deptFilter !== 'all') params.append('department', deptFilter);
             if (statusFilter) params.append('status', statusFilter);
 
-            const res = await fetch(`/api/users?${params.toString()}`, {
-                headers: { 'Accept': 'application/json' }
-            });
-            const data = await res.json();
-            if (data.success) {
-                setUsers(data.data || []);
-                if (data.stats) setStats(data.stats);
+            const res = await axios.get(`/api/users?${params.toString()}`);
+            if (res.data?.success) {
+                setUsers(res.data.data || []);
+                if (res.data.stats) setStats(res.data.stats);
             }
         } catch (e) {
             console.error('Failed to fetch users:', e);
@@ -183,22 +172,15 @@ function UsersInner({ initialUsers, initialStats }) {
         if (!confirm(confirmMsg)) return;
 
         try {
-            const res = await fetch(`/api/users/${targetUser.id}`, {
-                method: 'DELETE',
-                headers: {
-                    'Accept': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                }
-            });
-            const data = await res.json();
-            if (data.success) {
-                showToast(data.message || 'Akun berhasil di-archive');
+            const res = await axios.delete(`/api/users/${targetUser.id}`);
+            if (res.data?.success) {
+                showToast(res.data.message || 'Akun berhasil di-archive');
                 fetchUsers();
             } else {
-                showToast(data.message || 'Gagal meng-archive akun', true);
+                showToast(res.data?.message || 'Gagal meng-archive akun', true);
             }
         } catch (e) {
-            showToast('Terjadi kesalahan sistem', true);
+            showToast(e.response?.data?.message || 'Terjadi kesalahan sistem', true);
         }
     };
 
@@ -210,22 +192,15 @@ function UsersInner({ initialUsers, initialStats }) {
         if (!confirm(confirmMsg)) return;
 
         try {
-            const res = await fetch(`/api/users/${targetUser.id}/restore`, {
-                method: 'POST',
-                headers: {
-                    'Accept': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                }
-            });
-            const data = await res.json();
-            if (data.success) {
-                showToast(data.message || 'Akun berhasil dipulihkan');
+            const res = await axios.post(`/api/users/${targetUser.id}/restore`);
+            if (res.data?.success) {
+                showToast(res.data.message || 'Akun berhasil dipulihkan');
                 fetchUsers();
             } else {
-                showToast(data.message || 'Gagal memulihkan akun', true);
+                showToast(res.data?.message || 'Gagal memulihkan akun', true);
             }
         } catch (e) {
-            showToast('Terjadi kesalahan sistem', true);
+            showToast(e.response?.data?.message || 'Terjadi kesalahan sistem', true);
         }
     };
 
@@ -237,44 +212,29 @@ function UsersInner({ initialUsers, initialStats }) {
         if (!confirm(confirmMsg)) return;
 
         try {
-            const res = await fetch(`/api/users/${targetUser.id}/reset-password`, {
-                method: 'POST',
-                headers: {
-                    'Accept': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                }
-            });
-            const data = await res.json();
-            if (data.success) {
-                showToast(`Password ${targetUser.name} berhasil direset: "${data.new_password}"`);
+            const res = await axios.post(`/api/users/${targetUser.id}/reset-password`);
+            if (res.data?.success) {
+                showToast(`Password ${targetUser.name} berhasil direset: "${res.data.new_password}"`);
                 fetchUsers();
             } else {
-                showToast(data.message || 'Gagal mereset password', true);
+                showToast(res.data?.message || 'Gagal mereset password', true);
             }
         } catch (e) {
-            showToast('Terjadi kesalahan sistem', true);
+            showToast(e.response?.data?.message || 'Terjadi kesalahan sistem', true);
         }
     };
 
     const handleToggleHod = async (targetUser) => {
         try {
-            const res = await fetch(`/api/users/${targetUser.id}/toggle-hod`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                }
-            });
-            const data = await res.json();
-            if (data.success) {
-                showToast(data.message);
-                setUsers(prev => prev.map(u => u.id === targetUser.id ? { ...u, is_hod: data.is_hod } : u));
+            const res = await axios.post(`/api/users/${targetUser.id}/toggle-hod`);
+            if (res.data?.success) {
+                showToast(res.data.message);
+                setUsers(prev => prev.map(u => u.id === targetUser.id ? { ...u, is_hod: res.data.is_hod } : u));
             } else {
-                showToast(data.message || 'Gagal mengubah status HOD', true);
+                showToast(res.data?.message || 'Gagal mengubah status HOD', true);
             }
         } catch (e) {
-            showToast('Terjadi kesalahan sistem', true);
+            showToast(e.response?.data?.message || 'Terjadi kesalahan sistem', true);
         }
     };
 

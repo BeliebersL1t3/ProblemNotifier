@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import axios from 'axios';
 import { 
     X, User, Mail, Shield, Building2, KeyRound, Phone, 
     Sparkles, Check, AlertCircle, Eye, EyeOff, ShieldAlert,
@@ -171,26 +172,18 @@ export function UserModal({ isOpen, onClose, user = null, onSaved }) {
 
         try {
             const url = isEdit ? `/api/users/${user.id}` : '/api/users';
-            const method = isEdit ? 'PUT' : 'POST';
-            const res = await fetch(url, {
-                method,
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                },
-                body: JSON.stringify(payload),
-            });
+            const method = isEdit ? 'put' : 'post';
+            const res = await axios[method](url, payload);
 
-            const data = await res.json();
-            if (!res.ok || !data.success) {
-                throw new Error(data.message || 'Gagal menyimpan akun');
+            if (!res.data?.success) {
+                throw new Error(res.data?.message || 'Gagal menyimpan akun');
             }
 
-            onSaved?.(data.data);
+            onSaved?.(res.data.data);
             onClose();
         } catch (err) {
-            setErrorMessage(err.message || 'Terjadi kesalahan sistem');
+            const msg = err.response?.data?.message || err.message || 'Terjadi kesalahan sistem';
+            setErrorMessage(msg);
         } finally {
             setLoading(false);
         }
