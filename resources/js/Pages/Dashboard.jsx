@@ -337,6 +337,27 @@ function DashboardInner() {
         });
     }, [progressOverdueCriticals, isMuted, now]);
 
+    // Count of past contributions from former departments
+    const pastContribCount = useMemo(() => {
+        if (!department || canViewAllDepartments || isAdmin) return 0;
+        const normUserDept = normalizeDepartment(department);
+        return (issues || []).filter(issue => {
+            const assigned = (Array.isArray(issue.assignedDepartments) 
+                ? issue.assignedDepartments 
+                : (issue.assignedDepartments ? String(issue.assignedDepartments).split(',') : [])
+            ).map(d => normalizeDepartment(d.trim()));
+
+            const tagged = (Array.isArray(issue.taggedDepartments) 
+                ? issue.taggedDepartments 
+                : (issue.taggedDepartments ? String(issue.taggedDepartments).split(',') : [])
+            ).map(d => normalizeDepartment(d.trim()));
+
+            const originDept = normalizeDepartment(issue.department || '');
+            const inCurrentDeptScope = assigned.includes(normUserDept) || tagged.includes(normUserDept) || originDept === normUserDept;
+            return isPastContributor(issue) && !inCurrentDeptScope;
+        }).length;
+    }, [issues, department, canViewAllDepartments, isAdmin, user, staffName]);
+
     const visible = useMemo(() => {
         const q = query.trim().toLowerCase();
         const sourceIssues = showArchiveTab ? (archivedIssues || []) : issues;
@@ -425,13 +446,6 @@ function DashboardInner() {
             if (isAssignedToTarget || isOriginOfTarget || isTaggedToTarget) {
                 acc.push(issue);
                 return acc;
-            }
-
-            if (isPastContrib) {
-                acc.push({
-                    ...issue,
-                    _isPastContribution: true,
-                });
             }
 
             return acc;
@@ -825,14 +839,23 @@ function DashboardInner() {
                                 <button
                                     type="button"
                                     onClick={() => setDeptViewMode('past_contributions')}
-                                    className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
+                                    className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
                                         deptViewMode === 'past_contributions'
                                             ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-sm font-extrabold'
                                             : 'text-muted-foreground hover:text-foreground'
                                     }`}
                                     title="Isu dari departemen lama yang pernah Anda buat atau tangani"
                                 >
-                                    🔒 {lang === 'id' ? 'Riwayat Kontribusi' : 'Past Contributions'}
+                                    <span>🔒 {lang === 'id' ? 'Riwayat Kontribusi' : 'Past Contributions'}</span>
+                                    {pastContribCount > 0 && (
+                                        <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                                            deptViewMode === 'past_contributions'
+                                                ? 'bg-[#1C1B0E] text-[#C9AA71]'
+                                                : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                                        }`}>
+                                            {pastContribCount}
+                                        </span>
+                                    )}
                                 </button>
                             </div>
                         )}

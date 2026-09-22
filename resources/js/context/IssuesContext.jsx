@@ -564,12 +564,34 @@ export function IssuesProvider({ children }) {
     }, [fetchIssues, fetchArchivedIssues]);
 
     const value = useMemo(() => {
+        const activeScopeIssues = issues.filter(issue => {
+            if (!isDeptUser || canViewAllDepartments || isAdmin || !department) return true;
+            const normDept = normalizeDepartment(department);
+            const assigned = (Array.isArray(issue.assignedDepartments) 
+                ? issue.assignedDepartments 
+                : (issue.assignedDepartments ? String(issue.assignedDepartments).split(',') : [])
+            ).map(d => normalizeDepartment(d.trim()));
+
+            const tagged = (Array.isArray(issue.taggedDepartments) 
+                ? issue.taggedDepartments 
+                : (issue.taggedDepartments ? String(issue.taggedDepartments).split(',') : [])
+            ).map(d => normalizeDepartment(d.trim()));
+
+            const orig = normalizeDepartment((issue.department || '').trim());
+            const inDept = assigned.includes(normDept) || tagged.includes(normDept) || orig === normDept;
+            const isEmergency = (issue.category || '').toLowerCase() === 'emergency' 
+                || String(issue.id || '').startsWith('SOS')
+                || assigned.some(d => String(d).trim().toUpperCase() === 'ALL')
+                || tagged.some(d => String(d).trim().toUpperCase() === 'ALL');
+            return inDept || isEmergency;
+        });
+
         const stats = {
-            total: issues.length,
-            open: issues.filter((i) => i.status === 'open').length,
-            progress: issues.filter((i) => i.status === 'progress').length,
-            pending: issues.filter((i) => i.status === 'pending').length,
-            solved: issues.filter((i) => i.status === 'solved').length,
+            total: activeScopeIssues.length,
+            open: activeScopeIssues.filter((i) => i.status === 'open').length,
+            progress: activeScopeIssues.filter((i) => i.status === 'progress').length,
+            pending: activeScopeIssues.filter((i) => i.status === 'pending').length,
+            solved: activeScopeIssues.filter((i) => i.status === 'solved').length,
             archived: archivedIssues.length,
         };
         return {
