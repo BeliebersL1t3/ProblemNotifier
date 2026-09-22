@@ -1439,15 +1439,15 @@ function AnalyticsInner() {
                         </div>
 
                         {canExportReports ? (
-                            <Tooltip content={t('tooltip_export_pdf')} position="top">
+                            <Tooltip content={lang === 'id' ? 'Ekspor laporan analitik ke format dokumen PDF atau spreadsheet Excel (.xlsx)' : 'Export analytics reports to PDF or Excel (.xlsx) spreadsheet'} position="top">
                                 <button
                                     type="button"
                                     onClick={() => setExportOpen(true)}
                                     className="px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 flex items-center gap-2 bg-[#C9AA71] text-[#1C1B0E] hover:bg-[#D4B883] border border-[#C9AA71] shadow-sm hover:shadow-md active:scale-95 cursor-pointer font-extrabold"
-                                    title={t('export_pdf')}
+                                    title={t('export_report') || 'Ekspor Laporan'}
                                 >
                                     <Download className="h-4 w-4" />
-                                    <span>{t('export_pdf')}</span>
+                                    <span>{t('export_report') || 'Ekspor Laporan'}</span>
                                 </button>
                             </Tooltip>
                         ) : (
@@ -1456,7 +1456,7 @@ function AnalyticsInner() {
                                 title={lang === 'id' ? 'Izin export laporan dinonaktifkan oleh Administrator' : 'Report export disabled by Administrator'}
                             >
                                 <Download className="h-4 w-4 opacity-40" />
-                                <span>{t('export_pdf')} ({lang === 'id' ? 'Dibatasi' : 'Restricted'})</span>
+                                <span>{t('export_report') || 'Ekspor Laporan'} ({lang === 'id' ? 'Dibatasi' : 'Restricted'})</span>
                             </div>
                         )}
 

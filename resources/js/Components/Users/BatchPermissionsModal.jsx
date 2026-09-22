@@ -38,8 +38,8 @@ const PERMISSION_CONFIGS = [
     },
     {
         key: 'can_export_reports',
-        label: 'Ekspor Laporan (CSV / PDF)',
-        desc: 'Mengizinkan pengunduhan rekap data tiket isu ke format dokumen.',
+        label: 'Ekspor Laporan (PDF & Excel)',
+        desc: 'Mengizinkan pengunduhan rekap data tiket isu ke format dokumen PDF atau spreadsheet Excel (.xlsx).',
     },
     {
         key: 'can_manage_categories',

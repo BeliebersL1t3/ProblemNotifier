@@ -546,7 +546,7 @@ export function UserModal({ isOpen, onClose, user = null, onSaved }) {
                                     {
                                         key: 'can_export_reports',
                                         label: 'Bisa Ekspor & Unduh Laporan',
-                                        desc: 'Mengizinkan unduh data dalam format CSV/Excel untuk rekap bulanan.',
+                                        desc: 'Mengizinkan unduh rekap data laporan dalam format PDF & Excel (.xlsx).',
                                     },
                                     {
                                         key: 'can_manage_categories',

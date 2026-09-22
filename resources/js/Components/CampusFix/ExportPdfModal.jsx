@@ -21,10 +21,12 @@ import { useIssues } from '@/context/IssuesContext';
 import { useLanguage } from '@/context/LanguageContext';
 import { 
     Loader2, Download, FileText, ChevronDown, Layers, Wrench, Send, AtSign, Globe,
-    Mail, Check, CheckCircle2, AlertCircle, X, Users, User, Plus, Sparkles
+    Mail, Check, CheckCircle2, AlertCircle, X, Users, User, Plus, Sparkles,
+    FileSpreadsheet, Table
 } from 'lucide-react';
 import { normalizeDepartment } from '@/constants/staff';
 import { formatDurationLabel } from '@/lib/duration';
+import { generateExcelReport } from '@/utils/excelExporter';
 
 // Mobile-friendly collapsible section
 function CollapsibleSection({ label, toggleLabel, onToggleAll, children, defaultOpen = true }) {
@@ -80,6 +82,13 @@ export function ExportPdfModal({ open, onOpenChange }) {
     const [deptFilterMode, setDeptFilterMode] = useState('all'); // 'all' | 'my_scope' | 'to_fix' | 'my_reports' | 'mentions'
     const [limit, setLimit] = useState('All');
     
+    // Format Selection: 'pdf' or 'excel'
+    const [exportFormat, setExportFormat] = useState('pdf');
+    const [includeKpiSummary, setIncludeKpiSummary] = useState(true);
+    const [includeSolvedNotes, setIncludeSolvedNotes] = useState(true);
+    const [isExportingExcel, setIsExportingExcel] = useState(false);
+    const [excelActiveTabPreview, setExcelActiveTabPreview] = useState('kpi'); // 'kpi' | 'raw'
+
     // Optional PDF details
     const [includeAuditTrail, setIncludeAuditTrail] = useState(false);
     const [includeAuditTime, setIncludeAuditTime] = useState(true);
@@ -253,8 +262,8 @@ export function ExportPdfModal({ open, onOpenChange }) {
         }
     };
 
-    const buildPdfDocument = () => {
-        // Combine issues from selected sheets
+    // Centralized filtered issues for both PDF preview/generation and Excel export
+    const filteredIssues = useMemo(() => {
         let allSelectedIssues = [];
         selectedSheets.forEach(sheet => {
             if (downloadedIssues[sheet]) {
@@ -271,7 +280,6 @@ export function ExportPdfModal({ open, onOpenChange }) {
             allSelectedIssues = allSelectedIssues.concat(relevantArchived);
         }
 
-        // Filter issues based on selection
         let filtered = allSelectedIssues.filter(issue => {
             if (issue.isArchived) {
                 // Archived issues explicitly included by Admin via includeArchived
@@ -281,7 +289,6 @@ export function ExportPdfModal({ open, onOpenChange }) {
                 const sMap = { 'open': 'open', 'progress': 'progress', 'solved': 'solved' };
                 if (!selectedStatuses.includes(sMap[issue.status])) return false;
             }
-            // selectedCategories empty = not yet loaded, treat as all selected
             if (selectedCategories.length > 0 && issue.category && !selectedCategories.includes(issue.category)) return false;
             
             // Department Scope Filtering
@@ -315,13 +322,66 @@ export function ExportPdfModal({ open, onOpenChange }) {
             return true;
         });
 
-        // Sort newest first
         filtered.sort((a, b) => (b.reportedAt || 0) - (a.reportedAt || 0));
 
-        // Apply limit
         if (limit !== 'All') {
             filtered = filtered.slice(0, parseInt(limit));
         }
+
+        return filtered;
+    }, [selectedSheets, downloadedIssues, isAdmin, includeArchived, archivedIssues, currentSheet, selectedStatuses, selectedCategories, deptFilterMode, userDept, selectedDepartments, limit]);
+
+    const filteredIssuesCount = filteredIssues.length;
+
+    // KPI Metrics for Excel Sheet 1 & Interactive Preview
+    const excelPreviewKpi = useMemo(() => {
+        const total = filteredIssues.length;
+        const solved = filteredIssues.filter(i => i.status === 'solved').length;
+        const pending = filteredIssues.filter(i => i.status === 'pending').length;
+        const progress = filteredIssues.filter(i => i.status === 'progress').length;
+        const open = filteredIssues.filter(i => i.status === 'open').length;
+        const rate = total > 0 ? ((solved / total) * 100).toFixed(1) : '0.0';
+
+        const deptMap = {};
+        filteredIssues.forEach(i => {
+            const depts = (i.assignedDepartments && i.assignedDepartments.length > 0)
+                ? i.assignedDepartments
+                : [i.department || 'Other'];
+            depts.forEach(d => {
+                const name = d || 'Unassigned';
+                if (!deptMap[name]) deptMap[name] = { total: 0, solved: 0, pending: 0 };
+                deptMap[name].total += 1;
+                if (i.status === 'solved') deptMap[name].solved += 1;
+                if (i.status === 'pending') deptMap[name].pending += 1;
+            });
+        });
+        const topDepts = Object.entries(deptMap)
+            .sort((a, b) => b[1].total - a[1].total)
+            .slice(0, 6);
+
+        return { total, solved, pending, progress, open, rate, topDepts };
+    }, [filteredIssues]);
+
+    const handleExportExcel = async () => {
+        try {
+            setIsExportingExcel(true);
+            await generateExcelReport(filteredIssues, {
+                selectedSheets,
+                categories,
+                includeKpiSummary,
+                includeDelayTimeline,
+                includeSolvedNotes,
+            });
+        } catch (err) {
+            console.error('Failed to export Excel report:', err);
+            alert(lang === 'id' ? 'Gagal membuat file Excel. Silakan coba lagi.' : 'Failed to generate Excel file. Please try again.');
+        } finally {
+            setIsExportingExcel(false);
+        }
+    };
+
+    const buildPdfDocument = () => {
+        const filtered = filteredIssues;
 
         // Generate PDF
         const doc = new jsPDF('landscape');
@@ -644,7 +704,7 @@ export function ExportPdfModal({ open, onOpenChange }) {
 
     // Update live preview only when filters change or initial render triggers
     useEffect(() => {
-        if (!open || !initialRenderComplete) return;
+        if (!open || !initialRenderComplete || exportFormat !== 'pdf') return;
         
         setIsPreviewLoading(true);
         const debounce = setTimeout(() => {
@@ -665,7 +725,7 @@ export function ExportPdfModal({ open, onOpenChange }) {
         }, 300); // 300ms debounce
 
         return () => clearTimeout(debounce);
-    }, [limit, selectedStatuses, selectedCategories, selectedDepartments, deptFilterMode, selectedSheets, downloadedIssues, initialRenderComplete, open, includeAuditTrail, includeAuditTime, includeAuditPerson, includeAuditReason, includeDelayTimeline, includeArchived]);
+    }, [limit, selectedStatuses, selectedCategories, selectedDepartments, deptFilterMode, selectedSheets, downloadedIssues, initialRenderComplete, open, exportFormat, includeAuditTrail, includeAuditTime, includeAuditPerson, includeAuditReason, includeDelayTimeline, includeArchived]);
 
     const handleDownload = () => {
         setIsExporting(true);
@@ -680,61 +740,6 @@ export function ExportPdfModal({ open, onOpenChange }) {
             setIsExporting(false);
         }
     };
-
-    // Calculate filtered issues count for summary & email metadata
-    const filteredIssuesCount = useMemo(() => {
-        let allSelectedIssues = [];
-        selectedSheets.forEach(sheet => {
-            if (downloadedIssues[sheet]) {
-                const sheetIssues = downloadedIssues[sheet].map(i => ({ ...i, __sheetName: sheet }));
-                allSelectedIssues = allSelectedIssues.concat(sheetIssues);
-            }
-        });
-
-        if (isAdmin && includeArchived && Array.isArray(archivedIssues)) {
-            const relevantArchived = archivedIssues
-                .filter(i => selectedSheets.includes(i.sheet || i._sheet || currentSheet))
-                .map(i => ({ ...i, __sheetName: i.sheet || i._sheet || currentSheet }));
-            allSelectedIssues = allSelectedIssues.concat(relevantArchived);
-        }
-
-        return allSelectedIssues.filter(issue => {
-            if (issue.isArchived) {
-                // Included if admin checked includeArchived
-            } else if (issue.status === 'pending') {
-                if (!selectedStatuses.includes('pending') && !selectedStatuses.includes('progress')) return false;
-            } else {
-                const sMap = { 'open': 'open', 'progress': 'progress', 'solved': 'solved' };
-                if (!selectedStatuses.includes(sMap[issue.status])) return false;
-            }
-            if (selectedCategories.length > 0 && issue.category && !selectedCategories.includes(issue.category)) return false;
-
-            if (deptFilterMode === 'my_scope' && userDept) {
-                const isRelated = normalizeDepartment(issue.department) === userDept ||
-                                  (Array.isArray(issue.assignedDepartments) && issue.assignedDepartments.some(d => normalizeDepartment(d) === userDept)) ||
-                                  (Array.isArray(issue.taggedDepartments) && issue.taggedDepartments.some(d => normalizeDepartment(d) === userDept));
-                if (!isRelated) return false;
-            } else if (deptFilterMode === 'to_fix' && userDept) {
-                const isAssigned = Array.isArray(issue.assignedDepartments) && issue.assignedDepartments.some(d => normalizeDepartment(d) === userDept);
-                if (!isAssigned) return false;
-            } else if (deptFilterMode === 'my_reports' && userDept) {
-                if (normalizeDepartment(issue.department) !== userDept) return false;
-            } else if (deptFilterMode === 'mentions' && userDept) {
-                const isTagged = Array.isArray(issue.taggedDepartments) && issue.taggedDepartments.some(d => normalizeDepartment(d) === userDept);
-                if (!isTagged) return false;
-            } else if (deptFilterMode === 'all') {
-                const isDeptSelected = selectedDepartments.some(d => {
-                    const normD = normalizeDepartment(d);
-                    const origMatch = normalizeDepartment(issue.department) === normD;
-                    const assignMatch = Array.isArray(issue.assignedDepartments) && issue.assignedDepartments.some(a => normalizeDepartment(a) === normD);
-                    const tagMatch = Array.isArray(issue.taggedDepartments) && issue.taggedDepartments.some(t => normalizeDepartment(t) === normD);
-                    return origMatch || assignMatch || tagMatch;
-                });
-                if (!isDeptSelected) return false;
-            }
-            return true;
-        }).length;
-    }, [selectedSheets, downloadedIssues, isAdmin, includeArchived, archivedIssues, currentSheet, selectedStatuses, selectedCategories, deptFilterMode, userDept, selectedDepartments]);
 
     const handleOpenEmailModal = async () => {
         setIsEmailModalOpen(true);
@@ -912,13 +917,52 @@ export function ExportPdfModal({ open, onOpenChange }) {
         <Dialog open={open} onOpenChange={(o) => { if (!isExporting) onOpenChange(o); }}>
             <DialogContent className="max-h-[100dvh] overflow-hidden flex flex-col w-full sm:max-w-6xl h-[100dvh] sm:h-[85vh] sm:max-h-[95vh] rounded-none sm:rounded-2xl">
                 <DialogHeader className="shrink-0">
-                    <DialogTitle className="flex items-center gap-2 text-xl">
-                        <FileText className="h-5 w-5 text-primary" />
-                        Export Issue Report
-                    </DialogTitle>
-                    <DialogDescription>
-                        Configure the filters on the left and instantly preview your PDF report on the right.
-                    </DialogDescription>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div>
+                            <DialogTitle className="flex items-center gap-2 text-xl">
+                                {exportFormat === 'excel' ? (
+                                    <FileSpreadsheet className="h-5 w-5 text-emerald-400" />
+                                ) : (
+                                    <FileText className="h-5 w-5 text-primary" />
+                                )}
+                                {t('export_report') || 'Export Issue Report'}
+                            </DialogTitle>
+                            <DialogDescription>
+                                {exportFormat === 'pdf'
+                                    ? (lang === 'id' ? 'Sesuaikan filter di sebelah kiri dan pratinjau langsung laporan PDF di sebelah kanan.' : 'Configure the filters on the left and instantly preview your PDF report on the right.')
+                                    : (lang === 'id' ? 'Sesuaikan filter di sebelah kiri dan unduh spreadsheet Excel (.xlsx) rapi dengan 2 sheet.' : 'Configure filters on the left and download a 2-sheet styled Excel (.xlsx) report.')
+                                }
+                            </DialogDescription>
+                        </div>
+
+                        {/* Format Switcher: PDF vs Excel */}
+                        <div className="flex items-center bg-[#1C1B0E] p-1 rounded-xl border border-[#3B3929] self-start sm:self-auto shrink-0 shadow-sm">
+                            <button
+                                type="button"
+                                onClick={() => setExportFormat('pdf')}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                                    exportFormat === 'pdf'
+                                        ? 'bg-[#C9AA71] text-[#1C1B0E] shadow'
+                                        : 'text-[#A19F8D] hover:text-[#FAFAFA]'
+                                }`}
+                            >
+                                <FileText className="w-3.5 h-3.5" />
+                                <span>{t('export_format_pdf') || 'Dokumen PDF'}</span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setExportFormat('excel')}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                                    exportFormat === 'excel'
+                                        ? 'bg-emerald-600 text-white shadow'
+                                        : 'text-[#A19F8D] hover:text-[#FAFAFA]'
+                                }`}
+                            >
+                                <FileSpreadsheet className="w-3.5 h-3.5" />
+                                <span>{t('export_format_excel') || 'Spreadsheet Excel'}</span>
+                            </button>
+                        </div>
+                    </div>
                 </DialogHeader>
 
                 <div className="flex-1 min-h-0 flex flex-col gap-4 py-4 overflow-y-auto md:grid md:grid-cols-[340px_1fr] md:overflow-hidden">
@@ -1137,98 +1181,320 @@ export function ExportPdfModal({ open, onOpenChange }) {
                         {/* Appendices / Detail Options */}
                         <div className="grid gap-2.5 p-3 rounded-xl bg-[#2A281E] border border-[#3B3929]">
                             <label className="text-xs font-bold text-[#C9AA71] uppercase tracking-wider">
-                                Table Appendices (Optional)
+                                {exportFormat === 'excel' ? 'Opsi Ekspor Spreadsheet Excel' : 'Table Appendices (Optional)'}
                             </label>
-                            <div className="flex flex-col gap-2.5">
-                                <div className="space-y-2">
-                                    <label className="flex items-center gap-2 text-xs text-foreground font-semibold cursor-pointer select-none">
+                            
+                            {exportFormat === 'excel' ? (
+                                <div className="flex flex-col gap-2.5 text-xs text-foreground">
+                                    <label className="flex items-center gap-2 cursor-pointer select-none">
                                         <input
                                             type="checkbox"
-                                            checked={includeAuditTrail}
-                                            onChange={(e) => setIncludeAuditTrail(e.target.checked)}
-                                            className="rounded text-[#C9AA71] focus:ring-[#C9AA71] h-4 w-4 bg-[#1C1B0E] border-[#3B3929]"
+                                            checked={includeKpiSummary}
+                                            onChange={(e) => setIncludeKpiSummary(e.target.checked)}
+                                            className="rounded text-emerald-500 focus:ring-emerald-500 h-4 w-4 bg-[#1C1B0E] border-[#3B3929]"
                                         />
-                                        <span>Include Audit & Reversion Trail</span>
+                                        <span className="font-semibold text-[#FAFAFA]">Sertakan Tab Ringkasan KPI (Sheet 1)</span>
+                                    </label>
+                                    <span className="text-[11px] text-[#A19F8D] -mt-1.5 pl-6">
+                                        Membuat sheet ringkasan metriks status & performa per departemen.
+                                    </span>
+
+                                    <label className="flex items-center gap-2 cursor-pointer select-none pt-2 border-t border-[#3B3929]/50">
+                                        <input
+                                            type="checkbox"
+                                            checked={includeSolvedNotes}
+                                            onChange={(e) => setIncludeSolvedNotes(e.target.checked)}
+                                            className="rounded text-emerald-500 focus:ring-emerald-500 h-4 w-4 bg-[#1C1B0E] border-[#3B3929]"
+                                        />
+                                        <span>Sertakan Kolom Catatan Penyelesaian (Solved Notes)</span>
                                     </label>
 
-                                    {/* Granular Sub-options for Audit Trail */}
-                                    {includeAuditTrail && (
-                                        <div className="pl-6 space-y-1.5 border-l-2 border-[#C9AA71]/40 ml-2 py-1 text-[11px] text-muted-foreground">
-                                            <label className="flex items-center gap-2 cursor-pointer hover:text-foreground">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={includeAuditTime}
-                                                    onChange={(e) => setIncludeAuditTime(e.target.checked)}
-                                                    className="rounded text-[#C9AA71] h-3.5 w-3.5 bg-[#1C1B0E] border-[#3B3929]"
-                                                />
-                                                <span>Include Date & Time</span>
-                                            </label>
-                                            <label className="flex items-center gap-2 cursor-pointer hover:text-foreground">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={includeAuditPerson}
-                                                    onChange={(e) => setIncludeAuditPerson(e.target.checked)}
-                                                    className="rounded text-[#C9AA71] h-3.5 w-3.5 bg-[#1C1B0E] border-[#3B3929]"
-                                                />
-                                                <span>Include Staff & Department</span>
-                                            </label>
-                                            <label className="flex items-center gap-2 cursor-pointer hover:text-foreground">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={includeAuditReason}
-                                                    onChange={(e) => setIncludeAuditReason(e.target.checked)}
-                                                    className="rounded text-[#C9AA71] h-3.5 w-3.5 bg-[#1C1B0E] border-[#3B3929]"
-                                                />
-                                                <span>Include Reason / Note</span>
-                                            </label>
-                                        </div>
+                                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                                        <input
+                                            type="checkbox"
+                                            checked={includeDelayTimeline}
+                                            onChange={(e) => setIncludeDelayTimeline(e.target.checked)}
+                                            className="rounded text-emerald-500 focus:ring-emerald-500 h-4 w-4 bg-[#1C1B0E] border-[#3B3929]"
+                                        />
+                                        <span>Sertakan Kolom Alasan Pending & Timeline Tertunda</span>
+                                    </label>
+
+                                    {isAdmin && (
+                                        <label className="flex items-center gap-2 text-rose-300/90 font-medium cursor-pointer select-none pt-2 border-t border-[#3B3929]/50">
+                                            <input
+                                                type="checkbox"
+                                                checked={includeArchived}
+                                                onChange={(e) => setIncludeArchived(e.target.checked)}
+                                                className="rounded text-rose-500 focus:ring-rose-500 h-4 w-4 bg-[#1C1B0E] border-[#3B3929]"
+                                            />
+                                            <span>Sertakan Isu Terarsip ({archivedIssues?.length || 0})</span>
+                                        </label>
                                     )}
                                 </div>
+                            ) : (
+                                <div className="flex flex-col gap-2.5">
+                                    <div className="space-y-2">
+                                        <label className="flex items-center gap-2 text-xs text-foreground font-semibold cursor-pointer select-none">
+                                            <input
+                                                type="checkbox"
+                                                checked={includeAuditTrail}
+                                                onChange={(e) => setIncludeAuditTrail(e.target.checked)}
+                                                className="rounded text-[#C9AA71] focus:ring-[#C9AA71] h-4 w-4 bg-[#1C1B0E] border-[#3B3929]"
+                                            />
+                                            <span>Include Audit & Reversion Trail</span>
+                                        </label>
 
-                                <label className="flex items-center gap-2 text-xs text-foreground cursor-pointer select-none pt-1 border-t border-[#3B3929]/50">
-                                    <input
-                                        type="checkbox"
-                                        checked={includeDelayTimeline}
-                                        onChange={(e) => setIncludeDelayTimeline(e.target.checked)}
-                                        className="rounded text-[#C9AA71] focus:ring-[#C9AA71] h-4 w-4 bg-[#1C1B0E] border-[#3B3929]"
-                                    />
-                                    <span>Include Pending Delay Timeline</span>
-                                </label>
+                                        {/* Granular Sub-options for Audit Trail */}
+                                        {includeAuditTrail && (
+                                            <div className="pl-6 space-y-1.5 border-l-2 border-[#C9AA71]/40 ml-2 py-1 text-[11px] text-muted-foreground">
+                                                <label className="flex items-center gap-2 cursor-pointer hover:text-foreground">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={includeAuditTime}
+                                                        onChange={(e) => setIncludeAuditTime(e.target.checked)}
+                                                        className="rounded text-[#C9AA71] h-3.5 w-3.5 bg-[#1C1B0E] border-[#3B3929]"
+                                                    />
+                                                    <span>Include Date & Time</span>
+                                                </label>
+                                                <label className="flex items-center gap-2 cursor-pointer hover:text-foreground">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={includeAuditPerson}
+                                                        onChange={(e) => setIncludeAuditPerson(e.target.checked)}
+                                                        className="rounded text-[#C9AA71] h-3.5 w-3.5 bg-[#1C1B0E] border-[#3B3929]"
+                                                    />
+                                                    <span>Include Staff & Department</span>
+                                                </label>
+                                                <label className="flex items-center gap-2 cursor-pointer hover:text-foreground">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={includeAuditReason}
+                                                        onChange={(e) => setIncludeAuditReason(e.target.checked)}
+                                                        className="rounded text-[#C9AA71] h-3.5 w-3.5 bg-[#1C1B0E] border-[#3B3929]"
+                                                    />
+                                                    <span>Include Reason / Note</span>
+                                                </label>
+                                            </div>
+                                        )}
+                                    </div>
 
-                                {isAdmin && (
-                                    <label className="flex items-center gap-2 text-xs text-rose-300/90 font-medium cursor-pointer select-none pt-1 border-t border-[#3B3929]/50">
+                                    <label className="flex items-center gap-2 text-xs text-foreground cursor-pointer select-none pt-1 border-t border-[#3B3929]/50">
                                         <input
                                             type="checkbox"
-                                            checked={includeArchived}
-                                            onChange={(e) => setIncludeArchived(e.target.checked)}
-                                            className="rounded text-rose-500 focus:ring-rose-500 h-4 w-4 bg-[#1C1B0E] border-[#3B3929]"
+                                            checked={includeDelayTimeline}
+                                            onChange={(e) => setIncludeDelayTimeline(e.target.checked)}
+                                            className="rounded text-[#C9AA71] focus:ring-[#C9AA71] h-4 w-4 bg-[#1C1B0E] border-[#3B3929]"
                                         />
-                                        <span>Include Archived Issues ({archivedIssues?.length || 0})</span>
+                                        <span>Include Pending Delay Timeline</span>
                                     </label>
-                                )}
-                            </div>
+
+                                    {isAdmin && (
+                                        <label className="flex items-center gap-2 text-xs text-rose-300/90 font-medium cursor-pointer select-none pt-1 border-t border-[#3B3929]/50">
+                                            <input
+                                                type="checkbox"
+                                                checked={includeArchived}
+                                                onChange={(e) => setIncludeArchived(e.target.checked)}
+                                                className="rounded text-rose-500 focus:ring-rose-500 h-4 w-4 bg-[#1C1B0E] border-[#3B3929]"
+                                            />
+                                            <span>Include Archived Issues ({archivedIssues?.length || 0})</span>
+                                        </label>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     </div>
 
-                    {/* RIGHT COLUMN: Live Preview — shown on all screen sizes */}
-                    <div className="flex flex-col bg-muted/30 border rounded-lg overflow-hidden relative min-h-[300px] md:min-h-0">
-                        {isPreviewLoading && (
-                            <div className="absolute inset-0 z-10 bg-background/50 backdrop-blur-sm flex items-center justify-center">
-                                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    {/* RIGHT COLUMN: Live Preview */}
+                    {exportFormat === 'excel' ? (
+                        <div className="flex flex-col bg-[#1C1B0E]/90 border border-[#3B3929] rounded-xl overflow-hidden p-4 relative min-h-[350px] md:min-h-0">
+                            {/* Top Header of Excel Workbook Preview */}
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-[#3B3929] shrink-0">
+                                <div className="flex items-center gap-2">
+                                    <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
+                                        <FileSpreadsheet className="w-4 h-4" />
+                                    </div>
+                                    <div>
+                                        <div className="text-xs font-bold text-[#FAFAFA] flex items-center gap-1.5 flex-wrap">
+                                            <span>Telunas_Issues_Report_{selectedSheets.join('_')}.xlsx</span>
+                                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-mono font-semibold">XLSX</span>
+                                        </div>
+                                        <div className="text-[11px] text-[#A19F8D]">
+                                            {includeKpiSummary ? '2 Sheet: Ringkasan KPI + Data Tiket' : '1 Sheet: Data Tiket'} • {filteredIssuesCount} Tiket Terfilter
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Tab Preview Switcher */}
+                                <div className="flex items-center gap-1 bg-[#2A281E] p-1 rounded-lg border border-[#3B3929] self-start sm:self-auto text-xs shrink-0">
+                                    {includeKpiSummary && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setExcelActiveTabPreview('kpi')}
+                                            className={`px-2.5 py-1 rounded font-semibold transition-all ${
+                                                excelActiveTabPreview === 'kpi'
+                                                    ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-sm'
+                                                    : 'text-[#A19F8D] hover:text-[#FAFAFA]'
+                                            }`}
+                                        >
+                                            Tab 1: Ringkasan KPI
+                                        </button>
+                                    )}
+                                    <button
+                                        type="button"
+                                        onClick={() => setExcelActiveTabPreview('raw')}
+                                        className={`px-2.5 py-1 rounded font-semibold transition-all ${
+                                            excelActiveTabPreview === 'raw' || !includeKpiSummary
+                                                ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-sm'
+                                                : 'text-[#A19F8D] hover:text-[#FAFAFA]'
+                                        }`}
+                                    >
+                                        Tab 2: Data Tiket ({filteredIssuesCount})
+                                    </button>
+                                </div>
                             </div>
-                        )}
-                        {previewUrl ? (
-                            <iframe 
-                                src={`${previewUrl}#toolbar=0`} 
-                                className="w-full h-full border-0 bg-white"
-                                title="PDF Preview"
-                            />
-                        ) : (
-                            <div className="flex-1 flex items-center justify-center text-muted-foreground">
-                                Loading preview...
+
+                            {/* Tab Content Preview */}
+                            <div className="flex-1 overflow-y-auto mt-3 pr-1">
+                                {excelActiveTabPreview === 'kpi' && includeKpiSummary ? (
+                                    <div className="space-y-4">
+                                        {/* Banner Mini Sheet */}
+                                        <div className="p-3.5 rounded-xl bg-gradient-to-r from-[#2A281E] to-[#1C1B0E] border border-[#C9AA71]/30">
+                                            <div className="text-xs font-bold text-[#C9AA71] tracking-wider uppercase">Pratinjau Lembar Ringkasan KPI (Sheet 1)</div>
+                                            <div className="text-[11px] text-[#A19F8D] mt-0.5">
+                                                Sheet pertama berisi header resmi Telunas Resorts, rekapitulasi status, serta breakdown performa tiap departemen.
+                                            </div>
+                                        </div>
+
+                                        {/* KPI Cards Grid */}
+                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                                            <div className="p-3 rounded-xl bg-[#2A281E]/80 border border-[#3B3929]">
+                                                <div className="text-[10px] uppercase font-bold text-[#A19F8D]">Total Tiket</div>
+                                                <div className="text-xl font-black text-[#FAFAFA] mt-1">{excelPreviewKpi.total}</div>
+                                                <div className="text-[10px] text-[#A19F8D] mt-0.5">Semua data terfilter</div>
+                                            </div>
+                                            <div className="p-3 rounded-xl bg-emerald-950/20 border border-emerald-800/40">
+                                                <div className="text-[10px] uppercase font-bold text-emerald-400">Selesai (Solved)</div>
+                                                <div className="text-xl font-black text-emerald-300 mt-1">{excelPreviewKpi.solved}</div>
+                                                <div className="text-[10px] text-emerald-400/80 mt-0.5">{excelPreviewKpi.rate}% rasio</div>
+                                            </div>
+                                            <div className="p-3 rounded-xl bg-amber-950/20 border border-amber-800/40">
+                                                <div className="text-[10px] uppercase font-bold text-amber-400">Tertunda (Pending)</div>
+                                                <div className="text-xl font-black text-amber-300 mt-1">{excelPreviewKpi.pending}</div>
+                                                <div className="text-[10px] text-amber-400/80 mt-0.5">Menunggu part/akses</div>
+                                            </div>
+                                            <div className="p-3 rounded-xl bg-blue-950/20 border border-blue-800/40">
+                                                <div className="text-[10px] uppercase font-bold text-blue-400">Dalam Pengerjaan</div>
+                                                <div className="text-xl font-black text-blue-300 mt-1">{excelPreviewKpi.progress}</div>
+                                                <div className="text-[10px] text-blue-400/80 mt-0.5">Progress aktif</div>
+                                            </div>
+                                        </div>
+
+                                        {/* Top Departments Mini Table */}
+                                        <div className="rounded-xl border border-[#3B3929] overflow-hidden bg-[#2A281E]/50">
+                                            <div className="px-3 py-2 bg-[#E3D1AA] text-[#1C1B0E] font-bold text-xs flex items-center justify-between">
+                                                <span>Breakdown Departemen Penanggung Jawab</span>
+                                                <span className="text-[10px] font-mono font-semibold">Sheet 1: Ringkasan KPI</span>
+                                            </div>
+                                            <div className="divide-y divide-[#3B3929]">
+                                                {excelPreviewKpi.topDepts.length > 0 ? (
+                                                    excelPreviewKpi.topDepts.map(([dName, stat]) => (
+                                                        <div key={dName} className="px-3 py-2 text-xs flex items-center justify-between text-[#FAFAFA]">
+                                                            <span className="font-medium">{dName}</span>
+                                                            <div className="flex items-center gap-3 text-[11px] font-mono">
+                                                                <span className="text-[#A19F8D]">{stat.total} tiket</span>
+                                                                <span className="text-emerald-400 font-semibold">{stat.solved} selesai</span>
+                                                                {stat.pending > 0 && <span className="text-amber-400">{stat.pending} pending</span>}
+                                                            </div>
+                                                        </div>
+                                                    ))
+                                                ) : (
+                                                    <div className="p-4 text-center text-xs text-[#A19F8D]">Tidak ada data tiket sesuai filter.</div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    /* Raw Tickets Table Preview */
+                                    <div className="space-y-3">
+                                        <div className="rounded-xl border border-[#3B3929] overflow-x-auto bg-[#1C1B0E]">
+                                            <table className="w-full text-left text-xs text-[#FAFAFA]">
+                                                <thead>
+                                                    <tr className="bg-[#E3D1AA] text-[#1C1B0E] font-bold border-b border-[#C9AA71]">
+                                                        <th className="px-3 py-2 whitespace-nowrap">ID Tiket</th>
+                                                        <th className="px-3 py-2 whitespace-nowrap">Waktu</th>
+                                                        <th className="px-3 py-2 whitespace-nowrap">Lokasi</th>
+                                                        <th className="px-3 py-2 min-w-[180px]">Judul Masalah</th>
+                                                        <th className="px-3 py-2 whitespace-nowrap">Departemen</th>
+                                                        <th className="px-3 py-2 whitespace-nowrap">Status</th>
+                                                        <th className="px-3 py-2 whitespace-nowrap">Pelapor</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-[#3B3929]/60">
+                                                    {filteredIssues.slice(0, 6).map((item) => (
+                                                        <tr key={item.id} className="hover:bg-white/[0.03] transition-colors">
+                                                            <td className="px-3 py-2 font-mono text-[11px] text-[#C9AA71] font-bold whitespace-nowrap">
+                                                                {String(item.id || '').replace(/^TEL-/, 'TEL-')}
+                                                            </td>
+                                                            <td className="px-3 py-2 text-[11px] text-[#A19F8D] whitespace-nowrap">
+                                                                {item.reportedAt ? new Date(item.reportedAt).toLocaleDateString('id-ID') : '-'}
+                                                            </td>
+                                                            <td className="px-3 py-2 text-[11px] font-medium whitespace-nowrap">
+                                                                {item.location || '-'}
+                                                            </td>
+                                                            <td className="px-3 py-2 text-[11px] max-w-xs truncate">
+                                                                {item.title || item.description || '-'}
+                                                            </td>
+                                                            <td className="px-3 py-2 text-[11px] text-[#A19F8D] whitespace-nowrap">
+                                                                {item.department || (item.assignedDepartments || [])[0] || '-'}
+                                                            </td>
+                                                            <td className="px-3 py-2 whitespace-nowrap">
+                                                                <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${
+                                                                    item.status === 'solved'
+                                                                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                                                        : item.status === 'pending'
+                                                                        ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                                                                        : item.status === 'progress'
+                                                                        ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+                                                                        : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                                                                }`}>
+                                                                    {item.status || 'OPEN'}
+                                                                </span>
+                                                            </td>
+                                                            <td className="px-3 py-2 text-[11px] text-[#A19F8D] whitespace-nowrap">
+                                                                {item.reporter || '-'}
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                        <div className="text-[11px] text-[#A19F8D] italic text-center py-1">
+                                            Menampilkan cuplikan 6 dari {filteredIssuesCount} baris. File spreadsheet .xlsx lengkap mencakup 18 kolom data mentah, auto-filter di setiap kolom, freeze header, dan pewarnaan status otomatis.
+                                        </div>
+                                    </div>
+                                )}
                             </div>
-                        )}
-                    </div>
+                        </div>
+                    ) : (
+                        <div className="flex flex-col bg-muted/30 border rounded-lg overflow-hidden relative min-h-[300px] md:min-h-0">
+                            {isPreviewLoading && (
+                                <div className="absolute inset-0 z-10 bg-background/50 backdrop-blur-sm flex items-center justify-center">
+                                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                                </div>
+                            )}
+                            {previewUrl ? (
+                                <iframe 
+                                    src={`${previewUrl}#toolbar=0`} 
+                                    className="w-full h-full border-0 bg-white"
+                                    title="PDF Preview"
+                                />
+                            ) : (
+                                <div className="flex-1 flex items-center justify-center text-muted-foreground">
+                                    Loading preview...
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
 
                 <DialogFooter className="shrink-0 mt-2 flex flex-col sm:flex-row items-center justify-between gap-2">
@@ -1236,30 +1502,44 @@ export function ExportPdfModal({ open, onOpenChange }) {
                         type="button"
                         variant="outline"
                         onClick={() => onOpenChange(false)}
-                        disabled={isExporting || isSendingEmail}
+                        disabled={isExporting || isSendingEmail || isExportingExcel}
                         className="w-full sm:w-auto"
                     >
                         {t('cancel') || 'Cancel'}
                     </Button>
                     <div className="flex items-center gap-2 w-full sm:w-auto">
-                        <Button
-                            type="button"
-                            onClick={handleOpenEmailModal}
-                            disabled={isExporting || isSendingEmail || selectedStatuses.length === 0 || selectedCategories.length === 0}
-                            className="gap-2 bg-[#2A281E] border border-[#C9AA71]/60 text-[#F5DEB3] hover:bg-[#C9AA71]/20 hover:border-[#C9AA71] transition-all flex-1 sm:flex-initial"
-                        >
-                            <Mail className="h-4 w-4 text-[#C9AA71]" />
-                            {t('send_via_email') || 'Send via Email'}
-                        </Button>
-                        <Button
-                            type="button"
-                            onClick={handleDownload}
-                            disabled={isExporting || isSendingEmail || selectedStatuses.length === 0 || selectedCategories.length === 0}
-                            className="gap-2 flex-1 sm:flex-initial"
-                        >
-                            {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                            {isExporting ? (t('downloading') || 'Downloading...') : (t('download_pdf') || 'Download PDF')}
-                        </Button>
+                        {exportFormat === 'excel' ? (
+                            <Button
+                                type="button"
+                                onClick={handleExportExcel}
+                                disabled={isExportingExcel || filteredIssuesCount === 0}
+                                className="gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold transition-all shadow-md active:scale-95 flex-1 sm:flex-initial"
+                            >
+                                {isExportingExcel ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSpreadsheet className="h-4 w-4" />}
+                                {isExportingExcel ? (t('generating_excel') || 'Membuat Excel...') : (t('download_excel') || 'Unduh Excel (.xlsx)')}
+                            </Button>
+                        ) : (
+                            <>
+                                <Button
+                                    type="button"
+                                    onClick={handleOpenEmailModal}
+                                    disabled={isExporting || isSendingEmail || selectedStatuses.length === 0 || selectedCategories.length === 0}
+                                    className="gap-2 bg-[#2A281E] border border-[#C9AA71]/60 text-[#F5DEB3] hover:bg-[#C9AA71]/20 hover:border-[#C9AA71] transition-all flex-1 sm:flex-initial"
+                                >
+                                    <Mail className="h-4 w-4 text-[#C9AA71]" />
+                                    {t('send_via_email') || 'Send via Email'}
+                                </Button>
+                                <Button
+                                    type="button"
+                                    onClick={handleDownload}
+                                    disabled={isExporting || isSendingEmail || selectedStatuses.length === 0 || selectedCategories.length === 0}
+                                    className="gap-2 flex-1 sm:flex-initial"
+                                >
+                                    {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                                    {isExporting ? (t('downloading') || 'Downloading...') : (t('download_pdf') || 'Download PDF')}
+                                </Button>
+                            </>
+                        )}
                     </div>
                 </DialogFooter>
 
