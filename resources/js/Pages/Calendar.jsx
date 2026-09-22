@@ -1,5 +1,6 @@
 import { Head } from '@inertiajs/react';
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import axios from 'axios';
 import {
     Calendar as CalendarIcon, Briefcase, RefreshCw, Plus,
     ClipboardList, Clock, CheckCircle2, Loader2, X, Building2,
@@ -73,24 +74,6 @@ export default function Calendar() {
     );
 }
 
-function getCsrfToken() {
-    return document.querySelector('meta[name="csrf-token"]')?.content || '';
-}
-
-async function parseResponseSafeJson(res) {
-    const text = await res.text();
-    const jsonStart = text.indexOf('{');
-    const jsonEnd = text.lastIndexOf('}');
-    if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd >= jsonStart) {
-        try {
-            return JSON.parse(text.slice(jsonStart, jsonEnd + 1));
-        } catch {
-            return JSON.parse(text);
-        }
-    }
-    return JSON.parse(text);
-}
-
 function useAllOpsTasks() {
     const [tasks, setTasks] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -118,8 +101,8 @@ function useAllOpsTasks() {
         abortRef.current = ctrl;
 
         try {
-            const res = await fetch(`/api/operations?dept=all${force ? '&refresh=1' : ''}`, { signal: ctrl.signal });
-            const json = await parseResponseSafeJson(res);
+            const res = await axios.get(`/api/operations?dept=all${force ? '&refresh=1' : ''}`, { signal: ctrl.signal });
+            const json = res.data;
 
             if (currentReqId !== reqIdRef.current) return;
 
@@ -677,12 +660,8 @@ function CalendarAddWorkModal({ initialStartDate = '', initialEndDate = '', init
                 fd.append('photo', form.photoFile);
             }
 
-            const res = await fetch('/api/operations', {
-                method: 'POST',
-                headers: { 'X-CSRF-TOKEN': getCsrfToken() },
-                body: fd,
-            });
-            const json = await parseResponseSafeJson(res);
+            const res = await axios.post('/api/operations', fd);
+            const json = res.data;
             if (json.success) {
                 onSuccess({
                     id: json.id,
@@ -1267,11 +1246,7 @@ function CalendarInner() {
         if (isDeptUser && normalizeDepartment(item.department || item.dept) !== userDept) return;
         try {
             const dept = item.department || item.dept;
-            await fetch(`/api/operations/${item.rowIndex}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': getCsrfToken() },
-                body: JSON.stringify({ dept, status: 'done' }),
-            });
+            await axios.post(`/api/operations/${item.rowIndex}`, { dept, status: 'done' });
             setTasks(prev => prev.map(m => m.id === item.id ? { ...m, status: 'done', completedAt: new Date().toISOString() } : m));
         } catch {}
     };
@@ -1285,11 +1260,7 @@ function CalendarInner() {
         if (!confirm(t('confirm_delete_work') || 'Hapus pekerjaan ini?')) return;
         try {
             const dept = item.department || item.dept;
-            await fetch(`/api/operations/${item.rowIndex}`, {
-                method: 'DELETE',
-                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': getCsrfToken() },
-                body: JSON.stringify({ dept }),
-            });
+            await axios.delete(`/api/operations/${item.rowIndex}`, { data: { dept } });
             setTasks(prev => prev.filter(m => m.id !== item.id));
         } catch {}
     };
@@ -1329,11 +1300,8 @@ function CalendarInner() {
         setSyncingCalendar(true);
         setSyncMsg(null);
         try {
-            const res = await fetch('/api/operations/sync-calendar', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': getCsrfToken() },
-            });
-            const json = await parseResponseSafeJson(res);
+            const res = await axios.post('/api/operations/sync-calendar');
+            const json = res.data;
             if (json.success) {
                 setSyncMsg({ type: 'success', text: json.data?.message || 'Sinkronisasi ke Google Calendar berhasil!' });
                 reload(true, true);
@@ -1341,7 +1309,7 @@ function CalendarInner() {
                 setSyncMsg({ type: 'error', text: json.message || 'Gagal sinkronisasi Google Calendar' });
             }
         } catch (e) {
-            setSyncMsg({ type: 'error', text: e.message || 'Gagal sinkronisasi Google Calendar' });
+            setSyncMsg({ type: 'error', text: e.response?.data?.message || e.message || 'Gagal sinkronisasi Google Calendar' });
         } finally {
             setSyncingCalendar(false);
             setTimeout(() => setSyncMsg(null), 6000);
@@ -1352,11 +1320,8 @@ function CalendarInner() {
         setPullingCalendar(true);
         setSyncMsg(null);
         try {
-            const res = await fetch('/api/operations/pull-calendar', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': getCsrfToken() },
-            });
-            const json = await parseResponseSafeJson(res);
+            const res = await axios.post('/api/operations/pull-calendar');
+            const json = res.data;
             if (json.success) {
                 setSyncMsg({ type: 'success', text: json.data?.message || 'Berhasil menarik pembaruan dari Google Calendar!' });
                 reload(true, true);
@@ -1364,7 +1329,7 @@ function CalendarInner() {
                 setSyncMsg({ type: 'error', text: json.message || 'Gagal menarik data dari Google Calendar' });
             }
         } catch (e) {
-            setSyncMsg({ type: 'error', text: e.message || 'Gagal menarik data dari Google Calendar' });
+            setSyncMsg({ type: 'error', text: e.response?.data?.message || e.message || 'Gagal menarik data dari Google Calendar' });
         } finally {
             setPullingCalendar(false);
             setTimeout(() => setSyncMsg(null), 6000);
@@ -1378,12 +1343,8 @@ function CalendarInner() {
         setRestoringTaskId(task.id);
         setSyncMsg(null);
         try {
-            const res = await fetch('/api/operations/restore-task', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': getCsrfToken() },
-                body: JSON.stringify({ id: task.id, department: task.department }),
-            });
-            const json = await parseResponseSafeJson(res);
+            const res = await axios.post('/api/operations/restore-task', { id: task.id, department: task.department });
+            const json = res.data;
             if (json.success) {
                 setSyncMsg({ type: 'success', text: json.message || 'Jadwal berhasil dipulihkan!' });
                 reload(true, true);
@@ -1391,7 +1352,7 @@ function CalendarInner() {
                 setSyncMsg({ type: 'error', text: json.message || 'Gagal memulihkan jadwal' });
             }
         } catch (e) {
-            setSyncMsg({ type: 'error', text: e.message || 'Gagal memulihkan jadwal' });
+            setSyncMsg({ type: 'error', text: e.response?.data?.message || e.message || 'Gagal memulihkan jadwal' });
         } finally {
             setRestoringTaskId(null);
             setTimeout(() => setSyncMsg(null), 6000);

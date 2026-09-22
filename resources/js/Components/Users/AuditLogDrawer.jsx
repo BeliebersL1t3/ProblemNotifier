@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import axios from 'axios';
 import { X, Shield, Clock, User, AlertCircle, RefreshCw, ChevronDown, ChevronRight, Activity } from 'lucide-react';
 import { AuditDiffViewer, extractDifferences } from './AuditDiffViewer';
 
@@ -10,12 +11,8 @@ export function AuditLogDrawer({ isOpen, onClose }) {
     const fetchLogs = async () => {
         setLoading(true);
         try {
-            const res = await fetch('/api/user-audit-logs', {
-                headers: {
-                    'Accept': 'application/json',
-                }
-            });
-            const data = await res.json();
+            const res = await axios.get('/api/user-audit-logs');
+            const data = res.data;
             if (data.success) {
                 setLogs(data.data || []);
             }

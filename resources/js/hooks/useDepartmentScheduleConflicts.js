@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import axios from 'axios';
 import { normalizeDepartment } from '@/constants/staff';
 
 // Format YYYY-MM-DD for local date comparison
@@ -35,8 +36,8 @@ export function useDepartmentScheduleConflicts(selectedDepts = [], targetDate = 
 
         try {
             setLoading(true);
-            const res = await fetch(`/api/operations?dept=all${force ? '&refresh=1' : ''}`, { signal: ctrl.signal });
-            const json = await res.json();
+            const res = await axios.get(`/api/operations?dept=all${force ? '&refresh=1' : ''}`, { signal: ctrl.signal });
+            const json = res.data;
             if (json.success && Array.isArray(json.manual)) {
                 cachedOpsData = json.manual;
                 lastFetchTime = Date.now();

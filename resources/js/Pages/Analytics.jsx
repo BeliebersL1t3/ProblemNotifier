@@ -2858,7 +2858,7 @@ function AnalyticsInner() {
             <ActivityDetailModal 
                 issue={selectedActivityIssue} 
                 onClose={() => setSelectedActivityIssue(null)} 
-                onOpenCardModal={(issue) => setCardModalTarget(issue)}
+                onOpenCardModal={selectedActivityIssue?._isPastContribution ? undefined : (issue) => setCardModalTarget(issue)}
                 onRestore={isAdmin ? handleRestoreIssue : undefined}
             />
 

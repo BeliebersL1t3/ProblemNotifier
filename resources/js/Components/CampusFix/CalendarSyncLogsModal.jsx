@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 import {
     History, X, RefreshCw, CheckCircle2, AlertCircle,
     ArrowDownToLine, ArrowUpToLine, RotateCcw, Clock,
@@ -47,15 +48,15 @@ export default function CalendarSyncLogsModal({ isOpen, onClose, lang = 'id' }) 
         setLoading(true);
         setError(null);
         try {
-            const res = await fetch('/api/operations/calendar-logs');
-            const json = await res.json();
+            const res = await axios.get('/api/operations/calendar-logs');
+            const json = res.data;
             if (json.success) {
                 setLogs(json.data || []);
             } else {
                 setError(json.message || 'Gagal memuat log riwayat');
             }
         } catch (e) {
-            setError(e.message || 'Gagal memuat log riwayat');
+            setError(e.response?.data?.message || e.message || 'Gagal memuat log riwayat');
         } finally {
             setLoading(false);
         }

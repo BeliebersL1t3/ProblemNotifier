@@ -29,7 +29,6 @@ export function UserModal({ isOpen, onClose, user = null, onSaved }) {
     const [permissions, setPermissions] = useState({
         can_view_all_departments: true,
         can_manage_issues: true,
-        can_delete_issues: false,
         can_access_analytics: true,
         can_access_calendar: true,
         can_sync_google_calendar: false,
@@ -57,7 +56,6 @@ export function UserModal({ isOpen, onClose, user = null, onSaved }) {
                 setPermissions({
                     can_view_all_departments: user.permissions?.can_view_all_departments ?? true,
                     can_manage_issues:        user.permissions?.can_manage_issues ?? true,
-                    can_delete_issues:        user.permissions?.can_delete_issues ?? false,
                     can_access_analytics:     user.permissions?.can_access_analytics ?? true,
                     can_access_calendar:      user.permissions?.can_access_calendar ?? true,
                     can_sync_google_calendar: user.permissions?.can_sync_google_calendar ?? false,
@@ -78,7 +76,6 @@ export function UserModal({ isOpen, onClose, user = null, onSaved }) {
                 setPermissions({
                     can_view_all_departments: true,
                     can_manage_issues: true,
-                    can_delete_issues: false,
                     can_access_analytics: true,
                     can_access_calendar: true,
                     can_sync_google_calendar: false,
@@ -97,7 +94,6 @@ export function UserModal({ isOpen, onClose, user = null, onSaved }) {
             setPermissions({
                 can_view_all_departments: true,
                 can_manage_issues: true,
-                can_delete_issues: true,
                 can_access_analytics: true,
                 can_access_calendar: true,
                 can_sync_google_calendar: true,
@@ -108,7 +104,6 @@ export function UserModal({ isOpen, onClose, user = null, onSaved }) {
             setPermissions({
                 can_view_all_departments: true,
                 can_manage_issues: false,
-                can_delete_issues: false,
                 can_access_analytics: true,
                 can_access_calendar: true,
                 can_sync_google_calendar: false,
@@ -119,7 +114,6 @@ export function UserModal({ isOpen, onClose, user = null, onSaved }) {
             setPermissions({
                 can_view_all_departments: true,
                 can_manage_issues: true,
-                can_delete_issues: false,
                 can_access_analytics: true,
                 can_access_calendar: true,
                 can_sync_google_calendar: false,
@@ -515,11 +509,6 @@ export function UserModal({ isOpen, onClose, user = null, onSaved }) {
                                         key: 'can_manage_issues',
                                         label: 'Bisa Mengedit & Mengklaim Isu',
                                         desc: 'Mengizinkan staf untuk klaim (In Progress), pending, dan menyelesaikan isu (khusus tugas departemennya sendiri, bukan seperti admin).',
-                                    },
-                                    {
-                                        key: 'can_delete_issues',
-                                        label: 'Bisa Menghapus Isu (Delete)',
-                                        desc: 'Mengizinkan penghapusan tiket laporan isu secara permanen (hanya tiket yang dibuat oleh departemennya sendiri).',
                                     },
                                     {
                                         key: 'can_access_analytics',

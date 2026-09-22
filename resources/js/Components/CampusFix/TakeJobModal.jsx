@@ -34,8 +34,9 @@ export function TakeJobModal({ issue, onClose }) {
 
     // Check if the current user can claim this issue (only assigned department or admin; maker/origin department CANNOT claim)
     const canClaim = useMemo(() => {
+        if (!issue || Boolean(issue._isPastContribution)) return false;
         if (isAdmin) return true;
-        if (!issue || !department) return false;
+        if (!department) return false;
 
         const userDeptNorm = normalizeDepartment(department).toLowerCase();
         const originDeptNorm = normalizeDepartment(issue.department).toLowerCase();

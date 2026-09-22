@@ -32,7 +32,6 @@ class UserController extends Controller
             return [
                 'can_view_all_departments' => true,
                 'can_manage_issues'        => true,
-                'can_delete_issues'        => true,
                 'can_access_analytics'     => true,
                 'can_access_calendar'      => true,
                 'can_sync_google_calendar' => true,
@@ -45,7 +44,6 @@ class UserController extends Controller
             return [
                 'can_view_all_departments' => true,
                 'can_manage_issues'        => false,
-                'can_delete_issues'        => false,
                 'can_access_analytics'     => true,
                 'can_access_calendar'      => true,
                 'can_sync_google_calendar' => false,
@@ -58,7 +56,6 @@ class UserController extends Controller
         return [
             'can_view_all_departments' => true,
             'can_manage_issues'        => true,
-            'can_delete_issues'        => false,
             'can_access_analytics'     => true,
             'can_access_calendar'      => true,
             'can_sync_google_calendar' => false,

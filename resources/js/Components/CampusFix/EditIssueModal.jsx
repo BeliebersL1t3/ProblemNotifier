@@ -67,22 +67,26 @@ export function EditIssueModal({ issue, open, onOpenChange, onSuccess }) {
         return arr.map(d => normalizeDepartment(d.trim())).filter(Boolean);
     }, [issue]);
 
-    // Granular Section Permissions:
-    const canEditReport = isAdmin || (isDeptUser && normalizedUserDept && normalizedUserDept === originDept);
-    const canEditClaim = isAdmin || (isDeptUser && normalizedUserDept && (
+    const isPastContribution = Boolean(issue?._isPastContribution);
+    const takerHasTransferred = Boolean(issue?.takerHasTransferred);
+
+    // Granular Section Permissions (Past contributions are 100% read-only):
+    const canEditReport = !isPastContribution && (isAdmin || (isDeptUser && normalizedUserDept && normalizedUserDept === originDept));
+    const canEditClaim = !isPastContribution && (isAdmin || (isDeptUser && normalizedUserDept && (
         (takerDept && normalizedUserDept === takerDept) || 
+        (takerHasTransferred && assignedDeptsList.includes(normalizedUserDept)) ||
         (!issue?.taker && assignedDeptsList.includes(normalizedUserDept))
-    ));
-    const canEditPending = isAdmin || (isDeptUser && normalizedUserDept && (
+    )));
+    const canEditPending = !isPastContribution && (isAdmin || (isDeptUser && normalizedUserDept && (
         (pendingDept && normalizedUserDept === pendingDept) ||
         (!issue?.pendingBy && assignedDeptsList.includes(normalizedUserDept))
-    ));
-    const canEditSolved = isAdmin || (isDeptUser && normalizedUserDept && (
+    )));
+    const canEditSolved = !isPastContribution && (isAdmin || (isDeptUser && normalizedUserDept && (
         (solverDept && normalizedUserDept === solverDept) ||
         assignedDeptsList.includes(normalizedUserDept)
-    ));
+    )));
 
-    const canChangeStatus = isAdmin || canEditClaim || canEditPending || canEditSolved || canEditReport;
+    const canChangeStatus = !isPastContribution && (isAdmin || canEditClaim || canEditPending || canEditSolved || canEditReport);
 
     // Status State
     const [selectedStatus, setSelectedStatus] = useState('open');

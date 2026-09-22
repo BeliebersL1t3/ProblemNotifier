@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import axios from 'axios';
 import { 
     X, Shield, ShieldCheck, ShieldAlert, Check, CheckSquare, 
     Loader2, Sparkles, RefreshCw, AlertTriangle, Users
@@ -15,11 +16,6 @@ const PERMISSION_CONFIGS = [
         key: 'can_manage_issues',
         label: 'Bisa Mengedit & Mengklaim Isu',
         desc: 'Mengizinkan klaim, pending, dan penyelesaian isu (khusus tugas departemennya sendiri, bukan seperti admin).',
-    },
-    {
-        key: 'can_delete_issues',
-        label: 'Bisa Menghapus Isu (Delete)',
-        desc: 'Mengizinkan penghapusan tiket laporan isu secara permanen (hanya tiket yang dibuat oleh departemennya sendiri).',
     },
     {
         key: 'can_access_analytics',
@@ -75,9 +71,8 @@ export function BatchPermissionsModal({
         if (presetName === 'enable_all') {
             PERMISSION_CONFIGS.forEach(p => { updated[p.key] = true; });
         } else if (presetName === 'restrict_dept') {
-            // Lock to own department & turn off delete
+            // Lock to own department
             updated.can_view_all_departments = false;
-            updated.can_delete_issues = false;
             updated.can_manage_issues = true;
             updated.can_access_analytics = true;
             updated.can_access_calendar = true;
@@ -130,20 +125,12 @@ export function BatchPermissionsModal({
 
         setProcessing(true);
         try {
-            const res = await fetch('/api/users/batch-permissions', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                },
-                body: JSON.stringify({
-                    user_ids: selectedUsers.map(u => u.id),
-                    permissions: payloadPerms,
-                }),
+            const res = await axios.post('/api/users/batch-permissions', {
+                user_ids: selectedUsers.map(u => u.id),
+                permissions: payloadPerms,
             });
 
-            const data = await res.json();
+            const data = res.data;
             if (data.success) {
                 showToast(data.message || `Izin untuk ${data.updated_count} akun berhasil diperbarui.`);
                 onBatchSuccess(data.updated_users || []);

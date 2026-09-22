@@ -41,7 +41,7 @@ export function useAuth() {
         // Specific capability helpers
         canViewAllDepartments: hasPermission('can_view_all_departments', true),
         canManageIssues:        hasPermission('can_manage_issues', true),
-        canDeleteIssues:        hasPermission('can_delete_issues', false),
+        canDeleteIssues:        isAdmin,
         canAccessAnalytics:     hasPermission('can_access_analytics', true),
         canAccessCalendar:      hasPermission('can_access_calendar', true),
         canSyncCalendar:        isAdmin || Boolean(user?.is_hod) || hasPermission('can_sync_google_calendar', false),

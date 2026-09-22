@@ -49,21 +49,25 @@ export function ActivityDetailModal({ issue, onClose, onOpenCardModal, onEdit, o
         : (issue?.assignedDepartments ? String(issue.assignedDepartments).split(',') : []);
     const assignedDeptsNormalized = assignedArr.map(d => normalizeDepartment(d.trim())).filter(Boolean);
 
-    const canEditReport = isAdmin || (isDeptUser && userDept && userDept === originDept);
-    const canEditClaim = isAdmin || (isDeptUser && userDept && (
+    const isPastContribution = Boolean(issue?._isPastContribution);
+    const takerHasTransferred = Boolean(issue?.takerHasTransferred);
+
+    const canEditReport = !isPastContribution && (isAdmin || (isDeptUser && userDept && userDept === originDept));
+    const canEditClaim = !isPastContribution && (isAdmin || (isDeptUser && userDept && (
         (takerDept && userDept === takerDept) || 
+        (takerHasTransferred && assignedDeptsNormalized.includes(userDept)) ||
         (!issue?.taker && assignedDeptsNormalized.includes(userDept))
-    ));
-    const canEditPending = isAdmin || (isDeptUser && userDept && (
+    )));
+    const canEditPending = !isPastContribution && (isAdmin || (isDeptUser && userDept && (
         (pendingDept && userDept === pendingDept) ||
         (!issue?.pendingBy && assignedDeptsNormalized.includes(userDept))
-    ));
-    const canEditSolved = isAdmin || (isDeptUser && userDept && (
+    )));
+    const canEditSolved = !isPastContribution && (isAdmin || (isDeptUser && userDept && (
         (solverDept && userDept === solverDept) ||
         assignedDeptsNormalized.includes(userDept)
-    ));
+    )));
 
-    const canEdit = isAdmin || canEditReport || canEditClaim || canEditPending || canEditSolved;
+    const canEdit = !isPastContribution && (isAdmin || canEditReport || canEditClaim || canEditPending || canEditSolved);
     const locale = lang === 'id' ? 'id-ID' : 'en-US';
 
     // Robust Date Parser
@@ -515,6 +519,12 @@ export function ActivityDetailModal({ issue, onClose, onOpenCardModal, onEdit, o
                                             {lang === 'id' ? 'DARURAT (SOS)' : 'SOS EMERGENCY'}
                                         </span>
                                     )}
+                                    {isPastContribution && (
+                                        <span className="inline-flex items-center gap-1.5 rounded-md bg-amber-500/20 px-2.5 py-0.5 text-xs font-bold text-amber-300 border border-amber-500/40 shadow-xs">
+                                            <span>🔒</span>
+                                            <span>{lang === 'id' ? `Riwayat (${issue.department || 'Departemen Lama'}) - Mode Hanya Lihat (Read-Only)` : `Past Contribution (${issue.department || 'Former Dept'}) - View Only`}</span>
+                                        </span>
+                                    )}
                                     {isCritical && (
                                         <span className="inline-flex items-center gap-1.5 rounded-md bg-amber-500/20 px-2.5 py-0.5 text-xs font-black uppercase tracking-wider text-amber-400 border border-amber-500/40 shadow-[0_0_8px_rgba(245,158,11,0.25)]">
                                             <AlertCircle className="w-3.5 h-3.5" />
@@ -933,7 +943,7 @@ export function ActivityDetailModal({ issue, onClose, onOpenCardModal, onEdit, o
 
                 <div className="mt-6 flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-[#3B3929]/50">
                     <div className="flex items-center gap-2 flex-wrap">
-                        {!isArchived && onOpenCardModal && (
+                        {!isArchived && !isPastContribution && onOpenCardModal && (
                             <button
                                 type="button"
                                 onClick={() => {
@@ -946,7 +956,7 @@ export function ActivityDetailModal({ issue, onClose, onOpenCardModal, onEdit, o
                                 <span>{lang === 'id' ? 'Buka Tampilan Kartu Isu' : 'Open Issue Card'}</span>
                             </button>
                         )}
-                        {!isArchived && canEdit && onEdit && (
+                        {!isArchived && !isPastContribution && canEdit && onEdit && (
                             <button
                                 type="button"
                                 onClick={() => {
@@ -959,7 +969,7 @@ export function ActivityDetailModal({ issue, onClose, onOpenCardModal, onEdit, o
                                 <span>{lang === 'id' ? 'Edit & Mundur Status' : 'Edit & Rollback'}</span>
                             </button>
                         )}
-                        {onRestore && isArchived && (
+                        {onRestore && isArchived && !isPastContribution && (
                             <button
                                 type="button"
                                 onClick={() => {
