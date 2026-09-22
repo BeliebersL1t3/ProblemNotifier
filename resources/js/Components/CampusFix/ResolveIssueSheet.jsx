@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
-import { Loader2, MapPin, ZoomIn } from 'lucide-react';
+import { Loader2, MapPin, ZoomIn, ArrowRightLeft } from 'lucide-react';
 import { Button } from '@/Components/UI/Button';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/Components/UI/Sheet';
 import {
@@ -333,6 +333,22 @@ export function ResolveIssueSheet({ issue, onClose }) {
                         </div>
                     ) : (
                         <>
+                            {issue?.takerHasTransferred && (
+                                <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs flex items-start gap-2.5">
+                                    <ArrowRightLeft className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                                    <div className="space-y-0.5">
+                                        <p className="font-bold text-amber-300">
+                                            {lang === 'id' ? 'Pemberitahuan: Staf Pemegang Klaim Telah Pindah Divisi' : 'Notice: Claimant Staff Transferred Department'}
+                                        </p>
+                                        <p className="text-[11px] text-[#A19F8D] leading-relaxed">
+                                            {lang === 'id' 
+                                                ? `Staf yang sebelumnya mengklaim tiket ini (${issue.taker}) saat ini bertugas di departemen ${issue.takerCurrentDept || 'lain'}. Departemen Anda tetap memiliki wewenang penuh untuk melanjutkan penanganan, memperbarui status pending, melepas klaim, atau menyelesaikan isu ini.`
+                                                : `Staff who previously claimed this ticket (${issue.taker}) is now in ${issue.takerCurrentDept || 'another department'}. Your department retains full authorization to resume work, update pending status, release claim, or resolve this issue.`}
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
+
                             {isDeptUser && department ? (() => {
                                 const dTheme = getDepartmentTheme(department);
                                 return (

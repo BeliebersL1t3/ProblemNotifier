@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { MapPin, Building, ZoomIn, Edit3, Trash2, RotateCcw, Clock } from 'lucide-react';
+import { MapPin, Building, ZoomIn, Edit3, Trash2, RotateCcw, Clock, ArrowRightLeft } from 'lucide-react';
 import { StatusBadge } from './StatusBadge';
 import { cn } from '@/lib/utils';
 import DelayDetailModal from './DelayDetailModal';
@@ -52,7 +52,8 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
     const canEditReport = isAdmin || (isDeptUser && userDept && userDept === originDept);
     const canEditClaim = isAdmin || (isDeptUser && userDept && (
         (takerDept && userDept === takerDept) || 
-        (!issue?.taker && assignedDeptsNormalized.includes(userDept))
+        (!issue?.taker && assignedDeptsNormalized.includes(userDept)) ||
+        (issue?.takerHasTransferred && assignedDeptsNormalized.includes(userDept))
     ));
     const canEditPending = isAdmin || (isDeptUser && userDept && (
         (pendingDept && userDept === pendingDept) ||
@@ -733,11 +734,23 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
                 {issue.status === 'progress' && issue.taker && (
                     <div className="text-xs font-medium text-muted-foreground flex items-center gap-1.5 flex-wrap">
                         <span>Claimed by <strong className="text-foreground font-semibold">{issue.taker}</strong></span>
-                        {getDepartmentForStaff(issue.taker, issue) && (
-                            <span className="px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 text-[10px] font-semibold font-mono flex items-center gap-1">
-                                <Building className="w-2.5 h-2.5" />
-                                {getDepartmentForStaff(issue.taker, issue)}
+                        {issue.takerHasTransferred ? (
+                            <span 
+                                className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[10px] font-bold flex items-center gap-1"
+                                title={lang === 'id' 
+                                    ? `Staf pemegang klaim telah pindah ke departemen ${issue.takerCurrentDept || 'lain'}. Departemen Anda tetap dapat melanjutkan atau menyelesaikan isu ini.` 
+                                    : `Claimant staff has transferred to ${issue.takerCurrentDept || 'another department'}. Your department can still resume or solve this issue.`}
+                            >
+                                <ArrowRightLeft className="w-2.5 h-2.5 text-amber-400" />
+                                {lang === 'id' ? `Pindah ke ${issue.takerCurrentDept || 'Lain'}` : `Moved to ${issue.takerCurrentDept || 'Other'}`}
                             </span>
+                        ) : (
+                            getDepartmentForStaff(issue.taker, issue) && (
+                                <span className="px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 text-[10px] font-semibold font-mono flex items-center gap-1">
+                                    <Building className="w-2.5 h-2.5" />
+                                    {getDepartmentForStaff(issue.taker, issue)}
+                                </span>
+                            )
                         )}
                     </div>
                 )}

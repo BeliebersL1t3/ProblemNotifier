@@ -483,6 +483,11 @@ class IssueController extends Controller
                 $sheetsToFetch = [$this->resolveSheet($sheetParam)];
             }
 
+            $userDirectory = \App\Models\User::all(['id', 'name', 'staff_name', 'department', 'subdivision', 'email'])
+                ->sortBy(function ($u) {
+                    return $u->is_dummy_email ? 1 : 0;
+                });
+
             $issues = [];
 
             foreach ($sheetsToFetch as $currentSheet) {
@@ -660,6 +665,32 @@ class IssueController extends Controller
                         }
                     }
 
+                    $rawTaker = $latestRow[9] ?? null;
+                    $takerCurrentDept = null;
+                    $takerHasTransferred = false;
+
+                    if (!empty($rawTaker)) {
+                        $takerClean = trim(preg_replace('/\s*via\s+WhatsApp/i', '', $rawTaker));
+                        $takerBase = trim(preg_replace('/\s*\([^)]*\)/', '', $takerClean));
+
+                        $matchedUser = $userDirectory->first(function ($u) use ($takerBase) {
+                            $uName = trim($u->name ?? '');
+                            $uStaff = trim($u->staff_name ?? '');
+                            return (!empty($uName) && (strcasecmp($uName, $takerBase) === 0 || stripos($takerBase, $uName) !== false || stripos($uName, $takerBase) !== false))
+                                || (!empty($uStaff) && (strcasecmp($uStaff, $takerBase) === 0 || stripos($takerBase, $uStaff) !== false || stripos($uStaff, $takerBase) !== false));
+                        });
+
+                        if ($matchedUser && !empty($matchedUser->department)) {
+                            $takerCurrentDept = $matchedUser->department;
+                            $assignedDepts = !empty($latestRow[23]) 
+                                ? array_map('trim', explode(',', $latestRow[23])) 
+                                : (!empty($latestRow[21]) ? array_map('trim', explode(',', $latestRow[21])) : []);
+                            $taggedDepts = !empty($latestRow[21]) ? array_map('trim', explode(',', $latestRow[21])) : [];
+                            $allScopes = array_map('strtolower', array_merge($assignedDepts, $taggedDepts, [$safeDept]));
+                            $takerHasTransferred = !in_array(strtolower($takerCurrentDept), $allScopes);
+                        }
+                    }
+
                     $issues[] = [
                         'id'             => $latestRow[0],
                         'rowIndex'       => $latestRowIndex,
@@ -678,7 +709,9 @@ class IssueController extends Controller
                         'reportedAt'     => !empty($latestRow[7]) ? strtotime($latestRow[7]) * 1000 : time() * 1000,
                         'reportedAtIso'  => $latestRow[7] ?? '',
                         'imageUrl'       => $this->resolveImageUrl($latestRow[8] ?? ''),
-                        'taker'          => $latestRow[9] ?? null,
+                        'taker'          => $rawTaker,
+                        'takerCurrentDept' => $takerCurrentDept,
+                        'takerHasTransferred' => $takerHasTransferred,
                         'takenAt'        => !empty($latestRow[10]) ? strtotime($latestRow[10]) * 1000 : null,
                         'solver'         => $latestRow[11] ?? '',
                         'solvedAt'       => $latestRow[12] ?? '',

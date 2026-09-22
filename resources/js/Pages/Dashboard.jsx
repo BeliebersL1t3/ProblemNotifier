@@ -452,7 +452,7 @@ function DashboardInner() {
                 ? true
                 : issue.status === statusFilter;
 
-            const matchesDept = (deptFilter === 'all' || deptViewMode !== 'all') ? true : (
+            const matchesDept = (deptFilter === 'all' || deptViewMode !== 'all' || Boolean(issue._isPastContribution)) ? true : (
                 (Array.isArray(issue.assignedDepartments) && issue.assignedDepartments.includes(deptFilter)) ||
                 issue.assignedDepartments === deptFilter ||
                 issue.department === deptFilter || 
