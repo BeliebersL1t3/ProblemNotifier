@@ -136,6 +136,21 @@ function DashboardInner() {
 
         return false;
     };
+
+    // Helper: Check if current user personally reported/created this issue
+    const isReportedByMe = (issue) => {
+        if (!user) return false;
+        const myNames = [user.name, user.staff_name, staffName].filter(Boolean).map(n => String(n).trim().toLowerCase());
+        const matchesUser = (val) => {
+            if (!val) return false;
+            const s = String(val).trim().toLowerCase();
+            return myNames.some(name => s === name || s.includes(name) || name.includes(s));
+        };
+
+        if (issue.user_id && String(issue.user_id) === String(user.id)) return true;
+        if (matchesUser(issue.reporter)) return true;
+        return false;
+    };
     const [query, setQuery] = useState('');
     const [categoryFilter, setCategoryFilter] = useState('all');
     const [statusFilter, setStatusFilter] = useState('all');
@@ -329,6 +344,17 @@ function DashboardInner() {
         // For department users, pre-filter to their department scope, ALWAYS including island-wide emergency alerts and past contributions
         const deptScoped = isDeptUser && department && !canViewAllDepartments
             ? sourceIssues.reduce((acc, issue) => {
+                const isReportedByCurrentMe = isReportedByMe(issue);
+
+                // If user specifically selects "Reported By Me" tab, only include issues they personally created!
+                if (deptViewMode === 'origin') {
+                    if (isReportedByCurrentMe) {
+                        const inCurrentDept = normalizeDepartment(issue.department) === normalizeDepartment(department);
+                        acc.push(inCurrentDept ? issue : { ...issue, _isPastContribution: true });
+                    }
+                    return acc;
+                }
+
                 // 🚨 Emergency & critical fast-track issues are island-wide alerts, ALWAYS in scope for everyone!
                 const isEmergency = (issue.category || '').toLowerCase() === 'emergency' 
                     || String(issue.id || '').startsWith('SOS')
@@ -360,7 +386,6 @@ function DashboardInner() {
                 if (inCurrentDeptScope) {
                     if (deptViewMode === 'past_contributions') return acc;
                     if (deptViewMode === 'assigned' && !isAssigned) return acc;
-                    if (deptViewMode === 'origin' && !isOrigin) return acc;
                     if (deptViewMode === 'tagged' && !isTagged) return acc;
                     acc.push(issue);
                     return acc;
@@ -368,7 +393,7 @@ function DashboardInner() {
 
                 // If outside current dept scope, check if user personally touched/contributed to this issue in the past
                 if (isPastContributor(issue)) {
-                    if (deptViewMode === 'assigned' || deptViewMode === 'origin' || deptViewMode === 'tagged') {
+                    if (deptViewMode === 'assigned' || deptViewMode === 'tagged') {
                         return acc;
                     }
                     acc.push({
@@ -379,7 +404,9 @@ function DashboardInner() {
 
                 return acc;
               }, [])
-            : sourceIssues;
+            : (deptViewMode === 'origin'
+                ? sourceIssues.filter(issue => isReportedByMe(issue))
+                : sourceIssues);
 
         const filtered = deptScoped.filter((issue) => {
             const matchesQuery =
