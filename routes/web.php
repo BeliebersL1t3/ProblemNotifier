@@ -19,6 +19,12 @@ Route::get('/', function () {
     return redirect()->route('login');
 });
 
+Route::get('/csrf-token', function () {
+    return response()->json([
+        'csrf_token' => csrf_token(),
+    ]);
+})->name('csrf.token');
+
 Route::get('/dashboard', function () {
     return Inertia::render('Dashboard');
 })->middleware(['auth', 'verified'])->name('dashboard');
