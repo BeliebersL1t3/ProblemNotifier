@@ -112,6 +112,12 @@ export function ExportPdfModal({ open, onOpenChange }) {
     const [googleStatus, setGoogleStatus] = useState({ connected: false, google_email: null });
     const [isCheckingGoogle, setIsCheckingGoogle] = useState(false);
 
+    const currentUserEmail = (auth?.user?.email || '').toLowerCase().trim();
+    const isSendingToSelf = Boolean(
+        currentUserEmail && 
+        emailRecipients.some(e => (e || '').toLowerCase().trim() === currentUserEmail)
+    );
+
     const DEPARTMENTS = [
         'Engineer', 'Tekong', 'Pest Control', 'Security', 'Fasilitas', 
         'HK', 'F&B', 'Service', 'Bar', 'GR', 'Spa', 'TiRek', 'OE', 
@@ -1748,14 +1754,26 @@ export function ExportPdfModal({ open, onOpenChange }) {
                                         </span>
                                     ) : (
                                         emailRecipients.map(email => {
-                                            const matchedUser = availableRecipients.users?.find(u => (u.email || '').toLowerCase() === email);
+                                            const cleanEmail = (email || '').toLowerCase().trim();
+                                            const isSelf = Boolean(currentUserEmail && cleanEmail === currentUserEmail);
+                                            const matchedUser = availableRecipients.users?.find(u => (u.email || '').toLowerCase().trim() === cleanEmail);
                                             return (
                                                 <span
                                                     key={email}
-                                                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs bg-[#2A281E] border border-[#C9AA71]/40 text-[#FAFAFA] shadow-sm animate-in fade-in zoom-in-95 duration-100"
+                                                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs shadow-sm animate-in fade-in zoom-in-95 duration-100 transition-all ${
+                                                        isSelf
+                                                            ? 'bg-amber-500/15 border border-amber-500/50 text-[#FAFAFA]'
+                                                            : 'bg-[#2A281E] border border-[#C9AA71]/40 text-[#FAFAFA]'
+                                                    }`}
                                                 >
-                                                    <span className="font-medium">
+                                                    <span className="font-medium flex items-center gap-1.5">
                                                         {matchedUser ? `${matchedUser.name} (${matchedUser.department || 'Staff'})` : email}
+                                                        {isSelf && (
+                                                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/25 text-amber-300 border border-amber-500/40 uppercase tracking-wider flex items-center gap-0.5">
+                                                                <User className="h-2.5 w-2.5" />
+                                                                {t('self_recipient_badge') || 'Akun Anda'}
+                                                            </span>
+                                                        )}
                                                     </span>
                                                     {matchedUser && (
                                                         <span className="text-[10px] text-muted-foreground">
@@ -1844,33 +1862,51 @@ export function ExportPdfModal({ open, onOpenChange }) {
                         </div>
 
                         {/* Overlay Footer */}
-                        <div className="pt-3 border-t border-[#3B3929] flex items-center justify-between gap-2 shrink-0">
-                            <Button
-                                type="button"
-                                variant="outline"
-                                onClick={() => { setIsEmailModalOpen(false); setEmailStatusToast(null); }}
-                                disabled={isSendingEmail}
-                            >
-                                Back to Preview
-                            </Button>
-                            <Button
-                                type="button"
-                                onClick={handleSendEmail}
-                                disabled={isSendingEmail || emailRecipients.length === 0}
-                                className="gap-2 bg-[#C9AA71] text-[#1C1B0E] hover:bg-[#b89960] font-bold"
-                            >
-                                {isSendingEmail ? (
-                                    <>
-                                        <Loader2 className="h-4 w-4 animate-spin" />
-                                        <span>{t('sending_email') || 'Sending Email...'}</span>
-                                    </>
-                                ) : (
-                                    <>
-                                        <Send className="h-4 w-4" />
-                                        <span>{t('send_email_button') || 'Send Email'} ({emailRecipients.length})</span>
-                                    </>
-                                )}
-                            </Button>
+                        <div className="pt-3 border-t border-[#3B3929] shrink-0 space-y-2.5">
+                            {isSendingToSelf && (
+                                <div className="px-3 py-2 rounded-xl bg-amber-500/15 border border-amber-500/40 text-amber-200 flex items-center gap-2.5 text-xs animate-in fade-in slide-in-from-bottom-2 duration-150">
+                                    <div className="p-1 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/30 shrink-0">
+                                        <AlertCircle className="h-3.5 w-3.5" />
+                                    </div>
+                                    <div className="flex-1 leading-snug">
+                                        <span className="font-semibold text-amber-300">
+                                            {(t('self_recipient_badge') || 'Akun Anda')}:{' '}
+                                        </span>
+                                        <span>
+                                            {(t('self_recipient_notice') || 'Pemberitahuan: Laporan ini juga akan dikirimkan ke email akun Anda sendiri ({email}).').replace('{email}', currentUserEmail)}
+                                        </span>
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="flex items-center justify-between gap-2">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => { setIsEmailModalOpen(false); setEmailStatusToast(null); }}
+                                    disabled={isSendingEmail}
+                                >
+                                    Back to Preview
+                                </Button>
+                                <Button
+                                    type="button"
+                                    onClick={handleSendEmail}
+                                    disabled={isSendingEmail || emailRecipients.length === 0}
+                                    className="gap-2 bg-[#C9AA71] text-[#1C1B0E] hover:bg-[#b89960] font-bold"
+                                >
+                                    {isSendingEmail ? (
+                                        <>
+                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                            <span>{t('sending_email') || 'Sending Email...'}</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Send className="h-4 w-4" />
+                                            <span>{t('send_email_button') || 'Send Email'} ({emailRecipients.length})</span>
+                                        </>
+                                    )}
+                                </Button>
+                            </div>
                         </div>
                     </div>
                 )}
