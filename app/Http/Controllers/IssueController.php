@@ -2147,6 +2147,45 @@ class IssueController extends Controller
                     );
                 }
 
+                // If HOD has reassigned/actioned an issue previously taken by a transferred staff
+                // Rule: "admin hanya menerima setelah HOD acc"
+                $oldTaker = trim($currentRow[9] ?? '');
+                $newTaker = isset($updateCols['J']) ? trim($updateCols['J']) : $oldTaker;
+                if ($user->isHOD() && !empty($oldTaker) && $oldTaker !== $newTaker) {
+                    $cleanOldTaker = trim(preg_replace('/\s*via\s+WhatsApp/i', '', $oldTaker));
+                    $baseOldTaker = trim(preg_replace('/\s*\([^)]*\)/', '', $cleanOldTaker));
+                    $oldTakerUser = \App\Models\User::all()->first(function ($u) use ($baseOldTaker) {
+                        $uName = trim($u->name ?? '');
+                        $uStaff = trim($u->staff_name ?? '');
+                        return (!empty($uName) && (strcasecmp($uName, $baseOldTaker) === 0 || stripos($baseOldTaker, $uName) !== false || stripos($uName, $baseOldTaker) !== false))
+                            || (!empty($uStaff) && (strcasecmp($uStaff, $baseOldTaker) === 0 || stripos($baseOldTaker, $uStaff) !== false || stripos($uStaff, $baseOldTaker) !== false));
+                    });
+
+                    if ($oldTakerUser && !empty($oldTakerUser->department)) {
+                        $assignedList = IssueSheetRepository::getAssignedDepartments($currentRow);
+                        $originDept = $currentRow[IssueSheetRepository::COL_ORIGIN_DEPT] ?? '';
+                        $allScopes = array_map(fn($d) => IssueSheetRepository::normalizeDeptKey($d), array_merge($assignedList, [$originDept]));
+                        $oldTakerDeptNorm = IssueSheetRepository::normalizeDeptKey($oldTakerUser->department);
+
+                        if (!in_array($oldTakerDeptNorm, $allScopes)) {
+                            $hodName = $user->staff_name ?: $user->name;
+                            $hodDept = $user->department ?: 'Departemen';
+                            $issueId = $currentRow[0] ?? '';
+                            $issueTitle = $newTitle ?? ($currentRow[1] ?? 'Isu');
+                            $newTakerDisplay = $newTaker ?: 'Belum ditentukan (Klaim dilepas)';
+
+                            \App\Models\DashboardNotification::create([
+                                'role_target' => 'admin',
+                                'type'        => 'issue_progress',
+                                'title'       => "✅ Reassignment Disetujui HOD: #{$issueId} ({$issueTitle})",
+                                'message'     => "HOD {$hodName} ({$hodDept}) telah menyetujui penugasan ulang tiket #{$issueId} (sebelumnya diklaim oleh {$baseOldTaker} yang telah mutasi) ke: {$newTakerDisplay}.",
+                                'link'        => "/dashboard?sheet=" . urlencode($targetSheet ?: '') . "&id=" . urlencode($issueId),
+                                'is_read'     => false,
+                            ]);
+                        }
+                    }
+                }
+
             return response()->json([
                 'success' => true,
                 'message' => 'Issue updated successfully!',

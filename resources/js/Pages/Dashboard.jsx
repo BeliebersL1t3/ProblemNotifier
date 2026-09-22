@@ -203,7 +203,7 @@ function DashboardInner() {
         });
     };
 
-    // Auto-open report modal if directed from mobile bottom nav with ?report=1
+    // Auto-open report modal or activate reassign_needed filter from URL
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
         if (params.get('report') === '1') {
@@ -211,6 +211,9 @@ function DashboardInner() {
             try {
                 window.history.replaceState({}, '', window.location.pathname);
             } catch (e) {}
+        }
+        if (params.get('filter') === 'reassign_needed') {
+            setDeptViewMode('reassign_needed');
         }
     }, []);
 
@@ -365,6 +368,36 @@ function DashboardInner() {
         }
     }, [pastContribCount, deptViewMode]);
 
+    // Issues needing reassignment: Active issues (progress or pending) where taker has transferred
+    const reassignNeededCount = useMemo(() => {
+        const normUserDept = department ? normalizeDepartment(department) : null;
+        const normDeptFilter = (deptFilter && deptFilter !== 'all') ? normalizeDepartment(deptFilter) : null;
+        const targetDept = normDeptFilter || normUserDept;
+
+        return issues.filter(issue => {
+            const isArchived = Boolean(issue.isArchived || issue.statusDisplay === '0' || issue.displayStatus === '0');
+            if (isArchived) return false;
+            const isActive = issue.status === 'progress' || issue.status === 'pending';
+            if (!isActive || !issue.takerHasTransferred) return false;
+
+            if (isAdmin && !targetDept) return true;
+
+            const assigned = (Array.isArray(issue.assignedDepartments) 
+                ? issue.assignedDepartments 
+                : (issue.assignedDepartments ? String(issue.assignedDepartments).split(',') : [])
+            ).map(d => normalizeDepartment(d.trim()));
+
+            return Boolean(targetDept && assigned.includes(targetDept));
+        }).length;
+    }, [issues, department, deptFilter, isAdmin]);
+
+    // Auto-hide fallback: if no issues need reassignment, ensure view mode doesn't get stuck on reassign_needed
+    useEffect(() => {
+        if (reassignNeededCount === 0 && deptViewMode === 'reassign_needed') {
+            setDeptViewMode('all');
+        }
+    }, [reassignNeededCount, deptViewMode]);
+
     const visible = useMemo(() => {
         const q = query.trim().toLowerCase();
         const sourceIssues = showArchiveTab ? (archivedIssues || []) : issues;
@@ -428,6 +461,19 @@ function DashboardInner() {
                         ...issue,
                         _isPastContribution: true,
                     });
+                }
+                return acc;
+            }
+
+            // 4b. Tab "Needs Reassignment" (Perlu Reassignment karena staf mutasi)
+            if (deptViewMode === 'reassign_needed') {
+                const isActive = issue.status === 'progress' || issue.status === 'pending';
+                if (isActive && issue.takerHasTransferred) {
+                    if (isAdmin && !targetDept) {
+                        acc.push(issue);
+                    } else if (isAssignedToTarget) {
+                        acc.push(issue);
+                    }
                 }
                 return acc;
             }
@@ -797,7 +843,7 @@ function DashboardInner() {
                                 <span>{lang === 'id' ? 'Lintas Seluruh Departemen' : 'All Departments Access'}</span>
                             </div>
                         )}
-                        {isDeptUser && (
+                        {(isDeptUser || isAdmin) && (
                             <div className="flex items-center rounded-xl bg-[#2A281E] p-1 border border-[#3B3929] text-xs font-bold shrink-0 max-w-full overflow-x-auto no-scrollbar flex-nowrap gap-0.5 shadow-sm">
                                 <button
                                     type="button"
@@ -863,6 +909,29 @@ function DashboardInner() {
                                                 : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
                                         }`}>
                                             {pastContribCount}
+                                        </span>
+                                    </button>
+                                )}
+                                {reassignNeededCount > 0 && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setDeptViewMode('reassign_needed')}
+                                        className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                                            deptViewMode === 'reassign_needed'
+                                                ? 'bg-amber-500 text-black shadow-sm font-extrabold'
+                                                : 'text-amber-400 hover:text-amber-300 hover:bg-amber-500/10'
+                                        }`}
+                                        title={lang === 'id' 
+                                            ? `Menampilkan ${reassignNeededCount} isu aktif yang diklaim staf yang telah mutasi ke departemen lain` 
+                                            : `Shows ${reassignNeededCount} active issue(s) claimed by staff who transferred`}
+                                    >
+                                        <span>⚠️ {lang === 'id' ? 'Perlu Reassignment' : 'Needs Reassignment'}</span>
+                                        <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                                            deptViewMode === 'reassign_needed'
+                                                ? 'bg-black text-amber-400'
+                                                : 'bg-amber-500/25 text-amber-300 border border-amber-500/40'
+                                        }`}>
+                                            {reassignNeededCount}
                                         </span>
                                     </button>
                                 )}

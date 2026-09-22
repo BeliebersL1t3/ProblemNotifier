@@ -72,6 +72,7 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
         : '';
     const canEdit = !isPastContribution && (isAdmin || canEditReport || canEditClaim || canEditPending || canEditSolved);
     const canDelete = !isPastContribution && isAdmin;
+    const needsReassignment = Boolean(issue?.takerHasTransferred && (issue?.status === 'progress' || issue?.status === 'pending'));
 
     const taggedList = safeArray(issue?.taggedDepartments);
     const pendingTimelineList = safeArray(issue?.pendingTimeline)
@@ -178,6 +179,11 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
                             🔒
                         </span>
                     )}
+                    {needsReassignment && (
+                        <span className="text-[9px] font-bold text-amber-400 shrink-0 cursor-help animate-pulse" title={`Perlu Reassignment (${issue.taker} pindah ke ${issue.takerCurrentDept || 'dept lain'})`}>
+                            ⚠️
+                        </span>
+                    )}
                     {isCritical && issue.deadline && !isSolved && (
                         <span className="text-[8px] font-mono font-bold text-amber-400 shrink-0">
                             ⏱️
@@ -249,6 +255,15 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
                         >
                             <span>🔒</span>
                             <span>Riwayat</span>
+                        </div>
+                    )}
+                    {needsReassignment && (
+                        <div 
+                            className="absolute left-2 top-8 z-10 flex items-center gap-1 rounded bg-amber-950/90 text-amber-300 border border-amber-500/50 px-1.5 py-0.2 text-[9px] font-bold shadow-xs cursor-help animate-pulse"
+                            title={lang === 'id' ? `Perlu Reassignment (${issue.taker} pindah ke ${issue.takerCurrentDept || 'dept lain'})` : `Needs Reassignment (${issue.taker} transferred)`}
+                        >
+                            <ArrowRightLeft className="w-2.5 h-2.5 text-amber-400" />
+                            <span>Reassign</span>
                         </div>
                     )}
                     {isCritical && !canEdit && !canDelete && !isArchived && (
@@ -613,6 +628,22 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
                         isArchived={isArchived}
                         variant="banner"
                     />
+                )}
+                {needsReassignment && (
+                    <div 
+                        className="w-full rounded-lg bg-amber-500/15 border border-amber-500/30 px-2.5 py-1.5 text-xs text-amber-300 flex items-center justify-between gap-2 shadow-xs"
+                        title={lang === 'id'
+                            ? `Staf yang mengklaim isu ini (${issue.taker}) telah dimutasi ke departemen ${issue.takerCurrentDept || 'lain'}. HOD atau tim departemen dapat melakukan penugasan ulang di menu edit.`
+                            : `Staff who took this issue (${issue.taker}) transferred to ${issue.takerCurrentDept || 'another department'}. Needs reassignment.`}
+                    >
+                        <span className="flex items-center gap-1.5 font-semibold text-amber-400">
+                            <ArrowRightLeft className="w-3.5 h-3.5 shrink-0 animate-pulse" />
+                            <span>{lang === 'id' ? 'Perlu Reassignment' : 'Needs Reassignment'}</span>
+                        </span>
+                        <span className="text-[10px] text-amber-300 font-mono">
+                            {issue.taker} ➔ {issue.takerCurrentDept || 'Mutasi'}
+                        </span>
+                    </div>
                 )}
                 <div className="flex flex-col gap-1.5 min-w-0 w-full">
                     <h3 className="text-base font-semibold leading-snug text-foreground break-words min-w-0">{issue.title}</h3>

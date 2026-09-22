@@ -2,10 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\DashboardNotification;
 use App\Models\User;
 use App\Models\UserAuditLog;
+use App\Services\GoogleService;
+use App\Services\IssueSheetRepository;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -387,6 +391,13 @@ class UserController extends Controller
             );
         }
 
+        // If department was changed, notify HOD of old department if this staff has active claimed issues needing reassignment
+        $oldDepartment = $before['department'] ?? null;
+        $newDepartment = $user->department ?? null;
+        if (!empty($oldDepartment) && !empty($newDepartment) && strcasecmp($oldDepartment, $newDepartment) !== 0) {
+            $this->notifyHodOfTransferredStaffActiveIssues($user, $oldDepartment, $newDepartment);
+        }
+
         // Notify WhatsApp bot to sync staff memory in real-time
         try {
             \Illuminate\Support\Facades\Http::timeout(1)->post('http://127.0.0.1:3000/sync-staff');
@@ -695,5 +706,99 @@ class UserController extends Controller
             'is_hod'  => $user->is_hod,
             'hod_title' => $user->hod_title,
         ]);
+    }
+
+    /**
+     * Notify HOD of the former department if a transferred staff member has active claimed issues needing reassignment.
+     * Note: Per workflow rules, Admin will only receive notification AFTER the HOD has reviewed/actioned/reassigned the issue.
+     */
+    private function notifyHodOfTransferredStaffActiveIssues(User $user, string $oldDepartment, string $newDepartment): void
+    {
+        try {
+            /** @var GoogleService $googleService */
+            $googleService = app(GoogleService::class);
+            $sheets = $googleService->listSheets();
+            $latestSheet = !empty($sheets) ? end($sheets) : 'Sheet1';
+            $rows = $googleService->readRows($latestSheet);
+            if (empty($rows) || count($rows) <= 1) {
+                return;
+            }
+
+            $userNames = array_map('strtolower', array_filter([
+                trim($user->name ?? ''),
+                trim($user->staff_name ?? '')
+            ]));
+
+            $activeIssuesCount = 0;
+            $sampleTitles = [];
+
+            // Skip header row
+            for ($i = 1; $i < count($rows); $i++) {
+                $row = $rows[$i];
+                if (empty($row) || IssueSheetRepository::isArchived($row)) {
+                    continue;
+                }
+
+                $status = strtolower(trim($row[IssueSheetRepository::COL_STATUS] ?? ''));
+                if (!in_array($status, ['open', 'progress', 'pending'])) {
+                    continue;
+                }
+
+                $rawTaker = trim($row[IssueSheetRepository::COL_TAKER] ?? '');
+                if (empty($rawTaker)) {
+                    continue;
+                }
+
+                $cleanTaker = strtolower(trim(preg_replace('/\s*via\s+WhatsApp/i', '', $rawTaker)));
+                $baseTaker = trim(preg_replace('/\s*\([^)]*\)/', '', $cleanTaker));
+
+                $isTakerMatch = false;
+                foreach ($userNames as $uName) {
+                    if (strcasecmp($uName, $baseTaker) === 0 || stripos($baseTaker, $uName) !== false || stripos($uName, $baseTaker) !== false) {
+                        $isTakerMatch = true;
+                        break;
+                    }
+                }
+
+                if ($isTakerMatch) {
+                    $assignedDepts = IssueSheetRepository::getAssignedDepartments($row);
+                    $originDept = trim($row[IssueSheetRepository::COL_ORIGIN_DEPT] ?? '');
+                    $normOldDept = IssueSheetRepository::normalizeDeptKey($oldDepartment);
+                    
+                    $inOldDeptScope = in_array($normOldDept, array_map(fn($d) => IssueSheetRepository::normalizeDeptKey($d), $assignedDepts))
+                        || (!empty($originDept) && IssueSheetRepository::normalizeDeptKey($originDept) === $normOldDept);
+
+                    if ($inOldDeptScope) {
+                        $activeIssuesCount++;
+                        $issueId = trim($row[IssueSheetRepository::COL_ID] ?? "#{$i}");
+                        $issueTitle = trim($row[IssueSheetRepository::COL_TITLE] ?? 'Isu');
+                        if (count($sampleTitles) < 2) {
+                            $sampleTitles[] = "{$issueId} ({$issueTitle})";
+                        }
+                    }
+                }
+            }
+
+            if ($activeIssuesCount > 0) {
+                $staffDisplayName = $user->staff_name ?: $user->name;
+                $sampleText = implode(', ', $sampleTitles);
+                if ($activeIssuesCount > count($sampleTitles)) {
+                    $sampleText .= " dan " . ($activeIssuesCount - count($sampleTitles)) . " lainnya";
+                }
+
+                // Send notification ONLY to HOD of the old department (admin receives only after HOD ACC)
+                DashboardNotification::create([
+                    'department'  => $oldDepartment,
+                    'role_target' => 'hod',
+                    'type'        => 'issue_progress',
+                    'title'       => "⚠️ Staf Dimutasi: {$staffDisplayName} (Perlu Reassignment)",
+                    'message'     => "Staf {$staffDisplayName} telah dimutasi dari {$oldDepartment} ke {$newDepartment}. Terdapat {$activeIssuesCount} tiket aktif yang sebelumnya diklaim ({$sampleText}) dan memerlukan penugasan ulang oleh HOD.",
+                    'link'        => "/dashboard?dept=" . urlencode($oldDepartment) . "&filter=reassign_needed",
+                    'is_read'     => false,
+                ]);
+            }
+        } catch (\Throwable $e) {
+            Log::warning("Failed to notify HOD of transferred staff active issues: " . $e->getMessage());
+        }
     }
 }
