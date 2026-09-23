@@ -12,28 +12,20 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        $middleware->web(append: [
-            \App\Http\Middleware\HandleInertiaRequests::class,
-            \Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets::class,
-            \App\Http\Middleware\SecurityHeaders::class,
-        ]);
+        $middleware->web(
+            append: [
+                \App\Http\Middleware\HandleInertiaRequests::class,
+                \Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets::class,
+                \App\Http\Middleware\SecurityHeaders::class,
+            ],
+            replace: [
+                \Illuminate\Foundation\Http\Middleware\PreventRequestForgery::class => \App\Http\Middleware\VerifyCsrfToken::class,
+            ]
+        );
 
         $middleware->validateCsrfTokens(except: [
             'api/staff-directory',
             'api/reset-whatsapp-password',
-            'api/issues',
-            'api/issues/*',
-            'api/sheets',
-            'api/sheets/*',
-            'api/categories',
-            'api/categories/*',
-            'api/operations',
-            'api/operations/*',
-            'api/users',
-            'api/users/*',
-            'api/user-audit-logs',
-            'notifications/*',
-            'notifications/read-all',
         ]);
 
         $middleware->alias([

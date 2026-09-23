@@ -24,12 +24,17 @@ class GoogleAuthController extends Controller
             return redirect()->route('login');
         }
 
-        // Store target return URL (default: previous URL)
-        $returnUrl = $request->input('return_to', url()->previous() ?: route('dashboard'));
+        // Store target return URL (default: previous URL) with strict open-redirect sanitization
+        $rawReturnUrl = $request->input('return_to', url()->previous() ?: route('dashboard'));
+        $returnUrl = $this->sanitizeReturnUrl($rawReturnUrl);
         session(['google_oauth_return_to' => $returnUrl]);
 
+        // Generate and store anti-CSRF OAuth state
+        $state = \Illuminate\Support\Str::random(40);
+        session(['google_oauth_state' => $state]);
+
         try {
-            $authUrl = $this->gmailApiService->getAuthUrl(loginHint: $user->email);
+            $authUrl = $this->gmailApiService->getAuthUrl(state: $state, loginHint: $user->email);
             return redirect()->away($authUrl);
         } catch (\Throwable $e) {
             Log::error('Google OAuth Redirect Failed: ' . $e->getMessage());
@@ -44,10 +49,19 @@ class GoogleAuthController extends Controller
     {
         $user = auth()->user();
         $returnUrl = session()->pull('google_oauth_return_to', route('dashboard'));
+        $returnUrl = $this->sanitizeReturnUrl($returnUrl);
 
         if ($request->has('error')) {
             Log::warning('Google OAuth Error received: ' . $request->input('error'));
             return redirect()->to($returnUrl)->with('error', 'Otorisasi Google dibatalkan atau gagal.');
+        }
+
+        // Verify anti-CSRF OAuth state
+        $expectedState = session()->pull('google_oauth_state');
+        $receivedState = $request->input('state');
+        if (empty($expectedState) || empty($receivedState) || !hash_equals((string) $expectedState, (string) $receivedState)) {
+            Log::warning('Google OAuth State Mismatch (potential CSRF attack).');
+            return redirect()->to($returnUrl)->with('error', 'Sesi otorisasi Google tidak valid atau kedaluwarsa. Silakan coba kembali.');
         }
 
         $code = $request->input('code');
@@ -66,6 +80,30 @@ class GoogleAuthController extends Controller
             Log::error('Google OAuth Callback Processing Failed: ' . $e->getMessage());
             return redirect()->to($returnUrl)->with('error', 'Gagal menghubungkan akun Google: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Sanitize return URL to prevent Open Redirect attacks.
+     */
+    private function sanitizeReturnUrl(?string $url): string
+    {
+        if (empty($url)) {
+            return route('dashboard');
+        }
+
+        // Local relative path (e.g. /dashboard or /profile)
+        if (str_starts_with($url, '/') && !str_starts_with($url, '//')) {
+            return $url;
+        }
+
+        // Host verification for absolute URLs
+        $appHost = parse_url(config('app.url'), PHP_URL_HOST);
+        $urlHost = parse_url($url, PHP_URL_HOST);
+        if ($urlHost && $appHost && strtolower($urlHost) === strtolower($appHost)) {
+            return $url;
+        }
+
+        return route('dashboard');
     }
 
     /**

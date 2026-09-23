@@ -26,6 +26,7 @@ abstract class TestCase extends BaseTestCase
         $this->withoutMiddleware([
             ValidateCsrfToken::class,
             PreventRequestForgery::class,
+            \App\Http\Middleware\VerifyCsrfToken::class,
         ]);
     }
 }

@@ -61,7 +61,7 @@ class WhatsAppStaffApiTest extends TestCase
         $response->assertStatus(404);
     }
 
-    public function test_reset_whatsapp_password_returns_password(): void
+    public function test_reset_whatsapp_password_returns_temporary_password(): void
     {
         $botKey = config('services.bot.api_key');
 
@@ -70,7 +70,6 @@ class WhatsAppStaffApiTest extends TestCase
             'staff_name'      => 'Agus',
             'department'      => 'Housekeeping',
             'whatsapp_number' => '628999999999',
-            'raw_password'    => 'mysecret123',
         ]);
 
         $response = $this->postJson('/api/reset-whatsapp-password', [
@@ -81,10 +80,17 @@ class WhatsAppStaffApiTest extends TestCase
 
         $response->assertOk()
             ->assertJson([
-                'success'    => true,
-                'department' => 'Housekeeping',
-                'password'   => 'mysecret123',
+                'success'      => true,
+                'department'   => 'Housekeeping',
+                'is_temporary' => true,
             ]);
+
+        $tempPassword = $response->json('password');
+        $this->assertNotEmpty($tempPassword);
+        $this->assertStringStartsWith('Telunas-', $tempPassword);
+
+        $user->refresh();
+        $this->assertTrue(\Illuminate\Support\Facades\Hash::check($tempPassword, $user->password));
     }
 
     public function test_reset_whatsapp_password_returns_404_if_not_found(): void

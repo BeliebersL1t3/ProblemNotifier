@@ -1,0 +1,19 @@
+{
+  "generalGroupId": null,
+  "departmentGroups": {
+    "engineer": "",
+    "fasilitas": "",
+    "finance": "",
+    "gr": "",
+    "hk": "",
+    "hr": "",
+    "it": "",
+    "kitchen": "",
+    "oe": "",
+    "procurement": "",
+    "reservasi": ""
+  },
+  "channelId": "",
+  "channelInvite": "",
+  "channelName": "Telunas Issue Tracker"
+}

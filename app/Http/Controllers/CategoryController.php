@@ -22,7 +22,7 @@ class CategoryController extends Controller
     public function store(Request $request)
     {
         $user = auth()->user();
-        if ($user && !$user->isAdmin() && !$user->hasPermission('can_manage_categories')) {
+        if (!$user || (!$user->isAdmin() && !$user->hasPermission('can_manage_categories'))) {
             return response()->json([
                 'success' => false,
                 'message' => 'Unauthorized. Anda tidak memiliki izin untuk mengelola kategori.',
@@ -30,8 +30,8 @@ class CategoryController extends Controller
         }
 
         $request->validate([
-            'id' => 'required|string',
-            'label' => 'required|string'
+            'id'    => 'required|string|alpha_dash|max:50',
+            'label' => 'required|string|max:100'
         ]);
 
         $categories = $this->getCategories();
@@ -63,7 +63,7 @@ class CategoryController extends Controller
     public function destroyAndReassign(Request $request, GoogleService $googleService)
     {
         $user = auth()->user();
-        if ($user && !$user->isAdmin() && !$user->hasPermission('can_manage_categories')) {
+        if (!$user || (!$user->isAdmin() && !$user->hasPermission('can_manage_categories'))) {
             return response()->json([
                 'success' => false,
                 'message' => 'Unauthorized. Anda tidak memiliki izin untuk mengelola kategori.',

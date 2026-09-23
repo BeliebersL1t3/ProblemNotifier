@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
-#[Hidden(['password', 'raw_password', 'remember_token', 'google_access_token', 'google_refresh_token'])]
+#[Hidden(['password', 'remember_token', 'google_access_token', 'google_refresh_token'])]
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
@@ -19,7 +19,6 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
-        'raw_password',
         'role',
         'is_hod',
         'hod_title',
@@ -58,6 +57,8 @@ class User extends Authenticatable
             'notify_whatsapp_tickets' => 'boolean',
             'rejected_at'             => 'datetime',
             'google_token_expires_at' => 'datetime',
+            'google_access_token'     => 'encrypted',
+            'google_refresh_token'    => 'encrypted',
         ];
     }
 
@@ -95,30 +96,6 @@ class User extends Authenticatable
         return !empty($this->google_refresh_token) || !empty($this->google_access_token);
     }
 
-    /**
-     * Safely encrypt raw_password in the database so credentials are never stored in cleartext.
-     */
-    protected function rawPassword(): \Illuminate\Database\Eloquent\Casts\Attribute
-    {
-        return \Illuminate\Database\Eloquent\Casts\Attribute::make(
-            get: function ($value) {
-                if (empty($value)) return null;
-                try {
-                    return \Illuminate\Support\Facades\Crypt::decryptString($value);
-                } catch (\Throwable $e) {
-                    return $value;
-                }
-            },
-            set: function ($value) {
-                if (empty($value)) return null;
-                try {
-                    return \Illuminate\Support\Facades\Crypt::encryptString($value);
-                } catch (\Throwable $e) {
-                    return $value;
-                }
-            }
-        );
-    }
 
     public function isAdmin(): bool
     {

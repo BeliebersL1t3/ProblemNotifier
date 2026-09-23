@@ -69,7 +69,6 @@ class SecurityHardeningTest extends TestCase
         $user = User::factory()->create([
             'whatsapp_number' => '628123456789',
             'is_active'       => true,
-            'raw_password'    => 'mySecretPass123',
         ]);
 
         $response = $this->postJson('/api/reset-whatsapp-password', [
@@ -81,9 +80,16 @@ class SecurityHardeningTest extends TestCase
 
         $response->assertOk()
             ->assertJson([
-                'success'  => true,
-                'password' => 'mySecretPass123',
+                'success'      => true,
+                'is_temporary' => true,
             ]);
+
+        $tempPassword = $response->json('password');
+        $this->assertNotEmpty($tempPassword);
+        $this->assertStringStartsWith('Telunas-', $tempPassword);
+
+        $user->refresh();
+        $this->assertTrue(\Illuminate\Support\Facades\Hash::check($tempPassword, $user->password));
     }
 
     public function test_viewer_cannot_store_issues(): void
@@ -192,6 +198,114 @@ class SecurityHardeningTest extends TestCase
         if (file_exists($avatarPath)) {
             @unlink($avatarPath);
         }
+    }
+
+    public function test_export_pdf_rejects_non_pdf_files(): void
+    {
+        $user = User::factory()->create([
+            'role'        => 'admin',
+            'is_active'   => true,
+            'permissions' => ['can_export_reports' => true],
+        ]);
+
+        $fakeExe = UploadedFile::fake()->create('malicious.exe', 500, 'application/x-msdownload');
+
+        $response = $this->actingAs($user)->postJson('/api/export/email-pdf', [
+            'pdf_file'   => $fakeExe,
+            'subject'    => 'Malicious file attempt',
+            'recipients' => 'admin@example.com',
+        ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['pdf_file']);
+    }
+
+    public function test_google_oauth_sanitizes_external_open_redirect(): void
+    {
+        $user = User::factory()->create([
+            'email' => 'admin@telunas.test',
+        ]);
+
+        $response = $this->actingAs($user)->get('/auth/google/redirect?return_to=https://attacker-controlled.site/evil');
+
+        // Target stored in session should be sanitized to dashboard instead of external domain
+        $sessionTarget = session('google_oauth_return_to');
+        $this->assertNotEquals('https://attacker-controlled.site/evil', $sessionTarget);
+        $this->assertEquals(route('dashboard'), $sessionTarget);
+    }
+
+    public function test_profile_update_cannot_bypass_whatsapp_ticket(): void
+    {
+        $user = User::factory()->create([
+            'role'            => 'department',
+            'is_active'       => true,
+            'whatsapp_number' => '628111111111',
+        ]);
+
+        $response = $this->actingAs($user)->patch('/profile', [
+            'name'            => 'Updated Name',
+            'email'           => $user->email,
+            'whatsapp_number' => '628999999999', // Attacker attempts to change WhatsApp directly
+        ]);
+
+        $user->refresh();
+        $this->assertEquals('Updated Name', $user->name);
+        // WhatsApp number MUST remain unchanged (requires ApprovalTicket)
+        $this->assertEquals('628111111111', $user->whatsapp_number);
+    }
+
+    public function test_phone_check_does_not_leak_user_identity(): void
+    {
+        $user = User::factory()->create([
+            'name'            => 'Secret Confidential Employee',
+            'department'      => 'Finance Secret Dept',
+            'whatsapp_number' => '628555555555',
+        ]);
+
+        $response = $this->postJson('/register/check-phone', [
+            'phone' => '08555555555',
+        ]);
+
+        $response->assertOk()
+            ->assertJson([
+                'available' => false,
+            ]);
+
+        $message = $response->json('message');
+        // Must NOT leak employee name or department
+        $this->assertStringNotContainsString('Secret Confidential Employee', $message);
+        $this->assertStringNotContainsString('Finance Secret Dept', $message);
+        $this->assertStringContainsString('Nomor WhatsApp ini sudah terdaftar di sistem', $message);
+    }
+
+    public function test_csrf_blocks_session_request_without_token_and_allows_bot_key(): void
+    {
+        $user = User::factory()->create([
+            'role'      => 'admin',
+            'is_active' => true,
+        ]);
+
+        // 1. With CSRF middleware active, a session request without CSRF token must receive 419
+        $response = $this->withMiddleware([\App\Http\Middleware\VerifyCsrfToken::class])
+            ->actingAs($user)
+            ->post('/api/issues', [
+                'title' => 'CSRF Test Issue',
+            ]);
+
+        $response->assertStatus(419);
+
+        // 2. A bot request with valid X-Bot-Key bypasses CSRF even with middleware active
+        $botKey = config('services.bot.api_key');
+        $botResponse = $this->withMiddleware([\App\Http\Middleware\VerifyCsrfToken::class])
+            ->postJson('/api/issues', [
+                'title' => 'Bot Test Issue',
+            ], [
+                'X-Bot-Key' => $botKey,
+            ]);
+
+        // Validation fails with 422 (because form fields are missing), proving CSRF was bypassed
+        $this->assertNotEquals(419, $botResponse->status());
+        $botResponse->assertStatus(422);
     }
 }
 

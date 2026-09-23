@@ -304,7 +304,7 @@ class IssueController extends Controller
     public function createSheet(Request $request)
     {
         $authUser = auth()->user();
-        if ($authUser && ! $authUser->isAdmin()) {
+        if (!$authUser || ! $authUser->isAdmin()) {
             return response()->json([
                 'success' => false,
                 'message' => 'Unauthorized. Only administrators can create new periods/sheets.',
@@ -337,7 +337,7 @@ class IssueController extends Controller
     public function deleteSheet(Request $request)
     {
         $authUser = auth()->user();
-        if ($authUser && ! $authUser->isAdmin()) {
+        if (!$authUser || ! $authUser->isAdmin()) {
             return response()->json([
                 'success' => false,
                 'message' => 'Unauthorized. Only administrators can delete periods/sheets.',
@@ -1197,7 +1197,8 @@ class IssueController extends Controller
             $isAllAssigned = empty($assignedList) || in_array('ALL', $assignedListUpper);
 
             $authUser = auth()->user();
-            $claimantDept = $request->input('department') ?? ($authUser?->department ?? '');
+            // Strict IDOR prevention: authenticated users cannot spoof department via input parameter
+            $claimantDept = ($authUser && !empty($authUser->department)) ? $authUser->department : ($request->input('department') ?? '');
             $claimantSubdiv = $authUser?->subdivision ?? '';
 
             if (!$isAllAssigned && (! $authUser || ! $authUser->isAdmin()) && !empty($claimantDept)) {

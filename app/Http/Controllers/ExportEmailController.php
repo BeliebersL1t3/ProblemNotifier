@@ -77,7 +77,7 @@ class ExportEmailController extends Controller
     public function sendPdfReport(Request $request): JsonResponse
     {
         $request->validate([
-            'pdf_file' => 'required|file|max:25600', // max 25MB
+            'pdf_file' => 'required|file|mimes:pdf|max:25600', // max 25MB, strictly PDF
             'subject'  => 'required|string|max:255',
             'message'  => 'nullable|string|max:5000',
         ]);
@@ -137,7 +137,12 @@ class ExportEmailController extends Controller
         $customMessage = $request->input('message');
 
         $uploadedFile = $request->file('pdf_file');
-        $originalFilename = $uploadedFile->getClientOriginalName() ?: ('Telunas_Report_' . date('Y-m-d') . '.pdf');
+        $rawFilename = $uploadedFile->getClientOriginalName() ?: ('Telunas_Report_' . date('Y-m-d') . '.pdf');
+        $safeFilename = preg_replace('/[^a-zA-Z0-9_\-\. ]/', '_', basename($rawFilename));
+        if (!str_ends_with(strtolower($safeFilename), '.pdf')) {
+            $safeFilename .= '.pdf';
+        }
+        $originalFilename = $safeFilename;
 
         // Check if user has connected their personal Google/Gmail account
         if ($sender && $sender->hasGoogleMailConnected()) {

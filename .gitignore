@@ -38,8 +38,10 @@ Resort.zip
 # WhatsApp Bot Security & Sessions
 /whatsapp-bot/auth_info_baileys/
 /whatsapp-bot/config.json
+!/whatsapp-bot/config.json.example
 /whatsapp-bot/node_modules/
 /whatsapp-bot/staff_phones.json
 /whatsapp-bot/device_mappings.json
 /whatsapp-bot/.env*
 !/whatsapp-bot/.env.example
+

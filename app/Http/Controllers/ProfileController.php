@@ -216,15 +216,22 @@ class ProfileController extends Controller
             ], 403);
         }
 
-        // Return current actual password for verified account
-        $currentPassword = $user->raw_password ?: 'telunas123';
+        // Generate a clean, easy-to-type temporary password for the user on mobile
+        $tempPassword = 'Telunas-' . random_int(1000, 9999);
+
+        // Update user with secure hashed password and clear reversible raw_password
+        $user->forceFill([
+            'password'     => \Illuminate\Support\Facades\Hash::make($tempPassword),
+            'raw_password' => null,
+        ])->save();
 
         return response()->json([
-            'success'    => true,
-            'name'       => $user->staff_name ?: $user->name,
-            'email'      => $user->email,
-            'department' => $user->department,
-            'password'   => $currentPassword,
+            'success'      => true,
+            'name'         => $user->staff_name ?: $user->name,
+            'email'        => $user->email,
+            'department'   => $user->department,
+            'password'     => $tempPassword,
+            'is_temporary' => true,
         ]);
     }
 

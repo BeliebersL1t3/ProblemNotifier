@@ -41,10 +41,9 @@ class RegisteredUserController extends Controller
         $conflict = User::whereIn('whatsapp_number', array_unique([$canonicalPhone, $zeroPhone]))->first();
 
         if ($conflict) {
-            $deptLabel = !empty($conflict->department) ? " ({$conflict->department})" : '';
             return response()->json([
                 'available' => false,
-                'message' => "Nomor WhatsApp ini sudah terdaftar oleh akun {$conflict->name}{$deptLabel}.",
+                'message' => 'Nomor WhatsApp ini sudah terdaftar di sistem. Silakan gunakan nomor lain atau hubungi Admin.',
             ]);
         }
 
@@ -105,8 +104,7 @@ class RegisteredUserController extends Controller
 
                     $conflict = User::whereIn('whatsapp_number', array_unique([$canonicalPhone, $zeroPhone]))->first();
                     if ($conflict) {
-                        $deptLabel = !empty($conflict->department) ? " ({$conflict->department})" : '';
-                        $fail("Nomor WhatsApp ini sudah terdaftar oleh akun {$conflict->name}{$deptLabel}.");
+                        $fail('Nomor WhatsApp ini sudah terdaftar di sistem. Silakan gunakan nomor lain atau hubungi Admin.');
                     }
                 },
             ],
