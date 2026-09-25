@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { CalendarClock, CheckCircle2, MapPin, User, Loader2, ZoomIn } from 'lucide-react';
+import { CalendarClock, CheckCircle2, MapPin, User, Loader2, ZoomIn, Target, FileText, Megaphone } from 'lucide-react';
 import {
     Dialog,
     DialogContent,
