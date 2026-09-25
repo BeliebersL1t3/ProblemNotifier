@@ -1241,28 +1241,60 @@ function CalendarInner() {
         );
     };
 
+    const [completingTaskId, setCompletingTaskId] = useState(null);
+    const [deletingTaskId, setDeletingTaskId] = useState(null);
+
     const handleMarkDone = async (item) => {
         // Dept users can only mark done tasks from their own department
-        if (isDeptUser && normalizeDepartment(item.department || item.dept) !== userDept) return;
+        if (isDeptUser && normalizeDepartment(item.department || item.dept) !== userDept) {
+            setSyncMsg({ type: 'error', text: lang === 'id' ? 'Anda hanya dapat menyelesaikan tugas departemen Anda sendiri.' : 'You can only complete tasks from your own department.' });
+            setTimeout(() => setSyncMsg(null), 5000);
+            return;
+        }
+        setCompletingTaskId(item.id);
         try {
             const dept = item.department || item.dept;
-            await axios.post(`/api/operations/${item.rowIndex}`, { dept, status: 'done' });
-            setTasks(prev => prev.map(m => m.id === item.id ? { ...m, status: 'done', completedAt: new Date().toISOString() } : m));
-        } catch {}
+            const res = await axios.post(`/api/operations/${item.rowIndex}`, { dept, status: 'done' });
+            if (res.data?.success) {
+                setTasks(prev => prev.map(m => m.id === item.id ? { ...m, status: 'done', completedAt: new Date().toISOString() } : m));
+                setSyncMsg({ type: 'success', text: lang === 'id' ? `Tugas "${item.title}" berhasil diselesaikan!` : `Task "${item.title}" marked as done!` });
+                reload(true, true);
+            } else {
+                setSyncMsg({ type: 'error', text: res.data?.message || (lang === 'id' ? 'Gagal menyelesaikan tugas.' : 'Failed to complete task.') });
+            }
+        } catch (e) {
+            setSyncMsg({ type: 'error', text: e.response?.data?.message || e.message || (lang === 'id' ? 'Gagal menyelesaikan tugas.' : 'Failed to complete task.') });
+        } finally {
+            setCompletingTaskId(null);
+            setTimeout(() => setSyncMsg(null), 5000);
+        }
     };
 
     const handleDelete = async (item) => {
         // Dept users can only delete their own department's tasks
         if (isDeptUser && normalizeDepartment(item.department || item.dept) !== userDept) {
-            alert('You can only delete tasks from your own department.');
+            setSyncMsg({ type: 'error', text: lang === 'id' ? 'Anda hanya dapat menghapus tugas departemen Anda sendiri.' : 'You can only delete tasks from your own department.' });
+            setTimeout(() => setSyncMsg(null), 5000);
             return;
         }
         if (!confirm(t('confirm_delete_work') || 'Hapus pekerjaan ini?')) return;
+        setDeletingTaskId(item.id);
         try {
             const dept = item.department || item.dept;
-            await axios.delete(`/api/operations/${item.rowIndex}`, { data: { dept } });
-            setTasks(prev => prev.filter(m => m.id !== item.id));
-        } catch {}
+            const res = await axios.delete(`/api/operations/${item.rowIndex}`, { data: { dept } });
+            if (res.data?.success) {
+                setTasks(prev => prev.filter(m => m.id !== item.id));
+                setSyncMsg({ type: 'success', text: lang === 'id' ? `Tugas "${item.title}" berhasil dihapus.` : `Task "${item.title}" deleted successfully.` });
+                reload(true, true);
+            } else {
+                setSyncMsg({ type: 'error', text: res.data?.message || (lang === 'id' ? 'Gagal menghapus tugas.' : 'Failed to delete task.') });
+            }
+        } catch (e) {
+            setSyncMsg({ type: 'error', text: e.response?.data?.message || e.message || (lang === 'id' ? 'Gagal menghapus tugas.' : 'Failed to delete task.') });
+        } finally {
+            setDeletingTaskId(null);
+            setTimeout(() => setSyncMsg(null), 5000);
+        }
     };
 
     const handlePreview = (src, title, subtitle) => {
@@ -1617,6 +1649,8 @@ function CalendarInner() {
                             }}
                             onRestoreTask={handleRestoreTask}
                             restoringTaskId={restoringTaskId}
+                            completingTaskId={completingTaskId}
+                            deletingTaskId={deletingTaskId}
                             canSyncCalendar={canSyncCalendar}
                         />
                     )}

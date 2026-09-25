@@ -1290,7 +1290,7 @@ class GoogleService
         $body = new ValueRange(['values' => [$existing]]);
         $this->sheets->spreadsheets_values->update(
             $this->opsSpreadsheetId,
-            "{$sheetName}!A{$rowIndex}:O{$rowIndex}",
+            "{$sheetName}!A{$rowIndex}:P{$rowIndex}",
             $body,
             ['valueInputOption' => 'RAW']
         );
@@ -1309,9 +1309,9 @@ class GoogleService
         try {
             $response = $this->sheets->spreadsheets_values->get(
                 $this->opsSpreadsheetId,
-                "{$sheetName}!A{$rowIndex}:O{$rowIndex}"
+                "{$sheetName}!A{$rowIndex}:P{$rowIndex}"
             );
-            $row = array_pad($response->getValues()[0] ?? [], 15, '');
+            $row = array_pad($response->getValues()[0] ?? [], 16, '');
             $googleEventId = trim($row[14] ?? '');
             if (!empty($googleEventId)) {
                 $this->deleteCalendarEvent($googleEventId);

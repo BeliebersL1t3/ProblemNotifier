@@ -439,6 +439,8 @@ export function OperationsCalendarView({
     onClearHighlight,
     onRestoreTask,
     restoringTaskId = null,
+    completingTaskId = null,
+    deletingTaskId = null,
     canSyncCalendar = false,
 }) {
     const { isAdmin, isDeptUser, department: userDept } = useAuth();
@@ -1880,11 +1882,16 @@ export function OperationsCalendarView({
                                                 {canManageTask && !isDone && item.status !== 'deleted_from_calendar' && (
                                                     <button
                                                         type="button"
+                                                        disabled={completingTaskId === item.id || deletingTaskId === item.id}
                                                         onClick={() => onMarkDone?.(item)}
-                                                        className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-emerald-950/70 text-emerald-300 hover:bg-emerald-900 border border-emerald-500/40 transition-all flex items-center gap-1 cursor-pointer shadow-sm"
+                                                        className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-emerald-950/70 text-emerald-300 hover:bg-emerald-900 border border-emerald-500/40 transition-all flex items-center gap-1 cursor-pointer shadow-sm disabled:opacity-50"
                                                     >
-                                                        <CheckCheck className="h-3 w-3" />
-                                                        {t('done_work') || 'Selesai'}
+                                                        {completingTaskId === item.id ? (
+                                                            <Loader2 className="h-3 w-3 animate-spin text-emerald-400" />
+                                                        ) : (
+                                                            <CheckCheck className="h-3 w-3" />
+                                                        )}
+                                                        <span>{completingTaskId === item.id ? (lang === 'id' ? 'Menyimpan...' : 'Saving...') : (t('done_work') || 'Selesai')}</span>
                                                     </button>
                                                 )}
                                                 {canManageTask && onEdit && !isDone && item.status !== 'deleted_from_calendar' && (
@@ -1900,11 +1907,16 @@ export function OperationsCalendarView({
                                                 {canManageTask && !isDone && item.status !== 'deleted_from_calendar' && (
                                                     <button
                                                         type="button"
+                                                        disabled={completingTaskId === item.id || deletingTaskId === item.id}
                                                         onClick={() => onDelete?.(item)}
-                                                        className="p-1.5 rounded-lg bg-red-950/40 text-red-300 hover:bg-red-900/60 border border-red-500/40 transition-colors cursor-pointer"
+                                                        className="p-1.5 rounded-lg bg-red-950/40 text-red-300 hover:bg-red-900/60 border border-red-500/40 transition-colors cursor-pointer disabled:opacity-50"
                                                         title={t('delete')}
                                                     >
-                                                        <Trash2 className="h-3 w-3" />
+                                                        {deletingTaskId === item.id ? (
+                                                            <Loader2 className="h-3 w-3 animate-spin text-red-400" />
+                                                        ) : (
+                                                            <Trash2 className="h-3 w-3" />
+                                                        )}
                                                     </button>
                                                 )}
                                             </div>
