@@ -180,8 +180,8 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
                         </span>
                     )}
                     {needsReassignment && (
-                        <span className="text-[9px] font-bold text-amber-400 shrink-0 cursor-help animate-pulse" title={`Perlu Reassignment (${issue.taker} pindah ke ${issue.takerCurrentDept || 'dept lain'})`}>
-                            ⚠️
+                        <span className="text-[9px] font-bold text-sky-400 shrink-0 cursor-help" title={lang === 'id' ? `Staf (${issue.taker}) pindah ke ${issue.takerCurrentDept || 'dept lain'}` : `Staff (${issue.taker}) transferred to ${issue.takerCurrentDept || 'another dept'}`}>
+                            🔄
                         </span>
                     )}
                     {isCritical && issue.deadline && !isSolved && (
@@ -259,11 +259,11 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
                     )}
                     {needsReassignment && (
                         <div 
-                            className="absolute left-2 top-8 z-10 flex items-center gap-1 rounded bg-amber-950/90 text-amber-300 border border-amber-500/50 px-1.5 py-0.2 text-[9px] font-bold shadow-xs cursor-help animate-pulse"
-                            title={lang === 'id' ? `Perlu Reassignment (${issue.taker} pindah ke ${issue.takerCurrentDept || 'dept lain'})` : `Needs Reassignment (${issue.taker} transferred)`}
+                            className="absolute left-2 top-8 z-10 flex items-center gap-1 rounded bg-[#1C1B0E]/90 text-sky-300 border border-sky-500/40 px-1.5 py-0.2 text-[9px] font-bold shadow-xs cursor-help"
+                            title={lang === 'id' ? `Staf (${issue.taker}) pindah ke ${issue.takerCurrentDept || 'dept lain'}` : `Staff (${issue.taker}) transferred to ${issue.takerCurrentDept || 'another dept'}`}
                         >
-                            <ArrowRightLeft className="w-2.5 h-2.5 text-amber-400" />
-                            <span>Reassign</span>
+                            <ArrowRightLeft className="w-2.5 h-2.5 text-sky-400" />
+                            <span>{lang === 'id' ? 'Pindah Dept' : 'Transferred'}</span>
                         </div>
                     )}
                     {isCritical && !canEdit && !canDelete && !isArchived && (
@@ -631,17 +631,17 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
                 )}
                 {needsReassignment && (
                     <div 
-                        className="w-full rounded-lg bg-amber-500/15 border border-amber-500/30 px-2.5 py-1.5 text-xs text-amber-300 flex items-center justify-between gap-2 shadow-xs"
+                        className="w-full rounded-lg bg-sky-500/10 border border-sky-500/25 px-2.5 py-1.5 text-xs text-sky-200 flex items-center justify-between gap-2 shadow-xs"
                         title={lang === 'id'
-                            ? `Staf yang mengklaim isu ini (${issue.taker}) telah dimutasi ke departemen ${issue.takerCurrentDept || 'lain'}. HOD atau tim departemen dapat melakukan penugasan ulang di menu edit.`
-                            : `Staff who took this issue (${issue.taker}) transferred to ${issue.takerCurrentDept || 'another department'}. Needs reassignment.`}
+                            ? `Staf yang menangani isu ini (${issue.taker}) telah pindah ke departemen ${issue.takerCurrentDept || 'lain'}.`
+                            : `Staff handling this issue (${issue.taker}) has transferred to ${issue.takerCurrentDept || 'another department'}.`}
                     >
-                        <span className="flex items-center gap-1.5 font-semibold text-amber-400">
-                            <ArrowRightLeft className="w-3.5 h-3.5 shrink-0 animate-pulse" />
-                            <span>{lang === 'id' ? 'Perlu Reassignment' : 'Needs Reassignment'}</span>
+                        <span className="flex items-center gap-1.5 font-semibold text-sky-300">
+                            <ArrowRightLeft className="w-3.5 h-3.5 shrink-0" />
+                            <span>{lang === 'id' ? 'Staf Pindah Departemen' : 'Staff Changed Department'}</span>
                         </span>
-                        <span className="text-[10px] text-amber-300 font-mono">
-                            {issue.taker} ➔ {issue.takerCurrentDept || 'Mutasi'}
+                        <span className="text-[10px] text-sky-200/90 font-mono">
+                            {issue.taker} ➔ {issue.takerCurrentDept || (lang === 'id' ? 'Departemen Baru' : 'New Dept')}
                         </span>
                     </div>
                 )}

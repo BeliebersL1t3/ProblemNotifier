@@ -922,10 +922,10 @@ function DashboardInner() {
                                                 : 'text-amber-400 hover:text-amber-300 hover:bg-amber-500/10'
                                         }`}
                                         title={lang === 'id' 
-                                            ? `Menampilkan ${reassignNeededCount} isu aktif yang diklaim staf yang telah mutasi ke departemen lain` 
-                                            : `Shows ${reassignNeededCount} active issue(s) claimed by staff who transferred`}
+                                            ? `Menampilkan ${reassignNeededCount} isu aktif yang ditangani staf yang telah mutasi ke departemen lain` 
+                                            : `Shows ${reassignNeededCount} active issue(s) handled by staff who transferred department`}
                                     >
-                                        <span>⚠️ {lang === 'id' ? 'Perlu Reassignment' : 'Needs Reassignment'}</span>
+                                        <span>🔄 {lang === 'id' ? 'Staf Mutasi' : 'Transferred Staff'}</span>
                                         <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
                                             deptViewMode === 'reassign_needed'
                                                 ? 'bg-black text-amber-400'
