@@ -108,8 +108,6 @@ export function ExportCalendarPdfModal({ open, onOpenChange, tasks = [] }) {
     const [availableRecipients, setAvailableRecipients] = useState({ users: [], hods: [], by_department: {} });
     const [isLoadingRecipients, setIsLoadingRecipients] = useState(false);
     const [emailStatusToast, setEmailStatusToast] = useState(null);
-    const [googleStatus, setGoogleStatus] = useState({ connected: false, google_email: null });
-    const [isCheckingGoogle, setIsCheckingGoogle] = useState(false);
 
     // Preloaded logo data URL
     const logoImgRef = useRef(null);
@@ -329,30 +327,6 @@ export function ExportCalendarPdfModal({ open, onOpenChange, tasks = [] }) {
             } finally {
                 setIsLoadingRecipients(false);
             }
-        }
-
-        // Fetch Google OAuth connection status
-        setIsCheckingGoogle(true);
-        try {
-            const res = await axios.get('/api/google/status');
-            if (res.data?.success) {
-                setGoogleStatus(res.data);
-            }
-        } catch (err) {
-            console.error('Failed to check Google status', err);
-        } finally {
-            setIsCheckingGoogle(false);
-        }
-    };
-
-    const handleDisconnectGoogle = async () => {
-        try {
-            const res = await axios.post('/auth/google/disconnect');
-            if (res.data?.success) {
-                setGoogleStatus({ connected: false, google_email: null });
-            }
-        } catch (err) {
-            console.error('Failed to disconnect Google account', err);
         }
     };
 
@@ -1132,10 +1106,10 @@ export function ExportCalendarPdfModal({ open, onOpenChange, tasks = [] }) {
                                 </div>
                                 <div>
                                     <h3 className="text-base font-bold text-[#FAFAFA]">
-                                        {t('send_report_email_title') || 'Send Schedule Report via Email'}
+                                        {lang === 'id' ? 'Kirim Jadwal Kalender via Email' : 'Send Schedule Report via Email'}
                                     </h3>
-                                    <p className="text-xs text-muted-foreground">
-                                        {t('send_report_email_subtitle') || 'Deliver this PDF schedule report directly to department heads or staff members.'}
+                                    <p className="text-xs text-[#A19F8D]">
+                                        {lang === 'id' ? 'Kirimkan laporan PDF jadwal kalender ini secara resmi ke HOD atau departemen terkait.' : 'Deliver this official PDF schedule report directly to department heads or staff members.'}
                                     </p>
                                 </div>
                             </div>
@@ -1175,64 +1149,27 @@ export function ExportCalendarPdfModal({ open, onOpenChange, tasks = [] }) {
 
                         {/* Overlay Form Content (Scrollable) */}
                         <div className="flex-1 overflow-y-auto py-4 space-y-4 pr-1 custom-scrollbar">
-                            {/* Google Account Connection Status Banner */}
-                            <div className={`p-3.5 rounded-xl border flex items-center justify-between transition-all ${
-                                googleStatus.connected
-                                    ? 'bg-emerald-950/30 border-emerald-500/40 text-emerald-300'
-                                    : 'bg-[#2A281E]/60 border-[#3B3929] text-muted-foreground'
-                            }`}>
+                            {/* Official Telunas System Mailer Status Banner */}
+                            <div className="p-3.5 rounded-xl border border-[#C9AA71]/30 bg-[#2A281E]/60 flex items-center justify-between transition-all">
                                 <div className="flex items-center gap-3">
-                                    <div className={`p-2 rounded-lg border shrink-0 ${
-                                        googleStatus.connected
-                                            ? 'bg-emerald-950/60 border-emerald-500/60 text-emerald-400'
-                                            : 'bg-[#1C1B0E] border-[#3B3929] text-muted-foreground'
-                                    }`}>
-                                        <Globe className="h-4 w-4" />
+                                    <div className="p-2 rounded-lg border border-[#C9AA71]/40 bg-[#C9AA71]/15 text-[#C9AA71] shrink-0">
+                                        <Mail className="h-4 w-4" />
                                     </div>
                                     <div>
                                         <div className="flex items-center gap-2">
                                             <span className="text-xs font-bold text-[#FAFAFA]">
-                                                {googleStatus.connected ? (t('google_connected_banner') || 'Sending directly from your Google Account:') : (t('google_not_connected_banner') || 'Sending via Telunas System Mailer')}
+                                                {lang === 'id' ? 'Pengiriman via Mailer Resmi Sistem Telunas' : 'Sending via Official Telunas System Mailer'}
                                             </span>
-                                            {googleStatus.connected && (
-                                                <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                                                    REAL GMAIL
-                                                </span>
-                                            )}
+                                            <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                                                AUTOMATIC
+                                            </span>
                                         </div>
-                                        <p className="text-[11px] text-muted-foreground">
-                                            {googleStatus.connected 
-                                                ? googleStatus.google_email
-                                                : (t('connect_google_hint') || 'Connect your Google account to send reports directly from your real Gmail.')}
+                                        <p className="text-[11px] text-[#A19F8D]">
+                                            {lang === 'id' 
+                                                ? 'Email laporan PDF dikirimkan secara otomatis oleh server sistem Telunas tanpa perlu menghubungkan akun Google pribadi.' 
+                                                : 'Report emails are delivered automatically by the Telunas system server without requiring personal Google login.'}
                                         </p>
                                     </div>
-                                </div>
-
-                                <div className="shrink-0">
-                                    {isCheckingGoogle ? (
-                                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                                    ) : googleStatus.connected ? (
-                                        <button
-                                            type="button"
-                                            onClick={handleDisconnectGoogle}
-                                            className="text-xs text-rose-400/80 hover:text-rose-300 hover:underline transition-all cursor-pointer"
-                                        >
-                                            {t('disconnect_google') || 'Disconnect'}
-                                        </button>
-                                    ) : (
-                                        <a
-                                            href={`/auth/google/redirect?return_to=${encodeURIComponent(window.location.pathname)}`}
-                                            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#1C1B0E] text-[#FAFAFA] border border-[#C9AA71]/60 hover:bg-[#C9AA71]/15 hover:border-[#C9AA71] transition-all shadow-sm cursor-pointer"
-                                        >
-                                            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24">
-                                                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                                                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                                                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
-                                                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
-                                            </svg>
-                                            <span>{t('connect_google_button') || 'Connect Google'}</span>
-                                        </a>
-                                    )}
                                 </div>
                             </div>
 
