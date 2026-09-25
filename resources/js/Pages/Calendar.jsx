@@ -675,7 +675,7 @@ function CalendarAddWorkModal({ initialStartDate = '', initialEndDate = '', init
                     photoUrl: json.photoUrl || form.photoPreview || '',
                     startDate: overallStart,
                     endDate: overallEnd,
-                    notes: finalNotes,
+                    notes: cleanNotes,
                     ranges: validBlocks,
                     status: 'active',
                     createdAt: new Date().toISOString(),
@@ -1247,7 +1247,7 @@ function CalendarInner() {
 
     const handleMarkDone = async (item) => {
         // Dept users can only mark done tasks from their own department
-        if (isDeptUser && normalizeDepartment(item.department || item.dept) !== userDept) {
+        if (isDeptUser && normalizeDepartment(item.department || item.dept) !== normalizeDepartment(userDept)) {
             setSyncMsg({ type: 'error', text: lang === 'id' ? 'Anda hanya dapat menyelesaikan tugas departemen Anda sendiri.' : 'You can only complete tasks from your own department.' });
             setTimeout(() => setSyncMsg(null), 5000);
             return;
@@ -1273,7 +1273,7 @@ function CalendarInner() {
 
     const handleDelete = async (item) => {
         // Dept users can only delete their own department's tasks
-        if (isDeptUser && normalizeDepartment(item.department || item.dept) !== userDept) {
+        if (isDeptUser && normalizeDepartment(item.department || item.dept) !== normalizeDepartment(userDept)) {
             setSyncMsg({ type: 'error', text: lang === 'id' ? 'Anda hanya dapat menghapus tugas departemen Anda sendiri.' : 'You can only delete tasks from your own department.' });
             setTimeout(() => setSyncMsg(null), 5000);
             return;

@@ -1616,7 +1616,7 @@ export function OperationsCalendarView({
                                 const itemDept = item.department || item.dept;
                                 const itemTheme = getDepartmentTheme(itemDept);
                                 const deptColor = itemTheme.bg === '#212121' ? '#FFFFFF' : itemTheme.bg;
-                                const canManageTask = isAdmin || (userDept && normalizeDepartment(itemDept) === userDept);
+                                const canManageTask = isAdmin || (userDept && normalizeDepartment(itemDept) === normalizeDepartment(userDept));
 
                                 const ranges = parseTaskRanges(item);
                                 const isMultiRange = ranges.length > 1;
