@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { MapPin, Building, ZoomIn, Edit3, Trash2, RotateCcw, Clock, ArrowRightLeft } from 'lucide-react';
+import { MapPin, Building, ZoomIn, Edit3, Trash2, RotateCcw, Clock, ArrowRightLeft, Target, FileText, Megaphone } from 'lucide-react';
 import { StatusBadge } from './StatusBadge';
 import { cn } from '@/lib/utils';
 import DelayDetailModal from './DelayDetailModal';
@@ -371,7 +371,7 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
                                     }`}
                                     title={`Assigned Department${isMine ? ' (Your Department)' : ''}`}
                                 >
-                                    <span>🎯</span> {dept} {isMine && <span className="text-[8px] uppercase tracking-wider bg-amber-500 text-black px-1 rounded-xs font-bold">You</span>}
+                                    <Target className="w-2.5 h-2.5 shrink-0" /> {dept} {isMine && <span className="text-[8px] uppercase tracking-wider bg-amber-500 text-black px-1 rounded-xs font-bold">You</span>}
                                 </span>
                             );
                         })}
@@ -390,7 +390,7 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
                                     }`}
                                     title={`Origin Department${isMine ? ' (Your Department)' : ''}`}
                                 >
-                                    <span>🏠</span> {issue.department} {isMine && <span className="text-[8px] uppercase tracking-wider bg-emerald-500 text-black px-1 rounded-xs font-bold">You</span>}
+                                    <FileText className="w-2.5 h-2.5 shrink-0" /> {issue.department} {isMine && <span className="text-[8px] uppercase tracking-wider bg-emerald-500 text-black px-1 rounded-xs font-bold">You</span>}
                                 </span>
                             );
                         })()}
@@ -410,7 +410,7 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
                                     }`}
                                     title={`Tagged Department${isMine ? ' (Mentioned to You!)' : ''}`}
                                 >
-                                    <span>📢</span> @{tag} {isMine && <span className="text-[8px] uppercase tracking-wider bg-indigo-500 text-white px-1 rounded-xs font-bold">You</span>}
+                                    <Megaphone className="w-2.5 h-2.5 shrink-0" /> @{tag} {isMine && <span className="text-[8px] uppercase tracking-wider bg-indigo-500 text-white px-1 rounded-xs font-bold">You</span>}
                                 </span>
                             );
                         })}
@@ -671,7 +671,7 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
                                     title={`Assigned Department (Responsible to fix)${isMine ? ' - YOUR DEPARTMENT' : ''}`}
                                 >
                                     <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: theme.bg }} />
-                                    <span>🎯</span> {dept} {isMine && <span className="text-[8px] uppercase tracking-wider bg-amber-500 text-black px-1 rounded-xs font-bold">You</span>}
+                                    <Target className="w-3 h-3 shrink-0" /> {dept} {isMine && <span className="text-[8px] uppercase tracking-wider bg-amber-500 text-black px-1 rounded-xs font-bold">You</span>}
                                 </span>
                             );
                         })}
@@ -691,7 +691,7 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
                                     title={`Origin Department (Discovered / Reported by)${isMine ? ' - YOUR DEPARTMENT' : ''}`}
                                 >
                                     <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: theme.bg }} />
-                                    <span>🏠</span> {issue.department} {isMine && <span className="text-[8px] uppercase tracking-wider bg-emerald-500 text-black px-1 rounded-xs font-bold">You</span>}
+                                    <FileText className="w-3 h-3 shrink-0" /> {issue.department} {isMine && <span className="text-[8px] uppercase tracking-wider bg-emerald-500 text-black px-1 rounded-xs font-bold">You</span>}
                                 </span>
                             );
                         })()}
@@ -712,7 +712,7 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
                                     title={`Tagged Department (Info / Notification only)${isMine ? ' - MENTIONED TO YOU!' : ''}`}
                                 >
                                     <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: theme.bg }} />
-                                    <span>📢</span> @{tag} {isMine && <span className="text-[8px] uppercase tracking-wider bg-indigo-500 text-white px-1 rounded-xs font-bold">You</span>}
+                                    <Megaphone className="w-3 h-3 shrink-0" /> @{tag} {isMine && <span className="text-[8px] uppercase tracking-wider bg-indigo-500 text-white px-1 rounded-xs font-bold">You</span>}
                                 </span>
                             );
                         })}

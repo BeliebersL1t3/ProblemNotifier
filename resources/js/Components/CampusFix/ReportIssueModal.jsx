@@ -20,7 +20,7 @@ import {
 } from '@/Components/UI/Select';
 import { ImageDropzone } from './ImageDropzone';
 import { useIssues } from '@/context/IssuesContext';
-import { Loader2, AlertTriangle, CalendarClock, Clock } from 'lucide-react';
+import { Loader2, AlertTriangle, CalendarClock, Clock, Target, FileText, Megaphone } from 'lucide-react';
 import { ALL_DEPARTMENTS, getStaffForDepartment, normalizeDepartment } from '@/constants/staff';
 import { getDepartmentTheme } from '@/constants/departments';
 import { useAuth } from '@/hooks/useAuth';
@@ -311,7 +311,9 @@ export function ReportIssueModal({ open, onOpenChange }) {
                     <div className="grid gap-2 p-3 rounded-lg border border-blue-500/30 bg-blue-500/5">
                         <div className="flex flex-col gap-0.5">
                             <Label htmlFor="originDept" className="text-blue-600 dark:text-blue-400 font-semibold flex items-center gap-1.5">
-                                🏠 1. Origin Department (Discovered By) <span className="text-xs text-destructive">*</span>
+                                <FileText className="w-4 h-4 shrink-0 text-blue-500" />
+                                <span>1. Origin Department (Discovered By)</span>
+                                <span className="text-xs text-destructive">*</span>
                             </Label>
                             <span className="text-xs text-muted-foreground">
                                 {isDeptUser 
@@ -477,7 +479,9 @@ export function ReportIssueModal({ open, onOpenChange }) {
                     <div className="grid gap-2 p-3 rounded-lg border border-amber-500/30 bg-amber-500/5">
                         <div className="flex flex-col gap-0.5">
                             <Label className="text-amber-600 dark:text-amber-400 font-semibold flex items-center gap-1.5">
-                                🎯 Assigned Department(s) <span className="text-xs text-destructive">*</span>
+                                <Target className="w-4 h-4 shrink-0 text-amber-500" />
+                                <span>Assigned Department(s)</span>
+                                <span className="text-xs text-destructive">*</span>
                             </Label>
                             <span className="text-xs text-muted-foreground">
                                 Select department(s) <strong>responsible for fixing / acting</strong> on this issue.
@@ -513,7 +517,9 @@ export function ReportIssueModal({ open, onOpenChange }) {
                     <div className="grid gap-2 p-3 rounded-lg border border-indigo-500/30 bg-indigo-500/5">
                         <div className="flex flex-col gap-0.5">
                             <Label className="text-indigo-600 dark:text-indigo-400 font-semibold flex items-center gap-1.5">
-                                📢 Tagged Department(s) <span className="text-xs font-normal text-muted-foreground">(Info / Awareness only - Optional)</span>
+                                <Megaphone className="w-4 h-4 shrink-0 text-indigo-500" />
+                                <span>Tagged Department(s)</span>
+                                <span className="text-xs font-normal text-muted-foreground">(Info / Awareness only - Optional)</span>
                             </Label>
                             <span className="text-xs text-muted-foreground">
                                 Notify other departments for situational awareness (e.g. tag GR if villa is under repair).

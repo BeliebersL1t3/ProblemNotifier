@@ -133,7 +133,7 @@ export function SolvedDetailModal({ issue, onClose }) {
                                         title="Assigned Department (Responsible to fix)"
                                     >
                                         <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: theme.bg }} />
-                                        🎯 {dept}
+                                        <Target className="w-3 h-3 shrink-0" /> {dept}
                                     </span>
                                 );
                             })}
@@ -150,7 +150,7 @@ export function SolvedDetailModal({ issue, onClose }) {
                                         title="Origin Department"
                                     >
                                         <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: theme.bg }} />
-                                        🏠 {issue.department}
+                                        <FileText className="w-3 h-3 shrink-0" /> {issue.department}
                                     </span>
                                 );
                             })()}
@@ -168,7 +168,7 @@ export function SolvedDetailModal({ issue, onClose }) {
                                         title="Tagged Department"
                                     >
                                         <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: theme.bg }} />
-                                        📢 @{tag}
+                                        <Megaphone className="w-3 h-3 shrink-0" /> @{tag}
                                     </span>
                                 );
                             })}

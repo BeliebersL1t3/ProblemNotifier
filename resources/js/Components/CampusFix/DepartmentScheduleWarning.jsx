@@ -1,5 +1,5 @@
 import React from 'react';
-import { CalendarClock, AlertCircle } from 'lucide-react';
+import { CalendarClock, AlertCircle, Target } from 'lucide-react';
 import { getDepartmentTheme } from '@/constants/departments';
 import { useLanguage } from '@/context/LanguageContext';
 
@@ -62,7 +62,7 @@ export function DepartmentScheduleWarning({ conflictsByDept = {}, className = ''
                                     }}
                                 >
                                     <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: theme.bg }} />
-                                    <span>🎯</span> {dept}
+                                    <Target className="w-3 h-3 shrink-0" /> {dept}
                                 </span>
                                 <span className="text-[11px] text-[#A19F8D]">
                                     ({tasks.length} {t('active_task')})

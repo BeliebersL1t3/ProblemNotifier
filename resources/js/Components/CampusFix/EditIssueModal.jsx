@@ -39,7 +39,9 @@ import {
     Lock,
     MapPin,
     Building,
-    RotateCcw
+    RotateCcw,
+    Target,
+    Megaphone
 } from 'lucide-react';
 import { ALL_DEPARTMENTS, getStaffForDepartment, getDepartmentForStaff, normalizeDepartment } from '@/constants/staff';
 import { getDepartmentTheme } from '@/constants/departments';
@@ -432,7 +434,10 @@ export function EditIssueModal({ issue, open, onOpenChange, onSuccess }) {
                     <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#2A281E] border border-[#3B3929] text-xs">
                         <div className="flex items-center gap-2">
                             <span className="text-muted-foreground">{lang === 'id' ? 'Origin Dept:' : 'Origin:'}</span>
-                            <span className="font-bold text-[#C9AA71]">🏠 {issue.department || 'General'}</span>
+                            <span className="font-bold text-[#C9AA71] flex items-center gap-1">
+                                <FileText className="w-3.5 h-3.5 shrink-0 text-[#C9AA71]" />
+                                {issue.department || 'General'}
+                            </span>
                         </div>
                         <div className="flex items-center gap-2">
                             <span className="text-muted-foreground">{lang === 'id' ? 'Pelapor:' : 'Reporter:'}</span>
@@ -709,8 +714,10 @@ export function EditIssueModal({ issue, open, onOpenChange, onSuccess }) {
                                 <div className="space-y-3">
                                     <div className="space-y-1.5">
                                         <div className="flex items-center justify-between">
-                                            <Label className="text-xs font-bold text-foreground flex items-center gap-1">
-                                                🎯 {lang === 'id' ? 'Departemen Ditugaskan (Wajib Perbaiki)' : 'Assigned Department'} <span className="text-red-400">*</span>
+                                            <Label className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                                                <Target className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                                                <span>{lang === 'id' ? 'Departemen Ditugaskan (Wajib Perbaiki)' : 'Assigned Department'}</span>
+                                                <span className="text-red-400">*</span>
                                             </Label>
                                             <span className="text-[10px] text-muted-foreground">{assignedDepts.length} {lang === 'id' ? 'dipilih' : 'selected'}</span>
                                         </div>
@@ -869,9 +876,19 @@ export function EditIssueModal({ issue, open, onOpenChange, onSuccess }) {
                                     <span className="text-[#C9AA71]">📍 {issue.location}</span>
                                 </div>
                                 <p className="text-foreground/80 font-sans text-xs italic">"{issue.description}"</p>
-                                <div className="flex items-center gap-2 pt-1 flex-wrap text-[11px]">
-                                    <span>🎯 Assigned: <strong className="text-foreground">{issue.assignedDepartments || '-'}</strong></span>
-                                    {issue.taggedDepartments && <span>🏷️ Tagged: <strong className="text-foreground">{issue.taggedDepartments}</strong></span>}
+                                <div className="flex items-center gap-3 pt-1 flex-wrap text-[11px]">
+                                    <span className="flex items-center gap-1">
+                                        <Target className="w-3 h-3 text-amber-400 shrink-0" />
+                                        <span>Assigned:</span>
+                                        <strong className="text-foreground">{issue.assignedDepartments || '-'}</strong>
+                                    </span>
+                                    {issue.taggedDepartments && (
+                                        <span className="flex items-center gap-1">
+                                            <Megaphone className="w-3 h-3 text-indigo-400 shrink-0" />
+                                            <span>Tagged:</span>
+                                            <strong className="text-foreground">{issue.taggedDepartments}</strong>
+                                        </span>
+                                    )}
                                 </div>
                             </div>
                         )}

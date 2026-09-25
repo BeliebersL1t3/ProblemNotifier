@@ -23,7 +23,7 @@ import { useIssues } from '@/context/IssuesContext';
 import { useLanguage } from '@/context/LanguageContext';
 import { 
     Loader2, AlertTriangle, Flame, HeartPulse, Zap, 
-    Droplets, Anchor, ShieldAlert, Camera
+    Droplets, Anchor, ShieldAlert, Camera, FileText
 } from 'lucide-react';
 import { ALL_DEPARTMENTS, getStaffForDepartment } from '@/constants/staff';
 import { getDepartmentTheme } from '@/constants/departments';
@@ -230,7 +230,9 @@ export function EmergencyIssueModal({ open, onOpenChange }) {
                     {/* Step 1: Origin Department */}
                     <div className="grid gap-2 p-3 rounded-xl border border-red-500/40 bg-red-950/30">
                         <Label htmlFor="sos-originDept" className="text-red-300 font-semibold flex items-center gap-1.5 text-xs sm:text-sm">
-                            🏠 1. Origin Department (Your Dept) <span className="text-xs text-red-400">*</span>
+                            <FileText className="w-4 h-4 shrink-0 text-red-400" />
+                            <span>1. Origin Department (Your Dept)</span>
+                            <span className="text-xs text-red-400">*</span>
                         </Label>
                         {isDeptUser && originDept ? (
                             <div className="flex items-center gap-2.5 p-2.5 rounded-lg bg-black/60 border border-red-900/50">

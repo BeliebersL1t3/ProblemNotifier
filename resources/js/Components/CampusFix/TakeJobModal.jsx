@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { Loader2, MapPin, X, ZoomIn } from 'lucide-react';
+import { Loader2, MapPin, X, ZoomIn, Target, FileText, Megaphone, User } from 'lucide-react';
 import { Button } from '@/Components/UI/Button';
 import { Label } from '@/Components/UI/Label';
 import { useIssues } from '@/context/IssuesContext';
@@ -220,18 +220,18 @@ export function TakeJobModal({ issue, onClose }) {
                                 </div>
                                 <div className="flex flex-wrap items-center gap-1.5">
                                     {assignedList.length > 0 && assignedList.map((dept, idx) => (
-                                        <span key={'assign-' + idx} className="shrink-0 rounded bg-amber-500/15 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 font-mono text-[10px] font-semibold border border-amber-500/30" title="Assigned Department (Responsible to fix)">
-                                            🎯 {dept}
+                                        <span key={'assign-' + idx} className="shrink-0 rounded bg-amber-500/15 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 font-mono text-[10px] font-semibold border border-amber-500/30 flex items-center gap-1" title="Assigned Department (Responsible to fix)">
+                                            <Target className="w-2.5 h-2.5 shrink-0" /> {dept}
                                         </span>
                                     ))}
                                     {issue.department && (
-                                        <span className="shrink-0 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 font-mono text-[10px] font-medium border border-blue-500/20" title="Origin Department">
-                                            🏠 {issue.department}
+                                        <span className="shrink-0 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 font-mono text-[10px] font-medium border border-blue-500/20 flex items-center gap-1" title="Origin Department">
+                                            <FileText className="w-2.5 h-2.5 shrink-0" /> {issue.department}
                                         </span>
                                     )}
                                     {taggedList.length > 0 && taggedList.map((tag, idx) => (
-                                        <span key={'tag-' + idx} className="shrink-0 rounded bg-purple-500/10 text-purple-600 dark:text-purple-400 px-1.5 py-0.5 font-mono text-[10px] font-medium border border-purple-500/20" title="Tagged Department">
-                                            📢 @{tag}
+                                        <span key={'tag-' + idx} className="shrink-0 rounded bg-purple-500/10 text-purple-600 dark:text-purple-400 px-1.5 py-0.5 font-mono text-[10px] font-medium border border-purple-500/20 flex items-center gap-1" title="Tagged Department">
+                                            <Megaphone className="w-2.5 h-2.5 shrink-0" /> @{tag}
                                         </span>
                                     ))}
                                     
@@ -289,13 +289,13 @@ export function TakeJobModal({ issue, onClose }) {
                                             }}
                                         >
                                             <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: dTheme.bg }} />
-                                            <span>🎯</span> {department}
+                                            <Target className="w-3.5 h-3.5 shrink-0" /> {department}
                                         </span>
                                     </div>
                                     <div className="flex items-center justify-between pt-2.5 border-t border-[#3B3929]/70">
                                         <span className="text-xs font-semibold text-[#A19F8D]">{t('staff_name')}</span>
                                         <span className="px-3 py-1 rounded-full text-xs font-bold bg-[#C9AA71]/15 text-[#E3D1AA] border border-[#C9AA71]/40 flex items-center gap-1.5 shadow-sm">
-                                            <span>👤</span> {staffName || selectedStaff || 'Staff'}
+                                            <User className="w-3.5 h-3.5 shrink-0" /> {staffName || selectedStaff || 'Staff'}
                                         </span>
                                     </div>
                                 </div>

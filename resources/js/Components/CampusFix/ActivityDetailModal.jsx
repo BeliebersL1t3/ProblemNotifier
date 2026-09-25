@@ -613,7 +613,7 @@ export function ActivityDetailModal({ issue, onClose, onOpenCardModal, onEdit, o
                                             <Building className="w-4 h-4 text-[#C9AA71] shrink-0 mt-0.5" />
                                             <div>
                                                 <p className="text-muted-foreground">{lang === 'id' ? 'Departemen Pelapor (Origin)' : 'Origin Department'}</p>
-                                                <p className="font-bold text-foreground text-sm">🏠 {step.data.originDept}</p>
+                                                <p className="font-bold text-foreground text-sm">{step.data.originDept}</p>
                                             </div>
                                         </div>
 

@@ -5,7 +5,7 @@ import {
     Loader2, Wrench, Sparkles, Laptop, Anchor, ShieldAlert, Utensils, Building, Hammer, Zap,
     Droplets, Building2, Bug, Tag, User, HelpCircle, Download, AlertTriangle, Layers, Database, Clock, CheckSquare, Check, Eye, ChevronRight,
     ClipboardList, PauseCircle, CheckCircle2, Filter, SlidersHorizontal, ChevronDown, ChevronUp, Archive,
-    Calendar
+    Calendar, Target, FileText, Megaphone, Globe
 } from 'lucide-react';
 import anime from 'animejs';
 import {
@@ -1707,17 +1707,17 @@ function AnalyticsInner() {
                                 <p className="text-xs text-muted-foreground mt-0.5">
                                     {isDeptUser ? (
                                         <>
-                                            {deptFilterMode === 'assigned' && (lang === 'id' ? `📥 Departemen asal yang meminta bantuan / menugaskan tiket kepada ${department}` : `📥 Origin departments requesting help from / assigned to ${department}`)}
-                                            {deptFilterMode === 'origin' && (lang === 'id' ? `📤 Departemen tujuan yang ditugaskan untuk memperbaiki tiket dari ${department}` : `📤 Target departments assigned to fix issues reported by ${department}`)}
-                                            {deptFilterMode === 'tagged' && (lang === 'id' ? `📢 Departemen terkait pada tiket di mana ${department} ditandai (CC)` : `📢 Partner departments on tickets where ${department} is tagged (CC)`)}
-                                            {deptFilterMode === 'all' && (lang === 'id' ? `🌐 Seluruh departemen yang berinteraksi dengan ${department} (tugas masuk, keluar, dan tag)` : `🌐 All departments interacting with ${department} (incoming, outgoing, and tagged)`)}
+                                            {deptFilterMode === 'assigned' && (lang === 'id' ? `Departemen asal yang meminta bantuan / menugaskan tiket kepada ${department}` : `Origin departments requesting help from / assigned to ${department}`)}
+                                            {deptFilterMode === 'origin' && (lang === 'id' ? `Departemen tujuan yang ditugaskan untuk memperbaiki tiket dari ${department}` : `Target departments assigned to fix issues reported by ${department}`)}
+                                            {deptFilterMode === 'tagged' && (lang === 'id' ? `Departemen terkait pada tiket di mana ${department} ditandai (CC)` : `Partner departments on tickets where ${department} is tagged (CC)`)}
+                                            {deptFilterMode === 'all' && (lang === 'id' ? `Seluruh departemen yang berinteraksi dengan ${department} (tugas masuk, keluar, dan tag)` : `All departments interacting with ${department} (incoming, outgoing, and tagged)`)}
                                         </>
                                     ) : (
                                         <>
-                                            {deptFilterMode === 'assigned' && (lang === 'id' ? '🎯 Beban perbaikan: Jumlah tiket yang ditugaskan ke tiap departemen di resort' : '🎯 Repair workload: Total issues assigned to each department in the resort')}
-                                            {deptFilterMode === 'origin' && (lang === 'id' ? '🏠 Volume pelaporan: Jumlah tiket yang dilaporkan oleh tiap departemen' : '🏠 Reporting volume: Total issues discovered and reported by each department')}
-                                            {deptFilterMode === 'tagged' && (lang === 'id' ? '📢 Koordinasi: Departemen yang paling sering ditandai (CC)' : '📢 Coordination: Departments most frequently tagged (CC)')}
-                                            {deptFilterMode === 'all' && (lang === 'id' ? '🌐 Total keterlibatan: Gabungan seluruh peran departemen di resort' : '🌐 Total involvement: Combined department activity across the resort')}
+                                            {deptFilterMode === 'assigned' && (lang === 'id' ? 'Beban perbaikan: Jumlah tiket yang ditugaskan ke tiap departemen di resort' : 'Repair workload: Total issues assigned to each department in the resort')}
+                                            {deptFilterMode === 'origin' && (lang === 'id' ? 'Volume pelaporan: Jumlah tiket yang dilaporkan oleh tiap departemen' : 'Reporting volume: Total issues discovered and reported by each department')}
+                                            {deptFilterMode === 'tagged' && (lang === 'id' ? 'Koordinasi: Departemen yang paling sering ditandai (CC)' : 'Coordination: Departments most frequently tagged (CC)')}
+                                            {deptFilterMode === 'all' && (lang === 'id' ? 'Total keterlibatan: Gabungan seluruh peran departemen di resort' : 'Total involvement: Combined department activity across the resort')}
                                         </>
                                     )}
                                 </p>
@@ -1730,39 +1730,42 @@ function AnalyticsInner() {
                                         <button
                                             type="button"
                                             onClick={() => setDeptFilterMode('assigned')}
-                                            className={`px-2.5 py-1 rounded text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1 ${
+                                            className={`px-2.5 py-1 rounded text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
                                                 deptFilterMode === 'assigned'
                                                     ? 'bg-[#C9AA71] text-[#1C1B0E] font-bold shadow-sm'
                                                     : 'text-muted-foreground hover:text-foreground'
                                             }`}
                                         >
-                                            {isDeptUser ? `📥 ${t('dept_mode_incoming')}` : `🎯 ${t('dept_mode_assigned')}`}
+                                            <Target className="w-3.5 h-3.5 shrink-0" />
+                                            <span>{isDeptUser ? t('dept_mode_incoming') : t('dept_mode_assigned')}</span>
                                         </button>
                                     </Tooltip>
                                     <Tooltip content={isDeptUser ? t('tooltip_outgoing_dept') : t('tooltip_origin_dept')} position="top">
                                         <button
                                             type="button"
                                             onClick={() => setDeptFilterMode('origin')}
-                                            className={`px-2.5 py-1 rounded text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1 ${
+                                            className={`px-2.5 py-1 rounded text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
                                                 deptFilterMode === 'origin'
                                                     ? 'bg-[#C9AA71] text-[#1C1B0E] font-bold shadow-sm'
                                                     : 'text-muted-foreground hover:text-foreground'
                                             }`}
                                         >
-                                            {isDeptUser ? `📤 ${t('dept_mode_outgoing')}` : `🏠 ${t('dept_mode_origin')}`}
+                                            <FileText className="w-3.5 h-3.5 shrink-0" />
+                                            <span>{isDeptUser ? t('dept_mode_outgoing') : t('dept_mode_origin')}</span>
                                         </button>
                                     </Tooltip>
                                     <Tooltip content={t('tooltip_tagged_dept')} position="top">
                                         <button
                                             type="button"
                                             onClick={() => setDeptFilterMode('tagged')}
-                                            className={`px-2.5 py-1 rounded text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1 ${
+                                            className={`px-2.5 py-1 rounded text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
                                                 deptFilterMode === 'tagged'
                                                     ? 'bg-[#C9AA71] text-[#1C1B0E] font-bold shadow-sm'
                                                     : 'text-muted-foreground hover:text-foreground'
                                             }`}
                                         >
-                                            📢 {t('dept_mode_tagged')}
+                                            <Megaphone className="w-3.5 h-3.5 shrink-0" />
+                                            <span>{t('dept_mode_tagged')}</span>
                                         </button>
                                     </Tooltip>
                                     {!isDeptUser && (
@@ -1770,13 +1773,14 @@ function AnalyticsInner() {
                                             <button
                                                 type="button"
                                                 onClick={() => setDeptFilterMode('all')}
-                                                className={`px-2.5 py-1 rounded text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1 ${
+                                                className={`px-2.5 py-1 rounded text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
                                                     deptFilterMode === 'all'
                                                         ? 'bg-[#C9AA71] text-[#1C1B0E] font-bold shadow-sm'
                                                         : 'text-muted-foreground hover:text-foreground'
                                                 }`}
                                             >
-                                                🌐 {t('dept_mode_all')}
+                                                <Globe className="w-3.5 h-3.5 shrink-0" />
+                                                <span>{t('dept_mode_all')}</span>
                                             </button>
                                         </Tooltip>
                                     )}
@@ -2171,13 +2175,17 @@ function AnalyticsInner() {
                             })}
 
                             {selectedDepartmentFilters.map(dept => {
-                                let modePrefix = lang === 'id' ? '🎯 Ditugaskan' : '🎯 Assigned';
+                                let modePrefix = lang === 'id' ? 'Ditugaskan' : 'Assigned';
+                                let ModeIcon = Target;
                                 if (deptFilterMode === 'origin') {
-                                    modePrefix = lang === 'id' ? '🏠 Asal' : '🏠 Origin';
+                                    modePrefix = lang === 'id' ? 'Asal' : 'Origin';
+                                    ModeIcon = FileText;
                                 } else if (deptFilterMode === 'tagged') {
-                                    modePrefix = lang === 'id' ? '📢 Ditandai' : '📢 Tagged';
+                                    modePrefix = lang === 'id' ? 'Ditandai' : 'Tagged';
+                                    ModeIcon = Megaphone;
                                 } else if (deptFilterMode === 'all') {
-                                    modePrefix = lang === 'id' ? '🌐 Terkait' : '🌐 Related';
+                                    modePrefix = lang === 'id' ? 'Terkait' : 'Related';
+                                    ModeIcon = Globe;
                                 }
                                 const theme = getDepartmentTheme(dept);
 
@@ -2195,6 +2203,7 @@ function AnalyticsInner() {
                                             className="h-2 w-2 rounded-full shrink-0 border border-white/30" 
                                             style={{ backgroundColor: theme.bg }}
                                         />
+                                        <ModeIcon className="w-3.5 h-3.5 shrink-0" />
                                         <span>{modePrefix}: {dept}</span>
                                         <button 
                                             type="button" 
@@ -2356,47 +2365,51 @@ function AnalyticsInner() {
                                         <button
                                             type="button"
                                             onClick={() => setDeptFilterMode('assigned')}
-                                            className={`px-2.5 py-1 rounded-md font-semibold transition-all cursor-pointer flex items-center gap-1 ${
+                                            className={`px-2.5 py-1 rounded-md font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
                                                 deptFilterMode === 'assigned'
                                                     ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-sm font-bold'
                                                     : 'text-muted-foreground hover:text-foreground'
                                             }`}
                                         >
-                                            {isDeptUser ? `📥 ${t('dept_mode_incoming')}` : `🎯 ${t('dept_mode_assigned')}`}
+                                            <Target className="w-3.5 h-3.5 shrink-0" />
+                                            <span>{isDeptUser ? t('dept_mode_incoming') : t('dept_mode_assigned')}</span>
                                         </button>
                                         <button
                                             type="button"
                                             onClick={() => setDeptFilterMode('origin')}
-                                            className={`px-2.5 py-1 rounded-md font-semibold transition-all cursor-pointer flex items-center gap-1 ${
+                                            className={`px-2.5 py-1 rounded-md font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
                                                 deptFilterMode === 'origin'
                                                     ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-sm font-bold'
                                                     : 'text-muted-foreground hover:text-foreground'
                                             }`}
                                         >
-                                            {isDeptUser ? `📤 ${t('dept_mode_outgoing')}` : `🏠 ${t('dept_mode_origin')}`}
+                                            <FileText className="w-3.5 h-3.5 shrink-0" />
+                                            <span>{isDeptUser ? t('dept_mode_outgoing') : t('dept_mode_origin')}</span>
                                         </button>
                                         <button
                                             type="button"
                                             onClick={() => setDeptFilterMode('tagged')}
-                                            className={`px-2.5 py-1 rounded-md font-semibold transition-all cursor-pointer flex items-center gap-1 ${
+                                            className={`px-2.5 py-1 rounded-md font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
                                                 deptFilterMode === 'tagged'
                                                     ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-sm font-bold'
                                                     : 'text-muted-foreground hover:text-foreground'
                                             }`}
                                         >
-                                            📢 {t('dept_mode_tagged')}
+                                            <Megaphone className="w-3.5 h-3.5 shrink-0" />
+                                            <span>{t('dept_mode_tagged')}</span>
                                         </button>
                                         {!isDeptUser && (
                                             <button
                                                 type="button"
                                                 onClick={() => setDeptFilterMode('all')}
-                                                className={`px-2.5 py-1 rounded-md font-semibold transition-all cursor-pointer flex items-center gap-1 ${
+                                                className={`px-2.5 py-1 rounded-md font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
                                                     deptFilterMode === 'all'
                                                         ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-sm font-bold'
                                                         : 'text-muted-foreground hover:text-foreground'
                                                 }`}
                                             >
-                                                🌐 {t('dept_mode_all')}
+                                                <Globe className="w-3.5 h-3.5 shrink-0" />
+                                                <span>{t('dept_mode_all')}</span>
                                             </button>
                                         )}
                                     </div>
