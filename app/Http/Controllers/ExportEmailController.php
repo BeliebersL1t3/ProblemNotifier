@@ -167,6 +167,7 @@ class ExportEmailController extends Controller
                     'senderDepartment' => $senderDept,
                     'reportMeta'       => $reportMeta,
                     'pdfFilename'      => $originalFilename,
+                    'excelFilename'    => null,
                 ])->render();
 
                 $this->gmailApiService->sendEmail(

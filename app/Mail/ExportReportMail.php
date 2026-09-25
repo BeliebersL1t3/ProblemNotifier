@@ -40,7 +40,7 @@ class ExportReportMail extends Mailable
         ?string $senderEmail = null,
         bool $isNoReply = false,
         $excelFile = null,
-        ?string $excelFilename = 'Telunas_Report.xlsx'
+        ?string $excelFilename = null
     ) {
         $this->emailSubject = $emailSubject;
         $this->customMessage = $customMessage;
@@ -52,7 +52,7 @@ class ExportReportMail extends Mailable
         $this->pdfFilename = $pdfFilename;
         $this->isNoReply = $isNoReply;
         $this->excelFile = $excelFile;
-        $this->excelFilename = $excelFilename;
+        $this->excelFilename = $excelFile ? ($excelFilename ?: 'Telunas_Report.xlsx') : null;
     }
 
     /**

@@ -81,4 +81,36 @@ class ExportEmailOptimizationTest extends TestCase
             ]
         ]);
     }
+
+    public function test_calendar_report_email_template_renders_calendar_specific_kpis_and_no_phantom_excel(): void
+    {
+        $view = view('emails.export_report', [
+            'emailSubject'     => '[Telunas Schedule] Operations Calendar Report - September 2026',
+            'customMessage'    => 'Please review the shift schedule.',
+            'senderName'       => 'Admin Telunas',
+            'senderDepartment' => 'Operations',
+            'reportMeta'       => [
+                'type'        => 'calendar',
+                'period'      => 'September 2026',
+                'locations'   => ['TPI', 'TBR'],
+                'departments' => ['Engineer', 'Kitchen'],
+                'total_tasks' => 42,
+            ],
+            'pdfFilename'      => 'Telunas_Calendar_Report_2026-09-25.pdf',
+            'excelFilename'    => null,
+        ])->render();
+
+        $this->assertStringContainsString('OPERATIONS CALENDAR', $view);
+        $this->assertStringContainsString('RESORT SCHEDULE REPORT', $view);
+        $this->assertStringContainsString('Total Scheduled Tasks', $view);
+        $this->assertStringContainsString('42', $view);
+        $this->assertStringContainsString('Location Scope', $view);
+        $this->assertStringContainsString('TPI, TBR', $view);
+        $this->assertStringContainsString('September 2026', $view);
+        $this->assertStringContainsString('Calendar Dispatch Details', $view);
+        $this->assertStringContainsString('Official Operations Calendar Schedule (PDF)', $view);
+        $this->assertStringNotContainsString('Total Issues', $view);
+        $this->assertStringNotContainsString('Telunas_Report.xlsx', $view);
+    }
 }
+

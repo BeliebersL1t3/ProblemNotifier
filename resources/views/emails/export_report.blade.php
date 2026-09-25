@@ -11,7 +11,9 @@
     if (!$logoUrl) {
         $logoUrl = 'cid:telunas-logo';
     }
-    $reportRef = 'TEL-CF-' . date('Ymd') . '-' . strtoupper(substr(md5($emailSubject . microtime()), 0, 4));
+    $isCalendar = ($reportMeta['type'] ?? '') === 'calendar' || str_contains(strtolower($emailSubject), 'calendar') || str_contains(strtolower($emailSubject), 'schedule');
+    $refPrefix = $isCalendar ? 'TEL-CAL-' : 'TEL-CF-';
+    $reportRef = $refPrefix . date('Ymd') . '-' . strtoupper(substr(md5($emailSubject . microtime()), 0, 4));
 @endphp
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en">
@@ -61,7 +63,11 @@
                                             TELUNAS RESORTS
                                         </h1>
                                         <div style="font-size: 11px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: #9A7B3E;">
-                                            CAMPUSFIX &bull; FACILITY &amp; ISSUE TRACKER REPORT
+                                            @if($isCalendar)
+                                                OPERATIONS CALENDAR &bull; RESORT SCHEDULE REPORT
+                                            @else
+                                                CAMPUSFIX &bull; FACILITY &amp; ISSUE TRACKER REPORT
+                                            @endif
                                         </div>
                                     </td>
                                 </tr>
@@ -113,7 +119,59 @@
                             </table>
                             @endif
 
-                            <!-- KPI / Metric Highlights (2 Cards side by side) -->
+                            @if($isCalendar)
+                            <!-- Calendar KPI / Metric Highlights (2 Cards side by side) -->
+                            <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom: 20px;">
+                                <tr>
+                                    <!-- Total Scheduled Tasks KPI Tile -->
+                                    <td class="kpi-col" width="48%" valign="top">
+                                        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" class="kpi-col-table" style="background-color: #FDFBF7; border: 1px solid #ECE4D5; border-radius: 8px; padding: 14px 16px;">
+                                            <tr>
+                                                <td>
+                                                    <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: #8C8270; margin-bottom: 4px;">
+                                                        Total Scheduled Tasks
+                                                    </div>
+                                                    <div style="font-size: 26px; font-weight: 800; color: #8F6F30; line-height: 1;">
+                                                        {{ $reportMeta['total_tasks'] ?? 0 }}
+                                                    </div>
+                                                    <div style="font-size: 11px; color: #6B7280; margin-top: 4px;">
+                                                        Work orders in schedule scope
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                    
+                                    <td class="kpi-col" width="4%" style="font-size: 1px; line-height: 1px;">&nbsp;</td>
+
+                                    <!-- Location Scope & Period Tile -->
+                                    <td class="kpi-col" width="48%" valign="top">
+                                        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" class="kpi-col-table" style="background-color: #FDFBF7; border: 1px solid #ECE4D5; border-radius: 8px; padding: 14px 16px;">
+                                            <tr>
+                                                <td>
+                                                    <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: #8C8270; margin-bottom: 4px;">
+                                                        Location Scope
+                                                    </div>
+                                                    @php
+                                                        $locs = $reportMeta['locations'] ?? [];
+                                                        $locLabel = is_array($locs) ? (count($locs) >= 3 ? 'All Locations' : implode(', ', $locs)) : ($locs ?: 'All Locations');
+                                                    @endphp
+                                                    <div style="font-size: 15px; font-weight: 700; color: #1F2937;">
+                                                        <span style="display: inline-block; background-color: #ECE5D8; color: #4A3E2C; padding: 3px 10px; border-radius: 4px; font-size: 12px; font-weight: 700; letter-spacing: 0.5px;">
+                                                            {{ $locLabel }}
+                                                        </span>
+                                                    </div>
+                                                    <div style="font-size: 11px; color: #6B7280; margin-top: 6px;">
+                                                        Period: <strong>{{ $reportMeta['period'] ?? 'Current Month' }}</strong>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                            </table>
+                            @else
+                            <!-- Issue Tracker KPI / Metric Highlights (2 Cards side by side) -->
                             <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom: 20px;">
                                 <tr>
                                     <!-- Total Issues KPI Tile -->
@@ -154,7 +212,7 @@
                                                             'my_reports' => 'My Reports',
                                                             'mentions'   => 'Mentions',
                                                         ];
-                                                        $scopeLabel = $scopeMap[$rawScope] ?? ucwords(str_replace('_', ' ', $reportMeta['scope']));
+                                                        $scopeLabel = $scopeMap[$rawScope] ?? ucwords(str_replace('_', ' ', $reportMeta['scope'] ?? 'All'));
                                                     @endphp
                                                     <div style="font-size: 15px; font-weight: 700; color: #1F2937;">
                                                         <span style="display: inline-block; background-color: #ECE5D8; color: #4A3E2C; padding: 3px 10px; border-radius: 4px; font-size: 12px; font-weight: 700; letter-spacing: 0.5px;">
@@ -170,12 +228,13 @@
                                     </td>
                                 </tr>
                             </table>
+                            @endif
 
                             <!-- Detailed Audit Metadata Table -->
                             <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #FFFFFF; border: 1px solid #EBE6DC; border-radius: 8px; margin-bottom: 24px; overflow: hidden;">
                                 <tr>
                                     <td style="padding: 10px 16px; background-color: #FAF8F5; border-bottom: 1px solid #EBE6DC; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #7C7465;">
-                                        Audit Dispatch Details
+                                        {{ $isCalendar ? 'Calendar Dispatch Details' : 'Audit Dispatch Details' }}
                                     </td>
                                 </tr>
                                 <tr>
@@ -193,13 +252,40 @@
                                                     {{ now()->format('d M Y, H:i') }}
                                                 </td>
                                             </tr>
-                                            @if(!empty($reportMeta['sheets']))
-                                            <tr>
-                                                <td style="padding: 5px 0; font-size: 13px; color: #6B7280; border-top: 1px solid #F3EFE6;">Sheet / Period</td>
-                                                <td style="padding: 5px 0; font-size: 13px; color: #1F2937; font-weight: 600; text-align: right; border-top: 1px solid #F3EFE6;">
-                                                    {{ is_array($reportMeta['sheets']) ? implode(', ', $reportMeta['sheets']) : $reportMeta['sheets'] }}
-                                                </td>
-                                            </tr>
+                                            @if($isCalendar)
+                                                @if(!empty($reportMeta['period']))
+                                                <tr>
+                                                    <td style="padding: 5px 0; font-size: 13px; color: #6B7280; border-top: 1px solid #F3EFE6;">Schedule Period</td>
+                                                    <td style="padding: 5px 0; font-size: 13px; color: #1F2937; font-weight: 600; text-align: right; border-top: 1px solid #F3EFE6;">
+                                                        {{ $reportMeta['period'] }}
+                                                    </td>
+                                                </tr>
+                                                @endif
+                                                @if(!empty($reportMeta['locations']))
+                                                <tr>
+                                                    <td style="padding: 5px 0; font-size: 13px; color: #6B7280; border-top: 1px solid #F3EFE6;">Location Scope</td>
+                                                    <td style="padding: 5px 0; font-size: 13px; color: #1F2937; font-weight: 600; text-align: right; border-top: 1px solid #F3EFE6;">
+                                                        {{ is_array($reportMeta['locations']) ? implode(', ', $reportMeta['locations']) : $reportMeta['locations'] }}
+                                                    </td>
+                                                </tr>
+                                                @endif
+                                                @if(!empty($reportMeta['departments']))
+                                                <tr>
+                                                    <td style="padding: 5px 0; font-size: 13px; color: #6B7280; border-top: 1px solid #F3EFE6;">Departments</td>
+                                                    <td style="padding: 5px 0; font-size: 13px; color: #1F2937; font-weight: 600; text-align: right; border-top: 1px solid #F3EFE6;">
+                                                        {{ is_array($reportMeta['departments']) ? (count($reportMeta['departments']) >= 15 ? 'All Departments' : implode(', ', $reportMeta['departments'])) : $reportMeta['departments'] }}
+                                                    </td>
+                                                </tr>
+                                                @endif
+                                            @else
+                                                @if(!empty($reportMeta['sheets']))
+                                                <tr>
+                                                    <td style="padding: 5px 0; font-size: 13px; color: #6B7280; border-top: 1px solid #F3EFE6;">Sheet / Period</td>
+                                                    <td style="padding: 5px 0; font-size: 13px; color: #1F2937; font-weight: 600; text-align: right; border-top: 1px solid #F3EFE6;">
+                                                        {{ is_array($reportMeta['sheets']) ? implode(', ', $reportMeta['sheets']) : $reportMeta['sheets'] }}
+                                                    </td>
+                                                </tr>
+                                                @endif
                                             @endif
                                         </table>
                                     </td>
@@ -229,7 +315,11 @@
                                                         {{ $pdfFilename }}
                                                     </div>
                                                     <div style="font-size: 11px; color: #6B7280; margin-top: 2px;">
-                                                        Official Telunas Audit Document &bull; Attached to this email
+                                                        @if($isCalendar)
+                                                            Official Operations Calendar Schedule (PDF) &bull; Attached to this email
+                                                        @else
+                                                            Official Telunas Audit Document &bull; Attached to this email
+                                                        @endif
                                                     </div>
                                                 </td>
                                             </tr>
@@ -274,7 +364,11 @@
 
                             <!-- Archival & Viewing Instructions -->
                             <p style="margin: 0; font-size: 13px; color: #6B7280; line-height: 1.55;">
-                                The full detailed report has been compiled and securely attached to this email according to your subscription preferences for your review, analysis, and records.
+                                @if($isCalendar)
+                                    The official operations calendar schedule report has been compiled and securely attached as a PDF to this email for your operational planning, shift coordination, and review.
+                                @else
+                                    The full detailed report has been compiled and securely attached to this email according to your subscription preferences for your review, analysis, and records.
+                                @endif
                             </p>
 
                         </td>
