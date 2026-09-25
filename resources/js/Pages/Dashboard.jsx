@@ -848,61 +848,70 @@ function DashboardInner() {
                                 <button
                                     type="button"
                                     onClick={() => setDeptViewMode('all')}
-                                    className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
+                                    title={t('all_my_scope')}
+                                    className={`px-2 sm:px-2.5 py-1.5 sm:py-1 rounded-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
                                         deptViewMode === 'all'
                                             ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-sm font-extrabold'
                                             : 'text-muted-foreground hover:text-foreground'
                                     }`}
                                 >
-                                    🌐 {t('all_my_scope')}
+                                    <span>🌐</span>
+                                    <span className="hidden sm:inline">{t('all_my_scope')}</span>
                                 </button>
                                 <button
                                     type="button"
                                     onClick={() => setDeptViewMode('assigned')}
-                                    className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
+                                    title={t('to_fix')}
+                                    className={`px-2 sm:px-2.5 py-1.5 sm:py-1 rounded-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
                                         deptViewMode === 'assigned'
                                             ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-sm font-extrabold'
                                             : 'text-muted-foreground hover:text-foreground'
                                     }`}
                                 >
-                                    🎯 {t('to_fix')}
+                                    <span>🎯</span>
+                                    <span className="hidden sm:inline">{t('to_fix')}</span>
                                 </button>
                                 <button
                                     type="button"
                                     onClick={() => setDeptViewMode('origin')}
-                                    className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
+                                    title={t('reported_by_me')}
+                                    className={`px-2 sm:px-2.5 py-1.5 sm:py-1 rounded-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
                                         deptViewMode === 'origin'
                                             ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-sm font-extrabold'
                                             : 'text-muted-foreground hover:text-foreground'
                                     }`}
                                 >
-                                    🏠 {t('reported_by_me')}
+                                    <span>🏠</span>
+                                    <span className="hidden sm:inline">{t('reported_by_me')}</span>
                                 </button>
                                 <button
                                     type="button"
                                     onClick={() => setDeptViewMode('tagged')}
-                                    className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
+                                    title={t('mentioned_me')}
+                                    className={`px-2 sm:px-2.5 py-1.5 sm:py-1 rounded-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
                                         deptViewMode === 'tagged'
                                             ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-sm font-extrabold'
                                             : 'text-muted-foreground hover:text-foreground'
                                     }`}
                                 >
-                                    📢 {t('mentioned_me')}
+                                    <span>📢</span>
+                                    <span className="hidden sm:inline">{t('mentioned_me')}</span>
                                 </button>
                                 {pastContribCount > 0 && (
                                     <button
                                         type="button"
                                         onClick={() => setDeptViewMode('past_contributions')}
-                                        className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                                        className={`px-2 sm:px-2.5 py-1.5 sm:py-1 rounded-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
                                             deptViewMode === 'past_contributions'
                                                 ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-sm font-extrabold'
                                                 : 'text-muted-foreground hover:text-foreground'
                                         }`}
                                         title={lang === 'id' 
-                                            ? `Menampilkan ${pastContribCount} isu riwayat kontribusi dari departemen Anda sebelumnya` 
-                                            : `Shows ${pastContribCount} past contribution issue(s) from your former department(s)`}
+                                            ? `Riwayat Kontribusi (${pastContribCount} isu)` 
+                                            : `Past Contributions (${pastContribCount} issues)`}
                                     >
-                                        <span>🔒 {lang === 'id' ? 'Riwayat Kontribusi' : 'Past Contributions'}</span>
+                                        <span>🔒</span>
+                                        <span className="hidden sm:inline">{lang === 'id' ? 'Riwayat' : 'Past Contributions'}</span>
                                         <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
                                             deptViewMode === 'past_contributions'
                                                 ? 'bg-[#1C1B0E] text-[#C9AA71]'
@@ -916,16 +925,17 @@ function DashboardInner() {
                                     <button
                                         type="button"
                                         onClick={() => setDeptViewMode('reassign_needed')}
-                                        className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                                        className={`px-2 sm:px-2.5 py-1.5 sm:py-1 rounded-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
                                             deptViewMode === 'reassign_needed'
                                                 ? 'bg-amber-500 text-black shadow-sm font-extrabold'
                                                 : 'text-amber-400 hover:text-amber-300 hover:bg-amber-500/10'
                                         }`}
                                         title={lang === 'id' 
-                                            ? `Menampilkan ${reassignNeededCount} isu aktif yang ditangani staf yang telah mutasi ke departemen lain` 
-                                            : `Shows ${reassignNeededCount} active issue(s) handled by staff who transferred department`}
+                                            ? `Staf Mutasi (${reassignNeededCount} isu)` 
+                                            : `Transferred Staff (${reassignNeededCount} issues)`}
                                     >
-                                        <span>🔄 {lang === 'id' ? 'Staf Mutasi' : 'Transferred Staff'}</span>
+                                        <span>🔄</span>
+                                        <span className="hidden sm:inline">{lang === 'id' ? 'Staf Mutasi' : 'Transferred Staff'}</span>
                                         <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
                                             deptViewMode === 'reassign_needed'
                                                 ? 'bg-black text-amber-400'
