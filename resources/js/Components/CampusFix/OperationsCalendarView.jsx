@@ -4,7 +4,7 @@ import {
     CheckCircle2, Plus, MapPin, ZoomIn, CheckCheck,
     Edit2, Trash2, Building2, Check, ChevronDown, Search, X,
     MousePointerClick, Sparkles, User, StickyNote, Layers, AlertTriangle,
-    RotateCcw, Loader2, SlidersHorizontal, FileText
+    RotateCcw, Loader2, SlidersHorizontal, FileText, Eye, EyeOff
 } from 'lucide-react';
 import { getDepartmentTheme } from '@/constants/departments';
 import { ALL_DEPARTMENTS, normalizeDepartment } from '@/constants/staff';
@@ -448,6 +448,20 @@ export function OperationsCalendarView({
     const [currentMonth, setCurrentMonth] = useState(() => new Date());
     const [selectedDateStr, setSelectedDateStr] = useState(todayStr);
     const [statusFilter, setStatusFilter] = useState('all'); // 'all' | 'active' | 'done'
+    const [hideCompleted, setHideCompleted] = useState(() => {
+        try {
+            const saved = localStorage.getItem('ops_calendar_hide_completed');
+            return saved !== null ? JSON.parse(saved) : false;
+        } catch {
+            return false;
+        }
+    });
+
+    useEffect(() => {
+        try {
+            localStorage.setItem('ops_calendar_hide_completed', JSON.stringify(hideCompleted));
+        } catch {}
+    }, [hideCompleted]);
     const [hoveredTask, setHoveredTask] = useState(null);
     const [hoveredMore, setHoveredMore] = useState(null);
     const [activeCardHighlightId, setActiveCardHighlightId] = useState(null);
@@ -562,14 +576,18 @@ export function OperationsCalendarView({
 
     // Filter strictly manual department tasks
     const allTasks = useMemo(() => {
+        let list = rawTaskList;
+        if (hideCompleted) {
+            return list.filter(item => item.status !== 'done');
+        }
         if (statusFilter === 'active') {
-            return rawTaskList.filter(item => item.status === 'active');
+            return list.filter(item => item.status !== 'done');
         }
         if (statusFilter === 'done') {
-            return rawTaskList.filter(item => item.status === 'done');
+            return list.filter(item => item.status === 'done');
         }
-        return rawTaskList;
-    }, [rawTaskList, statusFilter]);
+        return list;
+    }, [rawTaskList, hideCompleted, statusFilter]);
 
     // Compute all active dates for the highlighted task (after allTasks is declared)
     const activeHighlightedTask = useMemo(() => {
@@ -985,13 +1003,44 @@ export function OperationsCalendarView({
                         </div>
                     ) : null}
 
+                    {/* Hide Completed Tasks Quick Toggle */}
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setHideCompleted(prev => {
+                                const nextVal = !prev;
+                                if (nextVal && statusFilter === 'done') {
+                                    setStatusFilter('all');
+                                }
+                                return nextVal;
+                            });
+                        }}
+                        className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer shadow-xs ${
+                            hideCompleted
+                                ? 'bg-amber-500/20 text-amber-300 border-amber-500/60 shadow-md ring-1 ring-amber-500/30 font-extrabold'
+                                : 'bg-[#1C1B0E] text-[#A19F8D] border-[#3B3929] hover:border-[#C9AA71]/60 hover:text-[#FAFAFA]'
+                        }`}
+                        title={lang === 'id' ? 'Sembunyikan tugas yang sudah selesai agar tampilan kalender tidak terlalu ramai' : 'Hide completed tasks to declutter calendar'}
+                    >
+                        {hideCompleted ? (
+                            <EyeOff className="h-3.5 w-3.5 text-amber-400" />
+                        ) : (
+                            <Eye className="h-3.5 w-3.5 text-[#A19F8D]" />
+                        )}
+                        <span>{lang === 'id' ? 'Sembunyikan Selesai' : 'Hide Completed'}</span>
+                        <span className={`w-2 h-2 rounded-full transition-all ${hideCompleted ? 'bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.9)]' : 'bg-[#3B3929]'}`} />
+                    </button>
+
                     {/* Status Filter Chips */}
                     <div className="flex items-center gap-1 bg-[#1C1B0E] border border-[#3B3929] rounded-xl p-1 shadow-xs">
                         <button
                             type="button"
-                            onClick={() => setStatusFilter('all')}
+                            onClick={() => {
+                                setHideCompleted(false);
+                                setStatusFilter('all');
+                            }}
                             className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                                statusFilter === 'all'
+                                !hideCompleted && statusFilter === 'all'
                                     ? 'bg-[#C9AA71] text-[#1C1B0E] font-bold shadow-md'
                                     : 'text-[#A19F8D] hover:text-[#FAFAFA]'
                             }`}
@@ -1000,9 +1049,12 @@ export function OperationsCalendarView({
                         </button>
                         <button
                             type="button"
-                            onClick={() => setStatusFilter('active')}
+                            onClick={() => {
+                                setHideCompleted(true);
+                                setStatusFilter('active');
+                            }}
                             className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                                statusFilter === 'active'
+                                hideCompleted || statusFilter === 'active'
                                     ? 'bg-amber-500 text-[#1C1B0E] font-bold shadow-md'
                                     : 'text-[#A19F8D] hover:text-[#FAFAFA]'
                             }`}
@@ -1011,9 +1063,12 @@ export function OperationsCalendarView({
                         </button>
                         <button
                             type="button"
-                            onClick={() => setStatusFilter('done')}
+                            onClick={() => {
+                                setHideCompleted(false);
+                                setStatusFilter('done');
+                            }}
                             className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                                statusFilter === 'done'
+                                !hideCompleted && statusFilter === 'done'
                                     ? 'bg-emerald-500 text-[#1C1B0E] font-bold shadow-md'
                                     : 'text-[#A19F8D] hover:text-[#FAFAFA]'
                             }`}
