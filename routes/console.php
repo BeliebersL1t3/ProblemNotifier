@@ -18,5 +18,14 @@ Schedule::command('report:send-monthly')
     ->withoutOverlapping()
     ->runInBackground();
 
+// Automatically prune expired sessions and finished queue batches to keep the database slim
+Schedule::command('session:prune')
+    ->daily()
+    ->runInBackground();
+
+Schedule::command('queue:prune-batches')
+    ->daily()
+    ->runInBackground();
+
 
 

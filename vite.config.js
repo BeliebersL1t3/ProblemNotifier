@@ -36,4 +36,24 @@ export default defineConfig({
         }),
         react(),
     ],
+    build: {
+        rollupOptions: {
+            output: {
+                manualChunks(id) {
+                    if (id.includes('node_modules')) {
+                        if (id.includes('jspdf') || id.includes('exceljs')) {
+                            return 'vendor-export';
+                        }
+                        if (id.includes('recharts')) {
+                            return 'vendor-charts';
+                        }
+                        if (id.includes('@radix-ui') || id.includes('lucide-react')) {
+                            return 'vendor-ui';
+                        }
+                    }
+                },
+            },
+        },
+        chunkSizeWarningLimit: 1500,
+    },
 });

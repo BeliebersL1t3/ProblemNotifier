@@ -184,16 +184,32 @@ class UserController extends Controller
             ];
         });
 
-        // Summary statistics
-        $allActive = User::all();
+        // Summary statistics (Optimized: database aggregate query instead of hydrating full models)
+        $aggregate = User::query()
+            ->selectRaw('
+                COUNT(*) as total_users,
+                SUM(CASE WHEN role = "admin" THEN 1 ELSE 0 END) as total_admins,
+                SUM(CASE WHEN role = "department" THEN 1 ELSE 0 END) as total_departments,
+                SUM(CASE WHEN role = "viewer" THEN 1 ELSE 0 END) as total_viewers,
+                SUM(CASE WHEN is_hod = 1 THEN 1 ELSE 0 END) as total_hod,
+                SUM(CASE WHEN whatsapp_number IS NOT NULL AND whatsapp_number != "" THEN 1 ELSE 0 END) as total_whatsapp
+            ')
+            ->first();
+
+        $restrictedCount = User::query()
+            ->select('id', 'role', 'department', 'permissions')
+            ->get()
+            ->filter(fn($u) => $this->analyzeRestrictions($u)['has_restrictions'])
+            ->count();
+
         $stats = [
-            'total_users'       => $allActive->count(),
-            'total_admins'      => $allActive->where('role', 'admin')->count(),
-            'total_departments' => $allActive->where('role', 'department')->count(),
-            'total_viewers'     => $allActive->where('role', 'viewer')->count(),
-            'total_hod'         => $allActive->where('is_hod', true)->count(),
-            'total_whatsapp'    => $allActive->whereNotNull('whatsapp_number')->where('whatsapp_number', '!=', '')->count(),
-            'total_restricted'  => $allActive->filter(fn($u) => $this->analyzeRestrictions($u)['has_restrictions'])->count(),
+            'total_users'       => (int) ($aggregate->total_users ?? 0),
+            'total_admins'      => (int) ($aggregate->total_admins ?? 0),
+            'total_departments' => (int) ($aggregate->total_departments ?? 0),
+            'total_viewers'     => (int) ($aggregate->total_viewers ?? 0),
+            'total_hod'         => (int) ($aggregate->total_hod ?? 0),
+            'total_whatsapp'    => (int) ($aggregate->total_whatsapp ?? 0),
+            'total_restricted'  => $restrictedCount,
             'total_archived'    => User::onlyTrashed()->count(),
         ];
 
