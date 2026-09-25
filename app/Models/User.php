@@ -61,6 +61,19 @@ class User extends Authenticatable
         ];
     }
 
+    protected static function booted(): void
+    {
+        static::saved(function () {
+            \Illuminate\Support\Facades\Cache::forget('active_staff_roster');
+        });
+        static::deleted(function () {
+            \Illuminate\Support\Facades\Cache::forget('active_staff_roster');
+        });
+        static::restored(function () {
+            \Illuminate\Support\Facades\Cache::forget('active_staff_roster');
+        });
+    }
+
     /**
      * Safely decrypt Google access token, falling back to raw value if unencrypted or corrupted.
      */

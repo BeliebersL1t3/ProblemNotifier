@@ -47,7 +47,7 @@ export function ResolveIssueSheet({ issue, onClose }) {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isUpdatingCategory, setIsUpdatingCategory] = useState(false);
     const [errorMsg, setErrorMsg] = useState('');
-    const { isDeptUser, department, staffName, isAdmin } = useAuth();
+    const { isDeptUser, department, staffName, isAdmin, activeStaffRoster } = useAuth();
     const [selectedDelay, setSelectedDelay] = useState(null);
     const [previewImage, setPreviewImage] = useState(null);
 
@@ -95,8 +95,8 @@ export function ResolveIssueSheet({ issue, onClose }) {
 
     const staffForSelectedDept = useMemo(() => {
         if (!selectedDept) return [];
-        return getStaffForDepartment(selectedDept);
-    }, [selectedDept]);
+        return getStaffForDepartment(selectedDept, activeStaffRoster);
+    }, [selectedDept, activeStaffRoster]);
 
     const hasAuthorizedDepts = authorizedDepts.length > 0;
 

@@ -32,7 +32,7 @@ import { InlineAnalogClockPicker } from './CircularTimePickerModal';
 export function ReportIssueModal({ open, onOpenChange }) {
     const { t, lang } = useLanguage();
     const { addIssue } = useIssues();
-    const { isDeptUser, department, staffName } = useAuth();
+    const { isDeptUser, department, staffName, activeStaffRoster } = useAuth();
     const [originDept, setOriginDept] = useState('');
     const [reporter, setReporter] = useState('');
     const [title, setTitle] = useState('');
@@ -143,8 +143,8 @@ export function ReportIssueModal({ open, onOpenChange }) {
 
     const staffForOriginDept = useMemo(() => {
         if (!originDept) return [];
-        return getStaffForDepartment(originDept);
-    }, [originDept]);
+        return getStaffForDepartment(originDept, activeStaffRoster);
+    }, [originDept, activeStaffRoster]);
 
     const handleOriginDeptChange = (dept) => {
         setOriginDept(dept);

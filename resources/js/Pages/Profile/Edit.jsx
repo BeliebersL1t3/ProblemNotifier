@@ -29,7 +29,7 @@ export default function ProfilePage(props) {
 function ProfileInner({ pendingTicket, pendingTransferTicket, notifyWhatsAppTickets, status }) {
     const { t, lang } = useLanguage();
     const { 
-        user, isAdmin, isHOD, isDeptUser, department, subdivision, staffName, whatsappNumber, avatarUrl,
+        user, isAdmin, isHOD, isDeptUser, department, subdivision, staffName, whatsappNumber, avatarUrl, activeStaffRoster,
         canViewAllDepartments, canManageIssues, canDeleteIssues, canExportReports, canAccessCalendar, canAccessAnalytics
     } = useAuth();
     const canDirectUpdateWa = isAdmin || isHOD;
@@ -281,7 +281,7 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, notifyWhatsAppTick
         });
     };
 
-    const deptStaffRoster = department ? getStaffForDepartment(department) : [];
+    const deptStaffRoster = department ? getStaffForDepartment(department, activeStaffRoster) : [];
 
     return (
         <div className="min-h-screen bg-[#1C1B0E] text-[#FAFAFA] relative overflow-hidden antialiased selection:bg-[#C9AA71]/30">

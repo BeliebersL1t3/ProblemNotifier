@@ -34,6 +34,28 @@ class HandleInertiaRequests extends Middleware
             'auth' => [
                 'user' => $request->user(),
             ],
+            'active_staff_roster' => function () use ($request) {
+                if (!$request->user()) {
+                    return null;
+                }
+                return \Illuminate\Support\Facades\Cache::remember('active_staff_roster', 120, function () {
+                    return \App\Models\User::where('is_active', true)
+                        ->whereNotNull('department')
+                        ->where('department', '!=', '')
+                        ->where('role', '!=', 'viewer')
+                        ->select('id', 'name', 'staff_name', 'department', 'subdivision')
+                        ->get()
+                        ->groupBy(function ($u) {
+                            return trim($u->department);
+                        })
+                        ->map(function ($users) {
+                            return $users->map(function ($u) {
+                                return trim($u->staff_name ?: $u->name);
+                            })->filter()->unique()->values()->all();
+                        })
+                        ->toArray();
+                });
+            },
             'tickets_sheet_url' => config('services.google.tickets_spreadsheet_id')
                 ? 'https://docs.google.com/spreadsheets/d/' . config('services.google.tickets_spreadsheet_id') . '/edit?usp=sharing'
                 : null,

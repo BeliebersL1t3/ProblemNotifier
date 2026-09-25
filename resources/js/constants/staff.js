@@ -202,36 +202,120 @@ export const DEPARTMENT_STAFF = {
     ],
 };
 
+let dynamicRosterCache = null;
+
+/**
+ * Cache or update the dynamic staff roster from the database (active users).
+ */
+export function setDynamicStaffRoster(roster) {
+    if (roster && typeof roster === 'object') {
+        dynamicRosterCache = roster;
+    }
+}
+
+export function getDynamicStaffRoster() {
+    return dynamicRosterCache;
+}
+
 /**
  * Returns the list of staff names for a given department.
+ * Merges active users from the database (dynamic) with default roster names,
+ * while ensuring transferred users do not appear in old departments.
  */
-export function getStaffForDepartment(departmentName) {
+export function getStaffForDepartment(departmentName, overrideRoster = null) {
     if (!departmentName) return [];
     const normalized = normalizeDepartment(departmentName);
+    const dynamic = overrideRoster || dynamicRosterCache;
 
-    if (DEPARTMENT_STAFF[normalized]) {
-        return DEPARTMENT_STAFF[normalized];
+    // 1. Get base static roster
+    let staticList = DEPARTMENT_STAFF[normalized] || [];
+    if (!staticList.length) {
+        const key = Object.keys(DEPARTMENT_STAFF).find(
+            (k) => k.toLowerCase() === normalized.toLowerCase()
+        );
+        if (key && DEPARTMENT_STAFF[key]) {
+            staticList = DEPARTMENT_STAFF[key];
+        }
     }
 
-    const key = Object.keys(DEPARTMENT_STAFF).find(
-        (k) => k.toLowerCase() === normalized.toLowerCase()
+    if (!dynamic || typeof dynamic !== 'object') {
+        return staticList;
+    }
+
+    // 2. Extract dynamic staff assigned to this department
+    const dynKey = Object.keys(dynamic).find(
+        (k) => normalizeDepartment(k).toLowerCase() === normalized.toLowerCase()
     );
-    if (key && DEPARTMENT_STAFF[key]) {
-        return DEPARTMENT_STAFF[key];
+    const dynamicList = (dynKey && Array.isArray(dynamic[dynKey])) ? dynamic[dynKey] : [];
+
+    // 3. Find any users who currently belong to a DIFFERENT department in the database
+    // This guarantees that if a staff member was transferred to another department,
+    // they will NOT appear in their former department's list.
+    const otherDeptUsers = new Set();
+    Object.entries(dynamic).forEach(([dKey, staffArr]) => {
+        if (normalizeDepartment(dKey).toLowerCase() !== normalized.toLowerCase() && Array.isArray(staffArr)) {
+            staffArr.forEach(name => {
+                if (name && typeof name === 'string') {
+                    otherDeptUsers.add(name.toLowerCase().trim());
+                    const cleanBase = name.replace(/\([^)]*\)/g, '').trim().toLowerCase();
+                    if (cleanBase) otherDeptUsers.add(cleanBase);
+                }
+            });
+        }
+    });
+
+    // 4. Filter static list: remove any static name that matches a user now in another department
+    const filteredStatic = staticList.filter(sName => {
+        if (!sName || typeof sName !== 'string') return false;
+        const sNorm = sName.toLowerCase().trim();
+        const sClean = sName.replace(/\([^)]*\)/g, '').trim().toLowerCase();
+        return !otherDeptUsers.has(sNorm) && !otherDeptUsers.has(sClean);
+    });
+
+    // 5. Combine: dynamic active accounts first, followed by deduplicated static roster
+    const combined = [...dynamicList];
+    for (const sName of filteredStatic) {
+        const sNorm = sName.toLowerCase().trim();
+        const sClean = sName.replace(/\([^)]*\)/g, '').trim().toLowerCase();
+        const exists = combined.some(cName => {
+            const cNorm = cName.toLowerCase().trim();
+            const cClean = cName.replace(/\([^)]*\)/g, '').trim().toLowerCase();
+            return cNorm === sNorm || cClean === sClean || cNorm.includes(sClean) || sNorm.includes(cClean);
+        });
+        if (!exists) {
+            combined.push(sName);
+        }
     }
 
-    return [];
+    return combined;
 }
 
 /**
  * Detects / returns the department for a given staff name string.
+ * Priority: Dynamic database roster -> Issue context -> Static roster
  */
-export function getDepartmentForStaff(staffName, issue = null) {
+export function getDepartmentForStaff(staffName, issue = null, overrideRoster = null) {
     if (!staffName || typeof staffName !== 'string') return null;
 
-    const cleanStaff = staffName.replace(/\s*via\s+WhatsApp/i, '').trim();
+    const cleanStaff = staffName.replace(/\s*via\s+WhatsApp/i, '').trim().toLowerCase();
+    const dynamic = overrideRoster || dynamicRosterCache;
 
-    const match = cleanStaff.match(/\(([^)]+)\)/);
+    // 1. Dynamic active database accounts (reflects real-time transfers)
+    if (dynamic && typeof dynamic === 'object') {
+        for (const [dept, roster] of Object.entries(dynamic)) {
+            if (Array.isArray(roster)) {
+                if (roster.some(name => {
+                    const n = String(name).toLowerCase().trim();
+                    return n === cleanStaff || cleanStaff.includes(n) || n.includes(cleanStaff);
+                })) {
+                    return normalizeDepartment(dept);
+                }
+            }
+        }
+    }
+
+    // 2. Department tag in parentheses e.g. "Ana (Marketing)"
+    const match = staffName.match(/\(([^)]+)\)/);
     if (match && match[1]) {
         const potentialDept = normalizeDepartment(match[1].trim());
         const found = ALL_DEPARTMENTS.find(
@@ -241,6 +325,7 @@ export function getDepartmentForStaff(staffName, issue = null) {
         if (found) return found;
     }
 
+    // 3. Issue candidate departments
     if (issue) {
         const candidateDepts = [
             ...(Array.isArray(issue.assignedDepartments) ? issue.assignedDepartments : (issue.assignedDepartments ? [issue.assignedDepartments] : [])),
@@ -249,21 +334,28 @@ export function getDepartmentForStaff(staffName, issue = null) {
         ].map(d => normalizeDepartment(d));
 
         for (const dept of candidateDepts) {
-            const roster = getStaffForDepartment(dept);
-            if (roster.some(name => name.toLowerCase() === cleanStaff.toLowerCase() || cleanStaff.toLowerCase().includes(name.toLowerCase()) || name.toLowerCase().includes(cleanStaff.toLowerCase()))) {
+            const roster = getStaffForDepartment(dept, dynamic);
+            if (roster.some(name => {
+                const n = String(name).toLowerCase().trim();
+                return n === cleanStaff || cleanStaff.includes(n) || n.includes(cleanStaff);
+            })) {
                 return dept;
             }
         }
     }
 
+    // 4. Default static roster
     for (const [dept, roster] of Object.entries(DEPARTMENT_STAFF)) {
-        if (roster.some(name => name.toLowerCase() === cleanStaff.toLowerCase() || cleanStaff.toLowerCase().includes(name.toLowerCase()) || name.toLowerCase().includes(cleanStaff.toLowerCase()))) {
+        if (roster.some(name => {
+            const n = String(name).toLowerCase().trim();
+            return n === cleanStaff || cleanStaff.includes(n) || n.includes(cleanStaff);
+        })) {
             return dept;
         }
     }
 
     for (const dept of ALL_DEPARTMENTS) {
-        if (cleanStaff.toLowerCase().includes(dept.toLowerCase())) {
+        if (cleanStaff.includes(dept.toLowerCase())) {
             return dept;
         }
     }

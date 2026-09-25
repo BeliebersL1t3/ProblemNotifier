@@ -21,7 +21,7 @@ const safeArray = (val) => {
 export function TakeJobModal({ issue, onClose }) {
     const { t, lang } = useLanguage();
     const { claimIssue, categories, updateIssueCategory } = useIssues();
-    const { isDeptUser, department, staffName, isAdmin } = useAuth();
+    const { isDeptUser, department, staffName, isAdmin, activeStaffRoster } = useAuth();
     const [selectedDept, setSelectedDept] = useState('');
     const [selectedStaff, setSelectedStaff] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -65,8 +65,8 @@ export function TakeJobModal({ issue, onClose }) {
 
     const staffForSelectedDept = useMemo(() => {
         if (!selectedDept) return [];
-        return getStaffForDepartment(selectedDept) || [];
-    }, [selectedDept]);
+        return getStaffForDepartment(selectedDept, activeStaffRoster) || [];
+    }, [selectedDept, activeStaffRoster]);
 
     const hasAuthorizedDepts = authorizedDepts.length > 0;
 

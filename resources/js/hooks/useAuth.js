@@ -1,4 +1,5 @@
 import { usePage } from '@inertiajs/react';
+import { setDynamicStaffRoster } from '@/constants/staff';
 
 /**
  * useAuth — Access the authenticated user and role helpers.
@@ -10,12 +11,17 @@ import { usePage } from '@inertiajs/react';
  *   department   — consolidated dept e.g. 'HR', 'GR'
  *   subdivision  — sub-unit e.g. 'Legal', 'Bar' (null for standalone depts)
  *   staffName    — display name e.g. 'Hendro Legal'
+ *   activeStaffRoster — map of active department staff from database
  */
 export function useAuth() {
-    const { auth } = usePage().props;
+    const { auth, active_staff_roster } = usePage().props;
     const user = auth?.user ?? null;
     const isAdmin = user?.role === 'admin';
     const permissions = user?.permissions ?? {};
+
+    if (active_staff_roster) {
+        setDynamicStaffRoster(active_staff_roster);
+    }
 
     const hasPermission = (key, defaultVal = true) => {
         if (isAdmin) return true;
@@ -37,6 +43,7 @@ export function useAuth() {
         whatsappNumber: user?.whatsapp_number ?? null,
         avatar:         avatarUrl,
         avatarUrl,
+        activeStaffRoster: active_staff_roster ?? null,
         permissions,
         // Specific capability helpers
         canViewAllDepartments: hasPermission('can_view_all_departments', true),
