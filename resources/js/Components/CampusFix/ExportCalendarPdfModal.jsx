@@ -763,7 +763,7 @@ export function ExportCalendarPdfModal({ open, onOpenChange, tasks = [] }) {
 
     return (
         <Dialog open={open} onOpenChange={(o) => { if (!isExporting) onOpenChange(o); }}>
-            <DialogContent className="max-h-[100dvh] overflow-hidden flex flex-col w-full sm:max-w-6xl h-[100dvh] sm:h-[88vh] sm:max-h-[95vh] rounded-none sm:rounded-2xl bg-[#1C1B0E] border border-[#3B3929] text-[#FAFAFA] shadow-2xl p-0 relative">
+            <DialogContent className="max-h-[100dvh] overflow-hidden flex flex-col w-full sm:max-w-6xl h-[100dvh] sm:h-[88vh] sm:max-h-[95vh] rounded-none sm:rounded-2xl bg-[#1C1B0E] border border-[#3B3929] text-[#FAFAFA] shadow-2xl p-0">
                 {/* Modal Header */}
                 <DialogHeader className="px-6 py-4 border-b border-[#3B3929] bg-[#2A281E]/80 backdrop-blur-md flex flex-row items-center justify-between shrink-0">
                     <div>
@@ -777,11 +777,11 @@ export function ExportCalendarPdfModal({ open, onOpenChange, tasks = [] }) {
                     </div>
                 </DialogHeader>
 
-                {/* Main Body: 2 Columns on Desktop */}
-                <div className="flex-1 min-h-0 flex flex-col md:grid md:grid-cols-[360px_1fr] overflow-hidden bg-[#1C1B0E]">
+                {/* Main Body: 2 Columns on Desktop, scrollable stack on mobile */}
+                <div className="flex-1 min-h-0 flex flex-col overflow-y-auto md:grid md:grid-cols-[360px_1fr] md:overflow-hidden bg-[#1C1B0E]">
                     
                     {/* ─── LEFT COLUMN: Filter & Report Controls ─── */}
-                    <div className="overflow-y-auto p-5 space-y-5 border-r border-[#3B3929] bg-[#242217]/50 text-xs custom-scrollbar">
+                    <div className="p-4 sm:p-5 space-y-5 border-b md:border-b-0 md:border-r border-[#3B3929] bg-[#242217]/50 text-xs md:overflow-y-auto custom-scrollbar shrink-0 md:shrink">
                         
                         {/* 1. Schedule Period Filter */}
                         <div className="space-y-2">
@@ -1042,7 +1042,7 @@ export function ExportCalendarPdfModal({ open, onOpenChange, tasks = [] }) {
                     </div>
 
                     {/* ─── RIGHT COLUMN: Live Interactive PDF Preview ─── */}
-                    <div className="flex flex-col bg-[#14130A] overflow-hidden p-4 sm:p-5">
+                    <div className="flex flex-col bg-[#14130A] overflow-hidden p-4 sm:p-5 min-h-[520px] md:min-h-0 flex-1">
                         {/* Live Preview Toolbar */}
                         <div className="flex items-center justify-between pb-3 border-b border-[#3B3929] text-xs font-semibold text-[#A19F8D]">
                             <div className="flex items-center gap-2">
