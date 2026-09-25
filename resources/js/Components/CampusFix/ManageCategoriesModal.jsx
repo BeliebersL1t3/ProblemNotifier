@@ -13,7 +13,12 @@ import { Loader2, Plus, Trash2, AlertTriangle } from 'lucide-react';
 import { useIssues, DEFAULT_CATEGORIES } from '@/context/IssuesContext';
 
 export function ManageCategoriesModal({ open, onOpenChange }) {
-    const { categories, addCategory, deleteCategory, issues } = useIssues();
+    const { categories, issues } = useIssues();
+    // Note: addCategory & deleteCategory are not implemented in IssuesContext (categories are static DEFAULT_CATEGORIES).
+    // These are safe no-op stubs to prevent crashes if this modal is ever rendered.
+    const addCategory = async () => { throw new Error('Custom categories are not yet supported. Categories are managed via DEFAULT_CATEGORIES.'); };
+    const deleteCategory = async () => { throw new Error('Custom categories are not yet supported.'); };
+
     
     const [newCategoryLabel, setNewCategoryLabel] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);

@@ -405,7 +405,7 @@ export function ReportIssueModal({ open, onOpenChange }) {
                     </div>
 
                     <div className="grid gap-2">
-                        <Label htmlFor="title">Issue title</Label>
+                        <Label htmlFor="title">Issue title <span className="text-destructive">*</span></Label>
                         <Input
                             id="title"
                             value={title}
@@ -416,7 +416,7 @@ export function ReportIssueModal({ open, onOpenChange }) {
                     </div>
                     <div className="grid gap-4 sm:grid-cols-2">
                         <div className="grid gap-2">
-                            <Label>Location</Label>
+                            <Label>Location <span className="text-destructive">*</span></Label>
                             {/* Main location quick-select */}
                             <div className="flex gap-2">
                                 {MAIN_LOCATIONS.map(loc => {
@@ -588,7 +588,7 @@ export function ReportIssueModal({ open, onOpenChange }) {
                         />
                     </div>
                     <div className="grid gap-2">
-                        <Label>Photo of the problem</Label>
+                        <Label>Photo of the problem <span className="text-destructive">*</span></Label>
                         <ImageDropzone
                             previewUrl={imageUrl}
                             onChange={(file, preview) => {
