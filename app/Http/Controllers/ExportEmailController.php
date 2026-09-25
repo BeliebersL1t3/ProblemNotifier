@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\SendExportPdfReportJob;
 use App\Mail\ExportReportMail;
+use App\Models\ExportReportLog;
 use App\Models\User;
 use App\Services\GmailApiService;
 use Illuminate\Http\JsonResponse;
@@ -155,7 +157,7 @@ class ExportEmailController extends Controller
             }
         }
 
-        // Check if user has connected their personal Google/Gmail account
+        // Check if user has connected their personal Google/Gmail account and not forcing system mailer
         if ($hasGoogleConnected) {
             try {
                 $htmlBody = view('emails.export_report', [
@@ -177,6 +179,23 @@ class ExportEmailController extends Controller
                 );
 
                 $accountEmail = $sender->google_email ?: $sender->email;
+
+                // Log audit trail for personal Gmail dispatch
+                ExportReportLog::create([
+                    'user_id'           => $sender?->id,
+                    'sender_name'       => $senderName,
+                    'sender_email'      => $accountEmail,
+                    'sender_department' => $senderDept,
+                    'report_type'       => $reportMeta['type'] ?? 'issues',
+                    'recipients'        => $validRecipients,
+                    'subject'           => $subject,
+                    'pdf_filename'      => $originalFilename,
+                    'sent_via'          => 'gmail_api',
+                    'status'            => 'sent',
+                    'ip_address'        => $request->ip(),
+                    'meta'              => $reportMeta,
+                ]);
+
                 return response()->json([
                     'success'          => true,
                     'message'          => "Laporan PDF berhasil dikirimkan langsung dari akun Gmail Anda ({$accountEmail}) ke " . count($validRecipients) . " penerima.",
@@ -192,45 +211,88 @@ class ExportEmailController extends Controller
         }
 
         try {
-            $mailable = new ExportReportMail(
-                emailSubject: $subject,
+            // 1. Create audit log entry (status: queued)
+            $log = ExportReportLog::create([
+                'user_id'           => $sender?->id,
+                'sender_name'       => $senderName,
+                'sender_email'      => $senderEmail ?: ($sender?->email ?? config('mail.from.address')),
+                'sender_department' => $senderDept,
+                'report_type'       => $reportMeta['type'] ?? 'calendar',
+                'recipients'        => $validRecipients,
+                'subject'           => $subject,
+                'pdf_filename'      => $originalFilename,
+                'sent_via'          => 'smtp',
+                'status'            => 'queued',
+                'ip_address'        => $request->ip(),
+                'meta'              => $reportMeta,
+            ]);
+
+            // 2. Safely store uploaded file in temp storage for async worker/afterResponse dispatch
+            $tempDir = storage_path('app/temp_exports');
+            if (!is_dir($tempDir)) {
+                mkdir($tempDir, 0755, true);
+            }
+            $tempFileName = 'export_' . uniqid('', true) . '.pdf';
+            $uploadedFile->move($tempDir, $tempFileName);
+            $tempFilePath = $tempDir . DIRECTORY_SEPARATOR . $tempFileName;
+
+            // 3. Dispatch asynchronous Job after response
+            SendExportPdfReportJob::dispatchAfterResponse(
+                tempFilePath: $tempFilePath,
+                pdfFilename: $originalFilename,
+                recipients: $validRecipients,
+                subject: $subject,
                 customMessage: $customMessage,
                 senderName: $senderName,
-                senderDepartment: $senderDept,
+                senderDept: $senderDept,
+                senderEmail: $senderEmail,
                 reportMeta: $reportMeta,
-                pdfFile: $uploadedFile,
-                pdfFilename: $originalFilename,
-                senderEmail: $senderEmail
+                logId: $log->id
             );
-
-            Mail::to($validRecipients)->send($mailable);
 
             return response()->json([
                 'success'          => true,
-                'message'          => 'Laporan PDF berhasil dikirimkan via email ke ' . count($validRecipients) . ' penerima.',
+                'message'          => 'Laporan PDF berhasil dijadwalkan dan sedang dikirimkan via email ke ' . count($validRecipients) . ' penerima.',
                 'sent_via'         => 'smtp',
                 'sender_email'     => config('mail.from.address'),
                 'recipients_count' => count($validRecipients),
                 'recipients'       => $validRecipients,
+                'log_id'           => $log->id,
             ]);
-        } catch (TransportExceptionInterface $e) {
-            Log::error('SMTP Transport Error during PDF export email: ' . $e->getMessage());
-
-            $mailer = config('mail.default');
-            $host = config("mail.mailers.{$mailer}.host");
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Gagal menghubungkan ke server SMTP (' . ($host ?: 'Host belum disetel') . '). Pastikan MAIL_HOST, MAIL_USERNAME, dan MAIL_PASSWORD pada file .env sudah dikonfigurasi dengan benar.',
-                'detail'  => $e->getMessage(),
-            ], 500);
         } catch (\Throwable $e) {
             Log::error('General Error during PDF export email: ' . $e->getMessage());
 
             return response()->json([
                 'success' => false,
-                'message' => 'Terjadi kesalahan saat mengirimkan email: ' . $e->getMessage(),
+                'message' => 'Terjadi kesalahan saat memproses pengiriman email: ' . $e->getMessage(),
             ], 500);
         }
+    }
+
+    /**
+     * Retrieve recent export report delivery audit logs.
+     */
+    public function getExportLogs(Request $request): JsonResponse
+    {
+        $user = auth()->user();
+        if ($user && !$user->isAdmin() && !$user->hasPermission('can_export_reports')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized.',
+            ], 403);
+        }
+
+        $query = ExportReportLog::query()->latest();
+
+        if (!$user?->isAdmin()) {
+            $query->where('user_id', $user->id);
+        }
+
+        $logs = $query->limit(20)->get();
+
+        return response()->json([
+            'success' => true,
+            'logs'    => $logs,
+        ]);
     }
 }

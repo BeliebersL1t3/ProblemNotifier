@@ -113,6 +113,7 @@ export function ExportPdfModal({ open, onOpenChange }) {
     const [isCheckingGoogle, setIsCheckingGoogle] = useState(false);
 
     const currentUserEmail = (auth?.user?.email || '').toLowerCase().trim();
+    const myDept = auth?.user?.department ? normalizeDepartment(auth.user.department) : null;
     const isSendingToSelf = Boolean(
         currentUserEmail && 
         emailRecipients.some(e => (e || '').toLowerCase().trim() === currentUserEmail)
@@ -1701,6 +1702,22 @@ export function ExportPdfModal({ open, onOpenChange }) {
                                         >
                                             <Sparkles className="w-3 h-3" />
                                             <span>{t('all_hods') || 'All HODs'} ({availableRecipients.hods.length})</span>
+                                        </button>
+                                    )}
+
+                                    {/* My Department Quick Button */}
+                                    {myDept && (availableRecipients.by_department?.[myDept]?.length > 0) && (
+                                        <button
+                                            type="button"
+                                            onClick={() => toggleDepartmentRecipients(myDept)}
+                                            className={`px-2.5 py-1 text-xs font-semibold rounded-lg border transition-all flex items-center gap-1.5 cursor-pointer ${
+                                                availableRecipients.by_department[myDept].every(u => emailRecipients.includes((u.email || '').toLowerCase()))
+                                                    ? 'bg-[#C9AA71] text-[#1C1B0E] border-[#C9AA71] shadow-sm font-bold'
+                                                    : 'bg-[#1C1B0E] text-[#C9AA71] border-[#C9AA71]/40 hover:bg-[#C9AA71]/15'
+                                            }`}
+                                        >
+                                            <User className="w-3 h-3" />
+                                            <span>{t('my_department') || 'Departemen Saya'} ({myDept} - {availableRecipients.by_department[myDept].length})</span>
                                         </button>
                                     )}
 

@@ -77,6 +77,7 @@ Route::middleware('auth')->group(function () {
     // PDF Export Email Dispatch
     Route::get('/api/export/recipients', [ExportEmailController::class, 'getRecipients'])->name('export.recipients');
     Route::post('/api/export/email-pdf', [ExportEmailController::class, 'sendPdfReport'])->middleware('throttle:10,1')->name('export.emailPdf');
+    Route::get('/api/export/logs', [ExportEmailController::class, 'getExportLogs'])->middleware('throttle:30,1')->name('export.logs');
 
     // Automated Monthly Report Scheduling (Admin & HOD)
     Route::get('/api/report-schedule', [ReportScheduleController::class, 'getSettings'])->name('report.schedule.get');
