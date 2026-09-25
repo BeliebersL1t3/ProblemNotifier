@@ -102,6 +102,7 @@ function DashboardInner() {
         syncOfflineOutbox,
         deleteIssue,
         currentSheet,
+        setCurrentSheet,
         archivedIssues,
         loadingArchived,
         fetchArchivedIssues,
@@ -193,6 +194,9 @@ function DashboardInner() {
         }
     });
 
+    const [highlightedIssueId, setHighlightedIssueId] = useState(null);
+    const pendingOpenIssueId = useRef(null);
+
     const toggleMute = () => {
         setIsMuted(prev => {
             const next = !prev;
@@ -203,7 +207,7 @@ function DashboardInner() {
         });
     };
 
-    // Auto-open report modal or activate reassign_needed filter from URL
+    // Auto-open issue or report modal or filter from URL
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
         if (params.get('report') === '1') {
@@ -215,7 +219,28 @@ function DashboardInner() {
         if (params.get('filter') === 'reassign_needed') {
             setDeptViewMode('reassign_needed');
         }
-    }, []);
+
+        const targetIssueId = params.get('issue') || params.get('id') || params.get('search');
+        const targetSheet = params.get('sheet');
+        if (targetIssueId) {
+            focusAndOpenIssue(targetIssueId, targetSheet);
+        } else if (pendingOpenIssueId.current) {
+            focusAndOpenIssue(pendingOpenIssueId.current);
+        }
+    }, [issues, loading, archivedIssues]);
+
+    // Handle custom event from NotificationDropdown or other components
+    useEffect(() => {
+        const handleOpenIssueEvent = (e) => {
+            const { issueId, sheet } = e.detail || {};
+            if (issueId) {
+                focusAndOpenIssue(issueId, sheet);
+            }
+        };
+
+        window.addEventListener('campusfix-open-issue', handleOpenIssueEvent);
+        return () => window.removeEventListener('campusfix-open-issue', handleOpenIssueEvent);
+    }, [issues, loading, archivedIssues, currentSheet]);
 
     // Fetch archived issues when Admin is active or period sheet changes
     useEffect(() => {
@@ -557,6 +582,72 @@ function DashboardInner() {
         if (issue.status === 'open') setTakeTarget(issue);
         else if (issue.status === 'progress' || issue.status === 'pending') setResolveTarget(issue);
         else setDetailTarget(issue);
+    };
+
+    const focusAndOpenIssue = (targetId, targetSheet = null) => {
+        if (!targetId) return;
+        const cleanId = String(targetId).trim();
+        if (!cleanId) return;
+
+        // If sheet is specified and different, switch sheet
+        if (targetSheet && currentSheet && targetSheet !== currentSheet && setCurrentSheet) {
+            setCurrentSheet(targetSheet);
+        }
+
+        // If still loading or issues list empty, queue it
+        if (loading && issues.length === 0) {
+            pendingOpenIssueId.current = cleanId;
+            return;
+        }
+
+        // Search in active issues first, then archived
+        const found = issues.find(i => String(i.id).toLowerCase() === cleanId.toLowerCase())
+            || (archivedIssues || []).find(i => String(i.id).toLowerCase() === cleanId.toLowerCase());
+
+        if (found) {
+            const isArchived = Boolean(found.isArchived || found.statusDisplay === '0' || found.displayStatus === '0');
+            if (isArchived) {
+                setShowArchiveTab(true);
+            } else {
+                setShowArchiveTab(false);
+                if (canViewAllDepartments || isAdmin) {
+                    setDeptFilter('all');
+                }
+                setCategoryFilter('all');
+                setStatusFilter('all');
+                setDeptViewMode('all');
+                setQuery('');
+            }
+
+            // Highlight issue card
+            setHighlightedIssueId(found.id);
+            setTimeout(() => {
+                setHighlightedIssueId(prev => (prev === found.id ? null : prev));
+            }, 6000);
+
+            // Smooth scroll into view
+            setTimeout(() => {
+                const el = document.getElementById(`issue-card-${found.id}`);
+                if (el) {
+                    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            }, 250);
+
+            // Automatically open appropriate modal/sheet
+            handleSelect(found);
+            pendingOpenIssueId.current = null;
+
+            // Clean query params from URL without reload
+            try {
+                const url = new URL(window.location.href);
+                url.searchParams.delete('issue');
+                url.searchParams.delete('id');
+                url.searchParams.delete('search');
+                window.history.replaceState({}, '', url.pathname + (url.search ? url.search : ''));
+            } catch (e) {}
+        } else if (loading) {
+            pendingOpenIssueId.current = cleanId;
+        }
     };
 
     const renderSearchDropdown = (closeDropdown) => {
@@ -1064,6 +1155,7 @@ function DashboardInner() {
                                 }}
                                 onRestore={showArchiveTab ? handleRestore : undefined}
                                 density={viewDensity}
+                                isHighlighted={highlightedIssueId === issue.id}
                             />
                         ))}
                     </div>

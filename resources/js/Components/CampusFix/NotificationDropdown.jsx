@@ -83,6 +83,34 @@ export default function NotificationDropdown({ isMobile = false }) {
         }
     };
 
+    const extractIssueDetails = (url) => {
+        if (!url) return null;
+        try {
+            const u = new URL(url, window.location.origin);
+            const issueId = u.searchParams.get('issue') || u.searchParams.get('id') || u.searchParams.get('search');
+            const sheet = u.searchParams.get('sheet');
+            if (issueId) return { issueId, sheet };
+        } catch (e) {}
+        return null;
+    };
+
+    const handleIssueLinkClick = (e, item) => {
+        e.stopPropagation();
+        if (!item.is_read) markAsRead(item.id);
+        setIsOpen(false);
+
+        const issueDetails = extractIssueDetails(item.link);
+        if (issueDetails) {
+            const isAlreadyOnDashboard = window.location.pathname === '/' || window.location.pathname === '/dashboard';
+            if (isAlreadyOnDashboard) {
+                e.preventDefault();
+                window.dispatchEvent(new CustomEvent('campusfix-open-issue', {
+                    detail: issueDetails,
+                }));
+            }
+        }
+    };
+
     const unreadTicketsCount = data.tickets.filter(t => !t.is_read).length;
     const unreadIssuesCount = data.issues.filter(i => !i.is_read).length;
 
@@ -330,11 +358,7 @@ export default function NotificationDropdown({ isMobile = false }) {
                                                     {item.link && (
                                                         <Link
                                                             href={item.link}
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                if (!item.is_read) markAsRead(item.id);
-                                                                setIsOpen(false);
-                                                            }}
+                                                            onClick={(e) => handleIssueLinkClick(e, item)}
                                                             className="text-[11px] text-[#C9AA71] hover:text-[#FAFAFA] font-bold flex items-center gap-0.5 hover:underline ml-1"
                                                         >
                                                             Lihat Isu <ExternalLink className="w-2.5 h-2.5" />

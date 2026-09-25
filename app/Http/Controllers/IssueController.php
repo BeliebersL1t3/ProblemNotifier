@@ -99,7 +99,7 @@ class IssueController extends Controller
                 'type' => 'issue_progress',
                 'title' => $title,
                 'message' => $message,
-                'link' => $issueId ? "/?search={$issueId}" : null,
+                'link' => $issueId ? "/dashboard?issue={$issueId}" : null,
                 'is_read' => false,
             ]);
         } catch (\Throwable $e) {}

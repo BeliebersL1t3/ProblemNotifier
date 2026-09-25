@@ -30,7 +30,7 @@ function formatDate(ts) {
     });
 }
 
-export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, density = '3' }) {
+export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, density = '3', isHighlighted = false }) {
     const [selectedDelay, setSelectedDelay] = useState(null);
     const [previewImage, setPreviewImage] = useState(null);
     const { isAdmin, isDeptUser, department } = useAuth();
@@ -121,11 +121,13 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
 
         return (
             <button
+                id={`issue-card-${issue.id}`}
                 type="button"
                 onClick={() => onSelect(issue)}
                 title={tooltipText}
                 className={cn(
                     "group relative flex flex-col p-2 rounded-lg border text-left transition-all duration-150 hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-1 min-w-0 w-full bg-surface select-none",
+                    isHighlighted && "ring-4 ring-[#C9AA71] shadow-[0_0_30px_rgba(201,170,113,0.85)] z-20 animate-pulse scale-[1.02]",
                     isArchived
                         ? "border-stone-700/70 bg-stone-900/40 opacity-80"
                         : isEmergency
@@ -205,10 +207,12 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
 
         return (
             <button
+                id={`issue-card-${issue.id}`}
                 type="button"
                 onClick={() => onSelect(issue)}
                 className={cn(
                     "group flex flex-col overflow-hidden rounded-xl border text-left transition-all duration-200 hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 min-w-0 w-full bg-surface",
+                    isHighlighted && "ring-4 ring-[#C9AA71] shadow-[0_0_35px_rgba(201,170,113,0.85)] z-20 animate-pulse scale-[1.02]",
                     isArchived
                         ? "border-stone-700/60 bg-surface shadow-card opacity-90 hover:opacity-100"
                         : isEmergency
@@ -504,10 +508,12 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
 
     return (
         <button
+            id={`issue-card-${issue.id}`}
             type="button"
             onClick={() => onSelect(issue)}
             className={cn(
                 "group flex flex-col overflow-hidden rounded-xl border text-left transition-all duration-200 hover:-translate-y-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 min-w-0 w-full",
+                isHighlighted && "ring-4 ring-[#C9AA71] shadow-[0_0_40px_rgba(201,170,113,0.85)] z-20 animate-pulse scale-[1.02]",
                 isArchived
                     ? "border-stone-700/60 bg-surface shadow-card opacity-90 hover:opacity-100"
                     : isEmergency
