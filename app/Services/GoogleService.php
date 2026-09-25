@@ -2173,13 +2173,18 @@ class GoogleService
 
     /**
      * Get the direct web URL to view/add this calendar in Google Calendar.
+     * Includes authuser parameter so Google automatically switches to the account.
      */
-    public function getCalendarUrl(): string
+    public function getCalendarUrl(?string $email = null): string
     {
         if (empty($this->calendarId)) {
             return '';
         }
-        return 'https://calendar.google.com/calendar/r?cid=' . urlencode($this->calendarId);
+        $params = ['cid' => $this->calendarId];
+        if (!empty($email) && filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $params['authuser'] = strtolower(trim($email));
+        }
+        return 'https://calendar.google.com/calendar/r?' . http_build_query($params);
     }
 
     /**
@@ -2248,7 +2253,7 @@ class GoogleService
                     return [
                         'success'     => true,
                         'message'     => "Email akun Anda ({$email}) sudah memiliki izin akses ke Google Calendar.",
-                        'calendarUrl' => $this->getCalendarUrl(),
+                        'calendarUrl' => $this->getCalendarUrl($email),
                     ];
                 }
             } catch (\Google\Service\Exception $e) {
@@ -2273,7 +2278,7 @@ class GoogleService
             return [
                 'success'     => true,
                 'message'     => "Email akun Anda ({$email}) berhasil didaftarkan ke Google Calendar.",
-                'calendarUrl' => $this->getCalendarUrl(),
+                'calendarUrl' => $this->getCalendarUrl($email),
             ];
         } catch (\Google\Service\Exception $e) {
             Log::error("grantCalendarReaderAccess error for {$email}: " . $e->getMessage());

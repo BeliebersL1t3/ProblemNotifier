@@ -393,7 +393,7 @@ class OperationsController extends Controller
 
         $email = strtolower(trim($user->email));
         $isDummy = $user->hasDummyEmail();
-        $calendarUrl = $this->googleService->getCalendarUrl();
+        $calendarUrl = $this->googleService->getCalendarUrl($email);
         $hasAccess = !$isDummy && $this->googleService->checkCalendarReaderAccess($email);
 
         return response()->json([
