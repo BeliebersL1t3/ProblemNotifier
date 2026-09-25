@@ -415,7 +415,9 @@ export function ExportCalendarPdfModal({ open, onOpenChange, tasks = [] }) {
             formData.append('recipients', JSON.stringify(emailRecipients));
             formData.append('subject', emailSubject || 'Telunas Operations Calendar Schedule Report');
             formData.append('message', emailMessage || '');
+            formData.append('mailer', 'system');
             formData.append('meta', JSON.stringify({
+                type: 'calendar',
                 period: activeDateRange.label,
                 locations: selectedLocations,
                 departments: selectedDepartments,

@@ -144,8 +144,19 @@ class ExportEmailController extends Controller
         }
         $originalFilename = $safeFilename;
 
+        $forceSystemMailer = $request->input('mailer') === 'system' || ($reportMeta['type'] ?? '') === 'calendar';
+        $hasGoogleConnected = false;
+        if (!$forceSystemMailer && $sender) {
+            try {
+                $hasGoogleConnected = $sender->hasGoogleMailConnected();
+            } catch (\Throwable $e) {
+                Log::warning('Error checking Google mail connection: ' . $e->getMessage());
+                $hasGoogleConnected = false;
+            }
+        }
+
         // Check if user has connected their personal Google/Gmail account
-        if ($sender && $sender->hasGoogleMailConnected()) {
+        if ($hasGoogleConnected) {
             try {
                 $htmlBody = view('emails.export_report', [
                     'emailSubject'     => $subject,

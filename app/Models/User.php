@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\Crypt;
 
 #[Hidden(['password', 'remember_token', 'google_access_token', 'google_refresh_token'])]
 class User extends Authenticatable
@@ -57,9 +58,59 @@ class User extends Authenticatable
             'notify_whatsapp_tickets' => 'boolean',
             'rejected_at'             => 'datetime',
             'google_token_expires_at' => 'datetime',
-            'google_access_token'     => 'encrypted',
-            'google_refresh_token'    => 'encrypted',
         ];
+    }
+
+    /**
+     * Safely decrypt Google access token, falling back to raw value if unencrypted or corrupted.
+     */
+    public function getGoogleAccessTokenAttribute($value): ?string
+    {
+        if (empty($value)) {
+            return null;
+        }
+
+        try {
+            return Crypt::decryptString($value);
+        } catch (\Throwable) {
+            return $value;
+        }
+    }
+
+    public function setGoogleAccessTokenAttribute($value): void
+    {
+        if (empty($value)) {
+            $this->attributes['google_access_token'] = null;
+            return;
+        }
+
+        $this->attributes['google_access_token'] = Crypt::encryptString($value);
+    }
+
+    /**
+     * Safely decrypt Google refresh token, falling back to raw value if unencrypted or corrupted.
+     */
+    public function getGoogleRefreshTokenAttribute($value): ?string
+    {
+        if (empty($value)) {
+            return null;
+        }
+
+        try {
+            return Crypt::decryptString($value);
+        } catch (\Throwable) {
+            return $value;
+        }
+    }
+
+    public function setGoogleRefreshTokenAttribute($value): void
+    {
+        if (empty($value)) {
+            $this->attributes['google_refresh_token'] = null;
+            return;
+        }
+
+        $this->attributes['google_refresh_token'] = Crypt::encryptString($value);
     }
 
     /**
@@ -93,7 +144,11 @@ class User extends Authenticatable
      */
     public function hasGoogleMailConnected(): bool
     {
-        return !empty($this->google_refresh_token) || !empty($this->google_access_token);
+        try {
+            return !empty($this->google_refresh_token) || !empty($this->google_access_token);
+        } catch (\Throwable) {
+            return false;
+        }
     }
 
 
