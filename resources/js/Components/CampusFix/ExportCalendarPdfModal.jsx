@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import axios from 'axios';
 import {
     Dialog,
     DialogContent,
@@ -8,16 +9,21 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/Components/UI/Dialog';
+import { Button } from '@/Components/UI/Button';
 import {
     Calendar as CalendarIcon, FileText, Download, Loader2,
     Building2, CheckCircle2, Clock, MapPin, RefreshCw,
-    SlidersHorizontal, Layers, Check, X
+    SlidersHorizontal, Layers, Check, X,
+    Mail, Send, Sparkles, Users, User, Plus, AlertCircle, Globe
 } from 'lucide-react';
 import { ALL_DEPARTMENTS, normalizeDepartment } from '@/constants/staff';
 import { getDepartmentTheme } from '@/constants/departments';
 import { parseTaskRanges, formatDateShort } from './OperationsCalendarView';
 import { useLanguage } from '@/context/LanguageContext';
 import { useAuth } from '@/hooks/useAuth';
+
+// Available Locations
+const ALL_LOCATIONS = ['TPI', 'TBR', 'Kantor'];
 
 // Format Date YYYY-MM-DD
 function toDateString(d) {
@@ -54,8 +60,10 @@ function calculateDaysSpan(startStr, endStr) {
 
 export function ExportCalendarPdfModal({ open, onOpenChange, tasks = [] }) {
     const { t, lang } = useLanguage();
-    const { isDeptUser, department: userDept } = useAuth();
+    const { user, isDeptUser, department: userDept } = useAuth();
     const lockedDept = isDeptUser && userDept ? normalizeDepartment(userDept) : null;
+    const currentUserEmail = (user?.email || '').toLowerCase().trim();
+    const myDept = userDept ? normalizeDepartment(userDept) : (user?.department ? normalizeDepartment(user?.department) : null);
 
     // Filters state
     const today = new Date();
@@ -75,8 +83,8 @@ export function ExportCalendarPdfModal({ open, onOpenChange, tasks = [] }) {
     // Status filter
     const [statusFilter, setStatusFilter] = useState('all'); // 'all' | 'active' | 'done'
 
-    // Location filter
-    const [locationFilter, setLocationFilter] = useState('all'); // 'all' | 'TPI' | 'TBR' | 'Kantor'
+    // Location filter (multi-select)
+    const [selectedLocations, setSelectedLocations] = useState(() => [...ALL_LOCATIONS]);
 
     // Grouping & Sorting
     const [groupingMode, setGroupingMode] = useState('department'); // 'department' | 'chronological'
@@ -89,6 +97,19 @@ export function ExportCalendarPdfModal({ open, onOpenChange, tasks = [] }) {
     const [previewUrl, setPreviewUrl] = useState(null);
     const [isPreviewLoading, setIsPreviewLoading] = useState(false);
     const [isExporting, setIsExporting] = useState(false);
+
+    // Email Dispatch Modal state
+    const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
+    const [isSendingEmail, setIsSendingEmail] = useState(false);
+    const [emailRecipients, setEmailRecipients] = useState([]);
+    const [recipientInput, setRecipientInput] = useState('');
+    const [emailSubject, setEmailSubject] = useState('');
+    const [emailMessage, setEmailMessage] = useState('');
+    const [availableRecipients, setAvailableRecipients] = useState({ users: [], hods: [], by_department: {} });
+    const [isLoadingRecipients, setIsLoadingRecipients] = useState(false);
+    const [emailStatusToast, setEmailStatusToast] = useState(null);
+    const [googleStatus, setGoogleStatus] = useState({ connected: false, google_email: null });
+    const [isCheckingGoogle, setIsCheckingGoogle] = useState(false);
 
     // Preloaded logo data URL
     const logoImgRef = useRef(null);
@@ -177,6 +198,31 @@ export function ExportCalendarPdfModal({ open, onOpenChange, tasks = [] }) {
         setSelectedDepartments([ALL_DEPARTMENTS[0]]);
     };
 
+    const handleSelectMyDept = () => {
+        if (lockedDept) return;
+        if (myDept) {
+            setSelectedDepartments([myDept]);
+        }
+    };
+
+    // Location toggles (multi-select)
+    const handleLocationToggle = (loc) => {
+        setSelectedLocations(prev => {
+            if (prev.includes(loc)) {
+                return prev.filter(l => l !== loc);
+            }
+            return [...prev, loc];
+        });
+    };
+
+    const handleToggleAllLocations = () => {
+        if (selectedLocations.length === ALL_LOCATIONS.length) {
+            setSelectedLocations([]);
+        } else {
+            setSelectedLocations([...ALL_LOCATIONS]);
+        }
+    };
+
     // Filter tasks based on all selections
     const filteredTasks = useMemo(() => {
         if (!tasks || tasks.length === 0) return [];
@@ -190,10 +236,13 @@ export function ExportCalendarPdfModal({ open, onOpenChange, tasks = [] }) {
             if (statusFilter === 'active' && task.status !== 'active') return false;
             if (statusFilter === 'done' && task.status !== 'done') return false;
 
-            // 3. Location filter
-            if (locationFilter !== 'all') {
+            // 3. Location filter (matches if task location contains ANY of the selected locations)
+            if (selectedLocations.length > 0 && selectedLocations.length < ALL_LOCATIONS.length) {
                 const loc = (task.location || task.locDetail || '').toUpperCase();
-                if (!loc.includes(locationFilter.toUpperCase())) return false;
+                const matchesAny = selectedLocations.some(sel => loc.includes(sel.toUpperCase()));
+                if (!matchesAny) return false;
+            } else if (selectedLocations.length === 0) {
+                return false;
             }
 
             // 4. Date Range filter
@@ -219,7 +268,7 @@ export function ExportCalendarPdfModal({ open, onOpenChange, tasks = [] }) {
 
             return true;
         });
-    }, [tasks, selectedDepartments, statusFilter, locationFilter, activeDateRange]);
+    }, [tasks, selectedDepartments, statusFilter, selectedLocations, activeDateRange]);
 
     // Sort or Group tasks
     const processedTasks = useMemo(() => {
@@ -259,6 +308,177 @@ export function ExportCalendarPdfModal({ open, onOpenChange, tasks = [] }) {
             .replace(/[^\x20-\x7E\n\r\t]/g, '');
     };
 
+    // ─── Email Modal Handlers ─────────────────────────────────────────────────
+    const handleOpenEmailModal = async () => {
+        setIsEmailModalOpen(true);
+        setEmailStatusToast(null);
+
+        const dateStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+        const periodLabel = activeDateRange.label || 'Operations Schedule';
+        setEmailSubject(`[Telunas Schedule] Operations Calendar Report - ${periodLabel} (${dateStr})`);
+
+        if (!availableRecipients.users || availableRecipients.users.length === 0) {
+            setIsLoadingRecipients(true);
+            try {
+                const res = await axios.get('/api/export/recipients');
+                if (res.data?.success) {
+                    setAvailableRecipients(res.data);
+                }
+            } catch (err) {
+                console.error('Failed to load recipients list', err);
+            } finally {
+                setIsLoadingRecipients(false);
+            }
+        }
+
+        // Fetch Google OAuth connection status
+        setIsCheckingGoogle(true);
+        try {
+            const res = await axios.get('/api/google/status');
+            if (res.data?.success) {
+                setGoogleStatus(res.data);
+            }
+        } catch (err) {
+            console.error('Failed to check Google status', err);
+        } finally {
+            setIsCheckingGoogle(false);
+        }
+    };
+
+    const handleDisconnectGoogle = async () => {
+        try {
+            const res = await axios.post('/auth/google/disconnect');
+            if (res.data?.success) {
+                setGoogleStatus({ connected: false, google_email: null });
+            }
+        } catch (err) {
+            console.error('Failed to disconnect Google account', err);
+        }
+    };
+
+    const toggleRecipientEmail = (email) => {
+        if (!email) return;
+        const lower = email.toLowerCase().trim();
+        setEmailRecipients(prev => 
+            prev.includes(lower) 
+                ? prev.filter(e => e !== lower)
+                : [...prev, lower]
+        );
+    };
+
+    const toggleAllHods = () => {
+        const hodEmails = (availableRecipients.hods || [])
+            .map(h => (h.email || '').toLowerCase().trim())
+            .filter(Boolean);
+        if (hodEmails.length === 0) return;
+
+        const allSelected = hodEmails.every(e => emailRecipients.includes(e));
+        if (allSelected) {
+            setEmailRecipients(prev => prev.filter(e => !hodEmails.includes(e)));
+        } else {
+            setEmailRecipients(prev => Array.from(new Set([...prev, ...hodEmails])));
+        }
+    };
+
+    const toggleDepartmentRecipients = (dept) => {
+        const deptUsers = (availableRecipients.by_department?.[dept] || [])
+            .map(u => (u.email || '').toLowerCase().trim())
+            .filter(Boolean);
+        if (deptUsers.length === 0) return;
+
+        const allSelected = deptUsers.every(e => emailRecipients.includes(e));
+        if (allSelected) {
+            setEmailRecipients(prev => prev.filter(e => !deptUsers.includes(e)));
+        } else {
+            setEmailRecipients(prev => Array.from(new Set([...prev, ...deptUsers])));
+        }
+    };
+
+    const handleAddCustomEmail = (e) => {
+        if (e) e.preventDefault();
+        const trimmed = recipientInput.trim().toLowerCase();
+        if (!trimmed) return;
+
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(trimmed)) {
+            setEmailStatusToast({
+                type: 'error',
+                message: lang === 'id' ? 'Format email tidak valid: ' + trimmed : 'Invalid email format: ' + trimmed,
+            });
+            return;
+        }
+
+        if (!emailRecipients.includes(trimmed)) {
+            setEmailRecipients(prev => [...prev, trimmed]);
+        }
+        setRecipientInput('');
+        setEmailStatusToast(null);
+    };
+
+    const handleRemoveRecipient = (email) => {
+        setEmailRecipients(prev => prev.filter(e => e !== email));
+    };
+
+    const handleSendEmail = async () => {
+        if (emailRecipients.length === 0) {
+            setEmailStatusToast({
+                type: 'error',
+                message: t('no_recipients_selected') || 'Please select or add at least one recipient email.',
+            });
+            return;
+        }
+
+        setIsSendingEmail(true);
+        setEmailStatusToast(null);
+
+        try {
+            const doc = buildPdfDocument();
+            const pdfBlob = doc.output('blob');
+            const pdfFilename = `Telunas_Calendar_Report_${new Date().toISOString().split('T')[0]}.pdf`;
+
+            const formData = new FormData();
+            formData.append('pdf_file', pdfBlob, pdfFilename);
+            formData.append('recipients', JSON.stringify(emailRecipients));
+            formData.append('subject', emailSubject || 'Telunas Operations Calendar Schedule Report');
+            formData.append('message', emailMessage || '');
+            formData.append('meta', JSON.stringify({
+                period: activeDateRange.label,
+                locations: selectedLocations,
+                departments: selectedDepartments,
+                total_tasks: processedTasks.length,
+            }));
+
+            const res = await axios.post('/api/export/email-pdf', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' },
+            });
+
+            if (res.data?.success) {
+                setEmailStatusToast({
+                    type: 'success',
+                    message: res.data.message || (t('email_sent_success') || 'Report successfully sent via email!'),
+                });
+            } else {
+                setEmailStatusToast({
+                    type: 'error',
+                    message: res.data?.message || (t('email_send_failed') || 'Failed to send email.'),
+                });
+            }
+        } catch (err) {
+            console.error('Email dispatch error', err);
+            const serverMsg = err.response?.data?.message || err.message;
+            setEmailStatusToast({
+                type: 'error',
+                message: serverMsg || (t('email_send_failed') || 'Failed to send email.'),
+            });
+        } finally {
+            setIsSendingEmail(false);
+        }
+    };
+
+    const isSendingToSelf = Boolean(
+        currentUserEmail && emailRecipients.some(e => e.toLowerCase() === currentUserEmail)
+    );
+
     // ─── Core jsPDF Document Builder ──────────────────────────────────────────
     const buildPdfDocument = useCallback(() => {
         const doc = new jsPDF('landscape', 'mm', 'a4');
@@ -290,8 +510,11 @@ export function ExportCalendarPdfModal({ open, onOpenChange, tasks = [] }) {
         const deptSummary = selectedDepartments.length === ALL_DEPARTMENTS.length 
             ? 'All Departments' 
             : selectedDepartments.join(', ');
+        const locSummary = selectedLocations.length === ALL_LOCATIONS.length
+            ? 'All Locations'
+            : (selectedLocations.length === 0 ? 'None' : selectedLocations.join(', '));
         const genDate = new Date().toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-        doc.text(`Period: ${activeDateRange.label}   |   Departments: ${deptSummary}   |   Generated: ${genDate}`, marginX, 61);
+        doc.text(`Period: ${activeDateRange.label}   |   Locations: ${locSummary}   |   Departments: ${deptSummary}   |   Generated: ${genDate}`, marginX, 61);
 
         let currentY = 66;
 
@@ -493,7 +716,7 @@ export function ExportCalendarPdfModal({ open, onOpenChange, tasks = [] }) {
 
         return doc;
     }, [
-        processedTasks, selectedDepartments, activeDateRange,
+        processedTasks, selectedDepartments, selectedLocations, activeDateRange,
         groupingMode, includeKpi, includeNotes,
         totalCount, activeCount, doneCount
     ]);
@@ -540,7 +763,7 @@ export function ExportCalendarPdfModal({ open, onOpenChange, tasks = [] }) {
 
     return (
         <Dialog open={open} onOpenChange={(o) => { if (!isExporting) onOpenChange(o); }}>
-            <DialogContent className="max-h-[100dvh] overflow-hidden flex flex-col w-full sm:max-w-6xl h-[100dvh] sm:h-[88vh] sm:max-h-[95vh] rounded-none sm:rounded-2xl bg-[#1C1B0E] border border-[#3B3929] text-[#FAFAFA] shadow-2xl p-0">
+            <DialogContent className="max-h-[100dvh] overflow-hidden flex flex-col w-full sm:max-w-6xl h-[100dvh] sm:h-[88vh] sm:max-h-[95vh] rounded-none sm:rounded-2xl bg-[#1C1B0E] border border-[#3B3929] text-[#FAFAFA] shadow-2xl p-0 relative">
                 {/* Modal Header */}
                 <DialogHeader className="px-6 py-4 border-b border-[#3B3929] bg-[#2A281E]/80 backdrop-blur-md flex flex-row items-center justify-between shrink-0">
                     <div>
@@ -623,6 +846,23 @@ export function ExportCalendarPdfModal({ open, onOpenChange, tasks = [] }) {
                                 </label>
                                 {!lockedDept && (
                                     <div className="flex items-center gap-2">
+                                        {myDept && (
+                                            <>
+                                                <button
+                                                    type="button"
+                                                    onClick={handleSelectMyDept}
+                                                    className={`text-[10px] font-semibold cursor-pointer px-1.5 py-0.5 rounded transition-colors ${
+                                                        selectedDepartments.length === 1 && selectedDepartments[0] === myDept
+                                                            ? 'bg-[#C9AA71] text-[#1C1B0E] font-bold shadow-xs'
+                                                            : 'text-[#C9AA71] hover:underline'
+                                                    }`}
+                                                    title={t('select_my_dept_desc') || 'Pilih hanya departemen Anda sendiri'}
+                                                >
+                                                    {t('my_department') || 'Dept Saya'}
+                                                </button>
+                                                <span className="text-[#3B3929]">&middot;</span>
+                                            </>
+                                        )}
                                         <button
                                             type="button"
                                             onClick={handleSelectAllDepts}
@@ -706,32 +946,42 @@ export function ExportCalendarPdfModal({ open, onOpenChange, tasks = [] }) {
                             </div>
                         </div>
 
-                        {/* 4. Location Filter */}
+                        {/* 4. Location Filter (Multi-Select) */}
                         <div className="space-y-2">
-                            <label className="flex items-center gap-1.5 font-bold text-[#E3D1AA] text-xs uppercase tracking-wider">
-                                <MapPin className="h-3.5 w-3.5 text-[#C9AA71]" />
-                                <span>{t('location') || 'Lokasi'}</span>
-                            </label>
-                            <div className="grid grid-cols-4 gap-1.5">
-                                {[
-                                    { id: 'all', label: 'All' },
-                                    { id: 'TPI', label: 'TPI' },
-                                    { id: 'TBR', label: 'TBR' },
-                                    { id: 'Kantor', label: 'Kantor' },
-                                ].map(loc => (
-                                    <button
-                                        key={loc.id}
-                                        type="button"
-                                        onClick={() => setLocationFilter(loc.id)}
-                                        className={`py-1.5 px-1 rounded-xl text-xs font-bold text-center border transition-all cursor-pointer ${
-                                            locationFilter === loc.id
-                                                ? 'bg-[#C9AA71] text-[#1C1B0E] border-[#C9AA71] font-extrabold shadow-sm'
-                                                : 'bg-[#1C1B0E] text-[#A19F8D] border-[#3B3929] hover:text-[#FAFAFA]'
-                                        }`}
-                                    >
-                                        {loc.label}
-                                    </button>
-                                ))}
+                            <div className="flex items-center justify-between">
+                                <label className="flex items-center gap-1.5 font-bold text-[#E3D1AA] text-xs uppercase tracking-wider">
+                                    <MapPin className="h-3.5 w-3.5 text-[#C9AA71]" />
+                                    <span>{t('location') || 'Lokasi'}</span>
+                                </label>
+                                <button
+                                    type="button"
+                                    onClick={handleToggleAllLocations}
+                                    className="text-[10px] text-[#C9AA71] hover:underline font-semibold cursor-pointer"
+                                >
+                                    {selectedLocations.length === ALL_LOCATIONS.length
+                                        ? (t('unselect_all') || 'Batal Semua')
+                                        : (t('select_all') || 'Semua')}
+                                </button>
+                            </div>
+                            <div className="grid grid-cols-3 gap-1.5">
+                                {ALL_LOCATIONS.map(loc => {
+                                    const isSelected = selectedLocations.includes(loc);
+                                    return (
+                                        <button
+                                            key={loc}
+                                            type="button"
+                                            onClick={() => handleLocationToggle(loc)}
+                                            className={`py-1.5 px-1 rounded-xl text-xs font-bold text-center border transition-all cursor-pointer flex items-center justify-center gap-1 ${
+                                                isSelected
+                                                    ? 'bg-[#C9AA71] text-[#1C1B0E] border-[#C9AA71] font-extrabold shadow-sm'
+                                                    : 'bg-[#1C1B0E] text-[#A19F8D] border-[#3B3929] hover:text-[#FAFAFA]'
+                                            }`}
+                                        >
+                                            {isSelected && <Check className="h-3 w-3 stroke-[2.5]" />}
+                                            <span>{loc}</span>
+                                        </button>
+                                    );
+                                })}
                             </div>
                         </div>
 
@@ -842,6 +1092,16 @@ export function ExportCalendarPdfModal({ open, onOpenChange, tasks = [] }) {
 
                             <button
                                 type="button"
+                                onClick={handleOpenEmailModal}
+                                disabled={isExporting || processedTasks.length === 0}
+                                className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold border border-[#C9AA71]/50 text-[#E3D1AA] hover:bg-[#C9AA71]/15 hover:border-[#C9AA71] transition-all disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
+                            >
+                                <Mail className="h-4 w-4 text-[#C9AA71]" />
+                                <span>{t('send_email_button') || 'Kirim Email'}</span>
+                            </button>
+
+                            <button
+                                type="button"
                                 onClick={handleDownload}
                                 disabled={isExporting || processedTasks.length === 0}
                                 className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black bg-gradient-to-r from-[#C9AA71] to-[#D4BA85] text-[#1C1B0E] hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 disabled:pointer-events-none shadow-lg cursor-pointer"
@@ -860,6 +1120,362 @@ export function ExportCalendarPdfModal({ open, onOpenChange, tasks = [] }) {
                         </div>
                     </div>
                 </div>
+
+                {/* ─── EMAIL DISPATCH MODAL OVERLAY ─── */}
+                {isEmailModalOpen && (
+                    <div className="absolute inset-0 bg-[#1C1B0E] z-50 flex flex-col animate-in fade-in zoom-in-95 duration-200 p-6 overflow-hidden">
+                        {/* Overlay Header */}
+                        <div className="flex items-center justify-between pb-3 border-b border-[#3B3929] shrink-0">
+                            <div className="flex items-center gap-2.5">
+                                <div className="p-2 rounded-xl bg-[#2A281E] border border-[#C9AA71]/40 text-[#C9AA71]">
+                                    <Mail className="h-5 w-5" />
+                                </div>
+                                <div>
+                                    <h3 className="text-base font-bold text-[#FAFAFA]">
+                                        {t('send_report_email_title') || 'Send Schedule Report via Email'}
+                                    </h3>
+                                    <p className="text-xs text-muted-foreground">
+                                        {t('send_report_email_subtitle') || 'Deliver this PDF schedule report directly to department heads or staff members.'}
+                                    </p>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => { setIsEmailModalOpen(false); setEmailStatusToast(null); }}
+                                className="p-2 rounded-xl hover:bg-[#2A281E] text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                            >
+                                <X className="h-5 w-5" />
+                            </button>
+                        </div>
+
+                        {/* Status feedback banner if any */}
+                        {emailStatusToast && (
+                            <div className={`mt-3 p-3 rounded-xl border text-xs flex items-center justify-between shrink-0 animate-in fade-in slide-in-from-top-2 duration-150 ${
+                                emailStatusToast.type === 'success'
+                                    ? 'bg-emerald-950/60 border-emerald-500/50 text-emerald-300'
+                                    : 'bg-rose-950/60 border-rose-500/50 text-rose-300'
+                            }`}>
+                                <div className="flex items-center gap-2">
+                                    {emailStatusToast.type === 'success' ? (
+                                        <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
+                                    ) : (
+                                        <AlertCircle className="h-4 w-4 shrink-0 text-rose-400" />
+                                    )}
+                                    <span>{emailStatusToast.message}</span>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setEmailStatusToast(null)}
+                                    className="text-xs opacity-60 hover:opacity-100 cursor-pointer"
+                                >
+                                    Dismiss
+                                </button>
+                            </div>
+                        )}
+
+                        {/* Overlay Form Content (Scrollable) */}
+                        <div className="flex-1 overflow-y-auto py-4 space-y-4 pr-1 custom-scrollbar">
+                            {/* Google Account Connection Status Banner */}
+                            <div className={`p-3.5 rounded-xl border flex items-center justify-between transition-all ${
+                                googleStatus.connected
+                                    ? 'bg-emerald-950/30 border-emerald-500/40 text-emerald-300'
+                                    : 'bg-[#2A281E]/60 border-[#3B3929] text-muted-foreground'
+                            }`}>
+                                <div className="flex items-center gap-3">
+                                    <div className={`p-2 rounded-lg border shrink-0 ${
+                                        googleStatus.connected
+                                            ? 'bg-emerald-950/60 border-emerald-500/60 text-emerald-400'
+                                            : 'bg-[#1C1B0E] border-[#3B3929] text-muted-foreground'
+                                    }`}>
+                                        <Globe className="h-4 w-4" />
+                                    </div>
+                                    <div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-xs font-bold text-[#FAFAFA]">
+                                                {googleStatus.connected ? (t('google_connected_banner') || 'Sending directly from your Google Account:') : (t('google_not_connected_banner') || 'Sending via Telunas System Mailer')}
+                                            </span>
+                                            {googleStatus.connected && (
+                                                <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                                                    REAL GMAIL
+                                                </span>
+                                            )}
+                                        </div>
+                                        <p className="text-[11px] text-muted-foreground">
+                                            {googleStatus.connected 
+                                                ? googleStatus.google_email
+                                                : (t('connect_google_hint') || 'Connect your Google account to send reports directly from your real Gmail.')}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div className="shrink-0">
+                                    {isCheckingGoogle ? (
+                                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                                    ) : googleStatus.connected ? (
+                                        <button
+                                            type="button"
+                                            onClick={handleDisconnectGoogle}
+                                            className="text-xs text-rose-400/80 hover:text-rose-300 hover:underline transition-all cursor-pointer"
+                                        >
+                                            {t('disconnect_google') || 'Disconnect'}
+                                        </button>
+                                    ) : (
+                                        <a
+                                            href={`/auth/google/redirect?return_to=${encodeURIComponent(window.location.pathname)}`}
+                                            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#1C1B0E] text-[#FAFAFA] border border-[#C9AA71]/60 hover:bg-[#C9AA71]/15 hover:border-[#C9AA71] transition-all shadow-sm cursor-pointer"
+                                        >
+                                            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24">
+                                                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                                                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                                                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                                                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+                                            </svg>
+                                            <span>{t('connect_google_button') || 'Connect Google'}</span>
+                                        </a>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Quick Select Recipients */}
+                            <div className="p-3.5 rounded-xl bg-[#2A281E]/60 border border-[#3B3929] space-y-2.5">
+                                <div className="flex items-center justify-between">
+                                    <label className="text-xs font-bold text-[#C9AA71] uppercase tracking-wider flex items-center gap-1.5">
+                                        <Users className="h-3.5 w-3.5" />
+                                        <span>{t('quick_select_recipients') || 'Quick Select Recipients'}</span>
+                                    </label>
+                                    {isLoadingRecipients && (
+                                        <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+                                            <Loader2 className="h-3 w-3 animate-spin" />
+                                            Loading directory...
+                                        </span>
+                                    )}
+                                </div>
+
+                                {/* HOD & Department Quick Buttons */}
+                                <div className="flex flex-wrap gap-1.5">
+                                    {/* All HODs Button */}
+                                    {availableRecipients.hods?.length > 0 && (
+                                        <button
+                                            type="button"
+                                            onClick={toggleAllHods}
+                                            className={`px-2.5 py-1 text-xs font-semibold rounded-lg border transition-all flex items-center gap-1.5 cursor-pointer ${
+                                                availableRecipients.hods.every(h => emailRecipients.includes((h.email || '').toLowerCase()))
+                                                    ? 'bg-[#C9AA71] text-[#1C1B0E] border-[#C9AA71] shadow-sm font-bold'
+                                                    : 'bg-[#1C1B0E] text-[#C9AA71] border-[#C9AA71]/40 hover:bg-[#C9AA71]/15'
+                                            }`}
+                                        >
+                                            <Sparkles className="w-3 h-3" />
+                                            <span>{t('all_hods') || 'All HODs'} ({availableRecipients.hods.length})</span>
+                                        </button>
+                                    )}
+
+                                    {/* Department Pills */}
+                                    {Object.keys(availableRecipients.by_department || {}).map(dept => {
+                                        const deptUsers = availableRecipients.by_department[dept] || [];
+                                        if (deptUsers.length === 0) return null;
+                                        const allDeptSelected = deptUsers.every(u => emailRecipients.includes((u.email || '').toLowerCase()));
+
+                                        return (
+                                            <button
+                                                key={dept}
+                                                type="button"
+                                                onClick={() => toggleDepartmentRecipients(dept)}
+                                                className={`px-2 py-0.5 text-xs font-medium rounded-lg border transition-all flex items-center gap-1 cursor-pointer ${
+                                                    allDeptSelected
+                                                        ? 'bg-[#C9AA71] text-[#1C1B0E] border-[#C9AA71] font-bold'
+                                                        : 'bg-[#1C1B0E] text-muted-foreground border-[#3B3929] hover:border-[#C9AA71]/50 hover:text-foreground'
+                                                }`}
+                                            >
+                                                <span>{dept}</span>
+                                                <span className="text-[10px] px-1 py-0.2 rounded-full bg-[#2A281E]">
+                                                    {deptUsers.length}
+                                                </span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            {/* Selected Recipients & Manual Input */}
+                            <div className="space-y-2">
+                                <label className="text-xs font-semibold text-foreground flex items-center justify-between">
+                                    <span>{t('email_recipients') || 'Recipients'} ({emailRecipients.length})</span>
+                                    {emailRecipients.length > 0 && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setEmailRecipients([])}
+                                            className="text-[11px] text-muted-foreground hover:text-rose-400 transition-colors cursor-pointer"
+                                        >
+                                            Clear All
+                                        </button>
+                                    )}
+                                </label>
+
+                                {/* Selected Chips */}
+                                <div className="min-h-[42px] p-2 rounded-xl bg-[#2A281E]/40 border border-[#3B3929] flex flex-wrap gap-1.5 items-center">
+                                    {emailRecipients.length === 0 ? (
+                                        <span className="text-xs text-muted-foreground italic px-1">
+                                            {t('no_recipients_selected') || 'No recipients selected. Choose from above or type below.'}
+                                        </span>
+                                    ) : (
+                                        emailRecipients.map(email => {
+                                            const cleanEmail = (email || '').toLowerCase().trim();
+                                            const isSelf = Boolean(currentUserEmail && cleanEmail === currentUserEmail);
+                                            const matchedUser = availableRecipients.users?.find(u => (u.email || '').toLowerCase().trim() === cleanEmail);
+                                            return (
+                                                <span
+                                                    key={email}
+                                                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs shadow-sm animate-in fade-in zoom-in-95 duration-100 transition-all ${
+                                                        isSelf
+                                                            ? 'bg-amber-500/15 border border-amber-500/50 text-[#FAFAFA]'
+                                                            : 'bg-[#2A281E] border border-[#C9AA71]/40 text-[#FAFAFA]'
+                                                    }`}
+                                                >
+                                                    <span className="font-medium flex items-center gap-1.5">
+                                                        {matchedUser ? `${matchedUser.name} (${matchedUser.department || 'Staff'})` : email}
+                                                        {isSelf && (
+                                                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/25 text-amber-300 border border-amber-500/40 uppercase tracking-wider flex items-center gap-0.5">
+                                                                <User className="h-2.5 w-2.5" />
+                                                                {t('self_recipient_badge') || 'Akun Anda'}
+                                                            </span>
+                                                        )}
+                                                    </span>
+                                                    {matchedUser && (
+                                                        <span className="text-[10px] text-muted-foreground">
+                                                            &lt;{email}&gt;
+                                                        </span>
+                                                    )}
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleRemoveRecipient(email)}
+                                                        className="p-0.5 rounded-full hover:bg-rose-500/20 text-muted-foreground hover:text-rose-300 cursor-pointer"
+                                                    >
+                                                        <X className="h-3 w-3" />
+                                                    </button>
+                                                </span>
+                                            );
+                                        })
+                                    )}
+                                </div>
+
+                                {/* Custom Email Input Box */}
+                                <form onSubmit={handleAddCustomEmail} className="flex gap-2 pt-1">
+                                    <input
+                                        type="email"
+                                        value={recipientInput}
+                                        onChange={(e) => setRecipientInput(e.target.value)}
+                                        placeholder={t('email_recipients_placeholder') || 'Type an email and press Enter or click Add...'}
+                                        className="flex-1 px-3 py-2 text-xs rounded-xl bg-[#2A281E] border border-[#3B3929] text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-[#C9AA71]"
+                                    />
+                                    <Button
+                                        type="submit"
+                                        variant="outline"
+                                        size="sm"
+                                        className="text-xs gap-1 border-[#3B3929] hover:border-[#C9AA71] cursor-pointer"
+                                    >
+                                        <Plus className="h-3.5 w-3.5" />
+                                        Add
+                                    </Button>
+                                </form>
+                            </div>
+
+                            {/* Subject */}
+                            <div className="space-y-1.5">
+                                <label className="text-xs font-semibold text-foreground">
+                                    {t('email_subject') || 'Subject'}
+                                </label>
+                                <input
+                                    type="text"
+                                    value={emailSubject}
+                                    onChange={(e) => setEmailSubject(e.target.value)}
+                                    placeholder={t('email_subject_placeholder') || 'Subject...'}
+                                    className="w-full px-3 py-2 text-xs rounded-xl bg-[#2A281E] border border-[#3B3929] text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-[#C9AA71]"
+                                />
+                            </div>
+
+                            {/* Personal Note */}
+                            <div className="space-y-1.5">
+                                <label className="text-xs font-semibold text-foreground">
+                                    {t('email_message') || 'Personal Note (Optional)'}
+                                </label>
+                                <textarea
+                                    rows={3}
+                                    value={emailMessage}
+                                    onChange={(e) => setEmailMessage(e.target.value)}
+                                    placeholder={t('email_message_placeholder') || 'Add any additional notes or instructions for the recipients...'}
+                                    className="w-full px-3 py-2 text-xs rounded-xl bg-[#2A281E] border border-[#3B3929] text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-[#C9AA71] resize-none"
+                                />
+                            </div>
+
+                            {/* Attachment Details Pill */}
+                            <div className="p-3 rounded-xl bg-[#242217] border border-[#C9AA71]/40 flex items-center justify-between text-xs">
+                                <div className="flex items-center gap-2">
+                                    <FileText className="h-4 w-4 text-[#C9AA71]" />
+                                    <div>
+                                        <p className="font-bold text-[#FAFAFA]">
+                                            Telunas_Calendar_Report_{new Date().toISOString().split('T')[0]}.pdf
+                                        </p>
+                                        <p className="text-[11px] text-muted-foreground">
+                                            {processedTasks.length} {t('tasks_selected') || 'tugas'} • {activeDateRange.label} • {selectedLocations.length === ALL_LOCATIONS.length ? 'All Locations' : (selectedLocations.join(', ') || 'No locations')}
+                                        </p>
+                                    </div>
+                                </div>
+                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#C9AA71]/20 text-[#C9AA71] border border-[#C9AA71]/30">
+                                    PDF ATTACHMENT
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* Overlay Footer */}
+                        <div className="pt-3 border-t border-[#3B3929] shrink-0 space-y-2.5">
+                            {isSendingToSelf && (
+                                <div className="px-3 py-2 rounded-xl bg-amber-500/15 border border-amber-500/40 text-amber-200 flex items-center gap-2.5 text-xs animate-in fade-in slide-in-from-bottom-2 duration-150">
+                                    <div className="p-1 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/30 shrink-0">
+                                        <AlertCircle className="h-3.5 w-3.5" />
+                                    </div>
+                                    <div className="flex-1 leading-snug">
+                                        <span className="font-semibold text-amber-300">
+                                            {(t('self_recipient_badge') || 'Akun Anda')}:{' '}
+                                        </span>
+                                        <span>
+                                            {(t('self_recipient_notice') || 'Pemberitahuan: Laporan ini juga akan dikirimkan ke email akun Anda sendiri ({email}).').replace('{email}', currentUserEmail)}
+                                        </span>
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="flex items-center justify-between gap-2">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => { setIsEmailModalOpen(false); setEmailStatusToast(null); }}
+                                    disabled={isSendingEmail}
+                                    className="cursor-pointer"
+                                >
+                                    Back to Preview
+                                </Button>
+                                <Button
+                                    type="button"
+                                    onClick={handleSendEmail}
+                                    disabled={isSendingEmail || emailRecipients.length === 0}
+                                    className="gap-2 bg-[#C9AA71] text-[#1C1B0E] hover:bg-[#b89960] font-bold cursor-pointer"
+                                >
+                                    {isSendingEmail ? (
+                                        <>
+                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                            <span>{t('sending_email') || 'Sending Email...'}</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Send className="h-4 w-4" />
+                                            <span>{t('send_email_button') || 'Send Email'} ({emailRecipients.length})</span>
+                                        </>
+                                    )}
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </DialogContent>
         </Dialog>
     );
