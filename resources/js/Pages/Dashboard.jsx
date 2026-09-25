@@ -831,7 +831,7 @@ function DashboardInner() {
                         onDeptChange={setDeptFilter}
                     />
 
-                    <div className="flex items-center gap-2.5 flex-wrap w-full md:w-auto justify-between md:justify-end">
+                    <div className="flex items-center gap-2.5 flex-wrap w-full md:w-auto justify-center md:justify-end">
                         {canViewAllDepartments && !isAdmin && (
                             <div 
                                 className="hidden md:inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-sky-500/10 border border-sky-500/30 text-sky-300 text-xs font-semibold shadow-xs shrink-0"
@@ -844,77 +844,77 @@ function DashboardInner() {
                             </div>
                         )}
                         {(isDeptUser || isAdmin) && (
-                            <div className="flex items-center rounded-xl bg-[#2A281E] p-1 border border-[#3B3929] text-xs font-bold shrink-0 max-w-full overflow-x-auto no-scrollbar flex-nowrap gap-0.5 shadow-sm">
+                            <div className="flex items-center justify-center rounded-2xl bg-[#2A281E] p-1.5 border border-[#3B3929] text-xs font-bold shrink-0 max-w-full overflow-x-auto no-scrollbar flex-nowrap gap-1.5 shadow-md mx-auto md:mx-0">
                                 <button
                                     type="button"
                                     onClick={() => setDeptViewMode('all')}
                                     title={t('all_my_scope')}
-                                    className={`rounded-lg transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                                    className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-2 ${
                                         deptViewMode === 'all'
-                                            ? 'px-3 py-1.5 bg-[#C9AA71] text-[#1C1B0E] shadow-sm font-extrabold'
-                                            : 'p-2 sm:px-2.5 sm:py-1 text-muted-foreground hover:text-foreground hover:bg-white/5'
+                                            ? 'px-3.5 py-2 bg-[#C9AA71] text-[#1C1B0E] shadow-md font-extrabold'
+                                            : 'p-2.5 text-muted-foreground hover:text-foreground hover:bg-white/5'
                                     }`}
                                 >
-                                    <Globe className="w-4 h-4 shrink-0" />
-                                    <span className={deptViewMode === 'all' ? 'inline' : 'hidden sm:inline'}>{t('all_my_scope')}</span>
+                                    <Globe className="w-5 h-5 shrink-0" />
+                                    <span className={deptViewMode === 'all' ? 'inline font-bold' : 'hidden sm:inline'}>{t('all_my_scope')}</span>
                                 </button>
                                 <button
                                     type="button"
                                     onClick={() => setDeptViewMode('assigned')}
                                     title={t('to_fix')}
-                                    className={`rounded-lg transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                                    className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-2 ${
                                         deptViewMode === 'assigned'
-                                            ? 'px-3 py-1.5 bg-[#C9AA71] text-[#1C1B0E] shadow-sm font-extrabold'
-                                            : 'p-2 sm:px-2.5 sm:py-1 text-muted-foreground hover:text-foreground hover:bg-white/5'
+                                            ? 'px-3.5 py-2 bg-[#C9AA71] text-[#1C1B0E] shadow-md font-extrabold'
+                                            : 'p-2.5 text-muted-foreground hover:text-foreground hover:bg-white/5'
                                     }`}
                                 >
-                                    <Target className="w-4 h-4 shrink-0" />
-                                    <span className={deptViewMode === 'assigned' ? 'inline' : 'hidden sm:inline'}>{t('to_fix')}</span>
+                                    <Target className="w-5 h-5 shrink-0" />
+                                    <span className={deptViewMode === 'assigned' ? 'inline font-bold' : 'hidden sm:inline'}>{t('to_fix')}</span>
                                 </button>
                                 <button
                                     type="button"
                                     onClick={() => setDeptViewMode('origin')}
                                     title={t('reported_by_me')}
-                                    className={`rounded-lg transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                                    className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-2 ${
                                         deptViewMode === 'origin'
-                                            ? 'px-3 py-1.5 bg-[#C9AA71] text-[#1C1B0E] shadow-sm font-extrabold'
-                                            : 'p-2 sm:px-2.5 sm:py-1 text-muted-foreground hover:text-foreground hover:bg-white/5'
+                                            ? 'px-3.5 py-2 bg-[#C9AA71] text-[#1C1B0E] shadow-md font-extrabold'
+                                            : 'p-2.5 text-muted-foreground hover:text-foreground hover:bg-white/5'
                                     }`}
                                 >
-                                    <FileText className="w-4 h-4 shrink-0" />
-                                    <span className={deptViewMode === 'origin' ? 'inline' : 'hidden sm:inline'}>{t('reported_by_me')}</span>
+                                    <FileText className="w-5 h-5 shrink-0" />
+                                    <span className={deptViewMode === 'origin' ? 'inline font-bold' : 'hidden sm:inline'}>{t('reported_by_me')}</span>
                                 </button>
                                 <button
                                     type="button"
                                     onClick={() => setDeptViewMode('tagged')}
                                     title={t('mentioned_me')}
-                                    className={`rounded-lg transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                                    className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-2 ${
                                         deptViewMode === 'tagged'
-                                            ? 'px-3 py-1.5 bg-[#C9AA71] text-[#1C1B0E] shadow-sm font-extrabold'
-                                            : 'p-2 sm:px-2.5 sm:py-1 text-muted-foreground hover:text-foreground hover:bg-white/5'
+                                            ? 'px-3.5 py-2 bg-[#C9AA71] text-[#1C1B0E] shadow-md font-extrabold'
+                                            : 'p-2.5 text-muted-foreground hover:text-foreground hover:bg-white/5'
                                     }`}
                                 >
-                                    <Megaphone className="w-4 h-4 shrink-0" />
-                                    <span className={deptViewMode === 'tagged' ? 'inline' : 'hidden sm:inline'}>{t('mentioned_me')}</span>
+                                    <Megaphone className="w-5 h-5 shrink-0" />
+                                    <span className={deptViewMode === 'tagged' ? 'inline font-bold' : 'hidden sm:inline'}>{t('mentioned_me')}</span>
                                 </button>
                                 {pastContribCount > 0 && (
                                     <button
                                         type="button"
                                         onClick={() => setDeptViewMode('past_contributions')}
-                                        className={`rounded-lg transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                                        className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-2 ${
                                             deptViewMode === 'past_contributions'
-                                                ? 'px-3 py-1.5 bg-[#C9AA71] text-[#1C1B0E] shadow-sm font-extrabold'
-                                                : 'p-2 sm:px-2.5 sm:py-1 text-muted-foreground hover:text-foreground hover:bg-white/5'
+                                                ? 'px-3.5 py-2 bg-[#C9AA71] text-[#1C1B0E] shadow-md font-extrabold'
+                                                : 'p-2.5 text-muted-foreground hover:text-foreground hover:bg-white/5'
                                         }`}
                                         title={lang === 'id' 
                                             ? `Riwayat Kontribusi (${pastContribCount} isu)` 
                                             : `Past Contributions (${pastContribCount} issues)`}
                                     >
-                                        <Lock className="w-4 h-4 shrink-0" />
-                                        <span className={deptViewMode === 'past_contributions' ? 'inline' : 'hidden sm:inline'}>
+                                        <Lock className="w-5 h-5 shrink-0" />
+                                        <span className={deptViewMode === 'past_contributions' ? 'inline font-bold' : 'hidden sm:inline'}>
                                             {lang === 'id' ? 'Riwayat' : 'Past Contributions'}
                                         </span>
-                                        <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                                        <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
                                             deptViewMode === 'past_contributions'
                                                 ? 'bg-[#1C1B0E] text-[#C9AA71]'
                                                 : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
@@ -927,20 +927,20 @@ function DashboardInner() {
                                     <button
                                         type="button"
                                         onClick={() => setDeptViewMode('reassign_needed')}
-                                        className={`rounded-lg transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                                        className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-2 ${
                                             deptViewMode === 'reassign_needed'
-                                                ? 'px-3 py-1.5 bg-amber-500 text-black shadow-sm font-extrabold'
-                                                : 'p-2 sm:px-2.5 sm:py-1 text-amber-400 hover:text-amber-300 hover:bg-amber-500/10'
+                                                ? 'px-3.5 py-2 bg-amber-500 text-black shadow-md font-extrabold'
+                                                : 'p-2.5 text-amber-400 hover:text-amber-300 hover:bg-amber-500/10'
                                         }`}
                                         title={lang === 'id' 
                                             ? `Staf Mutasi (${reassignNeededCount} isu)` 
                                             : `Transferred Staff (${reassignNeededCount} issues)`}
                                     >
-                                        <ArrowRightLeft className="w-4 h-4 shrink-0" />
-                                        <span className={deptViewMode === 'reassign_needed' ? 'inline' : 'hidden sm:inline'}>
+                                        <ArrowRightLeft className="w-5 h-5 shrink-0" />
+                                        <span className={deptViewMode === 'reassign_needed' ? 'inline font-bold' : 'hidden sm:inline'}>
                                             {lang === 'id' ? 'Staf Mutasi' : 'Transferred Staff'}
                                         </span>
-                                        <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                                        <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
                                             deptViewMode === 'reassign_needed'
                                                 ? 'bg-black text-amber-400'
                                                 : 'bg-amber-500/25 text-amber-300 border border-amber-500/40'
