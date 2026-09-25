@@ -376,6 +376,70 @@ class OperationsController extends Controller
         }
     }
 
+    /** GET /api/operations/calendar-access */
+    public function calendarAccess(Request $request)
+    {
+        $user = auth()->user();
+        if (!$user) {
+            return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
+        }
+
+        if (!$user->isAdmin() && !$user->hasPermission('can_access_calendar')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized. Akses ke kalender operasional dibatasi.',
+            ], 403);
+        }
+
+        $email = strtolower(trim($user->email));
+        $isDummy = $user->hasDummyEmail();
+        $calendarUrl = $this->googleService->getCalendarUrl();
+        $hasAccess = !$isDummy && $this->googleService->checkCalendarReaderAccess($email);
+
+        return response()->json([
+            'success'      => true,
+            'configured'   => !empty($this->googleService->getCalendarId()),
+            'email'        => $email,
+            'isDummyEmail' => $isDummy,
+            'hasAccess'    => $hasAccess,
+            'calendarUrl'  => $calendarUrl,
+        ]);
+    }
+
+    /** POST /api/operations/register-calendar-access */
+    public function registerCalendarAccess(Request $request)
+    {
+        $user = auth()->user();
+        if (!$user) {
+            return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
+        }
+
+        if (!$user->isAdmin() && !$user->hasPermission('can_access_calendar')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized. Akses ke kalender operasional dibatasi.',
+            ], 403);
+        }
+
+        // STRICT SECURITY: Strictly register the authenticated account's email!
+        $email = strtolower(trim($user->email));
+
+        if ($user->hasDummyEmail()) {
+            return response()->json([
+                'success' => false,
+                'message' => "Akun Anda saat ini menggunakan email placeholder/dummy ({$email}). Silakan perbarui email akun Anda ke email Google resmi di menu Profil terlebih dahulu.",
+            ], 422);
+        }
+
+        $result = $this->googleService->grantCalendarReaderAccess($email);
+
+        if (!$result['success']) {
+            return response()->json($result, 400);
+        }
+
+        return response()->json($result);
+    }
+
     /** POST /api/operations/sync-calendar */
     public function syncCalendar(Request $request)
     {

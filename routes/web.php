@@ -127,6 +127,8 @@ Route::prefix('api')->group(function () {
         // Operations — Department Work Board
         Route::get('/operations', [OperationsController::class, 'index']);
         Route::post('/operations', [OperationsController::class, 'store']);
+        Route::get('/operations/calendar-access', [OperationsController::class, 'calendarAccess']);
+        Route::post('/operations/register-calendar-access', [OperationsController::class, 'registerCalendarAccess']);
         Route::post('/operations/sync-calendar', [OperationsController::class, 'syncCalendar']);
         Route::post('/operations/pull-calendar', [OperationsController::class, 'pullCalendar']);
         Route::post('/operations/restore-task', [OperationsController::class, 'restoreTask']);

@@ -6,7 +6,7 @@ import {
     ClipboardList, Clock, CheckCircle2, Loader2, X, Building2,
     Trash2, ChevronLeft, ChevronRight, RotateCcw, CalendarCheck, Cloud,
     Search, ArrowRight, Check, FileText, ArrowDownToLine, ArrowUpToLine, AlertTriangle,
-    History
+    History, ExternalLink
 } from 'lucide-react';
 import { CampusFixHeader } from '@/Components/CampusFix/CampusFixHeader';
 import { MobileBottomNav } from '@/Components/CampusFix/MobileBottomNav';
@@ -17,6 +17,7 @@ import { ImageLightboxModal } from '@/Components/CampusFix/ImageLightboxModal';
 import { ImageDropzone } from '@/Components/CampusFix/ImageDropzone';
 import { ExportCalendarPdfModal } from '@/Components/CampusFix/ExportCalendarPdfModal';
 import CalendarSyncLogsModal from '@/Components/CampusFix/CalendarSyncLogsModal';
+import RegisterCalendarModal from '@/Components/CampusFix/RegisterCalendarModal';
 import { ALL_DEPARTMENTS, normalizeDepartment } from '@/constants/staff';
 import { getDepartmentTheme } from '@/constants/departments';
 import { useAuth } from '@/hooks/useAuth';
@@ -932,7 +933,7 @@ function CalendarAddWorkModal({ initialStartDate = '', initialEndDate = '', init
 function CalendarInner() {
     const { t, lang } = useLanguage();
     const { tasks, setTasks, loading, error, reload } = useAllOpsTasks();
-    const { isDeptUser, department: userDept, staffName, canAccessCalendar, canExportReports, canSyncCalendar } = useAuth();
+    const { user, isDeptUser, department: userDept, staffName, canAccessCalendar, canExportReports, canSyncCalendar } = useAuth();
 
     // Multi-Department Selection: Defaults to ALL departments for everyone
     const [selectedDepartments, setSelectedDepartments] = useState(ALL_DEPARTMENTS);
@@ -1391,6 +1392,66 @@ function CalendarInner() {
         }
     };
 
+    // Google Calendar Direct Access / Reader Registration State
+    const [calAccess, setCalAccess] = useState({
+        loading: true,
+        configured: false,
+        email: '',
+        isDummyEmail: false,
+        hasAccess: false,
+        calendarUrl: ''
+    });
+    const [showRegisterCalModal, setShowRegisterCalModal] = useState(false);
+    const [registeringCal, setRegisteringCal] = useState(false);
+
+    const checkCalendarAccess = useCallback(async () => {
+        try {
+            const res = await axios.get('/api/operations/calendar-access');
+            if (res.data?.success) {
+                setCalAccess({
+                    loading: false,
+                    configured: res.data.configured,
+                    email: res.data.email,
+                    isDummyEmail: res.data.isDummyEmail,
+                    hasAccess: res.data.hasAccess,
+                    calendarUrl: res.data.calendarUrl,
+                });
+            }
+        } catch {
+            setCalAccess(prev => ({ ...prev, loading: false }));
+        }
+    }, []);
+
+    useEffect(() => {
+        if (canAccessCalendar) {
+            checkCalendarAccess();
+        }
+    }, [canAccessCalendar, checkCalendarAccess]);
+
+    const handleRegisterCalendar = async () => {
+        setRegisteringCal(true);
+        try {
+            const res = await axios.post('/api/operations/register-calendar-access');
+            if (res.data?.success) {
+                setCalAccess(prev => ({
+                    ...prev,
+                    hasAccess: true,
+                    calendarUrl: res.data.calendarUrl || prev.calendarUrl,
+                }));
+                setSyncMsg({ type: 'success', text: res.data.message || (lang === 'id' ? 'Email akun berhasil didaftarkan ke Google Calendar!' : 'Account email registered to Google Calendar!') });
+                setTimeout(() => setSyncMsg(null), 6000);
+            } else {
+                setSyncMsg({ type: 'error', text: res.data?.message || 'Gagal mendaftarkan ke Google Calendar' });
+                setTimeout(() => setSyncMsg(null), 6000);
+            }
+        } catch (e) {
+            setSyncMsg({ type: 'error', text: e.response?.data?.message || e.message || 'Gagal mendaftarkan ke Google Calendar' });
+            setTimeout(() => setSyncMsg(null), 6000);
+        } finally {
+            setRegisteringCal(false);
+        }
+    };
+
     if (!canAccessCalendar) {
         return (
             <div className="min-h-screen bg-[#1C1B0E] text-[#FAFAFA] flex flex-col justify-between relative overflow-hidden">
@@ -1499,6 +1560,38 @@ function CalendarInner() {
                                 <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin text-[#C9AA71]' : ''}`} />
                                 {t('refresh') || 'Refresh'}
                             </button>
+
+                            {/* Direct Google Calendar Link or Register Access Button */}
+                            {calAccess.configured && (
+                                calAccess.loading ? (
+                                    <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-[#1C1B0E] text-[#A19F8D] border border-[#3B3929] opacity-60">
+                                        <Loader2 className="h-3.5 w-3.5 animate-spin text-[#C9AA71]" />
+                                        <span>G-Cal...</span>
+                                    </div>
+                                ) : calAccess.hasAccess ? (
+                                    <a
+                                        href={calAccess.calendarUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        title={lang === 'id' ? `Email akun (${calAccess.email}) memiliki izin akses. Buka di Google Calendar.` : `Account email (${calAccess.email}) has access. Open in Google Calendar.`}
+                                        className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-[#1C1B0E] text-emerald-300 border border-emerald-500/50 hover:border-emerald-400 hover:bg-emerald-950/40 transition-all hover:scale-105 cursor-pointer backdrop-blur-sm shadow-sm"
+                                    >
+                                        <CalendarIcon className="h-3.5 w-3.5 text-emerald-400" />
+                                        <span>{lang === 'id' ? 'Buka G-Cal' : 'Open G-Cal'}</span>
+                                        <ExternalLink className="h-3 w-3 opacity-70 ml-0.5" />
+                                    </a>
+                                ) : (
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowRegisterCalModal(true)}
+                                        title={lang === 'id' ? 'Daftarkan email akun untuk mendapatkan akses melihat Google Calendar' : 'Register account email to get access to Google Calendar'}
+                                        className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-amber-500/10 text-amber-300 border border-amber-500/50 hover:border-amber-400 hover:bg-amber-500/20 transition-all hover:scale-105 cursor-pointer backdrop-blur-sm shadow-sm"
+                                    >
+                                        <CalendarIcon className="h-3.5 w-3.5 text-amber-400" />
+                                        <span>{lang === 'id' ? 'Daftarkan ke G-Cal' : 'Register to G-Cal'}</span>
+                                    </button>
+                                )
+                            )}
 
                             {canSyncCalendar && (
                                 <>
@@ -1695,6 +1788,17 @@ function CalendarInner() {
             <CalendarSyncLogsModal
                 isOpen={logsModalOpen}
                 onClose={() => setLogsModalOpen(false)}
+                lang={lang}
+            />
+
+            {/* Google Calendar Direct Reader Access Modal */}
+            <RegisterCalendarModal
+                isOpen={showRegisterCalModal}
+                onClose={() => setShowRegisterCalModal(false)}
+                calAccess={calAccess}
+                onRegister={handleRegisterCalendar}
+                registering={registeringCal}
+                user={user}
                 lang={lang}
             />
 

@@ -5,6 +5,8 @@ namespace App\Services;
 use Google\Client;
 use Google\Service\Calendar as GoogleCalendar;
 use Google\Service\Calendar\Event as GoogleCalendarEvent;
+use Google\Service\Calendar\AclRule;
+use Google\Service\Calendar\AclRuleScope;
 use Google\Service\Sheets;
 use Google\Service\Sheets\ValueRange;
 use Google\Service\Sheets\BatchUpdateValuesRequest;
@@ -2159,6 +2161,133 @@ class GoogleService
             'message' => "Jadwal '{$targetTask['title']}' berhasil dipulihkan dan ditambahkan kembali ke Google Calendar.",
             'task'    => $targetTask,
         ];
+    }
+
+    /**
+     * Get the configured Google Calendar ID.
+     */
+    public function getCalendarId(): string
+    {
+        return $this->calendarId;
+    }
+
+    /**
+     * Get the direct web URL to view/add this calendar in Google Calendar.
+     */
+    public function getCalendarUrl(): string
+    {
+        if (empty($this->calendarId)) {
+            return '';
+        }
+        return 'https://calendar.google.com/calendar/r?cid=' . urlencode($this->calendarId);
+    }
+
+    /**
+     * Check if a specific email has been granted reader/writer/owner access to the Google Calendar.
+     */
+    public function checkCalendarReaderAccess(string $email): bool
+    {
+        if (empty($this->calendarId) || !$this->calendar) {
+            return false;
+        }
+
+        $email = strtolower(trim($email));
+        if (empty($email)) {
+            return false;
+        }
+
+        $cacheKey = 'gcal_acl_' . md5($this->calendarId . '_' . $email);
+        return Cache::remember($cacheKey, 120, function () use ($email) {
+            try {
+                $ruleId = 'user:' . $email;
+                $acl = $this->calendar->acl->get($this->calendarId, $ruleId);
+                $role = strtolower($acl->getRole() ?? '');
+                return in_array($role, ['reader', 'writer', 'owner']);
+            } catch (\Google\Service\Exception $e) {
+                if ($e->getCode() === 404) {
+                    return false;
+                }
+                Log::warning("checkCalendarReaderAccess exception for {$email}: " . $e->getMessage());
+                return false;
+            } catch (\Throwable $e) {
+                Log::warning("checkCalendarReaderAccess unexpected error for {$email}: " . $e->getMessage());
+                return false;
+            }
+        });
+    }
+
+    /**
+     * Grant reader access on the Google Calendar strictly to a specific user's email.
+     */
+    public function grantCalendarReaderAccess(string $email): array
+    {
+        if (empty($this->calendarId) || !$this->calendar) {
+            return [
+                'success' => false,
+                'message' => 'Google Calendar ID belum dikonfigurasi pada server.',
+            ];
+        }
+
+        $email = strtolower(trim($email));
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            return [
+                'success' => false,
+                'message' => 'Format email akun tidak valid (' . $email . ').',
+            ];
+        }
+
+        try {
+            $ruleId = 'user:' . $email;
+
+            // Check if already registered
+            try {
+                $existing = $this->calendar->acl->get($this->calendarId, $ruleId);
+                if ($existing) {
+                    $cacheKey = 'gcal_acl_' . md5($this->calendarId . '_' . $email);
+                    Cache::put($cacheKey, true, 300);
+                    return [
+                        'success'     => true,
+                        'message'     => "Email akun Anda ({$email}) sudah memiliki izin akses ke Google Calendar.",
+                        'calendarUrl' => $this->getCalendarUrl(),
+                    ];
+                }
+            } catch (\Google\Service\Exception $e) {
+                if ($e->getCode() !== 404) {
+                    throw $e;
+                }
+            }
+
+            // Create new Reader ACL rule
+            $rule = new AclRule();
+            $scope = new AclRuleScope();
+            $scope->setType('user');
+            $scope->setValue($email);
+            $rule->setScope($scope);
+            $rule->setRole('reader');
+
+            $this->calendar->acl->insert($this->calendarId, $rule);
+
+            $cacheKey = 'gcal_acl_' . md5($this->calendarId . '_' . $email);
+            Cache::put($cacheKey, true, 300);
+
+            return [
+                'success'     => true,
+                'message'     => "Email akun Anda ({$email}) berhasil didaftarkan ke Google Calendar.",
+                'calendarUrl' => $this->getCalendarUrl(),
+            ];
+        } catch (\Google\Service\Exception $e) {
+            Log::error("grantCalendarReaderAccess error for {$email}: " . $e->getMessage());
+            return [
+                'success' => false,
+                'message' => 'Gagal memberikan izin Google Calendar: ' . ($e->getErrors()[0]['message'] ?? $e->getMessage()),
+            ];
+        } catch (\Throwable $e) {
+            Log::error("grantCalendarReaderAccess unexpected error: " . $e->getMessage());
+            return [
+                'success' => false,
+                'message' => 'Terjadi kesalahan sistem saat mendaftarkan ke Google Calendar: ' . $e->getMessage(),
+            ];
+        }
     }
 }
 
