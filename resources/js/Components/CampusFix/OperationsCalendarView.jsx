@@ -274,19 +274,21 @@ function DepartmentMultiDropdown({
     }
 
     return (
-        <div className="relative inline-block" ref={dropdownRef}>
+        <div className="relative inline-block w-full sm:w-auto" ref={dropdownRef}>
             <button
                 type="button"
                 onClick={() => setOpen(!open)}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer shadow-sm ${
+                className={`flex items-center justify-between sm:justify-start gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer shadow-sm w-full sm:w-auto ${
                     open || !isAllSelected
                         ? 'bg-[#353326] border-[#C9AA71] text-[#FAFAFA]'
                         : 'bg-[#1C1B0E] border-[#3B3929] text-[#A19F8D] hover:text-[#FAFAFA] hover:border-[#C9AA71]/60'
                 }`}
             >
-                <Building2 className="h-3.5 w-3.5 text-[#C9AA71]" />
-                <span className="max-w-[160px] truncate">{triggerLabel}</span>
-                <ChevronDown className={`h-3.5 w-3.5 text-[#A19F8D] transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+                <div className="flex items-center gap-2 min-w-0">
+                    <Building2 className="h-3.5 w-3.5 text-[#C9AA71] shrink-0" />
+                    <span className="truncate max-w-[200px] sm:max-w-[160px]">{triggerLabel}</span>
+                </div>
+                <ChevronDown className={`h-3.5 w-3.5 text-[#A19F8D] transition-transform duration-200 shrink-0 ${open ? 'rotate-180' : ''}`} />
             </button>
 
             {open && (
@@ -932,10 +934,10 @@ export function OperationsCalendarView({
             {/* ─── Calendar Navigation & Filters Toolbar ─── */}
             <div className="relative z-20 flex flex-col gap-3.5 bg-[#2A281E]/95 border border-[#3B3929] rounded-2xl p-4 sm:p-5 backdrop-blur-md shadow-xl">
                 {/* ── Baris 1: Month Navigator + Add Task Button ── */}
-                <div className="flex flex-wrap items-center justify-between gap-3 w-full">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 w-full">
                     {/* Left: Navigator (< Today >) + Month Title */}
-                    <div className="flex items-center gap-3 flex-wrap">
-                        <div className="flex items-center gap-1 bg-[#1C1B0E] border border-[#3B3929] rounded-xl p-1 shadow-inner">
+                    <div className="flex items-center justify-between sm:justify-start gap-3 w-full sm:w-auto">
+                        <div className="flex items-center gap-1 bg-[#1C1B0E] border border-[#3B3929] rounded-xl p-1 shadow-inner shrink-0">
                             <Tooltip content={t('tooltip_prev_month')} position="top">
                                 <button
                                     type="button"
@@ -965,10 +967,10 @@ export function OperationsCalendarView({
                             </Tooltip>
                         </div>
 
-                        <div>
-                            <h2 className="text-base sm:text-xl font-extrabold text-[#FAFAFA] capitalize tracking-tight flex items-center gap-2">
-                                <CalendarIcon className="h-4.5 w-4.5 sm:h-5 sm:w-5 text-[#C9AA71]" />
-                                {monthTitle}
+                        <div className="min-w-0">
+                            <h2 className="text-base sm:text-xl font-extrabold text-[#FAFAFA] capitalize tracking-tight flex items-center gap-2 truncate">
+                                <CalendarIcon className="h-4.5 w-4.5 sm:h-5 sm:w-5 text-[#C9AA71] shrink-0" />
+                                <span>{monthTitle}</span>
                             </h2>
                             <p className="text-[11px] text-[#A19F8D] hidden sm:flex items-center gap-1">
                                 <span>{allTasks.length} {t('total_work') || 'Total Tugas'}</span>
@@ -982,7 +984,7 @@ export function OperationsCalendarView({
                     <button
                         type="button"
                         onClick={() => onAddWorkWithDate?.(selectedDateStr)}
-                        className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-extrabold transition-all hover:scale-105 shadow-md cursor-pointer bg-[#C9AA71] text-[#1C1B0E] shrink-0 ml-auto sm:ml-0"
+                        className="flex items-center justify-center gap-1.5 px-4 py-2.5 sm:py-2 rounded-xl text-xs font-extrabold transition-all hover:scale-[1.02] sm:hover:scale-105 shadow-md cursor-pointer bg-[#C9AA71] text-[#1C1B0E] w-full sm:w-auto shrink-0"
                     >
                         <Plus className="h-4 w-4" />
                         <span>{t('add_work_on_date') || 'Tambah Tugas'}</span>
@@ -990,9 +992,9 @@ export function OperationsCalendarView({
                 </div>
 
                 {/* ── Baris 2: Filters (Department + Status [All | Active | Done]) ── */}
-                <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-[#3B3929]/60 w-full">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-[#3B3929]/60 w-full">
                     {/* Left: Department Filter */}
-                    <div className="flex items-center gap-2 flex-wrap">
+                    <div className="w-full sm:w-auto">
                         {!lockedDept && allDepartments && onDepartmentFilterChange ? (
                             <DepartmentMultiDropdown
                                 departments={allDepartments}
@@ -1019,14 +1021,14 @@ export function OperationsCalendarView({
                     </div>
 
                     {/* Right: Status Filter Chips [All | Active | Done] */}
-                    <div className="flex items-center gap-1 bg-[#1C1B0E] border border-[#3B3929] rounded-xl p-1 shadow-xs ml-auto sm:ml-0">
+                    <div className="grid grid-cols-3 sm:flex items-center gap-1 bg-[#1C1B0E] border border-[#3B3929] rounded-xl p-1 shadow-xs w-full sm:w-auto">
                         <button
                             type="button"
                             onClick={() => {
                                 setHideCompleted(false);
                                 setStatusFilter('all');
                             }}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold text-center transition-all cursor-pointer ${
                                 statusFilter === 'all'
                                     ? 'bg-[#C9AA71] text-[#1C1B0E] font-bold shadow-md'
                                     : 'text-[#A19F8D] hover:text-[#FAFAFA]'
@@ -1040,7 +1042,7 @@ export function OperationsCalendarView({
                                 setHideCompleted(true);
                                 setStatusFilter('active');
                             }}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold text-center transition-all cursor-pointer ${
                                 statusFilter === 'active'
                                     ? 'bg-amber-500 text-[#1C1B0E] font-bold shadow-md'
                                     : 'text-[#A19F8D] hover:text-[#FAFAFA]'
@@ -1054,7 +1056,7 @@ export function OperationsCalendarView({
                                 setHideCompleted(false);
                                 setStatusFilter('done');
                             }}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold text-center transition-all cursor-pointer ${
                                 statusFilter === 'done'
                                     ? 'bg-emerald-500 text-[#1C1B0E] font-bold shadow-md'
                                     : 'text-[#A19F8D] hover:text-[#FAFAFA]'
