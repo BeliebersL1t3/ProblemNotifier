@@ -930,109 +930,96 @@ export function OperationsCalendarView({
     return (
         <div className="space-y-6 select-none">
             {/* ─── Calendar Navigation & Filters Toolbar ─── */}
-            <div className="relative z-20 flex flex-wrap items-center justify-between gap-4 bg-[#2A281E]/95 border border-[#3B3929] rounded-2xl p-4 sm:p-5 backdrop-blur-md shadow-xl">
-                {/* Month Navigator */}
-                <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-1 bg-[#1C1B0E] border border-[#3B3929] rounded-xl p-1 shadow-inner">
-                        <Tooltip content={t('tooltip_prev_month')} position="top">
-                            <button
-                                type="button"
-                                onClick={handlePrevMonth}
-                                className="p-2 rounded-lg hover:bg-[#3B3929]/70 text-[#A19F8D] hover:text-[#FAFAFA] transition-colors cursor-pointer"
-                            >
-                                <ChevronLeft className="h-4 w-4" />
-                            </button>
-                        </Tooltip>
-                        <Tooltip content={t('tooltip_today_btn')} position="top">
-                            <button
-                                type="button"
-                                onClick={handleGoToday}
-                                className="px-3 py-1.5 rounded-lg text-xs font-bold text-[#E3D1AA] hover:bg-[#3B3929]/70 transition-colors cursor-pointer"
-                            >
-                                {t('today_btn') || 'Hari Ini'}
-                            </button>
-                        </Tooltip>
-                        <Tooltip content={t('tooltip_next_month')} position="top">
-                            <button
-                                type="button"
-                                onClick={handleNextMonth}
-                                className="p-2 rounded-lg hover:bg-[#3B3929]/70 text-[#A19F8D] hover:text-[#FAFAFA] transition-colors cursor-pointer"
-                            >
-                                <ChevronRight className="h-4 w-4" />
-                            </button>
-                        </Tooltip>
-                    </div>
-
-                    <div>
-                        <h2 className="text-lg sm:text-xl font-extrabold text-[#FAFAFA] capitalize tracking-tight flex items-center gap-2">
-                            <CalendarIcon className="h-5 w-5 text-[#C9AA71]" />
-                            {monthTitle}
-                        </h2>
-                        <p className="text-[11px] text-[#A19F8D] hidden sm:flex items-center gap-1">
-                            <span>{allTasks.length} {t('total_work') || 'Total Tugas'}</span>
-                            <span className="text-[#3B3929]">&middot;</span>
-                            <span className="text-[#C9AA71]/90">{t('drag_hint_desktop') || '💡 Klik & seret mouse pada kalender untuk memilih rentang tanggal'}</span>
-                        </p>
-                    </div>
-                </div>
-
-                {/* Filters & Dropdowns */}
-                <div className="flex flex-wrap items-center gap-2.5">
-                    {/* Department Multi-Select Dropdown Filter for Admin, or Locked Badge for Dept Users */}
-                    {!lockedDept && allDepartments && onDepartmentFilterChange ? (
-                        <DepartmentMultiDropdown
-                            departments={allDepartments}
-                            selectedDepartments={selectedDepartments}
-                            onChange={onDepartmentFilterChange}
-                            t={t}
-                            lang={lang}
-                        />
-                    ) : lockedDept ? (
-                        <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-[#3B3929] bg-[#1C1B0E] text-xs font-bold shadow-xs">
-                            <Building2 className="h-3.5 w-3.5 text-[#C9AA71]" />
-                            <span 
-                                className="text-[11px] font-extrabold uppercase px-2 py-0.5 rounded"
-                                style={{ 
-                                    color: getDepartmentTheme(lockedDept).text, 
-                                    background: getDepartmentTheme(lockedDept).bg 
-                                }}
-                            >
-                                {lockedDept}
-                            </span>
-                            <span className="text-[10px] text-[#A19F8D]">🔒 {t('locked_to_department') || 'Cakupan Departemen'}</span>
+            <div className="relative z-20 flex flex-col gap-3.5 bg-[#2A281E]/95 border border-[#3B3929] rounded-2xl p-4 sm:p-5 backdrop-blur-md shadow-xl">
+                {/* ── Baris 1: Month Navigator + Add Task Button ── */}
+                <div className="flex flex-wrap items-center justify-between gap-3 w-full">
+                    {/* Left: Navigator (< Today >) + Month Title */}
+                    <div className="flex items-center gap-3 flex-wrap">
+                        <div className="flex items-center gap-1 bg-[#1C1B0E] border border-[#3B3929] rounded-xl p-1 shadow-inner">
+                            <Tooltip content={t('tooltip_prev_month')} position="top">
+                                <button
+                                    type="button"
+                                    onClick={handlePrevMonth}
+                                    className="p-1.5 sm:p-2 rounded-lg hover:bg-[#3B3929]/70 text-[#A19F8D] hover:text-[#FAFAFA] transition-colors cursor-pointer"
+                                >
+                                    <ChevronLeft className="h-4 w-4" />
+                                </button>
+                            </Tooltip>
+                            <Tooltip content={t('tooltip_today_btn')} position="top">
+                                <button
+                                    type="button"
+                                    onClick={handleGoToday}
+                                    className="px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold text-[#E3D1AA] hover:bg-[#3B3929]/70 transition-colors cursor-pointer"
+                                >
+                                    {t('today_btn') || 'Hari Ini'}
+                                </button>
+                            </Tooltip>
+                            <Tooltip content={t('tooltip_next_month')} position="top">
+                                <button
+                                    type="button"
+                                    onClick={handleNextMonth}
+                                    className="p-1.5 sm:p-2 rounded-lg hover:bg-[#3B3929]/70 text-[#A19F8D] hover:text-[#FAFAFA] transition-colors cursor-pointer"
+                                >
+                                    <ChevronRight className="h-4 w-4" />
+                                </button>
+                            </Tooltip>
                         </div>
-                    ) : null}
 
-                    {/* Hide Completed Tasks Quick Toggle */}
+                        <div>
+                            <h2 className="text-base sm:text-xl font-extrabold text-[#FAFAFA] capitalize tracking-tight flex items-center gap-2">
+                                <CalendarIcon className="h-4.5 w-4.5 sm:h-5 sm:w-5 text-[#C9AA71]" />
+                                {monthTitle}
+                            </h2>
+                            <p className="text-[11px] text-[#A19F8D] hidden sm:flex items-center gap-1">
+                                <span>{allTasks.length} {t('total_work') || 'Total Tugas'}</span>
+                                <span className="text-[#3B3929]">&middot;</span>
+                                <span className="text-[#C9AA71]/90">{t('drag_hint_desktop') || '💡 Klik & seret mouse pada kalender untuk memilih rentang tanggal'}</span>
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Right: Add Task Button */}
                     <button
                         type="button"
-                        onClick={() => {
-                            setHideCompleted(prev => {
-                                const nextVal = !prev;
-                                if (nextVal && statusFilter === 'done') {
-                                    setStatusFilter('all');
-                                }
-                                return nextVal;
-                            });
-                        }}
-                        className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer shadow-xs ${
-                            hideCompleted
-                                ? 'bg-amber-500/20 text-amber-300 border-amber-500/60 shadow-md ring-1 ring-amber-500/30 font-extrabold'
-                                : 'bg-[#1C1B0E] text-[#A19F8D] border-[#3B3929] hover:border-[#C9AA71]/60 hover:text-[#FAFAFA]'
-                        }`}
-                        title={lang === 'id' ? 'Sembunyikan tugas yang sudah selesai agar tampilan kalender tidak terlalu ramai' : 'Hide completed tasks to declutter calendar'}
+                        onClick={() => onAddWorkWithDate?.(selectedDateStr)}
+                        className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-extrabold transition-all hover:scale-105 shadow-md cursor-pointer bg-[#C9AA71] text-[#1C1B0E] shrink-0 ml-auto sm:ml-0"
                     >
-                        {hideCompleted ? (
-                            <EyeOff className="h-3.5 w-3.5 text-amber-400" />
-                        ) : (
-                            <Eye className="h-3.5 w-3.5 text-[#A19F8D]" />
-                        )}
-                        <span>{lang === 'id' ? 'Sembunyikan Selesai' : 'Hide Completed'}</span>
-                        <span className={`w-2 h-2 rounded-full transition-all ${hideCompleted ? 'bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.9)]' : 'bg-[#3B3929]'}`} />
+                        <Plus className="h-4 w-4" />
+                        <span>{t('add_work_on_date') || 'Tambah Tugas'}</span>
                     </button>
+                </div>
 
-                    {/* Status Filter Chips */}
-                    <div className="flex items-center gap-1 bg-[#1C1B0E] border border-[#3B3929] rounded-xl p-1 shadow-xs">
+                {/* ── Baris 2: Filters (Department + Status [All | Active | Done]) ── */}
+                <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-[#3B3929]/60 w-full">
+                    {/* Left: Department Filter */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                        {!lockedDept && allDepartments && onDepartmentFilterChange ? (
+                            <DepartmentMultiDropdown
+                                departments={allDepartments}
+                                selectedDepartments={selectedDepartments}
+                                onChange={onDepartmentFilterChange}
+                                t={t}
+                                lang={lang}
+                            />
+                        ) : lockedDept ? (
+                            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-[#3B3929] bg-[#1C1B0E] text-xs font-bold shadow-xs">
+                                <Building2 className="h-3.5 w-3.5 text-[#C9AA71]" />
+                                <span 
+                                    className="text-[11px] font-extrabold uppercase px-2 py-0.5 rounded"
+                                    style={{ 
+                                        color: getDepartmentTheme(lockedDept).text, 
+                                        background: getDepartmentTheme(lockedDept).bg 
+                                    }}
+                                >
+                                    {lockedDept}
+                                </span>
+                                <span className="text-[10px] text-[#A19F8D]">🔒 {t('locked_to_department') || 'Cakupan Departemen'}</span>
+                            </div>
+                        ) : null}
+                    </div>
+
+                    {/* Right: Status Filter Chips [All | Active | Done] */}
+                    <div className="flex items-center gap-1 bg-[#1C1B0E] border border-[#3B3929] rounded-xl p-1 shadow-xs ml-auto sm:ml-0">
                         <button
                             type="button"
                             onClick={() => {
@@ -1040,7 +1027,7 @@ export function OperationsCalendarView({
                                 setStatusFilter('all');
                             }}
                             className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                                !hideCompleted && statusFilter === 'all'
+                                statusFilter === 'all'
                                     ? 'bg-[#C9AA71] text-[#1C1B0E] font-bold shadow-md'
                                     : 'text-[#A19F8D] hover:text-[#FAFAFA]'
                             }`}
@@ -1054,7 +1041,7 @@ export function OperationsCalendarView({
                                 setStatusFilter('active');
                             }}
                             className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                                hideCompleted || statusFilter === 'active'
+                                statusFilter === 'active'
                                     ? 'bg-amber-500 text-[#1C1B0E] font-bold shadow-md'
                                     : 'text-[#A19F8D] hover:text-[#FAFAFA]'
                             }`}
@@ -1068,7 +1055,7 @@ export function OperationsCalendarView({
                                 setStatusFilter('done');
                             }}
                             className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                                !hideCompleted && statusFilter === 'done'
+                                statusFilter === 'done'
                                     ? 'bg-emerald-500 text-[#1C1B0E] font-bold shadow-md'
                                     : 'text-[#A19F8D] hover:text-[#FAFAFA]'
                             }`}
@@ -1076,16 +1063,6 @@ export function OperationsCalendarView({
                             {t('done_work')}
                         </button>
                     </div>
-
-
-                    <button
-                        type="button"
-                        onClick={() => onAddWorkWithDate?.(selectedDateStr)}
-                        className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-extrabold transition-all hover:scale-105 shadow-md cursor-pointer bg-[#C9AA71] text-[#1C1B0E]"
-                    >
-                        <Plus className="h-3.5 w-3.5" />
-                        <span>{t('add_work_on_date') || 'Tambah Tugas'}</span>
-                    </button>
                 </div>
             </div>
 
