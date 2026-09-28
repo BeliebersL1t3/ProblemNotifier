@@ -680,11 +680,6 @@ function UsersInner({ initialUsers, initialStats }) {
                                                                 <ShieldCheck className="h-3.5 w-3.5" />
                                                                 Administrator
                                                             </span>
-                                                        ) : u.role === 'viewer' ? (
-                                                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-slate-500/20 text-slate-300 border border-slate-500/40">
-                                                                <Eye className="h-3.5 w-3.5" />
-                                                                Viewer
-                                                            </span>
                                                         ) : (
                                                             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-sky-500/20 text-sky-300 border border-sky-500/40">
                                                                 <Building2 className="h-3.5 w-3.5" />

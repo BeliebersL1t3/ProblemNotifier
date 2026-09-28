@@ -42,7 +42,6 @@ class HandleInertiaRequests extends Middleware
                     return \App\Models\User::where('is_active', true)
                         ->whereNotNull('department')
                         ->where('department', '!=', '')
-                        ->where('role', '!=', 'viewer')
                         ->select('id', 'name', 'staff_name', 'department', 'subdivision')
                         ->get()
                         ->groupBy(function ($u) {

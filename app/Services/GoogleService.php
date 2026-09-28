@@ -1481,6 +1481,84 @@ class GoogleService
     }
 
     /**
+     * Grant or update a user's access to the Google Calendar (role: 'writer').
+     */
+    public function syncUserCalendarAcl(string $email, string $role = 'writer'): bool
+    {
+        if (empty($this->calendarId) || !$this->calendar || empty($email)) {
+            return false;
+        }
+
+        $email = strtolower(trim($email));
+
+        // Skip dummy emails
+        $dummyDomains = ['telunas.com', 'example.com', 'test.com', 'dummy.com', 'localhost'];
+        foreach ($dummyDomains as $domain) {
+            if (str_ends_with($email, '@' . $domain)) {
+                return false;
+            }
+        }
+
+        try {
+            $aclList = $this->calendar->acl->listAcl($this->calendarId);
+            foreach ($aclList->getItems() as $rule) {
+                if (strtolower(trim($rule->getScope()->getValue() ?? '')) === $email) {
+                    if ($rule->getRole() !== $role) {
+                        $rule->setRole($role);
+                        $this->calendar->acl->update($this->calendarId, $rule->getId(), $rule);
+                    }
+                    return true;
+                }
+            }
+
+            // If not found in ACL, insert new rule
+            $newRule = new AclRule();
+            $scope = new AclRuleScope();
+            $scope->setType('user');
+            $scope->setValue($email);
+            $newRule->setScope($scope);
+            $newRule->setRole($role);
+
+            $this->calendar->acl->insert($this->calendarId, $newRule);
+            return true;
+        } catch (\Throwable $e) {
+            Log::warning("Failed to sync calendar ACL for {$email}: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Sync Google Calendar ACL for all active, non-dummy users.
+     */
+    public function syncAllActiveUsersCalendarAcl(): array
+    {
+        if (empty($this->calendarId) || !$this->calendar) {
+            return ['synced' => 0, 'message' => 'GOOGLE_CALENDAR_ID not configured'];
+        }
+
+        $activeUsers = \App\Models\User::where('is_active', true)
+            ->whereNotNull('email')
+            ->get()
+            ->filter(fn($u) => !$u->hasDummyEmail() && !empty($u->email));
+
+        $count = 0;
+        $syncedEmails = [];
+
+        foreach ($activeUsers as $user) {
+            if ($this->syncUserCalendarAcl($user->email, 'writer')) {
+                $count++;
+                $syncedEmails[] = $user->email;
+            }
+        }
+
+        return [
+            'synced' => $count,
+            'emails' => $syncedEmails,
+            'message' => "Berhasil menyinkronkan {$count} akun aktif ke Google Calendar ACL."
+        ];
+    }
+
+    /**
      * Parse and sanitize notes field, converting raw [SCHEDULE_RANGES: ...] into clean formatted blocks.
      */
     private function parseNotesAndRanges(?string $rawNotes): array

@@ -63,8 +63,23 @@ class User extends Authenticatable
 
     protected static function booted(): void
     {
-        static::saved(function () {
+        static::saved(function ($user) {
             \Illuminate\Support\Facades\Cache::forget('active_staff_roster');
+
+            // Automatically grant Google Calendar access to active, non-dummy users
+            if (
+                $user->is_active &&
+                ($user->approval_status ?? 'approved') === 'approved' &&
+                !$user->hasDummyEmail() &&
+                !empty($user->email) &&
+                ($user->wasChanged('email') || $user->wasChanged('is_active') || $user->wasChanged('approval_status') || $user->wasRecentlyCreated)
+            ) {
+                try {
+                    app(\App\Services\GoogleService::class)->syncUserCalendarAcl($user->email, 'writer');
+                } catch (\Throwable $e) {
+                    \Illuminate\Support\Facades\Log::warning('Calendar ACL auto-sync error: ' . $e->getMessage());
+                }
+            }
         });
         static::deleted(function () {
             \Illuminate\Support\Facades\Cache::forget('active_staff_roster');
@@ -180,10 +195,6 @@ class User extends Authenticatable
         return $this->role === 'department';
     }
 
-    public function isViewer(): bool
-    {
-        return $this->role === 'viewer';
-    }
 
     public function isPendingApproval(): bool
     {

@@ -15,7 +15,6 @@ const FIELD_CONFIG = {
         format: (val) => {
             if (val === 'admin') return 'Administrator';
             if (val === 'department') return 'Departemen';
-            if (val === 'viewer') return 'Peninjau (Viewer)';
             return val || '(Kosong)';
         }
     },

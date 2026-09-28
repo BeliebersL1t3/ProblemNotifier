@@ -100,16 +100,6 @@ export function UserModal({ isOpen, onClose, user = null, onSaved }) {
                 can_export_reports: true,
                 can_manage_categories: true,
             });
-        } else if (newRole === 'viewer') {
-            setPermissions({
-                can_view_all_departments: true,
-                can_manage_issues: false,
-                can_access_analytics: true,
-                can_access_calendar: true,
-                can_sync_google_calendar: false,
-                can_export_reports: false,
-                can_manage_categories: false,
-            });
         } else {
             setPermissions({
                 can_view_all_departments: true,
@@ -357,11 +347,10 @@ export function UserModal({ isOpen, onClose, user = null, onSaved }) {
                                 <label className="block text-xs font-bold text-[#A19F8D] uppercase tracking-wider mb-2">
                                     Peran Akun (Role) *
                                 </label>
-                                <div className="grid grid-cols-3 gap-3">
+                                <div className="grid grid-cols-2 gap-3">
                                     {[
                                         { id: 'department', title: 'Department', desc: 'Staf operasional departemen', icon: Building2 },
                                         { id: 'admin', title: 'Administrator', desc: 'Akses penuh kelola semua data', icon: ShieldCheck },
-                                        { id: 'viewer', title: 'Viewer', desc: 'Hanya melihat tanpa edit/hapus', icon: Eye },
                                     ].map(r => {
                                         const Icon = r.icon;
                                         const isSelected = role === r.id;

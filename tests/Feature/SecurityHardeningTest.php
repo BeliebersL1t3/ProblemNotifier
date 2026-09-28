@@ -92,22 +92,23 @@ class SecurityHardeningTest extends TestCase
         $this->assertTrue(\Illuminate\Support\Facades\Hash::check($tempPassword, $user->password));
     }
 
-    public function test_viewer_cannot_store_issues(): void
+    public function test_user_without_manage_issues_permission_cannot_store_issues(): void
     {
-        $viewer = User::factory()->create([
-            'role'        => 'viewer',
+        $user = User::factory()->create([
+            'role'        => 'department',
+            'department'  => 'Housekeeping',
             'permissions' => [
                 'can_manage_issues' => false,
             ],
         ]);
 
-        $response = $this->actingAs($viewer)->postJson('/api/issues', [
+        $response = $this->actingAs($user)->postJson('/api/issues', [
             'title'       => 'Unauthorized Issue',
             'description' => 'Test Desc',
             'location'    => 'Villa 1',
             'category'    => 'Maintenance',
             'department'  => 'Housekeeping',
-            'reporter'    => 'Viewer User',
+            'reporter'    => 'Staff User',
         ]);
 
         $response->assertStatus(403)

@@ -44,18 +44,6 @@ class UserController extends Controller
             ];
         }
 
-        if ($role === 'viewer') {
-            return [
-                'can_view_all_departments' => true,
-                'can_manage_issues'        => false,
-                'can_access_analytics'     => true,
-                'can_access_calendar'      => true,
-                'can_sync_google_calendar' => false,
-                'can_export_reports'       => false,
-                'can_manage_categories'    => false,
-            ];
-        }
-
         // Department user default
         return [
             'can_view_all_departments' => true,
