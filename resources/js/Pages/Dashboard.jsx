@@ -1024,12 +1024,12 @@ function DashboardInner() {
                                                 : 'p-2.5 text-amber-400 hover:text-amber-300 hover:bg-amber-500/10'
                                         }`}
                                         title={lang === 'id' 
-                                            ? `Staf Mutasi (${reassignNeededCount} isu)` 
-                                            : `Transferred Staff (${reassignNeededCount} issues)`}
+                                            ? `Tugas Perlu Reassign (${reassignNeededCount} pekerjaan aktif yang pemegangnya pindah departemen)` 
+                                            : `Needs Reassignment (${reassignNeededCount} active tasks whose taker transferred out)`}
                                     >
                                         <ArrowRightLeft className="w-5 h-5 shrink-0" />
                                         <span className={deptViewMode === 'reassign_needed' ? 'inline font-bold' : 'hidden sm:inline'}>
-                                            {lang === 'id' ? 'Staf Mutasi' : 'Transferred Staff'}
+                                            {lang === 'id' ? 'Perlu Reassign' : 'Needs Reassign'}
                                         </span>
                                         <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
                                             deptViewMode === 'reassign_needed'
@@ -1087,6 +1087,35 @@ function DashboardInner() {
                         </div>
                     </div>
                 </div>
+
+                {deptViewMode === 'reassign_needed' && (
+                    <div className="rounded-xl border border-amber-500/35 bg-gradient-to-r from-amber-950/40 via-amber-900/20 to-amber-950/30 p-4 text-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-md animate-in fade-in duration-200 backdrop-blur-xs">
+                        <div className="flex items-start sm:items-center gap-3">
+                            <span className="text-2xl shrink-0 p-1.5 rounded-lg bg-amber-500/15 border border-amber-500/30">🔄</span>
+                            <div>
+                                <h3 className="text-sm font-bold text-amber-300 uppercase tracking-wide flex items-center gap-2">
+                                    {lang === 'id' ? 'Tugas Tertinggal / Perlu Reassign (Staf Mutasi)' : 'Orphaned Tasks Needing Reassignment (Transferred Staff)'}
+                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-500 text-black">
+                                        {reassignNeededCount}
+                                    </span>
+                                </h3>
+                                <p className="text-xs text-amber-200/80 mt-0.5 leading-relaxed">
+                                    {lang === 'id' 
+                                        ? 'Menampilkan tugas aktif (In Progress / Pending) yang staf pemegangnya telah pindah ke departemen lain. Segera alihkan (reassign) ke staf aktif di departemen terkait agar tidak terbengkalai.' 
+                                        : 'Showing active tasks (In Progress / Pending) whose claimant staff has moved to another department. Please reassign to an active team member to keep operations moving.'}
+                                </p>
+                            </div>
+                        </div>
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setDeptViewMode('all')}
+                            className="w-fit text-xs border-amber-500/40 text-amber-300 hover:bg-amber-500/10 cursor-pointer shrink-0"
+                        >
+                            ← {lang === 'id' ? 'Kembali ke Semua Isu' : 'Back to All Issues'}
+                        </Button>
+                    </div>
+                )}
 
                 {showArchiveTab && (
                     <div className="rounded-xl border border-amber-500/30 bg-amber-950/20 p-4 text-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-md">

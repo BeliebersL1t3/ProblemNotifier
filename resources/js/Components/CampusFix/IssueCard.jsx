@@ -637,16 +637,16 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
                 )}
                 {needsReassignment && (
                     <div 
-                        className="w-full rounded-lg bg-sky-500/10 border border-sky-500/25 px-2.5 py-1.5 text-xs text-sky-200 flex items-center justify-between gap-2 shadow-xs"
+                        className="w-full rounded-lg bg-amber-500/10 border border-amber-500/25 px-2.5 py-1.5 text-xs text-amber-200 flex items-center justify-between gap-2 shadow-xs"
                         title={lang === 'id'
-                            ? `Staf yang menangani isu ini (${issue.taker}) telah pindah ke departemen ${issue.takerCurrentDept || 'lain'}.`
-                            : `Staff handling this issue (${issue.taker}) has transferred to ${issue.takerCurrentDept || 'another department'}.`}
+                            ? `Pekerjaan ini terbengkalai karena staf yang mengambil (${issue.taker}) telah pindah ke departemen ${issue.takerCurrentDept || 'lain'}. Silakan reassign ke staf lain.`
+                            : `This task is pending action because the assignee (${issue.taker}) transferred to ${issue.takerCurrentDept || 'another department'}. Please reassign.`}
                     >
-                        <span className="flex items-center gap-1.5 font-semibold text-sky-300">
+                        <span className="flex items-center gap-1.5 font-semibold text-amber-300">
                             <ArrowRightLeft className="w-3.5 h-3.5 shrink-0" />
-                            <span>{lang === 'id' ? 'Staf Pindah Departemen' : 'Staff Changed Department'}</span>
+                            <span>{lang === 'id' ? 'Perlu Reassign (Mutasi)' : 'Needs Reassign'}</span>
                         </span>
-                        <span className="text-[10px] text-sky-200/90 font-mono">
+                        <span className="text-[10px] text-amber-200/90 font-mono">
                             {issue.taker} ➔ {issue.takerCurrentDept || (lang === 'id' ? 'Departemen Baru' : 'New Dept')}
                         </span>
                     </div>
