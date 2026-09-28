@@ -308,5 +308,96 @@ class SecurityHardeningTest extends TestCase
         $this->assertNotEquals(419, $botResponse->status());
         $botResponse->assertStatus(422);
     }
+
+    public function test_viewer_role_is_rejected_by_validation(): void
+    {
+        $admin = User::factory()->create([
+            'role'      => 'admin',
+            'is_active' => true,
+        ]);
+
+        $response = $this->actingAs($admin)->postJson('/api/users', [
+            'name'            => 'Viewer Test',
+            'email'           => 'viewertest@telunas.com',
+            'password'        => 'password123',
+            'role'            => 'viewer',
+            'whatsapp_number' => '081234567890',
+        ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['role']);
+    }
+
+    public function test_admin_cannot_self_demote(): void
+    {
+        $admin = User::factory()->create([
+            'role'      => 'admin',
+            'is_active' => true,
+        ]);
+
+        $response = $this->actingAs($admin)->putJson("/api/users/{$admin->id}", [
+            'name'            => $admin->name,
+            'email'           => $admin->email,
+            'role'            => 'department',
+            'department'      => 'IT',
+            'whatsapp_number' => '081234567890',
+        ]);
+
+        $response->assertStatus(422)
+            ->assertJson([
+                'success' => false,
+                'message' => 'Anda tidak dapat menurunkan peran (demote) akun Admin Anda sendiri.',
+            ]);
+    }
+
+    public function test_cannot_demote_or_delete_last_active_admin(): void
+    {
+        // Keep exactly one active admin
+        User::where('role', 'admin')->update(['is_active' => false]);
+        $soleAdmin = User::factory()->create([
+            'role'      => 'admin',
+            'is_active' => true,
+        ]);
+
+        // Attempt to soft-delete the sole admin (acting as a secondary admin for the call)
+        $secondaryAdmin = User::factory()->create([
+            'role'      => 'admin',
+            'is_active' => true,
+        ]);
+
+        // Now delete secondaryAdmin so soleAdmin is the only one left
+        $secondaryAdmin->delete();
+
+        // Acting as another user to test deleting soleAdmin
+        $actingAdmin = User::factory()->create([
+            'role'      => 'admin',
+            'is_active' => true,
+        ]);
+
+        // If we delete soleAdmin when actingAdmin is active, it passes, but if soleAdmin is the ONLY one:
+        $actingAdmin->is_active = false;
+        $actingAdmin->save();
+
+        $response = $this->actingAs($actingAdmin)->deleteJson("/api/users/{$soleAdmin->id}");
+        $response->assertStatus(422)
+            ->assertJson([
+                'success' => false,
+                'message' => 'Tidak dapat menghapus atau meng-archive akun Administrator aktif terakhir di sistem.',
+            ]);
+    }
+
+    public function test_department_user_with_null_permissions_inherits_can_view_all_departments(): void
+    {
+        $deptUser = User::factory()->create([
+            'role'        => 'department',
+            'department'  => 'Kitchen',
+            'permissions' => null,
+            'is_active'   => true,
+        ]);
+
+        $this->assertTrue($deptUser->canViewDepartment('Housekeeping'));
+        $this->assertTrue($deptUser->canViewDepartment('IT'));
+        $this->assertTrue($deptUser->canViewDepartment('Kitchen'));
+    }
 }
 

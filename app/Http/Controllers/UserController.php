@@ -227,7 +227,7 @@ class UserController extends Controller
             'staff_name'      => 'nullable|string|max:255',
             'email'           => 'required|email|max:255|unique:users,email',
             'password'        => 'required|string|min:6',
-            'role'            => 'required|in:admin,department,viewer',
+            'role'            => 'required|in:admin,department',
             'department'      => 'nullable|string|max:100',
             'subdivision'     => 'nullable|string|max:100',
             'whatsapp_number' => 'required|string|max:30',
@@ -309,7 +309,7 @@ class UserController extends Controller
             'staff_name'      => 'nullable|string|max:255',
             'email'           => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
             'password'        => 'nullable|string|min:6',
-            'role'            => 'required|in:admin,department,viewer',
+            'role'            => 'required|in:admin,department',
             'department'      => 'nullable|string|max:100',
             'subdivision'     => 'nullable|string|max:100',
             'whatsapp_number' => 'nullable|string|max:30',
@@ -347,6 +347,29 @@ class UserController extends Controller
         if (strtolower($user->email) !== strtolower($newEmail)) {
             $user->email = strtolower($newEmail);
         }
+        // Security checks: Admin protection
+        if ($user->id === auth()->id() && $validated['role'] !== 'admin') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Anda tidak dapat menurunkan peran (demote) akun Admin Anda sendiri.',
+            ], 422);
+        }
+
+        $willBeInactive = $request->has('is_active') && !$request->boolean('is_active');
+        $isDemoting = ($before['role'] === 'admin') && ($validated['role'] !== 'admin');
+        if ($before['role'] === 'admin' && ($isDemoting || $willBeInactive)) {
+            $remainingAdmins = User::where('role', 'admin')
+                ->where('is_active', true)
+                ->where('id', '!=', $user->id)
+                ->count();
+            if ($remainingAdmins === 0) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Tidak dapat mengubah peran atau menonaktifkan akun Administrator aktif terakhir di sistem.',
+                ], 422);
+            }
+        }
+
         $user->role = $validated['role'];
         $user->department = $validated['department'] ?? null;
         $user->subdivision = $validated['subdivision'] ?? null;
@@ -570,6 +593,20 @@ class UserController extends Controller
                 'success' => false,
                 'message' => 'Anda tidak dapat menghapus atau meng-archive akun Anda sendiri yang sedang aktif.',
             ], 422);
+        }
+
+        // Security check: cannot delete the last active administrator
+        if ($user->isAdmin() && $user->is_active) {
+            $remainingAdmins = User::where('role', 'admin')
+                ->where('is_active', true)
+                ->where('id', '!=', $user->id)
+                ->count();
+            if ($remainingAdmins === 0) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Tidak dapat menghapus atau meng-archive akun Administrator aktif terakhir di sistem.',
+                ], 422);
+            }
         }
 
         $user->delete();

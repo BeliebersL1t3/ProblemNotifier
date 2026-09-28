@@ -223,12 +223,7 @@ class User extends Authenticatable
 
     public function canViewDepartment(string $department): bool
     {
-        if ($this->isAdmin()) {
-            return true;
-        }
-
-        $perms = $this->permissions ?? [];
-        if (!empty($perms['can_view_all_departments'])) {
+        if ($this->isAdmin() || $this->hasPermission('can_view_all_departments')) {
             return true;
         }
 
@@ -239,6 +234,7 @@ class User extends Authenticatable
             return true;
         }
 
+        $perms = $this->permissions ?? \App\Http\Controllers\UserController::getDefaultPermissions($this->role ?? 'department');
         $allowed = $perms['allowed_departments'] ?? [];
         if (is_array($allowed)) {
             $allowedNorm = array_map('strtolower', array_map('trim', $allowed));
