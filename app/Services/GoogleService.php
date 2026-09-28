@@ -1523,22 +1523,66 @@ class GoogleService
      * 5: Banana (Yellow/Lime), 6: Tangerine (Orange), 7: Peacock (Cyan), 8: Graphite (Gray)
      * 9: Blueberry (Navy), 10: Basil (Dark Green), 11: Tomato (Red)
      */
-    private function getDepartmentColorId(string $dept): string
+    public function getDepartmentColorId(string $dept): string
     {
         $d = strtolower(trim($dept));
-        return match (true) {
-            str_contains($d, 'it') || str_contains($d, 'tech')                                 => '7',  // Peacock / Cyan (IT)
-            str_contains($d, 'f&b') || str_contains($d, 'fnb') || str_contains($d, 'food')     => '11', // Tomato / Red (F&B)
-            str_contains($d, 'hr') || str_contains($d, 'human') || str_contains($d, 'legal') || str_contains($d, 'tekong') || str_contains($d, 'oe') => '3', // Grape / Dark Purple (HR)
-            str_contains($d, 'hk') || str_contains($d, 'house') || str_contains($d, 'pest')   => '2',  // Sage / Mint Green (HK)
-            str_contains($d, 'fasilitas') || str_contains($d, 'facility') || str_contains($d, 'security') => '5', // Banana / Lime Yellow (Fasilitas)
-            str_contains($d, 'engineer')                                                       => '8',  // Graphite / Slate Gray (Engineer)
-            str_contains($d, 'gr') || str_contains($d, 'guest') || str_contains($d, 'service') || str_contains($d, 'bar') || str_contains($d, 'spa') || str_contains($d, 'tirek') => '4', // Flamingo / Salmon Coral (GR)
-            str_contains($d, 'finance')                                                        => '10', // Basil / Dark Green (Finance)
-            str_contains($d, 'procure')                                                        => '9',  // Blueberry / Slate Navy (Procurement)
-            str_contains($d, 'reserva') || str_contains($d, 'sales') || str_contains($d, 'market') => '1',  // Lavender / Magenta (Reservasi/Sales)
-            default                                                                             => '6',  // Tangerine / Orange (Default Ops)
-        };
+
+        // 1. Fasilitas & Security FIRST to prevent 'it' substring conflict (fasil-it-as, secur-it-y)
+        if (str_contains($d, 'fasi') || str_contains($d, 'facil') || str_contains($d, 'secur')) {
+            return '5'; // Banana / Yellow (Fasilitas & Security)
+        }
+
+        // 2. HK / Housekeeping & Pest Control
+        if (preg_match('/\b(hk|housekeeping|house|pest)\b/i', $d) || str_contains($d, 'housekeep') || str_contains($d, 'pest')) {
+            return '2'; // Sage / Mint Green (HK)
+        }
+
+        // 3. IT / Tech (word-boundary safe to avoid matching 'it' inside other words)
+        if (preg_match('/\b(it|tech|technology|komputer|network|internet)\b/i', $d)) {
+            return '7'; // Peacock / Cyan (IT)
+        }
+
+        // 4. Kitchen / F&B / Food
+        if (str_contains($d, 'f&b') || str_contains($d, 'fnb') || str_contains($d, 'kitchen') || str_contains($d, 'food')) {
+            return '11'; // Tomato / Red (F&B / Kitchen)
+        }
+
+        // 5. Engineer / Maintenance
+        if (str_contains($d, 'engineer') || str_contains($d, 'maint')) {
+            return '8'; // Graphite / Slate Gray (Engineer)
+        }
+
+        // 6. Procurement / Logistik
+        if (str_contains($d, 'procure') || str_contains($d, 'logistik') || str_contains($d, 'logistics')) {
+            return '9'; // Blueberry / Navy Blue (Procurement)
+        }
+
+        // 7. Finance / Accounting / Kasir
+        if (str_contains($d, 'finan') || str_contains($d, 'acc') || str_contains($d, 'kasir')) {
+            return '10'; // Basil / Dark Green (Finance)
+        }
+
+        // 8. HR / Human Resources / Legal / Tekong / LnD
+        if (preg_match('/\b(hr|human|legal|tekong|lnd|transportasi)\b/i', $d) || str_contains($d, 'human') || str_contains($d, 'legal')) {
+            return '3'; // Grape / Purple (HR)
+        }
+
+        // 9. GR / Guest Relations / Service / Bar / Spa / Tirek
+        if (preg_match('/\b(gr|gre|bar|spa|tirek)\b/i', $d) || str_contains($d, 'guest') || str_contains($d, 'service')) {
+            return '4'; // Flamingo / Salmon Coral (GR)
+        }
+
+        // 10. Reservasi / Sales / Marketing
+        if (str_contains($d, 'reserva') || str_contains($d, 'sales') || str_contains($d, 'market')) {
+            return '1'; // Lavender (Reservasi / Sales)
+        }
+
+        // 11. OE (Operational Excellence)
+        if (preg_match('/\b(oe)\b/i', $d) || str_contains($d, 'excellence')) {
+            return '3'; // Grape / Purple (OE)
+        }
+
+        return '6'; // Tangerine / Orange (Default Ops)
     }
 
     /**
