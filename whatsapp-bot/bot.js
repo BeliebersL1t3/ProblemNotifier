@@ -15,7 +15,7 @@ let envBaseUrl = process.env.BASE_URL || process.env.APP_URL;
 if (!envBaseUrl && fs.existsSync('.env')) {
     try {
         const envContent = fs.readFileSync('.env', 'utf8');
-        const match = envContent.match(/^BASE_URL=(.+)$/m) || envContent.match(/^APP_URL=(.+)$/m);
+        const match = envContent.match(/^BASE_URL=([^\r\n]+)$/m) || envContent.match(/^APP_URL=([^\r\n]+)$/m);
         if (match) envBaseUrl = match[1].trim();
     } catch (e) {}
 }
@@ -26,14 +26,14 @@ let botApiKey = process.env.BOT_API_KEY;
 if (!botApiKey && fs.existsSync('.env')) {
     try {
         const envContent = fs.readFileSync('.env', 'utf8');
-        const match = envContent.match(/^BOT_API_KEY=(.+)$/m);
+        const match = envContent.match(/^BOT_API_KEY=([^\r\n]+)$/m);
         if (match) botApiKey = match[1].trim();
     } catch (e) {}
 }
 if (!botApiKey && fs.existsSync('../.env')) {
     try {
         const envContent = fs.readFileSync('../.env', 'utf8');
-        const match = envContent.match(/^BOT_API_KEY=(.+)$/m);
+        const match = envContent.match(/^BOT_API_KEY=([^\r\n]+)$/m);
         if (match) botApiKey = match[1].trim();
     } catch (e) {}
 }
@@ -564,7 +564,6 @@ const STEPS = {
     AWAITING_CAT: 5,
     AWAITING_PHOTO: 6,
     AWAITING_SOLVE_ID: 7,
-    AWAITING_SOLVE_NAME: 8,
     AWAITING_SOLVE_DESC: 9,
     AWAITING_SOLVE_PHOTO: 10,
     AWAITING_PRIORITY: 13,
@@ -572,7 +571,6 @@ const STEPS = {
     SOS_AWAITING_TITLE: 16,
     SOS_AWAITING_LOC: 17,
     AWAITING_PENDING_ID: 18,
-    AWAITING_PENDING_NAME: 19,
     AWAITING_PENDING_REASON: 20,
     AWAITING_PENDING_PHOTO: 21,
     AWAITING_ASSIGNED_DEPTS: 23,
@@ -584,8 +582,6 @@ const STEPS = {
     // Out-of-order confirmation flows
     CONFIRM_CLAIM_THEN_PENDING: 29, // Issue is open; ask if user wants claim+pending
     CONFIRM_CLAIM_THEN_SOLVE: 30,   // Issue is open; ask if user wants claim+solve
-    CONFIRM_CLAIM_PENDING_NAME: 31, // Collect worker name after yes-confirm for claim+pending
-    CONFIRM_CLAIM_SOLVE_NAME: 32,   // Collect worker name after yes-confirm for claim+solve
     AWAITING_MENU_LANG: 33,         // User typed "menu" and needs to choose ID or EN
     SOS_AWAITING_PHOTO: 34,         // Optional photo upload in SOS flow
     AWAITING_TAG_DEPT: 35,          // Multi-selection or skip for informational tags
@@ -808,6 +804,7 @@ async function syncWhatsAppChannel(sock) {
 }
 
 let globalSock = null;
+let staffSyncTimer = null;
 
 async function startSock() {
     const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
@@ -855,8 +852,10 @@ async function startSock() {
         }
     });
 
-    // Periodically sync staff WhatsApp directory every 5 minutes
-    setInterval(syncStaffDirectory, 5 * 60 * 1000);
+    // Periodically sync staff WhatsApp directory every 5 minutes (guarded against duplicate timers on reconnect)
+    if (!staffSyncTimer) {
+        staffSyncTimer = setInterval(syncStaffDirectory, 5 * 60 * 1000);
+    }
 
     sock.ev.on('messages.upsert', async m => {
         if (m.type !== 'notify') return;
@@ -1258,13 +1257,6 @@ async function startSock() {
                             continue;
                         }
 
-                        // --- SENDER RESOLUTION & ANTI-IMPERSONATION ---
-                        const senderJid = msg.key.participant || from;
-                        const rawSenderPhone = String(senderJid).replace(/[^0-9]/g, '');
-                        const resolvedSenderPhone = await resolveSenderPhone(sock, from, msg);
-                        const registeredUser = getStaffByPhone(resolvedSenderPhone) || getStaffByPhone(rawSenderPhone);
-                        const senderPhone = resolvedSenderPhone || rawSenderPhone;
-
                         // --- SENDER BARRIER & PERMISSION CHECK ---
                         if (registeredUser && registeredUser.role !== 'admin') {
                             if (registeredUser.permissions && registeredUser.permissions.can_manage_issues === false) {
@@ -1308,8 +1300,7 @@ async function startSock() {
                             continue;
                         }
 
-                        let takerName = registeredUser.name || registeredUser.staff_name;
-                        let autoSaved = false;
+                        const takerName = registeredUser.name || registeredUser.staff_name;
 
                         const userTrueDept = registeredUser?.department || (groupDeptKey ? (groupDeptKey.charAt(0).toUpperCase() + groupDeptKey.slice(1)) : '');
                         const deptLabel = userTrueDept ? (userTrueDept.charAt(0).toUpperCase() + userTrueDept.slice(1)) : '';
@@ -1319,10 +1310,7 @@ async function startSock() {
                         });
 
                         if (claimRes.data.success) {
-                            let successMsg = `✅ Issue *${issueId}* berhasil diklaim oleh *${takerName}*!`;
-                            if (autoSaved) {
-                                successMsg += `\n\n💡 *Nomor Anda (+${senderPhone}) kini tersimpan.* Selanjutnya, Anda cukup reply *!claim* tanpa perlu memilih nama lagi.`;
-                            }
+                            const successMsg = `✅ Issue *${issueId}* berhasil diklaim oleh *${takerName}*!`;
                             await reply(successMsg);
                         } else {
                             await reply(`❌ Failed to claim: ${claimRes.data.message || 'Unknown error'}`);
@@ -1665,9 +1653,20 @@ async function startSock() {
             }
 
             if (state.step === STEPS.SOS_AWAITING_PHOTO) {
-                let buffer = null;
+                const isImage = !!msg.message?.imageMessage;
+                const lowerInput = (text || '').trim().toLowerCase();
+                const isSkip = ['skip', 'no', 'tidak', 'lewati', 'lanjut'].includes(lowerInput);
 
-                if (msg.message?.imageMessage) {
+                if (!isImage && !isSkip) {
+                    await reply(getMsg(
+                        '⚠️ Please send a photo proof, or reply *"skip"* / *"no"* to proceed without a photo.',
+                        '⚠️ Silakan kirim foto bukti darurat, atau ketik *"skip"* / *"tidak"* jika tidak ada foto.'
+                    ));
+                    continue;
+                }
+
+                let buffer = null;
+                if (isImage) {
                     try {
                         buffer = await downloadMediaMessage(
                             msg,
@@ -1683,51 +1682,51 @@ async function startSock() {
                     }
                 }
 
-                    try {
-                        await reply(getMsg(
-                            '🚨 Submitting emergency report immediately... please wait.',
-                            '🚨 Mengirim laporan darurat sekarang... mohon tunggu.'
-                        ));
+                try {
+                    await reply(getMsg(
+                        '🚨 Submitting emergency report immediately... please wait.',
+                        '🚨 Mengirim laporan darurat sekarang... mohon tunggu.'
+                    ));
 
-                        const formData = new FormData();
-                        formData.append('title', state.data.title);
-                        formData.append('description', state.data.description);
-                        formData.append('location', state.data.location);
-                        formData.append('category', 'emergency');
-                        formData.append('department', 'Emergency');
-                        formData.append('assignedDepartments', 'ALL');
-                        formData.append('taggedDepartments', 'ALL');
-                        formData.append('reporter', state.data.reporter);
-                        formData.append('priority', 'critical');
-                        formData.append('deadline', Date.now().toString());
-                        if (buffer) {
-                            formData.append('image', buffer, { filename: 'sos.jpg', contentType: 'image/jpeg' });
-                        }
-
-                        const res = await axios.post(`${BASE_URL}/api/issues`, formData, {
-                            headers: formData.getHeaders()
-                        });
-
-                        if (res.data.success) {
-                            await reply(getMsg(
-                                buffer ? '✅ Emergency reported successfully with photo! The team has been alerted.' : '✅ Emergency reported successfully! The team has been alerted.',
-                                buffer ? '✅ Laporan darurat dengan foto berhasil dikirim! Tim telah diberitahu.' : '✅ Laporan darurat berhasil dikirim! Tim telah diberitahu.'
-                            ));
-                        } else {
-                            await reply(getMsg(
-                                '❌ Failed to report emergency. Please try again or seek help directly.',
-                                '❌ Gagal melaporkan darurat. Silakan coba lagi atau minta bantuan langsung.'
-                            ));
-                        }
-                    } catch (err) {
-                        console.error("API Error:", err.response ? err.response.data : err.message);
-                        const errorMessage = err.response?.data?.message || err.message;
-                        await reply(`❌ Display Error: ${errorMessage}`);
+                    const formData = new FormData();
+                    formData.append('title', state.data.title);
+                    formData.append('description', state.data.description);
+                    formData.append('location', state.data.location);
+                    formData.append('category', 'emergency');
+                    formData.append('department', 'Emergency');
+                    formData.append('assignedDepartments', 'ALL');
+                    formData.append('taggedDepartments', 'ALL');
+                    formData.append('reporter', state.data.reporter);
+                    formData.append('priority', 'critical');
+                    formData.append('deadline', Date.now().toString());
+                    if (buffer) {
+                        formData.append('image', buffer, { filename: 'sos.jpg', contentType: 'image/jpeg' });
                     }
-                    
-                    userStates.delete(stateKey);
-                    continue;
+
+                    const res = await axios.post(`${BASE_URL}/api/issues`, formData, {
+                        headers: formData.getHeaders()
+                    });
+
+                    if (res.data.success) {
+                        await reply(getMsg(
+                            buffer ? '✅ Emergency reported successfully with photo! The team has been alerted.' : '✅ Emergency reported successfully! The team has been alerted.',
+                            buffer ? '✅ Laporan darurat dengan foto berhasil dikirim! Tim telah diberitahu.' : '✅ Laporan darurat berhasil dikirim! Tim telah diberitahu.'
+                        ));
+                    } else {
+                        await reply(getMsg(
+                            '❌ Failed to report emergency. Please try again or seek help directly.',
+                            '❌ Gagal melaporkan darurat. Silakan coba lagi atau minta bantuan langsung.'
+                        ));
+                    }
+                } catch (err) {
+                    console.error("API Error:", err.response ? err.response.data : err.message);
+                    const errorMessage = err.response?.data?.message || err.message;
+                    await reply(`❌ Display Error: ${errorMessage}`);
                 }
+                
+                userStates.delete(stateKey);
+                continue;
+            }
 
                 // --- NORMAL ISSUE REPORTING FLOW ---
 
@@ -2173,16 +2172,6 @@ async function startSock() {
                 }
             }
 
-            if (state.step === STEPS.AWAITING_SOLVE_NAME) {
-                state.data.solverName = (registeredStaff?.name || registeredStaff?.staff_name || text.trim()) + ' (via WhatsApp)';
-                await reply(getMsg(
-                    'Please provide a brief description of how you fixed it:',
-                    'Jelaskan secara singkat tindakan perbaikan yang telah Anda lakukan:'
-                ));
-                state.step = STEPS.AWAITING_SOLVE_DESC;
-                userStates.set(stateKey, state);
-                continue;
-            }
 
             if (state.step === STEPS.AWAITING_SOLVE_DESC) {
                 state.data.fixDescription = text;
@@ -2333,13 +2322,7 @@ Reply *yes* to claim + pending, or *no* to cancel.`
                     console.error('Validation error:', e.message);
                 }
             }
-            if (state.step === STEPS.AWAITING_PENDING_NAME) {
-                state.data.pendingBy = (registeredStaff?.name || registeredStaff?.staff_name || text.trim()) + ' (via WhatsApp)';
-                await reply(getMsg('What is the reason for the delay?', 'Apa alasan penundaannya?'));
-                state.step = STEPS.AWAITING_PENDING_REASON;
-                userStates.set(stateKey, state);
-                continue;
-            }
+
             if (state.step === STEPS.AWAITING_PENDING_REASON) {
                 state.data.pendingReason = text;
                 await reply('Finally, please upload a photo as proof of the delay. (Send an image here)');
@@ -2347,7 +2330,7 @@ Reply *yes* to claim + pending, or *no* to cancel.`
                 continue;
             }
             if (state.step === STEPS.AWAITING_PENDING_PHOTO) {
-                if (!msg.message.imageMessage) {
+                if (!msg.message?.imageMessage) {
                     await reply('Please send a valid photo. Or type "cancel" to restart.');
                     continue;
                 }
@@ -2447,22 +2430,6 @@ Reply *yes* to claim + pending, or *no* to cancel.`
                 continue;
             }
 
-            if (state.step === STEPS.CONFIRM_CLAIM_PENDING_NAME) {
-                const workerName = (registeredStaff?.name || registeredStaff?.staff_name || text.trim()) + ' (via WhatsApp)';
-                try {
-                    await axios.post(`${BASE_URL}/api/issues/${state.data.issueRowIndex}/claim`, {
-                        taker: workerName
-                    });
-                } catch (e) {
-                    console.error('Auto-claim failed:', e.message);
-                }
-                state.data.pendingBy = workerName;
-                await reply(getMsg('What is the reason for the delay?', 'Apa alasan keterlambatannya?'));
-                state.step = STEPS.AWAITING_PENDING_REASON;
-                userStates.set(stateKey, state);
-                continue;
-            }
-
             // CONFIRM: Claim + Solve (user said "solve" but issue is still open)
             if (state.step === STEPS.CONFIRM_CLAIM_THEN_SOLVE) {
                 const ans = lowerText.trim();
@@ -2490,25 +2457,6 @@ Reply *yes* to claim + pending, or *no* to cancel.`
                         '✅ Tidak apa-apa. Masalah tetap *Terbuka (belum diklaim)*. Tidak ada perubahan.'
                     ));
                 }
-                continue;
-            }
-
-            if (state.step === STEPS.CONFIRM_CLAIM_SOLVE_NAME) {
-                const workerName = (registeredStaff?.name || registeredStaff?.staff_name || text.trim()) + ' (via WhatsApp)';
-                state.data.solverName = workerName;
-                try {
-                    await axios.post(`${BASE_URL}/api/issues/${state.data.issueRowIndex}/claim`, {
-                        taker: workerName
-                    });
-                } catch (e) {
-                    console.error('Auto-claim failed:', e.message);
-                }
-                await reply(getMsg(
-                    `✅ Job claimed by *${registeredStaff?.name || registeredStaff?.staff_name || text.trim()}*! Please describe how you fixed it:`,
-                    `✅ Pekerjaan diklaim oleh *${registeredStaff?.name || registeredStaff?.staff_name || text.trim()}*! Jelaskan cara Anda memperbaikinya:`
-                ));
-                state.step = STEPS.AWAITING_SOLVE_DESC;
-                userStates.set(stateKey, state);
                 continue;
             }
 
