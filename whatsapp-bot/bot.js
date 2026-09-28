@@ -593,11 +593,7 @@ function getIssueSummaryMessage(issue, lang = 'id') {
 
 const STEPS = {
     IDLE: 0,
-    AWAITING_NAME: 1,
     AWAITING_TITLE: 2,
-    AWAITING_DESC: 3,
-    AWAITING_LOC: 4,
-    AWAITING_CAT: 5,
     AWAITING_DESC: 3,
     AWAITING_LOC: 4,
     AWAITING_CAT: 5,
@@ -606,18 +602,14 @@ const STEPS = {
     AWAITING_SOLVE_NAME: 8,
     AWAITING_SOLVE_DESC: 9,
     AWAITING_SOLVE_PHOTO: 10,
-    AWAITING_CAT_OTHER: 11,
-    AWAITING_CAT_CUSTOM: 12,
     AWAITING_PRIORITY: 13,
     AWAITING_CRITICAL_TIME: 14,
-    SOS_AWAITING_NAME: 15,
     SOS_AWAITING_TITLE: 16,
     SOS_AWAITING_LOC: 17,
     AWAITING_PENDING_ID: 18,
     AWAITING_PENDING_NAME: 19,
     AWAITING_PENDING_REASON: 20,
     AWAITING_PENDING_PHOTO: 21,
-    AWAITING_ORIGIN_DEPT: 22,
     AWAITING_ASSIGNED_DEPTS: 23,
     STATUS_AWAITING_DEPT: 24,
     STATUS_AWAITING_STATUS: 25,
@@ -628,6 +620,7 @@ const STEPS = {
     CONFIRM_CLAIM_THEN_PENDING: 29, // Issue is open; ask if user wants claim+pending
     CONFIRM_CLAIM_THEN_SOLVE: 30,   // Issue is open; ask if user wants claim+solve
     CONFIRM_CLAIM_PENDING_NAME: 31, // Collect worker name after yes-confirm for claim+pending
+    CONFIRM_CLAIM_SOLVE_NAME: 32,   // Collect worker name after yes-confirm for claim+solve
     AWAITING_MENU_LANG: 33,         // User typed "menu" and needs to choose ID or EN
     SOS_AWAITING_PHOTO: 34,         // Optional photo upload in SOS flow
     AWAITING_TAG_DEPT: 35,          // Multi-selection or skip for informational tags
@@ -682,34 +675,8 @@ const SUBDEPARTMENT_TO_MAIN = {
     'engineer': 'engineer',
 };
 
-// Staff rosters keyed by lowercase department or subdivision name
-const DEPARTMENT_STAFF = {
-    'engineer':         ['Dimas Pratama', 'Budi Santoso', 'Ahmad Fauzi', 'Hendra Wijaya', 'Joko Susilo'],
-    'fasilitas':        ['Anto (Fasilitas)', 'Dedi Kusuma', 'Eko Purnomo', 'Fasilitas Team', 'Pak Joko (Security)', 'Agus Setiawan (Security)', 'Doni Prasetyo (Security)'],
-    'security':         ['Pak Joko (Security)', 'Agus Setiawan (Security)', 'Doni Prasetyo (Security)', 'Security Lead'],
-    'hk':               ['Siti Rahma (HK)', 'Dewi Lestari (HK)', 'Sri Wahyuni (HK)', 'Nurul Aini (HK)', 'Fitri Handayani (HK)', 'Wahyu Hidayat (Pest Control)'],
-    'pest control':     ['Wahyu Hidayat (Pest Control)', 'Rian Kurniawan (Pest Control)', 'Pest Control Team'],
-    'kitchen':          ['Chef Ricky (Kitchen)', 'Bayu Pratama (Kitchen)', 'Putri Ayu (Kitchen)', 'Kitchen Team'],
-    'f&b':              ['Chef Ricky (Kitchen)', 'Bayu Pratama (Kitchen)', 'Putri Ayu (Kitchen)', 'Kitchen Team'],
-    'service':          ['Andi Kurnia (Service)', 'Rina Marlina (Service)', 'Dian Anggraini (Service)', 'Service Captain'],
-    'bar':              ['Lia (Bar)', 'Kevin Sanjaya (Bar)', 'Bar Team Lead'],
-    'gre':              ['Wawan (GRE)', 'Nadia Safitri (GRE)', 'Indah Permata (GRE)', 'GRE Team'],
-    'gr':               ['Wawan (GRE)', 'Nadia Safitri (GRE)', 'Indah Permata (GRE)', 'Andi Kurnia (Service)', 'Lia (Bar)', 'Nurse Maya (Spa)', 'Fajar Ramadhan (TiRek)'],
-    'spa':              ['Nurse Maya (Spa)', 'Sari Wulandari (Spa)', 'Yanti Komala (Spa)', 'Spa Therapist Lead'],
-    'tirek':            ['TiRek Coordinator', 'Fajar Ramadhan (TiRek)', 'Activity Guide Team'],
-    'oe':               ['Dimas (OE)', 'OE Operations Lead', 'Taufik Hidayat'],
-    'it':               ['Reza (IT)', 'Dani (IT)', 'IT Support Team'],
-    'procurement':      ['Procurement Team', 'Budi Purchasing', 'Ratna Dewi'],
-    'reservasi':        ['Maya Putri (Reservasi)', 'Reservasi Lead', 'Clarissa Tan (Sales)', 'Ana (Marketing)'],
-    'sales':            ['Clarissa Tan (Sales)', 'Sales Lead'],
-    'marketing':        ['Ana (Marketing)', 'Marketing Coordinator'],
-    'finance':          ['Iwan Accountant', 'Finance Lead', 'Finance Officer'],
-    'legal':            ['Advokat Hendro (Legal)', 'Ratna SH (Legal)', 'Legal Team Lead'],
-    'lnd':              ['Putri (LnD)', 'LnD Specialist'],
-    'transportasi':     ['Captain Arif (Transportasi)', 'Rudi Hartono (Transportasi)', 'Surya Saputra (Transportasi)'],
-    'tekong':           ['Captain Arif (Transportasi)', 'Rudi Hartono (Transportasi)', 'Surya Saputra (Transportasi)'],
-    'hr':               ['Pak Bambang (HR)', 'Siti HR Specialist', 'Advokat Hendro (Legal)', 'Putri (LnD)', 'Captain Arif (Transportasi)'],
-};
+// Staff identity is dynamically resolved via verified staff directory (anti-impersonation)
+
 
 /**
  * Get the department key for a WhatsApp group JID (reverse-lookup).
@@ -1048,12 +1015,16 @@ async function startSock() {
                 continue;
             }
 
-            if (lower.startsWith('!iam') || lower.startsWith('!daftar') || lower.startsWith('iam ')) {
+            if (lower.startsWith('!iam') || lower === 'iam') {
                 await reply(`ℹ️ *Pendaftaran Mandiri via WhatsApp Dinonaktifkan*\n\nNomor WhatsApp hanya dapat didaftarkan melalui Web Dashboard (${BASE_URL}) dengan verifikasi HOD & Admin, atau didaftarkan langsung oleh Administrator.`);
                 continue;
             }
 
             if (lower === '!syncstaff' || lower === '!refreshstaff') {
+                if (registeredUser.role !== 'admin') {
+                    await reply('❌ *Akses Ditolak*\n\nPerintah sinkronisasi staf hanya dapat dijalankan oleh Administrator Resort.');
+                    continue;
+                }
                 await reply('🔄 Menyinkronkan daftar nomor WhatsApp staf dari Web Dashboard...');
                 const res = await syncStaffDirectory();
                 if (res.success) {
@@ -1125,8 +1096,12 @@ async function startSock() {
                     }
                 } catch (e) {}
 
-                // 1. Leave testing/old group
+                // 1. Leave testing/old group (Admin Only)
                 if (lower === '!leavegroup' || lower === '!leave') {
+                    if (registeredUser.role !== 'admin') {
+                        await reply('❌ *Akses Ditolak*\n\nHanya Administrator yang dapat memerintahkan bot keluar dari grup.');
+                        continue;
+                    }
                     await reply('👋 Goodbye! Leaving this group now...');
                     try {
                         await sock.groupLeave(from);
@@ -1136,8 +1111,12 @@ async function startSock() {
                     continue;
                 }
 
-                // 2. Auto-sync community groups
+                // 2. Auto-sync community groups (Admin Only)
                 if (lower === '!syncgroups' || lower === '!sync') {
+                    if (registeredUser.role !== 'admin') {
+                        await reply('❌ *Akses Ditolak*\n\nHanya Administrator yang dapat menyinkronkan grup komunitas.');
+                        continue;
+                    }
                     await reply('🔄 Scanning all WhatsApp Community groups... Please wait.');
                     const res = await syncCommunityGroups(sock);
                     if (res.success) {
@@ -1148,8 +1127,12 @@ async function startSock() {
                     continue;
                 }
 
-                // 3. Manual group link: !setgroup or !setgroup <DeptName>
+                // 3. Manual group link: !setgroup or !setgroup <DeptName> (Admin Only)
                 if (lower.startsWith('!setgroup')) {
+                    if (registeredUser.role !== 'admin') {
+                        await reply('❌ *Akses Ditolak*\n\nHanya Administrator yang dapat mengubah konfigurasi tautan grup.');
+                        continue;
+                    }
                     const arg = text.substring(9).trim();
                     if (!arg || arg.toLowerCase() === 'general') {
                         botConfig.generalGroupId = from;
@@ -1183,8 +1166,12 @@ async function startSock() {
                     continue;
                 }
 
-                // 4b. Command to set or re-sync WhatsApp Channel
+                // 4b. Command to set or re-sync WhatsApp Channel (Admin Only)
                 if (lower.startsWith('!setchannel') || lower === '!syncchannel') {
+                    if (registeredUser.role !== 'admin') {
+                        await reply('❌ *Akses Ditolak*\n\nHanya Administrator yang dapat mengatur tautan WhatsApp Channel.');
+                        continue;
+                    }
                     const arg = text.substring(lower.startsWith('!setchannel') ? 11 : 12).trim();
                     let code = arg;
                     if (code.includes('whatsapp.com/channel/')) {
@@ -1236,7 +1223,7 @@ async function startSock() {
                         if (!issue) {
                             const lookup = await getIssueDetails(issueId);
                             if (lookup?.isArchived) {
-                                await reply(getArchivedMessage(lookup, state.lang));
+                                await reply(getArchivedMessage(lookup, 'id'));
                                 continue;
                             }
                             if (lookup) {
@@ -1248,7 +1235,7 @@ async function startSock() {
                         }
 
                         if (issue.isArchived) {
-                            await reply(getArchivedMessage(issue, state.lang));
+                            await reply(getArchivedMessage(issue, 'id'));
                             continue;
                         }
 
@@ -1584,17 +1571,6 @@ async function startSock() {
                 continue;
             }
 
-            if (state.step === STEPS.SOS_AWAITING_NAME) {
-                state.data.reporter = text + " (via WhatsApp)";
-                await reply(getMsg(
-                    `Stay calm, ${text}. What is the emergency situation? (e.g., Fire in kitchen, Guest medical emergency)`,
-                    `Tetap tenang, ${text}. Apa situasi daruratnya? (contoh: Kebakaran di dapur, Tamu butuh bantuan medis)`
-                ));
-                state.step = STEPS.SOS_AWAITING_TITLE;
-                userStates.set(stateKey, state);
-                continue;
-            }
-
             if (state.step === STEPS.SOS_AWAITING_TITLE) {
                 state.data.title = text;
                 await reply(getMsg(
@@ -1670,6 +1646,7 @@ async function startSock() {
                         formData.append('location', state.data.location);
                         formData.append('category', 'emergency');
                         formData.append('department', 'Emergency');
+                        formData.append('assignedDepartments', 'ALL');
                         formData.append('taggedDepartments', 'ALL');
                         formData.append('reporter', state.data.reporter);
                         formData.append('priority', 'critical');
@@ -1785,15 +1762,7 @@ async function startSock() {
                 }
 
                 // --- NORMAL ISSUE REPORTING FLOW ---
-                if (state.step === STEPS.AWAITING_NAME) {
-                    state.data.reporter = text + " (via WhatsApp)";
-                    await reply(getMsg(
-                        `Thanks, ${text}. What is the title of the issue? (e.g., Broken lab door handle)`,
-                        `Terima kasih, ${text}. Apa judul masalahnya? (contoh: Gagang pintu rusak)`
-                    ));
-                    state.step = STEPS.AWAITING_TITLE;
-                    continue;
-                }
+
 
                 if (state.step === STEPS.AWAITING_TITLE) {
                     state.data.title = text;
@@ -2219,56 +2188,30 @@ async function startSock() {
                             continue;
                         }
                         // status is 'progress' or 'pending' — allowed to proceed
+                        const verifiedSolver = (registeredStaff?.name || registeredStaff?.staff_name || 'Staff');
+                        state.data.issueId = queryId;
+                        state.data.solverName = verifiedSolver + ' (via WhatsApp)';
+                        state.step = STEPS.AWAITING_SOLVE_DESC;
+                        userStates.set(stateKey, state);
 
-                        // Roster prompt if in a group that matches an authorized dept
-                        const solveGroupDeptKey = getDeptKeyForGroup(from);
-                        const solveAssigned = (Array.isArray(issue.assignedDepartments) ? issue.assignedDepartments : (issue.assignedDepartments || '').split(',').map(d => d.trim())).filter(Boolean);
-                        const solveTagged   = (Array.isArray(issue.taggedDepartments) ? issue.taggedDepartments : (issue.taggedDepartments || '').split(',').map(d => d.trim())).filter(Boolean);
-                        const solveAuthKeys = [...solveAssigned, ...solveTagged].map(d => d.toLowerCase());
-                        const isSolveGroupAuth = !solveGroupDeptKey || solveAssigned.includes('ALL') || solveAuthKeys.includes(solveGroupDeptKey);
-
-                        if (solveGroupDeptKey && isSolveGroupAuth) {
-                            const solveRoster = DEPARTMENT_STAFF[solveGroupDeptKey] || [];
-                            if (solveRoster.length > 0) {
-                                let rMsg = `🔧 *Resolving Issue ${queryId}*\n\nSelect your name:\n\n`;
-                                solveRoster.forEach((n, i) => { rMsg += `${i + 1}. ${n}\n`; });
-                                rMsg += `\nExample: *2* or your full name.`;
-                                state.data.rosterList = solveRoster;
-                                state.data.issueId = queryId;
-                                state.step = STEPS.AWAITING_SOLVE_NAME;
-                                userStates.set(stateKey, state);
-                                await reply(rMsg);
-                                continue;
-                            }
-                        }
+                        await reply(getMsg(
+                            `🔧 *Resolving Issue ${queryId}*\n👤 Solver: *${verifiedSolver}*\n\nPlease provide a brief description of how you fixed it:`,
+                            `🔧 *Penyelesaian Masalah ${queryId}*\n👤 Penyelesai: *${verifiedSolver}*\n\nJelaskan secara singkat tindakan perbaikan yang telah Anda lakukan:`
+                        ));
+                        continue;
                 } catch (e) {
                     console.error("Validation error:", e.message);
                 }
-
-                state.data.issueId = queryId;
-                await reply(getMsg('What is your name? (Solver Name)', 'Siapa nama Anda? (Nama Penyelesai)'));
-                state.step = STEPS.AWAITING_SOLVE_NAME;
-                userStates.set(stateKey, state);
-                continue;
             }
 
-
             if (state.step === STEPS.AWAITING_SOLVE_NAME) {
-                let solverInput = text.trim();
-                // If we have a roster context stored, try to resolve by number
-                const solveRoster = state.data.rosterList || [];
-                if (solveRoster.length > 0) {
-                    const numIdx = parseInt(solverInput, 10);
-                    if (!isNaN(numIdx) && numIdx >= 1 && numIdx <= solveRoster.length) {
-                        solverInput = solveRoster[numIdx - 1];
-                    } else {
-                        const matched = solveRoster.find(n => n.toLowerCase().includes(solverInput.toLowerCase()));
-                        if (matched) solverInput = matched;
-                    }
-                }
-                state.data.solverName = solverInput + ' (via WhatsApp)';
-                await reply('Please provide a brief description of how you fixed it.');
+                state.data.solverName = (registeredStaff?.name || registeredStaff?.staff_name || text.trim()) + ' (via WhatsApp)';
+                await reply(getMsg(
+                    'Please provide a brief description of how you fixed it:',
+                    'Jelaskan secara singkat tindakan perbaikan yang telah Anda lakukan:'
+                ));
                 state.step = STEPS.AWAITING_SOLVE_DESC;
+                userStates.set(stateKey, state);
                 continue;
             }
 
@@ -2405,55 +2348,26 @@ Reply *yes* to claim + pending, or *no* to cancel.`
                             continue;
                         }
                         // status === 'progress' — allowed
-                        const pendGroupDeptKey = getDeptKeyForGroup(from);
-                        const pendAssigned = (Array.isArray(issue.assignedDepartments) ? issue.assignedDepartments : (issue.assignedDepartments || '').split(',').map(d => d.trim())).filter(Boolean);
-                        const pendTagged   = (Array.isArray(issue.taggedDepartments) ? issue.taggedDepartments : (issue.taggedDepartments || '').split(',').map(d => d.trim())).filter(Boolean);
-                        const pendAuthKeys = [...pendAssigned, ...pendTagged].map(d => d.toLowerCase());
-                        const isPendGroupAuth = !pendGroupDeptKey || pendAssigned.includes('ALL') || pendAuthKeys.includes(pendGroupDeptKey);
-                        if (pendGroupDeptKey && isPendGroupAuth) {
-                            const pendRoster = DEPARTMENT_STAFF[pendGroupDeptKey] || [];
-                            if (pendRoster.length > 0) {
-                                let rMsg = `⏸️ *Marking Issue ${queryId} as Pending*
+                        const verifiedWorker = (registeredStaff?.name || registeredStaff?.staff_name || 'Staff');
+                        state.data.issueId = queryId;
+                        state.data.pendingBy = verifiedWorker + ' (via WhatsApp)';
+                        state.step = STEPS.AWAITING_PENDING_REASON;
+                        userStates.set(stateKey, state);
 
-Select your name:
-
-`;
-                                pendRoster.forEach((n, i) => { rMsg += `${i + 1}. ${n}
-`; });
-                                rMsg += `
-Example: *2* or your full name.`;
-                                state.data.rosterList = pendRoster;
-                                state.data.issueId = queryId;
-                                state.step = STEPS.AWAITING_PENDING_NAME;
-                                userStates.set(stateKey, state);
-                                await reply(rMsg);
-                                continue;
-                            }
-                        }
+                        await reply(getMsg(
+                            `⏸️ *Marking Issue ${queryId} as Pending*\n👤 Staff: *${verifiedWorker}*\n\nWhat is the reason for the delay?`,
+                            `⏸️ *Menandai Masalah ${queryId} Tertunda*\n👤 Staf: *${verifiedWorker}*\n\nApa alasan penundaan pekerjaan ini?`
+                        ));
+                        continue;
                 } catch (e) {
                     console.error('Validation error:', e.message);
                 }
-                state.data.issueId = queryId;
-                await reply(getMsg('What is your name? (Worker Name)', 'Siapa nama Anda? (Nama Pekerja)'));
-                state.step = STEPS.AWAITING_PENDING_NAME;
-                userStates.set(stateKey, state);
-                continue;
             }
             if (state.step === STEPS.AWAITING_PENDING_NAME) {
-                let pendingInput = text.trim();
-                const pendRoster = state.data.rosterList || [];
-                if (pendRoster.length > 0) {
-                    const numIdx = parseInt(pendingInput, 10);
-                    if (!isNaN(numIdx) && numIdx >= 1 && numIdx <= pendRoster.length) {
-                        pendingInput = pendRoster[numIdx - 1];
-                    } else {
-                        const matched = pendRoster.find(n => n.toLowerCase().includes(pendingInput.toLowerCase()));
-                        if (matched) pendingInput = matched;
-                    }
-                }
-                state.data.pendingBy = pendingInput + ' (via WhatsApp)';
-                await reply('What is the reason for the delay?');
+                state.data.pendingBy = (registeredStaff?.name || registeredStaff?.staff_name || text.trim()) + ' (via WhatsApp)';
+                await reply(getMsg('What is the reason for the delay?', 'Apa alasan penundaannya?'));
                 state.step = STEPS.AWAITING_PENDING_REASON;
+                userStates.set(stateKey, state);
                 continue;
             }
             if (state.step === STEPS.AWAITING_PENDING_REASON) {
@@ -2537,11 +2451,21 @@ Example: *2* or your full name.`;
             if (state.step === STEPS.CONFIRM_CLAIM_THEN_PENDING) {
                 const ans = lowerText.trim();
                 if (ans === 'yes' || ans === 'ya' || ans === 'y') {
+                    const workerName = (registeredStaff?.name || registeredStaff?.staff_name || 'Staff') + ' (via WhatsApp)';
+                    state.data.pendingBy = workerName;
+                    // Auto-claim first
+                    try {
+                        await axios.post(`${BASE_URL}/api/issues/${state.data.issueRowIndex}/claim`, {
+                            taker: workerName
+                        });
+                    } catch (e) {
+                        console.error('Auto-claim failed:', e.message);
+                    }
                     await reply(getMsg(
-                        'Got it! What is your name? You will be recorded as both the claimer and the person marking it pending.',
-                        'Baik! Siapa nama Anda? Anda akan dicatat sebagai peng-klaim dan yang menandai tertunda.'
+                        `✅ Job claimed by *${registeredStaff?.name || registeredStaff?.staff_name || 'Staff'}*! What is the reason for the delay?`,
+                        `✅ Pekerjaan diklaim oleh *${registeredStaff?.name || registeredStaff?.staff_name || 'Staff'}*! Apa alasan penundaannya?`
                     ));
-                    state.step = STEPS.CONFIRM_CLAIM_PENDING_NAME;
+                    state.step = STEPS.AWAITING_PENDING_REASON;
                     userStates.set(stateKey, state);
                 } else {
                     userStates.delete(stateKey);
@@ -2554,8 +2478,7 @@ Example: *2* or your full name.`;
             }
 
             if (state.step === STEPS.CONFIRM_CLAIM_PENDING_NAME) {
-                const workerName = text.trim() + ' (via WhatsApp)';
-                // Silently auto-claim first
+                const workerName = (registeredStaff?.name || registeredStaff?.staff_name || text.trim()) + ' (via WhatsApp)';
                 try {
                     await axios.post(`${BASE_URL}/api/issues/${state.data.issueRowIndex}/claim`, {
                         taker: workerName
@@ -2574,11 +2497,21 @@ Example: *2* or your full name.`;
             if (state.step === STEPS.CONFIRM_CLAIM_THEN_SOLVE) {
                 const ans = lowerText.trim();
                 if (ans === 'yes' || ans === 'ya' || ans === 'y') {
+                    const workerName = (registeredStaff?.name || registeredStaff?.staff_name || 'Staff') + ' (via WhatsApp)';
+                    state.data.solverName = workerName;
+                    // Auto-claim first
+                    try {
+                        await axios.post(`${BASE_URL}/api/issues/${state.data.issueRowIndex}/claim`, {
+                            taker: workerName
+                        });
+                    } catch (e) {
+                        console.error('Auto-claim failed:', e.message);
+                    }
                     await reply(getMsg(
-                        'Got it! What is your name? You will be recorded as both the claimer and the solver.',
-                        'Baik! Siapa nama Anda? Anda akan dicatat sebagai peng-klaim dan penyelesai.'
+                        `✅ Job claimed by *${registeredStaff?.name || registeredStaff?.staff_name || 'Staff'}*! Please describe how you fixed it:`,
+                        `✅ Pekerjaan diklaim oleh *${registeredStaff?.name || registeredStaff?.staff_name || 'Staff'}*! Jelaskan cara Anda memperbaikinya:`
                     ));
-                    state.step = STEPS.CONFIRM_CLAIM_SOLVE_NAME;
+                    state.step = STEPS.AWAITING_SOLVE_DESC;
                     userStates.set(stateKey, state);
                 } else {
                     userStates.delete(stateKey);
@@ -2591,9 +2524,8 @@ Example: *2* or your full name.`;
             }
 
             if (state.step === STEPS.CONFIRM_CLAIM_SOLVE_NAME) {
-                const workerName = text.trim() + ' (via WhatsApp)';
+                const workerName = (registeredStaff?.name || registeredStaff?.staff_name || text.trim()) + ' (via WhatsApp)';
                 state.data.solverName = workerName;
-                // Silently auto-claim first
                 try {
                     await axios.post(`${BASE_URL}/api/issues/${state.data.issueRowIndex}/claim`, {
                         taker: workerName
@@ -2602,8 +2534,8 @@ Example: *2* or your full name.`;
                     console.error('Auto-claim failed:', e.message);
                 }
                 await reply(getMsg(
-                    `✅ Job claimed by *${text.trim()}*! Please describe how you fixed it.`,
-                    `✅ Pekerjaan diklaim oleh *${text.trim()}*! Jelaskan cara Anda memperbaikinya.`
+                    `✅ Job claimed by *${registeredStaff?.name || registeredStaff?.staff_name || text.trim()}*! Please describe how you fixed it:`,
+                    `✅ Pekerjaan diklaim oleh *${registeredStaff?.name || registeredStaff?.staff_name || text.trim()}*! Jelaskan cara Anda memperbaikinya:`
                 ));
                 state.step = STEPS.AWAITING_SOLVE_DESC;
                 userStates.set(stateKey, state);
@@ -2773,7 +2705,7 @@ app.post(['/notify-direct', '/api/notify-direct'], async (req, res) => {
     }
 });
 
-app.post('/notify', async (req, res) => {
+app.post(['/notify', '/api/notify'], async (req, res) => {
     try {
         const { message, imageUrl, taggedDepartments, assignedDepartments, department, priority } = req.body;
         
@@ -3019,19 +2951,18 @@ setInterval(async () => {
                     `*ID:* ${issue.id}\n\n` +
                     `❗ *PLEASE RESOLVE OR UPDATE IMMEDIATELY!*`;
 
-                // Targets for escalation
+                // Targets for escalation (both assigned and tagged departments)
                 const escalationTargets = new Set();
                 if (botConfig.generalGroupId) escalationTargets.add(botConfig.generalGroupId);
                 
-                if (issue.taggedDepartments) {
-                    const isAllEsc = issue.taggedDepartments.toLowerCase().includes('all');
-                    if (isAllEsc) {
-                        Object.values(botConfig.departmentGroups).forEach(gid => escalationTargets.add(gid));
-                    } else {
-                        for (const d of DEPARTMENTS) {
-                            if (issue.taggedDepartments.toLowerCase().includes(d.toLowerCase()) && botConfig.departmentGroups[d.toLowerCase()]) {
-                                escalationTargets.add(botConfig.departmentGroups[d.toLowerCase()]);
-                            }
+                const combinedDepts = `${issue.assignedDepartments || ''}, ${issue.taggedDepartments || ''}`.toLowerCase();
+                if (combinedDepts.includes('all')) {
+                    Object.values(botConfig.departmentGroups).forEach(gid => escalationTargets.add(gid));
+                } else {
+                    for (const d of DEPARTMENTS) {
+                        const dKey = d.toLowerCase();
+                        if (combinedDepts.includes(dKey) && botConfig.departmentGroups[dKey]) {
+                            escalationTargets.add(botConfig.departmentGroups[dKey]);
                         }
                     }
                 }
@@ -3047,8 +2978,8 @@ setInterval(async () => {
                         }
 
                         let targetMsg = msg;
-                        if (deptForGid && gid !== botConfig.generalGroupId && !issue.taggedDepartments?.toLowerCase().includes('all')) {
-                            targetMsg = targetMsg.replace(/\*Tagged Departments:\*[^\n]*/i, `*Tagged Departments:* ${deptForGid}`);
+                        if (deptForGid && gid !== botConfig.generalGroupId && !combinedDepts.includes('all')) {
+                            targetMsg = targetMsg.replace(/\*Tagged Departments:\*[^\n]*/i, `*Target Department:* ${deptForGid}`);
                         }
 
                         if (issue.imageUrl) {
