@@ -218,42 +218,7 @@ async function syncStaffDirectory() {
     return { success: false };
 }
 
-// Helper: Normalize name for anti-impersonation matching
-function normalizeStaffName(name) {
-    if (!name) return '';
-    return name.toLowerCase().replace(/[^a-z0-9]/g, '');
-}
 
-// Find registered phone by staff name (for anti-impersonation)
-function getRegisteredPhoneByStaffName(targetName, groupDeptKey = '') {
-    const targetNorm = normalizeStaffName(targetName);
-    if (!targetNorm) return null;
-
-    const targetFirst = targetName.trim().split(/\s+/)[0].toLowerCase();
-
-    for (const [phone, data] of Object.entries(staffPhones)) {
-        const norm1 = normalizeStaffName(data.staff_name);
-        const norm2 = normalizeStaffName(data.name);
-        const phoneToReport = data.realPhone || phone;
-
-        // 1. Direct normalized name match
-        if (norm1 === targetNorm || norm2 === targetNorm || (norm1 && norm1.includes(targetNorm)) || (targetNorm && targetNorm.includes(norm1))) {
-            return { phone: phoneToReport, rawKey: phone, ...data };
-        }
-
-        // 2. First name match within the same department (e.g. "Ratna Dewi" vs "Ratna Procurement")
-        const staffFirst1 = (data.staff_name || '').trim().split(/\s+/)[0].toLowerCase();
-        const staffFirst2 = (data.name || '').trim().split(/\s+/)[0].toLowerCase();
-        const isSameDept = groupDeptKey && data.department && (data.department.toLowerCase() === groupDeptKey.toLowerCase());
-
-        if (targetFirst && targetFirst.length > 2 && (staffFirst1 === targetFirst || staffFirst2 === targetFirst)) {
-            if (isSameDept || !groupDeptKey) {
-                return { phone: phoneToReport, rawKey: phone, ...data };
-            }
-        }
-    }
-    return null;
-}
 
 // Helper: Get registered staff for a sender's phone
 function getStaffByPhone(phone) {
@@ -736,8 +701,10 @@ const MENU_TEXT_EN =
 function cleanIssueIdInput(input) {
     if (!input) return '';
     let cleaned = String(input).trim();
-    cleaned = cleaned.replace(/^(!?pending|!?solve|!?tunda|!?perbaiki|!?lapor|!?report|!claim|claim|id:?)s+/i, '');
-    cleaned = cleaned.replace(/^(ids*:s*)/i, '');
+    cleaned = cleaned.replace(/[*_~`]/g, '');
+    cleaned = cleaned.replace(/^id\s*:\s*/i, '');
+    cleaned = cleaned.replace(/^(!?pending|!?solve|!?tunda|!?perbaiki|!?lapor|!?report|!claim|claim)\s+/i, '');
+    cleaned = cleaned.replace(/^id\s+/i, '');
     return cleaned.trim();
 }
 
@@ -1217,7 +1184,8 @@ async function startSock() {
                         let issue = null;
                         const getRes = await axios.get(`${BASE_URL}/api/issues`);
                         if (getRes.data?.success) {
-                            issue = getRes.data.data.find(i => i.id === issueId);
+                            issue = findIssueByIdOrPartial(getRes.data.data, issueId);
+                            if (issue) issueId = issue.id;
                         }
 
                         if (!issue) {
@@ -2146,7 +2114,8 @@ async function startSock() {
                     let issue = null;
                     const getRes = await axios.get(`${BASE_URL}/api/issues`);
                     if (getRes.data && getRes.data.success) {
-                        issue = getRes.data.data.find(i => i.id === queryId);
+                        issue = findIssueByIdOrPartial(getRes.data.data, queryId);
+                        if (issue) queryId = issue.id;
                     }
 
                     if (!issue) {
@@ -2300,7 +2269,8 @@ async function startSock() {
                     let issue = null;
                     const getRes = await axios.get(`${BASE_URL}/api/issues`);
                     if (getRes.data && getRes.data.success) {
-                        issue = getRes.data.data.find(i => i.id === queryId);
+                        issue = findIssueByIdOrPartial(getRes.data.data, queryId);
+                        if (issue) queryId = issue.id;
                     }
 
                     if (!issue) {
