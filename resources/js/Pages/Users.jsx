@@ -14,7 +14,6 @@ import { CampusFixHeader } from '@/Components/CampusFix/CampusFixHeader';
 import { MobileBottomNav } from '@/Components/CampusFix/MobileBottomNav';
 import { useAuth } from '@/hooks/useAuth';
 import { UserModal } from '@/Components/Users/UserModal';
-import { AuditLogDrawer } from '@/Components/Users/AuditLogDrawer';
 import { AuditTrailTab } from '@/Components/Users/AuditTrailTab';
 import { BatchPermissionsModal } from '@/Components/Users/BatchPermissionsModal';
 import { DEPARTMENTS, getDepartmentTheme } from '@/constants/departments';
@@ -52,7 +51,6 @@ function UsersInner({ initialUsers, initialStats }) {
     // Modals
     const [isUserModalOpen, setIsUserModalOpen] = useState(false);
     const [selectedUser, setSelectedUser] = useState(null);
-    const [isAuditDrawerOpen, setIsAuditDrawerOpen] = useState(false);
     const [activeMainTab, setActiveMainTab] = useState('users'); // 'users' | 'audit'
 
     // Toast notification
@@ -353,36 +351,11 @@ function UsersInner({ initialUsers, initialStats }) {
                         </div>
 
                         {/* Top Action Buttons */}
-                        <div className="flex items-center gap-2.5 flex-wrap w-full sm:w-auto">
-                            {/* Google Spreadsheet Audit Link */}
-                            <a
-                                href="https://docs.google.com/spreadsheets/d/11FJllelJdd37tR9dUnCawgU1iycm6bQOLMgHM2t-z84/edit?usp=sharing"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold bg-[#1C1B0E] hover:bg-emerald-950/40 text-emerald-400 border border-emerald-500/30 hover:border-emerald-500/60 transition-all cursor-pointer shadow-sm"
-                                title="Buka Google Spreadsheet Riwayat Audit Keamanan"
-                            >
-                                <FileSpreadsheet className="h-4 w-4 text-emerald-400" />
-                                <span>{lang === 'id' ? 'Spreadsheet Audit' : 'Audit Sheet'}</span>
-                            </a>
-
-                            <button
-                                type="button"
-                                onClick={() => setActiveMainTab(activeMainTab === 'audit' ? 'users' : 'audit')}
-                                className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-sm ${
-                                    activeMainTab === 'audit'
-                                        ? 'bg-[#C9AA71] text-[#1C1B0E] border border-[#C9AA71]'
-                                        : 'bg-[#1C1B0E] hover:bg-[#3B3929] text-[#E3D1AA] border border-[#3B3929]'
-                                }`}
-                            >
-                                <Activity className={`h-4 w-4 ${activeMainTab === 'audit' ? 'text-[#1C1B0E]' : 'text-[#C9AA71]'}`} />
-                                <span>{lang === 'id' ? 'Audit Trail' : 'Security Logs'}</span>
-                            </button>
-
+                        <div className="flex items-center gap-2.5 w-full sm:w-auto">
                             <button
                                 type="button"
                                 onClick={handleCreateUser}
-                                className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-[#C9AA71] hover:bg-[#b89960] text-[#1C1B0E] transition-all shadow-md hover:shadow-lg cursor-pointer"
+                                className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-[#C9AA71] hover:bg-[#b89960] text-[#1C1B0E] transition-all shadow-md hover:shadow-lg cursor-pointer"
                             >
                                 <Plus className="h-4 w-4" />
                                 <span>{lang === 'id' ? 'Tambah Akun' : 'New User'}</span>
@@ -391,19 +364,19 @@ function UsersInner({ initialUsers, initialStats }) {
                     </div>
 
                     {/* Primary Tab Navigation: Users Management vs Audit Trail & Spreadsheet */}
-                    <div className="flex items-center gap-2 border-b border-[#3B3929] pb-3 mb-6 overflow-x-auto no-scrollbar">
+                    <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 border-b border-[#3B3929] pb-3 mb-6">
                         <button
                             type="button"
                             onClick={() => setActiveMainTab('users')}
-                            className={`flex items-center gap-2.5 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer whitespace-nowrap ${
+                            className={`flex items-center justify-center sm:justify-start gap-2 px-3 sm:px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
                                 activeMainTab === 'users'
                                     ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-md shadow-[#C9AA71]/20 font-black'
                                     : 'bg-[#2A281E] text-[#A19F8D] hover:text-[#FAFAFA] hover:bg-[#3B3929] border border-[#3B3929]'
                             }`}
                         >
-                            <UsersIcon className="h-4 w-4" />
-                            <span>{lang === 'id' ? 'Daftar Pengguna' : 'Users Directory'}</span>
-                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                            <UsersIcon className="h-4 w-4 shrink-0" />
+                            <span className="truncate">{lang === 'id' ? 'Daftar Pengguna' : 'Users Directory'}</span>
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-black shrink-0 ${
                                 activeMainTab === 'users' ? 'bg-[#1C1B0E]/20 text-[#1C1B0E]' : 'bg-[#1C1B0E] text-[#C9AA71]'
                             }`}>
                                 {stats.total_users ?? 0}
@@ -413,15 +386,15 @@ function UsersInner({ initialUsers, initialStats }) {
                         <button
                             type="button"
                             onClick={() => setActiveMainTab('audit')}
-                            className={`flex items-center gap-2.5 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer whitespace-nowrap ${
+                            className={`flex items-center justify-center sm:justify-start gap-1.5 sm:gap-2 px-3 sm:px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
                                 activeMainTab === 'audit'
                                     ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-md shadow-[#C9AA71]/20 font-black'
                                     : 'bg-[#2A281E] text-[#A19F8D] hover:text-[#FAFAFA] hover:bg-[#3B3929] border border-[#3B3929]'
                             }`}
                         >
-                            <Activity className={`h-4 w-4 ${activeMainTab === 'audit' ? 'text-[#1C1B0E]' : 'text-emerald-400'}`} />
-                            <span>{lang === 'id' ? 'Audit Trail & Spreadsheet' : 'Audit Trail & Sheets'}</span>
-                            <span className={`px-1.5 py-0.5 rounded text-[9px] font-black ${
+                            <Activity className={`h-4 w-4 shrink-0 ${activeMainTab === 'audit' ? 'text-[#1C1B0E]' : 'text-emerald-400'}`} />
+                            <span className="truncate">{lang === 'id' ? 'Audit & Sheets' : 'Audit Trail'}</span>
+                            <span className={`px-1.5 py-0.5 rounded text-[9px] font-black shrink-0 ${
                                 activeMainTab === 'audit'
                                     ? 'bg-[#1C1B0E] text-emerald-300'
                                     : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
@@ -1238,12 +1211,6 @@ function UsersInner({ initialUsers, initialStats }) {
                     </div>
                 </div>
             )}
-
-            {/* Security Audit Trail Drawer */}
-            <AuditLogDrawer
-                isOpen={isAuditDrawerOpen}
-                onClose={() => setIsAuditDrawerOpen(false)}
-            />
         </div>
     );
 }
