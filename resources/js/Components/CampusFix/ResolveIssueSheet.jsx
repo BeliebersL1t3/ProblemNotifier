@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo } from 'react';
-import { Loader2, MapPin, ZoomIn, ArrowRightLeft, Target, FileText, Megaphone, User } from 'lucide-react';
+import axios from 'axios';
+import { Loader2, MapPin, ZoomIn, ArrowRightLeft, Target, FileText, Megaphone, User, AlertTriangle, Bell, CheckCircle2, Edit } from 'lucide-react';
 import { Button } from '@/Components/UI/Button';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/Components/UI/Sheet';
 import {
@@ -29,7 +30,7 @@ const safeArray = (val) => {
     return [];
 };
 
-export function ResolveIssueSheet({ issue, onClose }) {
+export function ResolveIssueSheet({ issue, onClose, onEdit }) {
     const { t, lang } = useLanguage();
     const { resolveIssue, pendingIssue, updateIssue, categories, updateIssueCategory } = useIssues();
     const [isPendingMode, setIsPendingMode] = useState(false);
@@ -50,6 +51,9 @@ export function ResolveIssueSheet({ issue, onClose }) {
     const { isDeptUser, department, staffName, isAdmin, activeStaffRoster } = useAuth();
     const [selectedDelay, setSelectedDelay] = useState(null);
     const [previewImage, setPreviewImage] = useState(null);
+    const [isNotifyingDept, setIsNotifyingDept] = useState(false);
+    const [notifiedEmptySuccess, setNotifiedEmptySuccess] = useState(false);
+    const [notifyMessage, setNotifyMessage] = useState('');
 
     const assignedList = useMemo(() => safeArray(issue?.assignedDepartments), [issue?.assignedDepartments]);
     const taggedList = useMemo(() => safeArray(issue?.taggedDepartments), [issue?.taggedDepartments]);
@@ -118,6 +122,34 @@ export function ResolveIssueSheet({ issue, onClose }) {
             setPreviewImage(null);
         }
     }, [issue, isDeptUser, department, staffName]);
+
+    useEffect(() => {
+        setNotifiedEmptySuccess(false);
+        setNotifyMessage('');
+    }, [selectedDept, issue]);
+
+    const handleNotifyEmptyDepartment = async () => {
+        if (!issue || !selectedDept) return;
+        setIsNotifyingDept(true);
+        setNotifyMessage('');
+        try {
+            const rowIndex = issue.rowIndex ?? issue.id;
+            const res = await axios.post(`/api/issues/${rowIndex}/notify-empty-department`, {
+                department: selectedDept,
+            });
+            if (res.data?.success) {
+                setNotifiedEmptySuccess(true);
+                setNotifyMessage(res.data.message || 'Peringatan berhasil dikirim kepada Pembuat Isu & HoD.');
+            } else {
+                setNotifyMessage(res.data?.message || 'Gagal mengirim notifikasi.');
+            }
+        } catch (err) {
+            console.error('Failed to notify empty department:', err);
+            setNotifyMessage(err.response?.data?.message || 'Terjadi kesalahan sistem saat mengirim notifikasi.');
+        } finally {
+            setIsNotifyingDept(false);
+        }
+    };
 
     const handleCategoryChange = async (e) => {
         setIsUpdatingCategory(true);
@@ -441,9 +473,60 @@ export function ResolveIssueSheet({ issue, onClose }) {
                                                     ))}
                                                 </div>
                                             ) : (
-                                                <p className="text-xs text-muted-foreground italic">
-                                                    No staff roster found for {selectedDept}.
-                                                </p>
+                                                <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3.5 space-y-3">
+                                                    <div className="flex items-start gap-2.5">
+                                                        <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                                                        <div className="space-y-1">
+                                                            <p className="text-xs font-semibold text-amber-500">
+                                                                Departemen {selectedDept} Tidak Memiliki Staf Aktif
+                                                            </p>
+                                                            <p className="text-[11px] text-muted-foreground leading-relaxed">
+                                                                Tidak ada staf aktif yang dapat ditugaskan pada departemen ini. Anda dapat memberitahu pembuat isu &amp; HoD untuk meminta tindakan, atau mengalihkan departemen secara langsung.
+                                                            </p>
+                                                        </div>
+                                                    </div>
+
+                                                    {notifiedEmptySuccess && (
+                                                        <div className="flex items-center gap-2 p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-xs font-medium">
+                                                            <CheckCircle2 className="w-4 h-4 shrink-0" />
+                                                            <span>{notifyMessage || 'Pemberitahuan berhasil dikirim ke pembuat isu & HoD.'}</span>
+                                                        </div>
+                                                    )}
+
+                                                    <div className="flex flex-col sm:flex-row gap-2 pt-1">
+                                                        <Button
+                                                            type="button"
+                                                            size="sm"
+                                                            variant="outline"
+                                                            disabled={isNotifyingDept || notifiedEmptySuccess}
+                                                            onClick={handleNotifyEmptyDepartment}
+                                                            className="h-8 text-xs border-amber-500/30 text-amber-500 hover:bg-amber-500/20 gap-1.5 flex-1"
+                                                        >
+                                                            {isNotifyingDept ? (
+                                                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                            ) : (
+                                                                <Bell className="w-3.5 h-3.5" />
+                                                            )}
+                                                            {notifiedEmptySuccess ? 'Pemberitahuan Terkirim' : 'Beri Tahu Pembuat Isu & HoD'}
+                                                        </Button>
+
+                                                        {onEdit && (
+                                                            <Button
+                                                                type="button"
+                                                                size="sm"
+                                                                variant="outline"
+                                                                onClick={() => {
+                                                                    onClose?.();
+                                                                    onEdit(issue);
+                                                                }}
+                                                                className="h-8 text-xs border-border hover:bg-surface text-foreground gap-1.5 flex-1"
+                                                            >
+                                                                <Edit className="w-3.5 h-3.5 text-primary" />
+                                                                Alihkan Isu (Edit)
+                                                            </Button>
+                                                        )}
+                                                    </div>
+                                                </div>
                                             )}
                                         </div>
                                     )}

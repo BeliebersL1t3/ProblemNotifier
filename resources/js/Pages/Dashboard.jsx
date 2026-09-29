@@ -1195,8 +1195,22 @@ function DashboardInner() {
             <EmergencyIssueModal open={emergencyOpen} onOpenChange={setEmergencyOpen} />
             <NewPeriodModal open={newPeriodOpen} onOpenChange={setNewPeriodOpen} />
             <EditIssueModal issue={editTarget} open={!!editTarget} onOpenChange={(o) => !o && setEditTarget(null)} />
-            <TakeJobModal issue={takeTarget} onClose={() => setTakeTarget(null)} />
-            <ResolveIssueSheet issue={resolveTarget} onClose={() => setResolveTarget(null)} />
+            <TakeJobModal 
+                issue={takeTarget} 
+                onClose={() => setTakeTarget(null)} 
+                onEdit={(item) => {
+                    setTakeTarget(null);
+                    setEditTarget(item);
+                }}
+            />
+            <ResolveIssueSheet 
+                issue={resolveTarget} 
+                onClose={() => setResolveTarget(null)} 
+                onEdit={(item) => {
+                    setResolveTarget(null);
+                    setEditTarget(item);
+                }}
+            />
             <SolvedDetailModal issue={detailTarget} onClose={() => setDetailTarget(null)} />
             <ActivityDetailModal 
                 issue={activityDetailTarget} 

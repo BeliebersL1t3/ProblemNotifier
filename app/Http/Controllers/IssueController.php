@@ -2,11 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\User;
+use App\Models\DashboardNotification;
 use App\Services\GoogleService;
 use App\Services\IssueSheetRepository;
+use App\Services\TicketNotificationService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 
 class IssueController extends Controller
@@ -2355,6 +2359,97 @@ class IssueController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to restore issue: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Notify Reporter and HODs when an assigned department has no active staff to work on the issue.
+     */
+    public function notifyEmptyDepartment(Request $request, $rowIndex)
+    {
+        $validated = $request->validate([
+            'department' => 'required|string',
+        ]);
+
+        $targetDept = trim($validated['department']);
+
+        try {
+            $issueData = $this->getLatestIssueRowData((string)$rowIndex);
+            if (!$issueData) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Issue not found.',
+                ], 404);
+            }
+
+            $currentRow = $issueData['row'];
+            $issueId = $currentRow[0] ?? $rowIndex;
+            $title = $currentRow[1] ?? 'Isu';
+            $location = $currentRow[3] ?? '-';
+            $originDept = trim($currentRow[IssueSheetRepository::COL_ORIGIN_DEPT] ?? '');
+
+            $notifiedTargets = [];
+
+            // 1. In-app notification to the reporter's origin department
+            if (!empty($originDept)) {
+                $this->notifyIssueProgress(
+                    $originDept,
+                    "⚠️ Dept {$targetDept} Kosong — Tiket #{$issueId}",
+                    "Tiket #{$issueId} ('{$title}') tidak dapat diproses karena Departemen {$targetDept} saat ini tidak memiliki staf aktif. Harap alihkan penugasan.",
+                    $issueId
+                );
+                $notifiedTargets[] = "Dept {$originDept}";
+            }
+
+            // 2. In-app notification & direct WhatsApp to HODs of the origin department
+            if (!empty($originDept)) {
+                $originHods = User::where('department', $originDept)
+                    ->where('is_hod', true)
+                    ->where('is_active', true)
+                    ->get();
+
+                foreach ($originHods as $hod) {
+                    DashboardNotification::create([
+                        'user_id'     => $hod->id,
+                        'department'  => $originDept,
+                        'role_target' => 'hod',
+                        'type'        => 'issue_empty_department',
+                        'title'       => "⚠️ Dept {$targetDept} Kosong — Tiket #{$issueId}",
+                        'message'     => "Tiket #{$issueId} ('{$title}') di {$location} terhenti karena Departemen {$targetDept} tidak memiliki staf aktif. Mohon edit tiket untuk mengalihkan departemen.",
+                        'link'        => "/dashboard?issue={$issueId}",
+                        'is_read'     => false,
+                    ]);
+
+                    if ($hod->whatsapp_number) {
+                        $waMsg = "⚠️ *Peringatan Penugasan Tiket Telunas*\n\n"
+                            . "*Tiket:* #{$issueId} - {$title}\n"
+                            . "*Lokasi:* {$location}\n"
+                            . "*Kendala:* Departemen *{$targetDept}* yang ditugaskan saat ini *tidak memiliki staf aktif*.\n\n"
+                            . "Mohon buka sistem dan alihkan penugasan ke departemen lain melalui menu *Edit Isu*.";
+
+                        TicketNotificationService::sendWhatsApp($hod->whatsapp_number, $waMsg);
+                        $notifiedTargets[] = "HOD {$hod->name}";
+                    }
+                }
+            }
+
+            // 3. General WhatsApp group notification broadcast
+            $this->notifyWhatsApp([
+                'message' => "⚠️ *Peringatan Penugasan Tiket!*\n*Tiket:* #{$issueId} - {$title}\n*Lokasi:* {$location}\n*Kendala:* Departemen *{$targetDept}* saat ini tidak memiliki staf aktif terdaftar.\n*Tindakan:* Mohon pembuat isu atau HoD mengalihkan penugasan.",
+                'department' => $originDept,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => "Peringatan berhasil dikirim kepada Pembuat Isu" . (!empty($originDept) ? " ({$originDept})" : '') . " dan HoD terkait.",
+                'notified_targets' => array_values(array_unique($notifiedTargets)),
+            ]);
+        } catch (\Throwable $e) {
+            Log::error("notifyEmptyDepartment failed: " . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal mengirim notifikasi: ' . $e->getMessage(),
             ], 500);
         }
     }
