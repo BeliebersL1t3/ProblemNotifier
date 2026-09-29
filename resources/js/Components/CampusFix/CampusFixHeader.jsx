@@ -13,6 +13,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Tooltip } from '@/Components/UI/Tooltip';
 import { getDepartmentTheme, getShortDepartmentName } from '@/constants/departments';
 import NotificationDropdown from '@/Components/CampusFix/NotificationDropdown';
+import { BotControlModal } from '@/Components/CampusFix/BotControlModal';
 
 export function CampusFixHeader({ mode = 'dashboard', query, onQueryChange, onReport, onEmergency, onNewPeriod, searchDropdown }) {
     const { currentSheet } = useIssues();
@@ -23,6 +24,7 @@ export function CampusFixHeader({ mode = 'dashboard', query, onQueryChange, onRe
     const [searchFocused, setSearchFocused] = useState(false);
     const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
     const [periodModalOpen, setPeriodModalOpen] = useState(false);
+    const [botControlModalOpen, setBotControlModalOpen] = useState(false);
     const [botStatus, setBotStatus] = useState(null);
     const { navigateWithSlash } = useSlashTransition();
     const searchContainerRef = useRef(null);
@@ -470,15 +472,15 @@ export function CampusFixHeader({ mode = 'dashboard', query, onQueryChange, onRe
                     {/* WhatsApp Bot Status Indicator (Admins only) */}
                     {isAdmin && botStatus !== null && (
                         <div 
-                            onClick={checkBotStatus}
+                            onClick={() => setBotControlModalOpen(true)}
                             className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[10px] font-bold border transition-all cursor-pointer select-none ${
                                 botStatus?.connected 
-                                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20' 
+                                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 shadow-xs' 
                                     : 'bg-red-500/10 border-red-500/30 text-red-600 dark:text-red-400 animate-pulse hover:bg-red-500/20'
                             }`}
                             title={botStatus?.connected 
-                                ? `WhatsApp Bot Online (${botStatus.phone ? '+' + botStatus.phone : 'Connected'}) - Klik untuk cek ulang` 
-                                : 'WhatsApp Bot Terputus / Offline - Klik untuk cek ulang'}
+                                ? `WhatsApp Bot Online (${botStatus.phone ? '+' + botStatus.phone : 'Connected'}) - Klik untuk menu kontrol` 
+                                : 'WhatsApp Bot Terputus / Offline - Klik untuk menyalakan'}
                         >
                             <span className={`w-2 h-2 rounded-full ${botStatus?.connected ? 'bg-emerald-500' : 'bg-red-500'}`} />
                             <MessageSquare className="w-3 h-3 text-[#25D366]" />
@@ -559,6 +561,14 @@ export function CampusFixHeader({ mode = 'dashboard', query, onQueryChange, onRe
 
             <NewPeriodModal open={periodModalOpen} onOpenChange={setPeriodModalOpen} mode={mode} />
             <MandatoryRealEmailModal user={user} />
+            {isAdmin && (
+                <BotControlModal 
+                    open={botControlModalOpen} 
+                    onOpenChange={setBotControlModalOpen} 
+                    botStatus={botStatus} 
+                    onRefreshStatus={checkBotStatus} 
+                />
+            )}
         </header>
     </>
     );

@@ -93,6 +93,12 @@ Route::middleware('auth')->group(function () {
     Route::post('/auth/google/disconnect', [GoogleAuthController::class, 'disconnect'])->name('google.disconnect');
     Route::get('/api/google/status', [GoogleAuthController::class, 'status'])->name('google.status');
     Route::get('/bot/status', [IssueController::class, 'getBotStatus'])->name('bot.status');
+
+    // WhatsApp Bot Lifecycle Management (Admin Only)
+    Route::post('/api/bot/start', [IssueController::class, 'startBot'])->middleware('throttle:10,1');
+    Route::post('/api/bot/stop', [IssueController::class, 'stopBot'])->middleware('throttle:10,1');
+    Route::post('/api/bot/restart', [IssueController::class, 'restartBot'])->middleware('throttle:10,1');
+    Route::get('/api/bot/logs', [IssueController::class, 'getBotLogs'])->middleware('throttle:30,1');
 });
 
 // CampusFix API Endpoints

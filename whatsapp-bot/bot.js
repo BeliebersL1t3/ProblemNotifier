@@ -2602,7 +2602,20 @@ app.get(['/status', '/health', '/api/status'], (req, res) => {
     });
 });
 
-app.use(['/sync-staff', '/api/sync-staff', '/notify-direct', '/api/notify-direct', '/notify', '/api/notify'], authenticateInbound);
+app.use(['/sync-staff', '/api/sync-staff', '/notify-direct', '/api/notify-direct', '/notify', '/api/notify', '/shutdown', '/api/shutdown'], authenticateInbound);
+
+app.post(['/shutdown', '/api/shutdown'], (req, res) => {
+    console.log('[Bot Shutdown] Received shutdown request from dashboard.');
+    res.json({ success: true, message: 'Bot shutting down gracefully.' });
+    setTimeout(async () => {
+        try {
+            if (globalSock) {
+                await globalSock.end(new Error('Dashboard requested shutdown'));
+            }
+        } catch (e) {}
+        process.exit(0);
+    }, 500);
+});
 
 app.post(['/sync-staff', '/api/sync-staff'], async (req, res) => {
     const result = await syncStaffDirectory();

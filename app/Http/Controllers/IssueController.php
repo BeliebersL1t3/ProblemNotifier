@@ -2470,6 +2470,113 @@ class IssueController extends Controller
         return response()->json(['connected' => false, 'status' => 'offline'], 200);
     }
 
+    public function startBot(Request $request)
+    {
+        $user = $request->user();
+        if (!$user || (method_exists($user, 'isAdmin') && !$user->isAdmin() && $user->role !== 'admin')) {
+            return response()->json(['success' => false, 'message' => 'Hanya Admin yang dapat menyalakan bot.'], 403);
+        }
+
+        $port = env('BOT_PORT', 3000);
+        // Check if bot is already responding
+        try {
+            $check = \Illuminate\Support\Facades\Http::timeout(1.0)->get("http://127.0.0.1:{$port}/status");
+            if ($check->successful()) {
+                return response()->json(['success' => true, 'message' => 'Bot sudah aktif dan berjalan.']);
+            }
+        } catch (\Throwable $e) {}
+
+        $botDir = base_path('whatsapp-bot');
+        $logFile = $botDir . DIRECTORY_SEPARATOR . 'bot_runtime.log';
+
+        if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+            // Windows detached background launch
+            $cmd = "start /B cmd /C \"cd /D " . escapeshellarg($botDir) . " && node bot.js >> " . escapeshellarg($logFile) . " 2>&1\"";
+            pclose(popen($cmd, "r"));
+        } else {
+            // Linux/macOS detached background launch
+            $cmd = "cd " . escapeshellarg($botDir) . " && node bot.js >> " . escapeshellarg($logFile) . " 2>&1 &";
+            exec($cmd);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Perintah menyalakan bot berhasil dikirim. Bot sedang booting di background.'
+        ]);
+    }
+
+    public function stopBot(Request $request)
+    {
+        $user = $request->user();
+        if (!$user || (method_exists($user, 'isAdmin') && !$user->isAdmin() && $user->role !== 'admin')) {
+            return response()->json(['success' => false, 'message' => 'Hanya Admin yang dapat mematikan bot.'], 403);
+        }
+
+        $port = env('BOT_PORT', 3000);
+        $apiKey = env('BOT_API_KEY', '');
+
+        // 1. Try graceful shutdown via HTTP
+        try {
+            \Illuminate\Support\Facades\Http::timeout(2.0)
+                ->withHeaders(['X-Bot-Key' => $apiKey])
+                ->post("http://127.0.0.1:{$port}/shutdown");
+        } catch (\Throwable $e) {}
+
+        // 2. Fallback: Force kill process listening on port 3000 if still active
+        usleep(500000); // 0.5s wait
+        if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+            $out = @shell_exec("netstat -ano | findstr :{$port}");
+            if ($out) {
+                $lines = explode("\n", trim($out));
+                foreach ($lines as $line) {
+                    if (preg_match('/LISTENING\s+(\d+)/i', $line, $m)) {
+                        $pid = $m[1];
+                        @shell_exec("taskkill /F /PID {$pid}");
+                    }
+                }
+            }
+        } else {
+            @shell_exec("fuser -k {$port}/tcp");
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Bot berhasil dimatikan.'
+        ]);
+    }
+
+    public function restartBot(Request $request)
+    {
+        $this->stopBot($request);
+        sleep(2);
+        return $this->startBot($request);
+    }
+
+    public function getBotLogs(Request $request)
+    {
+        $user = $request->user();
+        if (!$user || (method_exists($user, 'isAdmin') && !$user->isAdmin() && $user->role !== 'admin')) {
+            return response()->json(['success' => false, 'message' => 'Hanya Admin yang dapat melihat log bot.'], 403);
+        }
+
+        $botDir = base_path('whatsapp-bot');
+        $logFile = $botDir . DIRECTORY_SEPARATOR . 'bot_runtime.log';
+
+        if (!file_exists($logFile)) {
+            return response()->json(['success' => true, 'logs' => ['Belum ada log runtime yang tercatat.']]);
+        }
+
+        $content = @file_get_contents($logFile);
+        if (!$content) {
+            return response()->json(['success' => true, 'logs' => []]);
+        }
+
+        $lines = explode("\n", trim($content));
+        $recent = array_slice($lines, -40);
+
+        return response()->json(['success' => true, 'logs' => $recent]);
+    }
+
     public function markDuplicate(Request $request, $rowIndex)
     {
         $user = $request->user();
