@@ -493,14 +493,14 @@ export function ResolveIssueSheet({ issue, onClose, onEdit }) {
                                                         </div>
                                                     )}
 
-                                                    <div className="flex flex-col sm:flex-row gap-2 pt-1">
+                                                    <div className="flex flex-col sm:flex-row gap-2 pt-1 flex-wrap">
                                                         <Button
                                                             type="button"
                                                             size="sm"
                                                             variant="outline"
                                                             disabled={isNotifyingDept || notifiedEmptySuccess}
                                                             onClick={handleNotifyEmptyDepartment}
-                                                            className="h-8 text-xs border-amber-500/30 text-amber-500 hover:bg-amber-500/20 gap-1.5 flex-1"
+                                                            className="h-8 text-xs border-amber-500/30 text-amber-500 hover:bg-amber-500/20 gap-1.5 flex-1 min-w-[140px]"
                                                         >
                                                             {isNotifyingDept ? (
                                                                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -509,6 +509,22 @@ export function ResolveIssueSheet({ issue, onClose, onEdit }) {
                                                             )}
                                                             {notifiedEmptySuccess ? 'Pemberitahuan Terkirim' : 'Beri Tahu Pembuat Isu & HoD'}
                                                         </Button>
+
+                                                        {(issue?.status === 'progress' || issue?.status === 'pending') && (
+                                                            <Button
+                                                                type="button"
+                                                                size="sm"
+                                                                variant="outline"
+                                                                disabled={isSubmitting || isUnclaiming}
+                                                                onClick={() => {
+                                                                    setUnclaimReason('Departemen penerima tidak memiliki staf aktif');
+                                                                    setIsUnclaimModalOpen(true);
+                                                                }}
+                                                                className="h-8 text-xs border-amber-500/40 text-amber-400 hover:bg-amber-500/10 gap-1.5 flex-1 min-w-[140px]"
+                                                            >
+                                                                ↩️ {lang === 'id' ? 'Lepas Pekerjaan (Reset Open)' : 'Release Job (Reset Open)'}
+                                                            </Button>
+                                                        )}
 
                                                         {onEdit && (
                                                             <Button
@@ -519,7 +535,7 @@ export function ResolveIssueSheet({ issue, onClose, onEdit }) {
                                                                     onClose?.();
                                                                     onEdit(issue);
                                                                 }}
-                                                                className="h-8 text-xs border-border hover:bg-surface text-foreground gap-1.5 flex-1"
+                                                                className="h-8 text-xs border-border hover:bg-surface text-foreground gap-1.5 flex-1 min-w-[140px]"
                                                             >
                                                                 <Edit className="w-3.5 h-3.5 text-primary" />
                                                                 Alihkan Isu (Edit)

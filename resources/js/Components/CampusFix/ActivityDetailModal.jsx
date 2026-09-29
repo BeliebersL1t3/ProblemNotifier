@@ -1,9 +1,12 @@
-import React, { useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
+import axios from 'axios';
 import {
     Dialog,
     DialogContent,
     DialogHeader,
     DialogTitle,
+    DialogDescription,
+    DialogFooter,
 } from '@/Components/UI/Dialog';
 import {
     Eye,
@@ -23,7 +26,14 @@ import {
     Edit3,
     RotateCcw,
     Camera,
+    Copy,
+    Loader2,
+    Check,
 } from 'lucide-react';
+import { Button } from '@/Components/UI/Button';
+import { Input } from '@/Components/UI/Input';
+import { Label } from '@/Components/UI/Label';
+import { useIssues } from '@/context/IssuesContext';
 import { useLanguage } from '@/context/LanguageContext';
 import { getDepartmentForStaff, normalizeDepartment } from '@/constants/staff';
 import { getDepartmentTheme } from '@/constants/departments';
@@ -33,6 +43,32 @@ import { formatDurationLabel, computeDurationFromTimestamps } from '@/lib/durati
 export function ActivityDetailModal({ issue, onClose, onOpenCardModal, onEdit, onRestore }) {
     const { t, lang } = useLanguage();
     const { isAdmin, isDeptUser, department } = useAuth();
+    const { fetchIssues } = useIssues();
+    const [isDuplicateModalOpen, setIsDuplicateModalOpen] = useState(false);
+    const [masterIssueId, setMasterIssueId] = useState('');
+    const [dupNote, setDupNote] = useState('');
+    const [isSubmittingDup, setIsSubmittingDup] = useState(false);
+    const [dupError, setDupError] = useState('');
+
+    const handleConfirmDuplicate = async () => {
+        if (!masterIssueId.trim()) return;
+        setIsSubmittingDup(true);
+        setDupError('');
+        try {
+            const rowId = issue.rowIndex ?? issue.id;
+            await axios.post(`/issues/${rowId}/mark-duplicate`, {
+                master_issue_id: masterIssueId.trim(),
+                note: dupNote.trim()
+            });
+            await fetchIssues(true);
+            setIsDuplicateModalOpen(false);
+            onClose?.();
+        } catch (err) {
+            setDupError(err.response?.data?.message || 'Gagal menandai duplikat.');
+        } finally {
+            setIsSubmittingDup(false);
+        }
+    };
 
     if (!issue) return null;
 
@@ -475,6 +511,7 @@ export function ActivityDetailModal({ issue, onClose, onOpenCardModal, onEdit, o
     }, [issue, takerDept, solverDept, t, locale, isArchived, archivedRawDate, archivedDateFormatted, archiveLog, lang]);
 
     return (
+        <>
         <Dialog open={!!issue} onOpenChange={(open) => !open && onClose()}>
             <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-2xl bg-[#181711] border border-[#3B3929] text-[#FAFAFA] shadow-2xl p-6">
                 <DialogHeader className="border-b border-[#3B3929]/80 pb-4">
@@ -969,6 +1006,22 @@ export function ActivityDetailModal({ issue, onClose, onOpenCardModal, onEdit, o
                                 <span>{lang === 'id' ? 'Edit & Mundur Status' : 'Edit & Rollback'}</span>
                             </button>
                         )}
+                        {!isArchived && !isPastContribution && (isAdmin || canEditReport) && issue.status !== 'solved' && (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setMasterIssueId('');
+                                    setDupNote('');
+                                    setDupError('');
+                                    setIsDuplicateModalOpen(true);
+                                }}
+                                className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 hover:text-amber-200 border border-amber-500/40 font-semibold text-xs transition-all shadow-sm cursor-pointer"
+                                title="Tandai isu ini sebagai duplikat dari isu lain"
+                            >
+                                <Copy className="w-3.5 h-3.5" />
+                                <span>{lang === 'id' ? 'Tandai Duplikat' : 'Mark Duplicate'}</span>
+                            </button>
+                        )}
                         {onRestore && isArchived && !isPastContribution && (
                             <button
                                 type="button"
@@ -993,5 +1046,78 @@ export function ActivityDetailModal({ issue, onClose, onOpenCardModal, onEdit, o
                 </div>
             </DialogContent>
         </Dialog>
+
+        {/* Duplicate Issue Confirmation Modal */}
+        <Dialog open={isDuplicateModalOpen} onOpenChange={setIsDuplicateModalOpen}>
+            <DialogContent className="sm:max-w-md bg-[#1C1B0E] border border-amber-500/40 text-[#FAFAFA] p-6 shadow-2xl z-[9999]">
+                <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2 text-amber-400 font-bold text-base">
+                        <Copy className="w-5 h-5 text-amber-400" />
+                        <span>{lang === 'id' ? 'Tandai Sebagai Isu Duplikat' : 'Mark as Duplicate Issue'}</span>
+                    </DialogTitle>
+                    <DialogDescription className="text-xs text-muted-foreground pt-1">
+                        {lang === 'id'
+                            ? 'Isu ini akan diselesaikan secara otomatis dengan catatan duplikat dan ditautkan ke nomor isu master.'
+                            : 'This issue will be resolved automatically with duplicate notes and linked to the master issue number.'}
+                    </DialogDescription>
+                </DialogHeader>
+
+                <div className="space-y-3 py-3">
+                    {dupError && (
+                        <div className="p-2.5 rounded-lg bg-red-500/15 border border-red-500/30 text-red-300 text-xs">
+                            {dupError}
+                        </div>
+                    )}
+                    <div className="space-y-1.5">
+                        <Label htmlFor="masterId" className="text-xs font-semibold text-[#FAFAFA]">
+                            {lang === 'id' ? 'Nomor / ID Isu Master (Utama)' : 'Master Issue ID / Number'}
+                        </Label>
+                        <Input
+                            id="masterId"
+                            placeholder={lang === 'id' ? 'Contoh: 12 atau ENG-010926-2' : 'e.g. 12 or ENG-010926-2'}
+                            value={masterIssueId}
+                            onChange={(e) => setMasterIssueId(e.target.value)}
+                            className="bg-[#2A281E] border-border text-foreground text-xs h-9"
+                        />
+                    </div>
+                    <div className="space-y-1.5">
+                        <Label htmlFor="dupNote" className="text-xs font-semibold text-[#FAFAFA]">
+                            {lang === 'id' ? 'Catatan Tambahan (Opsional)' : 'Additional Note (Optional)'}
+                        </Label>
+                        <Input
+                            id="dupNote"
+                            placeholder={lang === 'id' ? 'Contoh: Dilaporkan ulang oleh tamu yang sama' : 'e.g. Reported again by guest'}
+                            value={dupNote}
+                            onChange={(e) => setDupNote(e.target.value)}
+                            className="bg-[#2A281E] border-border text-foreground text-xs h-9"
+                        />
+                    </div>
+                </div>
+
+                <DialogFooter className="flex items-center justify-end gap-2 pt-2">
+                    <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setIsDuplicateModalOpen(false)}
+                        disabled={isSubmittingDup}
+                        className="text-xs border-border"
+                    >
+                        {lang === 'id' ? 'Batal' : 'Cancel'}
+                    </Button>
+                    <Button
+                        type="button"
+                        size="sm"
+                        onClick={handleConfirmDuplicate}
+                        disabled={isSubmittingDup || !masterIssueId.trim()}
+                        className="text-xs bg-amber-600 hover:bg-amber-500 text-white font-bold gap-1.5"
+                    >
+                        {isSubmittingDup ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                        <span>{lang === 'id' ? 'Konfirmasi Duplikat' : 'Confirm Duplicate'}</span>
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+        </>
     );
 }

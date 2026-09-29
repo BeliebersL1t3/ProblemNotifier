@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
-import { Plus, Search, CalendarPlus, BarChart3, LayoutDashboard, Calendar, User, X, Ticket, Globe } from 'lucide-react';
+import axios from 'axios';
+import { Plus, Search, CalendarPlus, BarChart3, LayoutDashboard, Calendar, User, X, Ticket, Globe, MessageSquare } from 'lucide-react';
 import { Button } from '@/Components/UI/Button';
 import { Link } from '@inertiajs/react';
 import { Input } from '@/Components/UI/Input';
@@ -22,10 +23,30 @@ export function CampusFixHeader({ mode = 'dashboard', query, onQueryChange, onRe
     const [searchFocused, setSearchFocused] = useState(false);
     const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
     const [periodModalOpen, setPeriodModalOpen] = useState(false);
+    const [botStatus, setBotStatus] = useState(null);
     const { navigateWithSlash } = useSlashTransition();
     const searchContainerRef = useRef(null);
     const mobileSearchContainerRef = useRef(null);
     const mobileInputRef = useRef(null);
+
+    useEffect(() => {
+        if (!isAdmin) return;
+        let isMounted = true;
+        const checkStatus = async () => {
+            try {
+                const res = await axios.get('/bot/status');
+                if (isMounted) setBotStatus(res.data);
+            } catch (e) {
+                if (isMounted) setBotStatus({ connected: false });
+            }
+        };
+        checkStatus();
+        const interval = setInterval(checkStatus, 30000);
+        return () => {
+            isMounted = false;
+            clearInterval(interval);
+        };
+    }, [isAdmin]);
 
     const openMobileSearch = () => {
         setMobileSearchOpen(true);
@@ -442,6 +463,24 @@ export function CampusFixHeader({ mode = 'dashboard', query, onQueryChange, onRe
                                 </Button>
                             </Tooltip>
                         </>
+                    )}
+
+                    {/* WhatsApp Bot Status Indicator (Admins only) */}
+                    {isAdmin && botStatus !== null && (
+                        <div 
+                            className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[10px] font-bold border transition-all cursor-pointer select-none ${
+                                botStatus?.connected 
+                                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400' 
+                                    : 'bg-red-500/10 border-red-500/30 text-red-600 dark:text-red-400 animate-pulse'
+                            }`}
+                            title={botStatus?.connected 
+                                ? `WhatsApp Bot Online (${botStatus.phone ? '+' + botStatus.phone : 'Connected'})` 
+                                : 'WhatsApp Bot Terputus / Offline (Perlu Scan QR di Terminal)'}
+                        >
+                            <span className={`w-2 h-2 rounded-full ${botStatus?.connected ? 'bg-emerald-500' : 'bg-red-500'}`} />
+                            <MessageSquare className="w-3 h-3 text-[#25D366]" />
+                            <span className="hidden md:inline">{botStatus?.connected ? 'Bot Online' : 'Bot Offline'}</span>
+                        </div>
                     )}
 
                     {/* Notification Bell Dropdown */}

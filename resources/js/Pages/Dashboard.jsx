@@ -920,6 +920,7 @@ function DashboardInner() {
                         onCategoryChange={setCategoryFilter}
                         deptFilter={deptFilter}
                         onDeptChange={setDeptFilter}
+                        onManagePeriods={() => setNewPeriodOpen(true)}
                     />
 
                     <div className="flex items-center gap-2.5 flex-wrap w-full md:w-auto justify-center md:justify-end">

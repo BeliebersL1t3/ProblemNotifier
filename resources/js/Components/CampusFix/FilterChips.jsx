@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/Components/UI/Sheet';
-import { SlidersHorizontal, Wrench, Droplets, Zap, Building2, Bug, Monitor, Anchor, ShieldAlert, UserRound, HelpCircle, LayoutGrid, Building, Lock, Globe } from 'lucide-react';
+import { Button } from '@/Components/UI/Button';
+import { SlidersHorizontal, Wrench, Droplets, Zap, Building2, Bug, Monitor, Anchor, ShieldAlert, UserRound, HelpCircle, LayoutGrid, Building, Lock, Globe, Calendar, Plus } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
 import { ALL_DEPARTMENTS } from '@/constants/staff';
 import { getDepartmentTheme } from '@/constants/departments';
 import { useAuth } from '@/hooks/useAuth';
+import { useIssues } from '@/context/IssuesContext';
 
 const STATUS_FILTERS = [
     { id: 'open',     key: 'open' },
@@ -30,12 +32,14 @@ const CATEGORY_FILTERS = [
 
 const DEPARTMENT_FILTERS = ALL_DEPARTMENTS;
 
-export function FilterChips({ categoryFilter, onCategoryChange, deptFilter, onDeptChange }) {
+export function FilterChips({ categoryFilter, onCategoryChange, deptFilter, onDeptChange, onManagePeriods }) {
     const { t, lang } = useLanguage();
     const { isAdmin, isDeptUser, department: userDept, canViewAllDepartments } = useAuth();
+    const { availableSheets, currentSheet, setCurrentSheet } = useIssues();
     const canSelectDept = isAdmin || canViewAllDepartments;
     const [catSheetOpen, setCatSheetOpen] = useState(false);
     const [deptSheetOpen, setDeptSheetOpen] = useState(false);
+    const [yearSheetOpen, setYearSheetOpen] = useState(false);
 
     const activeCategory = CATEGORY_FILTERS.find(f => f.id === categoryFilter);
     const activeCategoryLabel = categoryFilter !== 'all' ? activeCategory?.label : null;
@@ -51,10 +55,35 @@ export function FilterChips({ categoryFilter, onCategoryChange, deptFilter, onDe
 
     const deptTheme = deptFilter && deptFilter !== 'all' ? getDepartmentTheme(deptFilter) : null;
 
+    const displayYear = currentSheet === 'all' 
+        ? (t('all_years') || 'Semua Tahun') 
+        : (currentSheet || (availableSheets.length > 0 ? availableSheets[availableSheets.length - 1] : '2026'));
+
     return (
         <>
         <div className="w-full flex items-center justify-between gap-2.5">
             <div className="flex items-center gap-2 flex-wrap">
+                {/* Year trigger chip */}
+                <button
+                    type="button"
+                    onClick={() => setYearSheetOpen(true)}
+                    title={t('select_year') || 'Pilih Tahun / Periode'}
+                    className={cn(
+                        'flex items-center justify-between gap-1.5 rounded-xl border px-3 py-2 text-xs font-semibold transition-all sm:rounded-full sm:py-1.5 sm:px-4 cursor-pointer',
+                        currentSheet && currentSheet !== 'all'
+                            ? 'border-[#C9AA71]/60 bg-[#C9AA71]/15 text-[#E3D1AA] shadow-xs hover:bg-[#C9AA71]/25'
+                            : 'border-border bg-surface text-foreground hover:border-[#C9AA71]/40',
+                    )}
+                >
+                    <div className="flex items-center gap-1.5 truncate">
+                        <Calendar className="h-3.5 w-3.5 shrink-0 text-[#C9AA71]" />
+                        <span className="truncate">
+                            {t('year_filter') || 'Tahun'}: <strong className="font-bold text-[#E3D1AA]">{displayYear}</strong>
+                        </span>
+                    </div>
+                    <span className="text-[10px] opacity-60">▼</span>
+                </button>
+
                 {/* Category trigger chip */}
                 <button
                     type="button"
@@ -274,6 +303,107 @@ export function FilterChips({ categoryFilter, onCategoryChange, deptFilter, onDe
                             );
                         })}
                     </div>
+                </SheetContent>
+            </Sheet>
+
+            {/* Year / Period picker sheet */}
+            <Sheet open={yearSheetOpen} onOpenChange={setYearSheetOpen}>
+                <SheetContent side="bottom" className="max-h-[75vh] overflow-y-auto rounded-t-2xl pb-8 bg-[#1C1B0E] border-t border-[#3B3929] text-[#FAFAFA]">
+                    <SheetHeader className="mb-5">
+                        <SheetTitle className="flex items-center gap-2 text-[#E3D1AA]">
+                            <Calendar className="h-5 w-5 text-[#C9AA71]" />
+                            <span>{t('select_year') || 'Pilih Tahun / Periode'}</span>
+                        </SheetTitle>
+                        <SheetDescription className="text-muted-foreground text-xs">
+                            {t('select_year_desc') || 'Pilih tahun untuk memfokuskan tampilan tiket agar tidak menumpuk.'}
+                        </SheetDescription>
+                    </SheetHeader>
+
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+                        {/* Option: All Years */}
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setCurrentSheet('all');
+                                setYearSheetOpen(false);
+                            }}
+                            className={cn(
+                                'flex flex-col items-start gap-1.5 rounded-xl border p-4 text-left transition-all duration-200 cursor-pointer',
+                                currentSheet === 'all'
+                                    ? 'border-[#C9AA71] bg-[#C9AA71]/20 text-[#E3D1AA] shadow-sm ring-2 ring-[#C9AA71]/30'
+                                    : 'border-border/60 bg-[#2A281E]/60 text-muted-foreground hover:border-[#C9AA71]/40 hover:text-foreground hover:bg-[#2A281E]'
+                            )}
+                        >
+                            <div className="flex items-center justify-between w-full">
+                                <span className="text-lg">📚</span>
+                                {currentSheet === 'all' && (
+                                    <span className="text-[10px] font-bold bg-[#C9AA71] text-black px-1.5 py-0.5 rounded">
+                                        Active ✓
+                                    </span>
+                                )}
+                            </div>
+                            <span className="text-sm font-bold leading-tight">
+                                {t('all_years') || 'Semua Tahun'}
+                            </span>
+                            <span className="text-[11px] opacity-75">
+                                Riwayat Gabungan
+                            </span>
+                        </button>
+
+                        {/* Individual Sheets / Years */}
+                        {availableSheets.slice().reverse().map((sheet) => {
+                            const isSheetActive = currentSheet === sheet;
+                            return (
+                                <button
+                                    key={sheet}
+                                    type="button"
+                                    onClick={() => {
+                                        setCurrentSheet(sheet);
+                                        setYearSheetOpen(false);
+                                    }}
+                                    className={cn(
+                                        'flex flex-col items-start gap-1.5 rounded-xl border p-4 text-left transition-all duration-200 cursor-pointer',
+                                        isSheetActive
+                                            ? 'border-[#C9AA71] bg-[#C9AA71]/20 text-[#E3D1AA] shadow-sm ring-2 ring-[#C9AA71]/30'
+                                            : 'border-border/60 bg-[#2A281E]/60 text-muted-foreground hover:border-[#C9AA71]/40 hover:text-foreground hover:bg-[#2A281E]'
+                                    )}
+                                >
+                                    <div className="flex items-center justify-between w-full">
+                                        <Calendar className="h-5 w-5 text-[#C9AA71]" />
+                                        {isSheetActive && (
+                                            <span className="text-[10px] font-bold bg-[#C9AA71] text-black px-1.5 py-0.5 rounded">
+                                                Active ✓
+                                            </span>
+                                        )}
+                                    </div>
+                                    <span className="text-base font-bold leading-tight">
+                                        {sheet}
+                                    </span>
+                                    <span className="text-[11px] opacity-75">
+                                        Periode {sheet}
+                                    </span>
+                                </button>
+                            );
+                        })}
+                    </div>
+
+                    {isAdmin && onManagePeriods && (
+                        <div className="mt-6 pt-4 border-t border-[#3B3929] flex justify-end">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                    setYearSheetOpen(false);
+                                    onManagePeriods();
+                                }}
+                                className="border-[#C9AA71]/40 text-[#E3D1AA] hover:bg-[#C9AA71]/15 text-xs gap-1.5"
+                            >
+                                <Plus className="h-3.5 w-3.5 text-[#C9AA71]" />
+                                <span>{t('create_new_year') || 'Buat Periode / Tahun Baru'}</span>
+                            </Button>
+                        </div>
+                    )}
                 </SheetContent>
             </Sheet>
         </>

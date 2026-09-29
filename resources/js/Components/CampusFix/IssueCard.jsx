@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { MapPin, Building, ZoomIn, Edit3, Trash2, RotateCcw, Clock, ArrowRightLeft, Target, FileText, Megaphone } from 'lucide-react';
 import { StatusBadge } from './StatusBadge';
 import { cn } from '@/lib/utils';
@@ -33,7 +33,7 @@ function formatDate(ts) {
 export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, density = '3', isHighlighted = false }) {
     const [selectedDelay, setSelectedDelay] = useState(null);
     const [previewImage, setPreviewImage] = useState(null);
-    const { isAdmin, isDeptUser, department } = useAuth();
+    const { isAdmin, isDeptUser, department, activeStaffRoster } = useAuth();
     const { lang } = useLanguage();
 
     const isArchived = Boolean(issue?.isArchived || issue?.statusDisplay === '0' || issue?.displayStatus === '0');
@@ -85,6 +85,36 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
     const activeImage = (issue.status === 'pending' && issue.pendingImageUrl) 
         ? issue.pendingImageUrl 
         : (issue.imageUrl || FALLBACK_IMAGE);
+
+    const isClaimantInactive = useMemo(() => {
+        if (!issue || (issue.status !== 'progress' && issue.status !== 'pending')) return false;
+        const staffName = issue.taker || issue.pendingBy;
+        if (!staffName) return false;
+        const dept = takerDept || pendingDept;
+        if (!dept || !activeStaffRoster || !activeStaffRoster[dept]) return false;
+        const list = activeStaffRoster[dept];
+        if (list.length === 0) return true;
+        return !list.includes(staffName);
+    }, [issue?.status, issue?.taker, issue?.pendingBy, takerDept, pendingDept, activeStaffRoster]);
+
+    const overduePendingDays = useMemo(() => {
+        if (!issue || issue.status !== 'pending') return 0;
+        let pendingTimestamp = null;
+        if (pendingTimelineList.length > 0) {
+            const lastTimeline = pendingTimelineList[pendingTimelineList.length - 1];
+            if (lastTimeline?.date) {
+                const parsed = new Date(lastTimeline.date).getTime();
+                if (!isNaN(parsed)) pendingTimestamp = parsed;
+            }
+        }
+        if (!pendingTimestamp) {
+            pendingTimestamp = issue.takenAt || issue.reportedAt || null;
+        }
+        if (!pendingTimestamp) return 0;
+        const diffMs = Date.now() - pendingTimestamp;
+        const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+        return diffDays >= 7 ? diffDays : 0;
+    }, [issue?.status, pendingTimelineList, issue?.takenAt, issue?.reportedAt]);
 
     // =========================================================================
     // DENSITY 10 — MICRO MATRIX VIEW
@@ -270,6 +300,24 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
                             <span>{lang === 'id' ? 'Pindah Dept' : 'Transferred'}</span>
                         </div>
                     )}
+                    {isClaimantInactive && !needsReassignment && (
+                        <div 
+                            className="absolute left-2 top-8 z-10 flex items-center gap-1 rounded bg-amber-950/90 text-amber-300 border border-amber-500/50 px-1.5 py-0.2 text-[9px] font-bold shadow-xs cursor-help"
+                            title={lang === 'id' ? 'Staf yang memegang tugas ini sudah tidak aktif / dihapus' : 'Claimant staff is no longer active'}
+                        >
+                            <span>⚠️</span>
+                            <span>{lang === 'id' ? 'Staf Nonaktif' : 'Staff Inactive'}</span>
+                        </div>
+                    )}
+                    {overduePendingDays >= 7 && (
+                        <div 
+                            className="absolute left-2 bottom-2 z-10 flex items-center gap-1 rounded bg-orange-950/90 text-orange-300 border border-orange-500/50 px-1.5 py-0.2 text-[9px] font-bold shadow-xs animate-pulse"
+                            title={lang === 'id' ? `Isu tertunda ${overduePendingDays} hari tanpa tindak lanjut` : `Issue pending for ${overduePendingDays} days`}
+                        >
+                            <span>⏳</span>
+                            <span>{overduePendingDays}d</span>
+                        </div>
+                    )}
                     {isCritical && !canEdit && !canDelete && !isArchived && (
                         <CriticalTimer
                             deadline={issue.deadline}
@@ -423,13 +471,21 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
                         </p>
                     )}
 
-                    {/* Delay indicator chip */}
-                    {pendingTimelineList.length > 0 && (
-                        <div className="flex items-center gap-1 text-[10px] text-orange-400 font-medium bg-orange-500/10 border border-orange-500/20 px-2 py-0.5 rounded-md w-fit">
-                            <span>⏱️</span>
-                            <span>{pendingTimelineList.length} delay history</span>
-                        </div>
-                    )}
+                    {/* Delay indicator chip & Overdue Pending Badge */}
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                        {pendingTimelineList.length > 0 && (
+                            <div className="flex items-center gap-1 text-[10px] text-orange-400 font-medium bg-orange-500/10 border border-orange-500/20 px-2 py-0.5 rounded-md w-fit">
+                                <span>⏱️</span>
+                                <span>{pendingTimelineList.length} delay history</span>
+                            </div>
+                        )}
+                        {overduePendingDays >= 7 && (
+                            <div className="flex items-center gap-1 text-[10px] text-amber-300 font-bold bg-amber-500/20 border border-amber-500/40 px-2 py-0.5 rounded-md w-fit animate-pulse" title={lang === 'id' ? `Isu ini telah tertunda selama ${overduePendingDays} hari tanpa tindak lanjut.` : `This issue has been pending for ${overduePendingDays} days without updates.`}>
+                                <span>⏳</span>
+                                <span>{lang === 'id' ? `Pending > ${overduePendingDays} Hari` : `Pending > ${overduePendingDays} Days`}</span>
+                            </div>
+                        )}
+                    </div>
 
                     {/* Edit history chip (only for actual content modifications, not claims) */}
                     {issue.editLogs && issue.editLogs.filter(l => l && l.type !== 'claim' && l.type !== 'create').length > 0 && (
@@ -441,13 +497,23 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
 
                     {/* Actor snippet */}
                     {issue.status === 'progress' && issue.taker && (
-                        <div className="text-[11px] font-medium text-muted-foreground truncate">
-                            Claimed: <strong className="text-foreground">{issue.taker}</strong>
+                        <div className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground truncate">
+                            <span className="truncate">Claimed: <strong className="text-foreground">{issue.taker}</strong></span>
+                            {isClaimantInactive && (
+                                <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-amber-500/20 border border-amber-500/30 text-amber-300 shrink-0" title={lang === 'id' ? 'Staf yang mengambil pekerjaan ini sudah tidak aktif / dihapus' : 'Claimant staff is no longer active'}>
+                                    ⚠️ {lang === 'id' ? 'Staf Nonaktif' : 'Staff Inactive'}
+                                </span>
+                            )}
                         </div>
                     )}
                     {issue.status === 'pending' && issue.pendingBy && (
-                        <div className="text-[11px] font-medium text-orange-400 truncate">
-                            Pending: <strong className="text-orange-300">{issue.pendingBy}</strong>
+                        <div className="flex items-center gap-1.5 text-[11px] font-medium text-orange-400 truncate">
+                            <span className="truncate">Pending: <strong className="text-orange-300">{issue.pendingBy}</strong></span>
+                            {isClaimantInactive && (
+                                <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-amber-500/20 border border-amber-500/30 text-amber-300 shrink-0" title={lang === 'id' ? 'Staf yang menunda pekerjaan ini sudah tidak aktif / dihapus' : 'Staff is no longer active'}>
+                                    ⚠️ {lang === 'id' ? 'Staf Nonaktif' : 'Staff Inactive'}
+                                </span>
+                            )}
                         </div>
                     )}
                     {issue.status === 'solved' && issue.solver && (

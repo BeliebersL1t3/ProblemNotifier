@@ -2453,5 +2453,90 @@ class IssueController extends Controller
             ], 500);
         }
     }
+
+    public function getBotStatus()
+    {
+        try {
+            $response = \Illuminate\Support\Facades\Http::timeout(1.5)->get('http://127.0.0.1:3000/status');
+            if ($response->successful()) {
+                return response()->json($response->json());
+            }
+            return response()->json(['connected' => false, 'status' => 'disconnected'], 200);
+        } catch (\Throwable $e) {
+            return response()->json(['connected' => false, 'status' => 'offline', 'error' => $e->getMessage()], 200);
+        }
+    }
+
+    public function markDuplicate(Request $request, $rowIndex)
+    {
+        $user = $request->user();
+        if (!$user) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+        }
+
+        $validated = $request->validate([
+            'master_issue_id' => 'required|string|max:50',
+            'note' => 'nullable|string|max:255',
+        ]);
+
+        $masterId = trim($validated['master_issue_id']);
+        $note = trim($validated['note'] ?? '');
+
+        try {
+            $issueData = $this->getLatestIssueRowData((string)$rowIndex);
+            if (!$issueData) {
+                return response()->json(['success' => false, 'message' => 'Isu tidak ditemukan.'], 404);
+            }
+
+            $currentRow = $issueData['row'];
+            $sheet = $issueData['sheet'] ?? $this->resolveSheet();
+            $issueId = $currentRow[0] ?? $rowIndex;
+
+            if ($masterId === (string)$issueId) {
+                return response()->json(['success' => false, 'message' => 'Isu tidak dapat ditandai sebagai duplikat dari dirinya sendiri.'], 422);
+            }
+
+            $fixDesc = "Duplikat dari Isu #{$masterId}" . ($note ? " ({$note})" : '');
+            $solverName = $user->staff_name ?: $user->name ?: 'Admin';
+            $nowStr = Carbon::now('Asia/Jakarta')->format('Y-m-d H:i:s');
+
+            $updatedRow = IssueSheetRepository::padRow($currentRow);
+            $updatedRow[5]  = 'solved'; // status
+            $updatedRow[11] = $solverName; // solver
+            $updatedRow[12] = $nowStr; // solvedAt
+            $updatedRow[13] = $fixDesc; // fixDescription
+
+            // Append edit log
+            $existingNote = trim($updatedRow[24] ?? '');
+            $duplicateLog = "[{$nowStr}] {$solverName}: Ditandai sebagai duplikat dari Isu #{$masterId}";
+            $updatedRow[24] = empty($existingNote) ? $duplicateLog : "{$existingNote}\n{$duplicateLog}";
+
+            $this->googleService->setSheet($sheet);
+            $this->googleService->appendRow($updatedRow);
+
+            // Audit Log
+            try {
+                \App\Models\AuditLog::create([
+                    'user_id' => $user->id,
+                    'user_name' => $user->name,
+                    'user_role' => $user->role,
+                    'department' => $user->department,
+                    'action' => 'MARK_DUPLICATE',
+                    'target_type' => 'Issue',
+                    'target_id' => $issueId,
+                    'description' => "Menandai isu #{$issueId} sebagai duplikat dari isu #{$masterId}",
+                    'ip_address' => $request->ip() === '::1' ? '127.0.0.1' : $request->ip(),
+                ]);
+            } catch (\Throwable $e) {}
+
+            return response()->json([
+                'success' => true,
+                'message' => "Isu #{$issueId} berhasil ditandai sebagai duplikat dari #{$masterId}.",
+            ]);
+        } catch (\Throwable $e) {
+            Log::error("markDuplicate failed: " . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Gagal menandai duplikat: ' . $e->getMessage()], 500);
+        }
+    }
 }
 

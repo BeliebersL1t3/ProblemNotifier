@@ -2591,6 +2591,17 @@ const authenticateInbound = (req, res, next) => {
     return res.status(401).json({ success: false, error: 'Unauthorized: Missing or invalid bot security key.' });
 };
 
+app.get(['/status', '/health', '/api/status'], (req, res) => {
+    const isConnected = Boolean(globalSock && globalSock.user);
+    res.json({
+        success: true,
+        connected: isConnected,
+        phone: globalSock?.user?.id ? globalSock.user.id.split(':')[0] : null,
+        name: globalSock?.user?.name || null,
+        uptime: Math.floor(process.uptime())
+    });
+});
+
 app.use(['/sync-staff', '/api/sync-staff', '/notify-direct', '/api/notify-direct', '/notify', '/api/notify'], authenticateInbound);
 
 app.post(['/sync-staff', '/api/sync-staff'], async (req, res) => {

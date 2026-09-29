@@ -115,6 +115,8 @@ Route::prefix('api')->group(function () {
         Route::post('/issues/{rowIndex}/restore', [IssueController::class, 'restore']);
         Route::post('/issues/{rowIndex}/category', [IssueController::class, 'updateCategory']);
         Route::post('/issues/{rowIndex}/notify-empty-department', [IssueController::class, 'notifyEmptyDepartment']);
+        Route::post('/issues/{rowIndex}/mark-duplicate', [IssueController::class, 'markDuplicate']);
+        Route::get('/bot/status', [IssueController::class, 'getBotStatus']);
 
         // Sheet (period/year) management
         Route::get('/sheets', [IssueController::class, 'listSheets']);
