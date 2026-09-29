@@ -31,7 +31,7 @@ import { useAuth } from '@/hooks/useAuth';
 
 export function EmergencyIssueModal({ open, onOpenChange }) {
     const { t, lang } = useLanguage();
-    const { addIssue } = useIssues();
+    const { addIssue, rawIssues, issues } = useIssues();
     const { isDeptUser, department, staffName, activeStaffRoster } = useAuth();
     const [originDept, setOriginDept] = useState('');
     const [reporter, setReporter] = useState('');
@@ -63,6 +63,30 @@ export function EmergencyIssueModal({ open, onOpenChange }) {
         setOriginDept(dept);
         setReporter('');
     };
+
+    // Preventive smart duplicate detection for emergency issues
+    const potentialDuplicates = useMemo(() => {
+        const pool = rawIssues && rawIssues.length > 0 ? rawIssues : (issues || []);
+        const cleanLoc = locDetail.trim().toLowerCase();
+        const cleanTitle = title.trim().toLowerCase();
+        if (!cleanLoc && !cleanTitle) return [];
+        if (cleanLoc.length < 3 && cleanTitle.length < 3) return [];
+
+        return pool.filter(item => {
+            if (item.status === 'solved' || item.isArchived || item.statusDisplay === '0' || item.displayStatus === '0') return false;
+            const itemLoc = (item.location || '').toLowerCase();
+            const itemTitle = (item.title || '').toLowerCase();
+
+            const titleWords = cleanTitle.split(/\s+/).filter(w => w.length >= 3);
+            const hasWordMatch = titleWords.length > 0 && titleWords.some(w => itemTitle.includes(w));
+            const hasLocMatch = cleanLoc.length >= 3 && (itemLoc.includes(cleanLoc) || cleanLoc.includes(itemLoc));
+            const hasMainLocMatch = locMains.length > 0 && locMains.some(m => itemLoc.includes(m.toLowerCase()));
+
+            return (hasLocMatch && (hasWordMatch || (cleanTitle.length >= 3 && itemTitle.includes(cleanTitle))))
+                || (hasLocMatch && cleanLoc.length >= 4)
+                || (hasMainLocMatch && cleanTitle.length >= 4 && itemTitle.includes(cleanTitle));
+        }).slice(0, 3);
+    }, [rawIssues, issues, locDetail, title, locMains]);
 
     const EMERGENCY_PRESETS = [
         {
@@ -401,6 +425,44 @@ export function EmergencyIssueModal({ open, onOpenChange }) {
                             className="border-red-900/50 bg-black/50 text-white placeholder:text-red-800 focus-visible:ring-red-500"
                         />
                     </div>
+
+                    {/* Potential Duplicate Early Warning */}
+                    {potentialDuplicates.length > 0 && (
+                        <div className="p-3 rounded-xl border border-red-500/40 bg-red-950/30 text-red-200 text-xs space-y-2 animate-in fade-in duration-200">
+                            <div className="flex items-center gap-1.5 font-semibold text-red-400">
+                                <AlertTriangle className="w-4 h-4 shrink-0 text-red-400" />
+                                <span>
+                                    {lang === 'id' 
+                                        ? `Peringatan: Ada ${potentialDuplicates.length} laporan aktif serupa di lokasi ini:` 
+                                        : `Warning: Found ${potentialDuplicates.length} active report(s) in similar location:`}
+                                </span>
+                            </div>
+                            <div className="space-y-1.5 pt-0.5">
+                                {potentialDuplicates.map(dup => (
+                                    <div key={dup.id} className="p-2 rounded bg-black/50 border border-red-500/30 flex items-center justify-between gap-2">
+                                        <div className="min-w-0">
+                                            <div className="flex items-center gap-2">
+                                                <span className="font-mono font-bold text-red-400">#{dup.id}</span>
+                                                <span className="truncate font-medium text-white">{dup.title}</span>
+                                            </div>
+                                            <div className="text-[11px] text-red-300/70 flex items-center gap-2 pt-0.5">
+                                                <span>📍 {dup.location || '-'}</span>
+                                                <span>•</span>
+                                                <span>🏢 {dup.department || '-'}</span>
+                                                <span>•</span>
+                                                <span className="capitalize">{dup.status}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                            <p className="text-[11px] text-red-400/80 italic">
+                                {lang === 'id'
+                                    ? 'ℹ️ Pastikan Anda tidak membuat tiket ganda untuk insiden darurat yang sama.'
+                                    : 'ℹ️ Please ensure you do not create a duplicate ticket for the same emergency incident.'}
+                            </p>
+                        </div>
+                    )}
 
                     {/* Step 6: Description */}
                     <div className="grid gap-2">

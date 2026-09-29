@@ -31,7 +31,7 @@ import { InlineAnalogClockPicker } from './CircularTimePickerModal';
 
 export function ReportIssueModal({ open, onOpenChange }) {
     const { t, lang } = useLanguage();
-    const { addIssue } = useIssues();
+    const { addIssue, rawIssues, issues } = useIssues();
     const { isDeptUser, department, staffName, activeStaffRoster } = useAuth();
     const [originDept, setOriginDept] = useState('');
     const [reporter, setReporter] = useState('');
@@ -57,6 +57,30 @@ export function ReportIssueModal({ open, onOpenChange }) {
     }, [assignedDepts, taggedDepts]);
 
     const { conflicts, conflictsByDept, hasConflicts } = useDepartmentScheduleConflicts(selectedTargetDepts);
+
+    // Preventive smart duplicate detection
+    const potentialDuplicates = useMemo(() => {
+        const pool = rawIssues && rawIssues.length > 0 ? rawIssues : (issues || []);
+        const cleanLoc = locDetail.trim().toLowerCase();
+        const cleanTitle = title.trim().toLowerCase();
+        if (!cleanLoc && !cleanTitle) return [];
+        if (cleanLoc.length < 3 && cleanTitle.length < 3) return [];
+
+        return pool.filter(item => {
+            if (item.status === 'solved' || item.isArchived || item.statusDisplay === '0' || item.displayStatus === '0') return false;
+            const itemLoc = (item.location || '').toLowerCase();
+            const itemTitle = (item.title || '').toLowerCase();
+
+            const titleWords = cleanTitle.split(/\s+/).filter(w => w.length >= 3);
+            const hasWordMatch = titleWords.length > 0 && titleWords.some(w => itemTitle.includes(w));
+            const hasLocMatch = cleanLoc.length >= 3 && (itemLoc.includes(cleanLoc) || cleanLoc.includes(itemLoc));
+            const hasMainLocMatch = locMains.length > 0 && locMains.some(m => itemLoc.includes(m.toLowerCase()));
+
+            return (hasLocMatch && (hasWordMatch || (cleanTitle.length >= 3 && itemTitle.includes(cleanTitle))))
+                || (hasLocMatch && cleanLoc.length >= 4)
+                || (hasMainLocMatch && cleanTitle.length >= 4 && itemTitle.includes(cleanTitle));
+        }).slice(0, 3);
+    }, [rawIssues, issues, locDetail, title, locMains]);
 
     const DRAFT_KEY = 'campusfix_report_draft';
     const [hasDraftRestored, setHasDraftRestored] = useState(false);
@@ -474,6 +498,44 @@ export function ReportIssueModal({ open, onOpenChange }) {
                             </Select>
                         </div>
                     </div>
+
+                    {/* Potential Duplicate Early Warning */}
+                    {potentialDuplicates.length > 0 && (
+                        <div className="p-3 rounded-lg border border-amber-500/40 bg-amber-500/10 text-amber-200 text-xs space-y-2 animate-in fade-in duration-200">
+                            <div className="flex items-center gap-1.5 font-semibold text-amber-400">
+                                <AlertTriangle className="w-4 h-4 shrink-0 text-amber-400" />
+                                <span>
+                                    {lang === 'id' 
+                                        ? `Perhatian: Ditemukan ${potentialDuplicates.length} isu aktif serupa yang mungkin berhubungan:` 
+                                        : `Notice: Found ${potentialDuplicates.length} similar active issue(s) that may be related:`}
+                                </span>
+                            </div>
+                            <div className="space-y-1.5 pt-0.5">
+                                {potentialDuplicates.map(dup => (
+                                    <div key={dup.id} className="p-2 rounded bg-black/40 border border-amber-500/20 flex items-center justify-between gap-2">
+                                        <div className="min-w-0">
+                                            <div className="flex items-center gap-2">
+                                                <span className="font-mono font-bold text-amber-300">#{dup.id}</span>
+                                                <span className="truncate font-medium text-foreground">{dup.title}</span>
+                                            </div>
+                                            <div className="text-[11px] text-muted-foreground flex items-center gap-2 pt-0.5">
+                                                <span>📍 {dup.location || '-'}</span>
+                                                <span>•</span>
+                                                <span>🏢 {dup.department || '-'}</span>
+                                                <span>•</span>
+                                                <span className="capitalize">{dup.status}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                            <p className="text-[11px] text-amber-300/80 italic">
+                                {lang === 'id'
+                                    ? 'ℹ️ Anda tetap dapat mengirimkan laporan ini jika masalahnya berbeda atau merupakan informasi lanjutan.'
+                                    : 'ℹ️ You can still submit this report if it is a separate issue or follow-up information.'}
+                            </p>
+                        </div>
+                    )}
 
                     {/* Assigned Department(s) - Required & Multi-Select */}
                     <div className="grid gap-2 p-3 rounded-lg border border-amber-500/30 bg-amber-500/5">

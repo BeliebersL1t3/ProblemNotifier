@@ -43,12 +43,39 @@ import { formatDurationLabel, computeDurationFromTimestamps } from '@/lib/durati
 export function ActivityDetailModal({ issue, onClose, onOpenCardModal, onEdit, onRestore }) {
     const { t, lang } = useLanguage();
     const { isAdmin, isDeptUser, department } = useAuth();
-    const { fetchIssues } = useIssues();
+    const { fetchIssues, rawIssues, issues } = useIssues();
     const [isDuplicateModalOpen, setIsDuplicateModalOpen] = useState(false);
     const [masterIssueId, setMasterIssueId] = useState('');
     const [dupNote, setDupNote] = useState('');
     const [isSubmittingDup, setIsSubmittingDup] = useState(false);
     const [dupError, setDupError] = useState('');
+
+    // Zero-typing smart duplicate recommendations
+    const suggestedDuplicates = useMemo(() => {
+        if (!isDuplicateModalOpen || !issue) return [];
+        const pool = rawIssues && rawIssues.length > 0 ? rawIssues : (issues || []);
+        const currId = issue.id;
+        const currRow = issue.rowIndex;
+        const currLoc = (issue.location || '').toLowerCase().trim();
+        const currDept = normalizeDepartment(issue.department);
+        const currTitle = (issue.title || '').toLowerCase().trim();
+
+        return pool.filter(item => {
+            if (item.id === currId || (currRow && item.rowIndex === currRow)) return false;
+            if (item.isArchived || item.statusDisplay === '0' || item.displayStatus === '0') return false;
+
+            const itemLoc = (item.location || '').toLowerCase().trim();
+            const itemDept = normalizeDepartment(item.department);
+            const itemTitle = (item.title || '').toLowerCase().trim();
+
+            const sameLoc = currLoc.length >= 3 && itemLoc.length >= 3 && (currLoc.includes(itemLoc) || itemLoc.includes(currLoc));
+            const sameDept = currDept && itemDept && currDept === itemDept;
+            const titleWords = currTitle.split(/\s+/).filter(w => w.length >= 3);
+            const similarTitle = titleWords.length > 0 && titleWords.some(w => itemTitle.includes(w));
+
+            return sameLoc || (sameDept && similarTitle) || (currTitle.length >= 4 && itemTitle.includes(currTitle));
+        }).slice(0, 5);
+    }, [isDuplicateModalOpen, issue, rawIssues, issues]);
 
     const handleConfirmDuplicate = async () => {
         if (!masterIssueId.trim()) return;
@@ -1068,6 +1095,61 @@ export function ActivityDetailModal({ issue, onClose, onOpenCardModal, onEdit, o
                             {dupError}
                         </div>
                     )}
+
+                    {/* Zero-typing Smart Recommendations */}
+                    {suggestedDuplicates.length > 0 && (
+                        <div className="space-y-2 p-2.5 rounded-lg border border-amber-500/30 bg-amber-500/5">
+                            <Label className="text-xs font-semibold text-amber-400 flex items-center justify-between">
+                                <span>{lang === 'id' ? '⚡ Rekomendasi Isu Master (1-Klik):' : '⚡ Suggested Master Issues (1-Click):'}</span>
+                                <span className="text-[10px] text-muted-foreground font-normal">
+                                    {lang === 'id' ? 'Pilih salah satu di bawah' : 'Tap to select'}
+                                </span>
+                            </Label>
+                            <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                                {suggestedDuplicates.map(sug => {
+                                    const isChosen = String(masterIssueId).trim() === String(sug.id).trim();
+                                    return (
+                                        <button
+                                            key={sug.id}
+                                            type="button"
+                                            onClick={() => setMasterIssueId(String(sug.id))}
+                                            className={`w-full text-left p-2 rounded-lg border transition-all text-xs flex items-center justify-between gap-2 cursor-pointer ${
+                                                isChosen
+                                                    ? 'bg-amber-600/30 border-amber-500 text-amber-200 ring-1 ring-amber-500 shadow-sm'
+                                                    : 'bg-[#2A281E] border-border/70 text-[#FAFAFA] hover:border-amber-500/50 hover:bg-[#353325]'
+                                            }`}
+                                        >
+                                            <div className="min-w-0 flex-1">
+                                                <div className="flex items-center gap-1.5">
+                                                    <span className="font-mono font-bold text-amber-400">#{sug.id}</span>
+                                                    <span className="truncate font-medium">{sug.title}</span>
+                                                </div>
+                                                <div className="text-[10px] text-muted-foreground flex items-center gap-1.5 pt-0.5 truncate">
+                                                    <span>📍 {sug.location || '-'}</span>
+                                                    <span>•</span>
+                                                    <span>🏢 {sug.department || '-'}</span>
+                                                    <span>•</span>
+                                                    <span className="capitalize">{sug.status}</span>
+                                                </div>
+                                            </div>
+                                            <div className="shrink-0 text-xs">
+                                                {isChosen ? (
+                                                    <span className="px-2 py-0.5 rounded bg-amber-500 text-black font-bold text-[10px]">
+                                                        ✓ {lang === 'id' ? 'Terpilih' : 'Selected'}
+                                                    </span>
+                                                ) : (
+                                                    <span className="px-2 py-0.5 rounded bg-[#1C1B0E] border border-border text-muted-foreground text-[10px] hover:text-amber-300">
+                                                        {lang === 'id' ? 'Pilih' : 'Select'}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
+
                     <div className="space-y-1.5">
                         <Label htmlFor="masterId" className="text-xs font-semibold text-[#FAFAFA]">
                             {lang === 'id' ? 'Nomor / ID Isu Master (Utama)' : 'Master Issue ID / Number'}
