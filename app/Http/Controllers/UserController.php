@@ -579,6 +579,170 @@ class UserController extends Controller
     }
 
     /**
+     * Batch soft delete (archive) multiple users.
+     */
+    public function batchDestroy(Request $request)
+    {
+        $this->ensureAdmin();
+
+        $validated = $request->validate([
+            'user_ids'   => 'required|array|min:1',
+            'user_ids.*' => 'integer',
+        ]);
+
+        $admin = auth()->user();
+        $targetUsers = User::whereIn('id', $validated['user_ids'])->get();
+
+        $affectedAccounts = [];
+        $skippedAccounts = [];
+        $hasWhatsapp = false;
+
+        // Count current active administrators in the system to protect against deleting the last admin
+        $activeAdminsCount = User::where('role', 'admin')
+            ->where('is_active', true)
+            ->count();
+
+        foreach ($targetUsers as $target) {
+            // Rule 1: Cannot delete currently logged in administrator
+            if ($target->id === $admin->id) {
+                $skippedAccounts[] = "{$target->name} (Akun Anda sendiri)";
+                continue;
+            }
+
+            // Rule 2: Cannot delete the last active administrator
+            if ($target->isAdmin() && $target->is_active) {
+                if ($activeAdminsCount <= 1) {
+                    $skippedAccounts[] = "{$target->name} (Administrator aktif terakhir di sistem)";
+                    continue;
+                }
+                $activeAdminsCount--;
+            }
+
+            $target->delete();
+
+            $affectedAccounts[] = [
+                'id'         => $target->id,
+                'name'       => $target->staff_name ?: $target->name,
+                'email'      => $target->email,
+                'role'       => $target->role,
+                'department' => $target->department,
+            ];
+
+            if (!empty($target->whatsapp_number)) {
+                $hasWhatsapp = true;
+            }
+        }
+
+        // Notify WhatsApp bot to sync staff in real-time if any account had a phone number
+        if ($hasWhatsapp) {
+            try {
+                \Illuminate\Support\Facades\Http::timeout(1)->post('http://127.0.0.1:3000/sync-staff');
+            } catch (\Throwable $e) {}
+        }
+
+        // Record consolidated audit log
+        $archivedCount = count($affectedAccounts);
+        if ($archivedCount > 0) {
+            $namesSample = array_slice(array_column($affectedAccounts, 'name'), 0, 3);
+            $targetLabel = "{$archivedCount} Akun (" . implode(', ', $namesSample) . ($archivedCount > 3 ? ', ...' : '') . ')';
+
+            UserAuditLog::record(
+                $admin,
+                null,
+                'BATCH_USERS_ARCHIVED',
+                [
+                    'batch'            => true,
+                    'account_count'    => $archivedCount,
+                    'accounts'         => $affectedAccounts,
+                    'skipped_accounts' => $skippedAccounts,
+                ],
+                null,
+                null,
+                $targetLabel
+            );
+        }
+
+        $message = $archivedCount > 0
+            ? "Berhasil meng-archive (Soft Delete) {$archivedCount} akun." . (count($skippedAccounts) > 0 ? ' (' . count($skippedAccounts) . ' akun dilewati: ' . implode(', ', $skippedAccounts) . ')' : '')
+            : 'Tidak ada akun yang di-archive. ' . (count($skippedAccounts) > 0 ? '(' . implode(', ', $skippedAccounts) . ')' : '');
+
+        return response()->json([
+            'success'          => $archivedCount > 0,
+            'message'          => $message,
+            'archived_count'   => $archivedCount,
+            'skipped_count'    => count($skippedAccounts),
+            'skipped_accounts' => $skippedAccounts,
+        ]);
+    }
+
+    /**
+     * Batch restore multiple soft-deleted users.
+     */
+    public function batchRestore(Request $request)
+    {
+        $this->ensureAdmin();
+
+        $validated = $request->validate([
+            'user_ids'   => 'required|array|min:1',
+            'user_ids.*' => 'integer',
+        ]);
+
+        $admin = auth()->user();
+        $targetUsers = User::onlyTrashed()->whereIn('id', $validated['user_ids'])->get();
+
+        $restoredAccounts = [];
+        $hasWhatsapp = false;
+
+        foreach ($targetUsers as $target) {
+            $target->restore();
+
+            $restoredAccounts[] = [
+                'id'         => $target->id,
+                'name'       => $target->staff_name ?: $target->name,
+                'email'      => $target->email,
+                'role'       => $target->role,
+                'department' => $target->department,
+            ];
+
+            if (!empty($target->whatsapp_number)) {
+                $hasWhatsapp = true;
+            }
+        }
+
+        if ($hasWhatsapp) {
+            try {
+                \Illuminate\Support\Facades\Http::timeout(1)->post('http://127.0.0.1:3000/sync-staff');
+            } catch (\Throwable $e) {}
+        }
+
+        $restoredCount = count($restoredAccounts);
+        if ($restoredCount > 0) {
+            $namesSample = array_slice(array_column($restoredAccounts, 'name'), 0, 3);
+            $targetLabel = "{$restoredCount} Akun (" . implode(', ', $namesSample) . ($restoredCount > 3 ? ', ...' : '') . ')';
+
+            UserAuditLog::record(
+                $admin,
+                null,
+                'BATCH_USERS_RESTORED',
+                [
+                    'batch'         => true,
+                    'account_count' => $restoredCount,
+                    'accounts'      => $restoredAccounts,
+                ],
+                null,
+                null,
+                $targetLabel
+            );
+        }
+
+        return response()->json([
+            'success'        => $restoredCount > 0,
+            'message'        => "Berhasil memulihkan {$restoredCount} akun. Akun kini aktif kembali.",
+            'restored_count' => $restoredCount,
+        ]);
+    }
+
+    /**
      * Soft delete (archive) a user.
      */
     public function destroy(Request $request, $id)

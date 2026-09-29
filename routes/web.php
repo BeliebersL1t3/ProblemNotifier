@@ -143,6 +143,8 @@ Route::prefix('api')->group(function () {
         Route::get('/users', [UserController::class, 'index']);
         Route::post('/users', [UserController::class, 'store']);
         Route::post('/users/batch-permissions', [UserController::class, 'batchUpdatePermissions']);
+        Route::match(['post', 'delete'], '/users/batch-destroy', [UserController::class, 'batchDestroy']);
+        Route::post('/users/batch-restore', [UserController::class, 'batchRestore']);
         Route::match(['put', 'patch', 'post'], '/users/{id}', [UserController::class, 'update']);
         Route::delete('/users/{id}', [UserController::class, 'destroy']);
         Route::post('/users/{id}/restore', [UserController::class, 'restore']);

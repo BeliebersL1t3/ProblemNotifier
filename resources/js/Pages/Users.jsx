@@ -40,10 +40,13 @@ function UsersInner({ initialUsers, initialStats }) {
     const [statusFilter, setStatusFilter] = useState('active'); // 'active' | 'archived' | 'all'
     const [loading, setLoading] = useState(false);
 
-    // Multi-Select & Batch Permission State
+    // Multi-Select & Batch Action State
     const [selectedUserIds, setSelectedUserIds] = useState([]);
     const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
+    const [isBatchDeleteModalOpen, setIsBatchDeleteModalOpen] = useState(false);
     const [batchQuickProcessing, setBatchQuickProcessing] = useState(false);
+    const [batchDeleteLoading, setBatchDeleteLoading] = useState(false);
+    const [batchRestoreLoading, setBatchRestoreLoading] = useState(false);
 
     // Modals
     const [isUserModalOpen, setIsUserModalOpen] = useState(false);
@@ -58,10 +61,23 @@ function UsersInner({ initialUsers, initialStats }) {
         setTimeout(() => setToastMessage(null), 4000);
     };
 
-    // Selection helpers
-    const selectableUsers = users.filter(u => !u.is_archived);
+    // Reset selection when changing status tabs
+    useEffect(() => {
+        setSelectedUserIds([]);
+    }, [statusFilter]);
+
+    // Selection helpers: in archived tab, selectable are archived; in active tab, active accounts; in all tab, all accounts
+    const selectableUsers = statusFilter === 'archived'
+        ? users.filter(u => u.is_archived)
+        : statusFilter === 'active'
+            ? users.filter(u => !u.is_archived)
+            : users;
+
     const isAllSelected = selectableUsers.length > 0 && selectableUsers.every(u => selectedUserIds.includes(u.id));
     const isSomeSelected = selectedUserIds.length > 0 && !isAllSelected;
+
+    const selectedIncludesSelf = selectedUserIds.includes(currentUser?.id);
+    const effectiveDeleteCount = selectedUserIds.filter(id => id !== currentUser?.id).length;
 
     const handleSelectAll = () => {
         if (isAllSelected) {
@@ -91,6 +107,54 @@ function UsersInner({ initialUsers, initialStats }) {
             fetchUsers();
         }
         setSelectedUserIds([]);
+    };
+
+    const handleConfirmBatchDelete = async () => {
+        if (selectedUserIds.length === 0) return;
+        setBatchDeleteLoading(true);
+        try {
+            const res = await axios.post('/api/users/batch-destroy', {
+                user_ids: selectedUserIds,
+            });
+            if (res.data?.success) {
+                showToast(res.data.message || `${res.data.archived_count} akun berhasil di-archive`);
+                setIsBatchDeleteModalOpen(false);
+                setSelectedUserIds([]);
+                fetchUsers();
+            } else {
+                showToast(res.data?.message || 'Gagal meng-archive akun', true);
+            }
+        } catch (e) {
+            showToast(e.response?.data?.message || 'Terjadi kesalahan sistem saat menghapus akun', true);
+        } finally {
+            setBatchDeleteLoading(false);
+        }
+    };
+
+    const handleBatchRestore = async () => {
+        if (selectedUserIds.length === 0) return;
+        const confirmMsg = lang === 'id'
+            ? `Pulihkan ${selectedUserIds.length} akun yang dipilih agar aktif kembali?`
+            : `Restore ${selectedUserIds.length} selected accounts so they become active again?`;
+        if (!confirm(confirmMsg)) return;
+
+        setBatchRestoreLoading(true);
+        try {
+            const res = await axios.post('/api/users/batch-restore', {
+                user_ids: selectedUserIds,
+            });
+            if (res.data?.success) {
+                showToast(res.data.message || `${res.data.restored_count} akun berhasil dipulihkan`);
+                setSelectedUserIds([]);
+                fetchUsers();
+            } else {
+                showToast(res.data?.message || 'Gagal memulihkan akun', true);
+            }
+        } catch (e) {
+            showToast(e.response?.data?.message || 'Terjadi kesalahan sistem saat memulihkan akun', true);
+        } finally {
+            setBatchRestoreLoading(false);
+        }
     };
 
     const handleQuickToggleViewAllDepts = async (enabled) => {
@@ -506,46 +570,75 @@ function UsersInner({ initialUsers, initialStats }) {
                                         </button>
                                     </div>
                                     <p className="text-xs text-[#A19F8D]">
-                                        Ubah izin massal dengan tombol cepat atau buka pengatur izin lengkap.
+                                        {statusFilter === 'archived' 
+                                            ? 'Pulihkan massal akun yang dipilih agar aktif kembali.' 
+                                            : 'Ubah izin massal atau archive (soft delete) akun terpilih dengan aman.'}
                                     </p>
                                 </div>
                             </div>
 
                             <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
-                                {/* Quick Toggle: Batasi ke Departemen Sendiri */}
-                                <button
-                                    type="button"
-                                    onClick={() => handleQuickToggleViewAllDepts(false)}
-                                    disabled={batchQuickProcessing}
-                                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-amber-950/50 hover:bg-amber-900/60 border border-amber-500/40 text-amber-300 hover:text-amber-200 transition-all cursor-pointer shadow-xs disabled:opacity-50"
-                                    title="Matikan 'Bisa Melihat Semua Departemen' untuk akun terpilih"
-                                >
-                                    <Lock className="h-3.5 w-3.5 text-amber-400" />
-                                    <span>Batasi Dept (OFF)</span>
-                                </button>
+                                {statusFilter === 'archived' ? (
+                                    /* Batch Restore Button */
+                                    <button
+                                        type="button"
+                                        onClick={handleBatchRestore}
+                                        disabled={batchRestoreLoading}
+                                        className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-extrabold bg-emerald-600 hover:bg-emerald-500 text-white transition-all shadow-md hover:shadow-lg cursor-pointer hover:scale-[1.02] disabled:opacity-50"
+                                    >
+                                        <RotateCcw className={`h-4 w-4 ${batchRestoreLoading ? 'animate-spin' : ''}`} />
+                                        <span>{batchRestoreLoading ? 'Memulihkan...' : `Pulihkan ${selectedUserIds.length} Akun`}</span>
+                                    </button>
+                                ) : (
+                                    <>
+                                        {/* Quick Toggle: Batasi ke Departemen Sendiri */}
+                                        <button
+                                            type="button"
+                                            onClick={() => handleQuickToggleViewAllDepts(false)}
+                                            disabled={batchQuickProcessing || batchDeleteLoading}
+                                            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-amber-950/50 hover:bg-amber-900/60 border border-amber-500/40 text-amber-300 hover:text-amber-200 transition-all cursor-pointer shadow-xs disabled:opacity-50"
+                                            title="Matikan 'Bisa Melihat Semua Departemen' untuk akun terpilih"
+                                        >
+                                            <Lock className="h-3.5 w-3.5 text-amber-400" />
+                                            <span>Batasi Dept (OFF)</span>
+                                        </button>
 
-                                {/* Quick Toggle: Buka Semua Departemen */}
-                                <button
-                                    type="button"
-                                    onClick={() => handleQuickToggleViewAllDepts(true)}
-                                    disabled={batchQuickProcessing}
-                                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-950/50 hover:bg-emerald-900/60 border border-emerald-500/40 text-emerald-300 hover:text-emerald-200 transition-all cursor-pointer shadow-xs disabled:opacity-50"
-                                    title="Nyalakan 'Bisa Melihat Semua Departemen' untuk akun terpilih"
-                                >
-                                    <Check className="h-3.5 w-3.5 text-emerald-400" />
-                                    <span>Buka Semua (ON)</span>
-                                </button>
+                                        {/* Quick Toggle: Buka Semua Departemen */}
+                                        <button
+                                            type="button"
+                                            onClick={() => handleQuickToggleViewAllDepts(true)}
+                                            disabled={batchQuickProcessing || batchDeleteLoading}
+                                            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-950/50 hover:bg-emerald-900/60 border border-emerald-500/40 text-emerald-300 hover:text-emerald-200 transition-all cursor-pointer shadow-xs disabled:opacity-50"
+                                            title="Nyalakan 'Bisa Melihat Semua Departemen' untuk akun terpilih"
+                                        >
+                                            <Check className="h-3.5 w-3.5 text-emerald-400" />
+                                            <span>Buka Semua (ON)</span>
+                                        </button>
 
-                                {/* Granular Batch Permissions Modal Button */}
-                                <button
-                                    type="button"
-                                    onClick={() => setIsBatchModalOpen(true)}
-                                    disabled={batchQuickProcessing}
-                                    className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-extrabold bg-[#C9AA71] hover:bg-[#b89960] text-[#1C1B0E] transition-all shadow-md hover:shadow-lg cursor-pointer hover:scale-[1.02] disabled:opacity-50"
-                                >
-                                    <ShieldCheck className="h-4 w-4" />
-                                    <span>Atur Izin Lengkap...</span>
-                                </button>
+                                        {/* Granular Batch Permissions Modal Button */}
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsBatchModalOpen(true)}
+                                            disabled={batchQuickProcessing || batchDeleteLoading}
+                                            className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-extrabold bg-[#C9AA71] hover:bg-[#b89960] text-[#1C1B0E] transition-all shadow-md hover:shadow-lg cursor-pointer hover:scale-[1.02] disabled:opacity-50"
+                                        >
+                                            <ShieldCheck className="h-4 w-4" />
+                                            <span>Atur Izin...</span>
+                                        </button>
+
+                                        {/* Batch Soft Delete Button */}
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsBatchDeleteModalOpen(true)}
+                                            disabled={batchQuickProcessing || batchDeleteLoading}
+                                            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-extrabold bg-rose-950/70 hover:bg-rose-900 border border-rose-500/50 text-rose-300 hover:text-rose-100 transition-all shadow-md hover:shadow-lg cursor-pointer hover:scale-[1.02] disabled:opacity-50"
+                                            title="Hapus / Archive (Soft Delete) akun yang dipilih"
+                                        >
+                                            <Trash2 className="h-4 w-4 text-rose-400" />
+                                            <span>Hapus / Archive ({selectedUserIds.length})</span>
+                                        </button>
+                                    </>
+                                )}
                             </div>
                         </div>
                     )}
@@ -608,8 +701,7 @@ function UsersInner({ initialUsers, initialStats }) {
                                                             type="checkbox"
                                                             checked={isSelected}
                                                             onChange={() => handleSelectUser(u.id)}
-                                                            disabled={u.is_archived}
-                                                            className="w-4 h-4 rounded border-[#3B3929] bg-[#1C1B0E] text-[#C9AA71] accent-[#C9AA71] focus:ring-[#C9AA71] focus:ring-offset-0 cursor-pointer disabled:opacity-30"
+                                                            className="w-4 h-4 rounded border-[#3B3929] bg-[#1C1B0E] text-[#C9AA71] accent-[#C9AA71] focus:ring-[#C9AA71] focus:ring-offset-0 cursor-pointer"
                                                         />
                                                     </td>
                                                     {/* User & Staff Name */}
@@ -847,6 +939,74 @@ function UsersInner({ initialUsers, initialStats }) {
                 onBatchSuccess={handleBatchSuccess}
                 showToast={showToast}
             />
+
+            {/* Batch Delete Confirmation Modal */}
+            {isBatchDeleteModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs animate-in fade-in duration-200">
+                    <div className="w-full max-w-md rounded-2xl border border-rose-500/40 bg-[#1C1B0E] p-6 shadow-2xl space-y-4">
+                        <div className="flex items-center gap-3 text-rose-400">
+                            <div className="w-11 h-11 rounded-xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center shrink-0">
+                                <Trash2 className="h-5 w-5" />
+                            </div>
+                            <div>
+                                <h3 className="text-base font-extrabold text-[#FAFAFA]">
+                                    Archive (Soft Delete) Akun Massal
+                                </h3>
+                                <p className="text-xs text-[#A19F8D]">
+                                    Konfirmasi penonaktifan akun terpilih
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="p-3.5 rounded-xl bg-rose-950/20 border border-rose-500/30 text-xs space-y-2 text-[#FAFAFA]">
+                            <p>
+                                Anda akan meng-archive <strong className="text-rose-300 font-bold">{effectiveDeleteCount} akun</strong>.
+                            </p>
+                            <p className="text-[11px] text-[#A19F8D] leading-relaxed">
+                                Akun yang di-archive tidak dapat login ke sistem lagi, namun seluruh riwayat isu, log penugasan, dan tiket tetap aman di database (Soft Delete). Anda dapat memulihkannya kapan saja di tab <strong>Archived</strong>.
+                            </p>
+                        </div>
+
+                        {selectedIncludesSelf && (
+                            <div className="p-3 rounded-xl bg-amber-500/15 border border-amber-500/40 text-amber-200 text-xs flex items-start gap-2.5">
+                                <AlertCircle className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
+                                <div>
+                                    <span className="font-bold text-amber-300">Proteksi Keamanan:</span> Akun Anda sendiri ({currentUser?.name || 'Administrator'}) otomatis dilewati dan tidak akan di-archive.
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="flex items-center justify-end gap-2.5 pt-2">
+                            <button
+                                type="button"
+                                onClick={() => setIsBatchDeleteModalOpen(false)}
+                                disabled={batchDeleteLoading}
+                                className="px-4 py-2 rounded-xl border border-[#3B3929] bg-[#2A281E] text-xs font-bold text-[#A19F8D] hover:text-[#FAFAFA] hover:bg-[#3B3929] transition-all cursor-pointer disabled:opacity-50"
+                            >
+                                Batal
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleConfirmBatchDelete}
+                                disabled={batchDeleteLoading || effectiveDeleteCount === 0}
+                                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-extrabold shadow-md hover:shadow-lg transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                            >
+                                {batchDeleteLoading ? (
+                                    <>
+                                        <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                                        <span>Memproses...</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                        <span>Ya, Archive ({effectiveDeleteCount})</span>
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Security Audit Trail Drawer */}
             <AuditLogDrawer
