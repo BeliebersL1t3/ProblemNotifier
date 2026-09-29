@@ -56,46 +56,6 @@ class UserController extends Controller
         ];
     }
 
-    /**
-     * Calculate barrier restrictions on a user's permissions.
-     */
-    private function analyzeRestrictions(User $user): array
-    {
-        if ($user->isAdmin()) {
-            return [
-                'has_restrictions' => false,
-                'reasons'          => [],
-            ];
-        }
-
-        $reasons = [];
-        $p = $user->permissions ?? self::getDefaultPermissions($user->role);
-
-        if (empty($p['can_view_all_departments'])) {
-            $deptName = $user->department ?: 'Departemen Sendiri';
-            $reasons[] = "Dibatasi hanya melihat departemen {$deptName}";
-        }
-        if (empty($p['can_manage_issues'])) {
-            $reasons[] = 'Tidak dapat mengedit/mengelola isu';
-        }
-        if (empty($p['can_delete_issues'])) {
-            $reasons[] = 'Tidak dapat menghapus isu';
-        }
-        if (empty($p['can_access_analytics'])) {
-            $reasons[] = 'Tidak dapat mengakses Analytics';
-        }
-        if (empty($p['can_access_calendar'])) {
-            $reasons[] = 'Tidak dapat mengakses Kalender Operasional';
-        }
-        if (empty($p['can_export_reports'])) {
-            $reasons[] = 'Tidak dapat mengunduh laporan';
-        }
-
-        return [
-            'has_restrictions' => count($reasons) > 0,
-            'reasons'          => $reasons,
-        ];
-    }
 
     /**
      * List users (Web view & API).
@@ -146,7 +106,6 @@ class UserController extends Controller
         }
 
         $users = $query->orderBy('name')->get()->map(function (User $user) {
-            $restrictionData = $this->analyzeRestrictions($user);
             return [
                 'id'               => $user->id,
                 'name'             => $user->name,
@@ -162,8 +121,6 @@ class UserController extends Controller
                 'is_active'        => (bool) ($user->is_active ?? true),
                 'rejection_reason' => $user->rejection_reason,
                 'permissions'      => $user->permissions ?? self::getDefaultPermissions($user->role),
-                'has_restrictions' => $restrictionData['has_restrictions'],
-                'barrier_reasons'  => $restrictionData['reasons'],
                 'avatar'           => $user->avatar,
                 'avatar_url'       => $user->avatar_url,
                 'is_archived'      => $user->trashed(),
@@ -184,12 +141,6 @@ class UserController extends Controller
             ')
             ->first();
 
-        $restrictedCount = User::query()
-            ->select('id', 'role', 'department', 'permissions')
-            ->get()
-            ->filter(fn($u) => $this->analyzeRestrictions($u)['has_restrictions'])
-            ->count();
-
         $stats = [
             'total_users'       => (int) ($aggregate->total_users ?? 0),
             'total_admins'      => (int) ($aggregate->total_admins ?? 0),
@@ -197,7 +148,6 @@ class UserController extends Controller
             'total_viewers'     => (int) ($aggregate->total_viewers ?? 0),
             'total_hod'         => (int) ($aggregate->total_hod ?? 0),
             'total_whatsapp'    => (int) ($aggregate->total_whatsapp ?? 0),
-            'total_restricted'  => $restrictedCount,
             'total_archived'    => User::onlyTrashed()->count(),
         ];
 
@@ -525,7 +475,6 @@ class UserController extends Controller
                 'role'        => $target->role,
             ];
 
-            $restrictionData = $this->analyzeRestrictions($target);
             $updatedUsersList[] = [
                 'id'               => $target->id,
                 'name'             => $target->name,
@@ -536,8 +485,6 @@ class UserController extends Controller
                 'subdivision'      => $target->subdivision,
                 'whatsapp_number'  => $target->whatsapp_number,
                 'permissions'      => $target->permissions,
-                'has_restrictions' => $restrictionData['has_restrictions'],
-                'barrier_reasons'  => $restrictionData['reasons'],
                 'avatar'           => $target->avatar,
                 'avatar_url'       => $target->avatar_url,
                 'is_archived'      => $target->trashed(),
