@@ -2456,15 +2456,18 @@ class IssueController extends Controller
 
     public function getBotStatus()
     {
-        try {
-            $response = \Illuminate\Support\Facades\Http::timeout(1.5)->get('http://127.0.0.1:3000/status');
-            if ($response->successful()) {
-                return response()->json($response->json());
+        $port = env('BOT_PORT', 3000);
+        foreach (["http://127.0.0.1:{$port}/status", "http://localhost:{$port}/status"] as $url) {
+            try {
+                $response = \Illuminate\Support\Facades\Http::timeout(2.0)->get($url);
+                if ($response->successful()) {
+                    return response()->json($response->json());
+                }
+            } catch (\Throwable $e) {
+                // Try next url
             }
-            return response()->json(['connected' => false, 'status' => 'disconnected'], 200);
-        } catch (\Throwable $e) {
-            return response()->json(['connected' => false, 'status' => 'offline', 'error' => $e->getMessage()], 200);
         }
+        return response()->json(['connected' => false, 'status' => 'offline'], 200);
     }
 
     public function markDuplicate(Request $request, $rowIndex)

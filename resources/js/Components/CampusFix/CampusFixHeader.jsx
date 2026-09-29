@@ -34,7 +34,12 @@ export function CampusFixHeader({ mode = 'dashboard', query, onQueryChange, onRe
         let isMounted = true;
         const checkStatus = async () => {
             try {
-                const res = await axios.get('/bot/status');
+                let res;
+                try {
+                    res = await axios.get('/api/bot/status');
+                } catch {
+                    res = await axios.get('/bot/status');
+                }
                 if (isMounted) setBotStatus(res.data);
             } catch (e) {
                 if (isMounted) setBotStatus({ connected: false });

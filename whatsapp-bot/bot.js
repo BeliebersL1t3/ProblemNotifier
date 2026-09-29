@@ -2948,8 +2948,8 @@ setInterval(async () => {
 }, 15000); // Check every 15 seconds
 
 const PORT = process.env.BOT_PORT || process.env.PORT || 3000;
-app.listen(PORT, '127.0.0.1', () => {
-    console.log(`Notification API listening on 127.0.0.1:${PORT}`);
+app.listen(PORT, () => {
+    console.log(`Notification API listening on port ${PORT}`);
 });
 
 startSock();

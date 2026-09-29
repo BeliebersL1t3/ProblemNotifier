@@ -83,7 +83,7 @@ export function ActivityDetailModal({ issue, onClose, onOpenCardModal, onEdit, o
         setDupError('');
         try {
             const rowId = issue.rowIndex ?? issue.id;
-            await axios.post(`/issues/${rowId}/mark-duplicate`, {
+            await axios.post(`/api/issues/${rowId}/mark-duplicate`, {
                 master_issue_id: masterIssueId.trim(),
                 note: dupNote.trim()
             });

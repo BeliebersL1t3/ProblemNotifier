@@ -92,6 +92,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/auth/google/callback', [GoogleAuthController::class, 'callback'])->name('google.callback');
     Route::post('/auth/google/disconnect', [GoogleAuthController::class, 'disconnect'])->name('google.disconnect');
     Route::get('/api/google/status', [GoogleAuthController::class, 'status'])->name('google.status');
+    Route::get('/bot/status', [IssueController::class, 'getBotStatus'])->name('bot.status');
 });
 
 // CampusFix API Endpoints
