@@ -15,6 +15,7 @@ import { MobileBottomNav } from '@/Components/CampusFix/MobileBottomNav';
 import { useAuth } from '@/hooks/useAuth';
 import { UserModal } from '@/Components/Users/UserModal';
 import { AuditLogDrawer } from '@/Components/Users/AuditLogDrawer';
+import { AuditTrailTab } from '@/Components/Users/AuditTrailTab';
 import { BatchPermissionsModal } from '@/Components/Users/BatchPermissionsModal';
 import { DEPARTMENTS, getDepartmentTheme } from '@/constants/departments';
 import SubdivisionTag from '@/Components/CampusFix/SubdivisionTag';
@@ -52,6 +53,7 @@ function UsersInner({ initialUsers, initialStats }) {
     const [isUserModalOpen, setIsUserModalOpen] = useState(false);
     const [selectedUser, setSelectedUser] = useState(null);
     const [isAuditDrawerOpen, setIsAuditDrawerOpen] = useState(false);
+    const [activeMainTab, setActiveMainTab] = useState('users'); // 'users' | 'audit'
 
     // Toast notification
     const [toastMessage, setToastMessage] = useState(null);
@@ -366,10 +368,14 @@ function UsersInner({ initialUsers, initialStats }) {
 
                             <button
                                 type="button"
-                                onClick={() => setIsAuditDrawerOpen(true)}
-                                className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold bg-[#1C1B0E] hover:bg-[#3B3929] text-[#E3D1AA] border border-[#3B3929] transition-all cursor-pointer shadow-sm"
+                                onClick={() => setActiveMainTab(activeMainTab === 'audit' ? 'users' : 'audit')}
+                                className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-sm ${
+                                    activeMainTab === 'audit'
+                                        ? 'bg-[#C9AA71] text-[#1C1B0E] border border-[#C9AA71]'
+                                        : 'bg-[#1C1B0E] hover:bg-[#3B3929] text-[#E3D1AA] border border-[#3B3929]'
+                                }`}
                             >
-                                <Activity className="h-4 w-4 text-[#C9AA71]" />
+                                <Activity className={`h-4 w-4 ${activeMainTab === 'audit' ? 'text-[#1C1B0E]' : 'text-[#C9AA71]'}`} />
                                 <span>{lang === 'id' ? 'Audit Trail' : 'Security Logs'}</span>
                             </button>
 
@@ -384,6 +390,49 @@ function UsersInner({ initialUsers, initialStats }) {
                         </div>
                     </div>
 
+                    {/* Primary Tab Navigation: Users Management vs Audit Trail & Spreadsheet */}
+                    <div className="flex items-center gap-2 border-b border-[#3B3929] pb-3 mb-6 overflow-x-auto no-scrollbar">
+                        <button
+                            type="button"
+                            onClick={() => setActiveMainTab('users')}
+                            className={`flex items-center gap-2.5 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer whitespace-nowrap ${
+                                activeMainTab === 'users'
+                                    ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-md shadow-[#C9AA71]/20 font-black'
+                                    : 'bg-[#2A281E] text-[#A19F8D] hover:text-[#FAFAFA] hover:bg-[#3B3929] border border-[#3B3929]'
+                            }`}
+                        >
+                            <UsersIcon className="h-4 w-4" />
+                            <span>{lang === 'id' ? 'Daftar Pengguna' : 'Users Directory'}</span>
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                                activeMainTab === 'users' ? 'bg-[#1C1B0E]/20 text-[#1C1B0E]' : 'bg-[#1C1B0E] text-[#C9AA71]'
+                            }`}>
+                                {stats.total_users ?? 0}
+                            </span>
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={() => setActiveMainTab('audit')}
+                            className={`flex items-center gap-2.5 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer whitespace-nowrap ${
+                                activeMainTab === 'audit'
+                                    ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-md shadow-[#C9AA71]/20 font-black'
+                                    : 'bg-[#2A281E] text-[#A19F8D] hover:text-[#FAFAFA] hover:bg-[#3B3929] border border-[#3B3929]'
+                            }`}
+                        >
+                            <Activity className={`h-4 w-4 ${activeMainTab === 'audit' ? 'text-[#1C1B0E]' : 'text-emerald-400'}`} />
+                            <span>{lang === 'id' ? 'Audit Trail & Spreadsheet' : 'Audit Trail & Sheets'}</span>
+                            <span className={`px-1.5 py-0.5 rounded text-[9px] font-black ${
+                                activeMainTab === 'audit'
+                                    ? 'bg-[#1C1B0E] text-emerald-300'
+                                    : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                            }`}>
+                                LIVE SYNC
+                            </span>
+                        </button>
+                    </div>
+
+                    {activeMainTab === 'users' ? (
+                        <>
                     {/* Quick Stats Grid - 6 Balanced Columns */}
                     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
                         <div className="rounded-xl border border-[#3B3929] bg-[#2A281E]/80 p-3.5 space-y-1">
@@ -1092,6 +1141,10 @@ function UsersInner({ initialUsers, initialStats }) {
                             </table>
                         </div>
                     </div>
+                        </>
+                    ) : (
+                        <AuditTrailTab />
+                    )}
                 </main>
             </div>
 

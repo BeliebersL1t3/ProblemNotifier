@@ -809,9 +809,11 @@ class UserController extends Controller
     {
         $this->ensureAdmin();
 
+        $limit = min((int) $request->input('limit', 100), 500);
+
         $logs = UserAuditLog::with(['admin', 'targetUser'])
             ->latest()
-            ->take(50)
+            ->take($limit)
             ->get();
 
         $auditSheet = app(\App\Services\AuditSheetService::class);
@@ -819,6 +821,7 @@ class UserController extends Controller
         return response()->json([
             'success'         => true,
             'data'            => $logs,
+            'total_count'     => UserAuditLog::count(),
             'spreadsheet_url' => $auditSheet->getSpreadsheetUrl(),
             'spreadsheet_id'  => $auditSheet->getSpreadsheetId(),
         ]);
