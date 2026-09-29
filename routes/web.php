@@ -151,6 +151,7 @@ Route::prefix('api')->group(function () {
         Route::post('/users/{id}/reset-password', [UserController::class, 'resetPassword']);
         Route::post('/users/{id}/toggle-hod', [UserController::class, 'toggleHod']);
         Route::get('/user-audit-logs', [UserController::class, 'auditLogs']);
+        Route::post('/user-audit-logs/sync-sheet', [UserController::class, 'syncAuditSheet']);
     });
 });
 

@@ -5,7 +5,7 @@ import {
     Users as UsersIcon, Plus, Search, Shield, ShieldCheck, ShieldAlert, 
     KeyRound, Building2, Phone, CheckCircle2, AlertCircle, Edit, Trash2, 
     RefreshCw, RotateCcw, Activity, Eye, Filter, Lock, ArrowLeft,
-    Check, CheckSquare, Square, MinusSquare
+    Check, CheckSquare, Square, MinusSquare, FileSpreadsheet
 } from 'lucide-react';
 
 import { IssuesProvider } from '@/context/IssuesContext';
@@ -352,6 +352,18 @@ function UsersInner({ initialUsers, initialStats }) {
 
                         {/* Top Action Buttons */}
                         <div className="flex items-center gap-2.5 flex-wrap w-full sm:w-auto">
+                            {/* Google Spreadsheet Audit Link */}
+                            <a
+                                href="https://docs.google.com/spreadsheets/d/11FJllelJdd37tR9dUnCawgU1iycm6bQOLMgHM2t-z84/edit?usp=sharing"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold bg-[#1C1B0E] hover:bg-emerald-950/40 text-emerald-400 border border-emerald-500/30 hover:border-emerald-500/60 transition-all cursor-pointer shadow-sm"
+                                title="Buka Google Spreadsheet Riwayat Audit Keamanan"
+                            >
+                                <FileSpreadsheet className="h-4 w-4 text-emerald-400" />
+                                <span>{lang === 'id' ? 'Spreadsheet Audit' : 'Audit Sheet'}</span>
+                            </a>
+
                             <button
                                 type="button"
                                 onClick={() => setIsAuditDrawerOpen(true)}

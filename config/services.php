@@ -40,6 +40,7 @@ return [
         'spreadsheet_id'          => env('GOOGLE_SPREADSHEET_ID'),
         'ops_spreadsheet_id'      => env('GOOGLE_OPS_SPREADSHEET_ID'),
         'tickets_spreadsheet_id'  => env('GOOGLE_TICKETS_SPREADSHEET_ID'),
+        'audit_spreadsheet_id'    => env('GOOGLE_AUDIT_SPREADSHEET_ID', '11FJllelJdd37tR9dUnCawgU1iycm6bQOLMgHM2t-z84'),
         'calendar_id'             => env('GOOGLE_CALENDAR_ID'),
         'client_id'               => env('GOOGLE_CLIENT_ID'),
         'client_secret'           => env('GOOGLE_CLIENT_SECRET'),

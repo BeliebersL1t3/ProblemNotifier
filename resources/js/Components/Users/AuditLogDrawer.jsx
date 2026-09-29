@@ -1,12 +1,15 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { X, Shield, Clock, User, AlertCircle, RefreshCw, ChevronDown, ChevronRight, Activity } from 'lucide-react';
+import { X, Shield, Clock, User, AlertCircle, RefreshCw, ChevronDown, ChevronRight, Activity, FileSpreadsheet, ExternalLink, CheckCircle2 } from 'lucide-react';
 import { AuditDiffViewer, extractDifferences } from './AuditDiffViewer';
 
 export function AuditLogDrawer({ isOpen, onClose }) {
     const [logs, setLogs] = useState([]);
     const [loading, setLoading] = useState(false);
     const [expandedId, setExpandedId] = useState(null);
+    const [spreadsheetUrl, setSpreadsheetUrl] = useState('https://docs.google.com/spreadsheets/d/11FJllelJdd37tR9dUnCawgU1iycm6bQOLMgHM2t-z84/edit?usp=sharing');
+    const [syncingSheet, setSyncingSheet] = useState(false);
+    const [syncFeedback, setSyncFeedback] = useState(null);
 
     const fetchLogs = async () => {
         setLoading(true);
@@ -15,11 +18,36 @@ export function AuditLogDrawer({ isOpen, onClose }) {
             const data = res.data;
             if (data.success) {
                 setLogs(data.data || []);
+                if (data.spreadsheet_url) {
+                    setSpreadsheetUrl(data.spreadsheet_url);
+                }
             }
         } catch (e) {
             console.error('Failed to fetch audit logs:', e);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleSyncSheet = async () => {
+        setSyncingSheet(true);
+        setSyncFeedback(null);
+        try {
+            const res = await axios.post('/api/user-audit-logs/sync-sheet');
+            if (res.data?.success) {
+                setSyncFeedback({ success: true, message: res.data.message || 'Berhasil menyinkronkan data ke Google Spreadsheet.' });
+                if (res.data.spreadsheet_url) {
+                    setSpreadsheetUrl(res.data.spreadsheet_url);
+                }
+                fetchLogs();
+            } else {
+                setSyncFeedback({ success: false, message: res.data?.message || 'Gagal menyinkronkan data' });
+            }
+        } catch (e) {
+            setSyncFeedback({ success: false, message: e.response?.data?.message || 'Terjadi kesalahan sistem saat sinkronisasi' });
+        } finally {
+            setSyncingSheet(false);
+            setTimeout(() => setSyncFeedback(null), 5000);
         }
     };
 
@@ -134,7 +162,63 @@ export function AuditLogDrawer({ isOpen, onClose }) {
                 </div>
 
                 {/* Body */}
-                <div className="flex-1 overflow-y-auto p-6 space-y-3">
+                <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-4">
+                    {/* Google Spreadsheet Sync Banner */}
+                    <div className="p-3.5 rounded-2xl bg-gradient-to-r from-emerald-950/40 via-[#1C1B0E] to-[#2A281E] border border-emerald-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs shadow-md">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="p-2.5 rounded-xl bg-emerald-500/20 text-emerald-400 shrink-0 border border-emerald-500/30">
+                                <FileSpreadsheet className="h-5 w-5" />
+                            </div>
+                            <div className="min-w-0">
+                                <div className="font-extrabold text-sm text-[#FAFAFA] flex items-center gap-2">
+                                    <span>Google Spreadsheet Audit</span>
+                                    <span className="px-1.5 py-0.2 rounded text-[9px] font-black bg-emerald-500/30 text-emerald-300 border border-emerald-500/40">
+                                        LIVE SYNC
+                                    </span>
+                                </div>
+                                <p className="text-[11px] text-[#A19F8D] mt-0.5">
+                                    Log tersinkronisasi otomatis ke cloud spreadsheet
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                            <button
+                                type="button"
+                                onClick={handleSyncSheet}
+                                disabled={syncingSheet}
+                                className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-[#1C1B0E] hover:bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 transition-all cursor-pointer disabled:opacity-50"
+                                title="Sinkronkan seluruh data log ke Spreadsheet sekarang"
+                            >
+                                <RefreshCw className={`h-3.5 w-3.5 ${syncingSheet ? 'animate-spin' : ''}`} />
+                                <span>{syncingSheet ? 'Menyinkronkan...' : 'Sync ke Sheet'}</span>
+                            </button>
+
+                            <a
+                                href={spreadsheetUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-extrabold bg-emerald-600 hover:bg-emerald-500 text-white shadow-md hover:shadow-lg transition-all"
+                                title="Buka Spreadsheet di Tab Baru"
+                            >
+                                <ExternalLink className="h-3.5 w-3.5" />
+                                <span>Buka Sheet</span>
+                            </a>
+                        </div>
+                    </div>
+
+                    {/* Feedback Alert */}
+                    {syncFeedback && (
+                        <div className={`p-3 rounded-xl border text-xs font-bold flex items-center gap-2 animate-in fade-in duration-200 ${
+                            syncFeedback.success 
+                                ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-200' 
+                                : 'bg-red-500/20 border-red-500/40 text-red-200'
+                        }`}>
+                            {syncFeedback.success ? <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" /> : <AlertCircle className="h-4 w-4 text-red-400 shrink-0" />}
+                            <span>{syncFeedback.message}</span>
+                        </div>
+                    )}
+
                     {loading && logs.length === 0 ? (
                         <div className="flex flex-col items-center justify-center py-20 text-[#A19F8D]">
                             <RefreshCw className="h-6 w-6 animate-spin text-[#C9AA71] mb-2" />

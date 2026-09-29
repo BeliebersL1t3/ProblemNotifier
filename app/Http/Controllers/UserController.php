@@ -814,10 +814,40 @@ class UserController extends Controller
             ->take(50)
             ->get();
 
+        $auditSheet = app(\App\Services\AuditSheetService::class);
+
         return response()->json([
-            'success' => true,
-            'data'    => $logs,
+            'success'         => true,
+            'data'            => $logs,
+            'spreadsheet_url' => $auditSheet->getSpreadsheetUrl(),
+            'spreadsheet_id'  => $auditSheet->getSpreadsheetId(),
         ]);
+    }
+
+    /**
+     * Full sync of all audit logs to Google Spreadsheet.
+     */
+    public function syncAuditSheet(Request $request)
+    {
+        $this->ensureAdmin();
+
+        try {
+            $service = app(\App\Services\AuditSheetService::class);
+            $result = $service->syncAllLogs();
+
+            return response()->json([
+                'success'         => true,
+                'count'           => $result['count'] ?? 0,
+                'spreadsheet_url' => $result['sheet_url'] ?? $service->getSpreadsheetUrl(),
+                'message'         => $result['message'] ?? 'Berhasil menyinkronkan data ke Google Spreadsheet.',
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('UserController@syncAuditSheet failed: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal menyinkronkan ke Google Spreadsheet: ' . $e->getMessage(),
+            ], 500);
+        }
     }
 
     /**

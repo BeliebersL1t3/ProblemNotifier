@@ -50,7 +50,7 @@ class UserAuditLog extends Model
         ?string $customTargetName = null
     ): self {
         $targetName = $customTargetName ?? ($targetUser?->staff_name ?: ($targetUser?->name ?: ($targetUser ? 'User #' . $targetUser->id : 'Multi Akun')));
-        return self::create([
+        $log = self::create([
             'admin_id'         => $admin?->id,
             'admin_name'       => $admin?->staff_name ?: ($admin?->name ?: 'System'),
             'target_user_id'   => $targetUser?->id,
@@ -60,5 +60,13 @@ class UserAuditLog extends Model
             'ip_address'       => $ipAddress ?? request()?->ip(),
             'user_agent'       => $userAgent ?? request()?->userAgent(),
         ]);
+
+        try {
+            app(\App\Services\AuditSheetService::class)->appendLog($log);
+        } catch (\Throwable $e) {
+            // Silently handled without interrupting main transaction
+        }
+
+        return $log;
     }
 }
