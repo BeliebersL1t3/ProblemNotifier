@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { Plus, Search, CalendarPlus, BarChart3, LayoutDashboard, Calendar, User, X, Ticket, Globe, MessageSquare } from 'lucide-react';
 import { Button } from '@/Components/UI/Button';
@@ -29,29 +29,26 @@ export function CampusFixHeader({ mode = 'dashboard', query, onQueryChange, onRe
     const mobileSearchContainerRef = useRef(null);
     const mobileInputRef = useRef(null);
 
+    const checkBotStatus = useCallback(async () => {
+        try {
+            let res;
+            try {
+                res = await axios.get('/api/bot/status');
+            } catch {
+                res = await axios.get('/bot/status');
+            }
+            setBotStatus(res.data);
+        } catch {
+            setBotStatus({ connected: false });
+        }
+    }, []);
+
     useEffect(() => {
         if (!isAdmin) return;
-        let isMounted = true;
-        const checkStatus = async () => {
-            try {
-                let res;
-                try {
-                    res = await axios.get('/api/bot/status');
-                } catch {
-                    res = await axios.get('/bot/status');
-                }
-                if (isMounted) setBotStatus(res.data);
-            } catch (e) {
-                if (isMounted) setBotStatus({ connected: false });
-            }
-        };
-        checkStatus();
-        const interval = setInterval(checkStatus, 30000);
-        return () => {
-            isMounted = false;
-            clearInterval(interval);
-        };
-    }, [isAdmin]);
+        checkBotStatus();
+        const interval = setInterval(checkBotStatus, 30000);
+        return () => clearInterval(interval);
+    }, [isAdmin, checkBotStatus]);
 
     const openMobileSearch = () => {
         setMobileSearchOpen(true);
@@ -473,14 +470,15 @@ export function CampusFixHeader({ mode = 'dashboard', query, onQueryChange, onRe
                     {/* WhatsApp Bot Status Indicator (Admins only) */}
                     {isAdmin && botStatus !== null && (
                         <div 
+                            onClick={checkBotStatus}
                             className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[10px] font-bold border transition-all cursor-pointer select-none ${
                                 botStatus?.connected 
-                                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400' 
-                                    : 'bg-red-500/10 border-red-500/30 text-red-600 dark:text-red-400 animate-pulse'
+                                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20' 
+                                    : 'bg-red-500/10 border-red-500/30 text-red-600 dark:text-red-400 animate-pulse hover:bg-red-500/20'
                             }`}
                             title={botStatus?.connected 
-                                ? `WhatsApp Bot Online (${botStatus.phone ? '+' + botStatus.phone : 'Connected'})` 
-                                : 'WhatsApp Bot Terputus / Offline (Perlu Scan QR di Terminal)'}
+                                ? `WhatsApp Bot Online (${botStatus.phone ? '+' + botStatus.phone : 'Connected'}) - Klik untuk cek ulang` 
+                                : 'WhatsApp Bot Terputus / Offline - Klik untuk cek ulang'}
                         >
                             <span className={`w-2 h-2 rounded-full ${botStatus?.connected ? 'bg-emerald-500' : 'bg-red-500'}`} />
                             <MessageSquare className="w-3 h-3 text-[#25D366]" />
