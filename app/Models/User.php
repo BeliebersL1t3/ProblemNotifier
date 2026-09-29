@@ -65,6 +65,7 @@ class User extends Authenticatable
     {
         static::saved(function ($user) {
             \Illuminate\Support\Facades\Cache::forget('active_staff_roster');
+            \Illuminate\Support\Facades\Cache::forget('archived_staff_names');
 
             // Automatically grant Google Calendar access to active, non-dummy users
             if (
@@ -83,9 +84,11 @@ class User extends Authenticatable
         });
         static::deleted(function () {
             \Illuminate\Support\Facades\Cache::forget('active_staff_roster');
+            \Illuminate\Support\Facades\Cache::forget('archived_staff_names');
         });
         static::restored(function () {
             \Illuminate\Support\Facades\Cache::forget('active_staff_roster');
+            \Illuminate\Support\Facades\Cache::forget('archived_staff_names');
         });
     }
 

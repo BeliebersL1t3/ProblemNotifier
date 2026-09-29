@@ -166,7 +166,7 @@ class AuditSheetService
             $log->admin_name ?: ($log->admin?->staff_name ?: ($log->admin?->name ?: 'System')),
             $log->target_user_name ?: ($log->targetUser?->staff_name ?: ($log->targetUser?->name ?: 'Multi Akun')),
             self::formatChangesSummary($log->changes),
-            $log->ip_address ?: '-',
+            ($log->ip_address === '::1' ? '127.0.0.1' : ($log->ip_address ?: '-')),
         ];
     }
 

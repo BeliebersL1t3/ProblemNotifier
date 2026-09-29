@@ -49,17 +49,19 @@ class UserAuditLog extends Model
         ?string $userAgent = null,
         ?string $customTargetName = null
     ): self {
-        $targetName = $customTargetName ?? ($targetUser?->staff_name ?: ($targetUser?->name ?: ($targetUser ? 'User #' . $targetUser->id : 'Multi Akun')));
-        $log = self::create([
-            'admin_id'         => $admin?->id,
-            'admin_name'       => $admin?->staff_name ?: ($admin?->name ?: 'System'),
-            'target_user_id'   => $targetUser?->id,
-            'target_user_name' => $targetName,
-            'action'           => $action,
-            'changes'          => $changes,
-            'ip_address'       => $ipAddress ?? request()?->ip(),
-            'user_agent'       => $userAgent ?? request()?->userAgent(),
-        ]);
+            $rawIp = $ipAddress ?? request()?->ip();
+            $normalizedIp = ($rawIp === '::1') ? '127.0.0.1' : $rawIp;
+
+            $log = self::create([
+                'admin_id'         => $admin?->id,
+                'admin_name'       => $admin?->staff_name ?: ($admin?->name ?: 'System'),
+                'target_user_id'   => $targetUser?->id,
+                'target_user_name' => $targetName,
+                'action'           => $action,
+                'changes'          => $changes,
+                'ip_address'       => $normalizedIp,
+                'user_agent'       => $userAgent ?? request()?->userAgent(),
+            ]);
 
         try {
             app(\App\Services\AuditSheetService::class)->appendLog($log);

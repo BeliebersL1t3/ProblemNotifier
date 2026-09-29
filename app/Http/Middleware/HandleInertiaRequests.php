@@ -55,6 +55,23 @@ class HandleInertiaRequests extends Middleware
                         ->toArray();
                 });
             },
+            'archived_staff_names' => function () use ($request) {
+                if (!$request->user()) {
+                    return [];
+                }
+                return \Illuminate\Support\Facades\Cache::remember('archived_staff_names', 120, function () {
+                    return \App\Models\User::onlyTrashed()
+                        ->select('name', 'staff_name')
+                        ->get()
+                        ->flatMap(function ($u) {
+                            return [trim($u->name), trim($u->staff_name)];
+                        })
+                        ->filter()
+                        ->unique()
+                        ->values()
+                        ->all();
+                });
+            },
             'tickets_sheet_url' => config('services.google.tickets_spreadsheet_id')
                 ? 'https://docs.google.com/spreadsheets/d/' . config('services.google.tickets_spreadsheet_id') . '/edit?usp=sharing'
                 : null,

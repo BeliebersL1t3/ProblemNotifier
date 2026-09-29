@@ -1,5 +1,5 @@
 import { usePage } from '@inertiajs/react';
-import { setDynamicStaffRoster } from '@/constants/staff';
+import { setDynamicStaffRoster, setArchivedStaffNames } from '@/constants/staff';
 
 /**
  * useAuth — Access the authenticated user and role helpers.
@@ -12,15 +12,19 @@ import { setDynamicStaffRoster } from '@/constants/staff';
  *   subdivision  — sub-unit e.g. 'Legal', 'Bar' (null for standalone depts)
  *   staffName    — display name e.g. 'Hendro Legal'
  *   activeStaffRoster — map of active department staff from database
+ *   archivedStaffNames — list of soft-deleted staff names
  */
 export function useAuth() {
-    const { auth, active_staff_roster } = usePage().props;
+    const { auth, active_staff_roster, archived_staff_names } = usePage().props;
     const user = auth?.user ?? null;
     const isAdmin = user?.role === 'admin';
     const permissions = user?.permissions ?? {};
 
     if (active_staff_roster) {
         setDynamicStaffRoster(active_staff_roster);
+    }
+    if (archived_staff_names) {
+        setArchivedStaffNames(archived_staff_names);
     }
 
     const hasPermission = (key, defaultVal = true) => {
