@@ -542,10 +542,6 @@ function DashboardInner() {
             return matchesQuery && matchesCategory && matchesStatus && matchesDept;
         });
 
-        if (showArchiveTab) {
-            return filtered.sort((a, b) => (b.reportedAt || 0) - (a.reportedAt || 0));
-        }
-
         // Sort active critical issues to the top
         return filtered.sort((a, b) => {
             const aIsCriticalActive = a.priority === 'critical' && a.status !== 'solved';
