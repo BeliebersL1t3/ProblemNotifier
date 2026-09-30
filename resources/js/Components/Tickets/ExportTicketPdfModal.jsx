@@ -148,8 +148,8 @@ export function ExportTicketPdfModal({ open, onOpenChange, currentUser }) {
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(8);
         doc.setTextColor(100, 100, 100);
-        doc.text('PT. Telunas Resort Indonesia', 10, 56);
-        doc.text('Pulau Sugi, Sugie, Kec. Moro, Kabupaten Karimun, Kepulauan Riau 29663', 10, 60);
+        doc.text('PT Island Connections International - Telunas Resorts', 10, 56);
+        doc.text('Ruko Imperium Superblok Blok B No 35&36, Jl. Sudirman, Taman Baloi, Batam Kota, Batam City, Riau Islands 29432', 10, 60);
         doc.text('Telunas Resorts — Approval & Staff Request Ticketing Report', 10, 64);
 
         // Document Title

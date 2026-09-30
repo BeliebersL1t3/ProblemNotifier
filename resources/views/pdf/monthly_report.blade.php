@@ -148,7 +148,7 @@
                     <strong style="font-size: 13pt; color: #C9AA71;">TELUNAS RESORTS</strong>
                 @endif
                 <div style="font-size: 7pt; color: #78716C; margin-top: 2px;">
-                    PT. Telunas Resort Indonesia &bull; Pulau Sugi, Kepulauan Riau
+                    PT Island Connections International - Telunas Resorts &bull; Ruko Imperium Superblok Blok B No 35&36, Jl. Sudirman, Taman Baloi, Batam Kota, Batam City, Riau Islands 29432
                 </div>
             </td>
             <td class="title-block" style="width: 55%; vertical-align: middle;">

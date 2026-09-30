@@ -423,8 +423,8 @@ export function ExportPdfModal({ open, onOpenChange }) {
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(8);
         doc.setTextColor(100, 100, 100);
-        doc.text('PT. Telunas Resort Indonesia', 10, 60);
-        doc.text('Pulau Sugi, Sugie, Kec. Moro, Kabupaten Karimun, Kepulauan Riau 29663', 10, 64);
+        doc.text('PT Island Connections International - Telunas Resorts', 10, 60);
+        doc.text('Ruko Imperium Superblok Blok B No 35&36, Jl. Sudirman, Taman Baloi, Batam Kota, Batam City, Riau Islands 29432', 10, 64);
         doc.text('Telunas Resorts Issue Tracking & Resolution Report', 10, 68);
 
         // Document Title
@@ -447,7 +447,18 @@ export function ExportPdfModal({ open, onOpenChange }) {
                 d = new Date(val);
             }
             if (isNaN(d.getTime())) return String(val);
-            return d.toLocaleString('en-GB', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).replace(',', '');
+
+            const dateStr = d.toLocaleDateString('en-GB', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric'
+            });
+            const timeStr = d.toLocaleTimeString('en-GB', {
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: false
+            });
+            return `${dateStr}\n${timeStr} WIB`;
         };
 
         const cleanDuration = (val) => {
@@ -513,9 +524,12 @@ export function ExportPdfModal({ open, onOpenChange }) {
             }
 
             let solvedCell = '-';
-            if (i.status === 'solved' || i.solvedAt) {
+            if (i.solvedAt) {
                 const solverName = i.solver ? `\n${i.solver.split(' ')[0]}` : '';
                 solvedCell = `${formatDateTime(i.solvedAt)}${solverName}`;
+            } else if (i.status === 'solved') {
+                const solverName = i.solver ? `\n${i.solver.split(' ')[0]}` : '';
+                solvedCell = `[SOLVED]${solverName}`;
             }
 
             let statusCell = (i.status || 'OPEN').toUpperCase();
@@ -635,14 +649,14 @@ export function ExportPdfModal({ open, onOpenChange }) {
                 fillColor: [250, 248, 242] 
             },
             columnStyles: {
-                0: { cellWidth: 22 }, // ID
-                1: { cellWidth: 20 }, // Submitted
-                2: { cellWidth: 18 }, // Taken
-                3: { cellWidth: 18 }, // Solved
+                0: { cellWidth: 20 }, // ID
+                1: { cellWidth: 21 }, // Submitted (DD/MM/YYYY \n HH:mm WIB)
+                2: { cellWidth: 20 }, // Taken (DD/MM/YYYY \n HH:mm WIB \n Name)
+                3: { cellWidth: 20 }, // Solved (DD/MM/YYYY \n HH:mm WIB \n Name)
                 4: { cellWidth: 16 }, // Duration
-                5: { cellWidth: 40 }, // Problem
+                5: { cellWidth: 38 }, // Problem
                 6: { cellWidth: 20 }, // Location
-                7: { cellWidth: 32 }, // Dept / Tags
+                7: { cellWidth: 31 }, // Dept / Tags
                 8: { cellWidth: 20 }, // Category
                 9: { cellWidth: 22 }, // Reporter
                 10: { cellWidth: 22, fontStyle: 'bold' }, // Status

@@ -471,8 +471,8 @@ export function ExportCalendarPdfModal({ open, onOpenChange, tasks = [] }) {
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(8.5);
         doc.setTextColor(90, 90, 90);
-        doc.text('PT. Telunas Resort Indonesia', marginX, 47);
-        doc.text('Pulau Sugi, Sugie, Kec. Moro, Kabupaten Karimun, Kepulauan Riau 29663', marginX, 51);
+        doc.text('PT Island Connections International - Telunas Resorts', marginX, 47);
+        doc.text('Ruko Imperium Superblok Blok B No 35&36, Jl. Sudirman, Taman Baloi, Batam Kota, Batam City, Riau Islands 29432', marginX, 51);
 
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(10.5);
