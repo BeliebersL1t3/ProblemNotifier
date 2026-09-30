@@ -422,7 +422,7 @@ export async function generateExcelReport(issues = [], options = {}) {
             id: (issue.id || '').replace(/^TEL-/, 'TEL-'),
             reportedAt: formatDateTime(issue.reportedAt),
             location: issue.location || '-',
-            title: issue.title || issue.description || '-',
+            title: (issue.isConfidential ? '[RAHASIA] ' : '') + (issue.title || issue.description || '-'),
             category: catLabel,
             department: assignedDept,
             tags: tags,

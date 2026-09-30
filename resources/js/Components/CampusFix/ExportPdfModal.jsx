@@ -236,6 +236,16 @@ export function ExportPdfModal({ open, onOpenChange }) {
         const counts = {};
         DEPARTMENTS.forEach(d => { counts[d] = 0; });
         allIssues.forEach(i => {
+            // Protection: Hide confidential issues from unrelated non-admin users
+            if (i.isConfidential && !isAdmin) {
+                const origin = normalizeDepartment(i.department || '');
+                const assigned = (Array.isArray(i.assignedDepartments) ? i.assignedDepartments : [i.assignedDepartments]).map(normalizeDepartment);
+                const tagged = (Array.isArray(i.taggedDepartments) ? i.taggedDepartments : [i.taggedDepartments]).map(normalizeDepartment);
+                const isReporter = auth?.user?.name && i.reporter && i.reporter.toLowerCase().includes(auth.user.name.toLowerCase());
+                const isRelated = userDept && (userDept === origin || assigned.includes(userDept) || tagged.includes(userDept)) || isReporter;
+                if (!isRelated) return;
+            }
+
             const assigned = Array.isArray(i.assignedDepartments) ? i.assignedDepartments : [i.assignedDepartments];
             const tagged = Array.isArray(i.taggedDepartments) ? i.taggedDepartments : [i.taggedDepartments];
             const origin = i.department;
@@ -251,7 +261,7 @@ export function ExportPdfModal({ open, onOpenChange }) {
             });
         });
         return counts;
-    }, [selectedSheets, downloadedIssues]);
+    }, [selectedSheets, downloadedIssues, isAdmin, userDept, auth?.user?.name]);
 
     const handleDepartmentToggle = (dept) => {
         setSelectedDepartments(prev => 
@@ -297,7 +307,17 @@ export function ExportPdfModal({ open, onOpenChange }) {
                 if (!selectedStatuses.includes(sMap[issue.status])) return false;
             }
             if (selectedCategories.length > 0 && issue.category && !selectedCategories.includes(issue.category)) return false;
-            
+
+            // Protection: Hide confidential issues from unrelated non-admin users in exports
+            if (issue.isConfidential && !isAdmin) {
+                const origin = normalizeDepartment(issue.department || '');
+                const assigned = (Array.isArray(issue.assignedDepartments) ? issue.assignedDepartments : [issue.assignedDepartments]).map(normalizeDepartment);
+                const tagged = (Array.isArray(issue.taggedDepartments) ? issue.taggedDepartments : [issue.taggedDepartments]).map(normalizeDepartment);
+                const isReporter = auth?.user?.name && issue.reporter && issue.reporter.toLowerCase().includes(auth.user.name.toLowerCase());
+                const isRelated = userDept && (userDept === origin || assigned.includes(userDept) || tagged.includes(userDept)) || isReporter;
+                if (!isRelated) return false;
+            }
+
             // Department Scope Filtering
             if (deptFilterMode === 'my_scope' && userDept) {
                 const isRelated = normalizeDepartment(issue.department) === userDept ||
@@ -336,7 +356,7 @@ export function ExportPdfModal({ open, onOpenChange }) {
         }
 
         return filtered;
-    }, [selectedSheets, downloadedIssues, isAdmin, includeArchived, archivedIssues, currentSheet, selectedStatuses, selectedCategories, deptFilterMode, userDept, selectedDepartments, limit]);
+    }, [selectedSheets, downloadedIssues, isAdmin, includeArchived, archivedIssues, currentSheet, selectedStatuses, selectedCategories, deptFilterMode, userDept, auth?.user?.name, selectedDepartments, limit]);
 
     const filteredIssuesCount = filteredIssues.length;
 
@@ -514,7 +534,7 @@ export function ExportPdfModal({ open, onOpenChange }) {
                 takenCell,
                 solvedCell,
                 cleanDuration(i.durationLabel),
-                sanitizePdfText(i.title),
+                sanitizePdfText((i.isConfidential ? '[RAHASIA] ' : '') + (i.title || '')),
                 sanitizePdfText(i.location),
                 combinedDeptTags,
                 sanitizePdfText(categories.find(c => c.id === i.category)?.label || i.category),
