@@ -24,6 +24,7 @@ import { ScrollToTop } from '@/Components/CampusFix/ScrollToTop';
 const ExportPdfModal = lazy(() => import('@/Components/CampusFix/ExportPdfModal').then(m => ({ default: m.ExportPdfModal })));
 import { MonthlyReportScheduleModal } from '@/Components/CampusFix/MonthlyReportScheduleModal';
 import { ActivityDetailModal } from '@/Components/CampusFix/ActivityDetailModal';
+import { EditDescriptionModal } from '@/Components/CampusFix/EditDescriptionModal';
 import { TakeJobModal } from '@/Components/CampusFix/TakeJobModal';
 import { ResolveIssueSheet } from '@/Components/CampusFix/ResolveIssueSheet';
 import { SolvedDetailModal } from '@/Components/CampusFix/SolvedDetailModal';
@@ -411,6 +412,7 @@ function AnalyticsInner() {
     const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
     const [selectedActivityIssue, setSelectedActivityIssue] = useState(null);
     const [cardModalTarget, setCardModalTarget] = useState(null);
+    const [editTarget, setEditTarget] = useState(null);
 
     const handleOpenIssueCard = (issue) => {
         setCardModalTarget(issue);
@@ -952,7 +954,7 @@ function AnalyticsInner() {
                         originalIssue: issue
                     });
                 });
-            } else if (issue.status === 'pending' && issue.pendingBy) {
+            } else if (issue.status === 'pending') {
                 const pendingPerson = issue.pendingBy || 'Unknown';
                 if (!recordedClaimPersons.has(pendingPerson)) {
                     recordedClaimPersons.add(pendingPerson);
@@ -994,7 +996,7 @@ function AnalyticsInner() {
             }
             
             // 5. Fallback Solved Event (only if not already logged)
-            if (issue.status === 'solved' && (issue.solvedAt || issue.solver)) {
+            if (issue.status === 'solved') {
                 const hasLoggedSolve = issueEvents.some(ev => ev.type === 'solve');
                 if (!hasLoggedSolve) {
                     const sDate = issue.solvedAt ? new Date(issue.solvedAt).getTime() : (rawTime + 3600000);
@@ -1114,10 +1116,22 @@ function AnalyticsInner() {
                 if (isEmergencySelected && isEmergencyIssue) matchesSpecial = true;
 
                 let matchesStatus = false;
-                if (selectedStatuses.length > 0 && (isCriticalSelected || isEmergencySelected)) {
-                    matchesStatus = selectedStatuses.includes(currentStatus) || matchesSpecial;
-                } else if (selectedStatuses.length > 0) {
-                    matchesStatus = selectedStatuses.includes(currentStatus);
+                if (selectedStatuses.length > 0) {
+                    const statusToAllowedEventTypes = {
+                        solved: ['solve'],
+                        pending: ['pending'],
+                        progress: ['claim'],
+                        open: ['create']
+                    };
+                    const isStatusMatch = selectedStatuses.includes(currentStatus);
+                    const allowedTypes = statusToAllowedEventTypes[currentStatus] || [];
+                    const isEventMatch = allowedTypes.includes(ev.type) || (ev.type === 'revert' && String(ev.statusChange || '').toLowerCase().includes(currentStatus));
+
+                    if (isCriticalSelected || isEmergencySelected) {
+                        matchesStatus = (isStatusMatch && isEventMatch) || matchesSpecial;
+                    } else {
+                        matchesStatus = isStatusMatch && isEventMatch;
+                    }
                 } else {
                     matchesStatus = matchesSpecial;
                 }
@@ -2812,7 +2826,27 @@ function AnalyticsInner() {
                 issue={selectedActivityIssue} 
                 onClose={() => setSelectedActivityIssue(null)} 
                 onOpenCardModal={selectedActivityIssue?._isPastContribution ? undefined : (issue) => setCardModalTarget(issue)}
+                onEdit={isAdmin ? (issue) => setEditTarget(issue) : undefined}
             />
+
+            {editTarget && (
+                <EditDescriptionModal
+                    issue={editTarget}
+                    open={!!editTarget}
+                    onOpenChange={(open) => {
+                        if (!open) setEditTarget(null);
+                    }}
+                    onSuccess={(updatedIssue) => {
+                        setSelectedActivityIssue(prev => {
+                            if (prev && String(prev.id) === String(updatedIssue.id)) {
+                                return { ...prev, ...updatedIssue };
+                            }
+                            return prev;
+                        });
+                        fetchIssues();
+                    }}
+                />
+            )}
 
             {cardModalTarget?.status === 'open' && (
                 <TakeJobModal 

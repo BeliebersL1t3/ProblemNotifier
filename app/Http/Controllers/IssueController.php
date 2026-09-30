@@ -217,6 +217,53 @@ class IssueController extends Controller
         return $trimmed;
     }
 
+    private function computeDescriptionHistory(array $versions, bool $isAdmin): array
+    {
+        $descriptionHistory = [];
+        $seenDescriptions = [];
+
+        foreach ($versions as $vItem) {
+            $vRow = $vItem['row'] ?? $vItem;
+            $desc = trim($vRow[2] ?? '');
+            if (empty($desc) || $desc === 'undefined') {
+                continue;
+            }
+
+            if (empty($seenDescriptions) || end($seenDescriptions) !== $desc) {
+                $seenDescriptions[] = $desc;
+                $note = trim($vRow[24] ?? '');
+                $date = trim($vRow[7] ?? '');
+                $editor = $vRow[6] ?? 'Pelapor';
+
+                if (count($seenDescriptions) > 1) {
+                    if (preg_match('/^\[(.*?)\]\s*([^:]+):/s', $note, $m)) {
+                        $date = trim($m[1]);
+                        $editor = trim($m[2]);
+                    } else if (!empty($note)) {
+                        $editor = 'Admin';
+                    }
+                }
+
+                $descriptionHistory[] = [
+                    'version'     => count($seenDescriptions),
+                    'description' => $desc,
+                    'editedAt'    => $date ?: null,
+                    'by'          => $editor,
+                    'isOriginal'  => (count($seenDescriptions) === 1),
+                ];
+            }
+        }
+
+        $editCount = max(0, count($descriptionHistory) - 1);
+        $canEditDescription = ($editCount < 2 && $isAdmin);
+
+        return [
+            'history'            => $descriptionHistory,
+            'editCount'          => $editCount,
+            'canEditDescription' => $canEditDescription,
+        ];
+    }
+
     private function normalizeDeptKey(?string $dept): string
     {
         if (empty($dept)) return '';
@@ -731,6 +778,8 @@ class IssueController extends Controller
                         }
                     }
 
+                    $descMeta = $this->computeDescriptionHistory($versions, (bool)$isAdmin);
+
                     $issues[] = [
                         'id'             => $latestRow[0],
                         'rowIndex'       => $latestRowIndex,
@@ -775,6 +824,9 @@ class IssueController extends Controller
                         'archivedBy'     => $archivedBy,
                         'archivedRole'   => 'Admin',
                         'isConfidential' => $isConfidential,
+                        'descriptionHistory' => $descMeta['history'],
+                        'editCount'          => $descMeta['editCount'],
+                        'canEditDescription' => $descMeta['canEditDescription'],
                     ];
                 }
             }
@@ -880,6 +932,17 @@ class IssueController extends Controller
                 }
             }
 
+            $targetSheet = $issueData['sheet'] ?? $this->resolveSheet(null);
+            $this->googleService->setSheet($targetSheet);
+            $allRows = $this->googleService->getRows();
+            $matchedVersions = [];
+            foreach ($allRows as $r) {
+                if (($r[0] ?? '') === ($currentRow[0] ?? (string)$queryId)) {
+                    $matchedVersions[] = IssueSheetRepository::padRow($r);
+                }
+            }
+            $descMeta = $this->computeDescriptionHistory($matchedVersions, (bool)$isAdmin);
+
             return response()->json([
                 'success' => true,
                 'data' => [
@@ -914,6 +977,9 @@ class IssueController extends Controller
                     'archivedAtStr'       => $archivedAt,
                     'archivedBy'          => $archivedBy,
                     'isConfidential'      => $isConfidential,
+                    'descriptionHistory' => $descMeta['history'],
+                    'editCount'          => $descMeta['editCount'],
+                    'canEditDescription' => $descMeta['canEditDescription'],
                 ]
             ]);
         } catch (\Throwable $e) {
@@ -1713,42 +1779,22 @@ class IssueController extends Controller
             return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
         }
 
-        if (!$user->isAdmin() && !$user->hasPermission('can_manage_issues')) {
+        if (!$user->isAdmin()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Unauthorized. Izin mengedit isu dinonaktifkan untuk akun Anda oleh Administrator.',
+                'message' => 'Unauthorized. Pengeditan isu hanya dapat dilakukan oleh Administrator.',
             ], 403);
         }
 
         try {
             $request->validate([
-                'title'               => 'nullable|string|max:255',
-                'description'         => 'nullable|string',
-                'location'            => 'nullable|string|max:255',
-                'category'            => 'nullable|string',
-                'priority'            => 'nullable|string',
-                'deadline'            => 'nullable|string',
-                'assignedDepartments' => 'nullable|string',
-                'taggedDepartments'   => 'nullable|string',
-                'image'               => 'nullable|file|image|mimes:jpg,jpeg,png,webp|max:5120',
-                // State-specific fields
-                'status'              => 'nullable|string',
-                'statusReason'        => 'nullable|string',
-                'removePending'       => 'nullable',
-                'deletePendingIndex'  => 'nullable',
-                'taker'               => 'nullable|string|max:255',
-                'pendingBy'           => 'nullable|string|max:255',
-                'pendingReason'       => 'nullable|string',
-                'pendingImage'        => 'nullable|file|image|mimes:jpg,jpeg,png,webp|max:5120',
-                'solver'              => 'nullable|string|max:255',
-                'fixDescription'      => 'nullable|string',
-                'proofImage'          => 'nullable|file|image|mimes:jpg,jpeg,png,webp|max:5120',
+                'description' => 'required|string|min:3',
             ]);
         } catch (ValidationException $ve) {
             $firstError = collect($ve->errors())->flatten()->first();
             return response()->json([
                 'success' => false,
-                'message' => $firstError ?: 'Invalid form input.',
+                'message' => $firstError ?: 'Deskripsi tidak boleh kosong (minimal 3 karakter).',
                 'errors'  => $ve->errors(),
             ], 422);
         }
@@ -1770,534 +1816,87 @@ class IssueController extends Controller
                 ], 422);
             }
 
-            // Granular Authorization check
-            $originDept = $currentRow[22] ?? '';
-            $userDept   = strtolower(trim($user->department ?? ''));
-            $isAdmin    = $user->isAdmin();
-            $isOrigin   = !empty($userDept) && $userDept === strtolower(trim($originDept));
+            $targetSheet = $issueData['sheet'] ?? $this->resolveSheet(null);
+            $this->googleService->setSheet($targetSheet);
+            $allRows = $this->googleService->getRows();
+            $matchedId = $currentRow[0] ?? (string)$idOrRowIndex;
 
-            $assignedDeptsRaw = $currentRow[23] ?? ($currentRow[21] ?? '');
-            $assignedList = !empty($assignedDeptsRaw) ? array_map('strtolower', array_map('trim', explode(',', $assignedDeptsRaw))) : [];
-            $isAssigned = !empty($userDept) && in_array($userDept, $assignedList);
+            $matchedVersions = [];
+            foreach ($allRows as $r) {
+                if (($r[0] ?? '') === $matchedId) {
+                    $matchedVersions[] = IssueSheetRepository::padRow($r);
+                }
+            }
 
-            $currentTaker     = $currentRow[9] ?? '';
-            $currentSolver    = $currentRow[11] ?? '';
-            $currentPendingBy = $currentRow[19] ?? '';
+            $descMeta = $this->computeDescriptionHistory($matchedVersions, true);
+            $currentEditCount = $descMeta['editCount'];
 
-            $canEditReport  = $isAdmin || $isOrigin;
-            $canEditClaim   = $isAdmin || $isAssigned || (!empty($currentTaker) && str_contains(strtolower($currentTaker), $userDept));
-            $canEditPending = $isAdmin || $isAssigned || (!empty($currentPendingBy) && str_contains(strtolower($currentPendingBy), $userDept));
-            $canEditSolved  = $isAdmin || $isAssigned || (!empty($currentSolver) && str_contains(strtolower($currentSolver), $userDept));
-
-            if (!$isAdmin && !$isOrigin && !$isAssigned) {
-                $deptDisplay = $user->department ?: 'lain';
+            if ($currentEditCount >= 2) {
                 return response()->json([
                     'success' => false,
-                    'message' => "Akses Ditolak: Anda saat ini bertugas di departemen {$deptDisplay}. Riwayat pekerjaan terdahulu hanya dapat dilihat (Read-Only).",
-                ], 403);
+                    'message' => 'Batas maksimum edit isu (2 kali) telah tercapai untuk tiket ini.',
+                    'editCount' => $currentEditCount,
+                    'canEditDescription' => false,
+                ], 422);
             }
 
-            if (!$canEditReport && !$canEditClaim && !$canEditPending && !$canEditSolved) {
+            $rawDesc = trim($request->input('description', ''));
+            $formattedDesc = self::formatParagraphText($rawDesc);
+            $oldDesc = trim($currentRow[2] ?? '');
+
+            if ($formattedDesc === $oldDesc) {
                 return response()->json([
-                    'success' => false,
-                    'message' => 'Unauthorized. You do not have permission to edit this issue.',
-                ], 403);
+                    'success' => true,
+                    'message' => 'Tidak ada perubahan pada deskripsi isu.',
+                    'data'    => [
+                        'id'                  => $currentRow[0],
+                        'description'         => $oldDesc,
+                        'editCount'           => $currentEditCount,
+                        'canEditDescription'  => ($currentEditCount < 2),
+                        'descriptionHistory'  => $descMeta['history'],
+                    ],
+                ]);
             }
 
-            $changes = [];
-            $updateCols = [];
-
-            // ================= 1. INITIAL REPORT FIELDS (Origin or Admin) =================
-            $newTitle    = $currentRow[1] ?? '';
-            $newDesc     = $currentRow[2] ?? '';
-            $newLoc      = $currentRow[3] ?? '';
-            $newCat      = $currentRow[4] ?? 'broken';
-            $newPriority = $currentRow[16] ?? 'low';
-            $newDeadline = $currentRow[17] ?? '';
-            $newAssigned = $currentRow[23] ?? '';
-            $newTagged   = $currentRow[21] ?? '';
-
-            if ($canEditReport) {
-                if ($request->has('title')) {
-                    $rawTitle = trim($request->input('title', ''));
-                    if ($rawTitle !== '' && $rawTitle !== 'undefined' && $rawTitle !== ($currentRow[1] ?? '')) {
-                        $newTitle = $rawTitle;
-                        $changes[] = "Title: \"{$newTitle}\"";
-                        $updateCols['B'] = $newTitle;
-                    }
-                }
-
-                if ($request->has('description')) {
-                    $rawDesc = trim($request->input('description', ''));
-                    if ($rawDesc !== '' && $rawDesc !== 'undefined') {
-                        $formattedDesc = self::formatParagraphText($rawDesc);
-                        if ($formattedDesc !== ($currentRow[2] ?? '')) {
-                            $newDesc = $formattedDesc;
-                            $changes[] = "Description updated";
-                            $updateCols['C'] = $newDesc;
-                        }
-                    }
-                }
-
-                if ($request->has('location')) {
-                    $rawLoc = trim($request->input('location', ''));
-                    if ($rawLoc !== '' && $rawLoc !== 'undefined' && $rawLoc !== ($currentRow[3] ?? '')) {
-                        $newLoc = $rawLoc;
-                        $changes[] = "Location: \"{$newLoc}\"";
-                        $updateCols['D'] = $newLoc;
-                    }
-                }
-
-                if ($request->has('category')) {
-                    $rawCat = trim($request->input('category', ''));
-                    if ($rawCat !== '' && $rawCat !== 'undefined' && $rawCat !== ($currentRow[4] ?? '')) {
-                        $newCat = $rawCat;
-                        $changes[] = "Category: " . ($currentRow[4] ?? '') . " → {$newCat}";
-                        $updateCols['E'] = $newCat;
-                    }
-                }
-
-                if ($request->has('priority')) {
-                    $rawPriority = trim($request->input('priority', ''));
-                    if ($rawPriority !== '' && $rawPriority !== 'undefined' && $rawPriority !== ($currentRow[16] ?? 'low')) {
-                        $newPriority = $rawPriority;
-                        $changes[] = "Priority: " . ($currentRow[16] ?? 'low') . " → {$newPriority}";
-                        $updateCols['Q'] = $newPriority;
-                    }
-                }
-
-                if ($request->has('deadline')) {
-                    $rawDeadline = trim($request->input('deadline', ''));
-                    if ($rawDeadline !== 'undefined') {
-                        $readableDeadline = $this->formatDeadlineToReadable($rawDeadline);
-                        if ($readableDeadline !== ($currentRow[17] ?? '')) {
-                            $newDeadline = $readableDeadline;
-                            $changes[] = "Deadline updated";
-                            $updateCols['R'] = $newDeadline;
-                        }
-                    }
-                }
-
-                if ($request->has('assignedDepartments') || $request->has('taggedDepartments')) {
-                    $rawAssigned = $request->input('assignedDepartments', '');
-                    $rawTagged   = $request->input('taggedDepartments', '');
-
-                    if ($rawAssigned !== 'undefined' && $rawTagged !== 'undefined') {
-                        $assignedListParsed = !empty($rawAssigned) ? array_filter(array_map('trim', explode(',', $rawAssigned))) : [];
-                        $taggedListParsed   = !empty($rawTagged) ? array_filter(array_map('trim', explode(',', $rawTagged))) : [];
-
-                        // Origin department cannot assign or tag itself
-                        if (!empty($originDept)) {
-                            $assignedListParsed = array_values(array_filter($assignedListParsed, fn($d) => strtolower($d) !== strtolower($originDept)));
-                            $taggedListParsed   = array_values(array_filter($taggedListParsed, fn($d) => strtolower($d) !== strtolower($originDept)));
-                        }
-
-                        // Mutually exclusive: remove any tagged department that is already assigned
-                        $taggedListParsed = array_values(array_filter($taggedListParsed, function($d) use ($assignedListParsed) {
-                            return !in_array(strtolower($d), array_map('strtolower', $assignedListParsed));
-                        }));
-
-                        $newAssigned = implode(', ', $assignedListParsed);
-                        $newTagged   = implode(', ', $taggedListParsed);
-
-                        if (($currentRow[23] ?? '') !== $newAssigned) {
-                            $changes[] = "Assigned: {$newAssigned}";
-                            $updateCols['X'] = $newAssigned;
-                        }
-
-                        if (($currentRow[21] ?? '') !== $newTagged) {
-                            $changes[] = "Tagged: {$newTagged}";
-                            $updateCols['V'] = $newTagged;
-                        }
-                    }
-                }
-
-                $imageUrl = $currentRow[8] ?? '';
-                if ($request->hasFile('image')) {
-                    $imageUrl = $this->googleService->uploadImage($request->file('image'), "{$currentRow[0]}-updated-" . time());
-                    $changes[] = "Photo updated";
-                    $updateCols['I'] = $imageUrl;
-                }
-
-                if ($request->has('is_confidential') || $request->has('isConfidential')) {
-                    $rawConf = $request->input('is_confidential', $request->input('isConfidential'));
-                    $newConf = ($rawConf === true || $rawConf === '1' || $rawConf === 1 || $rawConf === 'true') ? '1' : '0';
-                    $oldConf = trim($currentRow[26] ?? '0');
-                    if ($oldConf !== $newConf) {
-                        $changes[] = $newConf === '1' ? 'Status diubah ke Rahasia (Confidential)' : 'Status Rahasia dinonaktifkan (Public)';
-                        $updateCols['AA'] = $newConf;
-                    }
-                }
-            }
-
-            // ================= 2. CLAIM FIELDS (Claiming/Assigned Dept or Admin) =================
-            if ($canEditClaim && $request->has('taker')) {
-                $newTaker = trim($request->input('taker', ''));
-                $oldTaker = $currentRow[9] ?? '';
-                if ($oldTaker !== $newTaker) {
-                    $changes[] = "Petugas / Taker: " . ($oldTaker ?: 'None') . " → " . ($newTaker ?: 'None');
-                    $updateCols['J'] = $newTaker;
-                }
-            }
-
-            // ================= 3. PENDING FIELDS (Pending/Assigned Dept or Admin) =================
-            if ($canEditPending && ($request->has('pendingReason') || $request->has('pendingBy') || $request->hasFile('pendingImage'))) {
-                $pendingDataRaw = $currentRow[18] ?? '';
-                $existingTimeline = [];
-                if (!empty($pendingDataRaw)) {
-                    $decoded = json_decode($pendingDataRaw, true);
-                    if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
-                        $existingTimeline = $decoded;
-                    }
-                }
-
-                $newPendingReason = $request->has('pendingReason') ? trim($request->input('pendingReason', '')) : null;
-                $newPendingBy = $request->has('pendingBy') ? trim($request->input('pendingBy', '')) : null;
-                $uploadedPendingImg = null;
-                if ($request->hasFile('pendingImage')) {
-                    $uploadedPendingImg = $this->googleService->uploadImage($request->file('pendingImage'), "{$currentRow[0]}-pending-" . time());
-                    $updateCols['U'] = $uploadedPendingImg;
-                    $changes[] = "Pending Photo updated";
-                }
-
-                if (!empty($existingTimeline)) {
-                    $lastIdx = count($existingTimeline) - 1;
-                    $timelineChanged = false;
-                    if ($newPendingReason !== null && ($existingTimeline[$lastIdx]['reason'] ?? '') !== $newPendingReason) {
-                        $changes[] = "Pending Reason updated";
-                        $existingTimeline[$lastIdx]['reason'] = $newPendingReason;
-                        $timelineChanged = true;
-                    }
-                    if ($newPendingBy !== null && ($existingTimeline[$lastIdx]['by'] ?? '') !== $newPendingBy) {
-                        $changes[] = "Pending By updated";
-                        $existingTimeline[$lastIdx]['by'] = $newPendingBy;
-                        $updateCols['T'] = $newPendingBy;
-                        $timelineChanged = true;
-                    }
-                    if ($uploadedPendingImg) {
-                        $existingTimeline[$lastIdx]['image'] = $uploadedPendingImg;
-                        $timelineChanged = true;
-                    }
-                    if ($timelineChanged) {
-                        $updateCols['S'] = json_encode($existingTimeline);
-                    }
-                } else {
-                    if ($newPendingBy !== null) {
-                        $oldPendingBy = $currentRow[19] ?? '';
-                        if ($oldPendingBy !== $newPendingBy) {
-                            $changes[] = "Pending By: " . ($oldPendingBy ?: 'None') . " → " . ($newPendingBy ?: 'None');
-                            $updateCols['T'] = $newPendingBy;
-                        }
-                    }
-                    if ($newPendingReason !== null) {
-                        $oldReason = $currentRow[18] ?? '';
-                        if ($oldReason !== $newPendingReason) {
-                            $changes[] = "Pending Reason updated";
-                            $updateCols['S'] = $newPendingReason;
-                        }
-                    }
-                }
-            }
-
-            // ================= 4. SOLVED FIELDS (Solver/Assigned Dept or Admin) =================
-            if ($canEditSolved) {
-                if ($request->has('solver')) {
-                    $newSolver = trim($request->input('solver', ''));
-                    $oldSolver = $currentRow[11] ?? '';
-                    if ($oldSolver !== $newSolver) {
-                        $changes[] = "Solver: " . ($oldSolver ?: 'None') . " → " . ($newSolver ?: 'None');
-                        $updateCols['L'] = $newSolver;
-                    }
-                }
-
-                if ($request->has('fixDescription')) {
-                    $newFixDesc = self::formatParagraphText($request->input('fixDescription', ''));
-                    $oldFixDesc = $currentRow[13] ?? '';
-                    if ($oldFixDesc !== $newFixDesc) {
-                        $changes[] = "Fix Description updated";
-                        $updateCols['N'] = $newFixDesc;
-                    }
-                }
-
-                if ($request->hasFile('proofImage')) {
-                    $proofImgUrl = $this->googleService->uploadImage($request->file('proofImage'), "{$currentRow[0]}-proof-" . time());
-                    $updateCols['O'] = $proofImgUrl;
-                    $changes[] = "Proof Photo updated";
-                }
-            }
-
-            // ================= 5. STATUS TRANSITIONS & PROGRESS ROLLBACK =================
-            $oldStatus = $currentRow[5] ?? 'open';
-            $newStatus = $request->has('status') ? trim($request->input('status')) : $oldStatus;
-            $statusReason = trim($request->input('statusReason', ''));
-
-            if ($newStatus !== $oldStatus) {
-                // Strict validation: update() only allows backward rollbacks (not jumping forward to solved/pending/progress)
-                $isValidTransition = false;
-                if ($oldStatus === 'solved' && in_array($newStatus, ['pending', 'progress', 'open'])) {
-                    $isValidTransition = true;
-                } else if ($oldStatus === 'pending' && in_array($newStatus, ['progress', 'open'])) {
-                    $isValidTransition = true;
-                } else if ($oldStatus === 'progress' && $newStatus === 'open') {
-                    $isValidTransition = true;
-                }
-
-                if (!$isValidTransition) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Invalid status transition. You can only roll back status from the edit menu. To claim, delay, or resolve, use the dedicated action buttons.',
-                    ], 422);
-                }
-
-                // Determine authorization for status transition
-                $canChangeStatus = false;
-                if ($isAdmin) {
-                    $canChangeStatus = true;
-                } else if ($newStatus === 'open') {
-                    // Unclaim / Reset to open
-                    $canChangeStatus = $isOrigin || $canEditClaim || $canEditPending || $canEditSolved;
-                } else if ($newStatus === 'progress') {
-                    // Resume from pending or reopen from solved
-                    $canChangeStatus = $canEditClaim || $canEditPending || $canEditSolved || $isOrigin;
-                } else if ($newStatus === 'pending') {
-                    $canChangeStatus = $canEditClaim || $canEditPending;
-                }
-
-                if (!$canChangeStatus) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Unauthorized to perform this status rollback.',
-                    ], 403);
-                }
-
-                $updateCols['F'] = $newStatus;
-
-                // Handle column resets based on rollback target
-                if ($newStatus === 'open') {
-                    // Unclaim: clear taker & takenAt & solver
-                    $updateCols['J'] = '';
-                    $updateCols['K'] = '';
-                    $updateCols['L'] = '';
-                    $updateCols['M'] = '';
-                    $updateCols['N'] = '';
-                    $updateCols['O'] = '';
-                    $changes[] = "Status Rollback: " . strtoupper($oldStatus) . " ➔ OPEN" . ($statusReason ? " (Alasan: {$statusReason})" : "");
-                } else if ($newStatus === 'progress') {
-                    if ($oldStatus === 'solved') {
-                        // Reopen solved issue
-                        $updateCols['L'] = '';
-                        $updateCols['M'] = '';
-                        $changes[] = "Status Reopened: SOLVED ➔ IN PROGRESS" . ($statusReason ? " (Alasan: {$statusReason})" : "");
-                    } else if ($oldStatus === 'pending') {
-                        // Resume from pending
-                        $changes[] = "Status Resumed: PENDING ➔ IN PROGRESS" . ($statusReason ? " (Alasan: {$statusReason})" : "");
-                    } else {
-                        $changes[] = "Status Changed: " . strtoupper($oldStatus) . " ➔ IN PROGRESS";
-                    }
-                } else {
-                    $changes[] = "Status Changed: " . strtoupper($oldStatus) . " ➔ " . strtoupper($newStatus);
-                }
-            }
-
-            // Optional: Remove pending delay entry if requested (e.g. accidental pending / mistake)
-            if ($request->boolean('removePending') || $request->input('removePending') === 'latest' || $request->has('deletePendingIndex')) {
-                $pendingDataRaw = $currentRow[18] ?? '';
-                $existingPending = [];
-                if (!empty($pendingDataRaw)) {
-                    $decoded = json_decode($pendingDataRaw, true);
-                    if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
-                        $existingPending = $decoded;
-                    } else {
-                        $existingPending = [[
-                            'date'   => '',
-                            'by'     => $currentRow[19] ?? 'Staff',
-                            'reason' => $pendingDataRaw,
-                            'image'  => $currentRow[20] ?? '',
-                        ]];
-                    }
-                }
-
-                $delIdx = $request->has('deletePendingIndex') 
-                    ? intval($request->input('deletePendingIndex')) 
-                    : count($existingPending) - 1;
-
-                if ($delIdx >= 0 && isset($existingPending[$delIdx])) {
-                    $removedItem = $existingPending[$delIdx];
-                    array_splice($existingPending, $delIdx, 1);
-                    $changes[] = "Catatan pending dihapus: \"" . ($removedItem['reason'] ?? '') . "\"";
-                }
-
-                if (empty($existingPending)) {
-                    $updateCols['S'] = '';
-                    $updateCols['T'] = '';
-                    $updateCols['U'] = '';
-                } else {
-                    $updateCols['S'] = json_encode(array_values($existingPending));
-                    $lastItem = end($existingPending);
-                    $updateCols['T'] = $lastItem['by'] ?? '';
-                    $updateCols['U'] = $lastItem['image'] ?? '';
-                }
-            }
-
-            // Append structured edit & audit log entry
-            $existingLogs = $this->parseEditLogs($currentRow[24] ?? '');
-            $editorName = $user->staff_name ?? $user->name ?? 'Staff';
-            $editorDept = $user->department ?? ($user->isAdmin() ? 'Admin' : '');
-            $editorRole = $user->isAdmin() ? 'Admin' : 'Department';
-
-            $isRevert = ($newStatus !== $oldStatus) && (
-                $newStatus === 'open' || 
-                ($oldStatus === 'solved' && in_array($newStatus, ['progress', 'pending', 'open'])) ||
-                ($oldStatus === 'pending' && in_array($newStatus, ['progress', 'open']))
-            );
-
-            $logType = 'edit';
-            if ($isRevert && count($changes) > 1) {
-                $logType = 'revert_and_edit';
-            } else if ($isRevert) {
-                $logType = 'revert_status';
-            } else if ($newStatus !== $oldStatus) {
-                $logType = 'status_change';
-            }
-
-            $editEntry = [
-                'date'         => Carbon::now('Asia/Jakarta')->format('M d, Y H:i:s'),
-                'by'           => $editorName,
-                'dept'         => $editorDept,
-                'role'         => $editorRole,
-                'type'         => $logType,
-                'from'         => $oldStatus,
-                'to'           => $newStatus,
-                'statusChange' => $newStatus !== $oldStatus ? "{$oldStatus} → {$newStatus}" : null,
-                'reason'       => $statusReason ?: null,
-                'changes'      => !empty($changes) ? implode(', ', $changes) : 'Issue details modified',
-            ];
-            $existingLogs[] = $editEntry;
-            $logsJson = json_encode($existingLogs);
+            $nextEditNum = $currentEditCount + 1;
+            $editorName = $user->staff_name ?? $user->name ?? 'Admin';
+            $nowFormatted = Carbon::now('Asia/Jakarta')->format('M d, Y H:i:s');
 
             $newRow = IssueSheetRepository::padRow($currentRow);
-            $colMap = [
-                'B' => 1, 'C' => 2, 'D' => 3, 'E' => 4, 'F' => 5,
-                'G' => 6, 'H' => 7, 'I' => 8, 'J' => 9, 'K' => 10,
-                'L' => 11, 'M' => 12, 'N' => 13, 'O' => 14, 'P' => 15,
-                'Q' => 16, 'R' => 17, 'S' => 18, 'T' => 19, 'U' => 20,
-                'V' => 21, 'W' => 22, 'X' => 23, 'AA' => 26,
-            ];
-            foreach ($updateCols as $col => $val) {
-                if (isset($colMap[$col])) {
-                    $newRow[$colMap[$col]] = $val;
-                }
-            }
+            $newRow[2]  = $formattedDesc; // Column C: Description
+            $newRow[24] = "[{$nowFormatted}] {$editorName}: Edit Deskripsi (Ke-{$nextEditNum}/2)"; // Column Y: Edit log note
+            $newRow[25] = '1'; // Column Z: Active
 
-            $nowFormatted = Carbon::now('Asia/Jakarta')->format('M d, Y H:i:s');
-            $changeSummary = !empty($changes) ? implode(', ', $changes) : 'Detail isu diperbarui';
-            $newRow[24] = "[{$nowFormatted}] {$editorName}: {$changeSummary}";
-            $newRow[25] = '1';
-
-            $targetSheet = $issueData['foundLocation']['sheet'] ?? null;
             $newRowIndex = $this->googleService->insertRowAfter($issueData['rowIndex'], $newRow, $targetSheet);
             if ($newRowIndex) {
                 $this->googleService->colorRowByCategory($newRowIndex, $newRow[4] ?? 'other', $targetSheet);
             }
 
-            // Dispatch WhatsApp notification
-            $changeSummaryStr = !empty($changes) ? implode("\n• ", $changes) : 'Details updated';
-            $originStr     = !empty($originDept) ? "\n*Origin:* {$originDept}" : '';
-                $resolvedImg   = $this->resolveImageUrl($imageUrl ?? ($currentRow[8] ?? ''));
+            // Dispatch WhatsApp Notification
+            $this->notifyWhatsApp([
+                'message' => "✏️ *Deskripsi Isu Diperbarui oleh Admin!*\n*ID:* {$currentRow[0]}\n*Judul:* " . ($currentRow[1] ?? '') . "\n*Lokasi:* " . ($currentRow[3] ?? '') . "\n*Kategori:* " . ($currentRow[4] ?? '') . "\n*Admin:* {$editorName}\n*Editan ke:* {$nextEditNum}/2\n*Deskripsi Baru:*\n{$formattedDesc}\n*Link:* " . url('/dashboard'),
+                'imageUrl' => $this->resolveImageUrl($currentRow[8] ?? ''),
+                'department' => $currentRow[22] ?? '',
+                'priority' => $currentRow[16] ?? 'low',
+            ]);
 
-                // Notify union of new and previous departments
-                $allAssigned = array_unique(array_filter(array_merge(
-                    !empty($currentRow[23]) ? array_map('trim', explode(',', $currentRow[23])) : [],
-                    !empty($newAssigned) ? array_map('trim', explode(',', $newAssigned)) : []
-                )));
-                $allTagged = array_unique(array_filter(array_merge(
-                    !empty($currentRow[21]) ? array_map('trim', explode(',', $currentRow[21])) : [],
-                    !empty($newTagged) ? array_map('trim', explode(',', $newTagged)) : []
-                )));
-
-                $assignedDisplayStr = !empty($newAssigned) ? "\n*Assigned:* {$newAssigned}" : (!empty($currentRow[23]) ? "\n*Assigned:* {$currentRow[23]}" : '');
-                $taggedDisplayStr   = !empty($newTagged) ? "\n*Tagged:* {$newTagged}" : (!empty($currentRow[21]) ? "\n*Tagged:* {$currentRow[21]}" : '');
-
-                $headerPrefix = $isRevert 
-                    ? "🔄 ↩️ *ISSUE PROGRESS ROLLBACK / REVERTED!*" 
-                    : "✏️ *Issue Edited / Updated!*";
-
-                $statusNotice = ($newStatus !== $oldStatus)
-                    ? "\n*Status Transition:* " . strtoupper($oldStatus) . " ➔ *" . strtoupper($newStatus) . "*" . ($statusReason ? "\n*Reason:* {$statusReason}" : "")
-                    : "\n*Status:* " . strtoupper($newStatus);
-
-                $this->notifyWhatsApp([
-                    'message' => "{$headerPrefix}\n*ID:* {$currentRow[0]}\n*Title:* " . ($newTitle ?? $currentRow[1]) . "\n*Location:* " . ($newLoc ?? $currentRow[3]) . "{$originStr}{$assignedDisplayStr}{$taggedDisplayStr}{$statusNotice}\n*Category:* " . ($newCat ?? $currentRow[4]) . " | *Priority:* " . ($newPriority ?? $currentRow[16]) . "\n*Updated By:* {$editorName} ({$editorRole}" . ($editorDept ? " - {$editorDept}" : "") . ")\n*Modifications / Notes:*\n• {$changeSummaryStr}\n*Link:* " . url('/dashboard'),
-                    'imageUrl' => $resolvedImg,
-                    'department' => $originDept,
-                    'assignedDepartments' => implode(', ', $allAssigned),
-                    'taggedDepartments' => implode(', ', $allTagged),
-                    'priority' => $newPriority ?? $currentRow[16] ?? 'low',
-                ]);
-
-                if ($newStatus !== $oldStatus) {
-                    $this->notifyIssueProgress(
-                        $originDept,
-                        "Status Isu Diperbarui: " . ($newTitle ?? $currentRow[1]),
-                        "Status berubah dari " . strtoupper($oldStatus) . " menjadi " . strtoupper($newStatus) . " oleh {$editorName}.",
-                        $currentRow[0]
-                    );
-                }
-
-                // If HOD has reassigned/actioned an issue previously taken by a transferred staff
-                // Rule: "admin hanya menerima setelah HOD acc"
-                $oldTaker = trim($currentRow[9] ?? '');
-                $newTaker = isset($updateCols['J']) ? trim($updateCols['J']) : $oldTaker;
-                if ($user->isHOD() && !empty($oldTaker) && $oldTaker !== $newTaker) {
-                    $cleanOldTaker = trim(preg_replace('/\s*via\s+WhatsApp/i', '', $oldTaker));
-                    $baseOldTaker = trim(preg_replace('/\s*\([^)]*\)/', '', $cleanOldTaker));
-                    $oldTakerUser = \App\Models\User::all()->first(function ($u) use ($baseOldTaker) {
-                        $uName = trim($u->name ?? '');
-                        $uStaff = trim($u->staff_name ?? '');
-                        return (!empty($uName) && (strcasecmp($uName, $baseOldTaker) === 0 || stripos($baseOldTaker, $uName) !== false || stripos($uName, $baseOldTaker) !== false))
-                            || (!empty($uStaff) && (strcasecmp($uStaff, $baseOldTaker) === 0 || stripos($baseOldTaker, $uStaff) !== false || stripos($uStaff, $baseOldTaker) !== false));
-                    });
-
-                    if ($oldTakerUser && !empty($oldTakerUser->department)) {
-                        $assignedList = IssueSheetRepository::getAssignedDepartments($currentRow);
-                        $originDept = $currentRow[IssueSheetRepository::COL_ORIGIN_DEPT] ?? '';
-                        $allScopes = array_map(fn($d) => IssueSheetRepository::normalizeDeptKey($d), array_merge($assignedList, [$originDept]));
-                        $oldTakerDeptNorm = IssueSheetRepository::normalizeDeptKey($oldTakerUser->department);
-
-                        if (!in_array($oldTakerDeptNorm, $allScopes)) {
-                            $hodName = $user->staff_name ?: $user->name;
-                            $hodDept = $user->department ?: 'Departemen';
-                            $issueId = $currentRow[0] ?? '';
-                            $issueTitle = $newTitle ?? ($currentRow[1] ?? 'Isu');
-                            $newTakerDisplay = $newTaker ?: 'Belum ditentukan (Klaim dilepas)';
-
-                            \App\Models\DashboardNotification::create([
-                                'role_target' => 'admin',
-                                'type'        => 'issue_progress',
-                                'title'       => "✅ Reassignment Disetujui HOD: #{$issueId} ({$issueTitle})",
-                                'message'     => "HOD {$hodName} ({$hodDept}) telah menyetujui penugasan ulang tiket #{$issueId} (sebelumnya diklaim oleh {$baseOldTaker} yang telah mutasi) ke: {$newTakerDisplay}.",
-                                'link'        => "/dashboard?sheet=" . urlencode($targetSheet ?: '') . "&id=" . urlencode($issueId),
-                                'is_read'     => false,
-                            ]);
-                        }
-                    }
-                }
+            $updatedHistory = array_merge($descMeta['history'], [[
+                'version'     => count($descMeta['history']) + 1,
+                'description' => $formattedDesc,
+                'editedAt'    => $nowFormatted,
+                'by'          => $editorName,
+                'isOriginal'  => false,
+            ]]);
 
             return response()->json([
                 'success' => true,
-                'message' => 'Issue updated successfully!',
+                'message' => "Deskripsi isu berhasil diperbarui (Editan ke-{$nextEditNum}/2).",
                 'data'    => [
-                    'title'               => $newTitle ?? ($currentRow[1] ?? ''),
-                    'description'         => $newDesc ?? ($currentRow[2] ?? ''),
-                    'location'            => $newLoc ?? ($currentRow[3] ?? ''),
-                    'category'            => $newCat ?? ($currentRow[4] ?? ''),
-                    'status'              => $newStatus,
-                    'priority'            => $newPriority ?? ($currentRow[16] ?? 'low'),
-                    'deadline'            => $newDeadline ?? ($currentRow[17] ?? ''),
-                    'imageUrl'            => $this->resolveImageUrl($imageUrl ?? ($currentRow[8] ?? '')),
-                    'assignedDepartments' => !empty($newAssigned) ? array_map('trim', explode(',', $newAssigned)) : (!empty($currentRow[23]) ? array_map('trim', explode(',', $currentRow[23])) : []),
-                    'taggedDepartments'   => !empty($newTagged) ? array_map('trim', explode(',', $newTagged)) : (!empty($currentRow[21]) ? array_map('trim', explode(',', $currentRow[21])) : []),
-                    'editLogs'            => $existingLogs,
+                    'id'                  => $currentRow[0],
+                    'description'         => $formattedDesc,
+                    'editCount'           => $nextEditNum,
+                    'canEditDescription'  => ($nextEditNum < 2),
+                    'descriptionHistory'  => $updatedHistory,
                 ],
             ]);
         } catch (\Throwable $e) {

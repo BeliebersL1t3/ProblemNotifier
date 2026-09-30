@@ -10,7 +10,6 @@ import { AnalyticsBar } from '@/Components/CampusFix/AnalyticsBar';
 import { FilterChips } from '@/Components/CampusFix/FilterChips';
 import { IssueCard } from '@/Components/CampusFix/IssueCard';
 import { ReportIssueModal } from '@/Components/CampusFix/ReportIssueModal';
-import { EditIssueModal } from '@/Components/CampusFix/EditIssueModal';
 import { TakeJobModal } from '@/Components/CampusFix/TakeJobModal';
 import { ResolveIssueSheet } from '@/Components/CampusFix/ResolveIssueSheet';
 import { SolvedDetailModal } from '@/Components/CampusFix/SolvedDetailModal';
@@ -176,7 +175,6 @@ function DashboardInner() {
     const [resolveTarget, setResolveTarget] = useState(null);
     const [detailTarget, setDetailTarget] = useState(null);
     const [activityDetailTarget, setActivityDetailTarget] = useState(null);
-    const [editTarget, setEditTarget] = useState(null);
     const [deleteTarget, setDeleteTarget] = useState(null);
     const [isDeleting, setIsDeleting] = useState(false);
     const [deleteError, setDeleteError] = useState('');
@@ -1096,7 +1094,6 @@ function DashboardInner() {
                                 key={issue.id}
                                 issue={issue}
                                 onSelect={handleSelect}
-                                onEdit={issue._isPastContribution ? undefined : (item) => setEditTarget(item)}
                                 onDelete={issue._isPastContribution ? undefined : (item) => {
                                     setDeleteError('');
                                     setDeleteTarget(item);
@@ -1112,28 +1109,18 @@ function DashboardInner() {
             <ReportIssueModal open={reportOpen} onOpenChange={setReportOpen} />
             <EmergencyIssueModal open={emergencyOpen} onOpenChange={setEmergencyOpen} />
             <NewPeriodModal open={newPeriodOpen} onOpenChange={setNewPeriodOpen} />
-            <EditIssueModal issue={editTarget} open={!!editTarget} onOpenChange={(o) => !o && setEditTarget(null)} />
             <TakeJobModal 
                 issue={takeTarget} 
                 onClose={() => setTakeTarget(null)} 
-                onEdit={(item) => {
-                    setTakeTarget(null);
-                    setEditTarget(item);
-                }}
             />
             <ResolveIssueSheet 
                 issue={resolveTarget} 
                 onClose={() => setResolveTarget(null)} 
-                onEdit={(item) => {
-                    setResolveTarget(null);
-                    setEditTarget(item);
-                }}
             />
             <SolvedDetailModal issue={detailTarget} onClose={() => setDetailTarget(null)} />
             <ActivityDetailModal 
                 issue={activityDetailTarget} 
                 onClose={() => setActivityDetailTarget(null)} 
-                onEdit={activityDetailTarget?._isPastContribution ? undefined : (item) => setEditTarget(item)}
             />
 
             {/* Permanent Deletion Confirmation Modal */}

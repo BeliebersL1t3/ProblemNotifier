@@ -23,6 +23,8 @@ import {
     Wrench,
     Hourglass,
     ChevronRight,
+    ChevronDown,
+    ChevronUp,
     Edit3,
     RotateCcw,
     Camera,
@@ -50,6 +52,7 @@ export function ActivityDetailModal({ issue, onClose, onOpenCardModal, onEdit, o
     const [dupNote, setDupNote] = useState('');
     const [isSubmittingDup, setIsSubmittingDup] = useState(false);
     const [dupError, setDupError] = useState('');
+    const [showDescHistory, setShowDescHistory] = useState(false);
 
     // Zero-typing smart duplicate recommendations
     const suggestedDuplicates = useMemo(() => {
@@ -708,9 +711,56 @@ export function ActivityDetailModal({ issue, onClose, onOpenCardModal, onEdit, o
                                     </div>
 
                                     {step.data.description && (
-                                        <div className="mt-3 bg-black/30 p-3 rounded-lg border border-border/40 text-xs">
-                                            <p className="text-muted-foreground font-semibold mb-1">{lang === 'id' ? 'Deskripsi Awal:' : 'Initial Description:'}</p>
-                                            <p className="text-foreground/90 whitespace-pre-wrap leading-relaxed">"{step.data.description}"</p>
+                                        <div className="mt-3 bg-black/30 p-3.5 rounded-xl border border-border/40 text-xs">
+                                            <div className="flex items-center justify-between mb-1.5 flex-wrap gap-2">
+                                                <p className="text-muted-foreground font-bold flex items-center gap-1.5">
+                                                    <FileText className="w-3.5 h-3.5 text-[#C9AA71]" />
+                                                    <span>{lang === 'id' ? 'Deskripsi Masalah:' : 'Issue Description:'}</span>
+                                                    {typeof issue.editCount === 'number' && issue.editCount > 0 && (
+                                                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-500/15 text-sky-400 border border-sky-500/30">
+                                                            {lang === 'id' ? `Diedit ${issue.editCount}x` : `Edited ${issue.editCount}x`}
+                                                        </span>
+                                                    )}
+                                                </p>
+                                            </div>
+                                            <p className="text-foreground/95 whitespace-pre-wrap leading-relaxed text-xs bg-[#181711]/70 p-2.5 rounded-lg border border-[#3B3929]/50">
+                                                {step.data.description}
+                                            </p>
+
+                                            {/* Collapsible Version History if edited */}
+                                            {Array.isArray(issue.descriptionHistory) && issue.descriptionHistory.length > 1 && (
+                                                <div className="mt-3 pt-2.5 border-t border-[#3B3929]/50">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setShowDescHistory(prev => !prev)}
+                                                        className="flex items-center justify-between w-full text-left text-[11px] font-bold text-[#C9AA71] hover:text-[#FAFAFA] transition-colors cursor-pointer py-1"
+                                                    >
+                                                        <span className="flex items-center gap-1.5">
+                                                            <Clock className="w-3.5 h-3.5" />
+                                                            <span>{lang === 'id' ? `Lihat Riwayat Perubahan Deskripsi (${issue.descriptionHistory.length} Versi)` : `View Description History (${issue.descriptionHistory.length} Versions)`}</span>
+                                                        </span>
+                                                        {showDescHistory ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                                                    </button>
+
+                                                    {showDescHistory && (
+                                                        <div className="mt-2 flex flex-col gap-2 pl-2 border-l-2 border-[#C9AA71]/40">
+                                                            {issue.descriptionHistory.map((item, hIdx) => (
+                                                                <div key={hIdx} className="bg-[#1C1B0E] p-2.5 rounded-lg border border-[#3B3929] text-xs">
+                                                                    <div className="flex items-center justify-between gap-2 text-[10px] text-muted-foreground pb-1 mb-1 border-b border-[#3B3929]/40">
+                                                                        <span className="font-bold text-[#E3D1AA]">
+                                                                            {item.isOriginal 
+                                                                                ? (lang === 'id' ? 'Versi 1 (Deskripsi Awal)' : 'Version 1 (Initial Description)')
+                                                                                : (lang === 'id' ? `Versi ${item.version} (Editan ke-${item.version - 1})` : `Version ${item.version} (Edit #${item.version - 1})`)}
+                                                                        </span>
+                                                                        <span>{item.editedAt || '-'} • Oleh: <strong className="text-white">{item.by || 'Admin'}</strong></span>
+                                                                    </div>
+                                                                    <p className="text-stone-300 whitespace-pre-wrap italic">"{item.description}"</p>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
                                         </div>
                                     )}
 
@@ -1029,17 +1079,32 @@ export function ActivityDetailModal({ issue, onClose, onOpenCardModal, onEdit, o
                                 <span>{lang === 'id' ? 'Buka Tampilan Kartu Isu' : 'Open Issue Card'}</span>
                             </button>
                         )}
-                        {!isArchived && !isPastContribution && canEdit && onEdit && (
+                        {!isArchived && !isPastContribution && isAdmin && onEdit && (
                             <button
                                 type="button"
                                 onClick={() => {
                                     onClose?.();
                                     onEdit(issue);
                                 }}
-                                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 hover:text-blue-300 border border-blue-500/40 font-semibold text-xs transition-all shadow-sm cursor-pointer"
+                                disabled={issue.editCount >= 2}
+                                className={`flex items-center gap-2 px-3.5 py-2 rounded-lg font-semibold text-xs transition-all shadow-sm ${
+                                    issue.editCount >= 2
+                                        ? 'bg-zinc-800 text-zinc-500 border border-zinc-700 cursor-not-allowed opacity-60'
+                                        : 'bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 hover:text-blue-300 border border-blue-500/40 cursor-pointer'
+                                }`}
+                                title={issue.editCount >= 2 
+                                    ? (lang === 'id' ? 'Batas edit tercapai (2/2)' : 'Edit limit reached (2/2)') 
+                                    : (lang === 'id' ? 'Edit Deskripsi Isu (Khusus Admin)' : 'Edit Issue Description (Admin Only)')}
                             >
                                 <Edit3 className="w-4 h-4" />
-                                <span>{lang === 'id' ? 'Edit & Mundur Status' : 'Edit & Rollback'}</span>
+                                <span>{lang === 'id' ? 'Edit Deskripsi' : 'Edit Description'}</span>
+                                <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                                    issue.editCount >= 2 
+                                        ? 'bg-red-500/20 text-red-400 border border-red-500/40' 
+                                        : 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+                                }`}>
+                                    {issue.editCount ?? 0}/2
+                                </span>
                             </button>
                         )}
                         {!isArchived && !isPastContribution && (isAdmin || canEditReport) && issue.status !== 'solved' && (
