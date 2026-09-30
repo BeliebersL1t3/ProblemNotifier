@@ -454,7 +454,7 @@ class IssueController extends Controller
             'sheet'          => $targetSheet,
             'rowIndex'       => $targetRowIndex,
             'allRowIndices'  => !empty($matchedRowIndices) ? array_values(array_unique($matchedRowIndices)) : [$targetRowIndex],
-            'row'            => array_pad($currentRow, 26, ''),
+            'row'            => IssueSheetRepository::padRow($currentRow),
             'crossYear'      => $crossYear,
             'foundLocation'  => $foundLocation,
         ];
@@ -467,9 +467,12 @@ class IssueController extends Controller
             $forceRefresh = $request->boolean('refresh') || $request->boolean('sync');
             $showArchived = $request->boolean('archived');
 
+            $user = $request->user();
+            $isAdmin = $user && $user->isAdmin();
+            $isBot = ($request->header('X-Bot-Key') === config('services.bot.api_key'));
+
             if ($showArchived) {
-                $user = $request->user();
-                if (!$user || !$user->isAdmin()) {
+                if (!$user || !$isAdmin) {
                     return response()->json([
                         'success' => true,
                         'data'    => [],
@@ -695,6 +698,39 @@ class IssueController extends Controller
                         }
                     }
 
+                    $isConfidential = IssueSheetRepository::isConfidential($latestRow);
+
+                    // Confidential Issue Security Scope Protection:
+                    // Only Admin, Bot, Origin Dept, Assigned Depts, Tagged Depts, or Reporter can view confidential issues.
+                    // Other departments (even with can_view_all_departments) are strictly barred.
+                    if ($isConfidential && !$isAdmin && !$isBot) {
+                        $userDeptKey = !empty($user?->department) ? IssueSheetRepository::normalizeDeptKey($user->department) : '';
+                        $originDeptKey = IssueSheetRepository::normalizeDeptKey($safeDept);
+                        $assignedList = !empty($latestRow[23]) 
+                            ? array_map('trim', explode(',', $latestRow[23])) 
+                            : (!empty($latestRow[21]) ? array_map('trim', explode(',', $latestRow[21])) : []);
+                        $taggedList = !empty($latestRow[21]) ? array_map('trim', explode(',', $latestRow[21])) : [];
+                        
+                        $assignedKeys = array_map([IssueSheetRepository::class, 'normalizeDeptKey'], $assignedList);
+                        $taggedKeys = array_map([IssueSheetRepository::class, 'normalizeDeptKey'], $taggedList);
+
+                        $isReporter = false;
+                        if ($user) {
+                            $userName = strtolower(trim($user->name ?? ''));
+                            $userStaff = strtolower(trim($user->staff_name ?? ''));
+                            $rep = strtolower(trim($latestRow[6] ?? ''));
+                            if (!empty($rep) && (($userName && (strcasecmp($rep, $userName) === 0 || str_contains($rep, $userName))) || ($userStaff && (strcasecmp($rep, $userStaff) === 0 || str_contains($rep, $userStaff))))) {
+                                $isReporter = true;
+                            }
+                        }
+
+                        $isAuthorized = ($userDeptKey && ($userDeptKey === $originDeptKey || in_array($userDeptKey, $assignedKeys) || in_array($userDeptKey, $taggedKeys))) || $isReporter;
+
+                        if (!$isAuthorized) {
+                            continue;
+                        }
+                    }
+
                     $issues[] = [
                         'id'             => $latestRow[0],
                         'rowIndex'       => $latestRowIndex,
@@ -738,6 +774,7 @@ class IssueController extends Controller
                         'archivedAtStr'  => $archivedAt,
                         'archivedBy'     => $archivedBy,
                         'archivedRole'   => 'Admin',
+                        'isConfidential' => $isConfidential,
                     ];
                 }
             }
@@ -783,6 +820,42 @@ class IssueController extends Controller
             $currentRow = $issueData['row'];
             $displayStatus = trim($currentRow[25] ?? '');
             $isArchived = ($displayStatus === '0');
+            $isConfidential = IssueSheetRepository::isConfidential($currentRow);
+
+            $user = $request->user();
+            $isAdmin = $user && $user->isAdmin();
+            $isBot = ($request->header('X-Bot-Key') === config('services.bot.api_key'));
+
+            if ($isConfidential && !$isAdmin && !$isBot) {
+                $userDeptKey = !empty($user?->department) ? IssueSheetRepository::normalizeDeptKey($user->department) : '';
+                $originDeptKey = IssueSheetRepository::normalizeDeptKey($currentRow[22] ?? '');
+                $assignedList = !empty($currentRow[23]) 
+                    ? array_map('trim', explode(',', $currentRow[23])) 
+                    : (!empty($currentRow[21]) ? array_map('trim', explode(',', $currentRow[21])) : []);
+                $taggedList = !empty($currentRow[21]) ? array_map('trim', explode(',', $currentRow[21])) : [];
+                
+                $assignedKeys = array_map([IssueSheetRepository::class, 'normalizeDeptKey'], $assignedList);
+                $taggedKeys = array_map([IssueSheetRepository::class, 'normalizeDeptKey'], $taggedList);
+
+                $isReporter = false;
+                if ($user) {
+                    $userName = strtolower(trim($user->name ?? ''));
+                    $userStaff = strtolower(trim($user->staff_name ?? ''));
+                    $rep = strtolower(trim($currentRow[6] ?? ''));
+                    if (!empty($rep) && (($userName && (strcasecmp($rep, $userName) === 0 || str_contains($rep, $userName))) || ($userStaff && (strcasecmp($rep, $userStaff) === 0 || str_contains($rep, $userStaff))))) {
+                        $isReporter = true;
+                    }
+                }
+
+                $isAuthorized = ($userDeptKey && ($userDeptKey === $originDeptKey || in_array($userDeptKey, $assignedKeys) || in_array($userDeptKey, $taggedKeys))) || $isReporter;
+
+                if (!$isAuthorized) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Akses Ditolak: Isu ini bersifat rahasia (Confidential) dan hanya dapat diakses oleh pihak/departemen terkait.',
+                    ], 403);
+                }
+            }
 
             $archivedAt = null;
             $archivedBy = null;
@@ -840,6 +913,7 @@ class IssueController extends Controller
                     'archivedAt'          => !empty($archivedAt) ? (strtotime($archivedAt) ? strtotime($archivedAt) * 1000 : $archivedAt) : null,
                     'archivedAtStr'       => $archivedAt,
                     'archivedBy'          => $archivedBy,
+                    'isConfidential'      => $isConfidential,
                 ]
             ]);
         } catch (\Throwable $e) {
@@ -875,6 +949,8 @@ class IssueController extends Controller
                 'reporter'    => 'required|string|max:255',
                 'reportedAt'  => 'nullable|string',
                 'image'       => 'nullable|file|image|mimes:jpg,jpeg,png,webp|max:5120',
+                'is_confidential' => 'nullable',
+                'isConfidential'  => 'nullable',
             ]);
         } catch (ValidationException $ve) {
             $firstError = collect($ve->errors())->flatten()->first();
@@ -1001,6 +1077,8 @@ class IssueController extends Controller
                 $taggedDeptsStr   = 'ALL';
             }
 
+            $isConfidential = !$isEmergency && ($request->boolean('is_confidential') || $request->boolean('isConfidential') || $request->input('is_confidential') === '1' || $request->input('is_confidential') === 1);
+
             $newRow = [
                 $id,
                 $request->title,
@@ -1028,6 +1106,7 @@ class IssueController extends Controller
                 $assignedDeptsStr, // 23 assigned_department (responsible to fix)
                 $initialLog, // 24 Edit History (Column Y: stores late send note if applicable)
                 '1', // 25 Display Status (Column Z: 1 = active)
+                $isConfidential ? '1' : '0', // 26 is_confidential (Column AA)
             ];
 
             $rowIndex = $this->googleService->appendRow($newRow);
@@ -1097,8 +1176,9 @@ class IssueController extends Controller
                     : "";
 
                 $catName = ucwords(str_replace('-', ' ', $request->category ?? 'General'));
+                $confidentialPrefix = $isConfidential ? "🔒 *[ISU RAHASIA / CONFIDENTIAL]*\n" : "";
 
-                $message = "📋 *New Issue Submitted!*{$priorityStr}\n\n"
+                $message = "{$confidentialPrefix}📋 *New Issue Submitted!*{$priorityStr}\n\n"
                     . "*Title:* {$request->title}\n"
                     . "*Location:* {$request->location}\n"
                     . "*Category:* {$catName}\n"
@@ -1117,7 +1197,8 @@ class IssueController extends Controller
                 'assignedDepartments' => $assignedDeptsStr,
                 'taggedDepartments' => $taggedDeptsStr,
                 'department' => $originName,
-                'priority' => $request->priority ?? 'low'
+                'priority' => $request->priority ?? 'low',
+                'isConfidential' => $isConfidential,
             ]);
 
             return response()->json([
@@ -1133,6 +1214,7 @@ class IssueController extends Controller
                     'reporter'    => $request->reporter,
                     'reportedAt'  => strtotime($submittedAt) * 1000,
                     'imageUrl'    => $resolvedImageUrl,
+                    'isConfidential' => $isConfidential,
                 ],
             ]);
         } catch (\Throwable $e) {
@@ -1225,7 +1307,7 @@ class IssueController extends Controller
             $takenAt = Carbon::now()->toIso8601String();
 
             // Lifecycle progress (open -> progress): update in-place without creating a new row
-            $currentRow = array_pad($currentRow, 26, '');
+            $currentRow = IssueSheetRepository::padRow($currentRow);
             $currentRow[5]  = 'progress';
             $currentRow[9]  = $request->taker;
             $currentRow[10] = $takenAt;
@@ -1363,7 +1445,7 @@ class IssueController extends Controller
             $formattedFix = self::formatParagraphText($request->fixDescription);
 
             // Lifecycle progress (progress/pending -> solved): update in-place without creating a new row
-            $currentRow = array_pad($currentRow, 26, '');
+            $currentRow = IssueSheetRepository::padRow($currentRow);
             $currentRow[5]  = 'solved';
             $currentRow[11] = $request->solver;
             $currentRow[12] = $solvedAt;
@@ -1518,7 +1600,7 @@ class IssueController extends Controller
             $newJson = json_encode($existingItems);
 
             // Lifecycle progress (progress -> pending): update in-place without creating a new row
-            $currentRow = array_pad($currentRow, 26, '');
+            $currentRow = IssueSheetRepository::padRow($currentRow);
             $currentRow[5]  = 'pending';
             $currentRow[18] = $newJson;
             $currentRow[19] = $request->pendingBy;
@@ -1607,7 +1689,7 @@ class IssueController extends Controller
             $nowFormatted = Carbon::now('Asia/Jakarta')->format('M d, Y H:i:s');
             $note = "[{$nowFormatted}] Kategori diubah ke {$request->category}";
 
-            $newRow = array_pad($currentRow, 26, '');
+            $newRow = IssueSheetRepository::padRow($currentRow);
             $newRow[4]  = $request->category;
             $newRow[24] = $note;
             $newRow[25] = '1';
@@ -1835,6 +1917,16 @@ class IssueController extends Controller
                     $imageUrl = $this->googleService->uploadImage($request->file('image'), "{$currentRow[0]}-updated-" . time());
                     $changes[] = "Photo updated";
                     $updateCols['I'] = $imageUrl;
+                }
+
+                if ($request->has('is_confidential') || $request->has('isConfidential')) {
+                    $rawConf = $request->input('is_confidential', $request->input('isConfidential'));
+                    $newConf = ($rawConf === true || $rawConf === '1' || $rawConf === 1 || $rawConf === 'true') ? '1' : '0';
+                    $oldConf = trim($currentRow[26] ?? '0');
+                    if ($oldConf !== $newConf) {
+                        $changes[] = $newConf === '1' ? 'Status diubah ke Rahasia (Confidential)' : 'Status Rahasia dinonaktifkan (Public)';
+                        $updateCols['AA'] = $newConf;
+                    }
                 }
             }
 
@@ -2083,13 +2175,13 @@ class IssueController extends Controller
             $existingLogs[] = $editEntry;
             $logsJson = json_encode($existingLogs);
 
-            $newRow = array_pad($currentRow, 26, '');
+            $newRow = IssueSheetRepository::padRow($currentRow);
             $colMap = [
                 'B' => 1, 'C' => 2, 'D' => 3, 'E' => 4, 'F' => 5,
                 'G' => 6, 'H' => 7, 'I' => 8, 'J' => 9, 'K' => 10,
                 'L' => 11, 'M' => 12, 'N' => 13, 'O' => 14, 'P' => 15,
                 'Q' => 16, 'R' => 17, 'S' => 18, 'T' => 19, 'U' => 20,
-                'V' => 21, 'W' => 22, 'X' => 23,
+                'V' => 21, 'W' => 22, 'X' => 23, 'AA' => 26,
             ];
             foreach ($updateCols as $col => $val) {
                 if (isset($colMap[$col])) {
@@ -2251,7 +2343,7 @@ class IssueController extends Controller
             $archiveNote = "[{$nowFormatted}] {$adminName}: Isu diarsipkan oleh Admin";
 
             // Insert a new version row directly below the latest row to preserve all prior edit history
-            $newRow = array_pad($currentRow, 26, '');
+            $newRow = IssueSheetRepository::padRow($currentRow);
             $newRow[24] = $archiveNote;
             $newRow[25] = '0';
 
@@ -2319,7 +2411,7 @@ class IssueController extends Controller
             $restoreNote = "[{$nowFormatted}] {$adminName}: Isu dipulihkan oleh Admin";
 
             // Insert a new version row directly below the latest row to preserve all prior edit history
-            $newRow = array_pad($currentRow, 26, '');
+            $newRow = IssueSheetRepository::padRow($currentRow);
             $newRow[24] = $restoreNote;
             $newRow[25] = '1';
 

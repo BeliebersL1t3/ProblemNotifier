@@ -31,7 +31,17 @@ class IssueSheetRepository
     public const COL_ASSIGNED_DEPTS       = 23;
     public const COL_EDIT_LOGS            = 24;
     public const COL_ARCHIVE_STATUS       = 25;
-    public const TOTAL_COLUMNS            = 26;
+    public const COL_IS_CONFIDENTIAL      = 26;
+    public const TOTAL_COLUMNS            = 27;
+
+    /**
+     * Determine if a sheet row represents a confidential issue.
+     */
+    public static function isConfidential(array $row): bool
+    {
+        $status = trim($row[self::COL_IS_CONFIDENTIAL] ?? '');
+        return $status === '1' || strtolower($status) === 'true' || strtolower($status) === 'yes';
+    }
 
     /**
      * Determine if a sheet row represents an archived issue.

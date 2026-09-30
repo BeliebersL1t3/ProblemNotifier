@@ -386,7 +386,7 @@ class SecurityHardeningTest extends TestCase
             ]);
     }
 
-    public function test_department_user_with_null_permissions_inherits_can_view_all_departments(): void
+    public function test_department_user_with_null_permissions_inherits_default_department_scoping(): void
     {
         $deptUser = User::factory()->create([
             'role'        => 'department',
@@ -395,8 +395,8 @@ class SecurityHardeningTest extends TestCase
             'is_active'   => true,
         ]);
 
-        $this->assertTrue($deptUser->canViewDepartment('Housekeeping'));
-        $this->assertTrue($deptUser->canViewDepartment('IT'));
+        $this->assertFalse($deptUser->canViewDepartment('Housekeeping'));
+        $this->assertFalse($deptUser->canViewDepartment('IT'));
         $this->assertTrue($deptUser->canViewDepartment('Kitchen'));
     }
 }

@@ -20,7 +20,7 @@ import {
 } from '@/Components/UI/Select';
 import { ImageDropzone } from './ImageDropzone';
 import { useIssues } from '@/context/IssuesContext';
-import { Loader2, AlertTriangle, CalendarClock, Clock, Target, FileText, Megaphone } from 'lucide-react';
+import { Loader2, AlertTriangle, CalendarClock, Clock, Target, FileText, Megaphone, Lock } from 'lucide-react';
 import { ALL_DEPARTMENTS, getStaffForDepartment, normalizeDepartment } from '@/constants/staff';
 import { getDepartmentTheme } from '@/constants/departments';
 import { useAuth } from '@/hooks/useAuth';
@@ -46,6 +46,7 @@ export function ReportIssueModal({ open, onOpenChange }) {
     const [showTimePicker, setShowTimePicker] = useState(false);
     const [assignedDepts, setAssignedDepts] = useState([]);
     const [taggedDepts, setTaggedDepts] = useState([]);
+    const [isConfidential, setIsConfidential] = useState(false);
     const [imageFile, setImageFile] = useState(null);
     const [imageUrl, setImageUrl] = useState(undefined);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -121,6 +122,7 @@ export function ReportIssueModal({ open, onOpenChange }) {
                     } else if (Array.isArray(d.taggedDepts) && d.taggedDepts.length > 0) {
                         setTaggedDepts(d.taggedDepts.map(normalizeDepartment));
                     }
+                    if (d.isConfidential !== undefined) setIsConfidential(Boolean(d.isConfidential));
                     if (d.title || d.description) {
                         setHasDraftRestored(true);
                     }
@@ -145,12 +147,13 @@ export function ReportIssueModal({ open, onOpenChange }) {
                 deadline,
                 assignedDepts,
                 taggedDepts,
+                isConfidential,
             };
             if (title.trim() || description.trim() || locDetail.trim()) {
                 localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
             }
         } catch (e) {}
-    }, [open, originDept, reporter, title, locMains, locDetail, category, description, priority, deadline, assignedDepts, taggedDepts]);
+    }, [open, originDept, reporter, title, locMains, locDetail, category, description, priority, deadline, assignedDepts, taggedDepts, isConfidential]);
 
     const clearDraft = () => {
         try {
@@ -199,6 +202,7 @@ export function ReportIssueModal({ open, onOpenChange }) {
         setShowTimePicker(false);
         setAssignedDepts([]);
         setTaggedDepts([]);
+        setIsConfidential(false);
         setImageFile(null);
         setImageUrl(undefined);
         setErrorMsg('');
@@ -282,6 +286,7 @@ export function ReportIssueModal({ open, onOpenChange }) {
                 imageFile,
                 priority,
                 deadline: finalDeadline,
+                isConfidential,
             });
 
             if (res?.queuedOffline) {
@@ -617,6 +622,43 @@ export function ReportIssueModal({ open, onOpenChange }) {
                     {hasConflicts && (
                         <DepartmentScheduleWarning conflictsByDept={conflictsByDept} className="my-1" />
                     )}
+
+                    {/* Confidential Issue Option */}
+                    <div className={`p-3.5 rounded-xl border transition-all ${
+                        isConfidential 
+                            ? 'border-rose-500/50 bg-rose-500/10 shadow-sm ring-1 ring-rose-500/30' 
+                            : 'border-border/70 bg-surface/50 hover:border-border'
+                    }`}>
+                        <label className="flex items-start gap-3 cursor-pointer select-none">
+                            <div className="pt-0.5">
+                                <input
+                                    type="checkbox"
+                                    checked={isConfidential}
+                                    onChange={(e) => setIsConfidential(e.target.checked)}
+                                    disabled={isSubmitting}
+                                    className="w-4 h-4 rounded border-border text-rose-600 focus:ring-rose-500 focus:ring-offset-0 bg-background transition-colors cursor-pointer"
+                                />
+                            </div>
+                            <div className="flex-1 space-y-1">
+                                <div className="flex items-center gap-2 font-semibold text-xs text-foreground">
+                                    <Lock className={`w-3.5 h-3.5 ${isConfidential ? 'text-rose-500' : 'text-muted-foreground'}`} />
+                                    <span className={isConfidential ? 'text-rose-400 font-bold' : ''}>
+                                        {lang === 'id' ? 'Isu Rahasia (Confidential)' : 'Confidential Issue'}
+                                    </span>
+                                    {isConfidential && (
+                                        <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-rose-500/20 text-rose-300 border border-rose-500/30 ml-auto">
+                                            {lang === 'id' ? '🔒 Khusus Pihak Terkait' : '🔒 Restricted Access'}
+                                        </span>
+                                    )}
+                                </div>
+                                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                                    {lang === 'id'
+                                        ? 'Hanya departemen yang ditugaskan (assigned), ditandai (tagged), asal pelapor, dan Administrator yang dapat melihat isu ini. Departemen lain tidak dapat melihatnya.'
+                                        : 'Only assigned, tagged departments, origin team, and Administrators can see this issue. Hidden from other departments.'}
+                                </p>
+                            </div>
+                        </label>
+                    </div>
 
                     <div className="grid gap-2">
                         <Label htmlFor="priority">{lang === 'id' ? 'Tingkat Prioritas' : 'Priority Level'}</Label>

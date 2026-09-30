@@ -32,6 +32,7 @@ export function addToOfflineQueue(item) {
             reporter: item.reporter || '',
             priority: item.priority || 'low',
             deadline: item.deadline || '',
+            isConfidential: Boolean(item.isConfidential),
             imageDataUrl: item.imageDataUrl || null,
             imageName: item.imageName || 'photo.jpg',
             queuedAt: Date.now(),

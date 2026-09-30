@@ -460,5 +460,103 @@ class IssueApiTest extends TestCase
         $this->assertTrue($data[0]['isArchived']);
         $this->assertEquals('Gardiono', $data[0]['archivedBy']);
     }
+
+    public function test_confidential_issue_is_hidden_from_unrelated_department_user(): void
+    {
+        // User has can_view_all_departments, but belongs to Housekeeping
+        $hkUser = User::factory()->create([
+            'role'        => 'department',
+            'department'  => 'Housekeeping',
+            'permissions' => ['can_view_all_departments' => true],
+            'name'        => 'HK Staff',
+        ]);
+
+        $googleMock = Mockery::mock(GoogleService::class);
+        $googleMock->shouldReceive('listSheets')->andReturn(['2026']);
+        $googleMock->shouldReceive('setSheet')->with('2026');
+        $googleMock->shouldReceive('findIssueAcrossSheets')->with('ENG-SECRET')->andReturn(['sheet' => '2026', 'rowIndex' => 2]);
+
+        // Row format:
+        // Col 0: ID
+        // Col 1: Title
+        // Col 2: Desc
+        // Col 3: Loc
+        // Col 4: Cat
+        // Col 5: Status
+        // Col 6: Reporter
+        // Col 7: Timestamp
+        // Col 8: Img
+        // Col 9: Assignees
+        // Col 10: Fixed At
+        // Col 11: Fixed By
+        // Col 12: Fixed Img
+        // Col 13: Duration
+        // Col 14: Feedback
+        // Col 15: Stars
+        // Col 16: Feedback User
+        // Col 17: Pending Note
+        // Col 18: Pending At
+        // Col 19: Priority
+        // Col 20: Dept (Origin)
+        // Col 21: Assigned Depts
+        // Col 22: Tagged Depts
+        // Col 23: History
+        // Col 24: Deletion History
+        // Col 25: Display Status
+        // Col 26: is_confidential
+        $confRow = array_pad(['ENG-SECRET', 'Secret Issue', 'Desc', 'Loc', 'Cat', 'open', 'Chef John', '2026-09-10'], 27, '');
+        $confRow[20] = 'Kitchen';       // Origin Dept
+        $confRow[21] = 'Maintenance';   // Assigned Dept
+        $confRow[22] = 'Security';      // Tagged Dept
+        $confRow[25] = '1';            // Active
+        $confRow[26] = '1';            // Confidential
+
+        $googleMock->shouldReceive('getRows')->andReturn([$confRow]);
+        $this->app->instance(GoogleService::class, $googleMock);
+
+        // 1. Should NOT appear in list
+        $response = $this->actingAs($hkUser)->getJson('/api/issues?sheet=2026');
+        $response->assertOk();
+        $this->assertCount(0, $response->json('data'));
+
+        // 2. Direct lookup should return 403 Forbidden
+        $lookupRes = $this->actingAs($hkUser)->getJson('/api/issues/lookup/ENG-SECRET?sheet=2026');
+        $lookupRes->assertStatus(403);
+    }
+
+    public function test_confidential_issue_is_visible_to_assigned_dept_and_admin(): void
+    {
+        $maintUser = User::factory()->create([
+            'role'        => 'department',
+            'department'  => 'Maintenance',
+            'name'        => 'Technician Bob',
+        ]);
+        $admin = User::factory()->create(['role' => 'admin']);
+
+        $googleMock = Mockery::mock(GoogleService::class);
+        $googleMock->shouldReceive('listSheets')->andReturn(['2026']);
+        $googleMock->shouldReceive('setSheet')->with('2026');
+
+        $confRow = array_pad(['ENG-SECRET', 'Secret Issue', 'Desc', 'Loc', 'Cat', 'open', 'Chef John', '2026-09-10'], 27, '');
+        $confRow[20] = 'Kitchen';
+        $confRow[21] = 'Maintenance';
+        $confRow[22] = 'Security';
+        $confRow[25] = '1';
+        $confRow[26] = '1';
+
+        $googleMock->shouldReceive('getRows')->andReturn([$confRow]);
+        $this->app->instance(GoogleService::class, $googleMock);
+
+        // Assigned user can see it
+        $resMaint = $this->actingAs($maintUser)->getJson('/api/issues?sheet=2026');
+        $resMaint->assertOk();
+        $this->assertCount(1, $resMaint->json('data'));
+        $this->assertTrue($resMaint->json('data.0.isConfidential'));
+
+        // Admin can see it
+        $resAdmin = $this->actingAs($admin)->getJson('/api/issues?sheet=2026');
+        $resAdmin->assertOk();
+        $this->assertCount(1, $resAdmin->json('data'));
+    }
 }
 

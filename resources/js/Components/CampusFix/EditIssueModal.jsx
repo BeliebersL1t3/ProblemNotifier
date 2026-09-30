@@ -107,6 +107,7 @@ export function EditIssueModal({ issue, open, onOpenChange, onSuccess }) {
     const [showTimePicker, setShowTimePicker] = useState(false);
     const [assignedDepts, setAssignedDepts] = useState([]);
     const [taggedDepts, setTaggedDepts] = useState([]);
+    const [isConfidential, setIsConfidential] = useState(false);
     const [newImageFile, setNewImageFile] = useState(null);
     const [newImageUrl, setNewImageUrl] = useState(undefined);
     const [isReplacingImage, setIsReplacingImage] = useState(false);
@@ -153,6 +154,7 @@ export function EditIssueModal({ issue, open, onOpenChange, onSuccess }) {
             setDescription(issue.description || '');
             setCategory(issue.category || 'broken');
             setPriority(issue.priority === 'medium' ? 'low' : (issue.priority || 'low'));
+            setIsConfidential(Boolean(issue.isConfidential));
 
             // Parse location
             const rawLoc = issue.location || '';
@@ -322,6 +324,7 @@ export function EditIssueModal({ issue, open, onOpenChange, onSuccess }) {
                 payload.deadline = finalDeadline;
                 payload.assignedDepartments = assignedDepts.join(',');
                 payload.taggedDepartments = taggedDepts.join(',');
+                payload.isConfidential = isConfidential;
                 if (newImageFile) payload.imageFile = newImageFile;
             } else {
                 payload.title = issue?.title || '';
@@ -330,6 +333,7 @@ export function EditIssueModal({ issue, open, onOpenChange, onSuccess }) {
                 payload.category = issue?.category || 'broken';
                 payload.priority = issue?.priority || 'low';
                 payload.deadline = issue?.deadline || '';
+                payload.isConfidential = issue?.isConfidential ? '1' : '0';
                 payload.assignedDepartments = Array.isArray(issue?.assignedDepartments) 
                     ? issue.assignedDepartments.join(',') 
                     : (issue?.assignedDepartments || '');
@@ -793,6 +797,43 @@ export function EditIssueModal({ issue, open, onOpenChange, onSuccess }) {
                                                 })}
                                         </div>
                                     </div>
+                                </div>
+
+                                {/* Confidential Issue Option */}
+                                <div className={`p-3 rounded-xl border transition-all ${
+                                    isConfidential 
+                                        ? 'border-rose-500/50 bg-rose-500/10 shadow-sm ring-1 ring-rose-500/30' 
+                                        : 'border-[#3B3929] bg-[#2A281E]/60'
+                                }`}>
+                                    <label className={`flex items-start gap-3 select-none ${canEditReport && !isSubmitting ? 'cursor-pointer' : 'cursor-not-allowed opacity-80'}`}>
+                                        <div className="pt-0.5">
+                                            <input
+                                                type="checkbox"
+                                                checked={isConfidential}
+                                                onChange={(e) => canEditReport && setIsConfidential(e.target.checked)}
+                                                disabled={!canEditReport || isSubmitting}
+                                                className="w-4 h-4 rounded border-[#3B3929] text-rose-600 focus:ring-rose-500 bg-[#1C1B0E] cursor-pointer"
+                                            />
+                                        </div>
+                                        <div className="flex-1 space-y-1">
+                                            <div className="flex items-center gap-1.5 font-bold text-xs text-foreground">
+                                                <Lock className={`w-3.5 h-3.5 ${isConfidential ? 'text-rose-500' : 'text-muted-foreground'}`} />
+                                                <span className={isConfidential ? 'text-rose-400' : ''}>
+                                                    {lang === 'id' ? 'Isu Rahasia (Confidential)' : 'Confidential Issue'}
+                                                </span>
+                                                {isConfidential && (
+                                                    <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30 ml-auto">
+                                                        {lang === 'id' ? '🔒 Khusus Pihak Terkait' : '🔒 Restricted Access'}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <p className="text-[11px] text-muted-foreground leading-relaxed">
+                                                {lang === 'id'
+                                                    ? 'Hanya departemen yang ditugaskan (assigned), ditandai (tagged), asal pelapor, dan Administrator yang dapat melihat isu ini.'
+                                                    : 'Only assigned, tagged departments, origin team, and Administrators can see this issue.'}
+                                            </p>
+                                        </div>
+                                    </label>
                                 </div>
 
                                 {/* Description */}

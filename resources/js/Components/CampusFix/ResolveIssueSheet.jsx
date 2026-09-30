@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from 'react';
 import axios from 'axios';
-import { Loader2, MapPin, ZoomIn, ArrowRightLeft, Target, FileText, Megaphone, User, AlertTriangle, Bell, CheckCircle2, Edit } from 'lucide-react';
+import { Loader2, MapPin, ZoomIn, ArrowRightLeft, Target, FileText, Megaphone, User, AlertTriangle, Bell, CheckCircle2, Edit, Lock } from 'lucide-react';
 import { Button } from '@/Components/UI/Button';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/Components/UI/Sheet';
 import {
@@ -263,7 +263,15 @@ export function ResolveIssueSheet({ issue, onClose, onEdit }) {
                                     />
                                 )}
                                 <div className="flex items-center justify-between gap-2">
-                                    <p className="text-sm font-semibold text-foreground">{issue.title}</p>
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <p className="text-sm font-semibold text-foreground">{issue.title}</p>
+                                        {issue.isConfidential && (
+                                            <span className="inline-flex items-center gap-1 rounded bg-rose-500/20 text-rose-300 px-1.5 py-0.5 font-mono text-[10px] font-bold border border-rose-500/30">
+                                                <Lock className="w-2.5 h-2.5 text-rose-400" />
+                                                <span>{lang === 'id' ? 'Rahasia' : 'Confidential'}</span>
+                                            </span>
+                                        )}
+                                    </div>
                                     <div className="flex gap-1.5 items-center shrink-0 flex-wrap justify-end">
                                         <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
                                             ID: {issue.id}-problem

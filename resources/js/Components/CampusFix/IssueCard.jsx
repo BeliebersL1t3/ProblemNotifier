@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { MapPin, Building, ZoomIn, Edit3, Trash2, RotateCcw, Clock, ArrowRightLeft, Target, FileText, Megaphone } from 'lucide-react';
+import { MapPin, Building, ZoomIn, Edit3, Trash2, RotateCcw, Clock, ArrowRightLeft, Target, FileText, Megaphone, Lock } from 'lucide-react';
 import { StatusBadge } from './StatusBadge';
 import { cn } from '@/lib/utils';
 import DelayDetailModal from './DelayDetailModal';
@@ -208,6 +208,11 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
                     )}
                     {isPastContribution && (
                         <span className="text-[9px] font-bold text-amber-300 shrink-0 cursor-help" title={pastContribTooltip}>
+                            📁
+                        </span>
+                    )}
+                    {issue.isConfidential && (
+                        <span className="text-[9px] font-bold text-rose-400 shrink-0 cursor-help" title={lang === 'id' ? 'Isu Rahasia (Confidential)' : 'Confidential Issue'}>
                             🔒
                         </span>
                     )}
@@ -388,9 +393,20 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
 
                     <div className="flex flex-col gap-1 min-w-0 w-full">
                         <div className="flex items-center justify-between gap-1">
-                            <span className="shrink-0 rounded bg-muted/80 px-1 py-0.5 font-mono text-[9px] font-medium text-muted-foreground">
-                                {issue.id}
-                            </span>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                                <span className="shrink-0 rounded bg-muted/80 px-1 py-0.5 font-mono text-[9px] font-medium text-muted-foreground">
+                                    {issue.id}
+                                </span>
+                                {issue.isConfidential && (
+                                    <span 
+                                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-rose-500/15 text-rose-300 border border-rose-500/30 shrink-0" 
+                                        title={lang === 'id' ? 'Isu Rahasia (Confidential)' : 'Confidential Issue'}
+                                    >
+                                        <Lock className="w-2.5 h-2.5 text-rose-400 shrink-0" />
+                                        <span>{lang === 'id' ? 'Rahasia' : 'Confidential'}</span>
+                                    </span>
+                                )}
+                            </div>
                             <span className="flex items-center gap-1 text-[11px] text-muted-foreground truncate">
                                 <MapPin className="h-3 w-3 shrink-0" />
                                 <span className="truncate">{issue.location}</span>
@@ -718,7 +734,18 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
                     </div>
                 )}
                 <div className="flex flex-col gap-1.5 min-w-0 w-full">
-                    <h3 className="text-base font-semibold leading-snug text-foreground break-words min-w-0">{issue.title}</h3>
+                    <div className="flex items-start justify-between gap-2">
+                        <h3 className="text-base font-semibold leading-snug text-foreground break-words min-w-0">{issue.title}</h3>
+                        {issue.isConfidential && (
+                            <span 
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-500/15 text-rose-300 border border-rose-500/30 shrink-0 shadow-xs mt-0.5" 
+                                title={lang === 'id' ? 'Isu Rahasia: Hanya departemen terkait dan Admin yang dapat melihat' : 'Confidential: Only involved departments and Admin can see'}
+                            >
+                                <Lock className="w-3 h-3 text-rose-400 shrink-0" />
+                                <span>{lang === 'id' ? 'Rahasia' : 'Confidential'}</span>
+                            </span>
+                        )}
+                    </div>
                     <div className="flex gap-1.5 items-center flex-wrap w-full">
                         {assignedList.length > 0 && assignedList.map((dept, idx) => {
                             const theme = getDepartmentTheme(dept);

@@ -449,9 +449,21 @@ function DashboardInner() {
             const isAssignedToTarget = Boolean(targetDept && assigned.includes(targetDept));
             const isTaggedToTarget = Boolean(targetDept && tagged.includes(targetDept));
             const isOriginOfTarget = Boolean(targetDept && originDept === targetDept);
-
             const isReportedByCurrentMe = isReportedByMe(issue);
             const isPastContrib = isPastContributor(issue);
+
+            // Confidential Issue Security:
+            // If issue is marked as confidential and user is not admin,
+            // only allow if user's own department or user itself is directly involved.
+            if (issue.isConfidential && !isAdmin) {
+                const isUserInvolved = Boolean(
+                    (normUserDept && (assigned.includes(normUserDept) || tagged.includes(normUserDept) || originDept === normUserDept)) ||
+                    isReportedByCurrentMe
+                );
+                if (!isUserInvolved) {
+                    return acc;
+                }
+            }
 
             // 1. Tab "Reported By Me" (Dibuat Oleh Saya Pribadi)
             if (deptViewMode === 'origin') {

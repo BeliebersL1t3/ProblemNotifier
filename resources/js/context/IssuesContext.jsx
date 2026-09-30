@@ -235,6 +235,7 @@ export function IssuesProvider({ children }) {
                 formData.append('reporter', item.reporter);
                 if (item.priority) formData.append('priority', item.priority);
                 if (item.deadline) formData.append('deadline', item.deadline);
+                if (item.isConfidential !== undefined) formData.append('is_confidential', item.isConfidential ? '1' : '0');
                 // Keep the exact original timestamp of when the user tried to submit!
                 formData.append('reportedAt', item.reportedAt);
                 formData.append('isOfflineQueued', '1');
@@ -346,6 +347,7 @@ export function IssuesProvider({ children }) {
         formData.append('reporter', input.reporter);
         if (input.priority) formData.append('priority', input.priority);
         if (input.deadline) formData.append('deadline', input.deadline);
+        if (input.isConfidential !== undefined) formData.append('is_confidential', input.isConfidential ? '1' : '0');
         formData.append('reportedAt', submissionTime);
         if (input.imageFile) {
             formData.append('image', input.imageFile);
@@ -510,6 +512,7 @@ export function IssuesProvider({ children }) {
         if (safeDeadline) formData.append('deadline', safeDeadline);
         if (safeAssigned !== undefined) formData.append('assignedDepartments', safeAssigned);
         if (safeTagged !== undefined) formData.append('taggedDepartments', safeTagged);
+        if (input.isConfidential !== undefined) formData.append('is_confidential', input.isConfidential ? '1' : '0');
         if (input.imageFile) {
             formData.append('image', input.imageFile);
         }
