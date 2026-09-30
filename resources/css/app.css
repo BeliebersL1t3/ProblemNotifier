@@ -72,13 +72,28 @@
     content: "";
     position: fixed;
     inset: 0;
-    background-image: url('/bg-lineart.png');
-    background-repeat: repeat;
-    background-size: 600px; 
-    opacity: 0.25;
-    filter: blur(1px);
+    background-image: url('/hktyc.png');
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: cover; 
+    opacity: 0.20;
+    filter: blur(0px);
     z-index: -1;
+    pointer-events: none;
   }
+}
+
+/* Global App Wallpaper Motif */
+.app-bg-wallpaper {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image: url('/hktyc.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  opacity: 0.20;
+  z-index: 0;
 }
 
 /* ─── Custom Brown & Cream Sliders & Scrollbars ────────────────────────────── */

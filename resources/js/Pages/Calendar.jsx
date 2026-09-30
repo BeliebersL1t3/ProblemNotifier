@@ -1455,13 +1455,8 @@ function CalendarInner() {
     if (!canAccessCalendar) {
         return (
             <div className="min-h-screen bg-[#1C1B0E] text-[#FAFAFA] flex flex-col justify-between relative overflow-hidden">
-                <div 
-                    className="fixed inset-0 pointer-events-none opacity-25 z-0 bg-repeat"
-                    style={{
-                        backgroundImage: "url('/bg-lineart.png')",
-                        backgroundSize: '600px',
-                    }}
-                />
+                {/* Background Motif Wallpaper */}
+                <div className="app-bg-wallpaper" />
                 <div className="relative z-10">
                     <CampusFixHeader mode="calendar" />
                     <main className="flex-1 flex flex-col items-center justify-center p-8 text-center max-w-md mx-auto my-20 space-y-5">
@@ -1495,14 +1490,8 @@ function CalendarInner() {
         <div className="min-h-screen bg-[#1C1B0E] text-[#FAFAFA] relative overflow-hidden antialiased selection:bg-[#C9AA71]/30">
             <Head title={`${t('calendar_view') || (lang === 'id' ? 'Kalender' : 'Calendar')} — Telunas Resort`} />
 
-            {/* Background Motif Pattern Overlay */}
-            <div 
-                className="fixed inset-0 pointer-events-none opacity-25 z-0 bg-repeat"
-                style={{
-                    backgroundImage: "url('/bg-lineart.png')",
-                    backgroundSize: '600px',
-                }}
-            />
+            {/* Background Motif Wallpaper */}
+            <div className="app-bg-wallpaper" />
 
             {/* Ambient Glow */}
             <div className="fixed top-12 left-1/2 -translate-x-1/2 w-[750px] h-[380px] pointer-events-none blur-[160px] opacity-15 rounded-full bg-[#C9AA71] z-0" />

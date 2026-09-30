@@ -755,14 +755,8 @@ function DashboardInner() {
 
     return (
         <div className="min-h-screen bg-[#1C1B0E] text-[#FAFAFA] relative overflow-hidden antialiased selection:bg-[#C9AA71]/30">
-            {/* Background Motif Pattern Overlay (Palm Lineart) */}
-            <div 
-                className="fixed inset-0 pointer-events-none opacity-25 z-0 bg-repeat"
-                style={{
-                    backgroundImage: "url('/bg-lineart.png')",
-                    backgroundSize: '600px',
-                }}
-            />
+            {/* Background Motif Wallpaper */}
+            <div className="app-bg-wallpaper" />
 
             {/* Warm Ambient Glow */}
             <div className="fixed top-12 left-1/2 -translate-x-1/2 w-[750px] h-[380px] pointer-events-none blur-[160px] opacity-15 rounded-full bg-[#C9AA71] z-0" />
