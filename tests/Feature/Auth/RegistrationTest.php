@@ -40,5 +40,8 @@ class RegistrationTest extends TestCase
             'email' => 'test@example.com',
             'status' => 'pending_hod',
         ]);
+
+        $registeredUser = \App\Models\User::where('email', 'test@example.com')->first();
+        $this->assertFalse($registeredUser->hasPermission('can_view_all_departments'));
     }
 }

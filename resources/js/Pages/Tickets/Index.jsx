@@ -302,6 +302,16 @@ function TicketsInner({
                             {isUserAdmin && (
                                 <>
                                     <div className="flex-1 sm:flex-initial flex items-center gap-3 px-4 py-2.5 rounded-xl bg-[#1C1B0E]/70 border border-[#3B3929] shadow-md">
+                                        <div className="p-2 rounded-lg bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                                            <Crown className="w-4 h-4" />
+                                        </div>
+                                        <div>
+                                            <p className="text-[10px] uppercase font-bold text-[#A19F8D] tracking-wider">{t('ticket_status_pending_hod')}</p>
+                                            <p className="text-lg font-extrabold text-[#FAFAFA]">{pendingHodCount}</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex-1 sm:flex-initial flex items-center gap-3 px-4 py-2.5 rounded-xl bg-[#1C1B0E]/70 border border-[#3B3929] shadow-md">
                                         <div className="p-2 rounded-lg bg-sky-500/15 text-sky-400 border border-sky-500/30">
                                             <Shield className="w-4 h-4" />
                                         </div>
@@ -398,7 +408,7 @@ function TicketsInner({
                         <div className="flex items-center gap-1.5 overflow-x-auto w-full lg:w-auto pb-2 lg:pb-0 scrollbar-none">
                             {[
                                 { key: 'all', label: t('ticket_all_status') },
-                                ...(isUserAdmin ? [] : [{ key: 'pending_hod', label: t('ticket_status_pending_hod') }]),
+                                { key: 'pending_hod', label: isUserAdmin ? `${t('ticket_status_pending_hod')} (Monitor)` : t('ticket_status_pending_hod') },
                                 { key: 'pending_admin', label: isUserAdmin ? t('ticket_status_pending_admin') : t('ticket_status_waiting_admin') },
                                 { key: 'approved', label: t('ticket_status_approved') },
                                 { key: 'rejected', label: t('ticket_status_rejected') },
@@ -674,7 +684,7 @@ function TicketsInner({
 
                                                 {ticket.reason && (
                                                     <div className="p-2.5 rounded-xl bg-[#1C1B0E]/70 border border-[#3B3929] text-[11px] text-[#A19F8D] mt-2">
-                                                        <strong className="text-[#FAFAFA]">{t('ticket_reason_label')}:</strong> {ticket.reason}
+                                                        <strong className="text-[#FAFAFA]">{ticket.type === 'account_registration' ? t('ticket_desc_label') : t('ticket_reason_label')}:</strong> {ticket.reason}
                                                     </div>
                                                 )}
                                             </div>
@@ -735,12 +745,25 @@ function TicketsInner({
                                                     <span>{t('ticket_info_hod')}</span>
                                                 )}
                                                 {isUserAdmin && (
-                                                    <span>{t('ticket_info_admin')}</span>
+                                                    ticket.status === 'pending_hod' ? (
+                                                        <span className="text-amber-300 font-medium inline-flex items-center gap-1.5">
+                                                            <Clock className="w-3.5 h-3.5 text-amber-400" /> {t('ticket_monitoring_hod')}
+                                                        </span>
+                                                    ) : (
+                                                        <span>{t('ticket_info_admin')}</span>
+                                                    )
                                                 )}
                                             </div>
 
                                             {/* Right: Approval/Rejection Actions */}
                                             <div className="flex items-center gap-2">
+                                                {/* Admin Monitoring Badge (No action button on pending_hod) */}
+                                                {isUserAdmin && ticket.status === 'pending_hod' && !canHodReview && (
+                                                    <span className="px-3 py-1 rounded-xl bg-amber-500/10 text-amber-300 border border-amber-500/30 text-xs font-semibold flex items-center gap-1.5">
+                                                        <Clock className="w-3.5 h-3.5 text-amber-400" />
+                                                        {lang === 'id' ? 'Menunggu HoD (Hanya Melihat)' : 'Pending HoD (View Only)'}
+                                                    </span>
+                                                )}
                                                 {/* HOD Review Actions */}
                                                 {canHodReview && (
                                                     <>

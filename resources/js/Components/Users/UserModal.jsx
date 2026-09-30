@@ -27,7 +27,7 @@ export function UserModal({ isOpen, onClose, user = null, onSaved }) {
 
     // Granular permissions
     const [permissions, setPermissions] = useState({
-        can_view_all_departments: true,
+        can_view_all_departments: false,
         can_manage_issues: true,
         can_access_analytics: true,
         can_access_calendar: true,
@@ -54,7 +54,7 @@ export function UserModal({ isOpen, onClose, user = null, onSaved }) {
                 setHodTitle(user.hod_title || '');
                 setPassword('');
                 setPermissions({
-                    can_view_all_departments: user.permissions?.can_view_all_departments ?? true,
+                    can_view_all_departments: user.permissions?.can_view_all_departments ?? (user.role === 'admin'),
                     can_manage_issues:        user.permissions?.can_manage_issues ?? true,
                     can_access_analytics:     user.permissions?.can_access_analytics ?? true,
                     can_access_calendar:      user.permissions?.can_access_calendar ?? true,
@@ -74,7 +74,7 @@ export function UserModal({ isOpen, onClose, user = null, onSaved }) {
                 setHodTitle('');
                 setPassword('telunas123');
                 setPermissions({
-                    can_view_all_departments: true,
+                    can_view_all_departments: false,
                     can_manage_issues: true,
                     can_access_analytics: true,
                     can_access_calendar: true,
@@ -102,7 +102,7 @@ export function UserModal({ isOpen, onClose, user = null, onSaved }) {
             });
         } else {
             setPermissions({
-                can_view_all_departments: true,
+                can_view_all_departments: false,
                 can_manage_issues: true,
                 can_access_analytics: true,
                 can_access_calendar: true,

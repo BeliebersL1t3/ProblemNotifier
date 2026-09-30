@@ -85,6 +85,37 @@ class TicketNotificationService
     }
 
     /**
+     * Notify Admins for informational monitoring when a new user registers (pending HOD)
+     */
+    public static function notifyAdminsNewRegistration(ApprovalTicket $ticket): void
+    {
+        // 1. In-app notification for Admins
+        self::createDashboardNotification([
+            'role_target' => 'admin',
+            'type' => 'ticket_request',
+            'title' => "Info Registrasi Akun Baru: {$ticket->staff_name} ({$ticket->ticket_number})",
+            'message' => "Pengguna baru {$ticket->staff_name} telah mendaftar di departemen {$ticket->department}. Saat ini sedang menunggu tinjauan HOD.",
+            'link' => "/tickets?id={$ticket->id}",
+        ]);
+
+        // 2. Direct WhatsApp to Admins if enabled
+        $admins = User::where('role', 'admin')
+            ->where('notify_whatsapp_tickets', true)
+            ->whereNotNull('whatsapp_number')
+            ->get();
+
+        foreach ($admins as $admin) {
+            $msg = "📋 *[Info Monitoring] Pendaftaran Akun Baru*\n\n"
+                 . "Pengguna: *{$ticket->staff_name}*\n"
+                 . "Departemen: *{$ticket->department}*\n"
+                 . "Nomor Tiket: *{$ticket->ticket_number}*\n"
+                 . "Status: *Menunggu Tinjauan HOD*\n\n"
+                 . "User baru telah mendaftar dan menunggu verifikasi dari HOD departemen terkait. Anda dapat memantau statusnya di Web Dashboard.";
+            self::sendWhatsApp($admin->whatsapp_number, $msg);
+        }
+    }
+
+    /**
      * Notify Admin when a ticket needs final ACC
      */
     public static function notifyAdmins(ApprovalTicket $ticket, string $actionTitle): void

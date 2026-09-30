@@ -46,7 +46,7 @@ class UserController extends Controller
 
         // Department user default
         return [
-            'can_view_all_departments' => true,
+            'can_view_all_departments' => false,
             'can_manage_issues'        => true,
             'can_access_analytics'     => true,
             'can_access_calendar'      => true,

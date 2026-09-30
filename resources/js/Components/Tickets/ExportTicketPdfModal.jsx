@@ -254,7 +254,7 @@ export function ExportTicketPdfModal({ open, onOpenChange, currentUser }) {
                 t('ticket_pdf_col_staff'),
                 t('ticket_department'),
                 t('ticket_pdf_col_detail'),
-                t('ticket_reason_label'),
+                `${t('ticket_reason_label')} / ${t('ticket_desc_label')}`,
                 t('ticket_pdf_col_hod'),
                 t('ticket_pdf_col_admin'),
                 t('ticket_pdf_col_status')

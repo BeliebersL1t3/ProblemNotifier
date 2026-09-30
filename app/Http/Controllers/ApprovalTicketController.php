@@ -26,8 +26,7 @@ class ApprovalTicketController extends Controller
 
         // Role scoping
         if ($user->isAdmin()) {
-            // Admin only sees tickets that have been forwarded by HOD or already processed (never pending_hod)
-            $query->where('status', '!=', 'pending_hod');
+            // Admin sees all tickets across departments (including pending_hod for monitoring/view-only)
         } elseif ($user->isHOD()) {
             // HOD sees tickets for their department or submitted by themselves
             $query->where(function ($q) use ($user) {
@@ -85,7 +84,7 @@ class ApprovalTicketController extends Controller
         if ($user->isAdmin()) {
             $pendingAdminCount = ApprovalTicket::where('status', 'pending_admin')->count();
             $adminApprovedCount = ApprovalTicket::where('status', 'approved')->count();
-            $pendingHodCount = 0;
+            $pendingHodCount = ApprovalTicket::where('status', 'pending_hod')->count();
         } elseif ($user->isHOD()) {
             $pendingHodCount = ApprovalTicket::where('status', 'pending_hod')
                 ->where('department', $user->department)

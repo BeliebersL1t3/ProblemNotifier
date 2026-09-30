@@ -121,6 +121,7 @@ class RegisteredUserController extends Controller
             'is_active' => false,
             'approval_status' => 'pending_hod',
             'notify_whatsapp_tickets' => true,
+            'permissions' => \App\Http\Controllers\UserController::getDefaultPermissions('department'),
         ]);
 
         event(new Registered($user));
@@ -141,6 +142,9 @@ class RegisteredUserController extends Controller
 
         // Notify HODs of the department
         \App\Services\TicketNotificationService::notifyHods($ticket, 'Pendaftaran Akun Baru');
+
+        // Notify Admins for monitoring
+        \App\Services\TicketNotificationService::notifyAdminsNewRegistration($ticket);
 
         return redirect()->route('login')->with('status', 'registration-pending');
     }
