@@ -183,7 +183,6 @@ export async function generateExcelReport(issues = [], options = {}) {
         const pending = issues.filter(i => i.status === 'pending').length;
         const progress = issues.filter(i => i.status === 'progress').length;
         const open = issues.filter(i => i.status === 'open').length;
-        const archived = issues.filter(i => i.isArchived).length;
         const rate = total > 0 ? ((solved / total) * 100).toFixed(1) : '0.0';
 
         // --- Table 1: Ringkasan Metriks Global ---
@@ -215,7 +214,6 @@ export async function generateExcelReport(issues = [], options = {}) {
             ['Sedang Dikerjakan (Progress)', progress, total > 0 ? `${((progress / total) * 100).toFixed(1)}%` : '0%'],
             ['Tertunda (Pending Delay)', pending, total > 0 ? `${((pending / total) * 100).toFixed(1)}%` : '0%'],
             ['Terbuka / Menunggu Diambil (Open)', open, total > 0 ? `${((open / total) * 100).toFixed(1)}%` : '0%'],
-            ['Tiket Terarsip (Archived)', archived, total > 0 ? `${((archived / total) * 100).toFixed(1)}%` : '0%'],
             ['TOTAL TIKET TERFILTER', total, '100%'],
         ];
 
@@ -351,10 +349,9 @@ export async function generateExcelReport(issues = [], options = {}) {
         { header: 'Waktu Selesai', key: 'solvedAt', width: 22, align: 'center' },
         { header: 'Durasi Pengerjaan', key: 'duration', width: 25, align: 'center', isGroupEnd: true },
 
-        // Kelompok 5: Catatan Tambahan & Status Arsip
+        // Kelompok 5: Catatan Tambahan
         { header: 'Alasan Pending / Timeline', key: 'pendingReason', width: 36, align: 'left' },
-        { header: 'Catatan Solved', key: 'solvedNotes', width: 38, align: 'left' },
-        { header: 'Status Arsip', key: 'isArchived', width: 16, align: 'center', isGroupEnd: true },
+        { header: 'Catatan Solved', key: 'solvedNotes', width: 38, align: 'left', isGroupEnd: true },
     ];
 
     dataSheet.columns = columnsConfig.map(col => ({
@@ -436,7 +433,6 @@ export async function generateExcelReport(issues = [], options = {}) {
             duration: cleanDuration(issue.durationLabel),
             pendingReason: pendingText,
             solvedNotes: solvedNotes,
-            isArchived: issue.isArchived ? 'ARCHIVED' : 'ACTIVE',
         };
 
         const row = dataSheet.addRow(rowData);
@@ -481,11 +477,6 @@ export async function generateExcelReport(issues = [], options = {}) {
             if (config?.key === 'priority') {
                 const pStyle = PRIORITY_STYLES[rowData.priority] || PRIORITY_STYLES.LOW;
                 cell.font = pStyle.font;
-            }
-
-            // Custom styling for Archived column
-            if (config?.key === 'isArchived' && issue.isArchived) {
-                cell.font = { name: 'Segoe UI', size: 9, italic: true, color: { argb: 'FF9CA3AF' } };
             }
         });
     });

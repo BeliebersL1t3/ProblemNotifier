@@ -252,13 +252,12 @@ const CustomDepartmentBar = (props) => {
 };
 
 function AnalyticsInner() {
-    const { issues, archivedIssues, fetchArchivedIssues, restoreIssue, loading: contextLoading, error, fetchIssues, availableSheets, currentSheet } = useIssues();
+    const { issues, loading: contextLoading, error, fetchIssues, availableSheets, currentSheet } = useIssues();
     const { isAdmin, isHOD, isDeptUser, department, canAccessAnalytics, canExportReports, canViewAllDepartments } = useAuth();
     const [selectedSheets, setSelectedSheets] = useState(() => {
         return currentSheet ? [currentSheet] : (availableSheets && availableSheets.length > 0 ? [availableSheets[0]] : ['2026']);
     });
     const [sheetDataMap, setSheetDataMap] = useState({});
-    const [archivedSheetDataMap, setArchivedSheetDataMap] = useState({});
     const [fetchingSheets, setFetchingSheets] = useState({});
 
     // Populate cache with currentSheet data when available
@@ -267,15 +266,6 @@ function AnalyticsInner() {
             setSheetDataMap(prev => ({ ...prev, [currentSheet]: issues }));
         }
     }, [currentSheet, issues]);
-
-    // Populate archived cache for currentSheet when available (admin only)
-    useEffect(() => {
-        if (isAdmin && currentSheet && archivedIssues && archivedIssues.length >= 0) {
-            setArchivedSheetDataMap(prev => ({ ...prev, [currentSheet]: archivedIssues }));
-        } else if (!isAdmin) {
-            setArchivedSheetDataMap({});
-        }
-    }, [isAdmin, currentSheet, archivedIssues]);
 
     // Ensure selectedSheets initializes when availableSheets or currentSheet becomes ready
     useEffect(() => {
@@ -305,21 +295,10 @@ function AnalyticsInner() {
                         setFetchingSheets(prev => ({ ...prev, [sheet]: false }));
                     }
                 }
-
-                if (isAdmin && !archivedSheetDataMap[sheet]) {
-                    try {
-                        const archRes = await axios.get('/api/issues', { params: { sheet, archived: true } });
-                        if (archRes.data?.success && Array.isArray(archRes.data.data)) {
-                            setArchivedSheetDataMap(prev => ({ ...prev, [sheet]: archRes.data.data }));
-                        }
-                    } catch (e) {
-                        console.error('Failed to fetch archived sheet data for:', sheet, e);
-                    }
-                }
             }
         };
         fetchMissing();
-    }, [selectedSheets, sheetDataMap, archivedSheetDataMap, fetchingSheets, isAdmin]);
+    }, [selectedSheets, sheetDataMap, fetchingSheets]);
 
     // Combined issues from all selected sheets (strictly scoped to department for dept users, ALWAYS including island-wide emergency alerts)
     const combinedIssues = useMemo(() => {
@@ -335,26 +314,11 @@ function AnalyticsInner() {
                     all.push({ ...item, _sheet: sheetName, isArchived: false });
                 }
             });
-
-            // If admin, ALSO include archived issues for this sheet
-            if (isAdmin) {
-                const archList = archivedSheetDataMap[sheetName] || (sheetName === currentSheet ? (archivedIssues || []) : []);
-                archList.forEach(item => {
-                    const uniqueKey = `archived-${sheetName}-${item.id}`;
-                    if (!seenIds.has(uniqueKey)) {
-                        seenIds.add(uniqueKey);
-                        all.push({ ...item, _sheet: sheetName, isArchived: true });
-                    }
-                });
-            }
         });
 
         if (isDeptUser && department && !canViewAllDepartments) {
             const userDeptNorm = normalizeDepartment(department).toLowerCase();
             return all.filter(issue => {
-                // Dept users never see archived issues
-                if (issue.isArchived) return false;
-
                 // 🚨 Emergency & critical fast-track issues are island-wide alerts, ALWAYS in scope for everyone!
                 const isEmergency = (issue.category || '').toLowerCase() === 'emergency'
                     || String(issue.id || '').startsWith('SOS')
@@ -371,7 +335,7 @@ function AnalyticsInner() {
             });
         }
         return all;
-    }, [selectedSheets, sheetDataMap, archivedSheetDataMap, currentSheet, issues, archivedIssues, isAdmin, isDeptUser, department, canViewAllDepartments]);
+    }, [selectedSheets, sheetDataMap, currentSheet, issues, isDeptUser, department, canViewAllDepartments]);
 
     const isFetchingAnySheet = Object.values(fetchingSheets).some(Boolean);
     const loading = contextLoading && combinedIssues.length === 0 && !error;
@@ -490,23 +454,10 @@ function AnalyticsInner() {
         recentActivityRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     };
 
-    const handleRestoreIssue = async (issue) => {
-        if (!isAdmin || !issue) return;
-        try {
-            await restoreIssue(issue.id, issue._sheet || issue.sheet || currentSheet);
-            fetchIssues(true);
-            fetchArchivedIssues(true);
-        } catch (e) {
-            console.error('Failed to restore issue:', e);
-        }
-    };
-
     // Precomputed stats for the mini stat filter cards in Recent Activity
     const analyticsStats = useMemo(() => {
         const list = timeFilteredIssues || [];
-        const activeList = list.filter(i => !i.isArchived);
-        const archivedList = list.filter(i => i.isArchived);
-        const currentDisplayList = showArchivedInTimeline ? list : activeList;
+        const currentDisplayList = list;
 
         const isEmergency = (i) => (i.category || '').toLowerCase() === 'emergency' || String(i.id || '').startsWith('SOS');
         const isCritical = (i) => i.priority === 'critical' && !isEmergency(i);
@@ -524,7 +475,7 @@ function AnalyticsInner() {
             progress: currentDisplayList.filter(i => i.status === 'progress').length,
             pending: currentDisplayList.filter(i => i.status === 'pending').length,
             solved: currentDisplayList.filter(i => i.status === 'solved').length,
-            archived: archivedList.length,
+            archived: 0,
             criticalCount: criticalList.length,
             criticalActive: criticalList.filter(i => i.status !== 'solved').length,
             highCount: highList.length,
@@ -533,7 +484,7 @@ function AnalyticsInner() {
             emergencyActive: emergencyList.filter(i => i.status !== 'solved').length,
             emergencySolved: emergencyList.filter(i => i.status === 'solved').length,
         };
-    }, [timeFilteredIssues, showArchivedInTimeline]);
+    }, [timeFilteredIssues]);
 
 
 
@@ -2872,7 +2823,6 @@ function AnalyticsInner() {
                 issue={selectedActivityIssue} 
                 onClose={() => setSelectedActivityIssue(null)} 
                 onOpenCardModal={selectedActivityIssue?._isPastContribution ? undefined : (issue) => setCardModalTarget(issue)}
-                onRestore={isAdmin ? handleRestoreIssue : undefined}
             />
 
             {cardModalTarget?.status === 'open' && (

@@ -109,41 +109,10 @@ export function IssuesProvider({ children }) {
         }
     }, [currentSheet]);
 
-    // Archived issues state (for Admin Archive / Trash view)
-    const [archivedIssues, setArchivedIssues] = useState([]);
-    const [loadingArchived, setLoadingArchived] = useState(false);
-
-    const fetchArchivedIssues = useCallback(async (isSilent = false) => {
-        if (!isAdmin) {
-            setArchivedIssues([]);
-            return;
-        }
-        if (!isSilent) setLoadingArchived(true);
-        try {
-            const params = { archived: true };
-            if (currentSheet && currentSheet !== 'all') {
-                params.sheet = currentSheet;
-            }
-            const res = await axios.get('/api/issues', { params });
-            if (res.data?.success && Array.isArray(res.data.data)) {
-                setArchivedIssues(res.data.data);
-            }
-        } catch (err) {
-            console.error('Failed to fetch archived issues:', err);
-        } finally {
-            if (!isSilent) setLoadingArchived(false);
-        }
-    }, [currentSheet, isAdmin]);
-
     // Re-fetch issues when active sheet changes
     useEffect(() => {
         fetchIssues(false);
-        if (isAdmin) {
-            fetchArchivedIssues(true);
-        } else {
-            setArchivedIssues([]);
-        }
-    }, [fetchIssues, fetchArchivedIssues, isAdmin]);
+    }, [fetchIssues, currentSheet]);
 
     // Live Auto-Sync: Poll every 8 seconds and re-fetch immediately on window focus / tab wake-up
     useEffect(() => {
@@ -151,7 +120,6 @@ export function IssuesProvider({ children }) {
             // If screen locked or tab in background, skip polling to preserve phone battery and network
             if (typeof document !== 'undefined' && document.hidden) return;
             fetchIssues(true);
-            if (isAdmin) fetchArchivedIssues(true);
         }, 8000);
 
         const handleResume = () => {
@@ -547,24 +515,24 @@ export function IssuesProvider({ children }) {
         const response = await axios.delete(`/api/issues/${target}`);
 
         if (response.data?.success) {
-            await Promise.all([fetchIssues(true), fetchArchivedIssues(true)]);
+            await fetchIssues(true);
             return response.data;
         } else {
             throw new Error(response.data?.message || 'Failed to delete issue');
         }
-    }, [fetchIssues, fetchArchivedIssues]);
+    }, [fetchIssues]);
 
     const restoreIssue = useCallback(async (issue) => {
         const target = issue.id || issue.rowIndex;
         const response = await axios.post(`/api/issues/${target}/restore`);
 
         if (response.data?.success) {
-            await Promise.all([fetchIssues(true), fetchArchivedIssues(true)]);
+            await fetchIssues(true);
             return response.data;
         } else {
             throw new Error(response.data?.message || 'Failed to restore issue');
         }
-    }, [fetchIssues, fetchArchivedIssues]);
+    }, [fetchIssues]);
 
     const value = useMemo(() => {
         const activeScopeIssues = issues.filter(issue => {
@@ -595,14 +563,14 @@ export function IssuesProvider({ children }) {
             progress: activeScopeIssues.filter((i) => i.status === 'progress').length,
             pending: activeScopeIssues.filter((i) => i.status === 'pending').length,
             solved: activeScopeIssues.filter((i) => i.status === 'solved').length,
-            archived: archivedIssues.length,
+            archived: 0,
         };
         return {
             issues,
             rawIssues,
-            archivedIssues,
-            loadingArchived,
-            fetchArchivedIssues,
+            archivedIssues: [],
+            loadingArchived: false,
+            fetchArchivedIssues: async () => {},
             restoreIssue,
             categories: DEFAULT_CATEGORIES,
             stats,
@@ -630,7 +598,7 @@ export function IssuesProvider({ children }) {
             outboxSyncToast,
             dismissOutboxSyncToast,
         };
-    }, [issues, rawIssues, archivedIssues, loadingArchived, fetchArchivedIssues, restoreIssue, loading, error, fetchIssues, addIssue, updateIssue, deleteIssue, claimIssue, resolveIssue, pendingIssue, updateIssueCategory, availableSheets, currentSheet, setCurrentSheet, createNewPeriod, deletePeriod, fetchSheets, outboxCount, isSyncingOutbox, syncOfflineOutbox, outboxSyncToast, dismissOutboxSyncToast]);
+    }, [issues, rawIssues, restoreIssue, loading, error, fetchIssues, addIssue, updateIssue, deleteIssue, claimIssue, resolveIssue, pendingIssue, updateIssueCategory, availableSheets, currentSheet, setCurrentSheet, createNewPeriod, deletePeriod, fetchSheets, outboxCount, isSyncingOutbox, syncOfflineOutbox, outboxSyncToast, dismissOutboxSyncToast]);
 
     return (
         <IssuesContext.Provider value={value}>

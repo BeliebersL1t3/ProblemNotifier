@@ -64,7 +64,7 @@ const LIMITS = [
 const SHOW_GOOGLE_OAUTH_CARD = false;
 
 export function ExportPdfModal({ open, onOpenChange }) {
-    const { issues, archivedIssues, categories, currentSheet, availableSheets } = useIssues();
+    const { issues, categories, currentSheet, availableSheets } = useIssues();
     const { auth } = usePage().props;
     const isAdmin = auth?.user?.role === 'admin';
     const userDept = normalizeDepartment(auth?.user?.department || '');
@@ -95,7 +95,6 @@ export function ExportPdfModal({ open, onOpenChange }) {
     const [includeAuditPerson, setIncludeAuditPerson] = useState(true);
     const [includeAuditReason, setIncludeAuditReason] = useState(true);
     const [includeDelayTimeline, setIncludeDelayTimeline] = useState(true);
-    const [includeArchived, setIncludeArchived] = useState(false);
 
     const { t, lang } = useLanguage();
 
@@ -289,14 +288,6 @@ export function ExportPdfModal({ open, onOpenChange }) {
             }
         });
 
-        // Optional inclusion of archived issues for Admin
-        if (isAdmin && includeArchived && Array.isArray(archivedIssues)) {
-            const relevantArchived = archivedIssues
-                .filter(i => selectedSheets.includes(i.sheet || i._sheet || currentSheet))
-                .map(i => ({ ...i, __sheetName: i.sheet || i._sheet || currentSheet }));
-            allSelectedIssues = allSelectedIssues.concat(relevantArchived);
-        }
-
         let filtered = allSelectedIssues.filter(issue => {
             if (issue.isArchived) {
                 // Archived issues explicitly included by Admin via includeArchived
@@ -356,7 +347,7 @@ export function ExportPdfModal({ open, onOpenChange }) {
         }
 
         return filtered;
-    }, [selectedSheets, downloadedIssues, isAdmin, includeArchived, archivedIssues, currentSheet, selectedStatuses, selectedCategories, deptFilterMode, userDept, auth?.user?.name, selectedDepartments, limit]);
+    }, [selectedSheets, downloadedIssues, isAdmin, currentSheet, selectedStatuses, selectedCategories, deptFilterMode, userDept, auth?.user?.name, selectedDepartments, limit]);
 
     const filteredIssuesCount = filteredIssues.length;
 
@@ -1249,17 +1240,6 @@ export function ExportPdfModal({ open, onOpenChange }) {
                                         <span>Sertakan Kolom Alasan Pending & Timeline Tertunda</span>
                                     </label>
 
-                                    {isAdmin && (
-                                        <label className="flex items-center gap-2 text-rose-300/90 font-medium cursor-pointer select-none pt-2 border-t border-[#3B3929]/50">
-                                            <input
-                                                type="checkbox"
-                                                checked={includeArchived}
-                                                onChange={(e) => setIncludeArchived(e.target.checked)}
-                                                className="rounded text-rose-500 focus:ring-rose-500 h-4 w-4 bg-[#1C1B0E] border-[#3B3929]"
-                                            />
-                                            <span>Sertakan Isu Terarsip ({archivedIssues?.length || 0})</span>
-                                        </label>
-                                    )}
                                 </div>
                             ) : (
                                 <div className="flex flex-col gap-2.5">
@@ -1317,18 +1297,6 @@ export function ExportPdfModal({ open, onOpenChange }) {
                                         />
                                         <span>Include Pending Delay Timeline</span>
                                     </label>
-
-                                    {isAdmin && (
-                                        <label className="flex items-center gap-2 text-xs text-rose-300/90 font-medium cursor-pointer select-none pt-1 border-t border-[#3B3929]/50">
-                                            <input
-                                                type="checkbox"
-                                                checked={includeArchived}
-                                                onChange={(e) => setIncludeArchived(e.target.checked)}
-                                                className="rounded text-rose-500 focus:ring-rose-500 h-4 w-4 bg-[#1C1B0E] border-[#3B3929]"
-                                            />
-                                            <span>Include Archived Issues ({archivedIssues?.length || 0})</span>
-                                        </label>
-                                    )}
                                 </div>
                             )}
                         </div>

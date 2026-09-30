@@ -2318,7 +2318,7 @@ class IssueController extends Controller
         if (!$user->isAdmin()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Unauthorized. Hanya Administrator yang memiliki hak akses untuk mengarsipkan isu.',
+                'message' => 'Unauthorized. Hanya Administrator yang memiliki hak akses untuk menghapus isu.',
             ], 403);
         }
 
@@ -2340,7 +2340,7 @@ class IssueController extends Controller
             $adminName = $user->staff_name ?: ($user->name ?: 'Admin');
             $targetSheet = $issueData['foundLocation']['sheet'] ?? null;
             $nowFormatted = Carbon::now('Asia/Jakarta')->format('M d, Y H:i:s');
-            $archiveNote = "[{$nowFormatted}] {$adminName}: Isu diarsipkan oleh Admin";
+            $archiveNote = "[{$nowFormatted}] {$adminName}: Isu dihapus oleh Admin";
 
             // Insert a new version row directly below the latest row to preserve all prior edit history
             $newRow = IssueSheetRepository::padRow($currentRow);
@@ -2365,7 +2365,7 @@ class IssueController extends Controller
             $taggedStr   = !empty($taggedDepts) ? "\n*Tagged:* {$taggedDepts}" : '';
 
             $this->notifyWhatsApp([
-                'message' => "📢 🗑️ *ISSUE ARCHIVED / ANNOUNCEMENT*\n*ID:* {$deletedId}\n*Title:* {$deletedTitle}\n*Location:* {$deletedLoc}{$originStr}{$assignedStr}{$taggedStr}\n*Archived By Admin:* {$adminName}\n*Status:* Archived (Hidden from Operational Dashboard)",
+                'message' => "📢 🗑️ *ISSUE DELETED / ANNOUNCEMENT*\n*ID:* {$deletedId}\n*Title:* {$deletedTitle}\n*Location:* {$deletedLoc}{$originStr}{$assignedStr}{$taggedStr}\n*Deleted By Admin:* {$adminName}\n*Status:* Deleted (Display Status: 0 in Spreadsheet)",
                 'department' => $originDept,
                 'assignedDepartments' => $assignedDepts,
                 'taggedDepartments' => $taggedDepts,
@@ -2373,12 +2373,12 @@ class IssueController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => "Issue {$deletedId} archived successfully.",
+                'message' => "Issue {$deletedId} deleted successfully.",
             ]);
         } catch (\Throwable $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to archive issue: ' . $e->getMessage(),
+                'message' => 'Failed to delete issue: ' . $e->getMessage(),
             ], 500);
         }
     }
