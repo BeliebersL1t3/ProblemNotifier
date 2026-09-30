@@ -51,6 +51,7 @@ class UserAuditLog extends Model
     ): self {
             $rawIp = $ipAddress ?? request()?->ip();
             $normalizedIp = ($rawIp === '::1') ? '127.0.0.1' : $rawIp;
+            $targetName = $customTargetName ?? ($targetUser?->staff_name ?: ($targetUser?->name ?: 'N/A'));
 
             $log = self::create([
                 'admin_id'         => $admin?->id,
