@@ -17,8 +17,6 @@ export function Tooltip({
     className = '',
     delay = 150 
 }) {
-    if (!content) return children;
-
     const [visible, setVisible] = useState(false);
     const timeoutRef = useRef(null);
 
@@ -38,6 +36,8 @@ export function Tooltip({
             if (timeoutRef.current) clearTimeout(timeoutRef.current);
         };
     }, []);
+
+    if (!content) return children;
 
     const positionClasses = {
         top: 'bottom-full left-1/2 -translate-x-1/2 mb-2',

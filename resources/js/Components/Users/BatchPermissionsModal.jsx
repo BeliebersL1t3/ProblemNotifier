@@ -51,8 +51,6 @@ export function BatchPermissionsModal({
     onBatchSuccess,
     showToast,
 }) {
-    if (!isOpen || selectedUsers.length === 0) return null;
-
     // Permissions state: mapping key -> true | false | 'keep'
     const [permValues, setPermValues] = useState(() => {
         const initial = {};
@@ -63,6 +61,8 @@ export function BatchPermissionsModal({
     });
 
     const [processing, setProcessing] = useState(false);
+
+    if (!isOpen || selectedUsers.length === 0) return null;
 
     // Apply quick preset
     const handleApplyPreset = (presetName) => {

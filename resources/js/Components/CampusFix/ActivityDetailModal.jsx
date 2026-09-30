@@ -97,9 +97,7 @@ export function ActivityDetailModal({ issue, onClose, onOpenCardModal, onEdit, o
         }
     };
 
-    if (!issue) return null;
-
-    const isArchived = Boolean(issue.isArchived || issue.statusDisplay === '0' || issue.displayStatus === '0');
+    const isArchived = Boolean(issue?.isArchived || issue?.statusDisplay === '0' || issue?.displayStatus === '0');
 
     const userDept = normalizeDepartment(department);
     const originDept = normalizeDepartment(issue?.department);
@@ -191,13 +189,15 @@ export function ActivityDetailModal({ issue, onClose, onOpenCardModal, onEdit, o
     };
 
     const archiveLog = useMemo(() => {
+        if (!issue) return null;
         return (issue.editLogs || []).slice().reverse().find(l => l && (l.type === 'archive' || String(l.changes).toLowerCase().includes('arsip') || String(l.changes).toLowerCase().includes('archive')));
-    }, [issue.editLogs]);
-    const archivedRawDate = issue.archivedAtStr || issue.archivedAt || archiveLog?.date;
+    }, [issue?.editLogs]);
+    const archivedRawDate = issue?.archivedAtStr || issue?.archivedAt || archiveLog?.date;
     const archivedDateFormatted = archivedRawDate ? formatDateTime(archivedRawDate) : null;
 
     // Build Chronologically Unified Timeline
     const timelineItems = useMemo(() => {
+        if (!issue) return [];
         const baseCreatedTime = parseSafeTimestamp(issue.reportedAt || issue.reportedAtIso, Date.now() - 3600000);
 
         // 1. Root Creation Event (ALWAYS STEP 1)
@@ -536,6 +536,8 @@ export function ActivityDetailModal({ issue, onClose, onOpenCardModal, onEdit, o
         // Return creation FIRST, followed by all progression events in sequence
         return [creationItem, ...subsequentEvents];
     }, [issue, takerDept, solverDept, t, locale, isArchived, archivedRawDate, archivedDateFormatted, archiveLog, lang]);
+
+    if (!issue) return null;
 
     return (
         <>
