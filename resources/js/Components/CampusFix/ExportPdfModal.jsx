@@ -447,18 +447,7 @@ export function ExportPdfModal({ open, onOpenChange }) {
                 d = new Date(val);
             }
             if (isNaN(d.getTime())) return String(val);
-
-            const dateStr = d.toLocaleDateString('en-GB', {
-                day: '2-digit',
-                month: '2-digit',
-                year: 'numeric'
-            });
-            const timeStr = d.toLocaleTimeString('en-GB', {
-                hour: '2-digit',
-                minute: '2-digit',
-                hour12: false
-            });
-            return `${dateStr}\n${timeStr} WIB`;
+            return d.toLocaleString('en-GB', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).replace(',', '');
         };
 
         const cleanDuration = (val) => {
@@ -630,7 +619,7 @@ export function ExportPdfModal({ open, onOpenChange }) {
         autoTable(doc, {
             startY: 78,
             margin: { left: 10, right: 10, bottom: 25 },
-            head: [['ID', 'Submitted', 'Taken', 'Solved', 'Time Solve', 'Problem', 'Location', 'Dept / Tags', 'Category', 'Reporter', 'Status', 'Priority']],
+            head: [['ID', 'Submitted\n(Tgl & Waktu)', 'Taken\n(Tgl & Waktu)', 'Solved\n(Tgl & Waktu)', 'Time Solve', 'Problem', 'Location', 'Dept / Tags', 'Category', 'Reporter', 'Status', 'Priority']],
             body: tableData,
             theme: 'grid',
             styles: { 
@@ -650,14 +639,14 @@ export function ExportPdfModal({ open, onOpenChange }) {
             },
             columnStyles: {
                 0: { cellWidth: 20 }, // ID
-                1: { cellWidth: 21 }, // Submitted (DD/MM/YYYY \n HH:mm WIB)
-                2: { cellWidth: 20 }, // Taken (DD/MM/YYYY \n HH:mm WIB \n Name)
-                3: { cellWidth: 20 }, // Solved (DD/MM/YYYY \n HH:mm WIB \n Name)
+                1: { cellWidth: 22 }, // Submitted (Tgl & Waktu)
+                2: { cellWidth: 21 }, // Taken (Tgl & Waktu)
+                3: { cellWidth: 21 }, // Solved (Tgl & Waktu)
                 4: { cellWidth: 16 }, // Duration
-                5: { cellWidth: 38 }, // Problem
-                6: { cellWidth: 20 }, // Location
+                5: { cellWidth: 37 }, // Problem
+                6: { cellWidth: 19 }, // Location
                 7: { cellWidth: 31 }, // Dept / Tags
-                8: { cellWidth: 20 }, // Category
+                8: { cellWidth: 19 }, // Category
                 9: { cellWidth: 22 }, // Reporter
                 10: { cellWidth: 22, fontStyle: 'bold' }, // Status
                 11: { cellWidth: 20, fontStyle: 'bold' }, // Priority
