@@ -59,6 +59,22 @@ class GoogleService
     }
 
     /**
+     * Converts a 0-indexed column integer into spreadsheet column letters.
+     * 0 -> 'A', 25 -> 'Z', 26 -> 'AA', etc.
+     */
+    public static function indexToColumnLetter(int $index): string
+    {
+        $letter = '';
+        $index++;
+        while ($index > 0) {
+            $mod = ($index - 1) % 26;
+            $letter = chr(65 + $mod) . $letter;
+            $index = (int)(($index - $mod) / 26);
+        }
+        return $letter;
+    }
+
+    /**
      * List all main issue sheet tab names (e.g. 'Sheet1', '2026', '2027').
      * Strictly filters out any 'Ops_' department tabs.
      */
@@ -444,13 +460,13 @@ class GoogleService
             return Cache::remember($cacheKey, 20, function () use ($backupCacheKey) {
                 $response = $this->sheets->spreadsheets_values->get(
                     $this->spreadsheetId,
-                    "{$this->sheetName}!A2:Z"
+                    "{$this->sheetName}!A2:AA"
                 );
 
                 $values = $response->getValues() ?? [];
 
-                // Pad every row to 26 columns so missing trailing cells don't cause errors
-                $padded = array_map(fn($row) => array_pad($row, 26, ''), $values);
+                // Pad every row to 27 columns (A to AA) so missing trailing cells don't cause errors
+                $padded = array_map(fn($row) => array_pad($row, \App\Services\IssueSheetRepository::TOTAL_COLUMNS, ''), $values);
                 Cache::put($backupCacheKey, $padded, 86400 * 7);
                 return $padded;
             });
@@ -466,14 +482,17 @@ class GoogleService
         }
     }
 
-    /** Append a new row (26 columns: A to Z). Returns the row index. */
+    /** Append a new row (A to AA). Returns the row index. */
     public function appendRow(array $values): ?int
     {
         $this->clearCache();
-        $body = new ValueRange(['values' => [array_pad($values, 26, '')]]);
+        $colCount = max(26, count($values));
+        $padded = array_pad($values, $colCount, '');
+        $lastCol = self::indexToColumnLetter($colCount - 1);
+        $body = new ValueRange(['values' => [$padded]]);
         $response = $this->sheets->spreadsheets_values->append(
             $this->spreadsheetId,
-            "{$this->sheetName}!A:Z",
+            "{$this->sheetName}!A:{$lastCol}",
             $body,
             ['valueInputOption' => 'RAW', 'insertDataOption' => 'INSERT_ROWS']
         );
@@ -621,10 +640,13 @@ class GoogleService
         $this->sheets->spreadsheets->batchUpdate($this->spreadsheetId, $batchUpdateRequest);
 
         // 2. Populate the inserted row with values
-        $body = new ValueRange(['values' => [array_pad($values, 26, '')]]);
+        $colCount = max(26, count($values));
+        $padded = array_pad($values, $colCount, '');
+        $lastCol = self::indexToColumnLetter($colCount - 1);
+        $body = new ValueRange(['values' => [$padded]]);
         $this->sheets->spreadsheets_values->update(
             $this->spreadsheetId,
-            "{$targetSheet}!A{$insertRowIndex}:Z{$insertRowIndex}",
+            "{$targetSheet}!A{$insertRowIndex}:{$lastCol}{$insertRowIndex}",
             $body,
             ['valueInputOption' => 'RAW']
         );
@@ -678,7 +700,7 @@ class GoogleService
                         'startRowIndex' => $rowIndex - 1, // 0-based
                         'endRowIndex' => $rowIndex,
                         'startColumnIndex' => 0,
-                        'endColumnIndex' => 26 // A to Z
+                        'endColumnIndex' => 27 // A to AA
                     ],
                     'cell' => [
                         'userEnteredFormat' => [
@@ -745,7 +767,7 @@ class GoogleService
                         'startRowIndex'    => $rowIndex - 1, // 0-based
                         'endRowIndex'      => $rowIndex,
                         'startColumnIndex' => 0,
-                        'endColumnIndex'   => 26 // A to Z
+                        'endColumnIndex'   => 27 // A to AA
                     ],
                     'cell' => [
                         'userEnteredFormat' => [
@@ -817,14 +839,16 @@ class GoogleService
 
         // If it's a list (0-indexed sequential array representing entire row)
         if (array_is_list($colValues) || (isset($colValues[0]) && is_int(array_key_first($colValues)) && count($colValues) > 10)) {
-            $padded = array_pad($colValues, 26, '');
+            $colCount = max(26, count($colValues));
+            $padded = array_pad($colValues, $colCount, '');
+            $lastCol = self::indexToColumnLetter($colCount - 1);
             $body = new ValueRange([
-                'range'  => "{$targetSheet}!A{$rowNumber}:Z{$rowNumber}",
+                'range'  => "{$targetSheet}!A{$rowNumber}:{$lastCol}{$rowNumber}",
                 'values' => [$padded],
             ]);
             $this->sheets->spreadsheets_values->update(
                 $this->spreadsheetId,
-                "{$targetSheet}!A{$rowNumber}:Z{$rowNumber}",
+                "{$targetSheet}!A{$rowNumber}:{$lastCol}{$rowNumber}",
                 $body,
                 ['valueInputOption' => 'RAW']
             );
@@ -834,7 +858,7 @@ class GoogleService
         $data = [];
         foreach ($colValues as $col => $value) {
             if (is_int($col) || is_numeric($col)) {
-                $colLetter = chr(65 + (int)$col);
+                $colLetter = self::indexToColumnLetter((int)$col);
             } else {
                 $colLetter = strtoupper((string)$col);
             }
