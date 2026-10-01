@@ -7,8 +7,8 @@ import TextInput from '@/Components/TextInput';
 import GuestLayout from '@/Layouts/GuestLayout';
 import { Head, Link, useForm } from '@inertiajs/react';
 import { DEPARTMENT_SUBDIVISIONS, normalizeDepartment } from '@/constants/departments';
-import { CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
-import { formatToLocalPhone } from '@/utils/phone';
+import { CheckCircle2, AlertCircle, AlertTriangle, Loader2, Info } from 'lucide-react';
+import { formatToLocalPhone, isValidIndonesianPhone, getPhoneFormatError } from '@/utils/phone';
 
 const DEPARTMENT_OPTIONS = [
     { value: 'HR', label: 'HR (Human Resources)' },
@@ -35,28 +35,47 @@ export default function Register() {
         whatsapp_number: '',
     });
 
-    const [phoneStatus, setPhoneStatus] = useState('idle'); // 'idle' | 'checking' | 'available' | 'taken'
-    const [phoneCheckError, setPhoneCheckError] = useState('');
+    const [phoneStatus, setPhoneStatus] = useState('idle'); // 'idle' | 'invalid_format' | 'taken' | 'not_found_on_wa' | 'verified' | 'bot_offline'
+    const [phoneCheckMessage, setPhoneCheckMessage] = useState('');
     const [isCheckingPhone, setIsCheckingPhone] = useState(false);
     const checkTimeoutRef = useRef(null);
 
     const checkPhoneAvailability = async (phone) => {
         const clean = (phone || '').replace(/[^0-9]/g, '');
-        if (clean.length < 9) {
+        if (!clean) {
             setPhoneStatus('idle');
-            setPhoneCheckError('');
+            setPhoneCheckMessage('');
+            return;
+        }
+
+        const formatError = getPhoneFormatError(clean);
+        if (formatError) {
+            setPhoneStatus('invalid_format');
+            setPhoneCheckMessage(formatError);
             return;
         }
 
         setIsCheckingPhone(true);
         try {
             const res = await axios.post('/register/check-phone', { phone });
-            if (res.data.available === false) {
+            if (res.data.valid === false) {
+                setPhoneStatus('invalid_format');
+                setPhoneCheckMessage(res.data.message || 'Format nomor tidak valid.');
+            } else if (res.data.available === false && res.data.exists_on_wa === false) {
+                setPhoneStatus('not_found_on_wa');
+                setPhoneCheckMessage(res.data.message || 'Nomor ini tidak terdaftar di WhatsApp.');
+            } else if (res.data.available === false) {
                 setPhoneStatus('taken');
-                setPhoneCheckError(res.data.message || 'Nomor WhatsApp ini sudah terdaftar.');
+                setPhoneCheckMessage(res.data.message || 'Nomor WhatsApp ini sudah terdaftar di sistem.');
+            } else if (res.data.exists_on_wa === true) {
+                setPhoneStatus('verified');
+                setPhoneCheckMessage(res.data.message || 'Nomor aktif di WhatsApp dan siap digunakan.');
+            } else if (res.data.bot_online === false) {
+                setPhoneStatus('bot_offline');
+                setPhoneCheckMessage(res.data.message || 'Format nomor valid. (Bot WhatsApp offline, akan diverifikasi HOD)');
             } else {
-                setPhoneStatus('available');
-                setPhoneCheckError('');
+                setPhoneStatus('verified');
+                setPhoneCheckMessage(res.data.message || 'Nomor WhatsApp valid.');
             }
         } catch (err) {
             console.error('Failed to check phone availability:', err);
@@ -66,16 +85,30 @@ export default function Register() {
     };
 
     const handlePhoneChange = (val) => {
-        setPhoneStatus('idle');
-        setPhoneCheckError('');
         if (checkTimeoutRef.current) {
             clearTimeout(checkTimeoutRef.current);
         }
         const clean = (val || '').replace(/[^0-9]/g, '');
-        if (clean.length >= 10) {
+        
+        // Immediate prefix check if user types something that doesn't start with 08
+        if (clean.length > 0 && !clean.startsWith('08')) {
+            setPhoneStatus('invalid_format');
+            setPhoneCheckMessage('Nomor WhatsApp harus diawali 08 (contoh: 0812xxxxxxxx).');
+            return;
+        }
+
+        if (clean.length >= 10 && clean.length <= 13) {
+            setPhoneStatus('idle');
+            setPhoneCheckMessage('');
             checkTimeoutRef.current = setTimeout(() => {
                 checkPhoneAvailability(val);
             }, 600);
+        } else if (clean.length > 13) {
+            setPhoneStatus('invalid_format');
+            setPhoneCheckMessage(`Nomor terlalu panjang (${clean.length}/13 digit).`);
+        } else {
+            setPhoneStatus('idle');
+            setPhoneCheckMessage('');
         }
     };
 
@@ -89,6 +122,17 @@ export default function Register() {
 
     const submit = (e) => {
         e.preventDefault();
+
+        const formatError = getPhoneFormatError(data.whatsapp_number);
+        if (formatError) {
+            setPhoneStatus('invalid_format');
+            setPhoneCheckMessage(formatError);
+            return;
+        }
+
+        if (phoneStatus === 'taken' || phoneStatus === 'not_found_on_wa') {
+            return;
+        }
 
         post(route('register'), {
             onFinish: () => reset('password', 'password_confirmation'),
@@ -202,10 +246,12 @@ export default function Register() {
                             name="whatsapp_number"
                             value={data.whatsapp_number}
                             className={`block w-full pl-9 pr-10 text-sm font-mono transition-colors ${
-                                phoneStatus === 'taken' || errors.whatsapp_number
+                                phoneStatus === 'taken' || phoneStatus === 'not_found_on_wa' || phoneStatus === 'invalid_format' || errors.whatsapp_number
                                     ? 'border-red-500 focus:border-red-500 focus:ring-red-500 ring-1 ring-red-500'
-                                    : phoneStatus === 'available'
+                                    : phoneStatus === 'verified'
                                     ? 'border-emerald-500 focus:border-emerald-500 focus:ring-emerald-500 ring-1 ring-emerald-500/50'
+                                    : phoneStatus === 'bot_offline'
+                                    ? 'border-amber-500 focus:border-amber-500 focus:ring-amber-500 ring-1 ring-amber-500/50'
                                     : ''
                             }`}
                             placeholder="081234567890"
@@ -219,10 +265,13 @@ export default function Register() {
                         />
                         <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
                             {isCheckingPhone && <Loader2 className="w-4 h-4 text-gray-400 animate-spin" />}
-                            {!isCheckingPhone && phoneStatus === 'available' && !errors.whatsapp_number && (
+                            {!isCheckingPhone && phoneStatus === 'verified' && !errors.whatsapp_number && (
                                 <CheckCircle2 className="w-4 h-4 text-emerald-500" />
                             )}
-                            {!isCheckingPhone && (phoneStatus === 'taken' || errors.whatsapp_number) && (
+                            {!isCheckingPhone && phoneStatus === 'bot_offline' && !errors.whatsapp_number && (
+                                <Info className="w-4 h-4 text-amber-500" />
+                            )}
+                            {!isCheckingPhone && (phoneStatus === 'taken' || phoneStatus === 'not_found_on_wa' || phoneStatus === 'invalid_format' || errors.whatsapp_number) && (
                                 <AlertCircle className="w-4 h-4 text-red-500" />
                             )}
                         </div>
@@ -230,15 +279,20 @@ export default function Register() {
                     <p className="mt-1 text-[11px] text-gray-400">
                         Nomor ini digunakan untuk interaksi bot WhatsApp Telunas & penerimaan tiket.
                     </p>
-                    {(phoneCheckError || errors.whatsapp_number) ? (
-                        <p className="mt-1 text-xs text-red-600 font-medium flex items-center gap-1">
+                    {(phoneStatus === 'taken' || phoneStatus === 'not_found_on_wa' || phoneStatus === 'invalid_format' || errors.whatsapp_number) ? (
+                        <p className="mt-1 text-xs text-red-600 font-medium flex items-center gap-1.5">
                             <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                            <span>{phoneCheckError || errors.whatsapp_number}</span>
+                            <span>{phoneCheckMessage || errors.whatsapp_number}</span>
                         </p>
-                    ) : phoneStatus === 'available' ? (
-                        <p className="mt-1 text-xs text-emerald-600 font-medium flex items-center gap-1">
+                    ) : phoneStatus === 'verified' ? (
+                        <p className="mt-1 text-xs text-emerald-600 font-medium flex items-center gap-1.5">
                             <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-                            <span>Nomor WhatsApp tersedia.</span>
+                            <span>{phoneCheckMessage || 'Nomor aktif di WhatsApp dan siap digunakan.'}</span>
+                        </p>
+                    ) : phoneStatus === 'bot_offline' ? (
+                        <p className="mt-1 text-xs text-amber-700 font-medium flex items-center gap-1.5">
+                            <Info className="w-3.5 h-3.5 shrink-0" />
+                            <span>{phoneCheckMessage || 'Format nomor valid. (Bot WhatsApp offline, akan diverifikasi HOD)'}</span>
                         </p>
                     ) : null}
                 </div>

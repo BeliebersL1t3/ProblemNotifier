@@ -68,6 +68,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/tickets/department-transfer', [ApprovalTicketController::class, 'storeDepartmentTransferTicket'])->name('tickets.departmentTransfer');
     Route::post('/tickets/{id}/hod-action', [ApprovalTicketController::class, 'hodAction'])->name('tickets.hodAction');
     Route::post('/tickets/{id}/admin-action', [ApprovalTicketController::class, 'adminAction'])->name('tickets.adminAction');
+    Route::post('/tickets/check-whatsapp', [ApprovalTicketController::class, 'checkWhatsAppNumber'])->name('tickets.checkWhatsApp');
 
     // Dashboard Notifications Center
     Route::get('/notifications', [NotificationController::class, 'getNotifications'])->name('notifications.index');

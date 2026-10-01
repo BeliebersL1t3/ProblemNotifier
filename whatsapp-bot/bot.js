@@ -2696,7 +2696,8 @@ app.use([
     '/shutdown', '/api/shutdown',
     '/request-pairing-code', '/api/request-pairing-code',
     '/unlink', '/api/unlink',
-    '/auth-state', '/api/auth-state'
+    '/auth-state', '/api/auth-state',
+    '/check-number', '/api/check-number'
 ], authenticateInbound);
 
 // Endpoint to inspect detailed auth & pairing state
@@ -2836,6 +2837,39 @@ app.post(['/sync-staff', '/api/sync-staff'], async (req, res) => {
 app.get(['/sync-staff', '/api/sync-staff'], async (req, res) => {
     const result = await syncStaffDirectory();
     res.json(result);
+});
+
+app.post(['/check-number', '/api/check-number'], async (req, res) => {
+    try {
+        const { phone } = req.body;
+        if (!phone) {
+            return res.status(400).json({ success: false, error: 'Phone number is required.' });
+        }
+        if (!globalSock || !globalSock.user) {
+            return res.json({ 
+                success: true, 
+                botOnline: false, 
+                exists: null, 
+                message: 'Bot is offline or not paired with WhatsApp.' 
+            });
+        }
+        let cleanPhone = normalizePhoneNumber(phone);
+        const jid = `${cleanPhone}@s.whatsapp.net`;
+        const results = await globalSock.onWhatsApp(jid);
+        const match = Array.isArray(results) && results.length > 0 ? results[0] : null;
+        const exists = Boolean(match && match.exists);
+
+        return res.json({
+            success: true,
+            botOnline: true,
+            exists: exists,
+            jid: match?.jid || jid,
+            message: exists ? 'Nomor terdaftar di WhatsApp.' : 'Nomor tidak terdaftar di WhatsApp.'
+        });
+    } catch (err) {
+        console.error('Failed checking WhatsApp number existence:', err.message);
+        return res.status(500).json({ success: false, error: err.message });
+    }
 });
 
 app.post(['/notify-direct', '/api/notify-direct'], async (req, res) => {

@@ -199,6 +199,12 @@ class UserController extends Controller
             } elseif (str_starts_with($cleanPhone, '8')) {
                 $cleanPhone = '0' . $cleanPhone;
             }
+
+            if (!\App\Services\TicketNotificationService::isValidIndonesianMobile($cleanPhone)) {
+                return back()->withErrors([
+                    'whatsapp_number' => 'Format nomor WhatsApp tidak valid. Nomor seluler Indonesia harus diawali 08xx (10-13 digit).'
+                ]);
+            }
         }
 
         $user = User::create([
@@ -295,6 +301,12 @@ class UserController extends Controller
                 $cleanPhone = '0' . substr($cleanPhone, 2);
             } elseif (str_starts_with($cleanPhone, '8')) {
                 $cleanPhone = '0' . $cleanPhone;
+            }
+
+            if (!\App\Services\TicketNotificationService::isValidIndonesianMobile($cleanPhone)) {
+                return back()->withErrors([
+                    'whatsapp_number' => 'Format nomor WhatsApp tidak valid. Nomor seluler Indonesia harus diawali 08xx (10-13 digit).'
+                ]);
             }
         }
 

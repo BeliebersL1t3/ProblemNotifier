@@ -563,5 +563,28 @@ class ApprovalTicketController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Check WhatsApp number status for HOD / Admin when reviewing tickets
+     */
+    public function checkWhatsAppNumber(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $user = Auth::user();
+        if (!$user || (!$user->isAdmin() && !$user->isHOD())) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+        }
+
+        $phone = $request->input('phone');
+        if (!$phone) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Nomor WhatsApp tidak disertakan.',
+            ], 400);
+        }
+
+        $result = TicketNotificationService::checkWhatsAppNumber($phone);
+
+        return response()->json($result);
+    }
 }
 

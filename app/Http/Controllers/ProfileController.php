@@ -74,6 +74,12 @@ class ProfileController extends Controller
                 $clean = '0' . $clean;
             }
 
+            if (!\App\Services\TicketNotificationService::isValidIndonesianMobile($clean)) {
+                return Redirect::back()->withErrors([
+                    'whatsapp_number' => 'Format nomor WhatsApp tidak valid. Nomor seluler Indonesia harus diawali 08xx (10-13 digit).'
+                ]);
+            }
+
             // Both variants for conflict check
             $canonical = str_starts_with($clean, '0') ? ('62' . substr($clean, 1)) : $clean;
 

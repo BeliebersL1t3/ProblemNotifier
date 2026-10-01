@@ -62,6 +62,36 @@ function TicketsInner({
     const [isSyncingSheet, setIsSyncingSheet] = useState(false);
     const [syncToast, setSyncToast] = useState('');
 
+    // State for live WhatsApp verification per ticket (HOD/Admin)
+    const [waCheckResults, setWaCheckResults] = useState({});
+
+    const handleCheckWhatsApp = async (ticketId, phone) => {
+        if (!phone) return;
+        setWaCheckResults(prev => ({
+            ...prev,
+            [ticketId]: { checking: true, result: null }
+        }));
+        try {
+            const res = await axios.post(route('tickets.checkWhatsApp'), { phone });
+            setWaCheckResults(prev => ({
+                ...prev,
+                [ticketId]: { checking: false, result: res.data }
+            }));
+        } catch (err) {
+            setWaCheckResults(prev => ({
+                ...prev,
+                [ticketId]: { 
+                    checking: false, 
+                    result: { 
+                        success: false, 
+                        bot_online: false, 
+                        message: err.response?.data?.message || 'Gagal mengecek bot WhatsApp.' 
+                    } 
+                }
+            }));
+        }
+    };
+
     const handleSyncSheet = async () => {
         if (isSyncingSheet) return;
         setIsSyncingSheet(true);
@@ -645,6 +675,82 @@ function TicketsInner({
                                                                 {ticket.requested_value ? formatDisplayPhone(ticket.requested_value) : t('ticket_unlink_number')}
                                                             </span>
                                                         </div>
+                                                    </div>
+                                                )}
+
+                                                {/* Live WhatsApp Verification Widget (for HOD / Admin) */}
+                                                {(isUserHOD || isUserAdmin) && (ticket.type === 'account_registration' || (ticket.type === 'whatsapp_change' && ticket.requested_value)) && (
+                                                    <div className="mt-2.5 p-2.5 rounded-xl bg-[#1C1B0E]/80 border border-[#3B3929] text-[11px] space-y-2">
+                                                        <div className="flex items-center justify-between gap-2">
+                                                            <span className="font-semibold text-[#A19F8D] flex items-center gap-1.5">
+                                                                <Phone className="w-3.5 h-3.5 text-[#C9AA71]" />
+                                                                <span>Status WhatsApp:</span>
+                                                            </span>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleCheckWhatsApp(ticket.id, ticket.requested_value)}
+                                                                disabled={waCheckResults[ticket.id]?.checking}
+                                                                className="px-2.5 py-1 rounded-lg bg-[#2A281E] hover:bg-[#C9AA71] hover:text-[#1C1B0E] text-[#FAFAFA] border border-[#3B3929] transition-all flex items-center gap-1.5 font-medium disabled:opacity-50 text-[10px]"
+                                                                title="Cek apakah nomor ini aktif di WhatsApp"
+                                                            >
+                                                                {waCheckResults[ticket.id]?.checking ? (
+                                                                    <>
+                                                                        <Loader2 className="w-3 h-3 animate-spin text-[#C9AA71]" />
+                                                                        <span>Mengecek...</span>
+                                                                    </>
+                                                                ) : (
+                                                                    <>
+                                                                        <RefreshCw className="w-3 h-3" />
+                                                                        <span>Cek WhatsApp</span>
+                                                                    </>
+                                                                )}
+                                                            </button>
+                                                        </div>
+
+                                                        {/* Check Result Display */}
+                                                        {waCheckResults[ticket.id]?.result && (
+                                                            <div className="pt-1.5 border-t border-[#3B3929]/60">
+                                                                {waCheckResults[ticket.id].result.bot_online && waCheckResults[ticket.id].result.exists === true && (
+                                                                    <div className="flex items-center gap-1.5 text-emerald-400 font-medium">
+                                                                        <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                                                                        <span>Nomor terdaftar & aktif di WhatsApp.</span>
+                                                                    </div>
+                                                                )}
+
+                                                                {waCheckResults[ticket.id].result.bot_online && waCheckResults[ticket.id].result.exists === false && (
+                                                                    <div className="p-2 rounded-lg bg-red-950/40 border border-red-500/40 text-red-300 space-y-1">
+                                                                        <div className="flex items-center gap-1.5 font-bold text-red-400">
+                                                                            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                                                                            <span>Nomor TIDAK terdaftar di WhatsApp!</span>
+                                                                        </div>
+                                                                        <p className="text-[10px] text-red-200">
+                                                                            Nomor ini tidak memiliki akun WhatsApp aktif. Disarankan untuk menolak atau meminta staf mengecek nomornya.
+                                                                        </p>
+                                                                    </div>
+                                                                )}
+
+                                                                {!waCheckResults[ticket.id].result.bot_online && (
+                                                                    <div className="p-2 rounded-lg bg-amber-950/40 border border-amber-500/40 text-amber-200 space-y-1.5">
+                                                                        <div className="flex items-center gap-1.5 font-bold text-amber-400">
+                                                                            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                                                                            <span>Bot WhatsApp Sedang Offline</span>
+                                                                        </div>
+                                                                        <p className="text-[10px] text-amber-200 leading-relaxed">
+                                                                            Sistem tidak dapat memeriksa nomor otomatis saat ini. <strong>Disarankan untuk mengecek manual nomor WhatsApp pemohon sebelum menyetujui akun.</strong>
+                                                                        </p>
+                                                                        <a
+                                                                            href={`https://wa.me/${ticket.requested_value ? ('62' + String(ticket.requested_value).replace(/^0+/, '')) : ''}`}
+                                                                            target="_blank"
+                                                                            rel="noreferrer"
+                                                                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-[10px] transition-colors"
+                                                                        >
+                                                                            <ExternalLink className="w-3 h-3" />
+                                                                            <span>Buka Chat WhatsApp (Cek Manual)</span>
+                                                                        </a>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 )}
 

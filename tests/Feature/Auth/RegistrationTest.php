@@ -44,4 +44,39 @@ class RegistrationTest extends TestCase
         $registeredUser = \App\Models\User::where('email', 'test@example.com')->first();
         $this->assertFalse($registeredUser->hasPermission('can_view_all_departments'));
     }
+
+    public function test_registration_rejects_invalid_phone_formats(): void
+    {
+        $invalidNumbers = ['1234678', '0211234567', '081234', '08012345678'];
+
+        foreach ($invalidNumbers as $badNumber) {
+            $response = $this->post('/register', [
+                'name' => 'Bad Number User',
+                'email' => 'bad' . rand(100, 999) . '@example.com',
+                'password' => 'password',
+                'password_confirmation' => 'password',
+                'department' => 'Kitchen',
+                'whatsapp_number' => $badNumber,
+            ]);
+
+            $response->assertSessionHasErrors('whatsapp_number');
+        }
+    }
+
+    public function test_check_phone_api_validates_indonesian_mobile_format(): void
+    {
+        // Invalid number like 1234678
+        $resInvalid = $this->postJson('/register/check-phone', ['phone' => '1234678']);
+        $resInvalid->assertStatus(200);
+        $resInvalid->assertJson([
+            'valid' => false,
+            'available' => false,
+        ]);
+
+        // Valid Indonesian mobile number
+        $resValid = $this->postJson('/register/check-phone', ['phone' => '081234567890']);
+        $resValid->assertStatus(200);
+        $this->assertTrue($resValid->json('valid'));
+        $this->assertTrue($resValid->json('available'));
+    }
 }

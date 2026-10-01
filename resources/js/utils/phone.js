@@ -46,7 +46,7 @@ export function formatToLocalPhone(value) {
 }
 
 /**
- * Checks if a string is a potentially valid Indonesian mobile phone number
+ * Checks if a string is a valid Indonesian mobile phone number (08xx, 10-13 digits)
  *
  * @param {string} phone
  * @returns {boolean}
@@ -54,5 +54,30 @@ export function formatToLocalPhone(value) {
 export function isValidIndonesianPhone(phone) {
     if (!phone) return false;
     const clean = String(phone).replace(/\D/g, '');
-    return /^08\d{8,12}$/.test(clean);
+    return /^08[1-9]\d{7,10}$/.test(clean);
+}
+
+/**
+ * Returns a human-friendly error string if phone format is invalid, or null if valid.
+ *
+ * @param {string} phone
+ * @returns {string|null}
+ */
+export function getPhoneFormatError(phone) {
+    if (!phone) return null;
+    const clean = String(phone).replace(/\D/g, '');
+    if (clean.length === 0) return null;
+    if (!clean.startsWith('08')) {
+        return 'Nomor WhatsApp harus diawali 08 (contoh: 0812xxxxxxxx).';
+    }
+    if (clean.length < 10) {
+        return `Nomor terlalu pendek (${clean.length}/10 digit).`;
+    }
+    if (clean.length > 13) {
+        return `Nomor terlalu panjang (${clean.length}/13 digit).`;
+    }
+    if (!/^08[1-9]/.test(clean)) {
+        return 'Prefix operator tidak valid. Harus diawali 081x - 089x.';
+    }
+    return null;
 }

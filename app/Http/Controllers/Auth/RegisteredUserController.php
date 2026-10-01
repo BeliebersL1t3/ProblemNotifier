@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Services\TicketNotificationService;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -25,30 +26,75 @@ class RegisteredUserController extends Controller
     }
 
     /**
-     * Check if a phone number is already registered (real-time validation).
+     * Check if a phone number is valid, available, and registered on WhatsApp.
      */
     public function checkPhone(Request $request): \Illuminate\Http\JsonResponse
     {
         $rawPhone = $request->input('phone', '');
         [$canonicalPhone, $zeroPhone] = $this->normalizePhoneVariants($rawPhone);
 
-        if (empty($canonicalPhone) || strlen($canonicalPhone) < 9) {
+        if (empty($canonicalPhone) || strlen($zeroPhone) < 4) {
             return response()->json([
+                'valid' => true,
                 'available' => true,
+                'exists_on_wa' => null,
+                'bot_online' => null,
             ]);
         }
 
-        $conflict = User::whereIn('whatsapp_number', array_unique([$canonicalPhone, $zeroPhone]))->first();
+        // 1. Strict Indonesian mobile format validation (08xx, 10-13 digits)
+        if (!TicketNotificationService::isValidIndonesianMobile($zeroPhone)) {
+            return response()->json([
+                'valid' => false,
+                'available' => false,
+                'exists_on_wa' => null,
+                'bot_online' => null,
+                'message' => 'Format nomor tidak valid. Nomor seluler Indonesia harus diawali 08xx dengan panjang 10-13 digit.',
+            ]);
+        }
 
+        // 2. Check local database uniqueness
+        $conflict = User::whereIn('whatsapp_number', array_unique([$canonicalPhone, $zeroPhone]))->first();
         if ($conflict) {
             return response()->json([
+                'valid' => true,
                 'available' => false,
+                'exists_on_wa' => null,
+                'bot_online' => null,
                 'message' => 'Nomor WhatsApp ini sudah terdaftar di sistem. Silakan gunakan nomor lain atau hubungi Admin.',
             ]);
         }
 
+        // 3. Real-time verification with WhatsApp Bot
+        $waCheck = TicketNotificationService::checkWhatsAppNumber($canonicalPhone);
+
+        if ($waCheck['bot_online']) {
+            if ($waCheck['exists'] === false) {
+                return response()->json([
+                    'valid' => true,
+                    'available' => false,
+                    'exists_on_wa' => false,
+                    'bot_online' => true,
+                    'message' => 'Nomor ini tidak terdaftar di WhatsApp. Pastikan nomor sudah aktif di aplikasi WhatsApp.',
+                ]);
+            }
+
+            return response()->json([
+                'valid' => true,
+                'available' => true,
+                'exists_on_wa' => true,
+                'bot_online' => true,
+                'message' => 'Nomor terhubung ke WhatsApp dan siap digunakan.',
+            ]);
+        }
+
+        // Graceful fallback if bot is offline
         return response()->json([
+            'valid' => true,
             'available' => true,
+            'exists_on_wa' => null,
+            'bot_online' => false,
+            'message' => 'Format nomor valid. (Bot WhatsApp offline, keabsahan nomor akan diverifikasi saat review HOD)',
         ]);
     }
 
@@ -97,14 +143,21 @@ class RegisteredUserController extends Controller
                 'string',
                 'max:30',
                 function ($attribute, $value, $fail) use ($canonicalPhone, $zeroPhone) {
-                    if (empty($zeroPhone) || strlen($zeroPhone) < 10) {
-                        $fail('Nomor WhatsApp tidak valid (terlalu pendek, minimal 10 digit).');
+                    if (!TicketNotificationService::isValidIndonesianMobile($zeroPhone)) {
+                        $fail('Format nomor WhatsApp tidak valid. Harus nomor seluler Indonesia diawali 08xx (10-13 digit).');
                         return;
                     }
 
                     $conflict = User::whereIn('whatsapp_number', array_unique([$canonicalPhone, $zeroPhone]))->first();
                     if ($conflict) {
                         $fail('Nomor WhatsApp ini sudah terdaftar di sistem. Silakan gunakan nomor lain atau hubungi Admin.');
+                        return;
+                    }
+
+                    // Check with bot if bot is online
+                    $waCheck = TicketNotificationService::checkWhatsAppNumber($canonicalPhone);
+                    if ($waCheck['bot_online'] && $waCheck['exists'] === false) {
+                        $fail('Nomor WhatsApp tidak terdaftar di server WhatsApp. Pastikan nomor sudah terdaftar dan aktif di aplikasi WhatsApp.');
                     }
                 },
             ],
