@@ -1028,79 +1028,38 @@ export function OperationsCalendarView({
         <div className="space-y-6 select-none">
             {/* ─── Calendar Navigation & Filters Toolbar ─── */}
             <div className="relative z-20 flex flex-col gap-3.5 bg-[#2A281E]/95 border border-[#3B3929] rounded-2xl p-4 sm:p-5 backdrop-blur-md shadow-xl">
-                {/* ── Baris 1: Month Title & Smart Today Badge + Add Task Button ── */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 w-full">
-                    {/* Left: Month Title with Icon & Smart Quick-Today Badge */}
-                    <div className="flex flex-col sm:flex-row sm:items-center gap-3 min-w-0">
-                        <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-xl bg-[#1C1B0E] border border-[#3B3929] flex items-center justify-center shrink-0 shadow-inner">
-                                <CalendarIcon className="h-5 w-5 text-[#C9AA71]" />
-                            </div>
-                            <div className="min-w-0">
-                                <div className="flex items-center gap-2">
-                                    {/* Mobile Month Prev Button */}
+                {/* ── Desktop View (lg:flex): 1 Sleek Unified Row ── */}
+                <div className="hidden lg:flex items-center justify-between gap-4 w-full">
+                    {/* Left: Month Title with Icon & Mini Task Count Badge */}
+                    <div className="flex items-center gap-3 shrink-0">
+                        <div className="w-10 h-10 rounded-xl bg-[#1C1B0E] border border-[#3B3929] flex items-center justify-center shrink-0 shadow-inner">
+                            <CalendarIcon className="h-5 w-5 text-[#C9AA71]" />
+                        </div>
+                        <div className="flex items-center gap-2.5">
+                            <h2 className="text-xl font-black text-[#FAFAFA] capitalize tracking-tight truncate">
+                                {monthTitle}
+                            </h2>
+                            <span className="px-2.5 py-0.5 rounded-full bg-[#1C1B0E] border border-[#3B3929] text-[11px] font-semibold text-[#E3D1AA]">
+                                {allTasks.length} {t('total_work') || 'Total Tugas'}
+                            </span>
+                            {!isCurrentMonth && (
+                                <Tooltip content={t('tooltip_today_btn') || 'Kembali ke bulan dan hari ini'} position="top">
                                     <button
                                         type="button"
-                                        onClick={handlePrevMonth}
-                                        className="sm:hidden p-1.5 rounded-lg bg-[#1C1B0E] border border-[#3B3929] text-[#A19F8D] hover:text-[#FAFAFA] active:scale-90 transition-all cursor-pointer"
-                                        aria-label="Previous Month"
+                                        onClick={handleGoToday}
+                                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-[#C9AA71]/15 hover:bg-[#C9AA71]/25 text-[#E3D1AA] border border-[#C9AA71]/40 shadow-xs transition-all cursor-pointer active:scale-95 animate-in fade-in"
                                     >
-                                        <ChevronLeft className="h-4 w-4" />
+                                        <RotateCcw className="h-3 w-3 text-[#C9AA71]" />
+                                        <span>{t('today_btn') || 'Hari Ini'}</span>
                                     </button>
-
-                                    <h2 className="text-lg sm:text-2xl font-black text-[#FAFAFA] capitalize tracking-tight truncate">
-                                        {monthTitle}
-                                    </h2>
-
-                                    {/* Mobile Month Next Button */}
-                                    <button
-                                        type="button"
-                                        onClick={handleNextMonth}
-                                        className="sm:hidden p-1.5 rounded-lg bg-[#1C1B0E] border border-[#3B3929] text-[#A19F8D] hover:text-[#FAFAFA] active:scale-90 transition-all cursor-pointer"
-                                        aria-label="Next Month"
-                                    >
-                                        <ChevronRight className="h-4 w-4" />
-                                    </button>
-
-                                    {!isCurrentMonth && (
-                                        <Tooltip content={t('tooltip_today_btn') || 'Kembali ke bulan dan hari ini'} position="top">
-                                            <button
-                                                type="button"
-                                                onClick={handleGoToday}
-                                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-[#C9AA71]/15 hover:bg-[#C9AA71]/25 text-[#E3D1AA] border border-[#C9AA71]/40 shadow-xs transition-all cursor-pointer active:scale-95 animate-in fade-in"
-                                            >
-                                                <RotateCcw className="h-3 w-3 text-[#C9AA71]" />
-                                                <span>{t('today_btn') || 'Hari Ini'}</span>
-                                            </button>
-                                        </Tooltip>
-                                    )}
-                                </div>
-                                <div className="flex items-center gap-2 text-[11px] text-[#A19F8D] mt-0.5">
-                                    <span className="font-semibold text-[#E3D1AA]">{allTasks.length} {t('total_work') || 'Total Pekerjaan'}</span>
-                                    <span className="hidden sm:inline text-[#3B3929]">&middot;</span>
-                                    <span className="hidden sm:inline text-[#A19F8D]/80">
-                                        💡 {t('drag_hint_desktop') || 'Klik & seret mouse pada kalender untuk memilih rentang tanggal'}
-                                    </span>
-                                </div>
-                            </div>
+                                </Tooltip>
+                            )}
                         </div>
                     </div>
 
-                    {/* Right: Add Task Button */}
-                    <button
-                        type="button"
-                        onClick={() => onAddWorkWithDate?.(selectedDateStr)}
-                        className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 hover:scale-[1.02] active:scale-95 shadow-lg shadow-[#C9AA71]/10 cursor-pointer bg-[#C9AA71] hover:bg-[#dfbd7e] text-[#1C1B0E] w-full sm:w-auto shrink-0"
-                    >
-                        <Plus className="h-4 w-4 stroke-[2.5]" />
-                        <span>{t('add_work_on_date') || 'Tambah Tugas'}</span>
-                    </button>
-                </div>
-
-                {/* ── Baris 2: Filters (Department + Status [All | Active | Done]) ── */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-[#3B3929]/60 w-full">
-                    {/* Left: Department Filter */}
-                    <div className="w-full sm:w-auto">
+                    {/* Right: Department Filter + Status Filter + Add Task Button */}
+                    <div className="flex items-center gap-3 shrink-0">
+                        {/* Department Filter */}
                         {!lockedDept && allDepartments && onDepartmentFilterChange ? (
                             <DepartmentMultiDropdown
                                 departments={allDepartments}
@@ -1124,52 +1083,210 @@ export function OperationsCalendarView({
                                 <span className="text-[10px] text-[#A19F8D]">🔒 {t('locked_to_department') || 'Cakupan Departemen'}</span>
                             </div>
                         ) : null}
+
+                        {/* Status Filter Chips */}
+                        <div className="flex items-center gap-1 bg-[#1C1B0E] border border-[#3B3929] rounded-xl p-1 shadow-xs">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setHideCompleted(false);
+                                    setStatusFilter('all');
+                                }}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-semibold text-center transition-all cursor-pointer ${
+                                    statusFilter === 'all'
+                                        ? 'bg-[#C9AA71] text-[#1C1B0E] font-bold shadow-md'
+                                        : 'text-[#A19F8D] hover:text-[#FAFAFA]'
+                                }`}
+                            >
+                                {t('all')}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setHideCompleted(true);
+                                    setStatusFilter('active');
+                                }}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-semibold text-center transition-all cursor-pointer ${
+                                    statusFilter === 'active'
+                                        ? 'bg-amber-500 text-[#1C1B0E] font-bold shadow-md'
+                                        : 'text-[#A19F8D] hover:text-[#FAFAFA]'
+                                }`}
+                            >
+                                {t('status_active')}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setHideCompleted(false);
+                                    setStatusFilter('done');
+                                }}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-semibold text-center transition-all cursor-pointer ${
+                                    statusFilter === 'done'
+                                        ? 'bg-emerald-500 text-[#1C1B0E] font-bold shadow-md'
+                                        : 'text-[#A19F8D] hover:text-[#FAFAFA]'
+                                }`}
+                            >
+                                {t('done_work')}
+                            </button>
+                        </div>
+
+                        {/* Add Task Button */}
+                        <button
+                            type="button"
+                            onClick={() => onAddWorkWithDate?.(selectedDateStr)}
+                            className="flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 hover:scale-[1.02] active:scale-95 shadow-lg shadow-[#C9AA71]/10 cursor-pointer bg-[#C9AA71] hover:bg-[#dfbd7e] text-[#1C1B0E] shrink-0"
+                        >
+                            <Plus className="h-4 w-4 stroke-[2.5]" />
+                            <span>{t('add_work_on_date') || 'Tambah Tugas'}</span>
+                        </button>
+                    </div>
+                </div>
+
+                {/* ── Mobile/Tablet View (< lg): 100% Preserved Exactly As Is ── */}
+                <div className="flex lg:hidden flex-col gap-3.5 w-full">
+                    {/* Baris 1: Month Title & Smart Today Badge + Add Task Button */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 w-full">
+                        {/* Left: Month Title with Icon & Smart Quick-Today Badge */}
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-3 min-w-0">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-[#1C1B0E] border border-[#3B3929] flex items-center justify-center shrink-0 shadow-inner">
+                                    <CalendarIcon className="h-5 w-5 text-[#C9AA71]" />
+                                </div>
+                                <div className="min-w-0">
+                                    <div className="flex items-center gap-2">
+                                        {/* Mobile Month Prev Button */}
+                                        <button
+                                            type="button"
+                                            onClick={handlePrevMonth}
+                                            className="sm:hidden p-1.5 rounded-lg bg-[#1C1B0E] border border-[#3B3929] text-[#A19F8D] hover:text-[#FAFAFA] active:scale-90 transition-all cursor-pointer"
+                                            aria-label="Previous Month"
+                                        >
+                                            <ChevronLeft className="h-4 w-4" />
+                                        </button>
+
+                                        <h2 className="text-lg sm:text-2xl font-black text-[#FAFAFA] capitalize tracking-tight truncate">
+                                            {monthTitle}
+                                        </h2>
+
+                                        {/* Mobile Month Next Button */}
+                                        <button
+                                            type="button"
+                                            onClick={handleNextMonth}
+                                            className="sm:hidden p-1.5 rounded-lg bg-[#1C1B0E] border border-[#3B3929] text-[#A19F8D] hover:text-[#FAFAFA] active:scale-90 transition-all cursor-pointer"
+                                            aria-label="Next Month"
+                                        >
+                                            <ChevronRight className="h-4 w-4" />
+                                        </button>
+
+                                        {!isCurrentMonth && (
+                                            <Tooltip content={t('tooltip_today_btn') || 'Kembali ke bulan dan hari ini'} position="top">
+                                                <button
+                                                    type="button"
+                                                    onClick={handleGoToday}
+                                                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-[#C9AA71]/15 hover:bg-[#C9AA71]/25 text-[#E3D1AA] border border-[#C9AA71]/40 shadow-xs transition-all cursor-pointer active:scale-95 animate-in fade-in"
+                                                >
+                                                    <RotateCcw className="h-3 w-3 text-[#C9AA71]" />
+                                                    <span>{t('today_btn') || 'Hari Ini'}</span>
+                                                </button>
+                                            </Tooltip>
+                                        )}
+                                    </div>
+                                    <div className="flex items-center gap-2 text-[11px] text-[#A19F8D] mt-0.5">
+                                        <span className="font-semibold text-[#E3D1AA]">{allTasks.length} {t('total_work') || 'Total Pekerjaan'}</span>
+                                        <span className="hidden sm:inline text-[#3B3929]">&middot;</span>
+                                        <span className="hidden sm:inline text-[#A19F8D]/80">
+                                            💡 {t('drag_hint_desktop') || 'Klik & seret mouse pada kalender untuk memilih rentang tanggal'}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Right: Add Task Button */}
+                        <button
+                            type="button"
+                            onClick={() => onAddWorkWithDate?.(selectedDateStr)}
+                            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 hover:scale-[1.02] active:scale-95 shadow-lg shadow-[#C9AA71]/10 cursor-pointer bg-[#C9AA71] hover:bg-[#dfbd7e] text-[#1C1B0E] w-full sm:w-auto shrink-0"
+                        >
+                            <Plus className="h-4 w-4 stroke-[2.5]" />
+                            <span>{t('add_work_on_date') || 'Tambah Tugas'}</span>
+                        </button>
                     </div>
 
-                    {/* Right: Status Filter Chips [All | Active | Done] */}
-                    <div className="grid grid-cols-3 sm:flex items-center gap-1 bg-[#1C1B0E] border border-[#3B3929] rounded-xl p-1 shadow-xs w-full sm:w-auto">
-                        <button
-                            type="button"
-                            onClick={() => {
-                                setHideCompleted(false);
-                                setStatusFilter('all');
-                            }}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold text-center transition-all cursor-pointer ${
-                                statusFilter === 'all'
-                                    ? 'bg-[#C9AA71] text-[#1C1B0E] font-bold shadow-md'
-                                    : 'text-[#A19F8D] hover:text-[#FAFAFA]'
-                            }`}
-                        >
-                            {t('all')}
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => {
-                                setHideCompleted(true);
-                                setStatusFilter('active');
-                            }}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold text-center transition-all cursor-pointer ${
-                                statusFilter === 'active'
-                                    ? 'bg-amber-500 text-[#1C1B0E] font-bold shadow-md'
-                                    : 'text-[#A19F8D] hover:text-[#FAFAFA]'
-                            }`}
-                        >
-                            {t('status_active')}
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => {
-                                setHideCompleted(false);
-                                setStatusFilter('done');
-                            }}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold text-center transition-all cursor-pointer ${
-                                statusFilter === 'done'
-                                    ? 'bg-emerald-500 text-[#1C1B0E] font-bold shadow-md'
-                                    : 'text-[#A19F8D] hover:text-[#FAFAFA]'
-                            }`}
-                        >
-                            {t('done_work')}
-                        </button>
+                    {/* Baris 2: Filters (Department + Status [All | Active | Done]) */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-[#3B3929]/60 w-full">
+                        {/* Left: Department Filter */}
+                        <div className="w-full sm:w-auto">
+                            {!lockedDept && allDepartments && onDepartmentFilterChange ? (
+                                <DepartmentMultiDropdown
+                                    departments={allDepartments}
+                                    selectedDepartments={selectedDepartments}
+                                    onChange={onDepartmentFilterChange}
+                                    t={t}
+                                    lang={lang}
+                                />
+                            ) : lockedDept ? (
+                                <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-[#3B3929] bg-[#1C1B0E] text-xs font-bold shadow-xs">
+                                    <Building2 className="h-3.5 w-3.5 text-[#C9AA71]" />
+                                    <span 
+                                        className="text-[11px] font-extrabold uppercase px-2 py-0.5 rounded"
+                                        style={{ 
+                                           color: getDepartmentTheme(lockedDept).text, 
+                                           background: getDepartmentTheme(lockedDept).bg 
+                                        }}
+                                    >
+                                        {lockedDept}
+                                    </span>
+                                    <span className="text-[10px] text-[#A19F8D]">🔒 {t('locked_to_department') || 'Cakupan Departemen'}</span>
+                                </div>
+                            ) : null}
+                        </div>
+
+                        {/* Right: Status Filter Chips [All | Active | Done] */}
+                        <div className="grid grid-cols-3 sm:flex items-center gap-1 bg-[#1C1B0E] border border-[#3B3929] rounded-xl p-1 shadow-xs w-full sm:w-auto">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setHideCompleted(false);
+                                    setStatusFilter('all');
+                                }}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-semibold text-center transition-all cursor-pointer ${
+                                    statusFilter === 'all'
+                                        ? 'bg-[#C9AA71] text-[#1C1B0E] font-bold shadow-md'
+                                        : 'text-[#A19F8D] hover:text-[#FAFAFA]'
+                                }`}
+                            >
+                                {t('all')}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setHideCompleted(true);
+                                    setStatusFilter('active');
+                                }}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-semibold text-center transition-all cursor-pointer ${
+                                    statusFilter === 'active'
+                                        ? 'bg-amber-500 text-[#1C1B0E] font-bold shadow-md'
+                                        : 'text-[#A19F8D] hover:text-[#FAFAFA]'
+                                }`}
+                            >
+                                {t('status_active')}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setHideCompleted(false);
+                                    setStatusFilter('done');
+                                }}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-semibold text-center transition-all cursor-pointer ${
+                                    statusFilter === 'done'
+                                        ? 'bg-emerald-500 text-[#1C1B0E] font-bold shadow-md'
+                                        : 'text-[#A19F8D] hover:text-[#FAFAFA]'
+                                }`}
+                            >
+                                {t('done_work')}
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
