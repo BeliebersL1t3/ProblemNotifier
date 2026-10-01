@@ -643,7 +643,20 @@ function CalendarAddWorkModal({ initialStartDate = '', initialEndDate = '', init
 
         // Clean human notes
         const cleanNotes = (form.notes || '').trim();
-        const scheduleBlocks = validBlocks.length > 1 ? JSON.stringify(validBlocks) : '';
+        const formatBlockDmy = (b) => {
+            const fmt = (dStr) => {
+                if (!dStr) return '';
+                const parts = dStr.split('-');
+                if (parts.length === 3) {
+                    return `${parts[2]}/${parts[1]}/${parts[0].slice(2)}`;
+                }
+                return dStr;
+            };
+            const s = fmt(b.startDate);
+            const e = fmt(b.endDate || b.startDate);
+            return s === e ? s : `${s} - ${e}`;
+        };
+        const scheduleBlocks = validBlocks.length > 1 ? validBlocks.map(formatBlockDmy).join(' | ') : '';
 
         try {
             const fd = new FormData();
@@ -676,6 +689,7 @@ function CalendarAddWorkModal({ initialStartDate = '', initialEndDate = '', init
                     startDate: overallStart,
                     endDate: overallEnd,
                     notes: cleanNotes,
+                    scheduleBlocks: scheduleBlocks,
                     ranges: validBlocks,
                     status: 'active',
                     createdAt: new Date().toISOString(),

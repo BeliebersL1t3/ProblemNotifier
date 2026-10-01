@@ -997,6 +997,135 @@ class GoogleService
     }
 
     /**
+     * Map full department name to standardized uppercase code (e.g. "Engineer" -> "ENG").
+     */
+    public function getDeptCode(string $dept): string
+    {
+        $map = [
+            'engineer'        => 'ENG',
+            'fasilitas'       => 'FAS',
+            'facility'        => 'FAS',
+            'security'        => 'SEC',
+            'hk'              => 'HK',
+            'housekeeping'    => 'HK',
+            'pest control'    => 'PST',
+            'kitchen'         => 'KTC',
+            'f&b'             => 'FB',
+            'fnb'             => 'FB',
+            'gr'              => 'GR',
+            'gre'             => 'GRE',
+            'guest relations' => 'GR',
+            'service'         => 'SVC',
+            'bar'             => 'BAR',
+            'spa'             => 'SPA',
+            'tirek'           => 'TRK',
+            'hr'              => 'HR',
+            'legal'           => 'LGL',
+            'lnd'             => 'LND',
+            'transportasi'    => 'TRP',
+            'tekong'          => 'TKG',
+            'it'              => 'IT',
+            'oe'              => 'OE',
+            'procurement'     => 'PRC',
+            'reservasi'       => 'RES',
+            'sales'           => 'SLS',
+            'marketing'       => 'MKT',
+            'sales/marketing' => 'SLS',
+            'finance'         => 'FIN',
+        ];
+
+        $clean = strtolower(trim($dept));
+        if (isset($map[$clean])) {
+            return $map[$clean];
+        }
+
+        $code = strtoupper(substr(preg_replace('/[^a-zA-Z0-9]/', '', $dept), 0, 4));
+        return $code ?: 'OPS';
+    }
+
+    /**
+     * Format schedule blocks into clean human-readable date range string:
+     * e.g. "01/10/26 - 03/10/26 | 05/10/26 - 07/10/26"
+     */
+    public function formatScheduleBlocksReadable(array $ranges): string
+    {
+        $parts = [];
+        foreach ($ranges as $r) {
+            $start = !empty($r['startDate']) ? trim($r['startDate']) : '';
+            $end   = !empty($r['endDate']) ? trim($r['endDate']) : $start;
+
+            if (empty($start)) continue;
+
+            $sTime = strtotime($start);
+            $eTime = !empty($end) ? strtotime($end) : $sTime;
+
+            $sFormatted = $sTime ? date('d/m/y', $sTime) : $start;
+            $eFormatted = $eTime ? date('d/m/y', $eTime) : $end;
+
+            if ($sFormatted === $eFormatted) {
+                $parts[] = $sFormatted;
+            } else {
+                $parts[] = "{$sFormatted} - {$eFormatted}";
+            }
+        }
+
+        return implode(' | ', $parts);
+    }
+
+    /**
+     * Parse human-readable schedule blocks (e.g. "01/10/26 - 03/10/26 | 05/10/26 - 07/10/26") into range array.
+     */
+    public function parseReadableScheduleBlocks(string $text): array
+    {
+        $ranges = [];
+        $blocks = explode('|', $text);
+        foreach ($blocks as $block) {
+            $block = trim($block);
+            if (empty($block)) continue;
+
+            $parts = preg_split('/\s*[\-–]\s*/u', $block);
+            if (count($parts) >= 2) {
+                $s = $this->normalizeDateToIso($parts[0]);
+                $e = $this->normalizeDateToIso($parts[1]);
+                $ranges[] = ['startDate' => $s, 'endDate' => $e ?: $s];
+            } elseif (count($parts) === 1) {
+                $s = $this->normalizeDateToIso($parts[0]);
+                $ranges[] = ['startDate' => $s, 'endDate' => $s];
+            }
+        }
+        return $ranges;
+    }
+
+    /**
+     * Normalize various date strings (dd/mm/yy, dd/mm/yyyy, ISO YYYY-MM-DD) to ISO YYYY-MM-DD.
+     */
+    public function normalizeDateToIso(string $dateStr): string
+    {
+        $dateStr = trim($dateStr);
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateStr)) {
+            return $dateStr;
+        }
+
+        // Match dd/mm/yy or dd/mm/yyyy or dd-mm-yy or dd-mm-yyyy
+        if (preg_match('/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/', $dateStr, $m)) {
+            $d  = (int)$m[1];
+            $mo = (int)$m[2];
+            $y  = (int)$m[3];
+            if ($y < 100) {
+                $y += 2000;
+            }
+            return sprintf('%04d-%02d-%02d', $y, $mo, $d);
+        }
+
+        $timestamp = strtotime($dateStr);
+        if ($timestamp !== false) {
+            return date('Y-m-d', $timestamp);
+        }
+
+        return $dateStr;
+    }
+
+    /**
      * Parse clean note and ranges from notes (Col N) and scheduleBlocks (Col P).
      */
     public function extractNotesAndRanges(?string $rawNotes, ?string $rawBlocks = null, ?string $start = null, ?string $end = null): array
@@ -1004,11 +1133,16 @@ class GoogleService
         $cleanNotes = trim((string)$rawNotes);
         $ranges = [];
 
-        // 1. If Column P has JSON blocks
+        // 1. If Column P has blocks (JSON or readable text)
         if (!empty($rawBlocks)) {
-            $decoded = json_decode(trim($rawBlocks), true);
-            if (is_array($decoded) && !empty($decoded)) {
-                $ranges = $decoded;
+            $trimmedBlocks = trim($rawBlocks);
+            if (str_starts_with($trimmedBlocks, '[') && str_ends_with($trimmedBlocks, ']')) {
+                $decoded = json_decode($trimmedBlocks, true);
+                if (is_array($decoded) && !empty($decoded)) {
+                    $ranges = $decoded;
+                }
+            } else {
+                $ranges = $this->parseReadableScheduleBlocks($trimmedBlocks);
             }
         }
 
@@ -1028,10 +1162,24 @@ class GoogleService
             $ranges = [['startDate' => $start ?: $end, 'endDate' => $end ?: $start]];
         }
 
+        // Normalize range items
+        $normalizedRanges = [];
+        foreach ($ranges as $r) {
+            $s = !empty($r['startDate']) ? $this->normalizeDateToIso($r['startDate']) : '';
+            $e = !empty($r['endDate']) ? $this->normalizeDateToIso($r['endDate']) : $s;
+            if ($s) {
+                $normalizedRanges[] = ['startDate' => $s, 'endDate' => $e ?: $s];
+            }
+        }
+
+        $readableBlocks = (!empty($normalizedRanges) && count($normalizedRanges) > 1)
+            ? $this->formatScheduleBlocksReadable($normalizedRanges)
+            : '';
+
         return [
             'notes'          => $cleanNotes,
-            'scheduleBlocks' => !empty($ranges) && count($ranges) > 1 ? json_encode(array_values($ranges)) : '',
-            'ranges'         => $ranges,
+            'scheduleBlocks' => $readableBlocks,
+            'ranges'         => $normalizedRanges,
         ];
     }
 
@@ -1212,15 +1360,22 @@ class GoogleService
     public function appendOpsWorkItem(string $dept, array $data): string
     {
         $sheetName = $this->ensureOpsDeptSheet($dept);
-        $id        = 'ops-' . uniqid();
-        $now       = now()->toIso8601String();
+        $deptCode  = $this->getDeptCode($dept);
+        $dateStr   = date('dmy'); // e.g. 011026
 
-        // Attempt Google Calendar Sync
-        $taskToSync = array_merge($data, [
-            'department' => $dept,
-            'status'     => 'active',
-        ]);
-        $googleEventId = $this->syncOpsTaskToCalendar($taskToSync);
+        // Determine sequential index based on current department items
+        $existingItems = $this->getOpsWorkItems($dept);
+        $nextSeq = count($existingItems) + 1;
+        $id = sprintf("OPS-%s-%s-%03d", $deptCode, $dateStr, $nextSeq);
+
+        // Ensure collision safety (e.g. if previous tasks were deleted or identical index)
+        $existingIds = array_column($existingItems, 'id');
+        while (in_array($id, $existingIds, true)) {
+            $nextSeq++;
+            $id = sprintf("OPS-%s-%s-%03d", $deptCode, $dateStr, $nextSeq);
+        }
+
+        $now = now()->toIso8601String();
 
         $ext = $this->extractNotesAndRanges(
             $data['notes'] ?? '',
@@ -1228,6 +1383,15 @@ class GoogleService
             $data['startDate'] ?? '',
             $data['endDate'] ?? ''
         );
+
+        // Attempt Google Calendar Sync with ranges
+        $taskToSync = array_merge($data, [
+            'department'     => $dept,
+            'status'         => 'active',
+            'scheduleBlocks' => $ext['scheduleBlocks'],
+            'ranges'         => $ext['ranges'],
+        ]);
+        $googleEventId = $this->syncOpsTaskToCalendar($taskToSync);
 
         $row = [
             $id,
@@ -1285,27 +1449,32 @@ class GoogleService
         if (array_key_exists('status', $fields))      $existing[9]  = $fields['status'];
         if (array_key_exists('completedAt', $fields)) $existing[11] = $fields['completedAt'];
 
+        $ext = ['notes' => $existing[13], 'scheduleBlocks' => $existing[15], 'ranges' => []];
         if (array_key_exists('notes', $fields) || array_key_exists('scheduleBlocks', $fields)) {
             $rawNotes = array_key_exists('notes', $fields) ? $fields['notes'] : $existing[13];
             $rawBlocks = array_key_exists('scheduleBlocks', $fields) ? $fields['scheduleBlocks'] : $existing[15];
             $ext = $this->extractNotesAndRanges($rawNotes, $rawBlocks, $existing[6], $existing[7]);
             $existing[13] = $ext['notes'];
             $existing[15] = $ext['scheduleBlocks'];
+        } else {
+            $ext = $this->extractNotesAndRanges($existing[13], $existing[15], $existing[6], $existing[7]);
         }
 
         // Sync with Google Calendar
         $taskToSync = [
-            'department'    => $existing[1] ?: $dept,
-            'title'         => $existing[2],
-            'description'   => $existing[3],
-            'location'      => $existing[4],
-            'startDate'     => $existing[6],
-            'endDate'       => $existing[7],
-            'priority'      => $existing[8],
-            'status'        => $existing[9],
-            'createdBy'     => $existing[12],
-            'notes'         => $existing[13],
-            'googleEventId' => $existing[14] ?? '',
+            'department'     => $existing[1] ?: $dept,
+            'title'          => $existing[2],
+            'description'    => $existing[3],
+            'location'       => $existing[4],
+            'startDate'      => $existing[6],
+            'endDate'        => $existing[7],
+            'priority'       => $existing[8],
+            'status'         => $existing[9],
+            'createdBy'      => $existing[12],
+            'notes'          => $existing[13],
+            'googleEventId'  => $existing[14] ?? '',
+            'scheduleBlocks' => $existing[15] ?? '',
+            'ranges'         => $ext['ranges'] ?? [],
         ];
 
         $syncedEventId = $this->syncOpsTaskToCalendar($taskToSync);
@@ -1405,7 +1574,11 @@ class GoogleService
                 $descParts[] = "\n📝 Description:\n" . $task['description'];
             }
 
-            $parsedNotes = $this->parseNotesAndRanges($task['notes'] ?? '');
+            $ranges = $task['ranges'] ?? [];
+            if (empty($ranges) && !empty($task['scheduleBlocks'])) {
+                $ranges = is_array($task['scheduleBlocks']) ? $task['scheduleBlocks'] : $this->parseReadableScheduleBlocks($task['scheduleBlocks']);
+            }
+            $parsedNotes = $this->parseNotesAndRanges($task['notes'] ?? '', $ranges);
             if (!empty($parsedNotes['formattedRanges'])) {
                 $descParts[] = "\n📅 Schedule Blocks:\n" . $parsedNotes['formattedRanges'];
             }
@@ -1583,36 +1756,37 @@ class GoogleService
     }
 
     /**
-     * Parse and sanitize notes field, converting raw [SCHEDULE_RANGES: ...] into clean formatted blocks.
+     * Parse and sanitize notes field, converting raw [SCHEDULE_RANGES: ...] or explicit ranges into clean formatted blocks.
      */
-    private function parseNotesAndRanges(?string $rawNotes): array
+    private function parseNotesAndRanges(?string $rawNotes, array $explicitRanges = []): array
     {
-        if (empty($rawNotes)) {
-            return ['cleanNotes' => '', 'formattedRanges' => ''];
+        $cleanNotes = trim((string)$rawNotes);
+        $ranges = $explicitRanges;
+
+        if (empty($ranges) && preg_match('/\[SCHEDULE_RANGES:\s*(\[.*?\])\s*\]/s', $cleanNotes, $matches)) {
+            $json = $matches[1];
+            $cleanNotes = trim(str_replace($matches[0], '', $cleanNotes));
+            $decoded = json_decode($json, true);
+            if (is_array($decoded) && !empty($decoded)) {
+                $ranges = $decoded;
+            }
         }
 
         $rangesStr = '';
-        $cleanNotes = $rawNotes;
-
-        if (preg_match('/\[SCHEDULE_RANGES:\s*(\[.*?\])\s*\]/s', $rawNotes, $matches)) {
-            $json = $matches[1];
-            $cleanNotes = trim(str_replace($matches[0], '', $rawNotes));
-            $decoded = json_decode($json, true);
-            if (is_array($decoded) && count($decoded) > 1) {
-                $lines = [];
-                foreach ($decoded as $idx => $r) {
-                    $s = !empty($r['startDate']) ? date('M j, Y', strtotime($r['startDate'])) : '';
-                    $e = !empty($r['endDate']) ? date('M j, Y', strtotime($r['endDate'])) : $s;
-                    $blockNum = $idx + 1;
-                    if ($s && $e && $s !== $e) {
-                        $lines[] = "  • Block {$blockNum}: {$s} – {$e}";
-                    } elseif ($s) {
-                        $lines[] = "  • Block {$blockNum}: {$s}";
-                    }
+        if (is_array($ranges) && count($ranges) > 1) {
+            $lines = [];
+            foreach ($ranges as $idx => $r) {
+                $s = !empty($r['startDate']) ? date('M j, Y', strtotime($r['startDate'])) : '';
+                $e = !empty($r['endDate']) ? date('M j, Y', strtotime($r['endDate'])) : $s;
+                $blockNum = $idx + 1;
+                if ($s && $e && $s !== $e) {
+                    $lines[] = "  • Block {$blockNum}: {$s} – {$e}";
+                } elseif ($s) {
+                    $lines[] = "  • Block {$blockNum}: {$s}";
                 }
-                if (!empty($lines)) {
-                    $rangesStr = implode("\n", $lines);
-                }
+            }
+            if (!empty($lines)) {
+                $rangesStr = implode("\n", $lines);
             }
         }
 
@@ -2041,7 +2215,10 @@ class GoogleService
                 $rawNotes = $row[13] ?? '';
                 $existingBlocks = $row[15] ?? '';
 
-                if (str_contains($rawNotes, '[SCHEDULE_RANGES:')) {
+                $needsMigration = str_contains($rawNotes, '[SCHEDULE_RANGES:') ||
+                    (str_starts_with(trim($existingBlocks), '[') && str_ends_with(trim($existingBlocks), ']'));
+
+                if ($needsMigration) {
                     $ext = $this->extractNotesAndRanges($rawNotes, $existingBlocks, $row[6] ?? '', $row[7] ?? '');
                     $batchUpdates[] = [
                         'range'  => "{$title}!N{$rowIndex}:P{$rowIndex}",

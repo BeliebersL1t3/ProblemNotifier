@@ -54,6 +54,37 @@ export function formatDateFull(dateObj, lang = 'id') {
     } catch { return String(dateObj); }
 }
 
+// ─── Human-Readable Schedule Blocks Parser (e.g. "01/10/26 - 03/10/26 | 05/10/26 - 07/10/26") ───
+export function parseReadableScheduleBlocks(text) {
+    if (!text || typeof text !== 'string') return [];
+    const ranges = [];
+    const blocks = text.split('|');
+    for (const b of blocks) {
+        const trimmed = b.trim();
+        if (!trimmed) continue;
+        const parts = trimmed.split(/\s*[\-–]\s*/);
+        const parseDmy = (str) => {
+            if (!str) return '';
+            const match = str.trim().match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+            if (!match) return str.trim();
+            const d = match[1].padStart(2, '0');
+            const m = match[2].padStart(2, '0');
+            let y = parseInt(match[3], 10);
+            if (y < 100) y += 2000;
+            return `${y}-${m}-${d}`;
+        };
+        if (parts.length >= 2) {
+            const s = parseDmy(parts[0]);
+            const e = parseDmy(parts[1]);
+            if (s) ranges.push({ startDate: s, endDate: e || s });
+        } else if (parts.length === 1) {
+            const s = parseDmy(parts[0]);
+            if (s) ranges.push({ startDate: s, endDate: s });
+        }
+    }
+    return ranges;
+}
+
 // ─── Multi-Range Parser ───────────────────────────────────────────────────────
 export function parseTaskRanges(task) {
     if (!task) return [];
@@ -67,6 +98,13 @@ export function parseTaskRanges(task) {
                 return parsed;
             }
         } catch {}
+
+        if (typeof task.scheduleBlocks === 'string') {
+            const readable = parseReadableScheduleBlocks(task.scheduleBlocks);
+            if (readable.length > 0) {
+                return readable;
+            }
+        }
     }
     if (task.notes && task.notes.includes('[SCHEDULE_RANGES:')) {
         try {
