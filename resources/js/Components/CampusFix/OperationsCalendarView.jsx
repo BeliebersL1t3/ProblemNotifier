@@ -614,6 +614,11 @@ export function OperationsCalendarView({
         year: 'numeric'
     }).format(currentMonth);
 
+    const isCurrentMonth = useMemo(() => {
+        const now = new Date();
+        return year === now.getFullYear() && month === now.getMonth();
+    }, [year, month]);
+
     // Filter strictly manual department tasks
     const allTasks = useMemo(() => {
         let list = rawTaskList;
@@ -750,6 +755,32 @@ export function OperationsCalendarView({
         setCurrentMonth(new Date(now.getFullYear(), now.getMonth(), 1));
         setSelectedDateStr(todayStr);
     };
+
+    // Keyboard navigation: ArrowLeft/ArrowRight to switch month when not typing
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            const activeEl = document.activeElement;
+            const tagName = activeEl?.tagName?.toLowerCase();
+            if (
+                tagName === 'input' ||
+                tagName === 'textarea' ||
+                tagName === 'select' ||
+                activeEl?.isContentEditable ||
+                document.querySelector('[role="dialog"]')
+            ) {
+                return;
+            }
+
+            if (e.key === 'ArrowLeft' && !e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
+                setCurrentMonth(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
+            } else if (e.key === 'ArrowRight' && !e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
+                setCurrentMonth(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, []);
 
     // Calculate active drag range
     const dragRange = useMemo(() => {
@@ -971,50 +1002,40 @@ export function OperationsCalendarView({
         <div className="space-y-6 select-none">
             {/* ─── Calendar Navigation & Filters Toolbar ─── */}
             <div className="relative z-20 flex flex-col gap-3.5 bg-[#2A281E]/95 border border-[#3B3929] rounded-2xl p-4 sm:p-5 backdrop-blur-md shadow-xl">
-                {/* ── Baris 1: Month Navigator + Add Task Button ── */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 w-full">
-                    {/* Left: Navigator (< Today >) + Month Title */}
-                    <div className="flex items-center justify-between sm:justify-start gap-3 w-full sm:w-auto">
-                        <div className="flex items-center gap-1 bg-[#1C1B0E] border border-[#3B3929] rounded-xl p-1 shadow-inner shrink-0">
-                            <Tooltip content={t('tooltip_prev_month')} position="top">
-                                <button
-                                    type="button"
-                                    onClick={handlePrevMonth}
-                                    className="p-1.5 sm:p-2 rounded-lg hover:bg-[#3B3929]/70 text-[#A19F8D] hover:text-[#FAFAFA] transition-colors cursor-pointer"
-                                >
-                                    <ChevronLeft className="h-4 w-4" />
-                                </button>
-                            </Tooltip>
-                            <Tooltip content={t('tooltip_today_btn')} position="top">
-                                <button
-                                    type="button"
-                                    onClick={handleGoToday}
-                                    className="px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold text-[#E3D1AA] hover:bg-[#3B3929]/70 transition-colors cursor-pointer"
-                                >
-                                    {t('today_btn') || 'Hari Ini'}
-                                </button>
-                            </Tooltip>
-                            <Tooltip content={t('tooltip_next_month')} position="top">
-                                <button
-                                    type="button"
-                                    onClick={handleNextMonth}
-                                    className="p-1.5 sm:p-2 rounded-lg hover:bg-[#3B3929]/70 text-[#A19F8D] hover:text-[#FAFAFA] transition-colors cursor-pointer"
-                                >
-                                    <ChevronRight className="h-4 w-4" />
-                                </button>
-                            </Tooltip>
-                        </div>
-
-                        <div className="min-w-0">
-                            <h2 className="text-base sm:text-xl font-extrabold text-[#FAFAFA] capitalize tracking-tight flex items-center gap-2 truncate">
-                                <CalendarIcon className="h-4.5 w-4.5 sm:h-5 sm:w-5 text-[#C9AA71] shrink-0" />
-                                <span>{monthTitle}</span>
-                            </h2>
-                            <p className="text-[11px] text-[#A19F8D] hidden sm:flex items-center gap-1">
-                                <span>{allTasks.length} {t('total_work') || 'Total Tugas'}</span>
-                                <span className="text-[#3B3929]">&middot;</span>
-                                <span className="text-[#C9AA71]/90">{t('drag_hint_desktop') || '💡 Klik & seret mouse pada kalender untuk memilih rentang tanggal'}</span>
-                            </p>
+                {/* ── Baris 1: Month Title & Smart Today Badge + Add Task Button ── */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 w-full">
+                    {/* Left: Month Title with Icon & Smart Quick-Today Badge */}
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-3 min-w-0">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-[#1C1B0E] border border-[#3B3929] flex items-center justify-center shrink-0 shadow-inner">
+                                <CalendarIcon className="h-5 w-5 text-[#C9AA71]" />
+                            </div>
+                            <div className="min-w-0">
+                                <div className="flex items-center gap-2.5">
+                                    <h2 className="text-lg sm:text-2xl font-black text-[#FAFAFA] capitalize tracking-tight truncate">
+                                        {monthTitle}
+                                    </h2>
+                                    {!isCurrentMonth && (
+                                        <Tooltip content={t('tooltip_today_btn') || 'Kembali ke bulan dan hari ini'} position="top">
+                                            <button
+                                                type="button"
+                                                onClick={handleGoToday}
+                                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-[#C9AA71]/15 hover:bg-[#C9AA71]/25 text-[#E3D1AA] border border-[#C9AA71]/40 shadow-xs transition-all cursor-pointer active:scale-95 animate-in fade-in"
+                                            >
+                                                <RotateCcw className="h-3 w-3 text-[#C9AA71]" />
+                                                <span>{t('today_btn') || 'Hari Ini'}</span>
+                                            </button>
+                                        </Tooltip>
+                                    )}
+                                </div>
+                                <div className="flex items-center gap-2 text-[11px] text-[#A19F8D] mt-0.5">
+                                    <span className="font-semibold text-[#E3D1AA]">{allTasks.length} {t('total_work') || 'Total Pekerjaan'}</span>
+                                    <span className="hidden sm:inline text-[#3B3929]">&middot;</span>
+                                    <span className="hidden sm:inline text-[#A19F8D]/80">
+                                        💡 {t('drag_hint_desktop') || 'Klik & seret mouse pada kalender untuk memilih rentang tanggal'}
+                                    </span>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -1022,9 +1043,9 @@ export function OperationsCalendarView({
                     <button
                         type="button"
                         onClick={() => onAddWorkWithDate?.(selectedDateStr)}
-                        className="flex items-center justify-center gap-1.5 px-4 py-2.5 sm:py-2 rounded-xl text-xs font-extrabold transition-all hover:scale-[1.02] sm:hover:scale-105 shadow-md cursor-pointer bg-[#C9AA71] text-[#1C1B0E] w-full sm:w-auto shrink-0"
+                        className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 hover:scale-[1.02] active:scale-95 shadow-lg shadow-[#C9AA71]/10 cursor-pointer bg-[#C9AA71] hover:bg-[#dfbd7e] text-[#1C1B0E] w-full sm:w-auto shrink-0"
                     >
-                        <Plus className="h-4 w-4" />
+                        <Plus className="h-4 w-4 stroke-[2.5]" />
                         <span>{t('add_work_on_date') || 'Tambah Tugas'}</span>
                     </button>
                 </div>
@@ -1110,7 +1131,31 @@ export function OperationsCalendarView({
             <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-6">
 
                 {/* ─── Calendar Month Grid (8 Cols on Desktop) ─── */}
-                <div className="lg:col-span-8 bg-[#2A281E]/95 border border-[#3B3929] rounded-2xl p-4 sm:p-5 shadow-2xl backdrop-blur-xl">
+                <div className="lg:col-span-8 bg-[#2A281E]/95 border border-[#3B3929] rounded-2xl p-4 sm:p-5 shadow-2xl backdrop-blur-xl relative group/cal">
+                    {/* Floating Month Navigation Chevrons (Direct on Calendar) */}
+                    <Tooltip content={t('tooltip_prev_month') || 'Bulan Sebelumnya'} position="right">
+                        <button
+                            type="button"
+                            onClick={handlePrevMonth}
+                            className="absolute -left-3 sm:-left-5 top-1/2 -translate-y-1/2 z-30 w-8 h-12 sm:w-10 sm:h-14 rounded-r-xl sm:rounded-xl bg-[#1C1B0E]/95 hover:bg-[#C9AA71] border border-[#3B3929] hover:border-[#C9AA71] text-[#A19F8D] hover:text-[#1C1B0E] flex items-center justify-center shadow-2xl backdrop-blur-md transition-all duration-200 cursor-pointer active:scale-90 hover:scale-110 opacity-90 sm:opacity-50 group-hover/cal:opacity-100"
+                            title={t('tooltip_prev_month') || 'Bulan Sebelumnya'}
+                            aria-label="Previous Month"
+                        >
+                            <ChevronLeft className="h-5 w-5 sm:h-6 sm:w-6 transition-transform" />
+                        </button>
+                    </Tooltip>
+
+                    <Tooltip content={t('tooltip_next_month') || 'Bulan Berikutnya'} position="left">
+                        <button
+                            type="button"
+                            onClick={handleNextMonth}
+                            className="absolute -right-3 sm:-right-5 top-1/2 -translate-y-1/2 z-30 w-8 h-12 sm:w-10 sm:h-14 rounded-l-xl sm:rounded-xl bg-[#1C1B0E]/95 hover:bg-[#C9AA71] border border-[#3B3929] hover:border-[#C9AA71] text-[#A19F8D] hover:text-[#1C1B0E] flex items-center justify-center shadow-2xl backdrop-blur-md transition-all duration-200 cursor-pointer active:scale-90 hover:scale-110 opacity-90 sm:opacity-50 group-hover/cal:opacity-100"
+                            title={t('tooltip_next_month') || 'Bulan Berikutnya'}
+                            aria-label="Next Month"
+                        >
+                            <ChevronRight className="h-5 w-5 sm:h-6 sm:w-6 transition-transform" />
+                        </button>
+                    </Tooltip>
                     {/* Active Task Focus Banner */}
                     {activeHighlightedTask && (
                         <div 
