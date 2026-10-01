@@ -189,12 +189,16 @@ class UserController extends Controller
         $role = $validated['role'];
         $permissions = $validated['permissions'] ?? self::getDefaultPermissions($role);
 
-        // Normalize WhatsApp phone
+        // Normalize WhatsApp phone to 08...
         $cleanPhone = !empty($validated['whatsapp_number']) 
             ? preg_replace('/[^0-9]/', '', $validated['whatsapp_number']) 
             : null;
-        if (!empty($cleanPhone) && str_starts_with($cleanPhone, '0')) {
-            $cleanPhone = '62' . substr($cleanPhone, 1);
+        if (!empty($cleanPhone)) {
+            if (str_starts_with($cleanPhone, '62')) {
+                $cleanPhone = '0' . substr($cleanPhone, 2);
+            } elseif (str_starts_with($cleanPhone, '8')) {
+                $cleanPhone = '0' . $cleanPhone;
+            }
         }
 
         $user = User::create([
@@ -286,8 +290,12 @@ class UserController extends Controller
         $cleanPhone = !empty($validated['whatsapp_number']) 
             ? preg_replace('/[^0-9]/', '', $validated['whatsapp_number']) 
             : null;
-        if (!empty($cleanPhone) && str_starts_with($cleanPhone, '0')) {
-            $cleanPhone = '62' . substr($cleanPhone, 1);
+        if (!empty($cleanPhone)) {
+            if (str_starts_with($cleanPhone, '62')) {
+                $cleanPhone = '0' . substr($cleanPhone, 2);
+            } elseif (str_starts_with($cleanPhone, '8')) {
+                $cleanPhone = '0' . $cleanPhone;
+            }
         }
 
         $user->name = trim($validated['name']);

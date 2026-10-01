@@ -124,7 +124,7 @@ class WhatsAppStaffApiTest extends TestCase
             ]);
 
         $response->assertRedirect('/profile');
-        $this->assertEquals('628555666777', $admin->fresh()->whatsapp_number);
+        $this->assertEquals('08555666777', $admin->fresh()->whatsapp_number);
     }
 
     public function test_regular_user_updating_whatsapp_creates_approval_ticket(): void
@@ -134,7 +134,7 @@ class WhatsAppStaffApiTest extends TestCase
         $user = User::factory()->create([
             'role'            => 'department',
             'department'      => 'Kitchen',
-            'whatsapp_number' => '628111111111',
+            'whatsapp_number' => '08111111111',
         ]);
 
         $response = $this->actingAs($user)
@@ -143,12 +143,12 @@ class WhatsAppStaffApiTest extends TestCase
             ]);
 
         $response->assertRedirect('/profile');
-        $this->assertEquals('628111111111', $user->fresh()->whatsapp_number);
+        $this->assertEquals('08111111111', $user->fresh()->whatsapp_number);
         $this->assertDatabaseHas('approval_tickets', [
             'type'            => 'whatsapp_change',
             'user_id'         => $user->id,
-            'current_value'   => '628111111111',
-            'requested_value' => '628555666777',
+            'current_value'   => '08111111111',
+            'requested_value' => '08555666777',
             'status'          => 'pending_hod',
         ]);
     }

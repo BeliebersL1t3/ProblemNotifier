@@ -17,6 +17,7 @@ import { getDepartmentTheme, ALL_DEPARTMENTS, DEPARTMENT_SUBDIVISIONS } from '@/
 import { getStaffForDepartment } from '@/constants/staff';
 import SubdivisionTag from '@/Components/CampusFix/SubdivisionTag';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/Components/UI/Dialog';
+import { formatToLocalPhone } from '@/utils/phone';
 
 export default function ProfilePage(props) {
     return (
@@ -799,7 +800,7 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, notifyWhatsAppTick
                                     {user?.whatsapp_number ? (
                                         <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-950/60 border border-emerald-500/50 text-emerald-300 flex items-center gap-1.5 shadow-sm">
                                             <Check className="h-3.5 w-3.5" />
-                                            <span>+{user.whatsapp_number}</span>
+                                            <span>{user.whatsapp_number}</span>
                                         </span>
                                     ) : (
                                         <span className="px-3 py-1 rounded-full text-xs font-semibold bg-amber-950/40 border border-amber-500/40 text-amber-300 flex items-center gap-1.5">
@@ -816,10 +817,10 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, notifyWhatsAppTick
                                             <span>Permohonan Perubahan WhatsApp (#{pendingTicket.ticket_number})</span>
                                         </div>
                                         <p>
-                                            Permohonan nomor baru <strong>{pendingTicket.requested_value ? `+${pendingTicket.requested_value}` : 'Pelepasan Nomor'}</strong> sedang menunggu persetujuan <strong>{pendingTicket.status === 'pending_hod' ? 'HOD Departemen' : 'Admin'}</strong>.
+                                            Permohonan nomor baru <strong>{pendingTicket.requested_value || 'Pelepasan Nomor'}</strong> sedang menunggu persetujuan <strong>{pendingTicket.status === 'pending_hod' ? 'HOD Departemen' : 'Admin'}</strong>.
                                         </p>
                                         <p className="text-amber-400/90 text-[11px] pt-1 border-t border-amber-500/30">
-                                            ℹ️ Nomor WhatsApp Anda saat ini <strong>(+{user?.whatsapp_number || '-'})</strong> tetap aktif digunakan sistem hingga permohonan disetujui.
+                                            ℹ️ Nomor WhatsApp Anda saat ini <strong>({user?.whatsapp_number || '-'})</strong> tetap aktif digunakan sistem hingga permohonan disetujui.
                                         </p>
                                     </div>
                                 )}
@@ -849,8 +850,8 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, notifyWhatsAppTick
                                                 id="whatsapp_number"
                                                 type="text"
                                                 value={waData.whatsapp_number}
-                                                onChange={(e) => setWaData('whatsapp_number', e.target.value)}
-                                                placeholder="e.g. 08123456789 atau +628123456789"
+                                                onChange={(e) => setWaData('whatsapp_number', formatToLocalPhone(e.target.value))}
+                                                placeholder="e.g. 081234567890"
                                                 className="w-full rounded-xl border border-[#3B3929] bg-[#1C1B0E] pl-9 pr-3 py-2.5 text-sm text-[#FAFAFA] placeholder:text-[#A19F8D]/40 focus:border-[#C9AA71] focus:outline-none transition-colors font-mono"
                                             />
                                         </div>

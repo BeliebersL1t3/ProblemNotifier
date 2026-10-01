@@ -778,7 +778,7 @@ function UsersInner({ initialUsers, initialStats }) {
                                                 {u.whatsapp_number ? (
                                                     <div className="flex items-center gap-1 text-[11px] font-mono text-emerald-400">
                                                         <Phone className="h-3 w-3" />
-                                                        <span>+{u.whatsapp_number}</span>
+                                                        <span>{u.whatsapp_number}</span>
                                                     </div>
                                                 ) : (
                                                     <span className="text-[#A19F8D]/50 text-[10px] italic">No WA</span>
@@ -1027,7 +1027,7 @@ function UsersInner({ initialUsers, initialStats }) {
                                                         {u.whatsapp_number ? (
                                                             <div className="flex items-center gap-1.5 text-[#E3D1AA]">
                                                                 <Phone className="h-3.5 w-3.5 text-emerald-400" />
-                                                                <span className="font-mono text-[11px]">+{u.whatsapp_number}</span>
+                                                                <span className="font-mono text-[11px]">{u.whatsapp_number}</span>
                                                             </div>
                                                         ) : (
                                                             <span className="text-[#A19F8D]/60 text-[11px] italic">Belum terhubung</span>

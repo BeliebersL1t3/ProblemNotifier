@@ -68,14 +68,17 @@ class ProfileController extends Controller
 
         if (!empty($rawPhone)) {
             $clean = preg_replace('/[^0-9]/', '', $rawPhone);
-            if (str_starts_with($clean, '0')) {
-                $clean = '62' . substr($clean, 1);
+            if (str_starts_with($clean, '62')) {
+                $clean = '0' . substr($clean, 2);
             } elseif (str_starts_with($clean, '8')) {
-                $clean = '62' . $clean;
+                $clean = '0' . $clean;
             }
 
+            // Both variants for conflict check
+            $canonical = str_starts_with($clean, '0') ? ('62' . substr($clean, 1)) : $clean;
+
             // Check if phone number is already registered to another active user
-            $conflict = \App\Models\User::where('whatsapp_number', $clean)
+            $conflict = \App\Models\User::whereIn('whatsapp_number', array_unique([$clean, $canonical]))
                 ->where('id', '!=', $user->id)
                 ->first();
 
@@ -185,9 +188,6 @@ class ProfileController extends Controller
         $userId = $request->input('user_id');
         $rawPhone = trim($request->input('whatsapp_number', ''));
         $cleanPhone = preg_replace('/[^0-9]/', '', $rawPhone);
-        if (str_starts_with($cleanPhone, '0')) {
-            $cleanPhone = '62' . substr($cleanPhone, 1);
-        }
 
         if (empty($cleanPhone)) {
             return response()->json([
@@ -196,8 +196,11 @@ class ProfileController extends Controller
             ], 422);
         }
 
-        // Look up user strictly by registered WhatsApp number
-        $user = \App\Models\User::where('whatsapp_number', $cleanPhone)
+        $zeroPhone = str_starts_with($cleanPhone, '62') ? ('0' . substr($cleanPhone, 2)) : (str_starts_with($cleanPhone, '8') ? ('0' . $cleanPhone) : $cleanPhone);
+        $canonicalPhone = str_starts_with($zeroPhone, '0') ? ('62' . substr($zeroPhone, 1)) : $zeroPhone;
+
+        // Look up user strictly by registered WhatsApp number (supporting both local 08 and canonical 62 variants)
+        $user = \App\Models\User::whereIn('whatsapp_number', array_unique([$zeroPhone, $canonicalPhone]))
             ->where('is_active', true)
             ->first();
 

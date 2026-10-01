@@ -8,6 +8,7 @@ import {
 import { Button } from '@/Components/UI/Button';
 import { Input } from '@/Components/UI/Input';
 import { DEPARTMENTS, SUBDEPARTMENTS } from '@/constants/departments';
+import { formatToLocalPhone } from '@/utils/phone';
 
 export function UserModal({ isOpen, onClose, user = null, onSaved }) {
     const isEdit = Boolean(user && user.id);
@@ -328,8 +329,8 @@ export function UserModal({ isOpen, onClose, user = null, onSaved }) {
                                     <Input
                                         type="text"
                                         value={whatsappNumber}
-                                        onChange={e => setWhatsappNumber(e.target.value)}
-                                        placeholder="08123456789 atau 628123456789"
+                                        onChange={e => setWhatsappNumber(formatToLocalPhone(e.target.value))}
+                                        placeholder="081234567890"
                                         className="pl-9 bg-[#1C1B0E] border-[#3B3929] text-[#FAFAFA]"
                                     />
                                 </div>

@@ -16,6 +16,7 @@ import axios from 'axios';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/context/LanguageContext';
 import { DEPARTMENTS, getDepartmentTheme } from '@/constants/departments';
+import { formatToLocalPhone } from '@/utils/phone';
 
 export default function TicketsPage(props) {
     return (
@@ -152,12 +153,7 @@ function TicketsInner({
 
     const formatDisplayPhone = (phone) => {
         if (!phone || phone === '-') return '-';
-        let digits = String(phone).replace(/\D/g, '');
-        if (digits.startsWith('00')) digits = digits.slice(2);
-        else if (digits.startsWith('0')) digits = digits.slice(1);
-        if (digits.startsWith('8')) digits = '62' + digits;
-        if (!digits) return '-';
-        return `+${digits}`;
+        return formatToLocalPhone(phone) || '-';
     };
 
     const getTypeBadge = (type) => {

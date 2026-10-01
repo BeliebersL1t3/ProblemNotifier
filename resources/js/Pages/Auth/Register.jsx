@@ -8,6 +8,7 @@ import GuestLayout from '@/Layouts/GuestLayout';
 import { Head, Link, useForm } from '@inertiajs/react';
 import { DEPARTMENT_SUBDIVISIONS, normalizeDepartment } from '@/constants/departments';
 import { CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
+import { formatToLocalPhone } from '@/utils/phone';
 
 const DEPARTMENT_OPTIONS = [
     { value: 'HR', label: 'HR (Human Resources)' },
@@ -191,7 +192,7 @@ export default function Register() {
                 </div>
 
                 <div>
-                    <InputLabel htmlFor="whatsapp_number" value="Nomor WhatsApp Pribadi (Wajib)" />
+                    <InputLabel htmlFor="whatsapp_number" value="Nomor WhatsApp Pribadi (Wajib - diawali 08)" />
                     <div className="relative mt-1">
                         <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-sm text-gray-500 font-mono">
                             📞
@@ -207,10 +208,11 @@ export default function Register() {
                                     ? 'border-emerald-500 focus:border-emerald-500 focus:ring-emerald-500 ring-1 ring-emerald-500/50'
                                     : ''
                             }`}
-                            placeholder="08123456789 atau 628123456789"
+                            placeholder="081234567890"
                             onChange={(e) => {
-                                setData('whatsapp_number', e.target.value);
-                                handlePhoneChange(e.target.value);
+                                const formatted = formatToLocalPhone(e.target.value);
+                                setData('whatsapp_number', formatted);
+                                handlePhoneChange(formatted);
                             }}
                             onBlur={() => checkPhoneAvailability(data.whatsapp_number)}
                             required

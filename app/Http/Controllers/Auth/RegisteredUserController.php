@@ -97,8 +97,8 @@ class RegisteredUserController extends Controller
                 'string',
                 'max:30',
                 function ($attribute, $value, $fail) use ($canonicalPhone, $zeroPhone) {
-                    if (empty($canonicalPhone) || strlen($canonicalPhone) < 10) {
-                        $fail('Nomor WhatsApp tidak valid (terlalu pendek).');
+                    if (empty($zeroPhone) || strlen($zeroPhone) < 10) {
+                        $fail('Nomor WhatsApp tidak valid (terlalu pendek, minimal 10 digit).');
                         return;
                     }
 
@@ -116,7 +116,7 @@ class RegisteredUserController extends Controller
             'password' => Hash::make($request->password),
             'department' => $request->department,
             'subdivision' => $request->subdivision,
-            'whatsapp_number' => $canonicalPhone,
+            'whatsapp_number' => $zeroPhone,
             'role' => 'department',
             'is_active' => false,
             'approval_status' => 'pending_hod',
@@ -135,7 +135,7 @@ class RegisteredUserController extends Controller
             'subdivision' => $user->subdivision,
             'staff_name' => $user->name,
             'email' => $user->email,
-            'requested_value' => $canonicalPhone,
+            'requested_value' => $zeroPhone,
             'status' => 'pending_hod',
             'reason' => 'Pendaftaran akun mandiri dari Web Dashboard',
         ]);

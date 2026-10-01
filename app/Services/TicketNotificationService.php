@@ -20,6 +20,12 @@ class TicketNotificationService
             return false;
         }
 
+        if (str_starts_with($cleanPhone, '0')) {
+            $cleanPhone = '62' . substr($cleanPhone, 1);
+        } elseif (str_starts_with($cleanPhone, '8')) {
+            $cleanPhone = '62' . $cleanPhone;
+        }
+
         try {
             $response = Http::withHeaders([
                 'X-Bot-Key' => config('services.bot.api_key'),
