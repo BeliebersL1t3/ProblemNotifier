@@ -1133,29 +1133,31 @@ export function OperationsCalendarView({
                 {/* ─── Calendar Month Grid (8 Cols on Desktop) ─── */}
                 <div className="lg:col-span-8 bg-[#2A281E]/95 border border-[#3B3929] rounded-2xl p-4 sm:p-5 shadow-2xl backdrop-blur-xl relative group/cal">
                     {/* Floating Month Navigation Chevrons (Direct on Calendar) */}
-                    <Tooltip content={t('tooltip_prev_month') || 'Bulan Sebelumnya'} position="right">
-                        <button
-                            type="button"
-                            onClick={handlePrevMonth}
-                            className="absolute -left-3 sm:-left-5 top-1/2 -translate-y-1/2 z-30 w-8 h-12 sm:w-10 sm:h-14 rounded-r-xl sm:rounded-xl bg-[#1C1B0E]/95 hover:bg-[#C9AA71] border border-[#3B3929] hover:border-[#C9AA71] text-[#A19F8D] hover:text-[#1C1B0E] flex items-center justify-center shadow-2xl backdrop-blur-md transition-all duration-200 cursor-pointer active:scale-90 hover:scale-110 opacity-90 sm:opacity-50 group-hover/cal:opacity-100"
-                            title={t('tooltip_prev_month') || 'Bulan Sebelumnya'}
-                            aria-label="Previous Month"
-                        >
-                            <ChevronLeft className="h-5 w-5 sm:h-6 sm:w-6 transition-transform" />
-                        </button>
-                    </Tooltip>
+                    <div className="absolute -left-3.5 sm:-left-5 top-1/2 -translate-y-1/2 z-30 pointer-events-auto">
+                        <Tooltip content={t('tooltip_prev_month') || 'Bulan Sebelumnya'} position="right">
+                            <button
+                                type="button"
+                                onClick={handlePrevMonth}
+                                className="w-8 h-12 sm:w-10 sm:h-14 rounded-r-xl sm:rounded-xl bg-[#1C1B0E]/95 hover:bg-[#C9AA71] border border-[#3B3929] hover:border-[#C9AA71] text-[#A19F8D] hover:text-[#1C1B0E] flex items-center justify-center shadow-2xl backdrop-blur-md transition-all duration-200 cursor-pointer active:scale-90 hover:scale-110 opacity-90 sm:opacity-50 group-hover/cal:opacity-100"
+                                aria-label="Previous Month"
+                            >
+                                <ChevronLeft className="h-5 w-5 sm:h-6 sm:w-6 transition-transform" />
+                            </button>
+                        </Tooltip>
+                    </div>
 
-                    <Tooltip content={t('tooltip_next_month') || 'Bulan Berikutnya'} position="left">
-                        <button
-                            type="button"
-                            onClick={handleNextMonth}
-                            className="absolute -right-3 sm:-right-5 top-1/2 -translate-y-1/2 z-30 w-8 h-12 sm:w-10 sm:h-14 rounded-l-xl sm:rounded-xl bg-[#1C1B0E]/95 hover:bg-[#C9AA71] border border-[#3B3929] hover:border-[#C9AA71] text-[#A19F8D] hover:text-[#1C1B0E] flex items-center justify-center shadow-2xl backdrop-blur-md transition-all duration-200 cursor-pointer active:scale-90 hover:scale-110 opacity-90 sm:opacity-50 group-hover/cal:opacity-100"
-                            title={t('tooltip_next_month') || 'Bulan Berikutnya'}
-                            aria-label="Next Month"
-                        >
-                            <ChevronRight className="h-5 w-5 sm:h-6 sm:w-6 transition-transform" />
-                        </button>
-                    </Tooltip>
+                    <div className="absolute -right-3.5 sm:-right-5 top-1/2 -translate-y-1/2 z-30 pointer-events-auto">
+                        <Tooltip content={t('tooltip_next_month') || 'Bulan Berikutnya'} position="left">
+                            <button
+                                type="button"
+                                onClick={handleNextMonth}
+                                className="w-8 h-12 sm:w-10 sm:h-14 rounded-l-xl sm:rounded-xl bg-[#1C1B0E]/95 hover:bg-[#C9AA71] border border-[#3B3929] hover:border-[#C9AA71] text-[#A19F8D] hover:text-[#1C1B0E] flex items-center justify-center shadow-2xl backdrop-blur-md transition-all duration-200 cursor-pointer active:scale-90 hover:scale-110 opacity-90 sm:opacity-50 group-hover/cal:opacity-100"
+                                aria-label="Next Month"
+                            >
+                                <ChevronRight className="h-5 w-5 sm:h-6 sm:w-6 transition-transform" />
+                            </button>
+                        </Tooltip>
+                    </div>
                     {/* Active Task Focus Banner */}
                     {activeHighlightedTask && (
                         <div 
