@@ -4,6 +4,7 @@ const axios = require('axios');
 const FormData = require('form-data');
 const express = require('express');
 const qrcode = require('qrcode-terminal');
+const QRCode = require('qrcode');
 const fs = require('fs');
 
 const app = express();
@@ -92,9 +93,18 @@ let botConfig = {
     departmentGroups: {},
     channelId: null,
     channelInvite: '0029VbD3yVS2UPBOZRraWu2j',
-    channelName: null
+    channelName: null,
+    lastKnownBotPhone: null
 };
 let linkedGroupId = null;
+
+// Real-time Pairing & Connection State for Dashboard Control
+let latestQrString = null;
+let latestQrDataUrl = null;
+let activePairingCode = null;
+let activePairingPhone = null;
+let botConnectionStatus = 'offline'; // 'offline' | 'connecting' | 'qr_ready' | 'pairing_ready' | 'connected'
+let announceNumberChangeOnConnect = false;
 
 // Staff Phone Directory Mapping & Anti-Impersonation Cache
 let staffPhones = {}; // { [phone]: { name, staff_name, department, role, id, source, syncedAt } }
@@ -447,6 +457,7 @@ function loadConfig() {
             botConfig.channelId = data.channelId || null;
             botConfig.channelInvite = data.channelInvite || '0029VbD3yVS2UPBOZRraWu2j';
             botConfig.channelName = data.channelName || null;
+            botConfig.lastKnownBotPhone = data.lastKnownBotPhone || null;
             linkedGroupId = botConfig.generalGroupId;
             console.log(`Loaded General Group ID: ${botConfig.generalGroupId}`);
             console.log(`Loaded ${Object.keys(botConfig.departmentGroups).length} Department Groups`);
@@ -468,6 +479,45 @@ function saveConfig() {
 }
 
 loadConfig();
+
+// Helper to broadcast new bot phone number announcement to groups and channel
+async function broadcastNewBotNumber(newPhone, oldPhone) {
+    if (!globalSock) return;
+    const formattedNew = `+${newPhone}`;
+    const announcement = 
+        `📢 *PEMBERITAHUAN NOMOR RESMI BOT TELUNAS* 📢\n\n` +
+        `Halo Rekan Staf & Manajemen Telunas Resort,\n` +
+        `Nomor WhatsApp resmi Bot Telunas Issue Tracker telah diperbarui ke nomor ini:\n` +
+        `📱 *${formattedNew}*\n\n` +
+        `Silakan simpan nomor baru ini di kontak WhatsApp Anda.\n` +
+        `Nomor ini aktif untuk menerima notifikasi tiket, pembaruan isu fasilitas/engineering, serta perintah bot (*!help*, *!whoami*, *!password*).\n\n` +
+        `Terima kasih! 🌴`;
+
+    const targets = new Set();
+    if (botConfig.generalGroupId) targets.add(botConfig.generalGroupId);
+    Object.values(botConfig.departmentGroups || {}).forEach(gid => {
+        if (gid) targets.add(gid);
+    });
+
+    console.log(`[Bot Migration] Broadcasting new bot number (+${newPhone}) to ${targets.size} groups...`);
+
+    for (const gid of targets) {
+        try {
+            await globalSock.sendMessage(gid, { text: announcement });
+        } catch (err) {
+            console.error(`[Bot Migration] Failed sending to group ${gid}:`, err.message);
+        }
+    }
+
+    if (botConfig.channelId) {
+        try {
+            await globalSock.sendMessage(botConfig.channelId, { text: announcement });
+            console.log(`[Bot Migration] Broadcasted new number to WhatsApp Channel.`);
+        } catch (err) {
+            console.error(`[Bot Migration] Failed sending to channel:`, err.message);
+        }
+    }
+}
 
 // Helper to look up an issue by ID (including archived issues)
 async function getIssueDetails(issueId) {
@@ -807,6 +857,7 @@ let globalSock = null;
 let staffSyncTimer = null;
 
 async function startSock() {
+    botConnectionStatus = 'connecting';
     const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
 
     const sock = makeWASocket({
@@ -819,15 +870,23 @@ async function startSock() {
 
     sock.ev.on('creds.update', saveCreds);
 
-    sock.ev.on('connection.update', (update) => {
+    sock.ev.on('connection.update', async (update) => {
         const { connection, lastDisconnect, qr } = update;
         
         if (qr) {
+            latestQrString = qr;
+            botConnectionStatus = 'qr_ready';
+            try {
+                latestQrDataUrl = await QRCode.toDataURL(qr, { margin: 2, scale: 6 });
+            } catch (qrErr) {
+                console.error('Error generating QR data URL:', qrErr.message);
+            }
             qrcode.generate(qr, { small: true });
             console.log('\n--> Scan the QR code above with WhatsApp to log in.');
         }
         
         if (connection === 'close') {
+            botConnectionStatus = 'offline';
             const statusCode = lastDisconnect.error?.output?.statusCode;
             const isLoggedOut = statusCode === DisconnectReason.loggedOut;
             console.log(`Connection closed (Status Code: ${statusCode || 'unknown'}). Reconnecting...`, !isLoggedOut);
@@ -845,7 +904,30 @@ async function startSock() {
                 setTimeout(() => startSock(), 2000);
             }
         } else if (connection === 'open') {
+            botConnectionStatus = 'connected';
+            latestQrDataUrl = null;
+            latestQrString = null;
+            activePairingCode = null;
+            activePairingPhone = null;
             console.log('Client is ready!');
+
+            // Check if phone number changed or flagged for announcement
+            const currentPhone = globalSock?.user?.id ? globalSock.user.id.split(':')[0] : null;
+            const previousPhone = botConfig.lastKnownBotPhone;
+
+            if (currentPhone && (announceNumberChangeOnConnect || (previousPhone && currentPhone !== previousPhone))) {
+                console.log(`[Bot Migration] Connected with new bot phone: +${currentPhone} (previous: ${previousPhone || 'none'})`);
+                setTimeout(() => {
+                    broadcastNewBotNumber(currentPhone, previousPhone);
+                }, 3000);
+                announceNumberChangeOnConnect = false;
+            }
+
+            if (currentPhone && botConfig.lastKnownBotPhone !== currentPhone) {
+                botConfig.lastKnownBotPhone = currentPhone;
+                saveConfig();
+            }
+
             syncCommunityGroups(sock).then(res => { if (res.success) console.log(`Auto-synced ${res.count} community groups.`); });
             syncStaffDirectory();
             syncWhatsAppChannel(sock);
@@ -2593,16 +2675,145 @@ const authenticateInbound = (req, res, next) => {
 
 app.get(['/status', '/health', '/api/status'], (req, res) => {
     const isConnected = Boolean(globalSock && globalSock.user);
+    const phone = globalSock?.user?.id ? globalSock.user.id.split(':')[0] : (botConfig.lastKnownBotPhone || null);
     res.json({
         success: true,
         connected: isConnected,
-        phone: globalSock?.user?.id ? globalSock.user.id.split(':')[0] : null,
+        phone: phone,
         name: globalSock?.user?.name || null,
+        status: isConnected ? 'connected' : (activePairingCode ? 'pairing_ready' : (latestQrDataUrl ? 'qr_ready' : botConnectionStatus)),
+        qr: latestQrDataUrl,
+        pairingCode: activePairingCode,
+        pairingPhone: activePairingPhone,
         uptime: Math.floor(process.uptime())
     });
 });
 
-app.use(['/sync-staff', '/api/sync-staff', '/notify-direct', '/api/notify-direct', '/notify', '/api/notify', '/shutdown', '/api/shutdown'], authenticateInbound);
+app.use([
+    '/sync-staff', '/api/sync-staff', 
+    '/notify-direct', '/api/notify-direct', 
+    '/notify', '/api/notify', 
+    '/shutdown', '/api/shutdown',
+    '/request-pairing-code', '/api/request-pairing-code',
+    '/unlink', '/api/unlink',
+    '/auth-state', '/api/auth-state'
+], authenticateInbound);
+
+// Endpoint to inspect detailed auth & pairing state
+app.get(['/auth-state', '/api/auth-state'], (req, res) => {
+    const isConnected = Boolean(globalSock && globalSock.user);
+    const phone = globalSock?.user?.id ? globalSock.user.id.split(':')[0] : (botConfig.lastKnownBotPhone || null);
+    res.json({
+        success: true,
+        connected: isConnected,
+        phone: phone,
+        name: globalSock?.user?.name || null,
+        status: isConnected ? 'connected' : (activePairingCode ? 'pairing_ready' : (latestQrDataUrl ? 'qr_ready' : botConnectionStatus)),
+        qr: latestQrDataUrl,
+        pairingCode: activePairingCode,
+        pairingPhone: activePairingPhone,
+        uptime: Math.floor(process.uptime())
+    });
+});
+
+// Endpoint to request an 8-digit WhatsApp Pairing Code with a new phone number
+app.post(['/request-pairing-code', '/api/request-pairing-code'], async (req, res) => {
+    try {
+        const { phone } = req.body;
+        if (!phone) {
+            return res.status(400).json({ success: false, error: 'Nomor telepon WhatsApp wajib diisi.' });
+        }
+        let cleanPhone = normalizePhoneNumber(phone);
+        if (!cleanPhone || cleanPhone.length < 8) {
+            return res.status(400).json({ success: false, error: 'Format nomor telepon tidak valid.' });
+        }
+
+        console.log(`[Pairing] Received pairing request for phone: +${cleanPhone}`);
+
+        // If bot is currently registered/connected, reset session to allow pairing new number
+        if (globalSock && globalSock.authState?.creds?.registered) {
+            console.log('[Pairing] Resetting existing session to pair new number...');
+            announceNumberChangeOnConnect = true;
+            try {
+                await globalSock.end(new Error('Admin requested pairing new number'));
+            } catch (e) {}
+            globalSock = null;
+            await new Promise(r => setTimeout(r, 600));
+            try {
+                fs.rmSync('auth_info_baileys', { recursive: true, force: true });
+            } catch (e) {}
+            await startSock();
+            await new Promise(r => setTimeout(r, 1200));
+        } else if (!globalSock) {
+            await startSock();
+            await new Promise(r => setTimeout(r, 1200));
+        }
+
+        if (!globalSock) {
+            return res.status(500).json({ success: false, error: 'Socket bot WhatsApp gagal diinisialisasi.' });
+        }
+
+        announceNumberChangeOnConnect = true;
+        const rawCode = await globalSock.requestPairingCode(cleanPhone);
+        let formattedCode = String(rawCode || '').trim();
+        if (formattedCode.length === 8 && !formattedCode.includes('-')) {
+            formattedCode = `${formattedCode.slice(0, 4)}-${formattedCode.slice(4)}`;
+        }
+
+        activePairingCode = formattedCode;
+        activePairingPhone = cleanPhone;
+        botConnectionStatus = 'pairing_ready';
+
+        console.log(`[Pairing] Successfully generated pairing code: ${formattedCode} for +${cleanPhone}`);
+        return res.json({
+            success: true,
+            pairingCode: formattedCode,
+            phone: cleanPhone,
+            message: 'Kode pairing berhasil dibuat.'
+        });
+    } catch (err) {
+        console.error('[Pairing] Error requesting pairing code:', err.message);
+        return res.status(500).json({ success: false, error: err.message || 'Gagal membuat kode pairing.' });
+    }
+});
+
+// Endpoint to disconnect / unlink current bot session
+app.post(['/unlink', '/api/unlink'], async (req, res) => {
+    try {
+        console.log('[Bot Unlink] Received unlink / reset session request from admin.');
+        announceNumberChangeOnConnect = true;
+        latestQrDataUrl = null;
+        latestQrString = null;
+        activePairingCode = null;
+        activePairingPhone = null;
+        botConnectionStatus = 'offline';
+
+        if (globalSock) {
+            try {
+                await globalSock.end(new Error('Admin unlinked bot'));
+            } catch (e) {}
+            globalSock = null;
+        }
+
+        await new Promise(r => setTimeout(r, 800));
+        try {
+            fs.rmSync('auth_info_baileys', { recursive: true, force: true });
+            console.log('[Bot Unlink] Successfully removed auth_info_baileys.');
+        } catch (e) {
+            console.warn('[Bot Unlink] Notice while clearing auth files:', e.message);
+        }
+
+        startSock();
+
+        return res.json({
+            success: true,
+            message: 'Sesi bot berhasil diputuskan. Silakan masukkan nomor baru atau scan QR code.'
+        });
+    } catch (err) {
+        console.error('[Bot Unlink] Error:', err.message);
+        return res.status(500).json({ success: false, error: err.message });
+    }
+});
 
 app.post(['/shutdown', '/api/shutdown'], (req, res) => {
     console.log('[Bot Shutdown] Received shutdown request from dashboard.');

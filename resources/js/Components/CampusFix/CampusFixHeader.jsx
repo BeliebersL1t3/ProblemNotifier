@@ -46,11 +46,10 @@ export function CampusFixHeader({ mode = 'dashboard', query, onQueryChange, onRe
     }, []);
 
     useEffect(() => {
-        if (!isAdmin) return;
         checkBotStatus();
         const interval = setInterval(checkBotStatus, 30000);
         return () => clearInterval(interval);
-    }, [isAdmin, checkBotStatus]);
+    }, [checkBotStatus]);
 
     const openMobileSearch = () => {
         setMobileSearchOpen(true);
@@ -469,23 +468,48 @@ export function CampusFixHeader({ mode = 'dashboard', query, onQueryChange, onRe
                         </>
                     )}
 
-                    {/* WhatsApp Bot Status Indicator (Admins only) */}
-                    {isAdmin && botStatus !== null && (
-                        <div 
-                            onClick={() => setBotControlModalOpen(true)}
-                            className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[10px] font-bold border transition-all cursor-pointer select-none ${
-                                botStatus?.connected 
-                                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 shadow-xs' 
-                                    : 'bg-red-500/10 border-red-500/30 text-red-600 dark:text-red-400 animate-pulse hover:bg-red-500/20'
-                            }`}
-                            title={botStatus?.connected 
-                                ? `WhatsApp Bot Online (${botStatus.phone ? '+' + botStatus.phone : 'Connected'}) - Klik untuk menu kontrol` 
-                                : 'WhatsApp Bot Terputus / Offline - Klik untuk menyalakan'}
-                        >
-                            <span className={`w-2 h-2 rounded-full ${botStatus?.connected ? 'bg-emerald-500' : 'bg-red-500'}`} />
-                            <MessageSquare className="w-3 h-3 text-[#25D366]" />
-                            <span className="hidden md:inline">{botStatus?.connected ? 'Bot Online' : 'Bot Offline'}</span>
-                        </div>
+                    {/* WhatsApp Bot Status & Quick Chat Indicator (Staff, HOD, Admin) */}
+                    {botStatus !== null && (
+                        isAdmin ? (
+                            <div 
+                                onClick={() => setBotControlModalOpen(true)}
+                                className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[10px] font-bold border transition-all cursor-pointer select-none ${
+                                    botStatus?.connected 
+                                        ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 shadow-xs' 
+                                        : 'bg-red-500/10 border-red-500/30 text-red-600 dark:text-red-400 animate-pulse hover:bg-red-500/20'
+                                }`}
+                                title={botStatus?.connected 
+                                    ? `WhatsApp Bot Online (${botStatus.phone ? '+' + botStatus.phone : 'Connected'}) - Klik untuk menu kontrol & ganti nomor` 
+                                    : 'WhatsApp Bot Terputus / Offline - Klik untuk menyalakan atau pasang nomor'}
+                            >
+                                <span className={`w-2 h-2 rounded-full ${botStatus?.connected ? 'bg-emerald-500' : 'bg-red-500'}`} />
+                                <MessageSquare className="w-3 h-3 text-[#25D366]" />
+                                <span className="hidden md:inline">{botStatus?.connected ? 'Bot Online' : 'Bot Offline'}</span>
+                            </div>
+                        ) : (
+                            botStatus?.connected && botStatus?.phone ? (
+                                <a 
+                                    href={`https://wa.me/${String(botStatus.phone).replace(/[^0-9]/g, '')}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[10px] font-bold border border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 transition-all select-none shadow-xs cursor-pointer"
+                                    title={`Hubungi Bot WhatsApp Telunas (+${botStatus.phone})`}
+                                >
+                                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                                    <MessageSquare className="w-3 h-3 text-[#25D366]" />
+                                    <span className="hidden md:inline">Chat Bot</span>
+                                </a>
+                            ) : (
+                                <div 
+                                    className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[10px] font-bold border border-stone-500/20 bg-stone-500/10 text-stone-500 select-none cursor-not-allowed opacity-75"
+                                    title="WhatsApp Bot sedang offline"
+                                >
+                                    <span className="w-2 h-2 rounded-full bg-stone-400" />
+                                    <MessageSquare className="w-3 h-3 text-stone-400" />
+                                    <span className="hidden md:inline">Bot Offline</span>
+                                </div>
+                            )
+                        )
                     )}
 
                     {/* Notification Bell Dropdown */}

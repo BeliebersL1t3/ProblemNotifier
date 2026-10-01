@@ -1,17 +1,20 @@
 import { Head, useForm, router, Link } from '@inertiajs/react';
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import axios from 'axios';
 import { 
     User, Lock, KeyRound, LogOut, Shield, Building2, CheckCircle2, 
     AlertCircle, Loader2, Sparkles, Mail, Tag, ShieldCheck, RefreshCw,
     Phone, MessageSquare, Check, Smartphone, Unlink, Trash2,
     Users as UsersIcon, ChevronRight, ShieldAlert, Camera, UploadCloud,
-    Image as ImageIcon, X, Ticket, Clock, ArrowRightLeft, Globe, Crown
+    Image as ImageIcon, X, Ticket, Clock, ArrowRightLeft, Globe, Crown,
+    ExternalLink
 } from 'lucide-react';
 
 import { IssuesProvider } from '@/context/IssuesContext';
 import { useLanguage } from '@/context/LanguageContext';
 import { CampusFixHeader } from '@/Components/CampusFix/CampusFixHeader';
 import { MobileBottomNav } from '@/Components/CampusFix/MobileBottomNav';
+import { BotControlModal } from '@/Components/CampusFix/BotControlModal';
 import { useAuth } from '@/hooks/useAuth';
 import { getDepartmentTheme, ALL_DEPARTMENTS, DEPARTMENT_SUBDIVISIONS } from '@/constants/departments';
 import { getStaffForDepartment } from '@/constants/staff';
@@ -39,6 +42,27 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, notifyWhatsAppTick
     const [isLoggingOut, setIsLoggingOut] = useState(false);
     const passwordInput = useRef(null);
     const currentPasswordInput = useRef(null);
+
+    // Admin WhatsApp Bot Control State
+    const [botModalOpen, setBotModalOpen] = useState(false);
+    const [botModalTab, setBotModalTab] = useState('pair');
+    const [adminBotStatus, setAdminBotStatus] = useState(null);
+
+    const fetchAdminBotStatus = useCallback(async () => {
+        if (!isAdmin) return;
+        try {
+            const res = await axios.get('/api/bot/status');
+            setAdminBotStatus(res.data);
+        } catch {
+            setAdminBotStatus({ connected: false });
+        }
+    }, [isAdmin]);
+
+    useEffect(() => {
+        if (isAdmin) {
+            fetchAdminBotStatus();
+        }
+    }, [isAdmin, fetchAdminBotStatus]);
 
     // Profile Photo / Avatar management state
     const avatarInputRef = useRef(null);
@@ -930,6 +954,108 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, notifyWhatsAppTick
                                 </form>
                             </div>
 
+                            {/* WhatsApp Bot System Management Card (Admin Only) */}
+                            {isAdmin && (
+                                <div className="rounded-2xl border-2 border-amber-500/40 bg-[#2A281E]/95 p-6 sm:p-8 shadow-2xl space-y-5 relative overflow-hidden">
+                                    <div className="absolute top-0 right-0 w-48 h-48 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+
+                                    <div className="flex items-center justify-between gap-4 pb-4 border-b border-[#3B3929] flex-wrap relative z-10">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500/30 to-[#25D366]/30 text-[#25D366] flex items-center justify-center border border-amber-500/40 shadow-sm shrink-0">
+                                                <MessageSquare className="h-5 w-5" />
+                                            </div>
+                                            <div>
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <h2 className="text-base sm:text-lg font-bold text-[#FAFAFA]">
+                                                        {lang === 'id' ? 'Pengelolaan Nomor WhatsApp Bot Resmi' : 'Official WhatsApp Bot Number & System'}
+                                                    </h2>
+                                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                                                        ADMIN ONLY
+                                                    </span>
+                                                </div>
+                                                <p className="text-xs text-[#A19F8D] mt-0.5">
+                                                    {lang === 'id'
+                                                        ? 'Kendali penuh untuk mengganti nomor bot, reset sesi yang bermasalah, atau scan QR langsung dari profil Anda.'
+                                                        : 'Full control to change the bot number, re-link problematic sessions, or scan QR directly from your profile.'}
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        <div className={`px-3 py-1 rounded-full text-xs font-bold border flex items-center gap-1.5 shadow-sm ${
+                                            adminBotStatus?.connected 
+                                                ? 'bg-emerald-950/60 border-emerald-500/50 text-emerald-300' 
+                                                : 'bg-red-950/60 border-red-500/50 text-red-300 animate-pulse'
+                                        }`}>
+                                            <span className={`w-2 h-2 rounded-full ${adminBotStatus?.connected ? 'bg-emerald-400' : 'bg-red-400'}`} />
+                                            <span>{adminBotStatus?.connected ? `Online (+${adminBotStatus.phone || 'Active'})` : 'Bot Terputus / Perlu Ditautkan'}</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 relative z-10">
+                                        <div className="p-3.5 rounded-xl bg-[#1C1B0E] border border-amber-500/20 space-y-1">
+                                            <span className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1.5">
+                                                <Phone className="w-3.5 h-3.5 text-emerald-400" />
+                                                <span>{lang === 'id' ? 'Nomor Bot Saat Ini' : 'Current Bot Number'}</span>
+                                            </span>
+                                            <span className="text-base font-mono font-extrabold text-[#FAFAFA] block">
+                                                {adminBotStatus?.phone ? `+${adminBotStatus.phone}` : (lang === 'id' ? 'Belum Ada / Nonaktif' : 'None / Inactive')}
+                                            </span>
+                                            <span className="text-[10px] text-stone-400 block pt-0.5">
+                                                {lang === 'id' ? 'Nomor ini yang mengirim laporan tiket & broadcast ke grup WhatsApp staf.' : 'Used to send ticket alerts & broadcast to staff WhatsApp groups.'}
+                                            </span>
+                                        </div>
+
+                                        <div className="p-3.5 rounded-xl bg-[#1C1B0E] border border-amber-500/20 flex flex-col justify-center space-y-2">
+                                            <span className="text-[11px] font-semibold text-muted-foreground">
+                                                {lang === 'id' ? 'Aksi Pengelolaan Admin' : 'Admin Actions'}
+                                            </span>
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                                {adminBotStatus?.connected && adminBotStatus?.phone && (
+                                                    <a
+                                                        href={`https://wa.me/${String(adminBotStatus.phone).replace(/[^0-9]/g, '')}`}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="flex-1 min-w-[120px] inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-[#25D366]/20 hover:bg-[#25D366]/30 text-[#25D366] border border-[#25D366]/40 transition-all shadow-xs"
+                                                    >
+                                                        <ExternalLink className="w-3.5 h-3.5" />
+                                                        <span>{lang === 'id' ? 'Tes Chat Bot' : 'Test Chat'}</span>
+                                                    </a>
+                                                )}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setBotModalTab('pair');
+                                                        setBotModalOpen(true);
+                                                    }}
+                                                    className="flex-1 min-w-[130px] inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-stone-950 transition-all shadow-md cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
+                                                >
+                                                    <KeyRound className="w-3.5 h-3.5" />
+                                                    <span>{lang === 'id' ? 'Ganti Nomor Bot' : 'Change Number'}</span>
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setBotModalTab('status');
+                                                        setBotModalOpen(true);
+                                                    }}
+                                                    className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-white/5 hover:bg-white/10 text-stone-300 border border-white/10 transition-all cursor-pointer"
+                                                    title="Buka Menu Kontrol Lengkap"
+                                                >
+                                                    <span>{lang === 'id' ? 'Kontrol Layanan' : 'Control Panel'}</span>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <p className="text-[11px] text-stone-400 leading-relaxed border-t border-white/5 pt-3 relative z-10">
+                                        📢 <strong>{lang === 'id' ? 'Pemberitahuan Otomatis ke Grup:' : 'Automatic Group Broadcast:'}</strong>{' '}
+                                        {lang === 'id'
+                                            ? 'Setiap kali nomor bot berhasil diganti, bot akan langsung mengirimkan pesan siaran resmi nomor baru ke seluruh grup WhatsApp departemen dan channel.'
+                                            : 'Whenever the bot number is changed, it automatically broadcasts an official announcement with the new number to all staff department groups and channel.'}
+                                    </p>
+                                </div>
+                            )}
+
                             {/* Notification Preferences Card */}
                             <div className={`rounded-2xl border border-[#3B3929] bg-[#2A281E]/90 p-6 sm:p-8 shadow-xl space-y-4 ${!hasWhatsapp ? 'opacity-85' : ''}`}>
                                 <div className="flex items-center justify-between gap-4 flex-wrap">
@@ -1323,6 +1449,17 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, notifyWhatsAppTick
                     </form>
                 </DialogContent>
             </Dialog>
+
+            {/* Admin Bot Control & Number Management Modal */}
+            {isAdmin && (
+                <BotControlModal
+                    open={botModalOpen}
+                    onOpenChange={setBotModalOpen}
+                    botStatus={adminBotStatus}
+                    onRefreshStatus={fetchAdminBotStatus}
+                    initialTab={botModalTab}
+                />
+            )}
         </div>
     );
 }

@@ -2185,13 +2185,20 @@ class IssueController extends Controller
             try {
                 $response = \Illuminate\Support\Facades\Http::timeout(2.0)->get($url);
                 if ($response->successful()) {
-                    return response()->json($response->json());
+                    $data = $response->json();
+                    if (!empty($data['phone'])) {
+                        $clean = preg_replace('/[^0-9]/', '', (string)$data['phone']);
+                        $data['wa_url'] = "https://wa.me/{$clean}";
+                    } else {
+                        $data['wa_url'] = null;
+                    }
+                    return response()->json($data);
                 }
             } catch (\Throwable $e) {
                 // Try next url
             }
         }
-        return response()->json(['connected' => false, 'status' => 'offline'], 200);
+        return response()->json(['connected' => false, 'status' => 'offline', 'wa_url' => null], 200);
     }
 
     public function startBot(Request $request)
@@ -2299,6 +2306,168 @@ class IssueController extends Controller
         $recent = array_slice($lines, -40);
 
         return response()->json(['success' => true, 'logs' => $recent]);
+    }
+
+    public function getBotAuthState(Request $request)
+    {
+        $user = $request->user();
+        if (!$user || (method_exists($user, 'isAdmin') && !$user->isAdmin() && $user->role !== 'admin')) {
+            return response()->json(['success' => false, 'message' => 'Hanya Admin yang dapat memeriksa state otentikasi bot.'], 403);
+        }
+
+        $port = env('BOT_PORT', 3000);
+        $apiKey = env('BOT_API_KEY', '');
+
+        foreach (["http://127.0.0.1:{$port}/auth-state", "http://localhost:{$port}/auth-state"] as $url) {
+            try {
+                $response = \Illuminate\Support\Facades\Http::timeout(3.0)
+                    ->withHeaders(['X-Bot-Key' => $apiKey])
+                    ->get($url);
+                if ($response->successful()) {
+                    return response()->json($response->json());
+                }
+            } catch (\Throwable $e) {}
+        }
+
+        return response()->json([
+            'success' => false,
+            'connected' => false,
+            'status' => 'offline',
+            'phone' => null,
+            'qr' => null,
+            'pairingCode' => null,
+            'message' => 'Bot service offline atau tidak merespons.'
+        ], 200);
+    }
+
+    public function pairBotPhone(Request $request)
+    {
+        $user = $request->user();
+        if (!$user || (method_exists($user, 'isAdmin') && !$user->isAdmin() && $user->role !== 'admin')) {
+            return response()->json(['success' => false, 'message' => 'Hanya Admin yang dapat menghubungkan nomor bot baru.'], 403);
+        }
+
+        $validated = $request->validate([
+            'phone' => 'required|string|min:8|max:30',
+        ]);
+
+        $port = env('BOT_PORT', 3000);
+        $apiKey = env('BOT_API_KEY', '');
+
+        // Auto start bot if not running
+        try {
+            $check = \Illuminate\Support\Facades\Http::timeout(1.0)->get("http://127.0.0.1:{$port}/status");
+            if (!$check->successful()) {
+                $this->startBot($request);
+                sleep(2);
+            }
+        } catch (\Throwable $e) {
+            $this->startBot($request);
+            sleep(2);
+        }
+
+        try {
+            $response = \Illuminate\Support\Facades\Http::timeout(15.0)
+                ->withHeaders(['X-Bot-Key' => $apiKey])
+                ->post("http://127.0.0.1:{$port}/request-pairing-code", [
+                    'phone' => $validated['phone'],
+                ]);
+
+            if ($response->successful()) {
+                return response()->json($response->json());
+            }
+
+            return response()->json([
+                'success' => false,
+                'message' => $response->json('error') ?? 'Gagal meminta kode pairing dari bot.'
+            ], $response->status());
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal berkomunikasi dengan WhatsApp bot service: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function unlinkBot(Request $request)
+    {
+        $user = $request->user();
+        if (!$user || (method_exists($user, 'isAdmin') && !$user->isAdmin() && $user->role !== 'admin')) {
+            return response()->json(['success' => false, 'message' => 'Hanya Admin yang dapat memutuskan sesi bot.'], 403);
+        }
+
+        $port = env('BOT_PORT', 3000);
+        $apiKey = env('BOT_API_KEY', '');
+
+        try {
+            $response = \Illuminate\Support\Facades\Http::timeout(10.0)
+                ->withHeaders(['X-Bot-Key' => $apiKey])
+                ->post("http://127.0.0.1:{$port}/unlink");
+
+            if ($response->successful()) {
+                return response()->json($response->json());
+            }
+
+            return response()->json([
+                'success' => false,
+                'message' => $response->json('error') ?? 'Gagal memutuskan sesi bot.'
+            ], $response->status());
+        } catch (\Throwable $e) {
+            // Fallback: manually delete auth_info_baileys and restart bot
+            try {
+                $botDir = base_path('whatsapp-bot');
+                $authDir = $botDir . DIRECTORY_SEPARATOR . 'auth_info_baileys';
+                $this->stopBot($request);
+                sleep(1);
+                if (file_exists($authDir)) {
+                    if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+                        @shell_exec("rmdir /s /q " . escapeshellarg($authDir));
+                    } else {
+                        @shell_exec("rm -rf " . escapeshellarg($authDir));
+                    }
+                }
+                $this->startBot($request);
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Sesi bot berhasil di-reset secara manual. Bot sedang booting ulang.'
+                ]);
+            } catch (\Throwable $e2) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Gagal me-reset sesi bot: ' . $e2->getMessage()
+                ], 500);
+            }
+        }
+    }
+
+    public function getPublicBotContact(Request $request)
+    {
+        $port = env('BOT_PORT', 3000);
+        foreach (["http://127.0.0.1:{$port}/status", "http://localhost:{$port}/status"] as $url) {
+            try {
+                $response = \Illuminate\Support\Facades\Http::timeout(1.5)->get($url);
+                if ($response->successful()) {
+                    $json = $response->json();
+                    $phone = $json['phone'] ?? null;
+                    $clean = $phone ? preg_replace('/[^0-9]/', '', (string)$phone) : null;
+                    return response()->json([
+                        'success' => true,
+                        'connected' => (bool) ($json['connected'] ?? false),
+                        'phone' => $phone,
+                        'name' => $json['name'] ?? null,
+                        'wa_url' => $clean ? "https://wa.me/{$clean}" : null
+                    ]);
+                }
+            } catch (\Throwable $e) {}
+        }
+
+        return response()->json([
+            'success' => true,
+            'connected' => false,
+            'phone' => null,
+            'name' => null,
+            'wa_url' => null
+        ]);
     }
 
     public function markDuplicate(Request $request, $rowIndex)
