@@ -782,6 +782,32 @@ export function OperationsCalendarView({
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, []);
 
+    // Touch swipe support for mobile month navigation
+    const touchStartXRef = useRef(null);
+    const touchStartYRef = useRef(null);
+
+    const handleTouchStart = (e) => {
+        touchStartXRef.current = e.touches[0].clientX;
+        touchStartYRef.current = e.touches[0].clientY;
+    };
+
+    const handleTouchEnd = (e) => {
+        if (touchStartXRef.current === null || touchStartYRef.current === null) return;
+        const diffX = touchStartXRef.current - e.changedTouches[0].clientX;
+        const diffY = touchStartYRef.current - e.changedTouches[0].clientY;
+
+        // Threshold of 45px, horizontal swipe must be dominant
+        if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > 45) {
+            if (diffX > 0) {
+                handleNextMonth();
+            } else {
+                handlePrevMonth();
+            }
+        }
+        touchStartXRef.current = null;
+        touchStartYRef.current = null;
+    };
+
     // Calculate active drag range
     const dragRange = useMemo(() => {
         if (!isDragging || !dragStart || !dragHover) return null;
@@ -1011,10 +1037,31 @@ export function OperationsCalendarView({
                                 <CalendarIcon className="h-5 w-5 text-[#C9AA71]" />
                             </div>
                             <div className="min-w-0">
-                                <div className="flex items-center gap-2.5">
+                                <div className="flex items-center gap-2">
+                                    {/* Mobile Month Prev Button */}
+                                    <button
+                                        type="button"
+                                        onClick={handlePrevMonth}
+                                        className="sm:hidden p-1.5 rounded-lg bg-[#1C1B0E] border border-[#3B3929] text-[#A19F8D] hover:text-[#FAFAFA] active:scale-90 transition-all cursor-pointer"
+                                        aria-label="Previous Month"
+                                    >
+                                        <ChevronLeft className="h-4 w-4" />
+                                    </button>
+
                                     <h2 className="text-lg sm:text-2xl font-black text-[#FAFAFA] capitalize tracking-tight truncate">
                                         {monthTitle}
                                     </h2>
+
+                                    {/* Mobile Month Next Button */}
+                                    <button
+                                        type="button"
+                                        onClick={handleNextMonth}
+                                        className="sm:hidden p-1.5 rounded-lg bg-[#1C1B0E] border border-[#3B3929] text-[#A19F8D] hover:text-[#FAFAFA] active:scale-90 transition-all cursor-pointer"
+                                        aria-label="Next Month"
+                                    >
+                                        <ChevronRight className="h-4 w-4" />
+                                    </button>
+
                                     {!isCurrentMonth && (
                                         <Tooltip content={t('tooltip_today_btn') || 'Kembali ke bulan dan hari ini'} position="top">
                                             <button
@@ -1131,9 +1178,13 @@ export function OperationsCalendarView({
             <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-6">
 
                 {/* ─── Calendar Month Grid (8 Cols on Desktop) ─── */}
-                <div className="lg:col-span-8 bg-[#2A281E]/95 border border-[#3B3929] rounded-2xl p-4 sm:p-5 shadow-2xl backdrop-blur-xl relative group/cal">
-                    {/* Floating Month Navigation Chevrons (Direct on Calendar) */}
-                    <div className="absolute -left-3.5 sm:-left-5 top-1/2 -translate-y-1/2 z-30 pointer-events-auto">
+                <div 
+                    onTouchStart={handleTouchStart}
+                    onTouchEnd={handleTouchEnd}
+                    className="lg:col-span-8 bg-[#2A281E]/95 border border-[#3B3929] rounded-2xl p-3 sm:p-5 shadow-2xl backdrop-blur-xl relative group/cal"
+                >
+                    {/* Floating Month Navigation Chevrons (Desktop Only) */}
+                    <div className="hidden sm:flex absolute -left-3.5 sm:-left-5 top-1/2 -translate-y-1/2 z-30 pointer-events-auto">
                         <Tooltip content={t('tooltip_prev_month') || 'Bulan Sebelumnya'} position="right">
                             <button
                                 type="button"
@@ -1146,7 +1197,7 @@ export function OperationsCalendarView({
                         </Tooltip>
                     </div>
 
-                    <div className="absolute -right-3.5 sm:-right-5 top-1/2 -translate-y-1/2 z-30 pointer-events-auto">
+                    <div className="hidden sm:flex absolute -right-3.5 sm:-right-5 top-1/2 -translate-y-1/2 z-30 pointer-events-auto">
                         <Tooltip content={t('tooltip_next_month') || 'Bulan Berikutnya'} position="left">
                             <button
                                 type="button"
@@ -1289,13 +1340,13 @@ export function OperationsCalendarView({
                                     onMouseEnter={() => handleCellMouseEnter(cell.dateStr)}
                                     onMouseUp={() => handleCellMouseUp(cell.dateStr)}
                                     style={cellHighlightStyle}
-                                    className={`min-h-[85px] sm:min-h-[105px] p-1.5 sm:p-2 rounded-xl border flex flex-col justify-between transition-all cursor-pointer group ${bgClass} ${borderClass}`}
+                                    className={`min-h-[52px] sm:min-h-[105px] p-1 sm:p-2 rounded-xl border flex flex-col justify-between transition-all cursor-pointer group ${bgClass} ${borderClass}`}
                                 >
                                     {/* Top Row: Date Number & Department Badge Indicator */}
-                                    <div className="flex items-center justify-between mb-1 pointer-events-none">
+                                    <div className="flex items-center justify-between mb-0.5 sm:mb-1 pointer-events-none">
                                         <div className="flex items-center gap-1">
                                             <span
-                                                className={`text-xs font-bold w-6 h-6 flex items-center justify-center rounded-lg transition-colors ${
+                                                className={`text-[11px] sm:text-xs font-bold w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center rounded-lg transition-colors ${
                                                     cell.isToday
                                                         ? 'bg-[#C9AA71] text-[#1C1B0E] font-black shadow-sm'
                                                         : isTaskDateHighlighted
@@ -1343,14 +1394,14 @@ export function OperationsCalendarView({
                                         {!activeCardHighlightId && totalTaskCount > 0 && (
                                             pendingTaskCount > 0 ? (
                                                 <span
-                                                    className="px-1.5 py-0.2 text-[10px] font-extrabold rounded-md flex items-center gap-1 shadow-xs bg-[#C9AA71]/20 text-[#E3D1AA] border border-[#C9AA71]/60"
+                                                    className="hidden sm:inline-flex px-1.5 py-0.2 text-[10px] font-extrabold rounded-md items-center gap-1 shadow-xs bg-[#C9AA71]/20 text-[#E3D1AA] border border-[#C9AA71]/60"
                                                     title={`${pendingTaskCount} ${t('pending_tasks') || 'tugas aktif tersisa'}`}
                                                 >
                                                     {pendingTaskCount}
                                                 </span>
                                             ) : (
                                                 <span
-                                                    className="px-1.5 py-0.2 text-[9px] font-extrabold rounded-md flex items-center gap-0.5 shadow-xs bg-emerald-950/60 text-emerald-300 border border-emerald-500/50"
+                                                    className="hidden sm:inline-flex px-1.5 py-0.2 text-[9px] font-extrabold rounded-md items-center gap-0.5 shadow-xs bg-emerald-950/60 text-emerald-300 border border-emerald-500/50"
                                                     title={t('all_tasks_completed') || 'Semua tugas selesai'}
                                                 >
                                                     <Check className="h-2.5 w-2.5 text-emerald-400" />
@@ -1359,8 +1410,8 @@ export function OperationsCalendarView({
                                         )}
                                     </div>
 
-                                    {/* Task Snippets / Pills Styled with Department Color */}
-                                    <div className="space-y-1 overflow-hidden flex-1 flex flex-col justify-start">
+                                    {/* Task Snippets / Pills Styled with Department Color (Desktop Only) */}
+                                    <div className="hidden sm:flex space-y-1 overflow-hidden flex-1 flex-col justify-start">
                                         {cell.tasks?.slice(0, 2).map((item) => {
                                             const isDone = item.status === 'done';
                                             const isDeletedGCal = item.status === 'deleted_from_calendar';
@@ -1470,6 +1521,35 @@ export function OperationsCalendarView({
                                                 className="text-[9px] font-bold text-[#A19F8D] hover:text-[#C9AA71] px-1 block opacity-80 cursor-pointer transition-colors"
                                             >
                                                 +{totalTaskCount - 2} {t('more') || 'lainnya'}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Aesthetic Indicator Dots (Mobile Only) */}
+                                    <div className="sm:hidden flex items-center justify-center gap-1 mt-auto pt-0.5 w-full min-h-[14px]">
+                                        {cell.tasks && cell.tasks.length > 0 && (
+                                            <div className="flex items-center gap-1">
+                                                {cell.tasks.slice(0, 3).map((item, idx) => {
+                                                    const isDone = item.status === 'done';
+                                                    const itemDept = item.department || item.dept;
+                                                    const itemTheme = getDepartmentTheme(itemDept);
+                                                    const dotColor = isDone ? '#10B981' : (itemTheme.bg === '#212121' ? '#FFFFFF' : itemTheme.bg);
+                                                    return (
+                                                        <span
+                                                            key={item.id || idx}
+                                                            className="w-1.5 h-1.5 rounded-full shrink-0 shadow-sm"
+                                                            style={{
+                                                                backgroundColor: dotColor,
+                                                                boxShadow: `0 0 5px ${dotColor}80`
+                                                            }}
+                                                        />
+                                                    );
+                                                })}
+                                                {cell.tasks.length > 3 && (
+                                                    <span className="text-[8px] font-black text-[#E3D1AA] leading-none shrink-0">
+                                                        +{cell.tasks.length - 3}
+                                                    </span>
+                                                )}
                                             </div>
                                         )}
                                     </div>
