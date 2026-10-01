@@ -2649,7 +2649,8 @@ app.post(['/notify-direct', '/api/notify-direct'], async (req, res) => {
 
 app.post(['/notify', '/api/notify'], async (req, res) => {
     try {
-        const { message, imageUrl, taggedDepartments, assignedDepartments, department, priority } = req.body;
+        const { message, imageUrl, taggedDepartments, assignedDepartments, department, priority, departmentOnly } = req.body;
+        const isDepartmentOnly = Boolean(departmentOnly);
         
         if (!globalSock) {
             return res.status(500).json({ error: 'Socket not initialized.' });
@@ -2658,11 +2659,13 @@ app.post(['/notify', '/api/notify'], async (req, res) => {
         // Collect all target group JIDs
         const targetGroupIds = new Set();
 
-        // 1. Always send to General announcement group if configured
-        if (botConfig.generalGroupId) {
-            targetGroupIds.add(botConfig.generalGroupId);
-        } else if (linkedGroupId) {
-            targetGroupIds.add(linkedGroupId);
+        // 1. Send to General announcement group if configured (bypassed if departmentOnly is set)
+        if (!isDepartmentOnly) {
+            if (botConfig.generalGroupId) {
+                targetGroupIds.add(botConfig.generalGroupId);
+            } else if (linkedGroupId) {
+                targetGroupIds.add(linkedGroupId);
+            }
         }
 
         // 2. Check if Emergency / @ALL
@@ -2673,7 +2676,7 @@ app.post(['/notify', '/api/notify'], async (req, res) => {
                       lowerMsg.includes('priority: critical') ||
                       priority === 'critical';
 
-        if (isAll) {
+        if (isAll && !isDepartmentOnly) {
             // Broadcast to ALL connected department groups
             Object.values(botConfig.departmentGroups).forEach(gid => {
                 if (gid) targetGroupIds.add(gid);
@@ -2726,18 +2729,19 @@ app.post(['/notify', '/api/notify'], async (req, res) => {
             }
         }
 
-        if (targetGroupIds.size === 0 && !botConfig.channelId) {
-            return res.status(400).json({ error: 'No groups linked or channel set. Type !syncgroups or !setgroup in WhatsApp.' });
+        if (targetGroupIds.size === 0 && (!botConfig.channelId || isDepartmentOnly)) {
+            console.log('[Notify] No matching department groups found for notification.');
+            return res.json({ success: true, sentToCount: 0, channelSent: false, warning: 'No target department group matched.' });
         }
 
-        console.log(`Dispatching notification to ${targetGroupIds.size} groups...`);
+        console.log(`Dispatching notification to ${targetGroupIds.size} groups (departmentOnly: ${isDepartmentOnly})...`);
 
         // Send to all target groups
         for (const gid of targetGroupIds) {
             try {
                 let mentions = [];
                 // Ping all members if it's an @ALL emergency in the General group
-                if (isAll && gid === botConfig.generalGroupId) {
+                if (isAll && !isDepartmentOnly && gid === botConfig.generalGroupId) {
                     try {
                         const meta = await globalSock.groupMetadata(gid);
                         mentions = (meta.participants || []).map(p => p.id);
@@ -2777,18 +2781,21 @@ app.post(['/notify', '/api/notify'], async (req, res) => {
         }
 
         // Broadcast to WhatsApp Channel (Read-only bulletin feed for all staff & management)
-        if (botConfig.channelId) {
+        // Strictly bypassed if departmentOnly is set
+        let channelSent = false;
+        if (botConfig.channelId && !isDepartmentOnly) {
             try {
                 await globalSock.sendMessage(botConfig.channelId, { 
                     text: message
                 });
                 console.log(`[Channel] Broadcasted notification to Channel: ${botConfig.channelId}`);
+                channelSent = true;
             } catch (errChan) {
                 console.error(`[Channel] Failed sending to channel ${botConfig.channelId}:`, errChan.message);
             }
         }
         
-        res.json({ success: true, sentToCount: targetGroupIds.size, channelSent: !!botConfig.channelId });
+        res.json({ success: true, sentToCount: targetGroupIds.size, channelSent });
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: err.message });

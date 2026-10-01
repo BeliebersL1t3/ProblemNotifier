@@ -1872,12 +1872,45 @@ class IssueController extends Controller
                 $this->googleService->colorRowByCategory($newRowIndex, $newRow[4] ?? 'other', $targetSheet);
             }
 
-            // Dispatch WhatsApp Notification
+            // Target departemen:
+            // Column W (index 22): origin department
+            // Column X (index 23): assigned departments
+            // Column V (index 21): tagged departments
+            $originDept = trim($currentRow[22] ?? '');
+            $assignedDepts = trim($currentRow[23] ?? '');
+            $taggedDepts = trim($currentRow[21] ?? '');
+
+            $issueId = $currentRow[0] ?? '';
+            $issueTitle = $currentRow[1] ?? 'Tanpa Judul';
+            $issueLocation = $currentRow[3] ?? '-';
+            $issueCategory = $currentRow[4] ?? '-';
+            $issuePriority = $currentRow[16] ?? 'low';
+
+            $comparisonMsg = "✏️ *Deskripsi Isu Diperbarui oleh Admin!*\n"
+                . "━━━━━━━━━━━━━━━━━━━━\n"
+                . "📌 *ID:* {$issueId}\n"
+                . "📋 *Judul:* {$issueTitle}\n"
+                . "📍 *Lokasi:* {$issueLocation}\n"
+                . "🏷️ *Kategori:* {$issueCategory}\n"
+                . "👤 *Admin Pengedit:* {$editorName}\n"
+                . "🔢 *Riwayat Editan:* Ke-{$nextEditNum} dari 2\n"
+                . "━━━━━━━━━━━━━━━━━━━━\n"
+                . "📝 *Deskripsi Sebelumnya:*\n"
+                . "_{$oldDesc}_\n\n"
+                . "✨ *Deskripsi Terbaru:*\n"
+                . "{$formattedDesc}\n"
+                . "━━━━━━━━━━━━━━━━━━━━\n"
+                . "🔗 *Buka Dashboard:* " . url('/dashboard');
+
+            // Dispatch WhatsApp Notification (Khusus departemen terkait, bypass channel publik & grup general)
             $this->notifyWhatsApp([
-                'message' => "✏️ *Deskripsi Isu Diperbarui oleh Admin!*\n*ID:* {$currentRow[0]}\n*Judul:* " . ($currentRow[1] ?? '') . "\n*Lokasi:* " . ($currentRow[3] ?? '') . "\n*Kategori:* " . ($currentRow[4] ?? '') . "\n*Admin:* {$editorName}\n*Editan ke:* {$nextEditNum}/2\n*Deskripsi Baru:*\n{$formattedDesc}\n*Link:* " . url('/dashboard'),
-                'imageUrl' => $this->resolveImageUrl($currentRow[8] ?? ''),
-                'department' => $currentRow[22] ?? '',
-                'priority' => $currentRow[16] ?? 'low',
+                'message'             => $comparisonMsg,
+                'imageUrl'            => $this->resolveImageUrl($currentRow[8] ?? ''),
+                'department'          => $originDept,
+                'assignedDepartments' => $assignedDepts,
+                'taggedDepartments'   => $taggedDepts,
+                'priority'            => $issuePriority,
+                'departmentOnly'      => true,
             ]);
 
             $updatedHistory = array_merge($descMeta['history'], [[
