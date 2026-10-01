@@ -5,12 +5,12 @@ import {
     Loader2, Wrench, Sparkles, Laptop, Anchor, ShieldAlert, Utensils, Building, Hammer, Zap,
     Droplets, Building2, Bug, Tag, User, HelpCircle, Download, AlertTriangle, Layers, Database, Clock, CheckSquare, Check, Eye, ChevronRight,
     ClipboardList, PauseCircle, CheckCircle2, Filter, SlidersHorizontal, ChevronDown, ChevronUp, Archive,
-    Calendar, Target, FileText, Megaphone, Globe
+    Calendar, Target, FileText, Megaphone, Globe, Palette
 } from 'lucide-react';
 import anime from 'animejs';
 import {
     PieChart, Pie, Cell, Tooltip as RechartsTooltip, Legend, ResponsiveContainer,
-    BarChart, Bar, XAxis, YAxis, CartesianGrid
+    BarChart, Bar, XAxis, YAxis, CartesianGrid, LabelList
 } from 'recharts';
 
 import { IssuesProvider, useIssues, DEFAULT_CATEGORIES } from '@/context/IssuesContext';
@@ -423,6 +423,19 @@ function AnalyticsInner() {
     // Department filter: empty by default so it shows all issues within the user's scope
     const [selectedDepartmentFilters, setSelectedDepartmentFilters] = useState([]);
     const [deptFilterMode, setDeptFilterMode] = useState('assigned');
+    const [deptColorMode, setDeptColorMode] = useState(() => {
+        if (typeof window !== 'undefined') {
+            return localStorage.getItem('telunas_dept_chart_color_mode') || 'dept';
+        }
+        return 'dept';
+    });
+
+    const handleSetDeptColorMode = (mode) => {
+        setDeptColorMode(mode);
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('telunas_dept_chart_color_mode', mode);
+        }
+    };
     const [selectedCategoryFilters, setSelectedCategoryFilters] = useState([]);
     const [showDetailedFilters, setShowDetailedFilters] = useState(false);
     const timelineRef = useRef(null);
@@ -769,6 +782,170 @@ function AnalyticsInner() {
             total: unclaimed + inProgress + solved 
         };
     }, [departmentData]);
+
+    // Intelligent integer Y-Axis configuration without decimals
+    const deptYAxisConfig = useMemo(() => {
+        if (!departmentData || departmentData.length === 0) {
+            return { domain: [0, 5], ticks: [0, 1, 2, 3, 4, 5] };
+        }
+
+        const maxVal = Math.max(
+            ...departmentData.map(d => Math.max(d.unclaimed || 0, (d.inProgress || 0) + (d.solved || 0))),
+            0
+        );
+
+        if (maxVal <= 0) {
+            return { domain: [0, 5], ticks: [0, 1, 2, 3, 4, 5] };
+        }
+
+        let step = 1;
+        if (maxVal <= 5) {
+            step = 1;
+        } else if (maxVal <= 10) {
+            step = 2;
+        } else if (maxVal <= 25) {
+            step = 5;
+        } else if (maxVal <= 50) {
+            step = 10;
+        } else if (maxVal <= 100) {
+            step = 20;
+        } else {
+            const roughStep = maxVal / 5;
+            const magnitude = Math.pow(10, Math.floor(Math.log10(roughStep)));
+            const normalized = roughStep / magnitude;
+            if (normalized <= 1.5) step = magnitude;
+            else if (normalized <= 3.5) step = 2 * magnitude;
+            else if (normalized <= 7.5) step = 5 * magnitude;
+            else step = 10 * magnitude;
+        }
+
+        step = Math.max(1, Math.round(step));
+        const maxTick = Math.ceil(maxVal / step) * step;
+        const ticks = [];
+        for (let i = 0; i <= maxTick; i += step) {
+            ticks.push(i);
+        }
+
+        return { domain: [0, maxTick], ticks };
+    }, [departmentData]);
+
+    // Bar 1 (Belum Diambil) Label Renderer: inside number & top total
+    const renderUnclaimedBarLabels = (props) => {
+        const { x, y, width, height, value } = props;
+        if (!value || value <= 0) return null;
+        const isTallEnough = height >= 14;
+
+        return (
+            <g pointerEvents="none">
+                {isTallEnough && (
+                    <text
+                        x={x + width / 2}
+                        y={y + height / 2}
+                        fill="#FFFFFF"
+                        textAnchor="middle"
+                        dominantBaseline="central"
+                        fontSize={10}
+                        fontWeight="bold"
+                        style={{ textShadow: '0 1px 3px rgba(0,0,0,0.9)' }}
+                    >
+                        {value}
+                    </text>
+                )}
+                <text
+                    x={x + width / 2}
+                    y={y - 5}
+                    fill="#C9AA71"
+                    textAnchor="middle"
+                    dominantBaseline="auto"
+                    fontSize={11}
+                    fontWeight="bold"
+                    style={{ textShadow: '0 1px 2px rgba(0,0,0,0.95)' }}
+                >
+                    {value}
+                </text>
+            </g>
+        );
+    };
+
+    // Bar 2 Lower (Sedang Dikerjakan) Label Renderer: inside number & top total if solved == 0
+    const renderInProgressBarLabels = (props) => {
+        const { x, y, width, height, value, index } = props;
+        if (!value || value <= 0) return null;
+        const entry = departmentData[index];
+        const isTopSegment = !entry || (entry.solved || 0) === 0;
+
+        return (
+            <g pointerEvents="none">
+                {height >= 14 && (
+                    <text
+                        x={x + width / 2}
+                        y={y + height / 2}
+                        fill="#FFFFFF"
+                        textAnchor="middle"
+                        dominantBaseline="central"
+                        fontSize={10}
+                        fontWeight="bold"
+                        style={{ textShadow: '0 1px 3px rgba(0,0,0,0.9)' }}
+                    >
+                        {value}
+                    </text>
+                )}
+                {isTopSegment && (
+                    <text
+                        x={x + width / 2}
+                        y={y - 5}
+                        fill="#C9AA71"
+                        textAnchor="middle"
+                        dominantBaseline="auto"
+                        fontSize={11}
+                        fontWeight="bold"
+                        style={{ textShadow: '0 1px 2px rgba(0,0,0,0.95)' }}
+                    >
+                        {value}
+                    </text>
+                )}
+            </g>
+        );
+    };
+
+    // Bar 2 Upper (Sudah Selesai) Label Renderer: inside number & top total handled
+    const renderSolvedBarLabels = (props) => {
+        const { x, y, width, height, value, index } = props;
+        if (!value || value <= 0) return null;
+        const entry = departmentData[index];
+        const handledTotal = entry ? (entry.inProgress || 0) + (entry.solved || 0) : value;
+
+        return (
+            <g pointerEvents="none">
+                {height >= 14 && (
+                    <text
+                        x={x + width / 2}
+                        y={y + height / 2}
+                        fill="#FFFFFF"
+                        textAnchor="middle"
+                        dominantBaseline="central"
+                        fontSize={10}
+                        fontWeight="bold"
+                        style={{ textShadow: '0 1px 3px rgba(0,0,0,0.9)' }}
+                    >
+                        {value}
+                    </text>
+                )}
+                <text
+                    x={x + width / 2}
+                    y={y - 5}
+                    fill="#C9AA71"
+                    textAnchor="middle"
+                    dominantBaseline="auto"
+                    fontSize={11}
+                    fontWeight="bold"
+                    style={{ textShadow: '0 1px 2px rgba(0,0,0,0.95)' }}
+                >
+                    {handledTotal}
+                </text>
+            </g>
+        );
+    };
 
     // Timeline Data -> Activity Log
     const activityLog = useMemo(() => {
@@ -1743,25 +1920,57 @@ function AnalyticsInner() {
                                 {/* Tri-Tone Status Legend (2 Bars, 3 Lifecycle States) */}
                                 <div className="flex flex-wrap items-center gap-3 bg-[#2A281E] px-3 py-1 rounded-lg border border-[#3B3929] text-[11px]">
                                     {/* Batang 1: Belum Diambil */}
-                                    <div className="flex items-center gap-1.5 font-semibold text-[#FAFAFA]" title={lang === 'id' ? 'Batang 1 (Warna Gelap): Belum diambil sama sekali' : 'Bar 1 (Dark tone): Not taken / unclaimed'}>
-                                        <span className="w-3 h-2.5 rounded-[3px] bg-[#2C2B22] border border-[#5A5540] inline-block shadow-xs"></span>
+                                    <div className="flex items-center gap-1.5 font-semibold text-[#FAFAFA]" title={lang === 'id' ? 'Batang 1: Belum diambil sama sekali' : 'Bar 1: Not taken / unclaimed'}>
+                                        <span className={`w-3 h-2.5 rounded-[3px] ${deptColorMode === 'status' ? 'bg-[#475569] border border-[#64748B]' : 'bg-[#2C2B22] border border-[#5A5540]'} inline-block shadow-xs`}></span>
                                         <span className="text-muted-foreground">{lang === 'id' ? 'Belum Diambil' : 'Unclaimed'}:</span>
                                         <span className="font-bold text-[#C9AA71] font-mono">{deptSummaryStats.unclaimed}</span>
                                     </div>
                                     <div className="h-3 w-px bg-[#3B3929]"></div>
                                     {/* Batang 2 Segmen 1: Sedang Dikerjakan */}
-                                    <div className="flex items-center gap-1.5 font-semibold text-[#FAFAFA]" title={lang === 'id' ? 'Batang 2 (Warna Sedang): Sedang dikerjakan' : 'Bar 2 (Mid tone): In progress'}>
-                                        <span className="w-3 h-2.5 rounded-[3px] bg-[#E58C36] border border-white/20 inline-block shadow-xs"></span>
+                                    <div className="flex items-center gap-1.5 font-semibold text-[#FAFAFA]" title={lang === 'id' ? 'Batang 2: Sedang dikerjakan' : 'Bar 2: In progress'}>
+                                        <span className={`w-3 h-2.5 rounded-[3px] ${deptColorMode === 'status' ? 'bg-[#F59E0B] border border-amber-300/40' : 'bg-[#E58C36] border border-white/20'} inline-block shadow-xs`}></span>
                                         <span className="text-muted-foreground">{lang === 'id' ? 'Sedang Dikerjakan' : 'In Progress'}:</span>
                                         <span className="font-bold text-amber-400 font-mono">{deptSummaryStats.inProgress}</span>
                                     </div>
                                     <div className="h-3 w-px bg-[#3B3929]"></div>
                                     {/* Batang 2 Segmen 2: Sudah Selesai */}
-                                    <div className="flex items-center gap-1.5 font-semibold text-[#FAFAFA]" title={lang === 'id' ? 'Batang 2 (Warna Terang): Sudah selesai' : 'Bar 2 (Light tone): Finished / solved'}>
-                                        <span className="w-3 h-2.5 rounded-[3px] bg-[#B0BEC5] border border-white/30 inline-block shadow-xs"></span>
+                                    <div className="flex items-center gap-1.5 font-semibold text-[#FAFAFA]" title={lang === 'id' ? 'Batang 2: Sudah selesai' : 'Bar 2: Finished / solved'}>
+                                        <span className={`w-3 h-2.5 rounded-[3px] ${deptColorMode === 'status' ? 'bg-[#10B981] border border-emerald-300/40' : 'bg-[#B0BEC5] border border-white/30'} inline-block shadow-xs`}></span>
                                         <span className="text-muted-foreground">{lang === 'id' ? 'Selesai' : 'Solved'}:</span>
                                         <span className="font-bold text-emerald-400 font-mono">{deptSummaryStats.solved}</span>
                                     </div>
+                                </div>
+
+                                {/* Color Mode Selector (Warna Dept vs Warna Statis) */}
+                                <div className="flex items-center rounded-lg bg-[#2A281E] p-0.5 border border-[#3B3929] text-xs">
+                                    <Tooltip content={lang === 'id' ? 'Gunakan warna identitas tiap departemen' : 'Use individual department theme colors'} position="top">
+                                        <button
+                                            type="button"
+                                            onClick={() => handleSetDeptColorMode('dept')}
+                                            className={`px-2 py-1 rounded text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1 ${
+                                                deptColorMode === 'dept'
+                                                    ? 'bg-[#C9AA71] text-[#1C1B0E] font-bold shadow-sm'
+                                                    : 'text-muted-foreground hover:text-foreground'
+                                            }`}
+                                        >
+                                            <Palette className="w-3.5 h-3.5 shrink-0" />
+                                            <span>{lang === 'id' ? 'Warna Dept' : 'Dept Colors'}</span>
+                                        </button>
+                                    </Tooltip>
+                                    <Tooltip content={lang === 'id' ? 'Gunakan warna status statis (Belum, Sedang, Selesai)' : 'Use static status colors (Unclaimed, Progress, Solved)'} position="top">
+                                        <button
+                                            type="button"
+                                            onClick={() => handleSetDeptColorMode('status')}
+                                            className={`px-2 py-1 rounded text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1 ${
+                                                deptColorMode === 'status'
+                                                    ? 'bg-[#C9AA71] text-[#1C1B0E] font-bold shadow-sm'
+                                                    : 'text-muted-foreground hover:text-foreground'
+                                            }`}
+                                        >
+                                            <Layers className="w-3.5 h-3.5 shrink-0" />
+                                            <span>{lang === 'id' ? 'Warna Status' : 'Status Colors'}</span>
+                                        </button>
+                                    </Tooltip>
                                 </div>
 
                                 {/* Department Amount Selector (5, 10, 15, 20, All) */}
@@ -1783,13 +1992,13 @@ function AnalyticsInner() {
                             </div>
                         </div>
 
-                        <div className="w-full h-[300px]">
+                        <div className="w-full h-[310px]">
                             {departmentData.length > 0 ? (
                                 chartsVisible && (
                                     <ResponsiveContainer width="100%" height="100%">
                                         <BarChart 
                                             data={departmentData} 
-                                            margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+                                            margin={{ top: 22, right: 10, left: -15, bottom: 0 }}
                                             barCategoryGap="22%"
                                             barGap={3}
                                         >
@@ -1801,7 +2010,14 @@ function AnalyticsInner() {
                                                 tick={{ fontSize: 11, fill: '#A19F8D', fontWeight: 600, cursor: 'pointer' }} 
                                                 onClick={(e) => handleDepartmentBarClick({ name: e?.value })}
                                             />
-                                            <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#A19F8D' }} />
+                                            <YAxis 
+                                                axisLine={false} 
+                                                tickLine={false} 
+                                                tick={{ fontSize: 12, fill: '#A19F8D' }}
+                                                allowDecimals={false}
+                                                domain={deptYAxisConfig.domain}
+                                                ticks={deptYAxisConfig.ticks}
+                                            />
                                             <RechartsTooltip 
                                                 cursor={{ fill: 'rgba(255, 255, 255, 0.05)' }}
                                                 wrapperStyle={{ pointerEvents: 'auto' }}
@@ -1809,9 +2025,10 @@ function AnalyticsInner() {
                                                     if (!active || !payload || !payload.length) return null;
                                                     const item = payload[0]?.payload;
                                                     if (!item) return null;
-                                                    const veryDarkColor = getDepartmentVeryDarkColor(item.name);
-                                                    const baseColor = getDepartmentColor(item.name);
-                                                    const lightColor = getDepartmentLightColor(item.name);
+                                                    const isStatusMode = deptColorMode === 'status';
+                                                    const veryDarkColor = isStatusMode ? '#475569' : getDepartmentVeryDarkColor(item.name);
+                                                    const baseColor = isStatusMode ? '#F59E0B' : getDepartmentColor(item.name);
+                                                    const lightColor = isStatusMode ? '#10B981' : getDepartmentLightColor(item.name);
                                                     const isSelected = selectedDepartmentFilters.some(d => d.toLowerCase() === item.name.toLowerCase());
                                                     return (
                                                         <div 
@@ -1833,7 +2050,7 @@ function AnalyticsInner() {
                                                                     <span className="font-bold font-mono text-sm">{item.total}</span>
                                                                 </div>
 
-                                                                {/* Batang 1: Belum Diambil (Warna Gelap Departemen) */}
+                                                                {/* Batang 1: Belum Diambil */}
                                                                 <div 
                                                                     className="flex items-center justify-between font-semibold px-2 py-1 rounded-md border" 
                                                                     style={{ backgroundColor: `${veryDarkColor}50`, borderColor: `${veryDarkColor}90`, color: '#FAFAFA' }}
@@ -1886,7 +2103,7 @@ function AnalyticsInner() {
                                                     );
                                                 }}
                                             />
-                                            {/* Batang 1: Belum Diambil sama sekali (Warna Gelap Departemen) */}
+                                            {/* Batang 1: Belum Diambil sama sekali */}
                                             <Bar 
                                                 dataKey="unclaimed" 
                                                 name={lang === 'id' ? 'Belum Diambil' : 'Unclaimed'} 
@@ -1895,13 +2112,14 @@ function AnalyticsInner() {
                                                 onClick={(data) => handleDepartmentBarClick(data)}
                                                 cursor="pointer"
                                             >
+                                                <LabelList content={renderUnclaimedBarLabels} />
                                                 {departmentData.map((entry, index) => {
                                                     const isSelected = selectedDepartmentFilters.some(d => d.toLowerCase() === entry.name.toLowerCase());
-                                                    const veryDarkColor = getDepartmentVeryDarkColor(entry.name);
+                                                    const fillColor = deptColorMode === 'status' ? '#475569' : getDepartmentVeryDarkColor(entry.name);
                                                     return (
                                                         <Cell 
                                                             key={`cell-unclaimed-${index}`} 
-                                                            fill={veryDarkColor}
+                                                            fill={fillColor}
                                                             stroke={isSelected ? '#F59E0B' : 'transparent'}
                                                             strokeWidth={isSelected ? 1.5 : 0}
                                                             opacity={selectedDepartmentFilters.length > 0 ? (isSelected ? 1 : 0.35) : 1}
@@ -1909,7 +2127,7 @@ function AnalyticsInner() {
                                                     );
                                                 })}
                                             </Bar>
-                                            {/* Batang 2 Bagian Bawah: Sedang Dikerjakan (Warna Utama / Sedang Departemen) */}
+                                            {/* Batang 2 Bagian Bawah: Sedang Dikerjakan */}
                                             <Bar 
                                                 dataKey="inProgress" 
                                                 name={lang === 'id' ? 'Sedang Dikerjakan' : 'In Progress'} 
@@ -1918,13 +2136,14 @@ function AnalyticsInner() {
                                                 onClick={(data) => handleDepartmentBarClick(data)}
                                                 cursor="pointer"
                                             >
+                                                <LabelList content={renderInProgressBarLabels} />
                                                 {departmentData.map((entry, index) => {
                                                     const isSelected = selectedDepartmentFilters.some(d => d.toLowerCase() === entry.name.toLowerCase());
-                                                    const baseColor = getDepartmentColor(entry.name);
+                                                    const fillColor = deptColorMode === 'status' ? '#F59E0B' : getDepartmentColor(entry.name);
                                                     return (
                                                         <Cell 
                                                             key={`cell-inprogress-${index}`} 
-                                                            fill={baseColor}
+                                                            fill={fillColor}
                                                             stroke={isSelected ? '#F59E0B' : 'transparent'}
                                                             strokeWidth={isSelected ? 1.5 : 0}
                                                             opacity={selectedDepartmentFilters.length > 0 ? (isSelected ? 1 : 0.35) : 1}
@@ -1932,7 +2151,7 @@ function AnalyticsInner() {
                                                     );
                                                 })}
                                             </Bar>
-                                            {/* Batang 2 Bagian Atas: Sudah Selesai (Warna Terang Departemen) */}
+                                            {/* Batang 2 Bagian Atas: Sudah Selesai */}
                                             <Bar 
                                                 dataKey="solved" 
                                                 name={lang === 'id' ? 'Sudah Selesai' : 'Solved'} 
@@ -1941,13 +2160,14 @@ function AnalyticsInner() {
                                                 onClick={(data) => handleDepartmentBarClick(data)}
                                                 cursor="pointer"
                                             >
+                                                <LabelList content={renderSolvedBarLabels} />
                                                 {departmentData.map((entry, index) => {
                                                     const isSelected = selectedDepartmentFilters.some(d => d.toLowerCase() === entry.name.toLowerCase());
-                                                    const lightColor = getDepartmentLightColor(entry.name);
+                                                    const fillColor = deptColorMode === 'status' ? '#10B981' : getDepartmentLightColor(entry.name);
                                                     return (
                                                         <Cell 
                                                             key={`cell-solved-${index}`} 
-                                                            fill={lightColor}
+                                                            fill={fillColor}
                                                             stroke={isSelected ? '#F59E0B' : 'transparent'}
                                                             strokeWidth={isSelected ? 1.5 : 0}
                                                             opacity={selectedDepartmentFilters.length > 0 ? (isSelected ? 1 : 0.35) : 1}
