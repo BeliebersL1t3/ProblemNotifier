@@ -235,6 +235,9 @@ export function ExportPdfModal({ open, onOpenChange }) {
         const counts = {};
         DEPARTMENTS.forEach(d => { counts[d] = 0; });
         allIssues.forEach(i => {
+            const isArchived = Boolean(i.isArchived || i.statusDisplay === '0' || i.displayStatus === '0');
+            if (isArchived) return;
+
             // Protection: Hide confidential issues from unrelated non-admin users
             if (i.isConfidential && !isAdmin) {
                 const origin = normalizeDepartment(i.department || '');
@@ -289,9 +292,10 @@ export function ExportPdfModal({ open, onOpenChange }) {
         });
 
         let filtered = allSelectedIssues.filter(issue => {
-            if (issue.isArchived) {
-                // Archived issues explicitly included by Admin via includeArchived
-            } else if (issue.status === 'pending') {
+            const isArchived = Boolean(issue.isArchived || issue.statusDisplay === '0' || issue.displayStatus === '0');
+            if (isArchived) return false;
+
+            if (issue.status === 'pending') {
                 if (!selectedStatuses.includes('pending') && !selectedStatuses.includes('progress')) return false;
             } else {
                 const sMap = { 'open': 'open', 'progress': 'progress', 'solved': 'solved' };
@@ -746,7 +750,7 @@ export function ExportPdfModal({ open, onOpenChange }) {
         }, 300); // 300ms debounce
 
         return () => clearTimeout(debounce);
-    }, [limit, selectedStatuses, selectedCategories, selectedDepartments, deptFilterMode, selectedSheets, downloadedIssues, initialRenderComplete, open, exportFormat, includeAuditTrail, includeAuditTime, includeAuditPerson, includeAuditReason, includeDelayTimeline, includeArchived]);
+    }, [limit, selectedStatuses, selectedCategories, selectedDepartments, deptFilterMode, selectedSheets, downloadedIssues, initialRenderComplete, open, exportFormat, includeAuditTrail, includeAuditTime, includeAuditPerson, includeAuditReason, includeDelayTimeline]);
 
     const handleDownload = () => {
         setIsExporting(true);
