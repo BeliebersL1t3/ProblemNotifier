@@ -5,7 +5,7 @@ import {
     Users as UsersIcon, Plus, Search, Shield, ShieldCheck, ShieldAlert, 
     KeyRound, Building2, Phone, CheckCircle2, AlertCircle, Edit, Trash2, 
     RefreshCw, RotateCcw, Activity, Eye, Filter, Lock, ArrowLeft,
-    Check, CheckSquare, Square, MinusSquare, FileSpreadsheet
+    Check, CheckSquare, Square, MinusSquare, FileSpreadsheet, ClipboardCheck
 } from 'lucide-react';
 
 import { IssuesProvider } from '@/context/IssuesContext';
@@ -219,6 +219,10 @@ function UsersInner({ initialUsers, initialStats }) {
     };
 
     const handleEditUser = (u) => {
+        if (u.approval_status && u.approval_status !== 'approved') {
+            showToast(lang === 'id' ? 'Akun belum disetujui (Pending). Modifikasi data akun hanya dapat diproses melalui menu Approval Tickets.' : 'Account is pending approval. Modifications must be processed via Approval Tickets.', true);
+            return;
+        }
         setSelectedUser(u);
         setIsUserModalOpen(true);
     };
@@ -269,6 +273,11 @@ function UsersInner({ initialUsers, initialStats }) {
     };
 
     const handleResetPassword = async (targetUser) => {
+        if (targetUser.approval_status && targetUser.approval_status !== 'approved') {
+            showToast(lang === 'id' ? 'Akun belum disetujui (Pending). Tidak dapat mereset password akun ini.' : 'Account is pending approval. Cannot reset password for this account.', true);
+            return;
+        }
+
         const confirmMsg = lang === 'id'
             ? `Reset password untuk ${targetUser.name}?\nSistem akan membuat password baru dan mencatatnya ke audit log.`
             : `Reset password for ${targetUser.name}?\nThe system will generate a new password and log the action.`;
@@ -289,6 +298,11 @@ function UsersInner({ initialUsers, initialStats }) {
     };
 
     const handleToggleHod = async (targetUser) => {
+        if (targetUser.approval_status && targetUser.approval_status !== 'approved') {
+            showToast(lang === 'id' ? 'Akun belum disetujui (Pending). Tidak dapat mengubah status HOD.' : 'Account is pending approval. Cannot change HOD status.', true);
+            return;
+        }
+
         try {
             const res = await axios.post(`/api/users/${targetUser.id}/toggle-hod`);
             if (res.data?.success) {
@@ -686,6 +700,10 @@ function UsersInner({ initialUsers, initialStats }) {
                                 const deptTheme = u.department ? getDepartmentTheme(u.department) : { bg: '#C9AA71', text: '#1C1B0E' };
                                 const isMe = u.id === currentUser?.id;
                                 const isSelected = selectedUserIds.includes(u.id);
+                                const isPending = Boolean(u.approval_status && u.approval_status !== 'approved');
+                                const approvalTicketUrl = u.pending_ticket_number 
+                                    ? `/approvals?search=${encodeURIComponent(u.pending_ticket_number)}` 
+                                    : `/approvals?search=${encodeURIComponent(u.email || u.name)}`;
 
                                 return (
                                     <div 
@@ -804,12 +822,29 @@ function UsersInner({ initialUsers, initialStats }) {
                                             </div>
 
                                             <div className="flex items-center gap-1">
+                                                {/* Shortcut to Approval Ticket if pending */}
+                                                {isPending && (
+                                                    <Link
+                                                        href={approvalTicketUrl}
+                                                        title={lang === 'id' ? 'Tinjau & Setujui di Menu Approval Ticket' : 'Review & Approve in Approval Tickets'}
+                                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-sky-500/20 text-sky-300 hover:bg-sky-500/30 border border-sky-500/40 transition-all cursor-pointer mr-0.5"
+                                                    >
+                                                        <ClipboardCheck className="h-3 w-3" />
+                                                        <span>Review</span>
+                                                    </Link>
+                                                )}
+
                                                 {/* Quick Reset Password */}
                                                 <button
                                                     type="button"
                                                     onClick={() => handleResetPassword(u)}
-                                                    title="Reset Password 1-Klik"
-                                                    className="p-1.5 rounded-lg text-[#A19F8D] hover:text-[#C9AA71] hover:bg-[#1C1B0E] transition-all cursor-pointer"
+                                                    disabled={isPending}
+                                                    title={isPending ? (lang === 'id' ? 'Akun belum disetujui (Pending Approval)' : 'Account pending approval') : 'Reset Password 1-Klik'}
+                                                    className={`p-1.5 rounded-lg transition-all ${
+                                                        isPending
+                                                            ? 'text-gray-600 cursor-not-allowed opacity-40'
+                                                            : 'text-[#A19F8D] hover:text-[#C9AA71] hover:bg-[#1C1B0E] cursor-pointer'
+                                                    }`}
                                                 >
                                                     <KeyRound className="h-3.5 w-3.5" />
                                                 </button>
@@ -818,8 +853,13 @@ function UsersInner({ initialUsers, initialStats }) {
                                                 <button
                                                     type="button"
                                                     onClick={() => handleEditUser(u)}
-                                                    title="Edit Akun & Izin"
-                                                    className="p-1.5 rounded-lg text-[#A19F8D] hover:text-[#FAFAFA] hover:bg-[#1C1B0E] transition-all cursor-pointer"
+                                                    disabled={isPending}
+                                                    title={isPending ? (lang === 'id' ? 'Akun belum disetujui (Pending Approval)' : 'Account pending approval') : 'Edit Akun & Izin'}
+                                                    className={`p-1.5 rounded-lg transition-all ${
+                                                        isPending
+                                                            ? 'text-gray-600 cursor-not-allowed opacity-40'
+                                                            : 'text-[#A19F8D] hover:text-[#FAFAFA] hover:bg-[#1C1B0E] cursor-pointer'
+                                                    }`}
                                                 >
                                                     <Edit className="h-3.5 w-3.5" />
                                                 </button>
@@ -829,11 +869,20 @@ function UsersInner({ initialUsers, initialStats }) {
                                                     <button
                                                         type="button"
                                                         onClick={() => handleToggleHod(u)}
-                                                        title={u.is_hod ? `Cabut Status HOD (${u.staff_name || u.name})` : `Jadikan HOD Departemen (${u.staff_name || u.name})`}
-                                                        className={`p-1.5 rounded-lg transition-all cursor-pointer ${
-                                                            u.is_hod 
-                                                                ? 'text-amber-400 hover:text-amber-300 hover:bg-amber-400/10' 
-                                                                : 'text-[#A19F8D] hover:text-amber-400 hover:bg-[#1C1B0E]'
+                                                        disabled={isPending}
+                                                        title={
+                                                            isPending
+                                                                ? (lang === 'id' ? 'Akun belum disetujui (Pending Approval)' : 'Account pending approval')
+                                                                : u.is_hod 
+                                                                    ? `Cabut Status HOD (${u.staff_name || u.name})` 
+                                                                    : `Jadikan HOD Departemen (${u.staff_name || u.name})`
+                                                        }
+                                                        className={`p-1.5 rounded-lg transition-all ${
+                                                            isPending
+                                                                ? 'text-gray-600 cursor-not-allowed opacity-40'
+                                                                : u.is_hod 
+                                                                    ? 'text-amber-400 hover:text-amber-300 hover:bg-amber-400/10 cursor-pointer' 
+                                                                    : 'text-[#A19F8D] hover:text-amber-400 hover:bg-[#1C1B0E] cursor-pointer'
                                                         }`}
                                                     >
                                                         <span className="text-xs">👑</span>
@@ -916,6 +965,10 @@ function UsersInner({ initialUsers, initialStats }) {
                                             const deptTheme = u.department ? getDepartmentTheme(u.department) : { bg: '#C9AA71', text: '#1C1B0E' };
                                             const isMe = u.id === currentUser?.id;
                                             const isSelected = selectedUserIds.includes(u.id);
+                                            const isPending = Boolean(u.approval_status && u.approval_status !== 'approved');
+                                            const approvalTicketUrl = u.pending_ticket_number 
+                                                ? `/approvals?search=${encodeURIComponent(u.pending_ticket_number)}` 
+                                                : `/approvals?search=${encodeURIComponent(u.email || u.name)}`;
 
                                             return (
                                                 <tr 
@@ -1037,12 +1090,29 @@ function UsersInner({ initialUsers, initialStats }) {
                                                     {/* Actions */}
                                                     <td className="py-3 px-4 text-right">
                                                         <div className="flex items-center justify-end gap-1.5">
+                                                            {/* Shortcut to Approval Ticket if pending */}
+                                                            {isPending && (
+                                                                <Link
+                                                                    href={approvalTicketUrl}
+                                                                    title={lang === 'id' ? 'Tinjau & Setujui di Menu Approval Ticket' : 'Review & Approve in Approval Tickets'}
+                                                                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-sky-500/20 text-sky-300 hover:bg-sky-500/30 border border-sky-500/40 transition-all cursor-pointer mr-1"
+                                                                >
+                                                                    <ClipboardCheck className="h-3.5 w-3.5" />
+                                                                    <span>Review Approval</span>
+                                                                </Link>
+                                                            )}
+
                                                             {/* Quick Reset Password */}
                                                             <button
                                                                 type="button"
                                                                 onClick={() => handleResetPassword(u)}
-                                                                title="Reset Password 1-Klik"
-                                                                className="p-1.5 rounded-lg text-[#A19F8D] hover:text-[#C9AA71] hover:bg-[#1C1B0E] transition-all cursor-pointer"
+                                                                disabled={isPending}
+                                                                title={isPending ? (lang === 'id' ? 'Akun belum disetujui (Pending Approval)' : 'Account pending approval') : 'Reset Password 1-Klik'}
+                                                                className={`p-1.5 rounded-lg transition-all ${
+                                                                    isPending
+                                                                        ? 'text-gray-600 cursor-not-allowed opacity-40'
+                                                                        : 'text-[#A19F8D] hover:text-[#C9AA71] hover:bg-[#1C1B0E] cursor-pointer'
+                                                                }`}
                                                             >
                                                                 <KeyRound className="h-4 w-4" />
                                                             </button>
@@ -1051,8 +1121,13 @@ function UsersInner({ initialUsers, initialStats }) {
                                                             <button
                                                                 type="button"
                                                                 onClick={() => handleEditUser(u)}
-                                                                title="Edit Akun & Izin"
-                                                                className="p-1.5 rounded-lg text-[#A19F8D] hover:text-[#FAFAFA] hover:bg-[#1C1B0E] transition-all cursor-pointer"
+                                                                disabled={isPending}
+                                                                title={isPending ? (lang === 'id' ? 'Akun belum disetujui (Pending Approval)' : 'Account pending approval') : 'Edit Akun & Izin'}
+                                                                className={`p-1.5 rounded-lg transition-all ${
+                                                                    isPending
+                                                                        ? 'text-gray-600 cursor-not-allowed opacity-40'
+                                                                        : 'text-[#A19F8D] hover:text-[#FAFAFA] hover:bg-[#1C1B0E] cursor-pointer'
+                                                                }`}
                                                             >
                                                                 <Edit className="h-4 w-4" />
                                                             </button>
@@ -1062,11 +1137,20 @@ function UsersInner({ initialUsers, initialStats }) {
                                                                 <button
                                                                     type="button"
                                                                     onClick={() => handleToggleHod(u)}
-                                                                    title={u.is_hod ? `Cabut Status HOD (${u.staff_name || u.name})` : `Jadikan HOD Departemen (${u.staff_name || u.name})`}
-                                                                    className={`p-1.5 rounded-lg transition-all cursor-pointer ${
-                                                                        u.is_hod 
-                                                                            ? 'text-amber-400 hover:text-amber-300 hover:bg-amber-400/10' 
-                                                                            : 'text-[#A19F8D] hover:text-amber-400 hover:bg-[#1C1B0E]'
+                                                                    disabled={isPending}
+                                                                    title={
+                                                                        isPending
+                                                                            ? (lang === 'id' ? 'Akun belum disetujui (Pending Approval)' : 'Account pending approval')
+                                                                            : u.is_hod 
+                                                                                ? `Cabut Status HOD (${u.staff_name || u.name})` 
+                                                                                : `Jadikan HOD Departemen (${u.staff_name || u.name})`
+                                                                    }
+                                                                    className={`p-1.5 rounded-lg transition-all ${
+                                                                        isPending
+                                                                            ? 'text-gray-600 cursor-not-allowed opacity-40'
+                                                                            : u.is_hod 
+                                                                                ? 'text-amber-400 hover:text-amber-300 hover:bg-amber-400/10 cursor-pointer' 
+                                                                                : 'text-[#A19F8D] hover:text-amber-400 hover:bg-[#1C1B0E] cursor-pointer'
                                                                     }`}
                                                                 >
                                                                     <span className="text-xs">👑</span>

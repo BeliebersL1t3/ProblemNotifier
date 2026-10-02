@@ -105,27 +105,40 @@ class UserController extends Controller
             $query->where('department', $dept);
         }
 
-        $users = $query->orderBy('name')->get()->map(function (User $user) {
+        $userModels = $query->orderBy('name')->get();
+        $pendingUserIds = $userModels->filter(fn(User $u) => ($u->approval_status ?? 'approved') !== 'approved')->pluck('id');
+
+        $pendingTickets = \App\Models\ApprovalTicket::whereIn('user_id', $pendingUserIds)
+            ->whereIn('status', ['pending_hod', 'pending_admin'])
+            ->latest('id')
+            ->get()
+            ->unique('user_id')
+            ->keyBy('user_id');
+
+        $users = $userModels->map(function (User $user) use ($pendingTickets) {
+            $ticket = $pendingTickets->get($user->id);
             return [
-                'id'               => $user->id,
-                'name'             => $user->name,
-                'staff_name'       => $user->staff_name,
-                'email'            => $user->email,
-                'role'             => $user->role,
-                'department'       => $user->department,
-                'subdivision'      => $user->subdivision,
-                'whatsapp_number'  => $user->whatsapp_number,
-                'is_hod'           => (bool) $user->is_hod,
-                'hod_title'        => $user->hod_title,
-                'approval_status'  => $user->approval_status ?? 'approved',
-                'is_active'        => (bool) ($user->is_active ?? true),
-                'rejection_reason' => $user->rejection_reason,
-                'permissions'      => $user->permissions ?? self::getDefaultPermissions($user->role),
-                'avatar'           => $user->avatar,
-                'avatar_url'       => $user->avatar_url,
-                'is_archived'      => $user->trashed(),
-                'deleted_at'       => $user->deleted_at?->toIso8601String(),
-                'created_at'       => $user->created_at?->toIso8601String(),
+                'id'                    => $user->id,
+                'name'                  => $user->name,
+                'staff_name'            => $user->staff_name,
+                'email'                 => $user->email,
+                'role'                  => $user->role,
+                'department'            => $user->department,
+                'subdivision'           => $user->subdivision,
+                'whatsapp_number'       => $user->whatsapp_number,
+                'is_hod'                => (bool) $user->is_hod,
+                'hod_title'             => $user->hod_title,
+                'approval_status'       => $user->approval_status ?? 'approved',
+                'pending_ticket_number' => $ticket?->ticket_number,
+                'pending_ticket_id'     => $ticket?->id,
+                'is_active'             => (bool) ($user->is_active ?? true),
+                'rejection_reason'      => $user->rejection_reason,
+                'permissions'           => $user->permissions ?? self::getDefaultPermissions($user->role),
+                'avatar'                => $user->avatar,
+                'avatar_url'            => $user->avatar_url,
+                'is_archived'           => $user->trashed(),
+                'deleted_at'            => $user->deleted_at?->toIso8601String(),
+                'created_at'            => $user->created_at?->toIso8601String(),
             ];
         });
 
@@ -263,6 +276,20 @@ class UserController extends Controller
         $this->ensureAdmin();
 
         $user = User::withTrashed()->findOrFail($id);
+
+        // Security check: cannot modify accounts that are not approved yet
+        if (($user->approval_status ?? 'approved') !== 'approved') {
+            $statusLabel = match($user->approval_status) {
+                'pending_admin' => 'Pending Admin',
+                'pending_hod'   => 'Pending HOD',
+                'rejected'      => 'Ditolak',
+                default         => $user->approval_status
+            };
+            return response()->json([
+                'success' => false,
+                'message' => "Akun ini masih berstatus {$statusLabel} dan belum dapat dimodifikasi sebelum disetujui melalui menu Approval Tickets.",
+            ], 422);
+        }
 
         $validated = $request->validate([
             'name'            => 'required|string|max:255',
@@ -450,7 +477,7 @@ class UserController extends Controller
         $updatedUsersList = [];
 
         foreach ($targetUsers as $target) {
-            if ($target->isAdmin()) {
+            if ($target->isAdmin() || ($target->approval_status ?? 'approved') !== 'approved') {
                 continue;
             }
 
@@ -800,6 +827,13 @@ class UserController extends Controller
 
         $user = User::withTrashed()->findOrFail($id);
 
+        if (($user->approval_status ?? 'approved') !== 'approved') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Tidak dapat mereset password untuk akun yang belum disetujui (Pending).',
+            ], 422);
+        }
+
         $newPassword = $request->input('new_password') ?: 'telunas' . rand(100, 999);
 
         $user->password = Hash::make($newPassword);
@@ -882,6 +916,13 @@ class UserController extends Controller
 
         $actingAdmin = auth()->user();
         $user = User::withTrashed()->findOrFail($id);
+
+        if (($user->approval_status ?? 'approved') !== 'approved') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Tidak dapat mengubah status HOD untuk akun yang belum disetujui (Pending).',
+            ], 422);
+        }
         $user->is_hod = !$user->is_hod;
         if ($request->filled('hod_title')) {
             $user->hod_title = $request->input('hod_title');
