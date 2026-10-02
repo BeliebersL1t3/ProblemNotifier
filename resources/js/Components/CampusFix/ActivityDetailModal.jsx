@@ -32,6 +32,7 @@ import {
     Loader2,
     Check,
     Lock,
+    History,
 } from 'lucide-react';
 import { Button } from '@/Components/UI/Button';
 import { Input } from '@/Components/UI/Input';
@@ -917,6 +918,26 @@ export function ActivityDetailModal({ issue, onClose, onOpenCardModal, onEdit, o
 
                         // ================= 5. DATA EDITED =================
                         if (step.type === 'edit') {
+                            const changesText = String(step.data.changes || '');
+                            const isDescEdit = changesText.includes('[Awal]') && changesText.includes('[Revisi]');
+
+                            let summaryTitle = '';
+                            let initialDesc = '';
+                            let revisedDesc = '';
+
+                            if (isDescEdit) {
+                                const titleMatch = changesText.match(/^([\s\S]*?)(?=\n?\[Awal\])/);
+                                const awalMatch = changesText.match(/\[Awal\]\s*([\s\S]*?)(?=\n?\[Revisi\]|$)/);
+                                const revisiMatch = changesText.match(/\[Revisi\]\s*([\s\S]*)$/);
+
+                                summaryTitle = titleMatch ? titleMatch[1].trim() : (lang === 'id' ? 'Edit Deskripsi' : 'Edit Description');
+                                if (step.data.by && summaryTitle.toLowerCase().startsWith(step.data.by.toLowerCase() + ':')) {
+                                    summaryTitle = summaryTitle.slice(step.data.by.length + 1).trim();
+                                }
+                                initialDesc = awalMatch ? awalMatch[1].trim() : '';
+                                revisedDesc = revisiMatch ? revisiMatch[1].trim() : '';
+                            }
+
                             return (
                                 <div key={step.id} className="rounded-xl border border-sky-500/30 bg-[#1A222B]/60 p-4 shadow-sm relative overflow-hidden">
                                     <div className="absolute top-0 left-0 bottom-0 w-1.5 bg-sky-500" />
@@ -936,7 +957,7 @@ export function ActivityDetailModal({ issue, onClose, onOpenCardModal, onEdit, o
                                         </span>
                                     </div>
 
-                                    <div className="mt-3 space-y-2 text-xs">
+                                    <div className="mt-3 space-y-2.5 text-xs">
                                         <div className="flex items-center gap-1.5 flex-wrap">
                                             <span className="text-muted-foreground">{lang === 'id' ? 'Diedit Oleh:' : 'Edited By:'}</span>
                                             <span className="font-bold text-sky-300">{step.data.by}</span>
@@ -946,9 +967,44 @@ export function ActivityDetailModal({ issue, onClose, onOpenCardModal, onEdit, o
                                                 </span>
                                             )}
                                         </div>
-                                        <p className="text-foreground/90 font-mono text-[11px] bg-black/40 p-2.5 rounded border border-white/5 leading-relaxed">
-                                            • {step.data.changes}
-                                        </p>
+
+                                        {isDescEdit ? (
+                                            <div className="space-y-2 pt-1">
+                                                {summaryTitle && (
+                                                    <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-sky-500/15 text-sky-300 font-mono text-[11px] border border-sky-500/30 font-semibold">
+                                                        <span>✏️</span>
+                                                        <span>{summaryTitle}</span>
+                                                    </div>
+                                                )}
+                                                <div className="grid grid-cols-1 gap-2">
+                                                    {/* Initial / Before */}
+                                                    <div className="p-3 rounded-lg bg-amber-950/20 border border-amber-500/30">
+                                                        <div className="flex items-center gap-1.5 text-amber-400 font-semibold text-[11px] mb-1">
+                                                            <History className="w-3.5 h-3.5 shrink-0" />
+                                                            <span>{lang === 'id' ? 'Deskripsi Awal (Sebelum):' : 'Initial Description (Before):'}</span>
+                                                        </div>
+                                                        <p className="text-stone-300 italic whitespace-pre-wrap leading-relaxed text-[11px] bg-black/30 p-2 rounded border border-amber-500/15">
+                                                            "{initialDesc}"
+                                                        </p>
+                                                    </div>
+
+                                                    {/* Revised / After */}
+                                                    <div className="p-3 rounded-lg bg-emerald-950/20 border border-emerald-500/30">
+                                                        <div className="flex items-center gap-1.5 text-emerald-400 font-semibold text-[11px] mb-1">
+                                                            <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                                                            <span>{lang === 'id' ? 'Deskripsi Revisi (Sesudah):' : 'Revised Description (After):'}</span>
+                                                        </div>
+                                                        <p className="text-stone-100 whitespace-pre-wrap leading-relaxed text-[11px] bg-black/30 p-2 rounded border border-emerald-500/15">
+                                                            "{revisedDesc}"
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <p className="text-foreground/90 font-mono text-[11px] bg-black/40 p-2.5 rounded border border-white/5 leading-relaxed">
+                                                • {step.data.changes}
+                                            </p>
+                                        )}
                                     </div>
                                 </div>
                             );

@@ -1864,7 +1864,7 @@ class IssueController extends Controller
 
             $newRow = IssueSheetRepository::padRow($currentRow);
             $newRow[2]  = $formattedDesc; // Column C: Description
-            $newRow[24] = "[{$nowFormatted}] {$editorName}: Edit Deskripsi (Ke-{$nextEditNum}/2)"; // Column Y: Edit log note
+            $newRow[24] = "[{$nowFormatted}] {$editorName}: Edit Deskripsi (Ke-{$nextEditNum}/2)\n[Awal] {$oldDesc}\n[Revisi] {$formattedDesc}"; // Column Y: Edit log note
             $newRow[25] = '1'; // Column Z: Active
 
             $newRowIndex = $this->googleService->insertRowAfter($issueData['rowIndex'], $newRow, $targetSheet);
