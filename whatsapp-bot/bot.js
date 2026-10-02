@@ -91,9 +91,6 @@ setInterval(() => {
 let botConfig = {
     generalGroupId: null,
     departmentGroups: {},
-    channelId: null,
-    channelInvite: '0029VbD3yVS2UPBOZRraWu2j',
-    channelName: null,
     lastKnownBotPhone: null
 };
 let linkedGroupId = null;
@@ -454,16 +451,10 @@ function loadConfig() {
             const data = JSON.parse(fs.readFileSync('config.json', 'utf8'));
             botConfig.generalGroupId = data.generalGroupId || data.groupId || null;
             botConfig.departmentGroups = data.departmentGroups || {};
-            botConfig.channelId = data.channelId || null;
-            botConfig.channelInvite = data.channelInvite || '0029VbD3yVS2UPBOZRraWu2j';
-            botConfig.channelName = data.channelName || null;
             botConfig.lastKnownBotPhone = data.lastKnownBotPhone || null;
             linkedGroupId = botConfig.generalGroupId;
-            console.log(`Loaded General Group ID: ${botConfig.generalGroupId}`);
+            console.log(`Loaded Issue Broadcast Group ID: ${botConfig.generalGroupId}`);
             console.log(`Loaded ${Object.keys(botConfig.departmentGroups).length} Department Groups`);
-            if (botConfig.channelId) {
-                console.log(`Loaded WhatsApp Channel ID: ${botConfig.channelId}`);
-            }
         }
     } catch (e) {
         console.error("Could not load config.json:", e);
@@ -480,7 +471,7 @@ function saveConfig() {
 
 loadConfig();
 
-// Helper to broadcast new bot phone number announcement to groups and channel
+// Helper to broadcast new bot phone number announcement to linked groups
 async function broadcastNewBotNumber(newPhone, oldPhone) {
     if (!globalSock) return;
     const formattedNew = `+${newPhone}`;
@@ -509,14 +500,6 @@ async function broadcastNewBotNumber(newPhone, oldPhone) {
         }
     }
 
-    if (botConfig.channelId) {
-        try {
-            await globalSock.sendMessage(botConfig.channelId, { text: announcement });
-            console.log(`[Bot Migration] Broadcasted new number to WhatsApp Channel.`);
-        } catch (err) {
-            console.error(`[Bot Migration] Failed sending to channel:`, err.message);
-        }
-    }
 }
 
 // Helper to look up an issue by ID (including archived issues)
@@ -790,9 +773,18 @@ async function syncCommunityGroups(sock) {
             const subject = group.subject.trim();
             const lowerSubject = subject.toLowerCase();
 
-            // Announcements group is skipped because announcements are routed to the WhatsApp Channel
-            if (lowerSubject.includes('general') || lowerSubject.includes('pengumuman') || lowerSubject === 'telunas resort issue report') {
-                // Do not set generalGroupId — all broad announcements go to WhatsApp Channel!
+            // Match Issue Broadcast / General Community group
+            if (
+                lowerSubject === 'issue broadcast' ||
+                lowerSubject.includes('issue broadcast') ||
+                lowerSubject.includes('broadcast') ||
+                lowerSubject === 'general' ||
+                lowerSubject.includes('pengumuman') ||
+                lowerSubject === 'telunas resort issue report'
+            ) {
+                botConfig.generalGroupId = group.id;
+                linkedGroupId = group.id;
+                matched.push(`📢 *Issue Broadcast*: "${subject}"`);
             }
 
             // Auto-index all participants' LIDs to Phone numbers across all groups!
@@ -829,28 +821,6 @@ async function syncCommunityGroups(sock) {
         console.error('Group sync error:', err);
         return { success: false, error: err.message };
     }
-}
-
-// Helper: Auto-resolve and follow WhatsApp Channel via invite code
-async function syncWhatsAppChannel(sock) {
-    try {
-        const inviteCode = botConfig.channelInvite || '0029VbD3yVS2UPBOZRraWu2j';
-        if (!inviteCode) return { success: false, error: 'No channel invite code configured' };
-
-        console.log(`[Channel] Resolving channel invite code: ${inviteCode}...`);
-        const meta = await sock.newsletterMetadata('INVITE', inviteCode);
-        if (meta && meta.id) {
-            botConfig.channelId = meta.id;
-            botConfig.channelName = meta.name || 'Telunas Issue Tracker';
-            saveConfig();
-            console.log(`[Channel] ✅ Linked WhatsApp Channel: "${meta.name}" (${meta.id})`);
-            return { success: true, id: meta.id, name: meta.name };
-        }
-    } catch (err) {
-        console.log(`[Channel] Channel sync note: ${err.message}`);
-        return { success: false, error: err.message };
-    }
-    return { success: false, error: 'Could not resolve channel metadata' };
 }
 
 let globalSock = null;
@@ -930,7 +900,6 @@ async function startSock() {
 
             syncCommunityGroups(sock).then(res => { if (res.success) console.log(`Auto-synced ${res.count} community groups.`); });
             syncStaffDirectory();
-            syncWhatsAppChannel(sock);
         }
     });
 
@@ -1125,10 +1094,19 @@ async function startSock() {
                     const groupMeta = await sock.groupMetadata(from);
                     if (groupMeta && groupMeta.subject) {
                         const subject = groupMeta.subject.trim().toLowerCase();
-                        if (subject === 'general' || subject.includes('pengumuman') || subject === 'telunas resort issue report') {
+                        if (
+                            subject === 'issue broadcast' ||
+                            subject.includes('issue broadcast') ||
+                            subject.includes('broadcast') ||
+                            subject === 'general' ||
+                            subject.includes('pengumuman') ||
+                            subject === 'telunas resort issue report'
+                        ) {
                             if (botConfig.generalGroupId !== from) {
                                 botConfig.generalGroupId = from;
+                                linkedGroupId = from;
                                 saveConfig();
+                                console.log(`Auto-mapped Issue Broadcast group "${groupMeta.subject}" (${from})`);
                             }
                         }
                         for (const dept of DEPARTMENTS) {
@@ -1182,10 +1160,11 @@ async function startSock() {
                         continue;
                     }
                     const arg = text.substring(9).trim();
-                    if (!arg || arg.toLowerCase() === 'general') {
+                    if (!arg || arg.toLowerCase() === 'general' || arg.toLowerCase() === 'broadcast' || arg.toLowerCase() === 'issue broadcast') {
                         botConfig.generalGroupId = from;
+                        linkedGroupId = from;
                         saveConfig();
-                        await reply('✅ This group is now set as the *General Announcement Group*! All notifications and @ALL emergencies will be sent here.');
+                        await reply('✅ This group is now set as the *Issue Broadcast Group*! Major issue notifications (open, claim, pending, solved, emergency) will be sent here.');
                     } else {
                         const matchedDept = DEPARTMENTS.find(d => d.toLowerCase() === arg.toLowerCase());
                         if (matchedDept) {
@@ -1199,43 +1178,17 @@ async function startSock() {
                     continue;
                 }
 
-                // 4. View currently linked groups & channel
+                // 4. View currently linked groups
                 if (lower === '!groups' || lower === '!groupinfo') {
-                    let msgInfo = '📋 *LINKED TELUNAS CHANNELS & GROUPS* 📋\n\n';
-                    msgInfo += `📢 *WhatsApp Channel:* ${botConfig.channelId ? `✅ Linked (${botConfig.channelName || botConfig.channelId})` : (botConfig.channelInvite ? `⏳ Pending Sync (${botConfig.channelInvite})` : '❌ Not set')}\n`;
-                    msgInfo += `📌 *General Group:* ${botConfig.generalGroupId ? '✅ Configured' : '❌ Not set'}\n\n`;
+                    let msgInfo = '📋 *LINKED TELUNAS GROUPS* 📋\n\n';
+                    msgInfo += `📢 *Issue Broadcast Group:* ${botConfig.generalGroupId ? '✅ Configured' : '❌ Not set'}\n\n`;
                     msgInfo += '*Department Groups:*\n';
                     DEPARTMENTS.forEach(d => {
                         const isSet = botConfig.departmentGroups[d.toLowerCase()] ? '✅' : '❌';
                         msgInfo += `• ${d}: ${isSet}\n`;
                     });
-                    msgInfo += '\n💡 Type !syncgroups to auto-detect community groups, or !setchannel <link> to link a WhatsApp Channel.';
+                    msgInfo += '\n💡 Type !syncgroups to auto-detect community groups.';
                     await reply(msgInfo);
-                    continue;
-                }
-
-                // 4b. Command to set or re-sync WhatsApp Channel (Admin Only)
-                if (lower.startsWith('!setchannel') || lower === '!syncchannel') {
-                    if (registeredUser.role !== 'admin') {
-                        await reply('❌ *Akses Ditolak*\n\nHanya Administrator yang dapat mengatur tautan WhatsApp Channel.');
-                        continue;
-                    }
-                    const arg = text.substring(lower.startsWith('!setchannel') ? 11 : 12).trim();
-                    let code = arg;
-                    if (code.includes('whatsapp.com/channel/')) {
-                        code = code.split('whatsapp.com/channel/')[1].split(/[/?#]/)[0];
-                    }
-                    if (code) {
-                        botConfig.channelInvite = code;
-                        saveConfig();
-                    }
-                    await reply(`⏳ Checking WhatsApp Channel with invite code *${botConfig.channelInvite || '0029VbD3yVS2UPBOZRraWu2j'}*...`);
-                    const res = await syncWhatsAppChannel(sock);
-                    if (res.success) {
-                        await reply(`✅ *WhatsApp Channel Linked Successfully!*\n\n• *Name:* ${res.name}\n• *ID:* \`${res.id}\`\n\nAll new issue reports and alerts will now be broadcasted directly to this Channel!`);
-                    } else {
-                        await reply(`⚠️ Could not link channel: ${res.error || 'Unknown error'}\n\nPlease ensure the bot is an *Admin* of the channel and the invite link is valid.`);
-                    }
                     continue;
                 }
 
@@ -2904,16 +2857,6 @@ app.post(['/notify', '/api/notify'], async (req, res) => {
         // Collect all target group JIDs
         const targetGroupIds = new Set();
 
-        // 1. Send to General announcement group if configured (bypassed if departmentOnly is set)
-        if (!isDepartmentOnly) {
-            if (botConfig.generalGroupId) {
-                targetGroupIds.add(botConfig.generalGroupId);
-            } else if (linkedGroupId) {
-                targetGroupIds.add(linkedGroupId);
-            }
-        }
-
-        // 2. Check if Emergency / @ALL
         const lowerMsg = (message || '').toLowerCase();
         const isAll = lowerMsg.includes('@all') || 
                       (taggedDepartments && String(taggedDepartments).toLowerCase().includes('all')) || 
@@ -2921,6 +2864,25 @@ app.post(['/notify', '/api/notify'], async (req, res) => {
                       lowerMsg.includes('priority: critical') ||
                       priority === 'critical';
 
+        // 1. Determine if message qualifies for the Issue Broadcast group
+        // Only open, claim, pending, solved, and emergency (minor edits are strictly excluded)
+        const isOpen = lowerMsg.includes('new telunas issue report') || lowerMsg.includes('issue report') || lowerMsg.includes('*status:* open');
+        const isClaim = lowerMsg.includes('claimed') || lowerMsg.includes('in progress');
+        const isPending = lowerMsg.includes('pending');
+        const isSolved = lowerMsg.includes('solved');
+        const isEmergency = isAll || priority === 'critical' || lowerMsg.includes('emergency') || lowerMsg.includes('darurat') || lowerMsg.includes('eskalasi') || lowerMsg.includes('escalation');
+
+        const isBroadcastEligible = (isOpen || isClaim || isPending || isSolved || isEmergency) && !isDepartmentOnly;
+
+        if (isBroadcastEligible) {
+            if (botConfig.generalGroupId) {
+                targetGroupIds.add(botConfig.generalGroupId);
+            } else if (linkedGroupId) {
+                targetGroupIds.add(linkedGroupId);
+            }
+        }
+
+        // 2. Department routing (Origin creator, Assigned, and Tagged groups)
         if (isAll && !isDepartmentOnly) {
             // Broadcast to ALL connected department groups
             Object.values(botConfig.departmentGroups).forEach(gid => {
@@ -2947,7 +2909,7 @@ app.post(['/notify', '/api/notify'], async (req, res) => {
                 }
             };
 
-            // 2a. Origin Department group (gets notifications for claim, pending, solved, etc.)
+            // 2a. Origin Department group (pembuat issue)
             if (department) {
                 addDeptToTargets(department);
             }
@@ -2974,18 +2936,18 @@ app.post(['/notify', '/api/notify'], async (req, res) => {
             }
         }
 
-        if (targetGroupIds.size === 0 && (!botConfig.channelId || isDepartmentOnly)) {
-            console.log('[Notify] No matching department groups found for notification.');
-            return res.json({ success: true, sentToCount: 0, channelSent: false, warning: 'No target department group matched.' });
+        if (targetGroupIds.size === 0) {
+            console.log('[Notify] No matching department or broadcast groups found for notification.');
+            return res.json({ success: true, sentToCount: 0, warning: 'No target group matched.' });
         }
 
-        console.log(`Dispatching notification to ${targetGroupIds.size} groups (departmentOnly: ${isDepartmentOnly})...`);
+        console.log(`Dispatching notification to ${targetGroupIds.size} groups (departmentOnly: ${isDepartmentOnly}, broadcastEligible: ${isBroadcastEligible})...`);
 
         // Send to all target groups
         for (const gid of targetGroupIds) {
             try {
                 let mentions = [];
-                // Ping all members if it's an @ALL emergency in the General group
+                // Ping all members if it's an @ALL emergency in the General broadcast group
                 if (isAll && !isDepartmentOnly && gid === botConfig.generalGroupId) {
                     try {
                         const meta = await globalSock.groupMetadata(gid);
@@ -3024,23 +2986,8 @@ app.post(['/notify', '/api/notify'], async (req, res) => {
                 console.error(`Failed sending to group ${gid}:`, errSend.message);
             }
         }
-
-        // Broadcast to WhatsApp Channel (Read-only bulletin feed for all staff & management)
-        // Strictly bypassed if departmentOnly is set
-        let channelSent = false;
-        if (botConfig.channelId && !isDepartmentOnly) {
-            try {
-                await globalSock.sendMessage(botConfig.channelId, { 
-                    text: message
-                });
-                console.log(`[Channel] Broadcasted notification to Channel: ${botConfig.channelId}`);
-                channelSent = true;
-            } catch (errChan) {
-                console.error(`[Channel] Failed sending to channel ${botConfig.channelId}:`, errChan.message);
-            }
-        }
         
-        res.json({ success: true, sentToCount: targetGroupIds.size, channelSent });
+        res.json({ success: true, sentToCount: targetGroupIds.size });
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: err.message });
@@ -3187,15 +3134,7 @@ setInterval(async () => {
                     } catch (e) {}
                 }
 
-                // Also broadcast critical milestone escalation to WhatsApp Channel
-                if (botConfig.channelId) {
-                    try {
-                        await globalSock.sendMessage(botConfig.channelId, { text: msg });
-                        console.log(`[Channel] Broadcasted milestone escalation to Channel: ${botConfig.channelId}`);
-                    } catch (eChan) {
-                        console.error(`[Channel] Milestone broadcast error:`, eChan.message);
-                    }
-                }
+
             }
 
             // Cleanup solved/deleted issues from milestone memory
