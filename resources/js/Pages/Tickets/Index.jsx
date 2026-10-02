@@ -482,9 +482,7 @@ function TicketsInner({
                                 className="bg-[#1C1B0E] border border-[#3B3929] text-[#FAFAFA] rounded-xl text-xs py-2 px-3 focus:border-[#C9AA71] focus:ring-1 focus:ring-[#C9AA71]"
                             >
                                 <option value="all">{t('ticket_all_types')}</option>
-                                {(isUserAdmin || isUserHOD) && (
-                                    <option value="account_registration">{t('ticket_type_account_reg')}</option>
-                                )}
+                                <option value="account_registration">{t('ticket_type_account_reg')}</option>
                                 <option value="whatsapp_change">{t('ticket_type_wa_change')}</option>
                                 <option value="whatsapp_unlink">{t('ticket_type_wa_unlink')}</option>
                                 <option value="password_reset">{t('ticket_type_pwd_reset')}</option>
@@ -564,6 +562,30 @@ function TicketsInner({
                                 className="text-emerald-400 hover:text-white px-2 py-0.5 text-xs font-bold"
                             >
                                 ✕
+                            </button>
+                        </div>
+                    )}
+
+                    {/* Focused Single Ticket Indicator (from notification / direct link) */}
+                    {filters?.id && (
+                        <div className="flex items-center justify-between gap-3 p-3.5 rounded-2xl bg-[#C9AA71]/15 border border-[#C9AA71]/30 text-xs text-[#FAFAFA] shadow-md">
+                            <div className="flex items-center gap-2">
+                                <Ticket className="w-4 h-4 text-[#C9AA71] shrink-0" />
+                                <span>
+                                    {lang === 'id' 
+                                        ? `Menampilkan tiket spesifik (${tickets?.data?.[0]?.ticket_number ? '#' + tickets.data[0].ticket_number : 'ID #' + filters.id})` 
+                                        : `Viewing specific ticket (${tickets?.data?.[0]?.ticket_number ? '#' + tickets.data[0].ticket_number : 'ID #' + filters.id})`}
+                                </span>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    router.get(route('tickets.index'), {}, { preserveState: true, preserveScroll: true });
+                                }}
+                                className="flex items-center gap-1 text-[11px] font-bold text-[#C9AA71] hover:text-[#FAFAFA] bg-[#1C1B0E] hover:bg-[#3B3929]/70 px-3 py-1.5 rounded-xl border border-[#3B3929] transition-all"
+                            >
+                                <X className="w-3.5 h-3.5" />
+                                <span>{lang === 'id' ? 'Tampilkan Semua Tiket' : 'Show All Tickets'}</span>
                             </button>
                         </div>
                     )}
