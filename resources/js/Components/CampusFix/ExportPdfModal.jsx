@@ -42,9 +42,11 @@ function CollapsibleSection({ label, toggleLabel, onToggleAll, children, default
                     <ChevronDown className={`h-4 w-4 transition-transform ${open ? '' : '-rotate-90'}`} />
                     {label}
                 </button>
-                <button type="button" onClick={onToggleAll} className="text-xs text-primary hover:underline">
-                    {toggleLabel}
-                </button>
+                {toggleLabel && onToggleAll && (
+                    <button type="button" onClick={onToggleAll} className="text-xs text-primary hover:underline">
+                        {toggleLabel}
+                    </button>
+                )}
             </div>
             {open && children}
         </div>
@@ -79,7 +81,7 @@ export function ExportPdfModal({ open, onOpenChange }) {
     const [selectedStatuses, setSelectedStatuses] = useState(['open', 'progress', 'pending', 'solved']);
     const [selectedCategories, setSelectedCategories] = useState([]);
     const [selectedDepartments, setSelectedDepartments] = useState([]);
-    const [deptFilterMode, setDeptFilterMode] = useState('all'); // 'all' | 'my_scope' | 'to_fix' | 'my_reports' | 'mentions'
+    const [deptFilterMode, setDeptFilterMode] = useState(isAdmin ? 'all' : 'my_scope'); // 'all' | 'my_scope' | 'to_fix' | 'my_reports' | 'mentions'
     const [limit, setLimit] = useState('All');
     
     // Format Selection: 'pdf' or 'excel'
@@ -139,7 +141,10 @@ export function ExportPdfModal({ open, onOpenChange }) {
             setSelectedSheets([currentSheet]);
             setDownloadedIssues(prev => ({ ...prev, [currentSheet]: issues }));
         }
-    }, [categories, open, currentSheet, issues]);
+        if (open && !isAdmin) {
+            setDeptFilterMode(prev => prev === 'all' ? 'my_scope' : prev);
+        }
+    }, [categories, open, currentSheet, issues, isAdmin]);
 
     // Fetch missing sheets dynamically
     useEffect(() => {
@@ -314,7 +319,12 @@ export function ExportPdfModal({ open, onOpenChange }) {
             }
 
             // Department Scope Filtering
-            if (deptFilterMode === 'my_scope' && userDept) {
+            if (!isAdmin && deptFilterMode === 'all') {
+                const isRelated = normalizeDepartment(issue.department) === userDept ||
+                                  (Array.isArray(issue.assignedDepartments) && issue.assignedDepartments.some(d => normalizeDepartment(d) === userDept)) ||
+                                  (Array.isArray(issue.taggedDepartments) && issue.taggedDepartments.some(d => normalizeDepartment(d) === userDept));
+                if (!isRelated) return false;
+            } else if (deptFilterMode === 'my_scope' && userDept) {
                 const isRelated = normalizeDepartment(issue.department) === userDept ||
                                   (Array.isArray(issue.assignedDepartments) && issue.assignedDepartments.some(d => normalizeDepartment(d) === userDept)) ||
                                   (Array.isArray(issue.taggedDepartments) && issue.taggedDepartments.some(d => normalizeDepartment(d) === userDept));
@@ -1101,25 +1111,27 @@ export function ExportPdfModal({ open, onOpenChange }) {
                         {/* Departments — with Scope Presets & Active counts */}
                         <CollapsibleSection
                             label="Department Scope & Filters"
-                            toggleLabel="Toggle All"
-                            onToggleAll={toggleAllDepartments}
+                            toggleLabel={isAdmin ? "Toggle All" : undefined}
+                            onToggleAll={isAdmin ? toggleAllDepartments : undefined}
                             defaultOpen={true}
                         >
                             {/* Quick Scope Presets */}
                             {userDept && (
                                 <div className="flex flex-wrap gap-1.5 pb-1">
-                                    <button
-                                        type="button"
-                                        onClick={() => { setDeptFilterMode('all'); setSelectedDepartments([...DEPARTMENTS]); }}
-                                        className={`px-2.5 py-1 text-xs font-semibold rounded-lg border transition-all flex items-center gap-1 ${
-                                            deptFilterMode === 'all'
-                                                ? 'bg-[#C9AA71] text-[#1C1B0E] border-[#C9AA71] shadow-sm'
-                                                : 'bg-[#2A281E] text-muted-foreground border-[#3B3929] hover:text-foreground'
-                                        }`}
-                                    >
-                                        <Globe className="w-3 h-3" />
-                                        <span>All Scope</span>
-                                    </button>
+                                    {isAdmin && (
+                                        <button
+                                            type="button"
+                                            onClick={() => { setDeptFilterMode('all'); setSelectedDepartments([...DEPARTMENTS]); }}
+                                            className={`px-2.5 py-1 text-xs font-semibold rounded-lg border transition-all flex items-center gap-1 ${
+                                                deptFilterMode === 'all'
+                                                    ? 'bg-[#C9AA71] text-[#1C1B0E] border-[#C9AA71] shadow-sm'
+                                                    : 'bg-[#2A281E] text-muted-foreground border-[#3B3929] hover:text-foreground'
+                                            }`}
+                                        >
+                                            <Globe className="w-3 h-3" />
+                                            <span>All Scope</span>
+                                        </button>
+                                    )}
                                     <button
                                         type="button"
                                         onClick={() => setDeptFilterMode('my_scope')}
@@ -1171,36 +1183,38 @@ export function ExportPdfModal({ open, onOpenChange }) {
                                 </div>
                             )}
 
-                            {/* Individual Department Pills with live counts */}
-                            <div className="flex flex-wrap gap-1.5 pt-1 pb-2">
-                                {DEPARTMENTS.map(dept => {
-                                    const count = deptCounts[dept] || 0;
-                                    const isUser = normalizeDepartment(dept) === userDept;
-                                    const isSelected = deptFilterMode === 'all' && selectedDepartments.includes(dept);
+                            {/* Individual Department Pills with live counts - Admin only */}
+                            {isAdmin && (
+                                <div className="flex flex-wrap gap-1.5 pt-1 pb-2">
+                                    {DEPARTMENTS.map(dept => {
+                                        const count = deptCounts[dept] || 0;
+                                        const isUser = normalizeDepartment(dept) === userDept;
+                                        const isSelected = deptFilterMode === 'all' && selectedDepartments.includes(dept);
 
-                                    return (
-                                        <button
-                                            key={dept}
-                                            type="button"
-                                            onClick={() => {
-                                                setDeptFilterMode('all');
-                                                handleDepartmentToggle(dept);
-                                            }}
-                                            className={`px-2.5 py-1 text-xs font-medium rounded-lg border transition-all flex items-center gap-1.5 ${
-                                                isSelected
-                                                    ? 'bg-primary text-primary-foreground border-primary'
-                                                    : 'bg-surface text-muted-foreground border-border hover:border-primary/50'
-                                            } ${count === 0 ? 'opacity-40' : ''}`}
-                                        >
-                                            <span>{dept}</span>
-                                            {isUser && <span className="text-[9px] px-1 py-0.2 rounded bg-amber-400/20 text-amber-300 font-bold">YOU</span>}
-                                            <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${isSelected ? 'bg-black/30 text-white' : 'bg-muted text-muted-foreground'}`}>
-                                                {count}
-                                            </span>
-                                        </button>
-                                    );
-                                })}
-                            </div>
+                                        return (
+                                            <button
+                                                key={dept}
+                                                type="button"
+                                                onClick={() => {
+                                                    setDeptFilterMode('all');
+                                                    handleDepartmentToggle(dept);
+                                                }}
+                                                className={`px-2.5 py-1 text-xs font-medium rounded-lg border transition-all flex items-center gap-1.5 ${
+                                                    isSelected
+                                                        ? 'bg-primary text-primary-foreground border-primary'
+                                                        : 'bg-surface text-muted-foreground border-border hover:border-primary/50'
+                                                } ${count === 0 ? 'opacity-40' : ''}`}
+                                            >
+                                                <span>{dept}</span>
+                                                {isUser && <span className="text-[9px] px-1 py-0.2 rounded bg-amber-400/20 text-amber-300 font-bold">YOU</span>}
+                                                <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${isSelected ? 'bg-black/30 text-white' : 'bg-muted text-muted-foreground'}`}>
+                                                    {count}
+                                                </span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            )}
                         </CollapsibleSection>
 
                         {/* Appendices / Detail Options */}
