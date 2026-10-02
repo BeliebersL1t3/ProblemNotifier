@@ -61,6 +61,7 @@ Route::middleware('auth')->group(function () {
 
     // Approval Tickets
     Route::get('/tickets', [ApprovalTicketController::class, 'index'])->name('tickets.index');
+    Route::redirect('/approvals', '/tickets');
     Route::get('/tickets/export-data', [ApprovalTicketController::class, 'exportData'])->name('tickets.exportData');
     Route::post('/tickets/sync-sheet', [ApprovalTicketController::class, 'syncSheet'])->name('tickets.syncSheet');
     Route::post('/tickets/whatsapp', [ApprovalTicketController::class, 'storeWhatsappTicket'])->name('tickets.whatsapp');

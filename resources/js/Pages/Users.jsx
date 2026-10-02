@@ -702,8 +702,8 @@ function UsersInner({ initialUsers, initialStats }) {
                                 const isSelected = selectedUserIds.includes(u.id);
                                 const isPending = Boolean(u.approval_status && u.approval_status !== 'approved');
                                 const approvalTicketUrl = u.pending_ticket_number 
-                                    ? `/approvals?search=${encodeURIComponent(u.pending_ticket_number)}` 
-                                    : `/approvals?search=${encodeURIComponent(u.email || u.name)}`;
+                                    ? `/tickets?search=${encodeURIComponent(u.pending_ticket_number)}` 
+                                    : `/tickets?search=${encodeURIComponent(u.email || u.name)}`;
 
                                 return (
                                     <div 
@@ -967,8 +967,8 @@ function UsersInner({ initialUsers, initialStats }) {
                                             const isSelected = selectedUserIds.includes(u.id);
                                             const isPending = Boolean(u.approval_status && u.approval_status !== 'approved');
                                             const approvalTicketUrl = u.pending_ticket_number 
-                                                ? `/approvals?search=${encodeURIComponent(u.pending_ticket_number)}` 
-                                                : `/approvals?search=${encodeURIComponent(u.email || u.name)}`;
+                                                ? `/tickets?search=${encodeURIComponent(u.pending_ticket_number)}` 
+                                                : `/tickets?search=${encodeURIComponent(u.email || u.name)}`;
 
                                             return (
                                                 <tr 
