@@ -1724,52 +1724,10 @@ class IssueController extends Controller
 
     public function updateCategory(Request $request, $idOrRowIndex)
     {
-        if (auth()->check() && !auth()->user()->isAdmin() && !auth()->user()->hasPermission('can_manage_issues')) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Unauthorized. Izin mengelola isu dinonaktifkan untuk akun Anda oleh Administrator.',
-            ], 403);
-        }
-
-        $request->validate([
-            'category' => 'required|string',
-        ]);
-        
-        try {
-            $issueData = $this->getLatestIssueRowData((string)$idOrRowIndex);
-            if (!$issueData) {
-                return response()->json(['success' => false, 'message' => 'Issue not found.'], 404);
-            }
-
-            $currentRow = $issueData['row'];
-
-            $displayStatus = trim($currentRow[25] ?? '');
-            if ($displayStatus === '0') {
-                return response()->json([
-                    'success'    => false,
-                    'message'    => 'Kartu masalah ini sudah diarsipkan oleh Admin (Archived).',
-                    'isArchived' => true,
-                ], 422);
-            }
-
-            $nowFormatted = Carbon::now('Asia/Jakarta')->format('M d, Y H:i:s');
-            $note = "[{$nowFormatted}] Kategori diubah ke {$request->category}";
-
-            $newRow = IssueSheetRepository::padRow($currentRow);
-            $newRow[4]  = $request->category;
-            $newRow[24] = $note;
-            $newRow[25] = '1';
-
-            $targetSheet = $issueData['foundLocation']['sheet'] ?? null;
-            $newRowIndex = $this->googleService->insertRowAfter($issueData['rowIndex'], $newRow, $targetSheet);
-            if ($newRowIndex) {
-                $this->googleService->colorRowByCategory($newRowIndex, $request->category, $targetSheet);
-            }
-
-            return response()->json(['success' => true]);
-        } catch (\Exception $e) {
-            return response()->json(['success' => false, 'message' => 'Failed to update category: ' . $e->getMessage()], 500);
-        }
+        return response()->json([
+            'success' => false,
+            'message' => 'Kategori isu bersifat permanen dan tidak dapat diubah setelah tiket dibuat.',
+        ], 403);
     }
 
     public function update(Request $request, $idOrRowIndex)

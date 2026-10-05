@@ -32,7 +32,7 @@ const safeArray = (val) => {
 
 export function ResolveIssueSheet({ issue, onClose, onEdit }) {
     const { t, lang } = useLanguage();
-    const { resolveIssue, pendingIssue, updateIssue, categories, updateIssueCategory } = useIssues();
+    const { resolveIssue, pendingIssue, updateIssue, categories } = useIssues();
     const [isPendingMode, setIsPendingMode] = useState(false);
     const [isUnclaimModalOpen, setIsUnclaimModalOpen] = useState(false);
     const [unclaimReason, setUnclaimReason] = useState('');
@@ -46,7 +46,6 @@ export function ResolveIssueSheet({ issue, onClose, onEdit }) {
     const [proofImageFile, setProofImageFile] = useState(null);
     const [proofImageUrl, setProofImageUrl] = useState(undefined);
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [isUpdatingCategory, setIsUpdatingCategory] = useState(false);
     const [errorMsg, setErrorMsg] = useState('');
     const { isDeptUser, department, staffName, isAdmin, activeStaffRoster } = useAuth();
     const [selectedDelay, setSelectedDelay] = useState(null);
@@ -151,17 +150,11 @@ export function ResolveIssueSheet({ issue, onClose, onEdit }) {
         }
     };
 
-    const handleCategoryChange = async (e) => {
-        setIsUpdatingCategory(true);
-        setErrorMsg('');
-        try {
-            await updateIssueCategory(issue, e.target.value);
-        } catch (err) {
-            setErrorMsg(err.message || 'Failed to update category');
-        } finally {
-            setIsUpdatingCategory(false);
-        }
-    };
+    const categoryLabel = useMemo(() => {
+        if (!issue?.category) return '-';
+        const found = (categories || []).find(c => c.id === issue.category || c.id?.toLowerCase() === issue.category?.toLowerCase());
+        return found ? found.label : (issue.category.charAt(0).toUpperCase() + issue.category.slice(1));
+    }, [issue?.category, categories]);
 
     const valid = Boolean(
         selectedStaff && 
@@ -297,18 +290,13 @@ export function ResolveIssueSheet({ issue, onClose, onEdit }) {
                                     
                                     <div className="flex items-center gap-1.5 shrink-0 ml-auto">
                                         <span className="text-[10px] text-muted-foreground font-medium">Category:</span>
-                                        <select
-                                            value={issue.category || ''}
-                                            onChange={handleCategoryChange}
-                                            disabled={isUpdatingCategory}
-                                            className="h-5 text-[10px] rounded border border-border bg-surface px-1 py-0 shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50"
-                                        >
-                                            <option value="" disabled>Select category</option>
-                                            {categories.map(c => (
-                                                <option key={c.id} value={c.id}>{c.label}</option>
-                                            ))}
-                                        </select>
-                                        {isUpdatingCategory && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
+                                        <span className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${
+                                            (issue.category || '').toLowerCase() === 'emergency'
+                                                ? 'bg-rose-500/15 text-rose-300 border-rose-500/30 font-bold'
+                                                : 'bg-muted/60 text-foreground border-border'
+                                        }`}>
+                                            {categoryLabel}
+                                        </span>
                                     </div>
                                 </div>
                                 <p className="mt-1.5 flex items-center gap-1.5 text-xs text-muted-foreground">
