@@ -7,8 +7,15 @@ import {
     Phone, MessageSquare, Check, Smartphone, Unlink, Trash2,
     Users as UsersIcon, ChevronRight, ShieldAlert, Camera, UploadCloud,
     Image as ImageIcon, X, Ticket, Clock, ArrowRightLeft, Globe, Crown,
-    ExternalLink
+    ExternalLink, Bell, BellRing
 } from 'lucide-react';
+import {
+    isPushNotificationSupported,
+    getCurrentPushSubscription,
+    subscribeToPushNotifications,
+    unsubscribeFromPushNotifications,
+    sendTestPushNotification
+} from '@/services/webPushService';
 
 import { IssuesProvider } from '@/context/IssuesContext';
 import { useLanguage } from '@/context/LanguageContext';
@@ -259,6 +266,61 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, notifyWhatsAppTick
                 setIsTransferModalOpen(false);
             },
         });
+    };
+
+    // Web Push State
+    const [pushSupported, setPushSupported] = useState(false);
+    const [pushSubscribed, setPushSubscribed] = useState(false);
+    const [pushLoading, setPushLoading] = useState(false);
+    const [pushTestLoading, setPushTestLoading] = useState(false);
+    const [pushSuccessMsg, setPushSuccessMsg] = useState(null);
+    const [pushErrorMsg, setPushErrorMsg] = useState(null);
+
+    useEffect(() => {
+        const checkPush = async () => {
+            const supported = isPushNotificationSupported();
+            setPushSupported(supported);
+            if (supported) {
+                const sub = await getCurrentPushSubscription();
+                setPushSubscribed(!!sub);
+            }
+        };
+        checkPush();
+    }, []);
+
+    const handleTogglePush = async () => {
+        setPushLoading(true);
+        setPushErrorMsg(null);
+        setPushSuccessMsg(null);
+        try {
+            if (pushSubscribed) {
+                await unsubscribeFromPushNotifications();
+                setPushSubscribed(false);
+                setPushSuccessMsg(lang === 'id' ? 'Notifikasi pop-up pada perangkat ini berhasil dimatikan.' : 'Push notifications disabled on this device.');
+            } else {
+                await subscribeToPushNotifications();
+                setPushSubscribed(true);
+                setPushSuccessMsg(lang === 'id' ? 'Notifikasi pop-up berhasil diaktifkan! Anda akan menerima pop-up saat ada tiket baru.' : 'Push notifications enabled successfully!');
+            }
+        } catch (err) {
+            setPushErrorMsg(err.message || (lang === 'id' ? 'Gagal mengubah pengaturan notifikasi.' : 'Failed to update notification settings.'));
+        } finally {
+            setPushLoading(false);
+        }
+    };
+
+    const handleTestPush = async () => {
+        setPushTestLoading(true);
+        setPushErrorMsg(null);
+        setPushSuccessMsg(null);
+        try {
+            const res = await sendTestPushNotification();
+            setPushSuccessMsg(res.message || (lang === 'id' ? 'Tes notifikasi pop-up berhasil dikirim ke perangkat Anda!' : 'Test notification sent!'));
+        } catch (err) {
+            setPushErrorMsg(err.response?.data?.message || err.message || (lang === 'id' ? 'Gagal mengirim tes notifikasi.' : 'Failed to send test push.'));
+        } finally {
+            setPushTestLoading(false);
+        }
     };
 
     const {
@@ -952,6 +1014,122 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, notifyWhatsAppTick
                                         </button>
                                     </div>
                                 </form>
+                            </div>
+
+                            {/* Web Push Pop-up Notifications Card (HP & PC) */}
+                            <div className="rounded-2xl border border-[#3B3929] bg-[#2A281E]/90 p-6 sm:p-8 shadow-xl space-y-6">
+                                <div className="flex items-center justify-between gap-4 pb-4 border-b border-[#3B3929] flex-wrap">
+                                    <div className="flex items-center gap-2.5">
+                                        <div className="w-9 h-9 rounded-xl bg-[#C9AA71]/20 text-[#C9AA71] flex items-center justify-center border border-[#C9AA71]/30 shrink-0">
+                                            <BellRing className="h-5 w-5" />
+                                        </div>
+                                        <div>
+                                            <h2 className="text-base sm:text-lg font-bold text-[#FAFAFA]">
+                                                {lang === 'id' ? 'Notifikasi Pop-up Perangkat (HP & PC)' : 'Device Pop-up Notifications (Mobile & PC)'}
+                                            </h2>
+                                            <p className="text-xs text-[#A19F8D] mt-0.5">
+                                                {lang === 'id'
+                                                    ? 'Terima notifikasi pop-up sistem saat ada tiket baru, penanganan darurat (SOS), atau update isu.'
+                                                    : 'Receive native system pop-ups for new issues, emergency alerts (SOS), and task updates.'}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    {pushSubscribed ? (
+                                        <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-950/60 border border-emerald-500/50 text-emerald-300 flex items-center gap-1.5 shadow-sm">
+                                            <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                                            <span>{lang === 'id' ? 'Aktif di Perangkat Ini' : 'Active on This Device'}</span>
+                                        </span>
+                                    ) : pushSupported ? (
+                                        <span className="px-3 py-1 rounded-full text-xs font-semibold bg-amber-950/40 border border-amber-500/40 text-amber-300 flex items-center gap-1.5">
+                                            <span>⚠️ {lang === 'id' ? 'Belum Diaktifkan' : 'Not Activated'}</span>
+                                        </span>
+                                    ) : (
+                                        <span className="px-3 py-1 rounded-full text-xs font-semibold bg-white/5 border border-white/10 text-[#A19F8D]">
+                                            {lang === 'id' ? 'Tidak Didukung Browser Ini' : 'Not Supported'}
+                                        </span>
+                                    )}
+                                </div>
+
+                                {/* Status Alerts */}
+                                {pushSuccessMsg && (
+                                    <div className="flex items-center gap-2 p-3.5 rounded-xl bg-emerald-950/50 border border-emerald-500/40 text-emerald-300 text-xs font-semibold animate-in fade-in duration-200">
+                                        <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
+                                        <span>{pushSuccessMsg}</span>
+                                    </div>
+                                )}
+
+                                {pushErrorMsg && (
+                                    <div className="flex items-center gap-2 p-3.5 rounded-xl bg-red-950/50 border border-red-500/40 text-red-300 text-xs font-semibold animate-in fade-in duration-200">
+                                        <AlertCircle className="h-4 w-4 shrink-0 text-red-400" />
+                                        <span>{pushErrorMsg}</span>
+                                    </div>
+                                )}
+
+                                <div className="space-y-4">
+                                    <p className="text-xs text-[#FAFAFA] leading-relaxed">
+                                        {lang === 'id'
+                                            ? 'Dengan mengaktifkan fitur ini, ponsel atau laptop Anda akan memunculkan banner notifikasi pop-up (disertai suara dan getar) begitu ada tiket baru yang dilaporkan atau ditugaskan ke departemen Anda, bahkan ketika layar sedang terkunci atau aplikasi tidak dibuka.'
+                                            : 'With this feature enabled, your phone or computer will display native pop-up alert banners with sound and vibration whenever issues are assigned or reported to your unit.'}
+                                    </p>
+
+                                    {/* iPhone iOS Note */}
+                                    <div className="p-3.5 rounded-xl bg-[#1C1B0E] border border-[#3B3929] text-[11px] text-[#A19F8D] space-y-1">
+                                        <p className="font-bold text-[#E3D1AA] flex items-center gap-1.5">
+                                            <span>📱 {lang === 'id' ? 'Petunjuk untuk Pengguna iPhone (iOS):' : 'Guide for iPhone (iOS) Users:'}</span>
+                                        </p>
+                                        <p>
+                                            {lang === 'id'
+                                                ? 'Buka website Telunas Fix di browser Safari, ketuk tombol Bagikan (Share ⎋) di bawah, lalu pilih "Tambahkan ke Layar Utama" (Add to Home Screen). Buka aplikasi dari layar utama Anda untuk mengaktifkan notifikasi pop-up sistem Apple.'
+                                                : 'Open Telunas Fix in Safari, tap Share (⎋), then choose "Add to Home Screen". Launch from your home screen to enable Apple web push notifications.'}
+                                        </p>
+                                    </div>
+
+                                    <div className="pt-2 flex items-center justify-between gap-3 flex-wrap">
+                                        {pushSubscribed ? (
+                                            <>
+                                                <button
+                                                    type="button"
+                                                    onClick={handleTogglePush}
+                                                    disabled={pushLoading}
+                                                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold text-red-400 hover:text-white bg-red-950/40 hover:bg-red-600/80 border border-red-900/60 hover:border-red-500 transition-all cursor-pointer shadow-md disabled:opacity-50"
+                                                >
+                                                    {pushLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Unlink className="h-4 w-4" />}
+                                                    <span>{lang === 'id' ? 'Matikan Notifikasi di Perangkat Ini' : 'Turn Off On This Device'}</span>
+                                                </button>
+
+                                                <button
+                                                    type="button"
+                                                    onClick={handleTestPush}
+                                                    disabled={pushTestLoading}
+                                                    className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold bg-[#C9AA71] hover:bg-[#b89960] text-[#1C1B0E] transition-all cursor-pointer shadow-lg disabled:opacity-60 ml-auto"
+                                                >
+                                                    {pushTestLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bell className="h-4 w-4" />}
+                                                    <span>{lang === 'id' ? 'Kirim Tes Pop-up ke HP / PC' : 'Send Test Pop-up Notification'}</span>
+                                                </button>
+                                            </>
+                                        ) : (
+                                            <button
+                                                type="button"
+                                                onClick={handleTogglePush}
+                                                disabled={pushLoading || !pushSupported}
+                                                className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold bg-[#C9AA71] hover:bg-[#b89960] text-[#1C1B0E] transition-all cursor-pointer shadow-xl disabled:opacity-50 ml-auto hover:scale-105 active:scale-95"
+                                            >
+                                                {pushLoading ? (
+                                                    <>
+                                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                                        <span>{lang === 'id' ? 'Menghubungkan...' : 'Connecting...'}</span>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <BellRing className="h-4 w-4" />
+                                                        <span>{lang === 'id' ? 'Aktifkan Notifikasi Pop-up (HP / PC)' : 'Enable Pop-up Notifications'}</span>
+                                                    </>
+                                                )}
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
                             </div>
 
                             {/* WhatsApp Bot System Management Card (Admin Only) */}

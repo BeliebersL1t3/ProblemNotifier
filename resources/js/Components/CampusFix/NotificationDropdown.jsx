@@ -1,8 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { Bell, Check, Clock, Ticket, AlertCircle, ExternalLink, CheckCheck, Crown, X } from 'lucide-react';
+import { Bell, Check, Clock, Ticket, AlertCircle, ExternalLink, CheckCheck, Crown, X, BellRing } from 'lucide-react';
 import { Link } from '@inertiajs/react';
 import { useLanguage } from '@/context/LanguageContext';
+import {
+    isPushNotificationSupported,
+    getCurrentPushSubscription,
+    subscribeToPushNotifications
+} from '@/services/webPushService';
 
 export default function NotificationDropdown({ isMobile = false }) {
     const { t } = useLanguage();
@@ -10,7 +15,34 @@ export default function NotificationDropdown({ isMobile = false }) {
     const [activeTab, setActiveTab] = useState('tickets'); // 'tickets' | 'issues'
     const [data, setData] = useState({ tickets: [], issues: [], unread_count: 0 });
     const [loading, setLoading] = useState(false);
+    const [pushSupported, setPushSupported] = useState(false);
+    const [pushSubscribed, setPushSubscribed] = useState(false);
+    const [pushLoading, setPushLoading] = useState(false);
     const dropdownRef = useRef(null);
+
+    useEffect(() => {
+        const checkPush = async () => {
+            const supported = isPushNotificationSupported();
+            setPushSupported(supported);
+            if (supported) {
+                const sub = await getCurrentPushSubscription();
+                setPushSubscribed(!!sub);
+            }
+        };
+        checkPush();
+    }, []);
+
+    const handleEnablePush = async () => {
+        setPushLoading(true);
+        try {
+            await subscribeToPushNotifications();
+            setPushSubscribed(true);
+        } catch (e) {
+            console.warn('Push registration error:', e);
+        } finally {
+            setPushLoading(false);
+        }
+    };
 
     const fetchNotifications = async () => {
         try {
@@ -221,6 +253,23 @@ export default function NotificationDropdown({ isMobile = false }) {
                                 )}
                             </button>
                         </div>
+
+                        {/* Push Notification Banner */}
+                        {pushSupported && !pushSubscribed && (
+                            <div className="bg-[#1C1B0E] border-b border-[#3B3929] px-3.5 py-2 flex items-center justify-between gap-2 text-[11px] animate-in fade-in duration-200">
+                                <div className="flex items-center gap-1.5 text-[#E3D1AA]">
+                                    <BellRing className="w-3.5 h-3.5 text-[#C9AA71] shrink-0" />
+                                    <span>Aktifkan pop-up di HP / PC</span>
+                                </div>
+                                <button
+                                    onClick={handleEnablePush}
+                                    disabled={pushLoading}
+                                    className="px-2.5 py-1 rounded-lg bg-[#C9AA71] text-[#1C1B0E] font-bold hover:bg-[#b89960] transition cursor-pointer text-[10px] shadow-sm disabled:opacity-60"
+                                >
+                                    {pushLoading ? '...' : 'Aktifkan'}
+                                </button>
+                            </div>
+                        )}
 
                         {/* Notification Items List - scrollable */}
                         <div className="overflow-y-auto flex-1 divide-y divide-[#3B3929]/50 text-xs overscroll-contain">

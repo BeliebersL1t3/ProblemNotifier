@@ -7,6 +7,7 @@ use App\Models\DashboardNotification;
 use App\Services\GoogleService;
 use App\Services\IssueSheetRepository;
 use App\Services\TicketNotificationService;
+use App\Services\WebPushService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
@@ -1267,6 +1268,20 @@ class IssueController extends Controller
                 'isConfidential' => $isConfidential,
             ]);
 
+            try {
+                WebPushService::notifyNewIssue([
+                    'id' => $id,
+                    'title' => $request->title,
+                    'location' => $request->location,
+                    'department' => $assignedDeptsStr !== 'ALL' ? trim(explode(',', $assignedDeptsStr)[0]) : ($originName ?: 'General'),
+                    'reporter' => $request->reporter,
+                    'priority' => $request->priority ?? 'low',
+                    'is_emergency' => $isEmergency,
+                ], auth()->id());
+            } catch (\Throwable $pe) {
+                Log::warning("WebPushService new issue notification failed: {$pe->getMessage()}");
+            }
+
             return response()->json([
                 'success' => true,
                 'message' => 'Issue reported successfully!',
@@ -1405,6 +1420,17 @@ class IssueController extends Controller
                 "Isu '{$currentRow[1]}' telah diklaim oleh {$request->taker}{$takerDeptStr}.",
                 $currentRow[0]
             );
+
+            try {
+                WebPushService::notifyIssueTaken([
+                    'id' => $currentRow[0],
+                    'title' => $currentRow[1],
+                    'location' => $currentRow[3],
+                    'department' => $originDept,
+                ], $request->taker . $takerDeptStr, auth()->id());
+            } catch (\Throwable $pe) {
+                Log::warning("WebPushService claim notification failed: {$pe->getMessage()}");
+            }
 
             return response()->json([
                 'success'   => true,
@@ -1548,6 +1574,17 @@ class IssueController extends Controller
                 "Isu '{$currentRow[1]}' telah diselesaikan oleh {$request->solver}.",
                 $currentRow[0]
             );
+
+            try {
+                WebPushService::notifyIssueSolved([
+                    'id' => $currentRow[0],
+                    'title' => $currentRow[1],
+                    'location' => $currentRow[3],
+                    'department' => $originDept,
+                ], $request->solver, auth()->id());
+            } catch (\Throwable $pe) {
+                Log::warning("WebPushService resolve notification failed: {$pe->getMessage()}");
+            }
 
             return response()->json([
                 'success' => true,

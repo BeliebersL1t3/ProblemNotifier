@@ -10,6 +10,14 @@ const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 import { SlashProvider } from '@/Components/CampusFix/SlashTransition';
 import { LanguageProvider } from '@/context/LanguageContext';
 import { ErrorBoundary } from '@/Components/CampusFix/ErrorBoundary';
+import { registerServiceWorker } from '@/services/webPushService';
+
+// Automatically register service worker for PWA & Web Push
+if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        registerServiceWorker();
+    });
+}
 
 createInertiaApp({
     title: (title) => `${title} - ${appName}`,

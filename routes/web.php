@@ -9,6 +9,7 @@ use App\Http\Controllers\IssueController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\OperationsController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\PushSubscriptionController;
 use App\Http\Controllers\ReportScheduleController;
 use App\Http\Controllers\UserController;
 use Illuminate\Foundation\Application;
@@ -168,6 +169,13 @@ Route::prefix('api')->group(function () {
         Route::post('/users/{id}/toggle-hod', [UserController::class, 'toggleHod']);
         Route::get('/user-audit-logs', [UserController::class, 'auditLogs']);
         Route::post('/user-audit-logs/sync-sheet', [UserController::class, 'syncAuditSheet']);
+
+        // Web Push Subscriptions & Mobile Pop-up Notifications
+        Route::get('/push-subscriptions/vapid-public-key', [PushSubscriptionController::class, 'getVapidPublicKey']);
+        Route::post('/push-subscriptions', [PushSubscriptionController::class, 'subscribe']);
+        Route::post('/push-subscriptions/delete', [PushSubscriptionController::class, 'unsubscribe']);
+        Route::post('/push-subscriptions/test', [PushSubscriptionController::class, 'sendTest']);
+        Route::get('/push-subscriptions/status', [PushSubscriptionController::class, 'status']);
     });
 });
 
