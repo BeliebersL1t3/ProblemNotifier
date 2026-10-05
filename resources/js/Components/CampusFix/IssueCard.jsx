@@ -527,6 +527,311 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
     }
 
     // =========================================================================
+    // DENSITY COMPACT — 2-LINE DENSE ROW VIEW WITH PHOTO
+    // =========================================================================
+    if (density === 'compact') {
+        const isEmergency = !isArchived && ((issue.category || '').toLowerCase() === 'emergency' || String(issue.id || '').startsWith('SOS'));
+        const isCritical = !isArchived && !isEmergency && issue.priority === 'critical';
+        const isSolved = issue.status === 'solved';
+        const isPending = issue.status === 'pending';
+        const isProgress = issue.status === 'progress';
+        const isOpen = issue.status === 'open';
+
+        const borderAccent = isEmergency
+            ? 'border-l-[4px] border-l-red-500'
+            : isCritical
+                ? 'border-l-[4px] border-l-amber-500'
+                : isArchived
+                    ? 'border-l-[4px] border-l-rose-500/80'
+                    : isSolved
+                        ? 'border-l-[4px] border-l-emerald-500'
+                        : isPending
+                            ? 'border-l-[4px] border-l-orange-500'
+                            : isProgress
+                                ? 'border-l-[4px] border-l-blue-500'
+                                : 'border-l-[4px] border-l-amber-400';
+
+        const bgStyle = isArchived
+            ? 'bg-stone-900/40 border-stone-800/80 hover:bg-stone-900/60'
+            : isEmergency
+                ? isSolved
+                    ? 'bg-red-950/15 border-red-500/40 hover:bg-red-950/25'
+                    : 'bg-gradient-to-r from-red-950/25 via-[#1E1D16] to-[#1E1D16] border-red-500/60 shadow-[0_0_12px_rgba(239,68,68,0.1)] hover:border-red-500'
+                : isCritical
+                    ? isSolved
+                        ? 'bg-amber-950/15 border-amber-500/40 hover:bg-amber-950/25'
+                        : 'bg-gradient-to-r from-amber-950/20 via-[#1E1D16] to-[#1E1D16] border-amber-500/50 shadow-[0_0_10px_rgba(245,158,11,0.06)] hover:border-amber-500'
+                    : isPending
+                        ? 'bg-orange-950/10 border-orange-500/30 hover:border-orange-500/50 hover:bg-[#232018]'
+                        : 'bg-surface border-border/80 hover:border-primary/50 hover:bg-[#222118]';
+
+        const primaryDept = assignedList[0] || issue.department || null;
+        const deptTheme = primaryDept ? getDepartmentTheme(primaryDept) : null;
+
+        return (
+            <div
+                id={`issue-card-${issue.id}`}
+                onClick={() => onSelect(issue)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        onSelect(issue);
+                    }
+                }}
+                className={cn(
+                    "group relative flex items-center justify-between gap-3 px-3 py-2 sm:px-3.5 sm:py-2.5 rounded-xl border text-left transition-all duration-150 cursor-pointer shadow-xs select-none",
+                    borderAccent,
+                    bgStyle,
+                    isHighlighted && "ring-3 ring-[#C9AA71] shadow-[0_0_25px_rgba(201,170,113,0.85)] z-20 animate-pulse scale-[1.01]"
+                )}
+            >
+                {/* Left Visual: 56px Thumbnail */}
+                <div className="relative w-14 h-14 sm:w-16 sm:h-16 rounded-lg overflow-hidden bg-black/40 border border-[#3B3929] shrink-0 group/thumb shadow-inner">
+                    <img
+                        src={activeImage}
+                        alt={issue.title}
+                        className="w-full h-full object-cover transition-transform duration-300 group-hover/thumb:scale-105"
+                        loading="lazy"
+                        onError={(e) => {
+                            e.target.onerror = null;
+                            e.target.src = FALLBACK_IMAGE;
+                        }}
+                    />
+                    <button
+                        type="button"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setPreviewImage(activeImage);
+                        }}
+                        className="absolute bottom-1 right-1 p-0.5 rounded bg-black/75 hover:bg-black text-white/90 hover:text-white transition-all shadow-md z-10 cursor-pointer"
+                        title={lang === 'id' ? 'Perbesar Foto' : 'Zoom Photo'}
+                    >
+                        <ZoomIn className="w-3 h-3" />
+                    </button>
+                    {isEmergency && (
+                        <span className="absolute top-1 left-1 flex h-2 w-2">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500 ring-1 ring-white"></span>
+                        </span>
+                    )}
+                    {isArchived && (
+                        <span className="absolute top-1 left-1 px-1 py-0.2 rounded text-[7px] font-bold bg-rose-950/80 text-rose-300 border border-rose-500/40">
+                            📦
+                        </span>
+                    )}
+                </div>
+
+                {/* Center Content: Two Dense Lines */}
+                <div className="flex-1 min-w-0 flex flex-col justify-center gap-1">
+                    {/* Line 1: ID, Status, Priority/SOS, Title, Location */}
+                    <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap min-w-0">
+                        <span className="font-mono text-[10px] sm:text-[11px] font-bold text-muted-foreground group-hover:text-foreground bg-black/30 border border-border/50 px-1.5 py-0.2 rounded shrink-0">
+                            {issue.id}
+                        </span>
+                        <div className="shrink-0">
+                            <StatusBadge status={isArchived ? 'archived' : issue.status} />
+                        </div>
+                        {isEmergency && (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[9px] font-black uppercase tracking-wider bg-red-500/20 text-red-400 border border-red-500/40 shrink-0">
+                                <span className="h-1 w-1 rounded-full bg-red-400 animate-pulse" />
+                                SOS
+                            </span>
+                        )}
+                        {isCritical && (
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/40 shrink-0">
+                                <AlertTriangle className="w-2.5 h-2.5 text-amber-400" />
+                                {lang === 'id' ? 'KRITIS' : 'CRIT'}
+                            </span>
+                        )}
+                        {isCritical && issue.deadline && !isSolved && (
+                            <div onClick={(e) => e.stopPropagation()} className="shrink-0 scale-90 origin-left">
+                                <CriticalTimer deadline={issue.deadline} reportedAt={issue.reportedAt} />
+                            </div>
+                        )}
+                        {!isEmergency && !isCritical && issue.priority === 'high' && (
+                            <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-bold uppercase tracking-wider bg-orange-500/15 text-orange-400 border border-orange-500/30 shrink-0">
+                                {lang === 'id' ? 'TINGGI' : 'HIGH'}
+                            </span>
+                        )}
+                        <h4 className="text-xs sm:text-sm font-bold text-foreground group-hover:text-primary transition-colors truncate min-w-0 flex-1">
+                            {issue.title}
+                        </h4>
+                        {issue.location && (
+                            <span className="hidden sm:inline-flex items-center gap-1 text-[10px] sm:text-[11px] text-muted-foreground bg-black/20 border border-border/40 px-1.5 py-0.2 rounded shrink-0">
+                                <MapPin className="w-2.5 h-2.5 text-[#C9AA71] shrink-0" />
+                                <span className="truncate max-w-[120px]">{issue.location}</span>
+                            </span>
+                        )}
+                    </div>
+
+                    {/* Line 2: Dept, Category, Reporter, Assignee/Status, Delay Badge */}
+                    <div className="flex items-center gap-1.5 sm:gap-2.5 text-[10px] sm:text-[11px] text-muted-foreground flex-wrap min-w-0">
+                        {/* Primary Assigned Dept Pill */}
+                        {primaryDept && deptTheme && (
+                            <span
+                                style={{
+                                    backgroundColor: `${deptTheme.bg}22`,
+                                    borderColor: `${deptTheme.bg}70`,
+                                    color: deptTheme.bg === '#212121' ? '#FFFFFF' : (deptTheme.text === '#14130B' ? '#FBBF24' : deptTheme.bg)
+                                }}
+                                className="shrink-0 rounded px-1.5 py-0.2 font-mono text-[9px] font-semibold border flex items-center gap-0.5"
+                                title={`Assigned: ${primaryDept}`}
+                            >
+                                <Target className="w-2 h-2 shrink-0" />
+                                <span>{primaryDept}</span>
+                            </span>
+                        )}
+                        {issue.category && (
+                            <span className="hidden xs:inline-block px-1.5 py-0.2 rounded text-[9px] font-medium bg-[#2A281E] text-stone-300 border border-[#3B3929] shrink-0">
+                                {issue.category}
+                            </span>
+                        )}
+                        {/* Reporter & Date */}
+                        <span className="truncate text-muted-foreground">
+                            {issue.reporter} ({formatDate(issue.reportedAt)})
+                        </span>
+                        <span>•</span>
+                        {/* Current Staff / Workflow Status */}
+                        {isProgress && issue.taker ? (
+                            <span className="flex items-center gap-1 text-blue-400 truncate">
+                                <span>🔧</span>
+                                <strong className="text-blue-300 truncate">{issue.taker}</strong>
+                                {isClaimantInactive && (
+                                    <span className="text-[8px] font-bold px-1 py-0.2 rounded bg-amber-500/20 text-amber-300 shrink-0">
+                                        ⚠️
+                                    </span>
+                                )}
+                            </span>
+                        ) : isPending && issue.pendingBy ? (
+                            <span className="flex items-center gap-1 text-orange-400 truncate">
+                                <span>⏳</span>
+                                <strong className="text-orange-300 truncate">{issue.pendingBy}</strong>
+                            </span>
+                        ) : isSolved && issue.solver ? (
+                            <span className="flex items-center gap-1 text-emerald-400 truncate">
+                                <span>✅</span>
+                                <strong className="text-emerald-300 truncate">{issue.solver}</strong>
+                            </span>
+                        ) : isOpen ? (
+                            <span className="text-amber-400/90 font-medium shrink-0">
+                                {lang === 'id' ? 'Belum Diambil' : 'Unclaimed'}
+                            </span>
+                        ) : null}
+
+                        {/* Clickable Delay history pill if applicable */}
+                        {pendingTimelineList.length > 0 && (
+                            <button
+                                type="button"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedDelay(pendingTimelineList[pendingTimelineList.length - 1]);
+                                }}
+                                className="flex items-center gap-0.5 text-[9px] text-orange-400 bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/30 px-1.5 py-0.2 rounded cursor-pointer shrink-0 transition-colors"
+                                title={lang === 'id' ? 'Lihat riwayat delay' : 'View delay history'}
+                            >
+                                <span>⏱️</span>
+                                <span>{pendingTimelineList.length}</span>
+                            </button>
+                        )}
+                        {issue.isLateUpload && (
+                            <span className="text-amber-400 font-mono text-[9px] shrink-0" title="Late send">
+                                +{issue.lateDuration || '>5m'}
+                            </span>
+                        )}
+                        {needsReassignment && (
+                            <span className="text-[9px] text-sky-400 shrink-0 cursor-help" title={lang === 'id' ? 'Perlu Reassign' : 'Reassign Needed'}>
+                                🔄
+                            </span>
+                        )}
+                        {issue.isConfidential && (
+                            <span className="text-[9px] text-rose-400 shrink-0 cursor-help" title={lang === 'id' ? 'Rahasia' : 'Confidential'}>
+                                🔒
+                            </span>
+                        )}
+                        {isPastContribution && (
+                            <span className="text-[9px] text-amber-300 shrink-0 cursor-help" title={pastContribTooltip}>
+                                📁
+                            </span>
+                        )}
+                    </div>
+                </div>
+
+                {/* Right Actions: Compact Quick Action + Chevron */}
+                <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                    {isOpen ? (
+                        <button
+                            type="button"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onSelect(issue);
+                            }}
+                            className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-[#C9AA71] hover:bg-[#b8985f] text-[#1C1B0E] shadow-xs flex items-center gap-1 transition-all cursor-pointer whitespace-nowrap active:scale-95"
+                        >
+                            <ArrowRightLeft className="w-3 h-3" />
+                            <span>{lang === 'id' ? 'Ambil' : 'Take'}</span>
+                        </button>
+                    ) : isProgress || isPending ? (
+                        <button
+                            type="button"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onSelect(issue);
+                            }}
+                            className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-blue-600 hover:bg-blue-500 text-white shadow-xs flex items-center gap-1 transition-all cursor-pointer whitespace-nowrap active:scale-95"
+                        >
+                            <CheckCircle2 className="w-3 h-3" />
+                            <span>{lang === 'id' ? 'Selesai' : 'Resolve'}</span>
+                        </button>
+                    ) : (
+                        <button
+                            type="button"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onSelect(issue);
+                            }}
+                            className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-[#2A281E] hover:bg-[#3B3929] text-[#C9AA71] hover:text-[#FAFAFA] border border-[#3B3929] shadow-xs flex items-center gap-1 transition-all cursor-pointer whitespace-nowrap active:scale-95"
+                        >
+                            <Eye className="w-3 h-3" />
+                            <span>Detail</span>
+                        </button>
+                    )}
+
+                    {canDelete && onDelete && !isArchived && (
+                        <button
+                            type="button"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onDelete(issue);
+                            }}
+                            className="p-1 rounded-md text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
+                            title={lang === 'id' ? 'Hapus Isu' : 'Delete Issue'}
+                        >
+                            <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                    )}
+
+                    <ChevronRight className="hidden sm:block w-4 h-4 text-muted-foreground group-hover:text-primary transition-transform group-hover:translate-x-0.5" />
+                </div>
+
+                <DelayDetailModal 
+                    open={!!selectedDelay} 
+                    onOpenChange={(open) => !open && setSelectedDelay(null)} 
+                    delayItem={selectedDelay} 
+                />
+                <ImageLightboxModal
+                    open={!!previewImage}
+                    onClose={() => setPreviewImage(null)}
+                    src={previewImage}
+                    title={issue.title}
+                    subtitle="Foto Laporan (Full Resolution Preview)"
+                />
+            </div>
+        );
+    }
+
+    // =========================================================================
     // DENSITY 10 — MICRO MATRIX VIEW
     // =========================================================================
     if (density === '10') {

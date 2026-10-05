@@ -1,6 +1,6 @@
 import { Head } from '@inertiajs/react';
 import { useMemo, useState, useEffect, useRef } from 'react';
-import { Loader2, RefreshCw, SearchX, LayoutGrid, Grid3X3, Layers, List, Search, MapPin, Trash2, AlertTriangle, CalendarPlus, Globe, Target, FileText, Megaphone, Lock, ArrowRightLeft } from 'lucide-react';
+import { Loader2, RefreshCw, SearchX, LayoutGrid, Grid3X3, Layers, List, Rows3, Search, MapPin, Trash2, AlertTriangle, CalendarPlus, Globe, Target, FileText, Megaphone, Lock, ArrowRightLeft } from 'lucide-react';
 import { getDepartmentTheme } from '@/constants/departments';
 
 import { useLanguage } from '@/context/LanguageContext';
@@ -1011,8 +1011,8 @@ function DashboardInner() {
                             )}
                         </div>
 
-                        {/* View Density Selector (List | 3 | 5 | 10) */}
-                        <div className="flex items-center rounded-2xl bg-[#2A281E] p-1 sm:p-1.5 border border-[#3B3929] text-xs font-bold shrink-0 self-end lg:self-center shadow-md gap-0.5 sm:gap-1" title="View Options (List, 3, 5, 10 columns)">
+                        {/* View Density Selector (List | Compact | 3 | 5 | 10) */}
+                        <div className="flex items-center rounded-2xl bg-[#2A281E] p-1 sm:p-1.5 border border-[#3B3929] text-xs font-bold shrink-0 self-end lg:self-center shadow-md gap-0.5 sm:gap-1" title="View Options (List, Compact, 3, 5, 10 columns)">
                             <button
                                 type="button"
                                 onClick={() => handleDensityChange('list')}
@@ -1025,6 +1025,19 @@ function DashboardInner() {
                             >
                                 <List className="h-3.5 w-3.5" />
                                 <span>List</span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => handleDensityChange('compact')}
+                                className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl transition-all flex items-center gap-1 sm:gap-1.5 cursor-pointer font-bold ${
+                                    viewDensity === 'compact'
+                                        ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-sm font-extrabold'
+                                        : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
+                                }`}
+                                title="Compact List — 2-Line Row View with Photo"
+                            >
+                                <Rows3 className="h-3.5 w-3.5" />
+                                <span>Compact</span>
                             </button>
                             <button
                                 type="button"
@@ -1127,13 +1140,15 @@ function DashboardInner() {
                     </div>
                 ) : (
                     <div className={
-                        viewDensity === 'list'
-                            ? 'flex flex-col gap-3 w-full'
-                            : viewDensity === '10'
-                                ? 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-10 gap-2'
-                                : viewDensity === '5'
-                                    ? 'grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3.5'
-                                    : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5'
+                        viewDensity === 'compact'
+                            ? 'flex flex-col gap-2 w-full'
+                            : viewDensity === 'list'
+                                ? 'flex flex-col gap-3 w-full'
+                                : viewDensity === '10'
+                                    ? 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-10 gap-2'
+                                    : viewDensity === '5'
+                                        ? 'grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3.5'
+                                        : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5'
                     }>
                         {visible.map((issue) => (
                             <IssueCard
