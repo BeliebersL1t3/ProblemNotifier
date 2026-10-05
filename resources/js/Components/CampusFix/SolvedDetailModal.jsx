@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { CalendarClock, CheckCircle2, MapPin, User, Loader2, ZoomIn, Target, FileText, Megaphone } from 'lucide-react';
 import {
     Dialog,
