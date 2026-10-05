@@ -169,73 +169,52 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
                     }
                 }}
                 className={cn(
-                    "group relative flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3.5 sm:gap-4 p-3 sm:p-4 rounded-xl border text-left transition-all duration-200 cursor-pointer shadow-sm select-none",
+                    "group relative flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3.5 sm:gap-4 p-3.5 sm:p-4 rounded-xl border text-left transition-all duration-200 cursor-pointer shadow-sm select-none overflow-hidden pl-16 sm:pl-24 md:pl-28",
                     borderAccent,
                     bgStyle,
                     isHighlighted && "ring-4 ring-[#C9AA71] shadow-[0_0_35px_rgba(201,170,113,0.85)] z-20 animate-pulse scale-[1.01]"
                 )}
             >
-                {/* Left Visual & Identity: Image Thumbnail */}
-                <div className="flex items-center sm:items-start md:items-center gap-3.5 shrink-0">
-                    <div className="relative w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 rounded-xl overflow-hidden bg-black/40 border border-[#3B3929] shrink-0 group/thumb shadow-inner">
-                        <img
-                            src={activeImage}
-                            alt={issue.title}
-                            className="w-full h-full object-cover transition-transform duration-300 group-hover/thumb:scale-105"
-                            loading="lazy"
-                            onError={(e) => {
-                                e.target.onerror = null;
-                                e.target.src = FALLBACK_IMAGE;
-                            }}
-                        />
-                        <button
-                            type="button"
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                setPreviewImage(activeImage);
-                            }}
-                            className="absolute bottom-1.5 right-1.5 p-1 rounded-md bg-black/75 hover:bg-black text-white/90 hover:text-white transition-all shadow-md z-10 cursor-pointer"
-                            title={lang === 'id' ? 'Perbesar Foto' : 'Zoom Photo'}
-                        >
-                            <ZoomIn className="w-3.5 h-3.5" />
-                        </button>
-                        {isEmergency && (
-                            <span className="absolute top-1.5 left-1.5 flex h-2.5 w-2.5">
-                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500 ring-1 ring-white"></span>
-                            </span>
-                        )}
-                        {isArchived && (
-                            <span className="absolute top-1.5 left-1.5 px-1 py-0.2 rounded text-[8px] font-bold bg-rose-950/80 text-rose-300 border border-rose-500/40">
-                                📦
-                            </span>
-                        )}
+                {/* Left Flush Blended Image Layer */}
+                <div 
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        setPreviewImage(activeImage);
+                    }}
+                    className="absolute left-0 top-0 bottom-0 w-36 sm:w-52 md:w-64 overflow-hidden pointer-events-auto cursor-pointer group/blend z-0 select-none"
+                    title={lang === 'id' ? 'Klik untuk perbesar foto' : 'Click to zoom photo'}
+                >
+                    <img
+                        src={activeImage}
+                        alt={issue.title}
+                        className="w-full h-full object-cover transition-transform duration-500 ease-out group-hover/blend:scale-110"
+                        loading="lazy"
+                        onError={(e) => {
+                            e.target.onerror = null;
+                            e.target.src = FALLBACK_IMAGE;
+                        }}
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-r from-black/10 via-[#181711]/75 to-[#181711] pointer-events-none" />
+                    <div className="absolute left-3 top-1/2 -translate-y-1/2 p-1.5 rounded-lg bg-black/75 text-white/90 opacity-0 group-hover/blend:opacity-100 transition-all duration-200 shadow-md backdrop-blur-xs scale-90 group-hover/blend:scale-100">
+                        <ZoomIn className="w-4 h-4" />
                     </div>
-
-                    {/* Mobile-only compact header displayed right beside thumbnail on very small screens */}
-                    <div className="flex flex-col gap-1 md:hidden min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="font-mono text-xs font-bold text-muted-foreground bg-black/30 border border-border/50 px-1.5 py-0.5 rounded">
-                                {issue.id}
-                            </span>
-                            <StatusBadge status={isArchived ? 'archived' : issue.status} />
-                        </div>
-                        <h4 className="text-sm font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1">
-                            {issue.title}
-                        </h4>
-                        {issue.location && (
-                            <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground truncate">
-                                <MapPin className="w-3 h-3 text-[#C9AA71] shrink-0" />
-                                <span className="truncate">{issue.location}</span>
-                            </span>
-                        )}
-                    </div>
+                    {isEmergency && (
+                        <span className="absolute top-2 left-2 flex h-2.5 w-2.5 z-10">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500 ring-1 ring-white"></span>
+                        </span>
+                    )}
+                    {isArchived && (
+                        <span className="absolute top-2 left-2 px-1 py-0.2 rounded text-[8px] font-bold bg-rose-950/80 text-rose-300 border border-rose-500/40 z-10">
+                            📦
+                        </span>
+                    )}
                 </div>
 
                 {/* Center / Body: Detailed Operational Metadata */}
-                <div className="flex-1 min-w-0 flex flex-col gap-1.5">
-                    {/* Top Row: ID, Badges, Category, Priority, Alarms (hidden on mobile since shown beside thumb, visible on md+) */}
-                    <div className="hidden md:flex items-center gap-2 flex-wrap">
+                <div className="flex-1 min-w-0 flex flex-col gap-1.5 relative z-10">
+                    {/* Top Row: ID, Badges, Category, Priority, Alarms */}
+                    <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-mono text-xs font-bold text-muted-foreground group-hover:text-foreground bg-black/30 border border-border/50 px-2 py-0.5 rounded-md">
                             {issue.id}
                         </span>
@@ -287,8 +266,8 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
                         )}
                     </div>
 
-                    {/* Desktop Title & Location Row */}
-                    <div className="hidden md:flex items-center gap-2 flex-wrap">
+                    {/* Title & Location Row */}
+                    <div className="flex items-center gap-2 flex-wrap">
                         <h4 className="text-base font-bold text-foreground group-hover:text-primary transition-colors">
                             {issue.title}
                         </h4>
@@ -451,7 +430,7 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
                 </div>
 
                 {/* Right Action Section: Contextual Quick Actions */}
-                <div className="flex sm:flex-row md:flex-col items-center md:items-end justify-between md:justify-center gap-2 shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-border/40">
+                <div className="flex sm:flex-row md:flex-col items-center md:items-end justify-between md:justify-center gap-2 shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-border/40 relative z-10">
                     <div className="flex items-center gap-2">
                         {isOpen ? (
                             <button
@@ -583,50 +562,50 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
                     }
                 }}
                 className={cn(
-                    "group relative flex items-center justify-between gap-3 px-3 py-2 sm:px-3.5 sm:py-2.5 rounded-xl border text-left transition-all duration-150 cursor-pointer shadow-xs select-none",
+                    "group relative flex items-center justify-between gap-3 px-3 py-2 sm:px-3.5 sm:py-2.5 rounded-xl border text-left transition-all duration-150 cursor-pointer shadow-xs select-none overflow-hidden pl-16 sm:pl-20 md:pl-24",
                     borderAccent,
                     bgStyle,
                     isHighlighted && "ring-3 ring-[#C9AA71] shadow-[0_0_25px_rgba(201,170,113,0.85)] z-20 animate-pulse scale-[1.01]"
                 )}
             >
-                {/* Left Visual: 56px Thumbnail */}
-                <div className="relative w-14 h-14 sm:w-16 sm:h-16 rounded-lg overflow-hidden bg-black/40 border border-[#3B3929] shrink-0 group/thumb shadow-inner">
+                {/* Left Flush Blended Image Layer */}
+                <div 
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        setPreviewImage(activeImage);
+                    }}
+                    className="absolute left-0 top-0 bottom-0 w-28 sm:w-40 md:w-52 overflow-hidden pointer-events-auto cursor-pointer group/blend z-0 select-none"
+                    title={lang === 'id' ? 'Klik untuk perbesar foto' : 'Click to zoom photo'}
+                >
                     <img
                         src={activeImage}
                         alt={issue.title}
-                        className="w-full h-full object-cover transition-transform duration-300 group-hover/thumb:scale-105"
+                        className="w-full h-full object-cover transition-transform duration-500 ease-out group-hover/blend:scale-110"
                         loading="lazy"
                         onError={(e) => {
                             e.target.onerror = null;
                             e.target.src = FALLBACK_IMAGE;
                         }}
                     />
-                    <button
-                        type="button"
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            setPreviewImage(activeImage);
-                        }}
-                        className="absolute bottom-1 right-1 p-0.5 rounded bg-black/75 hover:bg-black text-white/90 hover:text-white transition-all shadow-md z-10 cursor-pointer"
-                        title={lang === 'id' ? 'Perbesar Foto' : 'Zoom Photo'}
-                    >
-                        <ZoomIn className="w-3 h-3" />
-                    </button>
+                    <div className="absolute inset-0 bg-gradient-to-r from-black/10 via-[#181711]/75 to-[#181711] pointer-events-none" />
+                    <div className="absolute left-2.5 top-1/2 -translate-y-1/2 p-1 rounded-md bg-black/75 text-white/90 opacity-0 group-hover/blend:opacity-100 transition-all duration-200 shadow-md backdrop-blur-xs scale-90 group-hover/blend:scale-100">
+                        <ZoomIn className="w-3.5 h-3.5" />
+                    </div>
                     {isEmergency && (
-                        <span className="absolute top-1 left-1 flex h-2 w-2">
+                        <span className="absolute top-1.5 left-1.5 flex h-2 w-2 z-10">
                             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
                             <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500 ring-1 ring-white"></span>
                         </span>
                     )}
                     {isArchived && (
-                        <span className="absolute top-1 left-1 px-1 py-0.2 rounded text-[7px] font-bold bg-rose-950/80 text-rose-300 border border-rose-500/40">
+                        <span className="absolute top-1.5 left-1.5 px-1 py-0.2 rounded text-[7px] font-bold bg-rose-950/80 text-rose-300 border border-rose-500/40 z-10">
                             📦
                         </span>
                     )}
                 </div>
 
                 {/* Center Content: Two Dense Lines */}
-                <div className="flex-1 min-w-0 flex flex-col justify-center gap-1">
+                <div className="flex-1 min-w-0 flex flex-col justify-center gap-1 relative z-10">
                     {/* Line 1: ID, Status, Priority/SOS, Title, Location */}
                     <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap min-w-0">
                         <span className="font-mono text-[10px] sm:text-[11px] font-bold text-muted-foreground group-hover:text-foreground bg-black/30 border border-border/50 px-1.5 py-0.2 rounded shrink-0">
@@ -761,7 +740,7 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
                 </div>
 
                 {/* Right Actions: Compact Quick Action + Chevron */}
-                <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 relative z-10">
                     {isOpen ? (
                         <button
                             type="button"
