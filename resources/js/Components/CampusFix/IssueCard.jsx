@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { MapPin, Building, ZoomIn, Edit3, Trash2, RotateCcw, Clock, ArrowRightLeft, Target, FileText, Megaphone, Lock } from 'lucide-react';
+import { MapPin, Building, ZoomIn, Edit3, Trash2, RotateCcw, Clock, ArrowRightLeft, Target, FileText, Megaphone, Lock, ChevronRight, Eye, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { StatusBadge } from './StatusBadge';
 import { cn } from '@/lib/utils';
 import DelayDetailModal from './DelayDetailModal';
@@ -115,6 +115,416 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
         const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
         return diffDays >= 7 ? diffDays : 0;
     }, [issue?.status, pendingTimelineList, issue?.takenAt, issue?.reportedAt]);
+
+    // =========================================================================
+    // DENSITY LIST — DETAILED OPERATIONAL FEED ROW
+    // =========================================================================
+    if (density === 'list') {
+        const isEmergency = !isArchived && ((issue.category || '').toLowerCase() === 'emergency' || String(issue.id || '').startsWith('SOS'));
+        const isCritical = !isArchived && !isEmergency && issue.priority === 'critical';
+        const isSolved = issue.status === 'solved';
+        const isPending = issue.status === 'pending';
+        const isProgress = issue.status === 'progress';
+        const isOpen = issue.status === 'open';
+
+        const borderAccent = isEmergency
+            ? 'border-l-[5px] border-l-red-500'
+            : isCritical
+                ? 'border-l-[5px] border-l-amber-500'
+                : isArchived
+                    ? 'border-l-[5px] border-l-rose-500/80'
+                    : isSolved
+                        ? 'border-l-[5px] border-l-emerald-500'
+                        : isPending
+                            ? 'border-l-[5px] border-l-orange-500'
+                            : isProgress
+                                ? 'border-l-[5px] border-l-blue-500'
+                                : 'border-l-[5px] border-l-amber-400';
+
+        const bgStyle = isArchived
+            ? 'bg-stone-900/40 border-stone-800/80 hover:bg-stone-900/60'
+            : isEmergency
+                ? isSolved
+                    ? 'bg-red-950/15 border-red-500/40 hover:bg-red-950/25'
+                    : 'bg-gradient-to-r from-red-950/30 via-[#1E1D16] to-[#1E1D16] border-red-500/60 shadow-[0_0_18px_rgba(239,68,68,0.12)] hover:border-red-500'
+                : isCritical
+                    ? isSolved
+                        ? 'bg-amber-950/15 border-amber-500/40 hover:bg-amber-950/25'
+                        : 'bg-gradient-to-r from-amber-950/25 via-[#1E1D16] to-[#1E1D16] border-amber-500/50 shadow-[0_0_14px_rgba(245,158,11,0.08)] hover:border-amber-500'
+                    : isPending
+                        ? 'bg-orange-950/10 border-orange-500/30 hover:border-orange-500/50 hover:bg-[#232018]'
+                        : 'bg-surface border-border/80 hover:border-primary/50 hover:bg-[#222118]';
+
+        return (
+            <div
+                id={`issue-card-${issue.id}`}
+                onClick={() => onSelect(issue)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        onSelect(issue);
+                    }
+                }}
+                className={cn(
+                    "group relative flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3.5 sm:gap-4 p-3 sm:p-4 rounded-xl border text-left transition-all duration-200 cursor-pointer shadow-sm select-none",
+                    borderAccent,
+                    bgStyle,
+                    isHighlighted && "ring-4 ring-[#C9AA71] shadow-[0_0_35px_rgba(201,170,113,0.85)] z-20 animate-pulse scale-[1.01]"
+                )}
+            >
+                {/* Left Visual & Identity: Image Thumbnail */}
+                <div className="flex items-center sm:items-start md:items-center gap-3.5 shrink-0">
+                    <div className="relative w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 rounded-xl overflow-hidden bg-black/40 border border-[#3B3929] shrink-0 group/thumb shadow-inner">
+                        <img
+                            src={activeImage}
+                            alt={issue.title}
+                            className="w-full h-full object-cover transition-transform duration-300 group-hover/thumb:scale-105"
+                            loading="lazy"
+                            onError={(e) => {
+                                e.target.onerror = null;
+                                e.target.src = FALLBACK_IMAGE;
+                            }}
+                        />
+                        <button
+                            type="button"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setPreviewImage(activeImage);
+                            }}
+                            className="absolute bottom-1.5 right-1.5 p-1 rounded-md bg-black/75 hover:bg-black text-white/90 hover:text-white transition-all shadow-md z-10 cursor-pointer"
+                            title={lang === 'id' ? 'Perbesar Foto' : 'Zoom Photo'}
+                        >
+                            <ZoomIn className="w-3.5 h-3.5" />
+                        </button>
+                        {isEmergency && (
+                            <span className="absolute top-1.5 left-1.5 flex h-2.5 w-2.5">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500 ring-1 ring-white"></span>
+                            </span>
+                        )}
+                        {isArchived && (
+                            <span className="absolute top-1.5 left-1.5 px-1 py-0.2 rounded text-[8px] font-bold bg-rose-950/80 text-rose-300 border border-rose-500/40">
+                                📦
+                            </span>
+                        )}
+                    </div>
+
+                    {/* Mobile-only compact header displayed right beside thumbnail on very small screens */}
+                    <div className="flex flex-col gap-1 md:hidden min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-mono text-xs font-bold text-muted-foreground bg-black/30 border border-border/50 px-1.5 py-0.5 rounded">
+                                {issue.id}
+                            </span>
+                            <StatusBadge status={isArchived ? 'archived' : issue.status} />
+                        </div>
+                        <h4 className="text-sm font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1">
+                            {issue.title}
+                        </h4>
+                        {issue.location && (
+                            <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground truncate">
+                                <MapPin className="w-3 h-3 text-[#C9AA71] shrink-0" />
+                                <span className="truncate">{issue.location}</span>
+                            </span>
+                        )}
+                    </div>
+                </div>
+
+                {/* Center / Body: Detailed Operational Metadata */}
+                <div className="flex-1 min-w-0 flex flex-col gap-1.5">
+                    {/* Top Row: ID, Badges, Category, Priority, Alarms (hidden on mobile since shown beside thumb, visible on md+) */}
+                    <div className="hidden md:flex items-center gap-2 flex-wrap">
+                        <span className="font-mono text-xs font-bold text-muted-foreground group-hover:text-foreground bg-black/30 border border-border/50 px-2 py-0.5 rounded-md">
+                            {issue.id}
+                        </span>
+                        <StatusBadge status={isArchived ? 'archived' : issue.status} />
+                        
+                        {isEmergency && (
+                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-red-500/20 text-red-400 border border-red-500/40 shadow-[0_0_8px_rgba(239,68,68,0.25)]">
+                                <span className="h-1.5 w-1.5 rounded-full bg-red-400 animate-pulse inline-block" />
+                                {lang === 'id' ? 'DARURAT (SOS)' : 'SOS EMERGENCY'}
+                            </span>
+                        )}
+                        {isCritical && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-[0_0_8px_rgba(245,158,11,0.2)]">
+                                <AlertTriangle className="w-3 h-3 text-amber-400" />
+                                {lang === 'id' ? 'KRITIS' : 'CRITICAL'}
+                            </span>
+                        )}
+                        {isCritical && issue.deadline && !isSolved && (
+                            <div onClick={(e) => e.stopPropagation()}>
+                                <CriticalTimer deadline={issue.deadline} reportedAt={issue.reportedAt} />
+                            </div>
+                        )}
+                        {!isEmergency && !isCritical && issue.priority === 'high' && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-orange-500/15 text-orange-400 border border-orange-500/30">
+                                {lang === 'id' ? 'TINGGI' : 'HIGH'}
+                            </span>
+                        )}
+                        {issue.category && (
+                            <span className="px-2 py-0.5 rounded-md text-[10px] font-medium bg-[#2A281E] text-stone-300 border border-[#3B3929]">
+                                {issue.category}
+                            </span>
+                        )}
+                        {issue.isConfidential && (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-rose-500/15 text-rose-300 border border-rose-500/30" title={lang === 'id' ? 'Isu Rahasia (Confidential)' : 'Confidential Issue'}>
+                                <Lock className="w-2.5 h-2.5" />
+                                {lang === 'id' ? 'Rahasia' : 'Confidential'}
+                            </span>
+                        )}
+                        {needsReassignment && (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-sky-500/15 text-sky-300 border border-sky-500/30" title={lang === 'id' ? `Staf (${issue.taker}) pindah ke ${issue.takerCurrentDept || 'dept lain'}` : `Staff (${issue.taker}) transferred to ${issue.takerCurrentDept || 'another dept'}`}>
+                                <ArrowRightLeft className="w-2.5 h-2.5" />
+                                {lang === 'id' ? 'Perlu Reassign' : 'Reassign Needed'}
+                            </span>
+                        )}
+                        {isPastContribution && (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30" title={pastContribTooltip}>
+                                📁 {lang === 'id' ? 'Riwayat Mantan Dept' : 'Former Dept History'}
+                            </span>
+                        )}
+                    </div>
+
+                    {/* Desktop Title & Location Row */}
+                    <div className="hidden md:flex items-center gap-2 flex-wrap">
+                        <h4 className="text-base font-bold text-foreground group-hover:text-primary transition-colors">
+                            {issue.title}
+                        </h4>
+                        {issue.location && (
+                            <span className="inline-flex items-center gap-1 text-xs font-semibold text-muted-foreground bg-black/20 border border-border/40 px-2 py-0.5 rounded-md shrink-0">
+                                <MapPin className="w-3 h-3 text-[#C9AA71] shrink-0" />
+                                <span>{issue.location}</span>
+                            </span>
+                        )}
+                    </div>
+
+                    {/* Department Routing Pills */}
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                        {assignedList.map((dept, idx) => {
+                            const theme = getDepartmentTheme(dept);
+                            const isMine = isDeptUser && userDept && normalizeDepartment(dept) === userDept;
+                            return (
+                                <span
+                                    key={'assigned-' + idx}
+                                    style={{
+                                        backgroundColor: isMine ? 'rgba(245, 158, 11, 0.25)' : (theme.bg === '#212121' ? 'rgba(255, 255, 255, 0.12)' : `${theme.bg}22`),
+                                        borderColor: isMine ? '#F59E0B' : (theme.bg === '#212121' ? 'rgba(255, 255, 255, 0.35)' : `${theme.bg}70`),
+                                        color: theme.bg === '#212121' ? '#FFFFFF' : (theme.text === '#14130B' ? '#FBBF24' : theme.bg)
+                                    }}
+                                    className={`shrink-0 rounded px-1.5 py-0.5 font-mono text-[10px] font-semibold border flex items-center gap-1 ${
+                                        isMine ? 'ring-1.5 ring-amber-400 bg-amber-500/20 font-bold shadow-xs' : ''
+                                    }`}
+                                    title={`Assigned Department${isMine ? ' (Your Department)' : ''}`}
+                                >
+                                    <Target className="w-2.5 h-2.5 shrink-0" /> {dept} {isMine && <span className="text-[8px] uppercase tracking-wider bg-amber-500 text-black px-1 rounded-xs font-bold">You</span>}
+                                </span>
+                            );
+                        })}
+                        {issue.department && (() => {
+                            const theme = getDepartmentTheme(issue.department);
+                            const isMine = isDeptUser && userDept && normalizeDepartment(issue.department) === userDept;
+                            return (
+                                <span
+                                    style={{
+                                        backgroundColor: theme.bg === '#212121' ? 'rgba(255, 255, 255, 0.1)' : `${theme.bg}18`,
+                                        borderColor: isMine ? '#10B981' : (theme.bg === '#212121' ? 'rgba(255, 255, 255, 0.3)' : `${theme.bg}50`),
+                                        color: theme.bg === '#212121' ? '#FFFFFF' : (theme.text === '#14130B' ? '#FBBF24' : theme.bg)
+                                    }}
+                                    className={`shrink-0 rounded px-1.5 py-0.5 font-mono text-[10px] font-medium border flex items-center gap-1 ${
+                                        isMine ? 'ring-1.5 ring-emerald-400 bg-emerald-500/20 font-bold shadow-xs' : ''
+                                    }`}
+                                    title={`Origin Department${isMine ? ' (Your Department)' : ''}`}
+                                >
+                                    <FileText className="w-2.5 h-2.5 shrink-0" /> {issue.department} {isMine && <span className="text-[8px] uppercase tracking-wider bg-emerald-500 text-black px-1 rounded-xs font-bold">You</span>}
+                                </span>
+                            );
+                        })()}
+                        {taggedList.length > 0 && taggedList.map((tag, idx) => {
+                            const theme = getDepartmentTheme(tag);
+                            const isMine = isDeptUser && userDept && normalizeDepartment(tag) === userDept;
+                            return (
+                                <span
+                                    key={'tag-' + idx}
+                                    style={{
+                                        backgroundColor: isMine ? 'rgba(99, 102, 241, 0.25)' : (theme.bg === '#212121' ? 'rgba(255, 255, 255, 0.1)' : `${theme.bg}15`),
+                                        borderColor: isMine ? '#818CF8' : (theme.bg === '#212121' ? 'rgba(255, 255, 255, 0.3)' : `${theme.bg}50`),
+                                        color: isMine ? '#EEF2FF' : (theme.bg === '#212121' ? '#FFFFFF' : (theme.text === '#14130B' ? '#FBBF24' : theme.bg))
+                                    }}
+                                    className={`shrink-0 rounded px-1.5 py-0.5 font-mono text-[10px] font-medium border flex items-center gap-1 ${
+                                        isMine ? 'ring-1.5 ring-indigo-400 font-bold shadow-xs' : ''
+                                    }`}
+                                    title={`Tagged Department${isMine ? ' (Mentioned to You!)' : ''}`}
+                                >
+                                    <Megaphone className="w-2.5 h-2.5 shrink-0" /> @{tag} {isMine && <span className="text-[8px] uppercase tracking-wider bg-indigo-500 text-white px-1 rounded-xs font-bold">You</span>}
+                                </span>
+                            );
+                        })}
+                    </div>
+
+                    {/* Description Snippet */}
+                    {issue.description && (
+                        <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed break-words">
+                            {issue.description}
+                        </p>
+                    )}
+
+                    {/* Status & Operational Indicators (Delay, Overdue, Edits) */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                        {pendingTimelineList.length > 0 && (
+                            <button
+                                type="button"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedDelay(pendingTimelineList[pendingTimelineList.length - 1]);
+                                }}
+                                className="flex items-center gap-1 text-[10px] text-orange-400 font-medium bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/30 px-2 py-0.5 rounded-md transition-colors cursor-pointer"
+                                title={lang === 'id' ? 'Klik untuk melihat riwayat penundaan' : 'Click to view delay history'}
+                            >
+                                <span>⏱️</span>
+                                <span>{pendingTimelineList.length} {lang === 'id' ? 'riwayat penundaan' : 'delay history'}</span>
+                            </button>
+                        )}
+                        {overduePendingDays >= 7 && (
+                            <div className="flex items-center gap-1 text-[10px] text-amber-300 font-bold bg-amber-500/20 border border-amber-500/40 px-2 py-0.5 rounded-md animate-pulse">
+                                <span>⏳</span>
+                                <span>{lang === 'id' ? `Pending > ${overduePendingDays} Hari` : `Pending > ${overduePendingDays} Days`}</span>
+                            </div>
+                        )}
+                        {issue.editLogs && issue.editLogs.filter(l => l && l.type !== 'claim' && l.type !== 'create').length > 0 && (
+                            <div className="flex items-center gap-1 text-[10px] text-sky-400 font-medium bg-sky-500/10 border border-sky-500/20 px-2 py-0.5 rounded-md">
+                                <span>✏️</span>
+                                <span>{issue.editLogs.filter(l => l && l.type !== 'claim' && l.type !== 'create').length} {lang === 'id' ? 'riwayat edit' : 'edit history'}</span>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Operational Actors & Timestamps */}
+                    <div className="flex items-center justify-between gap-3 text-[11px] text-muted-foreground pt-1 border-t border-border/40 flex-wrap">
+                        <div className="flex items-center gap-3 flex-wrap">
+                            <span>
+                                {lang === 'id' ? 'Oleh:' : 'By:'} <strong className="text-foreground">{issue.reporter}</strong> ({formatDate(issue.reportedAt)})
+                            </span>
+                            {isProgress && issue.taker && (
+                                <span className="flex items-center gap-1 text-blue-400">
+                                    <span>🔧</span>
+                                    <span>{lang === 'id' ? 'Diambil:' : 'Claimed:'} <strong className="text-blue-300">{issue.taker}</strong></span>
+                                    {isClaimantInactive && (
+                                        <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-amber-500/20 border border-amber-500/30 text-amber-300" title={lang === 'id' ? 'Staf yang mengambil pekerjaan ini sudah tidak aktif / dihapus' : 'Claimant staff is no longer active'}>
+                                            ⚠️ {lang === 'id' ? 'Staf Nonaktif' : 'Staff Inactive'}
+                                        </span>
+                                    )}
+                                </span>
+                            )}
+                            {isPending && issue.pendingBy && (
+                                <span className="flex items-center gap-1 text-orange-400">
+                                    <span>⏳</span>
+                                    <span>{lang === 'id' ? 'Ditunda:' : 'Pending:'} <strong className="text-orange-300">{issue.pendingBy}</strong></span>
+                                </span>
+                            )}
+                            {isSolved && issue.solver && (
+                                <span className="flex items-center gap-1 text-emerald-400">
+                                    <span>✅</span>
+                                    <span>{lang === 'id' ? 'Selesai:' : 'Fixed:'} <strong className="text-emerald-300">{issue.solver}</strong></span>
+                                </span>
+                            )}
+                            {isOpen && (
+                                <span className="text-amber-400/90 font-medium">
+                                    ⏳ {lang === 'id' ? 'Belum Diambil' : 'Unclaimed'}
+                                </span>
+                            )}
+                        </div>
+
+                        {issue.isLateUpload && (
+                            <span className="text-amber-400 font-mono text-[10px] font-semibold flex items-center gap-1">
+                                <Clock className="w-3 h-3 text-amber-500 shrink-0" />
+                                <span>+{issue.lateDuration || '>5m'} {lang === 'id' ? 'Telat' : 'Late'}</span>
+                            </span>
+                        )}
+                        {isArchived && archivedDateFormatted && (
+                            <span className="text-rose-300 font-mono text-[10px]">
+                                📦 {archivedDateFormatted}
+                            </span>
+                        )}
+                    </div>
+                </div>
+
+                {/* Right Action Section: Contextual Quick Actions */}
+                <div className="flex sm:flex-row md:flex-col items-center md:items-end justify-between md:justify-center gap-2 shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-border/40">
+                    <div className="flex items-center gap-2">
+                        {isOpen ? (
+                            <button
+                                type="button"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onSelect(issue);
+                                }}
+                                className="px-3 py-1.5 rounded-lg text-xs font-bold bg-[#C9AA71] hover:bg-[#b8985f] text-[#1C1B0E] shadow-sm flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap active:scale-95"
+                            >
+                                <ArrowRightLeft className="w-3.5 h-3.5" />
+                                <span>{lang === 'id' ? 'Ambil Tugas' : 'Take Job'}</span>
+                            </button>
+                        ) : isProgress || isPending ? (
+                            <button
+                                type="button"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onSelect(issue);
+                                }}
+                                className="px-3 py-1.5 rounded-lg text-xs font-bold bg-blue-600 hover:bg-blue-500 text-white shadow-sm flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap active:scale-95"
+                            >
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                <span>{lang === 'id' ? 'Selesaikan' : 'Resolve'}</span>
+                            </button>
+                        ) : (
+                            <button
+                                type="button"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onSelect(issue);
+                                }}
+                                className="px-3 py-1.5 rounded-lg text-xs font-bold bg-[#2A281E] hover:bg-[#3B3929] text-[#C9AA71] hover:text-[#FAFAFA] border border-[#3B3929] shadow-sm flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap active:scale-95"
+                            >
+                                <Eye className="w-3.5 h-3.5" />
+                                <span>{lang === 'id' ? 'Detail' : 'View Detail'}</span>
+                            </button>
+                        )}
+
+                        {canDelete && onDelete && !isArchived && (
+                            <button
+                                type="button"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onDelete(issue);
+                                }}
+                                className="p-1.5 rounded-lg text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
+                                title={lang === 'id' ? 'Hapus Isu' : 'Delete Issue'}
+                            >
+                                <Trash2 className="w-4 h-4" />
+                            </button>
+                        )}
+                    </div>
+
+                    <div className="hidden md:flex items-center text-xs text-muted-foreground group-hover:text-primary transition-colors">
+                        <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                    </div>
+                </div>
+
+                <DelayDetailModal 
+                    open={!!selectedDelay} 
+                    onOpenChange={(open) => !open && setSelectedDelay(null)} 
+                    delayItem={selectedDelay} 
+                />
+                <ImageLightboxModal
+                    open={!!previewImage}
+                    onClose={() => setPreviewImage(null)}
+                    src={previewImage}
+                    title={issue.title}
+                    subtitle="Foto Laporan (Full Resolution Preview)"
+                />
+            </div>
+        );
+    }
 
     // =========================================================================
     // DENSITY 10 — MICRO MATRIX VIEW

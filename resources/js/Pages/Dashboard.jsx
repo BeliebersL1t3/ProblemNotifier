@@ -1,6 +1,6 @@
 import { Head } from '@inertiajs/react';
 import { useMemo, useState, useEffect, useRef } from 'react';
-import { Loader2, RefreshCw, SearchX, LayoutGrid, Grid3X3, Layers, Search, MapPin, Trash2, AlertTriangle, CalendarPlus, Globe, Target, FileText, Megaphone, Lock, ArrowRightLeft } from 'lucide-react';
+import { Loader2, RefreshCw, SearchX, LayoutGrid, Grid3X3, Layers, List, Search, MapPin, Trash2, AlertTriangle, CalendarPlus, Globe, Target, FileText, Megaphone, Lock, ArrowRightLeft } from 'lucide-react';
 import { getDepartmentTheme } from '@/constants/departments';
 
 import { useLanguage } from '@/context/LanguageContext';
@@ -1011,12 +1011,25 @@ function DashboardInner() {
                             )}
                         </div>
 
-                        {/* View Density Selector (3 | 5 | 10) */}
-                        <div className="hidden sm:flex items-center rounded-2xl bg-[#2A281E] p-1.5 border border-[#3B3929] text-xs font-bold shrink-0 self-end lg:self-center shadow-md gap-1" title="Density View (3, 5, 10 columns)">
+                        {/* View Density Selector (List | 3 | 5 | 10) */}
+                        <div className="flex items-center rounded-2xl bg-[#2A281E] p-1 sm:p-1.5 border border-[#3B3929] text-xs font-bold shrink-0 self-end lg:self-center shadow-md gap-0.5 sm:gap-1" title="View Options (List, 3, 5, 10 columns)">
+                            <button
+                                type="button"
+                                onClick={() => handleDensityChange('list')}
+                                className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl transition-all flex items-center gap-1 sm:gap-1.5 cursor-pointer font-bold ${
+                                    viewDensity === 'list'
+                                        ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-sm font-extrabold'
+                                        : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
+                                }`}
+                                title="List View — Detailed Operational Feed"
+                            >
+                                <List className="h-3.5 w-3.5" />
+                                <span>List</span>
+                            </button>
                             <button
                                 type="button"
                                 onClick={() => handleDensityChange('3')}
-                                className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer font-bold ${
+                                className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl transition-all flex items-center gap-1 sm:gap-1.5 cursor-pointer font-bold ${
                                     viewDensity === '3'
                                         ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-sm font-extrabold'
                                         : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
@@ -1029,7 +1042,7 @@ function DashboardInner() {
                             <button
                                 type="button"
                                 onClick={() => handleDensityChange('5')}
-                                className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer font-bold ${
+                                className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl transition-all flex items-center gap-1 sm:gap-1.5 cursor-pointer font-bold ${
                                     viewDensity === '5'
                                         ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-sm font-extrabold'
                                         : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
@@ -1042,7 +1055,7 @@ function DashboardInner() {
                             <button
                                 type="button"
                                 onClick={() => handleDensityChange('10')}
-                                className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer font-bold ${
+                                className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl transition-all flex items-center gap-1 sm:gap-1.5 cursor-pointer font-bold ${
                                     viewDensity === '10'
                                         ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-sm font-extrabold'
                                         : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
@@ -1114,11 +1127,13 @@ function DashboardInner() {
                     </div>
                 ) : (
                     <div className={
-                        viewDensity === '10'
-                            ? 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-10 gap-2'
-                            : viewDensity === '5'
-                                ? 'grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3.5'
-                                : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5'
+                        viewDensity === 'list'
+                            ? 'flex flex-col gap-3 w-full'
+                            : viewDensity === '10'
+                                ? 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-10 gap-2'
+                                : viewDensity === '5'
+                                    ? 'grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3.5'
+                                    : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5'
                     }>
                         {visible.map((issue) => (
                             <IssueCard
