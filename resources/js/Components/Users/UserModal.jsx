@@ -520,11 +520,6 @@ export function UserModal({ isOpen, onClose, user = null, onSaved }) {
                                         label: 'Bisa Ekspor & Unduh Laporan',
                                         desc: 'Mengizinkan unduh rekap data laporan dalam format PDF & Excel (.xlsx).',
                                     },
-                                    {
-                                        key: 'can_manage_categories',
-                                        label: 'Bisa Kelola Kategori (Master)',
-                                        desc: 'Izin tingkat lanjut untuk menambah atau mengubah master kategori masalah resort.',
-                                    },
                                 ].map(item => {
                                     const isEnabled = Boolean(permissions[item.key]);
                                     return (

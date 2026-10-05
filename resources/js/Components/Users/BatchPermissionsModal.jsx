@@ -37,11 +37,6 @@ const PERMISSION_CONFIGS = [
         label: 'Ekspor Laporan (PDF & Excel)',
         desc: 'Mengizinkan pengunduhan rekap data tiket isu ke format dokumen PDF atau spreadsheet Excel (.xlsx).',
     },
-    {
-        key: 'can_manage_categories',
-        label: 'Kelola Kategori Isu (Master)',
-        desc: 'Izin tingkat lanjut untuk menambah, mengedit, atau menghapus master kategori resort.',
-    },
 ];
 
 export function BatchPermissionsModal({
