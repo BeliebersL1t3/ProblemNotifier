@@ -1,7 +1,9 @@
 import { Head } from '@inertiajs/react';
-import { useMemo, useState, useEffect, useRef } from 'react';
+import { useMemo, useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { Loader2, RefreshCw, SearchX, LayoutGrid, Grid3X3, Layers, List, Rows3, Search, MapPin, Trash2, AlertTriangle, CalendarPlus, Globe, Target, FileText, Megaphone, Lock, ArrowRightLeft } from 'lucide-react';
 import { getDepartmentTheme } from '@/constants/departments';
+
+const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect;
 
 import { useLanguage } from '@/context/LanguageContext';
 import { IssuesProvider, useIssues } from '@/context/IssuesContext';
@@ -161,12 +163,74 @@ function DashboardInner() {
         }
     });
 
+    const feedContainerRef = useRef(null);
+    const prevPositionsRef = useRef(new Map());
+
     const handleDensityChange = (density) => {
+        if (density === viewDensity) return;
+
+        // Snapshot current card positions before layout change (FLIP - First)
+        if (feedContainerRef.current) {
+            const cardElements = feedContainerRef.current.querySelectorAll('[data-flip-id]');
+            const positions = new Map();
+            cardElements.forEach(el => {
+                const id = el.getAttribute('data-flip-id');
+                if (id) {
+                    positions.set(id, el.getBoundingClientRect());
+                }
+            });
+            prevPositionsRef.current = positions;
+        }
+
         setViewDensity(density);
         try {
             localStorage.setItem('campusfix_dashboard_density', density);
         } catch (e) {}
     };
+
+    // Smooth layout morphing animation (FLIP - Last, Invert, Play)
+    useIsomorphicLayoutEffect(() => {
+        const prevPositions = prevPositionsRef.current;
+        if (!prevPositions || prevPositions.size === 0 || !feedContainerRef.current) return;
+
+        const currentCardElements = feedContainerRef.current.querySelectorAll('[data-flip-id]');
+        currentCardElements.forEach(el => {
+            const id = el.getAttribute('data-flip-id');
+            const prevRect = prevPositions.get(id);
+            if (!prevRect) return;
+
+            const currentRect = el.getBoundingClientRect();
+            const dx = prevRect.left - currentRect.left;
+            const dy = prevRect.top - currentRect.top;
+            const dw = prevRect.width / (currentRect.width || 1);
+            const dh = prevRect.height / (currentRect.height || 1);
+
+            // Animate if position or size delta is noticeable
+            if (Math.abs(dx) > 1 || Math.abs(dy) > 1 || Math.abs(dw - 1) > 0.02 || Math.abs(dh - 1) > 0.02) {
+                const clampedDw = Math.max(0.65, Math.min(1.4, dw));
+                const clampedDh = Math.max(0.65, Math.min(1.4, dh));
+
+                el.animate([
+                    {
+                        transformOrigin: 'top left',
+                        transform: `translate3d(${dx}px, ${dy}px, 0) scale(${clampedDw}, ${clampedDh})`,
+                        opacity: 0.88
+                    },
+                    {
+                        transformOrigin: 'top left',
+                        transform: 'translate3d(0, 0, 0) scale(1, 1)',
+                        opacity: 1
+                    }
+                ], {
+                    duration: 320,
+                    easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+                    fill: 'none'
+                });
+            }
+        });
+
+        prevPositionsRef.current = new Map();
+    }, [viewDensity]);
 
     const [reportOpen, setReportOpen] = useState(false);
     const [emergencyOpen, setEmergencyOpen] = useState(false);
@@ -1139,17 +1203,20 @@ function DashboardInner() {
                         </p>
                     </div>
                 ) : (
-                    <div className={
-                        viewDensity === 'compact'
-                            ? 'flex flex-col gap-2 w-full'
-                            : viewDensity === 'list'
-                                ? 'flex flex-col gap-3 w-full'
-                                : viewDensity === '10'
-                                    ? 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-10 gap-2'
-                                    : viewDensity === '5'
-                                        ? 'grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3.5'
-                                        : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5'
-                    }>
+                    <div
+                        ref={feedContainerRef}
+                        className={
+                            viewDensity === 'compact'
+                                ? 'flex flex-col gap-2 w-full'
+                                : viewDensity === 'list'
+                                    ? 'flex flex-col gap-3 w-full'
+                                    : viewDensity === '10'
+                                        ? 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-10 gap-2'
+                                        : viewDensity === '5'
+                                            ? 'grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3.5'
+                                            : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5'
+                        }
+                    >
                         {visible.map((issue) => (
                             <IssueCard
                                 key={issue.id}

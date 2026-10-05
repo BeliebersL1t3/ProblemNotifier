@@ -158,6 +158,7 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
         return (
             <div
                 id={`issue-card-${issue.id}`}
+                data-flip-id={issue.id}
                 onClick={() => onSelect(issue)}
                 role="button"
                 tabIndex={0}
@@ -571,6 +572,7 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
         return (
             <div
                 id={`issue-card-${issue.id}`}
+                data-flip-id={issue.id}
                 onClick={() => onSelect(issue)}
                 role="button"
                 tabIndex={0}
@@ -867,6 +869,7 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
         return (
             <button
                 id={`issue-card-${issue.id}`}
+                data-flip-id={issue.id}
                 type="button"
                 onClick={() => onSelect(issue)}
                 title={tooltipText}
@@ -958,6 +961,7 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
         return (
             <button
                 id={`issue-card-${issue.id}`}
+                data-flip-id={issue.id}
                 type="button"
                 onClick={() => onSelect(issue)}
                 className={cn(
@@ -1306,6 +1310,7 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
     return (
         <button
             id={`issue-card-${issue.id}`}
+            data-flip-id={issue.id}
             type="button"
             onClick={() => onSelect(issue)}
             className={cn(
