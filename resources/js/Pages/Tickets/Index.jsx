@@ -263,7 +263,7 @@ function TicketsInner({
     };
 
     return (
-        <div className="min-h-screen bg-[#1C1B0E] text-[#FAFAFA] relative overflow-x-hidden selection:bg-[#C9AA71] selection:text-[#1C1B0E]">
+        <div className="min-h-screen bg-[#1C1B0E] text-[#FAFAFA] relative overflow-x-clip selection:bg-[#C9AA71] selection:text-[#1C1B0E]">
             <Head title={`${t('ticket_center_title')} - Telunas Resort`} />
 
             {/* Background Motif Wallpaper */}

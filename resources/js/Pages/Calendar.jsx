@@ -1468,7 +1468,7 @@ function CalendarInner() {
 
     if (!canAccessCalendar) {
         return (
-            <div className="min-h-screen bg-[#1C1B0E] text-[#FAFAFA] flex flex-col justify-between relative overflow-hidden">
+            <div className="min-h-screen bg-[#1C1B0E] text-[#FAFAFA] flex flex-col justify-between relative overflow-x-clip">
                 {/* Background Motif Wallpaper */}
                 <div className="app-bg-wallpaper" />
                 <div className="relative z-10">
@@ -1501,7 +1501,7 @@ function CalendarInner() {
     }
 
     return (
-        <div className="min-h-screen bg-[#1C1B0E] text-[#FAFAFA] relative overflow-hidden antialiased selection:bg-[#C9AA71]/30">
+        <div className="min-h-screen bg-[#1C1B0E] text-[#FAFAFA] relative overflow-x-clip antialiased selection:bg-[#C9AA71]/30">
             <Head title={`${t('calendar_view') || (lang === 'id' ? 'Kalender' : 'Calendar')} — Telunas Resort`} />
 
             {/* Background Motif Wallpaper */}

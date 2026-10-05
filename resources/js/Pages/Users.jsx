@@ -317,7 +317,7 @@ function UsersInner({ initialUsers, initialStats }) {
     };
 
     return (
-        <div className="min-h-screen bg-[#1C1B0E] text-[#FAFAFA] relative overflow-x-hidden selection:bg-[#C9AA71] selection:text-[#1C1B0E]">
+        <div className="min-h-screen bg-[#1C1B0E] text-[#FAFAFA] relative overflow-x-clip selection:bg-[#C9AA71] selection:text-[#1C1B0E]">
             <Head title={lang === 'id' ? 'Kelola Akun & Hak Akses' : 'User Management'} />
 
             {/* Background Motif Wallpaper */}

@@ -309,7 +309,7 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, notifyWhatsAppTick
     const deptStaffRoster = department ? getStaffForDepartment(department, activeStaffRoster) : [];
 
     return (
-        <div className="min-h-screen bg-[#1C1B0E] text-[#FAFAFA] relative overflow-hidden antialiased selection:bg-[#C9AA71]/30">
+        <div className="min-h-screen bg-[#1C1B0E] text-[#FAFAFA] relative overflow-x-clip antialiased selection:bg-[#C9AA71]/30">
             <Head title={`${t('profile') || 'Profil'} — Telunas Resort`} />
 
             {/* Background Motif Wallpaper */}

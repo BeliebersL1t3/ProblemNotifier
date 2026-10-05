@@ -26,10 +26,20 @@ export function CampusFixHeader({ mode = 'dashboard', query, onQueryChange, onRe
     const [periodModalOpen, setPeriodModalOpen] = useState(false);
     const [botControlModalOpen, setBotControlModalOpen] = useState(false);
     const [botStatus, setBotStatus] = useState(null);
+    const [isScrolled, setIsScrolled] = useState(false);
     const { navigateWithSlash } = useSlashTransition();
     const searchContainerRef = useRef(null);
     const mobileSearchContainerRef = useRef(null);
     const mobileInputRef = useRef(null);
+
+    useEffect(() => {
+        const handleScroll = () => {
+            setIsScrolled(window.scrollY > 8);
+        };
+        window.addEventListener('scroll', handleScroll, { passive: true });
+        handleScroll();
+        return () => window.removeEventListener('scroll', handleScroll);
+    }, []);
 
     const checkBotStatus = useCallback(async () => {
         try {
@@ -127,7 +137,11 @@ export function CampusFixHeader({ mode = 'dashboard', query, onQueryChange, onRe
                 />
             )}
 
-            <header className="sticky top-0 z-50 border-b border-border bg-[#E3D1AA] shadow-sm relative">
+            <header className={`sticky top-0 z-50 border-b transition-all duration-200 ${
+                isScrolled 
+                    ? 'border-[#C9AA71]/50 bg-[#E3D1AA]/95 shadow-md backdrop-blur-xs' 
+                    : 'border-border bg-[#E3D1AA] shadow-xs'
+            }`}>
             {/* Transparent Header Texture Overlay */}
             <div 
                 className="absolute inset-0 pointer-events-none bg-repeat opacity-30 z-0 overflow-hidden" 

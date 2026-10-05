@@ -1418,7 +1418,7 @@ function AnalyticsInner() {
 
     if (!canAccessAnalytics) {
         return (
-            <div className="min-h-screen bg-[#1C1B0E] text-[#FAFAFA] flex flex-col justify-between relative overflow-hidden">
+            <div className="min-h-screen bg-[#1C1B0E] text-[#FAFAFA] flex flex-col justify-between relative overflow-x-clip">
                 {/* Background Motif Wallpaper */}
                 <div className="app-bg-wallpaper" />
                 <div className="relative z-10">
@@ -1451,7 +1451,7 @@ function AnalyticsInner() {
     }
 
     return (
-        <div className="min-h-screen bg-[#1C1B0E] text-[#FAFAFA] relative overflow-hidden antialiased selection:bg-[#C9AA71]/30">
+        <div className="min-h-screen bg-[#1C1B0E] text-[#FAFAFA] relative overflow-x-clip antialiased selection:bg-[#C9AA71]/30">
             {/* Background Motif Wallpaper */}
             <div className="app-bg-wallpaper" />
 

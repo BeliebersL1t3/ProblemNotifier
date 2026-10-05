@@ -837,7 +837,7 @@ function DashboardInner() {
     };
 
     return (
-        <div className="min-h-screen bg-[#1C1B0E] text-[#FAFAFA] relative overflow-hidden antialiased selection:bg-[#C9AA71]/30">
+        <div className="min-h-screen bg-[#1C1B0E] text-[#FAFAFA] relative overflow-x-clip antialiased selection:bg-[#C9AA71]/30">
             {/* Background Motif Wallpaper */}
             <div className="app-bg-wallpaper" />
 

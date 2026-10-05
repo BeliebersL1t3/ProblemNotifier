@@ -96,6 +96,11 @@
   z-index: 0;
 }
 
+.overflow-x-clip {
+  overflow-x: clip;
+}
+
+
 /* ─── Custom Brown & Cream Sliders & Scrollbars ────────────────────────────── */
 
 /* Webkit Scrollbars (Chrome, Safari, Edge) */
