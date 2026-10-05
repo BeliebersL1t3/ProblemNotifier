@@ -419,8 +419,24 @@ function DashboardInner() {
             ).map(d => normalizeDepartment(d.trim()));
 
             const originDept = normalizeDepartment(issue.department || '');
-            const isAssignedToTarget = Boolean(targetDept && assigned.includes(targetDept));
-            const isTaggedToTarget = Boolean(targetDept && tagged.includes(targetDept));
+            const isEmergency = (issue.category || '').toLowerCase() === 'emergency' 
+                || String(issue.id || '').startsWith('SOS')
+                || assigned.some(d => String(d).trim().toUpperCase() === 'ALL')
+                || tagged.some(d => String(d).trim().toUpperCase() === 'ALL');
+
+            const isAssignedToTarget = Boolean(
+                targetDept && (
+                    assigned.includes(targetDept) || 
+                    assigned.some(d => String(d).trim().toUpperCase() === 'ALL') ||
+                    isEmergency
+                )
+            );
+            const isTaggedToTarget = Boolean(
+                targetDept && (
+                    tagged.includes(targetDept) || 
+                    tagged.some(d => String(d).trim().toUpperCase() === 'ALL')
+                )
+            );
             const isOriginOfTarget = Boolean(targetDept && originDept === targetDept);
             const isReportedByCurrentMe = isReportedByMe(issue);
             const isPastContrib = isPastContributor(issue);
@@ -449,7 +465,7 @@ function DashboardInner() {
 
             // 2. Tab "To Fix" (Tugas Perbaikan Departemen)
             if (deptViewMode === 'assigned') {
-                if (isAssignedToTarget) {
+                if (isAssignedToTarget || isEmergency) {
                     acc.push(issue);
                 }
                 return acc;
@@ -496,11 +512,6 @@ function DashboardInner() {
             }
 
             // 🚨 Emergency & critical fast-track issues are island-wide alerts, ALWAYS in scope for everyone in "All My Scope"
-            const isEmergency = (issue.category || '').toLowerCase() === 'emergency' 
-                || String(issue.id || '').startsWith('SOS')
-                || assigned.some(d => String(d).trim().toUpperCase() === 'ALL')
-                || tagged.some(d => String(d).trim().toUpperCase() === 'ALL');
-
             if (isEmergency) {
                 acc.push(issue);
                 return acc;
@@ -529,14 +540,28 @@ function DashboardInner() {
                 ? true
                 : issue.status === statusFilter;
 
-            const matchesDept = (deptFilter === 'all' || deptViewMode !== 'all' || Boolean(issue._isPastContribution)) ? true : (
-                (Array.isArray(issue.assignedDepartments) && issue.assignedDepartments.includes(deptFilter)) ||
-                issue.assignedDepartments === deptFilter ||
-                issue.department === deptFilter || 
-                (Array.isArray(issue.taggedDepartments) && issue.taggedDepartments.includes(deptFilter)) ||
-                issue.taggedDepartments === deptFilter
-            );
+            const issueAssigned = (Array.isArray(issue.assignedDepartments) 
+                ? issue.assignedDepartments 
+                : (issue.assignedDepartments ? String(issue.assignedDepartments).split(',') : [])
+            ).map(d => normalizeDepartment(d.trim()));
 
+            const issueTagged = (Array.isArray(issue.taggedDepartments) 
+                ? issue.taggedDepartments 
+                : (issue.taggedDepartments ? String(issue.taggedDepartments).split(',') : [])
+            ).map(d => normalizeDepartment(d.trim()));
+
+            const issueIsEmergency = (issue.category || '').toLowerCase() === 'emergency' 
+                || String(issue.id || '').startsWith('SOS')
+                || issueAssigned.some(d => String(d).trim().toUpperCase() === 'ALL')
+                || issueTagged.some(d => String(d).trim().toUpperCase() === 'ALL');
+
+            const matchesDept = (deptFilter === 'all' || deptViewMode !== 'all' || Boolean(issue._isPastContribution) || issueIsEmergency) ? true : (
+                issueAssigned.includes(normDeptFilter) ||
+                issueAssigned.some(d => String(d).trim().toUpperCase() === 'ALL') ||
+                issueTagged.includes(normDeptFilter) ||
+                issueTagged.some(d => String(d).trim().toUpperCase() === 'ALL') ||
+                normalizeDepartment(issue.department) === normDeptFilter
+            );
             return matchesQuery && matchesCategory && matchesStatus && matchesDept;
         });
 

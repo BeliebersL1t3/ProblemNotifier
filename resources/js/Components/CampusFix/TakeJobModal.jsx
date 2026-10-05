@@ -7,7 +7,7 @@ import { Label } from '@/Components/UI/Label';
 import { useIssues } from '@/context/IssuesContext';
 import { CriticalTimer } from './CriticalTimer';
 import { ImageLightboxModal } from './ImageLightboxModal';
-import { getStaffForDepartment, normalizeDepartment } from '@/constants/staff';
+import { ALL_DEPARTMENTS, getStaffForDepartment, normalizeDepartment } from '@/constants/staff';
 import { getDepartmentTheme } from '@/constants/departments';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/context/LanguageContext';
@@ -22,7 +22,7 @@ const safeArray = (val) => {
 export function TakeJobModal({ issue, onClose, onEdit }) {
     const { t, lang } = useLanguage();
     const { claimIssue, categories, updateIssueCategory } = useIssues();
-    const { isDeptUser, department, staffName, isAdmin, activeStaffRoster } = useAuth();
+    const { isDeptUser, department, staffName, isAdmin, activeStaffRoster, user } = useAuth();
     const [selectedDept, setSelectedDept] = useState('');
     const [selectedStaff, setSelectedStaff] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -36,7 +36,17 @@ export function TakeJobModal({ issue, onClose, onEdit }) {
     const assignedList = useMemo(() => safeArray(issue?.assignedDepartments), [issue?.assignedDepartments]);
     const taggedList = useMemo(() => safeArray(issue?.taggedDepartments), [issue?.taggedDepartments]);
 
-    // Check if the current user can claim this issue (only assigned department or admin; maker/origin department CANNOT claim)
+    const isEmergency = useMemo(() => {
+        if (!issue) return false;
+        return (issue.category || '').toLowerCase() === 'emergency'
+            || String(issue.id || '').startsWith('SOS');
+    }, [issue]);
+
+    const isAllAssigned = useMemo(() => {
+        return assignedList.length === 0 || assignedList.some(d => String(d).trim().toUpperCase() === 'ALL');
+    }, [assignedList]);
+
+    // Check if the current user can claim this issue (only assigned department or admin; maker/origin department CANNOT claim unless emergency)
     const canClaim = useMemo(() => {
         if (!issue || Boolean(issue._isPastContribution)) return false;
         if (isAdmin) return true;
@@ -45,27 +55,33 @@ export function TakeJobModal({ issue, onClose, onEdit }) {
         const userDeptNorm = normalizeDepartment(department).toLowerCase();
         const originDeptNorm = normalizeDepartment(issue.department).toLowerCase();
 
-        // If the logged-in department is the maker / origin department, they CANNOT claim
-        if (userDeptNorm === originDeptNorm) return false;
+        // If the logged-in department is the maker / origin department, they CANNOT claim UNLESS it's an emergency/SOS
+        if (userDeptNorm === originDeptNorm && !isEmergency) return false;
 
-        // If no assigned departments, allow non-origin users
-        if (assignedList.length === 0) return true;
+        // If assigned to ALL or emergency or no assigned departments, allow all users
+        if (isAllAssigned || isEmergency) return true;
 
-        // Must be in assigned list (excluding origin)
+        // Must be in assigned list (excluding origin if not emergency)
         return assignedList.some(d => {
             const dNorm = normalizeDepartment(d).toLowerCase();
-            return dNorm === userDeptNorm && dNorm !== originDeptNorm;
+            return dNorm === userDeptNorm && (isEmergency || dNorm !== originDeptNorm);
         });
-    }, [isAdmin, issue, department, assignedList]);
+    }, [isAdmin, issue, department, assignedList, isEmergency, isAllAssigned]);
 
-    // Build the list of authorized departments for taking the job (assigned + tagged, EXCLUDING origin department)
+    // Build the list of authorized departments for taking the job (assigned + tagged, EXCLUDING origin department unless emergency)
     const authorizedDepts = useMemo(() => {
         if (!issue) return [];
         const originDeptNorm = normalizeDepartment(issue.department).toLowerCase();
+
+        if (isAllAssigned || isEmergency) {
+            return ALL_DEPARTMENTS.filter(d => isEmergency || normalizeDepartment(d).toLowerCase() !== originDeptNorm);
+        }
+
         return [...new Set([...assignedList, ...taggedList])]
             .filter(Boolean)
+            .filter(d => String(d).trim().toUpperCase() !== 'ALL')
             .filter(d => normalizeDepartment(d).toLowerCase() !== originDeptNorm);
-    }, [issue, assignedList, taggedList]);
+    }, [issue, assignedList, taggedList, isAllAssigned, isEmergency]);
 
     const staffForSelectedDept = useMemo(() => {
         if (!selectedDept) return [];
@@ -79,7 +95,7 @@ export function TakeJobModal({ issue, onClose, onEdit }) {
             // Pre-fill from logged-in department account
             if (isDeptUser && department) {
                 setSelectedDept(department);
-                setSelectedStaff(staffName || '');
+                setSelectedStaff(staffName || user?.staff_name || user?.name || '');
             } else {
                 setSelectedDept('');
                 setSelectedStaff('');
@@ -90,7 +106,7 @@ export function TakeJobModal({ issue, onClose, onEdit }) {
             setNotifiedEmptySuccess(false);
             setNotifyMessage('');
         }
-    }, [issue, isDeptUser, department, staffName]);
+    }, [issue, isDeptUser, department, staffName, user]);
 
     useEffect(() => {
         setNotifiedEmptySuccess(false);
