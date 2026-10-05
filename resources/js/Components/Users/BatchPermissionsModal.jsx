@@ -14,8 +14,8 @@ const PERMISSION_CONFIGS = [
     },
     {
         key: 'can_manage_issues',
-        label: 'Bisa Mengedit & Mengklaim Isu',
-        desc: 'Mengizinkan klaim, pending, dan penyelesaian isu (khusus tugas departemennya sendiri, bukan seperti admin).',
+        label: 'Penanganan Isu (Klaim, Pending, Selesai)',
+        desc: 'Mengizinkan klaim, pending, dan penyelesaian isu (khusus tugas departemennya sendiri).',
     },
     {
         key: 'can_access_analytics',

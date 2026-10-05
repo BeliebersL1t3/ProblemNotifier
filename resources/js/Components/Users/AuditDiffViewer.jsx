@@ -25,7 +25,7 @@ const FIELD_CONFIG = {
 
 const PERMISSION_CONFIG = {
     can_view_all_departments: 'Lihat Semua Departemen',
-    can_manage_issues: 'Kelola & Edit Isu',
+    can_manage_issues: 'Penanganan Isu (Klaim, Pending, Selesai)',
     can_delete_issues: 'Hapus Isu',
     can_access_analytics: 'Akses Analytics',
     can_access_calendar: 'Akses Kalender Operasional',

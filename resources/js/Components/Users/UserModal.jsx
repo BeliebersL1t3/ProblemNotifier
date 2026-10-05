@@ -497,8 +497,8 @@ export function UserModal({ isOpen, onClose, user = null, onSaved }) {
                                     },
                                     {
                                         key: 'can_manage_issues',
-                                        label: 'Bisa Mengedit & Mengklaim Isu',
-                                        desc: 'Mengizinkan staf untuk klaim (In Progress), pending, dan menyelesaikan isu (khusus tugas departemennya sendiri, bukan seperti admin).',
+                                        label: 'Penanganan Isu (Klaim, Pending, Selesai)',
+                                        desc: 'Mengizinkan staf untuk klaim (In Progress), pending, dan menyelesaikan isu (khusus tugas departemennya sendiri).',
                                     },
                                     {
                                         key: 'can_access_analytics',

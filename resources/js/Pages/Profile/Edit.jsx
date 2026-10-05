@@ -589,7 +589,7 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, notifyWhatsAppTick
                                     {canManageIssues && !isAdmin && (
                                         <div className="p-2 rounded-lg bg-[#1C1B0E] border border-[#3B3929] flex items-center justify-between text-[11px]">
                                             <span className="text-[#FAFAFA] font-medium flex items-center gap-1.5">
-                                                <Check className="w-3.5 h-3.5 text-emerald-400" /> Kelola & Edit Isu
+                                                <Check className="w-3.5 h-3.5 text-emerald-400" /> Penanganan Isu (Klaim, Pending, Selesai)
                                             </span>
                                             <span className="text-emerald-400 font-bold text-[10px] bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">Aktif</span>
                                         </div>
