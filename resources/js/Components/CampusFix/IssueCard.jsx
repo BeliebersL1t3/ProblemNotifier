@@ -169,7 +169,7 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
                     }
                 }}
                 className={cn(
-                    "group relative flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3.5 sm:gap-4 p-3.5 sm:p-4 rounded-xl border text-left transition-all duration-200 cursor-pointer shadow-sm select-none overflow-hidden pl-16 sm:pl-24 md:pl-28",
+                    "group relative flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3.5 sm:gap-4 p-3.5 sm:p-4 rounded-xl border text-left transition-all duration-200 cursor-pointer shadow-sm select-none overflow-hidden pl-36 sm:pl-44 md:pl-52",
                     borderAccent,
                     bgStyle,
                     isHighlighted && "ring-4 ring-[#C9AA71] shadow-[0_0_35px_rgba(201,170,113,0.85)] z-20 animate-pulse scale-[1.01]"
@@ -181,7 +181,7 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
                         e.stopPropagation();
                         setPreviewImage(activeImage);
                     }}
-                    className="absolute left-0 top-0 bottom-0 w-16 sm:w-20 z-10 cursor-pointer group/thumb select-none flex items-center justify-center"
+                    className="absolute left-0 top-0 bottom-0 w-32 sm:w-40 md:w-44 z-10 cursor-pointer group/thumb select-none flex items-center justify-center"
                     title={lang === 'id' ? 'Klik untuk perbesar foto' : 'Click to zoom photo'}
                 >
                     <div className="p-1.5 rounded-lg bg-black/75 text-white/90 opacity-0 group-hover/thumb:opacity-100 transition-all duration-200 shadow-md backdrop-blur-xs scale-90 group-hover/thumb:scale-100">
@@ -204,8 +204,8 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
                 <div 
                     className="absolute inset-0 overflow-hidden pointer-events-none z-0 select-none"
                     style={{
-                        maskImage: 'linear-gradient(to right, black 0px, black 80px, transparent 420px)',
-                        WebkitMaskImage: 'linear-gradient(to right, black 0px, black 80px, transparent 420px)'
+                        maskImage: 'linear-gradient(to right, black 0px, black 140px, transparent 380px)',
+                        WebkitMaskImage: 'linear-gradient(to right, black 0px, black 140px, transparent 380px)'
                     }}
                 >
                     <img
@@ -218,16 +218,16 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
                             e.target.src = FALLBACK_IMAGE;
                         }}
                     />
-                    {/* Progressive Frosted Backdrop Blur: Crisp on far-left, frosted blur behind text */}
+                    {/* Progressive Frosted Backdrop Blur: Crisp on far-left (0-110px), frosted blur behind text (190px+) */}
                     <div 
                         className="absolute inset-0 backdrop-blur-md sm:backdrop-blur-lg bg-black/20"
                         style={{
-                            maskImage: 'linear-gradient(to right, transparent 0px, transparent 45px, black 110px, black 100%)',
-                            WebkitMaskImage: 'linear-gradient(to right, transparent 0px, transparent 45px, black 110px, black 100%)'
+                            maskImage: 'linear-gradient(to right, transparent 0px, transparent 110px, black 190px, black 100%)',
+                            WebkitMaskImage: 'linear-gradient(to right, transparent 0px, transparent 110px, black 190px, black 100%)'
                         }}
                     />
-                    {/* Ambient Darkening Gradient Overlay */}
-                    <div className="absolute inset-0 bg-gradient-to-r from-black/10 via-black/60 to-transparent" />
+                    {/* Subtle Ambient Gradient Overlay */}
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-black/40 to-transparent" />
                 </div>
 
                 {/* Center / Body: Detailed Operational Metadata */}
@@ -581,7 +581,7 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
                     }
                 }}
                 className={cn(
-                    "group relative flex items-center justify-between gap-3 px-3 py-2 sm:px-3.5 sm:py-2.5 rounded-xl border text-left transition-all duration-150 cursor-pointer shadow-xs select-none overflow-hidden pl-16 sm:pl-20 md:pl-24",
+                    "group relative flex items-center justify-between gap-3 px-3 py-2 sm:px-3.5 sm:py-2.5 rounded-xl border text-left transition-all duration-150 cursor-pointer shadow-xs select-none overflow-hidden pl-28 sm:pl-36 md:pl-44",
                     borderAccent,
                     bgStyle,
                     isHighlighted && "ring-3 ring-[#C9AA71] shadow-[0_0_25px_rgba(201,170,113,0.85)] z-20 animate-pulse scale-[1.01]"
@@ -593,7 +593,7 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
                         e.stopPropagation();
                         setPreviewImage(activeImage);
                     }}
-                    className="absolute left-0 top-0 bottom-0 w-14 sm:w-16 md:w-20 z-10 cursor-pointer group/thumb select-none flex items-center justify-center"
+                    className="absolute left-0 top-0 bottom-0 w-24 sm:w-32 md:w-36 z-10 cursor-pointer group/thumb select-none flex items-center justify-center"
                     title={lang === 'id' ? 'Klik untuk perbesar foto' : 'Click to zoom photo'}
                 >
                     <div className="p-1 rounded-md bg-black/75 text-white/90 opacity-0 group-hover/thumb:opacity-100 transition-all duration-200 shadow-md backdrop-blur-xs scale-90 group-hover/thumb:scale-100">
@@ -616,8 +616,8 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
                 <div 
                     className="absolute inset-0 overflow-hidden pointer-events-none z-0 select-none"
                     style={{
-                        maskImage: 'linear-gradient(to right, black 0px, black 65px, transparent 340px)',
-                        WebkitMaskImage: 'linear-gradient(to right, black 0px, black 65px, transparent 340px)'
+                        maskImage: 'linear-gradient(to right, black 0px, black 100px, transparent 280px)',
+                        WebkitMaskImage: 'linear-gradient(to right, black 0px, black 100px, transparent 280px)'
                     }}
                 >
                     <img
@@ -630,16 +630,16 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
                             e.target.src = FALLBACK_IMAGE;
                         }}
                     />
-                    {/* Progressive Frosted Backdrop Blur */}
+                    {/* Progressive Frosted Backdrop Blur: Crisp on far-left (0-80px), frosted blur behind text (140px+) */}
                     <div 
                         className="absolute inset-0 backdrop-blur-md sm:backdrop-blur-lg bg-black/20"
                         style={{
-                            maskImage: 'linear-gradient(to right, transparent 0px, transparent 35px, black 90px, black 100%)',
-                            WebkitMaskImage: 'linear-gradient(to right, transparent 0px, transparent 35px, black 90px, black 100%)'
+                            maskImage: 'linear-gradient(to right, transparent 0px, transparent 80px, black 140px, black 100%)',
+                            WebkitMaskImage: 'linear-gradient(to right, transparent 0px, transparent 80px, black 140px, black 100%)'
                         }}
                     />
-                    {/* Ambient Darkening Gradient Overlay */}
-                    <div className="absolute inset-0 bg-gradient-to-r from-black/10 via-black/60 to-transparent" />
+                    {/* Subtle Ambient Gradient Overlay */}
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-black/40 to-transparent" />
                 </div>
 
                 {/* Center Content: Two Dense Lines */}
