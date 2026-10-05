@@ -175,40 +175,59 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
                     isHighlighted && "ring-4 ring-[#C9AA71] shadow-[0_0_35px_rgba(201,170,113,0.85)] z-20 animate-pulse scale-[1.01]"
                 )}
             >
-                {/* Left Flush Blended Image Layer */}
+                {/* Left Clickable Area for Image Lightbox Preview */}
                 <div 
                     onClick={(e) => {
                         e.stopPropagation();
                         setPreviewImage(activeImage);
                     }}
-                    className="absolute left-0 top-0 bottom-0 w-36 sm:w-52 md:w-64 overflow-hidden pointer-events-auto cursor-pointer group/blend z-0 select-none"
+                    className="absolute left-0 top-0 bottom-0 w-16 sm:w-20 z-10 cursor-pointer group/thumb select-none flex items-center justify-center"
                     title={lang === 'id' ? 'Klik untuk perbesar foto' : 'Click to zoom photo'}
+                >
+                    <div className="p-1.5 rounded-lg bg-black/75 text-white/90 opacity-0 group-hover/thumb:opacity-100 transition-all duration-200 shadow-md backdrop-blur-xs scale-90 group-hover/thumb:scale-100">
+                        <ZoomIn className="w-4 h-4" />
+                    </div>
+                    {isEmergency && (
+                        <span className="absolute top-2 left-2 flex h-2.5 w-2.5 z-20 pointer-events-none">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500 ring-1 ring-white"></span>
+                        </span>
+                    )}
+                    {isArchived && (
+                        <span className="absolute top-2 left-2 px-1 py-0.2 rounded text-[8px] font-bold bg-rose-950/80 text-rose-300 border border-rose-500/40 z-20 pointer-events-none">
+                            📦
+                        </span>
+                    )}
+                </div>
+
+                {/* Flush Blended Ambient Image Layer with Progressive Backdrop Blur */}
+                <div 
+                    className="absolute inset-0 overflow-hidden pointer-events-none z-0 select-none"
+                    style={{
+                        maskImage: 'linear-gradient(to right, black 0px, black 80px, transparent 420px)',
+                        WebkitMaskImage: 'linear-gradient(to right, black 0px, black 80px, transparent 420px)'
+                    }}
                 >
                     <img
                         src={activeImage}
                         alt={issue.title}
-                        className="w-full h-full object-cover transition-transform duration-500 ease-out group-hover/blend:scale-110"
+                        className="w-full sm:w-4/5 md:w-3/5 h-full object-cover object-left transition-transform duration-500 ease-out group-hover:scale-105"
                         loading="lazy"
                         onError={(e) => {
                             e.target.onerror = null;
                             e.target.src = FALLBACK_IMAGE;
                         }}
                     />
-                    <div className="absolute inset-0 bg-gradient-to-r from-black/10 via-[#181711]/75 to-[#181711] pointer-events-none" />
-                    <div className="absolute left-3 top-1/2 -translate-y-1/2 p-1.5 rounded-lg bg-black/75 text-white/90 opacity-0 group-hover/blend:opacity-100 transition-all duration-200 shadow-md backdrop-blur-xs scale-90 group-hover/blend:scale-100">
-                        <ZoomIn className="w-4 h-4" />
-                    </div>
-                    {isEmergency && (
-                        <span className="absolute top-2 left-2 flex h-2.5 w-2.5 z-10">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500 ring-1 ring-white"></span>
-                        </span>
-                    )}
-                    {isArchived && (
-                        <span className="absolute top-2 left-2 px-1 py-0.2 rounded text-[8px] font-bold bg-rose-950/80 text-rose-300 border border-rose-500/40 z-10">
-                            📦
-                        </span>
-                    )}
+                    {/* Progressive Frosted Backdrop Blur: Crisp on far-left, frosted blur behind text */}
+                    <div 
+                        className="absolute inset-0 backdrop-blur-md sm:backdrop-blur-lg bg-black/20"
+                        style={{
+                            maskImage: 'linear-gradient(to right, transparent 0px, transparent 45px, black 110px, black 100%)',
+                            WebkitMaskImage: 'linear-gradient(to right, transparent 0px, transparent 45px, black 110px, black 100%)'
+                        }}
+                    />
+                    {/* Ambient Darkening Gradient Overlay */}
+                    <div className="absolute inset-0 bg-gradient-to-r from-black/10 via-black/60 to-transparent" />
                 </div>
 
                 {/* Center / Body: Detailed Operational Metadata */}
@@ -568,40 +587,59 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
                     isHighlighted && "ring-3 ring-[#C9AA71] shadow-[0_0_25px_rgba(201,170,113,0.85)] z-20 animate-pulse scale-[1.01]"
                 )}
             >
-                {/* Left Flush Blended Image Layer */}
+                {/* Left Clickable Area for Image Lightbox Preview */}
                 <div 
                     onClick={(e) => {
                         e.stopPropagation();
                         setPreviewImage(activeImage);
                     }}
-                    className="absolute left-0 top-0 bottom-0 w-28 sm:w-40 md:w-52 overflow-hidden pointer-events-auto cursor-pointer group/blend z-0 select-none"
+                    className="absolute left-0 top-0 bottom-0 w-14 sm:w-16 md:w-20 z-10 cursor-pointer group/thumb select-none flex items-center justify-center"
                     title={lang === 'id' ? 'Klik untuk perbesar foto' : 'Click to zoom photo'}
+                >
+                    <div className="p-1 rounded-md bg-black/75 text-white/90 opacity-0 group-hover/thumb:opacity-100 transition-all duration-200 shadow-md backdrop-blur-xs scale-90 group-hover/thumb:scale-100">
+                        <ZoomIn className="w-3.5 h-3.5" />
+                    </div>
+                    {isEmergency && (
+                        <span className="absolute top-1.5 left-1.5 flex h-2 w-2 z-20 pointer-events-none">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500 ring-1 ring-white"></span>
+                        </span>
+                    )}
+                    {isArchived && (
+                        <span className="absolute top-1.5 left-1.5 px-1 py-0.2 rounded text-[7px] font-bold bg-rose-950/80 text-rose-300 border border-rose-500/40 z-20 pointer-events-none">
+                            📦
+                        </span>
+                    )}
+                </div>
+
+                {/* Flush Blended Ambient Image Layer with Progressive Backdrop Blur */}
+                <div 
+                    className="absolute inset-0 overflow-hidden pointer-events-none z-0 select-none"
+                    style={{
+                        maskImage: 'linear-gradient(to right, black 0px, black 65px, transparent 340px)',
+                        WebkitMaskImage: 'linear-gradient(to right, black 0px, black 65px, transparent 340px)'
+                    }}
                 >
                     <img
                         src={activeImage}
                         alt={issue.title}
-                        className="w-full h-full object-cover transition-transform duration-500 ease-out group-hover/blend:scale-110"
+                        className="w-full sm:w-4/5 md:w-3/5 h-full object-cover object-left transition-transform duration-500 ease-out group-hover:scale-105"
                         loading="lazy"
                         onError={(e) => {
                             e.target.onerror = null;
                             e.target.src = FALLBACK_IMAGE;
                         }}
                     />
-                    <div className="absolute inset-0 bg-gradient-to-r from-black/10 via-[#181711]/75 to-[#181711] pointer-events-none" />
-                    <div className="absolute left-2.5 top-1/2 -translate-y-1/2 p-1 rounded-md bg-black/75 text-white/90 opacity-0 group-hover/blend:opacity-100 transition-all duration-200 shadow-md backdrop-blur-xs scale-90 group-hover/blend:scale-100">
-                        <ZoomIn className="w-3.5 h-3.5" />
-                    </div>
-                    {isEmergency && (
-                        <span className="absolute top-1.5 left-1.5 flex h-2 w-2 z-10">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500 ring-1 ring-white"></span>
-                        </span>
-                    )}
-                    {isArchived && (
-                        <span className="absolute top-1.5 left-1.5 px-1 py-0.2 rounded text-[7px] font-bold bg-rose-950/80 text-rose-300 border border-rose-500/40 z-10">
-                            📦
-                        </span>
-                    )}
+                    {/* Progressive Frosted Backdrop Blur */}
+                    <div 
+                        className="absolute inset-0 backdrop-blur-md sm:backdrop-blur-lg bg-black/20"
+                        style={{
+                            maskImage: 'linear-gradient(to right, transparent 0px, transparent 35px, black 90px, black 100%)',
+                            WebkitMaskImage: 'linear-gradient(to right, transparent 0px, transparent 35px, black 90px, black 100%)'
+                        }}
+                    />
+                    {/* Ambient Darkening Gradient Overlay */}
+                    <div className="absolute inset-0 bg-gradient-to-r from-black/10 via-black/60 to-transparent" />
                 </div>
 
                 {/* Center Content: Two Dense Lines */}
