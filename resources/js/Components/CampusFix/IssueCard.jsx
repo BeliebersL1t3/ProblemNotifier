@@ -195,62 +195,53 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
                     }
                 }}
                 className={cn(
-                    "group relative flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3.5 sm:gap-4 p-3.5 sm:p-4 rounded-xl border text-left transition-all duration-200 cursor-pointer shadow-sm select-none overflow-hidden pl-36 sm:pl-44 md:pl-52",
+                    "group relative flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3.5 sm:gap-4 p-3 sm:p-3.5 md:p-4 rounded-xl border text-left transition-all duration-200 cursor-pointer shadow-sm select-none overflow-hidden",
                     borderAccent,
                     bgStyle,
                     isHighlighted && "ring-4 ring-[#C9AA71] shadow-[0_0_35px_rgba(201,170,113,0.85)] z-20 animate-pulse scale-[1.01]"
                 )}
             >
-                {/* Left Clickable Area for Image Lightbox Preview */}
+                {/* Dedicated Left Thumbnail Column */}
                 <div 
                     onClick={(e) => {
                         e.stopPropagation();
                         setPreviewImage(activeImage);
                     }}
-                    className="absolute left-0 top-0 bottom-0 w-32 sm:w-40 md:w-44 z-10 cursor-pointer group/thumb select-none flex items-center justify-center"
+                    className="relative w-full sm:w-36 md:w-44 h-36 sm:h-28 md:h-32 shrink-0 rounded-lg overflow-hidden border border-border/70 bg-black/60 group/thumb cursor-pointer shadow-inner select-none transition-transform duration-200"
                     title={lang === 'id' ? 'Klik untuk perbesar foto' : 'Click to zoom photo'}
                 >
-                    <div className="p-1.5 rounded-lg bg-black/75 text-white/90 opacity-0 group-hover/thumb:opacity-100 transition-all duration-200 shadow-md backdrop-blur-xs scale-90 group-hover/thumb:scale-100">
-                        <ZoomIn className="w-4 h-4" />
+                    <img
+                        src={activeImage}
+                        alt={issue.title}
+                        className="w-full h-full object-cover object-center transition-transform duration-500 ease-out group-hover/thumb:scale-105"
+                        loading="lazy"
+                        onError={(e) => handleImageErrorWithRetry(e)}
+                    />
+                    {/* Subtle top/bottom gradient overlay for badge readability */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/30 pointer-events-none" />
+
+                    {/* Hover Zoom Pill */}
+                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/thumb:opacity-100 transition-opacity duration-200 pointer-events-none">
+                        <div className="p-2 rounded-lg bg-black/80 text-white/95 shadow-lg backdrop-blur-xs flex items-center gap-1.5 text-xs font-semibold scale-95 group-hover/thumb:scale-100 transition-transform duration-200 border border-white/15">
+                            <ZoomIn className="w-4 h-4 text-[#C9AA71]" />
+                            <span className="hidden sm:inline">{lang === 'id' ? 'Perbesar' : 'Zoom'}</span>
+                        </div>
                     </div>
+
+                    {/* Corner Emergency SOS Ping */}
                     {isEmergency && (
                         <span className="absolute top-2 left-2 flex h-2.5 w-2.5 z-20 pointer-events-none">
                             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
                             <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500 ring-1 ring-white"></span>
                         </span>
                     )}
+
+                    {/* Corner Archive Badge */}
                     {isArchived && (
-                        <span className="absolute top-2 left-2 px-1 py-0.2 rounded text-[8px] font-bold bg-rose-950/80 text-rose-300 border border-rose-500/40 z-20 pointer-events-none">
-                            📦
+                        <span className="absolute top-2 left-2 px-1.5 py-0.5 rounded text-[8px] font-bold bg-rose-950/90 text-rose-300 border border-rose-500/50 z-20 pointer-events-none shadow-xs">
+                            📦 {lang === 'id' ? 'Arsip' : 'Archived'}
                         </span>
                     )}
-                </div>
-
-                {/* Flush Blended Ambient Image Layer with Progressive Backdrop Blur */}
-                <div 
-                    className="absolute inset-0 overflow-hidden pointer-events-none z-0 select-none"
-                    style={{
-                        maskImage: 'linear-gradient(to right, black 0px, black 140px, transparent 380px)',
-                        WebkitMaskImage: 'linear-gradient(to right, black 0px, black 140px, transparent 380px)'
-                    }}
-                >
-                    <img
-                        src={activeImage}
-                        alt={issue.title}
-                        className="w-full sm:w-4/5 md:w-3/5 h-full object-cover object-left transition-transform duration-500 ease-out group-hover:scale-105"
-                        loading="lazy"
-                        onError={(e) => handleImageErrorWithRetry(e)}
-                    />
-                    {/* Progressive Frosted Backdrop Blur: Crisp on far-left (0-110px), frosted blur behind text (190px+) */}
-                    <div 
-                        className="absolute inset-0 backdrop-blur-md sm:backdrop-blur-lg bg-black/20"
-                        style={{
-                            maskImage: 'linear-gradient(to right, transparent 0px, transparent 110px, black 190px, black 100%)',
-                            WebkitMaskImage: 'linear-gradient(to right, transparent 0px, transparent 110px, black 190px, black 100%)'
-                        }}
-                    />
-                    {/* Subtle Ambient Gradient Overlay */}
-                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-black/40 to-transparent" />
                 </div>
 
                 {/* Center / Body: Detailed Operational Metadata */}
@@ -604,62 +595,69 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
                     }
                 }}
                 className={cn(
-                    "group relative flex items-center justify-between gap-3 px-3 py-2 sm:px-3.5 sm:py-2.5 rounded-xl border text-left transition-all duration-150 cursor-pointer shadow-xs select-none overflow-hidden pl-28 sm:pl-36 md:pl-44",
+                    "group/card relative flex items-center justify-between gap-2.5 sm:gap-3 px-2.5 py-2 sm:px-3.5 sm:py-2.5 rounded-xl border text-left transition-all duration-150 cursor-pointer shadow-xs select-none hover:z-30",
                     borderAccent,
                     bgStyle,
                     isHighlighted && "ring-3 ring-[#C9AA71] shadow-[0_0_25px_rgba(201,170,113,0.85)] z-20 animate-pulse scale-[1.01]"
                 )}
             >
-                {/* Left Clickable Area for Image Lightbox Preview */}
+                {/* Dedicated Left Thumbnail Avatar with Instant Hover-Peek Popover */}
                 <div 
                     onClick={(e) => {
                         e.stopPropagation();
                         setPreviewImage(activeImage);
                     }}
-                    className="absolute left-0 top-0 bottom-0 w-24 sm:w-32 md:w-36 z-10 cursor-pointer group/thumb select-none flex items-center justify-center"
+                    className="relative shrink-0 group/avatar cursor-pointer select-none"
                     title={lang === 'id' ? 'Klik untuk perbesar foto' : 'Click to zoom photo'}
                 >
-                    <div className="p-1 rounded-md bg-black/75 text-white/90 opacity-0 group-hover/thumb:opacity-100 transition-all duration-200 shadow-md backdrop-blur-xs scale-90 group-hover/thumb:scale-100">
-                        <ZoomIn className="w-3.5 h-3.5" />
+                    {/* Crisp Square Avatar */}
+                    <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-lg overflow-hidden border border-border/80 bg-black/60 shadow-xs relative">
+                        <img
+                            src={activeImage}
+                            alt={issue.title}
+                            className="w-full h-full object-cover object-center transition-transform duration-300 group-hover/avatar:scale-110"
+                            loading="lazy"
+                            onError={(e) => handleImageErrorWithRetry(e)}
+                        />
+                        <div className="absolute inset-0 bg-black/15 group-hover/avatar:bg-transparent transition-colors" />
+                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/avatar:opacity-100 transition-opacity bg-black/40">
+                            <ZoomIn className="w-3.5 h-3.5 text-white" />
+                        </div>
+                        {isEmergency && (
+                            <span className="absolute top-1 left-1 flex h-2 w-2 z-20 pointer-events-none">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500 ring-1 ring-white"></span>
+                            </span>
+                        )}
+                        {isArchived && (
+                            <span className="absolute top-1 left-1 px-1 py-0.2 rounded text-[7px] font-bold bg-rose-950/90 text-rose-300 border border-rose-500/50 z-20 pointer-events-none">
+                                📦
+                            </span>
+                        )}
                     </div>
-                    {isEmergency && (
-                        <span className="absolute top-1.5 left-1.5 flex h-2 w-2 z-20 pointer-events-none">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500 ring-1 ring-white"></span>
-                        </span>
-                    )}
-                    {isArchived && (
-                        <span className="absolute top-1.5 left-1.5 px-1 py-0.2 rounded text-[7px] font-bold bg-rose-950/80 text-rose-300 border border-rose-500/40 z-20 pointer-events-none">
-                            📦
-                        </span>
-                    )}
-                </div>
 
-                {/* Flush Blended Ambient Image Layer with Progressive Backdrop Blur */}
-                <div 
-                    className="absolute inset-0 overflow-hidden pointer-events-none z-0 select-none"
-                    style={{
-                        maskImage: 'linear-gradient(to right, black 0px, black 100px, transparent 280px)',
-                        WebkitMaskImage: 'linear-gradient(to right, black 0px, black 100px, transparent 280px)'
-                    }}
-                >
-                    <img
-                        src={activeImage}
-                        alt={issue.title}
-                        className="w-full sm:w-4/5 md:w-3/5 h-full object-cover object-left transition-transform duration-500 ease-out group-hover:scale-105"
-                        loading="lazy"
-                        onError={(e) => handleImageErrorWithRetry(e)}
-                    />
-                    {/* Progressive Frosted Backdrop Blur: Crisp on far-left (0-80px), frosted blur behind text (140px+) */}
-                    <div 
-                        className="absolute inset-0 backdrop-blur-md sm:backdrop-blur-lg bg-black/20"
-                        style={{
-                            maskImage: 'linear-gradient(to right, transparent 0px, transparent 80px, black 140px, black 100%)',
-                            WebkitMaskImage: 'linear-gradient(to right, transparent 0px, transparent 80px, black 140px, black 100%)'
-                        }}
-                    />
-                    {/* Subtle Ambient Gradient Overlay */}
-                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-black/40 to-transparent" />
+                    {/* Floating Instant Hover-Peek Popover Card (Desktop only, non-blocking) */}
+                    <div className="hidden sm:block pointer-events-none opacity-0 scale-95 translate-y-1 group-hover/avatar:opacity-100 group-hover/avatar:scale-100 group-hover/avatar:translate-y-0 transition-all duration-200 ease-out z-50 absolute left-full top-1/2 -translate-y-1/2 ml-3 w-56 rounded-xl overflow-hidden shadow-[0_10px_35px_rgba(0,0,0,0.85)] border border-primary/40 bg-[#1A1913] p-1.5 backdrop-blur-md ring-1 ring-black/80">
+                        <div className="relative aspect-[4/3] w-full rounded-lg overflow-hidden bg-black/80 mb-1.5">
+                            <img
+                                src={activeImage}
+                                alt={issue.title}
+                                className="w-full h-full object-cover object-center"
+                            />
+                            <div className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded bg-black/80 text-[10px] text-white/90 font-medium flex items-center gap-1 border border-white/20">
+                                <ZoomIn className="w-3 h-3 text-[#C9AA71]" />
+                                <span>{lang === 'id' ? 'Klik Full' : 'Click Full'}</span>
+                            </div>
+                        </div>
+                        <div className="px-1 pb-1">
+                            <p className="text-[11px] font-bold text-foreground line-clamp-1">
+                                {issue.title}
+                            </p>
+                            <p className="text-[10px] text-muted-foreground truncate">
+                                {issue.location || '-'} • {primaryDept || '-'}
+                            </p>
+                        </div>
+                    </div>
                 </div>
 
                 {/* Center Content: Two Dense Lines */}
