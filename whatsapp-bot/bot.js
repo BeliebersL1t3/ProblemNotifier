@@ -3028,13 +3028,13 @@ setInterval(async () => {
         if (res.data && res.data.success) {
             const issues = res.data.data;
             const now = Date.now();
-            const TARGET_MILESTONES = [5, 10, 15, 30, 60]; // Strict milestone minutes
-
-            let alertSentThisCycle = false;
+            // Milestone schedules:
+            // OPEN issues: 1, 2, 3, 4, 5, 10, 15, 20, 25, 30 minutes, and 1, 2, 3, 4, 5, 6 hours
+            // IN PROGRESS issues: hourly only (1, 2, 3, 4, 5, 6 hours)
+            const OPEN_MILESTONES = [1, 2, 3, 4, 5, 10, 15, 20, 25, 30, 60, 120, 180, 240, 300, 360];
+            const PROGRESS_MILESTONES = [60, 120, 180, 240, 300, 360];
 
             for (const issue of issues) {
-                if (alertSentThisCycle) break; // Rate-limit: Max 1 WhatsApp alert per 15-second check!
-
                 const isUnresolved = issue.status === 'open' || issue.status === 'progress';
                 if (!isUnresolved || issue.priority !== 'critical' || !issue.deadline) continue;
 
@@ -3045,64 +3045,64 @@ setInterval(async () => {
 
                 const overdueMins = Math.floor((now - deadlineTime) / 60000);
 
-                // Ignore legacy seed items or items overdue by > 24 hours (1440 mins) to prevent spam
-                if (overdueMins > 1440) continue;
+                // Stop escalating beyond 6 hours (360 mins) to prevent endless spam
+                if (overdueMins > 360) continue;
 
-                // Determine matching milestone
-                let matchingMilestone = null;
-                for (const m of TARGET_MILESTONES) {
-                    // Match if overdueMins is currently within 1 min of milestone
-                    if (overdueMins === m || overdueMins === m + 1) {
-                        matchingMilestone = m;
-                        break;
-                    }
-                }
+                const targetMilestones = issue.status === 'progress' ? PROGRESS_MILESTONES : OPEN_MILESTONES;
+                const eligibleMilestones = targetMilestones.filter(m => m <= overdueMins);
+                if (eligibleMilestones.length === 0) continue;
 
-                // If overdue > 60m, check hourly milestones (120m, 180m, etc.)
-                if (overdueMins > 60 && overdueMins % 60 <= 1) {
-                    matchingMilestone = Math.floor(overdueMins / 60) * 60;
-                }
-
-                if (matchingMilestone === null) continue; // Not at a milestone minute right now!
-
+                const matchingMilestone = eligibleMilestones[eligibleMilestones.length - 1];
                 const mKey = `${issue.id}-${matchingMilestone}`;
+
                 if (triggeredMilestones.has(mKey)) continue; // Already alerted for this milestone!
 
-                triggeredMilestones.add(mKey);
-                alertSentThisCycle = true;
+                // Mark this and all prior milestones as triggered to prevent backfill spam
+                for (const m of eligibleMilestones) {
+                    triggeredMilestones.add(`${issue.id}-${m}`);
+                }
+
+                const formatMilestoneStr = (m) => {
+                    if (m >= 60) {
+                        const hrs = m / 60;
+                        return `${hrs} Jam / ${hrs} Hour${hrs > 1 ? 's' : ''}`;
+                    }
+                    return `${m} Menit / ${m} Minutes`;
+                };
+                const milestoneDurationStr = formatMilestoneStr(matchingMilestone);
 
                 const milestoneNotice = issue.status === 'progress'
-                    ? `⏰ *In-Progress Milestone:* Overdue by ${matchingMilestone} minutes!`
-                    : `⚠️ *Unclaimed Milestone:* Overdue by ${matchingMilestone} minutes (Unclaimed)!`;
+                    ? `⏰ *In-Progress Escalation:* Overdue by ${milestoneDurationStr} (Masih Dikerjakan)!`
+                    : `⚠️ *Unclaimed Escalation:* Overdue by ${milestoneDurationStr} (BELUM DIAMBIL)!`;
 
                 const overdueStr  = `${overdueMins} minute${overdueMins !== 1 ? 's' : ''} ago`;
                 const statusLabel = issue.status === 'progress' ? '🔧 In Progress (STILL UNRESOLVED)' : '⚠️ UNCLAIMED & OPEN';
                 const workerStr   = issue.status === 'progress' && issue.taker
                     ? `\n*Assigned Worker:* ${issue.taker}`
                     : '\n*Assigned Worker:* ⚠️ *UNCLAIMED — NO ONE IS HANDLING THIS YET!*';
-                const taggedStr   = issue.taggedDepartments ? `\n*Tagged Departments:* ${issue.taggedDepartments}` : '';
+                const assignedStr = issue.assignedDepartments ? `\n*Assigned Departments:* ${issue.assignedDepartments}` : '';
 
                 const msg = `🚨 *OVERDUE CRITICAL ISSUE ALERT!* 🚨\n\n` +
                     `${milestoneNotice}\n\n` +
                     `*Title:* ${issue.title}\n` +
                     `*Location:* ${issue.location}\n` +
                     `*Reporter:* ${issue.reporter}\n` +
-                    `*Status:* ${statusLabel}${workerStr}${taggedStr}\n` +
+                    `*Status:* ${statusLabel}${workerStr}${assignedStr}\n` +
                     `*Overdue by:* ${overdueStr}\n` +
                     `*ID:* ${issue.id}\n\n` +
                     `❗ *PLEASE RESOLVE OR UPDATE IMMEDIATELY!*`;
 
-                // Targets for escalation (both assigned and tagged departments)
+                // Targets for escalation: strictly ASSIGNED departments only (tagged departments are NOT notified for escalation)
                 const escalationTargets = new Set();
                 if (botConfig.generalGroupId) escalationTargets.add(botConfig.generalGroupId);
                 
-                const combinedDepts = `${issue.assignedDepartments || ''}, ${issue.taggedDepartments || ''}`.toLowerCase();
-                if (combinedDepts.includes('all')) {
+                const assignedDeptsLower = String(issue.assignedDepartments || '').toLowerCase();
+                if (assignedDeptsLower.includes('all')) {
                     Object.values(botConfig.departmentGroups).forEach(gid => escalationTargets.add(gid));
                 } else {
                     for (const d of DEPARTMENTS) {
                         const dKey = d.toLowerCase();
-                        if (combinedDepts.includes(dKey) && botConfig.departmentGroups[dKey]) {
+                        if (assignedDeptsLower.includes(dKey) && botConfig.departmentGroups[dKey]) {
                             escalationTargets.add(botConfig.departmentGroups[dKey]);
                         }
                     }
@@ -3119,8 +3119,8 @@ setInterval(async () => {
                         }
 
                         let targetMsg = msg;
-                        if (deptForGid && gid !== botConfig.generalGroupId && !combinedDepts.includes('all')) {
-                            targetMsg = targetMsg.replace(/\*Tagged Departments:\*[^\n]*/i, `*Target Department:* ${deptForGid}`);
+                        if (deptForGid && gid !== botConfig.generalGroupId && !assignedDeptsLower.includes('all')) {
+                            targetMsg = targetMsg.replace(/\*Assigned Departments:\*[^\n]*/i, `*Target Department:* ${deptForGid}`);
                         }
 
                         if (issue.imageUrl) {
@@ -3133,6 +3133,9 @@ setInterval(async () => {
                         }
                     } catch (e) {}
                 }
+
+                // Throttle 1.2s between multi-issue milestone sends to prevent WA flood
+                await new Promise(r => setTimeout(r, 1200));
 
 
             }

@@ -1,6 +1,6 @@
 import { Head } from '@inertiajs/react';
 import { useMemo, useState, useEffect, useLayoutEffect, useRef } from 'react';
-import { Loader2, RefreshCw, SearchX, LayoutGrid, Grid3X3, Layers, List, Rows3, Search, MapPin, Trash2, AlertTriangle, CalendarPlus, Globe, Target, FileText, Megaphone, Lock, ArrowRightLeft } from 'lucide-react';
+import { Loader2, RefreshCw, SearchX, LayoutGrid, Grid3X3, Layers, List, Rows3, Search, MapPin, Trash2, AlertTriangle, CalendarPlus, Globe, Target, FileText, Megaphone, Lock, ArrowRightLeft, ChevronLeft, ChevronRight, Volume2, VolumeX, ExternalLink, CheckCheck } from 'lucide-react';
 import { getDepartmentTheme } from '@/constants/departments';
 
 const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect;
@@ -54,8 +54,14 @@ function getAudioContext() {
     }
 }
 
-function playAlarmBeep() {
+let lastChimePlayedAt = 0;
+
+function playHarmonicChime(type = 'milestone') {
     try {
+        const now = Date.now();
+        // Debounce: prevent overlapping audio blasts (min 2.5s between chimes)
+        if (now - lastChimePlayedAt < 2500) return false;
+
         const ctx = getAudioContext();
         if (!ctx) return false;
 
@@ -63,33 +69,49 @@ function playAlarmBeep() {
             ctx.resume().catch(() => {});
         }
 
-        const playPulse = (delayMs) => {
-            setTimeout(() => {
-                try {
-                    const osc = ctx.createOscillator();
-                    const gain = ctx.createGain();
-                    osc.type = 'sawtooth';
-                    osc.frequency.setValueAtTime(880, ctx.currentTime);
-                    osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.2);
+        lastChimePlayedAt = now;
 
-                    gain.gain.setValueAtTime(0.35, ctx.currentTime);
-                    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
+        const playTone = (freq, startTime, duration, gainVal, waveType = 'sine') => {
+            try {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = waveType;
+                osc.frequency.setValueAtTime(freq, startTime);
 
-                    osc.connect(gain);
-                    gain.connect(ctx.destination);
+                // Gentle Attack-Decay envelope
+                gain.gain.setValueAtTime(0.001, startTime);
+                gain.gain.exponentialRampToValueAtTime(gainVal, startTime + 0.04);
+                gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
 
-                    osc.start();
-                    osc.stop(ctx.currentTime + 0.2);
-                } catch (e) {}
-            }, delayMs);
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+
+                osc.start(startTime);
+                osc.stop(startTime + duration);
+            } catch (e) {}
         };
 
-        playPulse(0);
-        playPulse(150);
+        const t = ctx.currentTime;
+        if (type === 'emergency') {
+            // Urgent 3-tone chime (C5 -> E5 -> G5)
+            playTone(523.25, t, 0.28, 0.22, 'triangle');
+            playTone(659.25, t + 0.14, 0.28, 0.22, 'triangle');
+            playTone(783.99, t + 0.28, 0.45, 0.25, 'triangle');
+        } else {
+            // Elegant 2-tone hospitality chime (E5 -> B5 harmonic chime)
+            playTone(659.25, t, 0.25, 0.18, 'sine');
+            playTone(987.77, t + 0.16, 0.40, 0.18, 'sine');
+        }
+
         return ctx.state === 'running';
     } catch (e) {
         return false;
     }
+}
+
+// Backward-compatible alias
+function playAlarmBeep() {
+    return playHarmonicChime('emergency');
 }
 
 function DashboardInner() {
@@ -345,66 +367,170 @@ function DashboardInner() {
         return () => clearInterval(timer);
     }, []);
 
-    // 3. Unclaimed overdue issues (status === 'open')
-    const openOverdueCriticals = useMemo(() => {
-        return issues.filter(i => {
-            const isArchived = Boolean(i.isArchived || i.statusDisplay === '0' || i.displayStatus === '0');
-            if (isArchived) return false;
-            if (i.status !== 'open' || i.priority !== 'critical' || !i.deadline) return false;
-            const deadlineTime = parseDeadlineToMs(i.deadline);
-            if (!deadlineTime) return false;
-            return now >= deadlineTime;
-        });
-    }, [issues, now]);
+    // 3. Department-scoped Overdue Critical Issues (max 6 hours)
+    const isIssueInMyAlarmScope = (issue) => {
+        if (isAdmin || canViewAllDepartments) return true;
+        const isEmergency = issue.category === 'emergency' || String(issue.assignedDepartments || '').toLowerCase().includes('all');
+        if (isEmergency) return true;
+        if (!department) return false;
+        const normUserDept = normalizeDepartment(department);
+        const assigned = (Array.isArray(issue.assignedDepartments) 
+            ? issue.assignedDepartments 
+            : (issue.assignedDepartments ? String(issue.assignedDepartments).split(',') : [])
+        ).map(d => normalizeDepartment(d.trim()));
+        return assigned.includes(normUserDept);
+    };
 
-    // 4. In Progress overdue issues (status === 'progress')
-    const progressOverdueCriticals = useMemo(() => {
-        return issues.filter(i => {
-            const isArchived = Boolean(i.isArchived || i.statusDisplay === '0' || i.displayStatus === '0');
-            if (isArchived) return false;
-            if (i.status !== 'progress' || i.priority !== 'critical' || !i.deadline) return false;
-            const deadlineTime = parseDeadlineToMs(i.deadline);
-            if (!deadlineTime) return false;
-            return now >= deadlineTime;
-        });
-    }, [issues, now]);
-
-    const totalOverdueCount = openOverdueCriticals.length + progressOverdueCriticals.length;
-
-    // Continuous alarm for UNCLAIMED open overdue issues
-    useEffect(() => {
-        if (openOverdueCriticals.length > 0 && !isMuted) {
-            playAlarmBeep();
-            const interval = setInterval(() => {
-                playAlarmBeep();
-            }, 3500);
-            return () => clearInterval(interval);
+    // Acknowledge / Snooze state persisted in localStorage
+    const [acknowledgedMap, setAcknowledgedMap] = useState(() => {
+        try {
+            const raw = localStorage.getItem('campusfix_acknowledged_alarms');
+            return raw ? JSON.parse(raw) : {};
+        } catch (e) {
+            return {};
         }
-    }, [openOverdueCriticals.length, isMuted]);
+    });
 
-    // Short 1-shot milestone alarm burst for IN PROGRESS items at 5, 10, 15, 30, 60 minutes
+    const isIssueAcknowledged = (issueId) => {
+        const expiresAt = acknowledgedMap[issueId];
+        return Boolean(expiresAt && expiresAt > now);
+    };
+
+    const acknowledgeIssue = (issueId) => {
+        const snoozeUntil = Date.now() + 30 * 60 * 1000; // 30 minutes snooze
+        setAcknowledgedMap(prev => {
+            const next = { ...prev, [issueId]: snoozeUntil };
+            try {
+                localStorage.setItem('campusfix_acknowledged_alarms', JSON.stringify(next));
+            } catch (e) {}
+            return next;
+        });
+    };
+
+    const acknowledgeAll = () => {
+        const snoozeUntil = Date.now() + 30 * 60 * 1000;
+        setAcknowledgedMap(prev => {
+            const next = { ...prev };
+            scopedOverdueIssues.forEach(i => {
+                next[i.id] = snoozeUntil;
+            });
+            try {
+                localStorage.setItem('campusfix_acknowledged_alarms', JSON.stringify(next));
+            } catch (e) {}
+            return next;
+        });
+    };
+
+    // Filter scoped overdue critical issues (max 6 hours = 360 mins)
+    const scopedOverdueIssues = useMemo(() => {
+        return (issues || []).filter(i => {
+            const isArchived = Boolean(i.isArchived || i.statusDisplay === '0' || i.displayStatus === '0');
+            if (isArchived) return false;
+            if (i.status !== 'open' && i.status !== 'progress') return false;
+            if (i.priority !== 'critical' || !i.deadline) return false;
+            const deadlineTime = parseDeadlineToMs(i.deadline);
+            if (!deadlineTime || now < deadlineTime) return false;
+            const overdueMins = Math.floor((now - deadlineTime) / 60000);
+            if (overdueMins > 360) return false; // Stop after 6 hours
+            return isIssueInMyAlarmScope(i);
+        }).sort((a, b) => {
+            const aIsEmerg = a.category === 'emergency' ? 1 : 0;
+            const bIsEmerg = b.category === 'emergency' ? 1 : 0;
+            if (aIsEmerg !== bIsEmerg) return bIsEmerg - aIsEmerg;
+            const aTime = parseDeadlineToMs(a.deadline) || 0;
+            const bTime = parseDeadlineToMs(b.deadline) || 0;
+            return aTime - bTime;
+        });
+    }, [issues, now, department, isAdmin, canViewAllDepartments]);
+
+    const openOverdueCriticals = useMemo(() => {
+        return scopedOverdueIssues.filter(i => i.status === 'open');
+    }, [scopedOverdueIssues]);
+
+    const progressOverdueCriticals = useMemo(() => {
+        return scopedOverdueIssues.filter(i => i.status === 'progress');
+    }, [scopedOverdueIssues]);
+
+    const totalOverdueCount = scopedOverdueIssues.length;
+
+    // Milestone constants:
+    // OPEN: 1, 2, 3, 4, 5, 10, 15, 20, 25, 30 mins, 1, 2, 3, 4, 5, 6 hours
+    // PROGRESS: hourly only (1, 2, 3, 4, 5, 6 hours)
+    const OPEN_MILESTONES = useMemo(() => [1, 2, 3, 4, 5, 10, 15, 20, 25, 30, 60, 120, 180, 240, 300, 360], []);
+    const PROGRESS_MILESTONES = useMemo(() => [60, 120, 180, 240, 300, 360], []);
+
+    // Reference to track sounded milestones per issue
+    const soundedMilestonesMap = useRef(new Map());
+    const hasInitializedCatchUp = useRef(false);
+
+    // Audio chime dispatcher with smart catch-up (no rapid-fire blast on page open)
     useEffect(() => {
-        if (isMuted || progressOverdueCriticals.length === 0) return;
-        const MILESTONES = [5, 10, 15, 30, 60];
+        if (isMuted || scopedOverdueIssues.length === 0) return;
 
-        progressOverdueCriticals.forEach(issue => {
+        // Catch-up on initial load: skip obsolete past milestones and play at most 1 welcome chime
+        if (!hasInitializedCatchUp.current) {
+            hasInitializedCatchUp.current = true;
+            let hasUnacknowledged = false;
+
+            scopedOverdueIssues.forEach(issue => {
+                const deadlineTime = parseDeadlineToMs(issue.deadline);
+                if (!deadlineTime) return;
+                const overdueMins = Math.floor((now - deadlineTime) / 60000);
+                const targetMilestones = issue.status === 'progress' ? PROGRESS_MILESTONES : OPEN_MILESTONES;
+
+                let issueSet = soundedMilestonesMap.current.get(issue.id);
+                if (!issueSet) {
+                    issueSet = new Set();
+                    soundedMilestonesMap.current.set(issue.id, issueSet);
+                }
+
+                targetMilestones.filter(m => m <= overdueMins).forEach(m => issueSet.add(m));
+
+                if (!isIssueAcknowledged(issue.id)) {
+                    hasUnacknowledged = true;
+                }
+            });
+
+            if (hasUnacknowledged) {
+                const hasEmergency = scopedOverdueIssues.some(i => i.category === 'emergency');
+                playHarmonicChime(hasEmergency ? 'emergency' : 'milestone');
+            }
+            return;
+        }
+
+        // Live ticker checking
+        scopedOverdueIssues.forEach(issue => {
+            if (isIssueAcknowledged(issue.id)) return;
+
             const deadlineTime = parseDeadlineToMs(issue.deadline);
             if (!deadlineTime) return;
             const overdueMins = Math.floor((now - deadlineTime) / 60000);
+            const targetMilestones = issue.status === 'progress' ? PROGRESS_MILESTONES : OPEN_MILESTONES;
 
-            MILESTONES.forEach(m => {
-                if (overdueMins >= m) {
-                    const key = `${issue.id}-${m}`;
-                    if (!soundedMilestones.current.has(key)) {
-                        const played = playAlarmBeep();
-                        if (played) {
-                            soundedMilestones.current.add(key);
-                        }
-                    }
-                }
-            });
+            let issueSet = soundedMilestonesMap.current.get(issue.id);
+            if (!issueSet) {
+                issueSet = new Set();
+                soundedMilestonesMap.current.set(issue.id, issueSet);
+            }
+
+            const unplayed = targetMilestones.filter(m => overdueMins >= m && !issueSet.has(m));
+            if (unplayed.length > 0) {
+                unplayed.forEach(m => issueSet.add(m));
+                const chimeType = issue.category === 'emergency' ? 'emergency' : 'milestone';
+                playHarmonicChime(chimeType);
+            }
         });
-    }, [progressOverdueCriticals, isMuted, now]);
+    }, [scopedOverdueIssues, isMuted, now, acknowledgedMap, OPEN_MILESTONES, PROGRESS_MILESTONES]);
+
+    // Slider active index
+    const [sliderIndex, setSliderIndex] = useState(0);
+
+    // Keep slider index bounded
+    useEffect(() => {
+        if (sliderIndex >= scopedOverdueIssues.length && scopedOverdueIssues.length > 0) {
+            setSliderIndex(0);
+        }
+    }, [scopedOverdueIssues.length, sliderIndex]);
 
     // Count of past contributions from former departments
     const pastContribCount = useMemo(() => {
@@ -883,23 +1009,156 @@ function DashboardInner() {
                 </div>
             )}
 
-            {totalOverdueCount > 0 && (
-                <div className="bg-red-600 text-white px-4 py-2.5 font-bold flex flex-col sm:flex-row items-center justify-between gap-3 shadow-lg border-b border-red-500 animate-pulse">
-                    <div className="flex items-center gap-2 text-sm sm:text-base">
-                        <span className="text-xl">🚨</span>
-                        <span>
-                            {t('overdue_alert')} ({totalOverdueCount}) — {openOverdueCriticals.length > 0 ? `${openOverdueCriticals.length} ${t('unclaimed')}` : ''}{openOverdueCriticals.length > 0 && progressOverdueCriticals.length > 0 ? ', ' : ''}{progressOverdueCriticals.length > 0 ? `${progressOverdueCriticals.length} ${t('in_progress')}` : ''}
-                        </span>
+            {totalOverdueCount > 0 && (() => {
+                const activeIssue = scopedOverdueIssues[sliderIndex] || scopedOverdueIssues[0];
+                if (!activeIssue) return null;
+
+                const activeDeadline = parseDeadlineToMs(activeIssue.deadline);
+                const activeOverdueMins = activeDeadline ? Math.max(0, Math.floor((now - activeDeadline) / 60000)) : 0;
+                const formatOverdueTime = (mins) => {
+                    if (mins >= 60) {
+                        const h = Math.floor(mins / 60);
+                        const m = mins % 60;
+                        return `${h} ${lang === 'id' ? 'jam' : 'hr'}${m > 0 ? ` ${m}m` : ''}`;
+                    }
+                    return `${mins} ${lang === 'id' ? 'menit' : 'mins'}`;
+                };
+
+                const targetMilestones = activeIssue.status === 'progress' ? PROGRESS_MILESTONES : OPEN_MILESTONES;
+                const nextM = targetMilestones.find(m => m > activeOverdueMins);
+                const nextMilestoneText = nextM
+                    ? (nextM >= 60 ? `${nextM / 60} ${lang === 'id' ? 'jam' : 'hr'}` : `${nextM}m`)
+                    : (lang === 'id' ? 'Maks (6 jam)' : 'Max (6 hrs)');
+
+                const isAck = isIssueAcknowledged(activeIssue.id);
+                const isEmergency = activeIssue.category === 'emergency';
+                const hasMultiple = scopedOverdueIssues.length > 1;
+
+                return (
+                    <div className={`relative px-4 py-3 text-white shadow-xl border-b transition-all ${
+                        isEmergency 
+                            ? 'bg-gradient-to-r from-red-700 via-rose-700 to-red-800 border-red-500' 
+                            : isAck 
+                                ? 'bg-gradient-to-r from-amber-950 via-[#2A2315] to-amber-900/90 border-amber-600/40 text-amber-100'
+                                : 'bg-gradient-to-r from-red-600 via-rose-600 to-red-700 border-red-500'
+                    }`}>
+                        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-3">
+                            {/* Left: Issue Info & Slider Controls */}
+                            <div className="flex items-center gap-3 w-full md:w-auto min-w-0">
+                                {hasMultiple && (
+                                    <div className="flex items-center gap-1 shrink-0 bg-black/40 rounded-lg p-0.5 border border-white/20">
+                                        <button
+                                            type="button"
+                                            onClick={() => setSliderIndex(prev => (prev > 0 ? prev - 1 : scopedOverdueIssues.length - 1))}
+                                            className="p-1 hover:bg-white/20 rounded transition-all cursor-pointer"
+                                            title={lang === 'id' ? 'Isu Sebelumnya' : 'Previous Issue'}
+                                        >
+                                            <ChevronLeft className="h-4 w-4" />
+                                        </button>
+                                        <span className="text-[11px] font-mono font-bold px-1.5 min-w-[36px] text-center">
+                                            {sliderIndex + 1}/{scopedOverdueIssues.length}
+                                        </span>
+                                        <button
+                                            type="button"
+                                            onClick={() => setSliderIndex(prev => (prev < scopedOverdueIssues.length - 1 ? prev + 1 : 0))}
+                                            className="p-1 hover:bg-white/20 rounded transition-all cursor-pointer"
+                                            title={lang === 'id' ? 'Isu Berikutnya' : 'Next Issue'}
+                                        >
+                                            <ChevronRight className="h-4 w-4" />
+                                        </button>
+                                    </div>
+                                )}
+
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                    <span className="text-xl shrink-0">
+                                        {isEmergency ? '🔥' : '🚨'}
+                                    </span>
+                                    <div className="min-w-0">
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                            <span className="font-extrabold text-sm sm:text-base truncate max-w-[280px] sm:max-w-[420px]">
+                                                {activeIssue.title}
+                                            </span>
+                                            <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full shrink-0 ${
+                                                activeIssue.status === 'open' 
+                                                    ? 'bg-red-950 text-red-200 border border-red-400/50' 
+                                                    : 'bg-amber-950 text-amber-200 border border-amber-400/50'
+                                            }`}>
+                                                {activeIssue.status === 'open' ? (lang === 'id' ? 'Belum Diambil' : 'Unclaimed') : (lang === 'id' ? 'Sedang Dikerjakan' : 'In Progress')}
+                                            </span>
+                                            {isAck && (
+                                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-900/80 text-emerald-200 border border-emerald-400/50 shrink-0">
+                                                    ✓ {lang === 'id' ? 'Snooze Aktif (30m)' : 'Snoozed (30m)'}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <div className="flex items-center gap-2 text-xs opacity-90 text-[11px] mt-0.5 flex-wrap">
+                                            <span>
+                                                📍 {activeIssue.location || 'Resort'}
+                                            </span>
+                                            <span>•</span>
+                                            <span className="font-bold">
+                                                ⏱️ {lang === 'id' ? 'Terlambat:' : 'Overdue:'} {formatOverdueTime(activeOverdueMins)}
+                                            </span>
+                                            <span>•</span>
+                                            <span>
+                                                🔔 {lang === 'id' ? 'Eskalasi berikutnya:' : 'Next escalation:'} {nextMilestoneText}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Right: Actions */}
+                            <div className="flex items-center gap-2 shrink-0 self-end md:self-auto flex-wrap">
+                                <button
+                                    type="button"
+                                    onClick={() => focusAndOpenIssue(activeIssue.id, activeIssue.sheet)}
+                                    className="px-2.5 py-1 text-xs font-bold rounded-lg bg-white/20 hover:bg-white/30 text-white transition-all flex items-center gap-1.5 cursor-pointer border border-white/20"
+                                >
+                                    <ExternalLink className="h-3.5 w-3.5" />
+                                    <span>{lang === 'id' ? 'Buka Tiket' : 'View'}</span>
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={() => acknowledgeIssue(activeIssue.id)}
+                                    disabled={isAck}
+                                    className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
+                                        isAck
+                                            ? 'bg-emerald-900/60 text-emerald-200 border border-emerald-500/40 cursor-default opacity-80'
+                                            : 'bg-black/40 hover:bg-black/60 text-white border border-white/30'
+                                    }`}
+                                    title={lang === 'id' ? 'Matikan bunyi alarm untuk isu ini selama 30 menit' : 'Snooze alarm audio for 30 minutes'}
+                                >
+                                    <CheckCheck className="h-3.5 w-3.5" />
+                                    <span>{isAck ? (lang === 'id' ? 'Diakui (30m)' : 'Acked (30m)') : (lang === 'id' ? 'Acknowledge' : 'Acknowledge')}</span>
+                                </button>
+
+                                {hasMultiple && (
+                                    <button
+                                        type="button"
+                                        onClick={acknowledgeAll}
+                                        className="px-2.5 py-1 text-xs font-bold rounded-lg bg-black/30 hover:bg-black/50 text-white/90 border border-white/20 transition-all cursor-pointer"
+                                        title={lang === 'id' ? 'Acknowledge & Snooze semua isu yang sedang terlambat selama 30 menit' : 'Acknowledge all overdue issues for 30 minutes'}
+                                    >
+                                        <span>{lang === 'id' ? 'Ack Semua' : 'Ack All'}</span>
+                                    </button>
+                                )}
+
+                                <button
+                                    type="button"
+                                    onClick={toggleMute}
+                                    className="px-2.5 py-1 text-xs font-bold rounded-lg bg-black/40 hover:bg-black/60 border border-white/30 transition-all cursor-pointer flex items-center gap-1.5"
+                                    title={isMuted ? 'Unmute' : 'Mute'}
+                                >
+                                    {isMuted ? <VolumeX className="h-3.5 w-3.5 text-red-200" /> : <Volume2 className="h-3.5 w-3.5 text-emerald-300" />}
+                                    <span>{isMuted ? t('unmute_alarm') : t('sound_active')}</span>
+                                </button>
+                            </div>
+                        </div>
                     </div>
-                    <button
-                        type="button"
-                        onClick={toggleMute}
-                        className="px-3 py-1 text-xs font-extrabold rounded-lg bg-black/40 hover:bg-black/60 border border-white/30 transition-all cursor-pointer shrink-0 flex items-center gap-1.5"
-                    >
-                        {isMuted ? `🔇 ${t('unmute_alarm')}` : `🔊 ${t('sound_active')}`}
-                    </button>
-                </div>
-            )}
+                );
+            })()}
 
             <main className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6 sm:py-8 pb-28 md:pb-8">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
