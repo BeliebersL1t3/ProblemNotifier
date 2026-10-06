@@ -7,9 +7,11 @@ use App\Models\User;
 use App\Models\UserAuditLog;
 use App\Services\GoogleService;
 use App\Services\IssueSheetRepository;
+use App\Services\TicketNotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -261,6 +263,11 @@ class UserController extends Controller
             ]
         );
 
+        // Dispatch credentials via WhatsApp DM, or fallback to email
+        if (!empty($validated['password'])) {
+            $this->dispatchUserCredentials($user, $validated['password'], true);
+        }
+
         return response()->json([
             'success' => true,
             'message' => "Akun {$user->name} ({$user->email}) berhasil dibuat.",
@@ -404,6 +411,11 @@ class UserController extends Controller
         }
 
         $user->save();
+
+        // Dispatch updated credentials via WhatsApp DM, or fallback to email
+        if ($passwordChanged && !empty($validated['password'])) {
+            $this->dispatchUserCredentials($user, $validated['password'], false);
+        }
 
         // If HOD status was changed, notify user and other admins with acting admin info
         if ($wasHod !== (bool) $user->is_hod) {
@@ -1045,6 +1057,62 @@ class UserController extends Controller
             }
         } catch (\Throwable $e) {
             Log::warning("Failed to notify HOD of transferred staff active issues: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Dispatch account login credentials to user via WhatsApp DM, or fallback to email.
+     */
+    protected function dispatchUserCredentials(User $user, string $plainPassword, bool $isNew = false): void
+    {
+        $actionTitle = $isNew ? 'Akun Baru Telunas' : 'Pembaruan Password Akun';
+        $loginUrl = url('/login');
+
+        $message = "🔐 *KREDENSIAL LOGIN WEB TELUNAS* 🔐\n\n"
+            . "Halo *{$user->name}*,\n"
+            . ($isNew 
+                ? "Akun Web Dashboard Anda telah berhasil dibuat oleh Administrator:\n\n"
+                : "Administrator baru saja memperbarui kredensial login Dashboard Anda:\n\n")
+            . "• *Email:* {$user->email}\n"
+            . "• *Password:* *{$plainPassword}*\n"
+            . (!empty($user->department) ? "• *Departemen:* {$user->department}\n" : "")
+            . "\n🌐 *Link Login:* {$loginUrl}\n\n"
+            . "💡 _Demi keamanan, segera ganti password ini setelah berhasil login jika diperlukan._";
+
+        $sentViaWhatsapp = false;
+        if (!empty($user->whatsapp_number)) {
+            try {
+                $sentViaWhatsapp = TicketNotificationService::sendWhatsApp($user->whatsapp_number, $message);
+                if ($sentViaWhatsapp) {
+                    Log::info("Login credentials sent via WhatsApp to +{$user->whatsapp_number} for user #{$user->id}");
+                }
+            } catch (\Throwable $e) {
+                Log::warning("WhatsApp credential dispatch failed for user #{$user->id}: " . $e->getMessage());
+            }
+        }
+
+        // Fallback to email if user has no WhatsApp number OR if WhatsApp dispatch did not succeed
+        if (!$sentViaWhatsapp && !empty($user->email)) {
+            try {
+                Mail::raw(
+                    "Halo {$user->name},\n\n"
+                    . ($isNew 
+                        ? "Akun Web Dashboard Telunas Anda telah berhasil dibuat oleh Administrator:\n\n"
+                        : "Administrator baru saja memperbarui kredensial login Web Dashboard Telunas Anda:\n\n")
+                    . "Email: {$user->email}\n"
+                    . "Password: {$plainPassword}\n"
+                    . (!empty($user->department) ? "Departemen: {$user->department}\n" : "")
+                    . "\nSilakan login di: {$loginUrl}\n\n"
+                    . "Demi keamanan, segera ganti password ini setelah berhasil login jika diperlukan.\n\n"
+                    . "Salam,\nTim Administrator Telunas Resorts",
+                    function ($mail) use ($user, $actionTitle) {
+                        $mail->to($user->email)->subject("{$actionTitle} - Telunas Issue Tracker");
+                    }
+                );
+                Log::info("Login credentials sent to email {$user->email} for user #{$user->id}");
+            } catch (\Throwable $e) {
+                Log::warning("Email credential dispatch failed for user #{$user->id}: " . $e->getMessage());
+            }
         }
     }
 }
