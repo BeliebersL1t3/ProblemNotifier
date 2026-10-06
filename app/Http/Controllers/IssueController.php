@@ -92,22 +92,47 @@ class IssueController extends Controller
         }
     }
 
-    private function notifyIssueProgress(?string $department, string $title, string $message, ?string $issueId = null): void
+    private function notifyIssueProgress(array|string|null $departments, string $title, string $message, ?string $issueId = null): void
     {
-        if (empty($department)) {
+        $deptList = [];
+        if (is_array($departments)) {
+            foreach ($departments as $d) {
+                if (is_string($d) && trim($d) !== '') {
+                    foreach (explode(',', $d) as $sub) {
+                        $sub = trim($sub);
+                        if ($sub !== '') {
+                            $deptList[] = $sub;
+                        }
+                    }
+                }
+            }
+        } elseif (is_string($departments) && trim($departments) !== '') {
+            foreach (explode(',', $departments) as $sub) {
+                $sub = trim($sub);
+                if ($sub !== '') {
+                    $deptList[] = $sub;
+                }
+            }
+        }
+        $deptList = array_unique(array_filter($deptList));
+
+        if (empty($deptList)) {
             return;
         }
-        try {
-            \App\Models\DashboardNotification::create([
-                'department' => $department,
-                'role_target' => 'department_user',
-                'type' => 'issue_progress',
-                'title' => $title,
-                'message' => $message,
-                'link' => $issueId ? "/dashboard?issue={$issueId}" : null,
-                'is_read' => false,
-            ]);
-        } catch (\Throwable $e) {}
+
+        foreach ($deptList as $dept) {
+            try {
+                \App\Models\DashboardNotification::create([
+                    'department' => $dept,
+                    'role_target' => 'department_user',
+                    'type' => 'issue_progress',
+                    'title' => $title,
+                    'message' => $message,
+                    'link' => $issueId ? "/dashboard?issue={$issueId}" : null,
+                    'is_read' => false,
+                ]);
+            } catch (\Throwable $e) {}
+        }
     }
 
     private function resolveImageUrl(?string $raw): string
@@ -1273,7 +1298,10 @@ class IssueController extends Controller
                     'id' => $id,
                     'title' => $request->title,
                     'location' => $request->location,
-                    'department' => $assignedDeptsStr !== 'ALL' ? trim(explode(',', $assignedDeptsStr)[0]) : ($originName ?: 'General'),
+                    'department' => $originName ?: 'General',
+                    'origin_department' => $originName ?: 'General',
+                    'assigned_departments' => $assignedDeptsStr,
+                    'tagged_departments' => $taggedDeptsStr,
                     'reporter' => $request->reporter,
                     'priority' => $request->priority ?? 'low',
                     'is_emergency' => $isEmergency,
@@ -1415,7 +1443,7 @@ class IssueController extends Controller
             ]);
 
             $this->notifyIssueProgress(
-                $originDept,
+                array_filter([$originDept, $assignedDepts, $taggedDepts]),
                 "Isu Diklaim: {$currentRow[1]}",
                 "Isu '{$currentRow[1]}' telah diklaim oleh {$request->taker}{$takerDeptStr}.",
                 $currentRow[0]
@@ -1427,6 +1455,9 @@ class IssueController extends Controller
                     'title' => $currentRow[1],
                     'location' => $currentRow[3],
                     'department' => $originDept,
+                    'origin_department' => $originDept,
+                    'assigned_departments' => $assignedDepts,
+                    'tagged_departments' => $taggedDepts,
                 ], $request->taker . $takerDeptStr, auth()->id());
             } catch (\Throwable $pe) {
                 Log::warning("WebPushService claim notification failed: {$pe->getMessage()}");
@@ -1569,7 +1600,7 @@ class IssueController extends Controller
                 ]);
 
             $this->notifyIssueProgress(
-                $originDept,
+                array_filter([$originDept, $assignedDepts, $taggedDepts]),
                 "Isu Selesai (Solved): {$currentRow[1]}",
                 "Isu '{$currentRow[1]}' telah diselesaikan oleh {$request->solver}.",
                 $currentRow[0]
@@ -1581,6 +1612,9 @@ class IssueController extends Controller
                     'title' => $currentRow[1],
                     'location' => $currentRow[3],
                     'department' => $originDept,
+                    'origin_department' => $originDept,
+                    'assigned_departments' => $assignedDepts,
+                    'tagged_departments' => $taggedDepts,
                 ], $request->solver, auth()->id());
             } catch (\Throwable $pe) {
                 Log::warning("WebPushService resolve notification failed: {$pe->getMessage()}");
@@ -1734,11 +1768,25 @@ class IssueController extends Controller
                 ]);
 
             $this->notifyIssueProgress(
-                $originDept,
+                array_filter([$originDept, $assignedDepts, $taggedDepts]),
                 "Isu Tertunda (Pending): {$currentRow[1]}",
                 "Isu '{$currentRow[1]}' ditandai pending oleh {$request->pendingBy}. Alasan: {$request->pendingReason}",
                 $currentRow[0]
             );
+
+            try {
+                WebPushService::notifyIssuePending([
+                    'id' => $currentRow[0],
+                    'title' => $currentRow[1],
+                    'location' => $currentRow[3],
+                    'department' => $originDept,
+                    'origin_department' => $originDept,
+                    'assigned_departments' => $assignedDepts,
+                    'tagged_departments' => $taggedDepts,
+                ], $request->pendingBy, $request->pendingReason ?? '', auth()->id());
+            } catch (\Throwable $pe) {
+                Log::warning("WebPushService pending notification failed: {$pe->getMessage()}");
+            }
 
             return response()->json([
                 'success' => true,

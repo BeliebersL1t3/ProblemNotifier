@@ -133,22 +133,77 @@ class WebPushService
     }
 
     /**
-     * Send notification to all active staff in a department and/or admins
+     * Helper to extract all relevant departments from an issue payload
      */
-    public static function notifyDepartment(string $department, array $payload, ?int $exceptUserId = null): array
+    private static function extractDepartments(array $issue): array
     {
-        $query = User::where(function ($q) use ($department) {
-            $q->where('department', $department)
-              ->orWhere('role', 'admin')
-              ->orWhere('can_view_all_departments', 1);
+        $departments = [];
+        foreach (['department', 'origin_department', 'assigned_departments', 'tagged_departments'] as $key) {
+            if (!empty($issue[$key])) {
+                $val = $issue[$key];
+                if (is_array($val)) {
+                    $departments = array_merge($departments, $val);
+                } elseif (is_string($val)) {
+                    $departments = array_merge($departments, explode(',', $val));
+                }
+            }
+        }
+        return array_unique(array_filter(array_map('trim', $departments)));
+    }
+
+    /**
+     * Send notification to all active staff across one or multiple departments and/or admins
+     */
+    public static function notifyDepartments(array|string $departments, array $payload, ?int $exceptUserId = null, bool $forceNotifyActor = false): array
+    {
+        $deptList = [];
+        if (is_array($departments)) {
+            foreach ($departments as $d) {
+                if (is_string($d) && trim($d) !== '') {
+                    foreach (explode(',', $d) as $sub) {
+                        $sub = trim($sub);
+                        if ($sub !== '') {
+                            $deptList[] = $sub;
+                        }
+                    }
+                }
+            }
+        } elseif (is_string($departments) && trim($departments) !== '') {
+            foreach (explode(',', $departments) as $sub) {
+                $sub = trim($sub);
+                if ($sub !== '') {
+                    $deptList[] = $sub;
+                }
+            }
+        }
+        $deptList = array_unique(array_filter($deptList));
+
+        $query = User::where(function ($q) use ($deptList) {
+            if (in_array('ALL', $deptList, true) || empty($deptList)) {
+                $q->whereNotNull('id');
+            } else {
+                $q->whereIn('department', $deptList)
+                  ->orWhere('role', 'admin')
+                  ->orWhere('can_view_all_departments', 1);
+            }
         });
 
-        if ($exceptUserId) {
+        // By default in local/testing environment, allow the actor to also receive push popups
+        $notifyActor = $forceNotifyActor || env('WEBPUSH_NOTIFY_ACTOR', true);
+        if ($exceptUserId && !$notifyActor) {
             $query->where('id', '!=', $exceptUserId);
         }
 
-        $userIds = $query->pluck('id')->toArray();
+        $userIds = $query->pluck('id')->unique()->toArray();
         return self::notifyUsers($userIds, $payload);
+    }
+
+    /**
+     * Send notification to all active staff in a department and/or admins
+     */
+    public static function notifyDepartment(string|array $department, array $payload, ?int $exceptUserId = null): array
+    {
+        return self::notifyDepartments((array)$department, $payload, $exceptUserId);
     }
 
     /**
@@ -182,11 +237,12 @@ class WebPushService
             'requireInteraction' => $isEmergency, // Persistent on screen if emergency
         ];
 
-        return self::notifyDepartment($dept, $payload, $reportedByUserId);
+        $depts = self::extractDepartments($issue);
+        return self::notifyDepartments(!empty($depts) ? $depts : [$dept], $payload, $reportedByUserId);
     }
 
     /**
-     * Send notification when an issue is claimed (taken)
+     * Send notification when an issue is claimed (taken / in progress)
      */
     public static function notifyIssueTaken(array $issue, string $takerName, ?int $takerUserId = null): array
     {
@@ -206,9 +262,34 @@ class WebPushService
             ],
         ];
 
-        // Notify department team and admins
-        $dept = $issue['department'] ?? '';
-        return self::notifyDepartment($dept, $payload, $takerUserId);
+        $depts = self::extractDepartments($issue);
+        return self::notifyDepartments(!empty($depts) ? $depts : [$issue['department'] ?? ''], $payload, $takerUserId);
+    }
+
+    /**
+     * Send notification when an issue is marked as pending
+     */
+    public static function notifyIssuePending(array $issue, string $pendingByName, string $reason = '', ?int $actorUserId = null): array
+    {
+        $issueId = $issue['id'] ?? '';
+        $title = "⏸️ Isu Tertunda (Pending) (#{$issueId})";
+        $reasonSnippet = !empty($reason) ? " Alasan: {$reason}" : '';
+        $body = "Ditandai pending oleh {$pendingByName}.{$reasonSnippet}";
+        $url = "/dashboard?issue=" . urlencode($issueId);
+
+        $payload = [
+            'title' => $title,
+            'body' => $body,
+            'icon' => '/logo.png',
+            'tag' => 'issue-pending-' . $issueId,
+            'data' => [
+                'url' => $url,
+                'issueId' => $issueId,
+            ],
+        ];
+
+        $depts = self::extractDepartments($issue);
+        return self::notifyDepartments(!empty($depts) ? $depts : [$issue['department'] ?? ''], $payload, $actorUserId);
     }
 
     /**
@@ -232,7 +313,7 @@ class WebPushService
             ],
         ];
 
-        $dept = $issue['department'] ?? '';
-        return self::notifyDepartment($dept, $payload, $solverUserId);
+        $depts = self::extractDepartments($issue);
+        return self::notifyDepartments(!empty($depts) ? $depts : [$issue['department'] ?? ''], $payload, $solverUserId);
     }
 }
