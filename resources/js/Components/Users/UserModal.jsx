@@ -603,10 +603,13 @@ export function UserModal({ isOpen, onClose, user = null, onSaved }) {
                             <div className="p-3.5 rounded-xl bg-[#1C1B0E]/80 border border-[#3B3929] space-y-2">
                                 <div className="flex items-center gap-2 text-xs font-bold text-[#C9AA71]">
                                     <Lock className="h-4 w-4" />
-                                    Integrasi Password WhatsApp Otomatis
+                                    Pengiriman Kredensial Otomatis (WhatsApp / Email)
                                 </div>
                                 <p className="text-[11px] text-[#A19F8D] leading-relaxed">
-                                    Setiap kali password diatur atau diubah oleh Administrator di sini, sistem secara aman memperbarui database. Jika staf lupa password login Web mereka, mereka cukup mengirim pesan <strong>!password</strong> ke WhatsApp Bot Telunas untuk menerima kredensial mereka kembali via DM rahasia.
+                                    Setiap kali akun dibuat atau password diperbarui di sini, sistem akan langsung mengirimkan kredensial login ke <strong>WhatsApp Pribadi (DM)</strong> staf. Apabila nomor WhatsApp belum terdaftar, kredensial otomatis dikirimkan ke <strong>Email</strong> akun tersebut.
+                                </p>
+                                <p className="text-[11px] text-[#A19F8D] leading-relaxed pt-1 border-t border-[#3B3929]/50">
+                                    💡 <em>Staf juga dapat meminta kredensial mereka secara mandiri kapan saja dengan mengetik <strong>!password</strong> ke WhatsApp Bot Telunas.</em>
                                 </p>
                             </div>
                         </div>

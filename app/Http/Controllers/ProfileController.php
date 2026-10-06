@@ -228,10 +228,10 @@ class ProfileController extends Controller
         // Generate a clean, easy-to-type temporary password for the user on mobile
         $tempPassword = 'Telunas-' . random_int(1000, 9999);
 
-        // Update user with secure hashed password and clear reversible raw_password
+        // Update user with secure hashed password and keep raw_password in sync
         $user->forceFill([
             'password'     => \Illuminate\Support\Facades\Hash::make($tempPassword),
-            'raw_password' => null,
+            'raw_password' => $tempPassword,
         ])->save();
 
         return response()->json([

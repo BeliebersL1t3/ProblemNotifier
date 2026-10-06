@@ -852,6 +852,9 @@ class UserController extends Controller
         $user->raw_password = $newPassword;
         $user->save();
 
+        // Dispatch credentials via WhatsApp DM, or fallback to email
+        $this->dispatchUserCredentials($user, $newPassword, false);
+
         UserAuditLog::record(
             auth()->user(),
             $user,
