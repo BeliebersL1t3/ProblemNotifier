@@ -725,7 +725,7 @@ export function ActivityDetailModal({ issue, onClose, onOpenCardModal, onEdit, o
                                                 </p>
                                             </div>
                                             <p className="text-foreground/95 whitespace-pre-wrap leading-relaxed text-xs bg-[#181711]/70 p-2.5 rounded-lg border border-[#3B3929]/50">
-                                                {step.data.description}
+                                                {(step.data.description || '').replace(/\[EMERGENCY FAST-TRACK\]/gi, '').trim() || (lang === 'id' ? '(Tidak ada deskripsi tambahan)' : '(No additional description)')}
                                             </p>
 
                                             {/* Collapsible Version History if edited */}

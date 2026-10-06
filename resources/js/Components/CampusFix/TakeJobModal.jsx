@@ -288,7 +288,7 @@ export function TakeJobModal({ issue, onClose, onEdit }) {
                                     {issue.location || 'Location not specified'}
                                 </p>
                                 <p className="text-xs leading-relaxed text-muted-foreground whitespace-pre-wrap">
-                                    {issue.description || 'No description provided.'}
+                                    {(issue.description || '').replace(/\[EMERGENCY FAST-TRACK\]/gi, '').trim() || 'No description provided.'}
                                 </p>
                                 <p className="text-xs font-medium text-muted-foreground pt-1">
                                     Reported by {issue.reporter || 'Staff'}

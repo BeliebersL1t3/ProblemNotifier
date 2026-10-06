@@ -303,7 +303,11 @@ export function ResolveIssueSheet({ issue, onClose, onEdit }) {
                                     <MapPin className="h-3.5 w-3.5" aria-hidden />
                                     {issue.location}
                                 </p>
-                                <p className="mt-2 text-xs text-muted-foreground">{issue.description}</p>
+                                {issue.description && (() => {
+                                    const cleanDesc = issue.description.replace(/\[EMERGENCY FAST-TRACK\]/gi, '').trim();
+                                    if (!cleanDesc) return null;
+                                    return <p className="mt-2 text-xs text-muted-foreground">{cleanDesc}</p>;
+                                })()}
                                 <p className="mt-2 text-xs font-medium text-muted-foreground">
                                     Reported by {issue.reporter}
                                     {issue.taker ? ` • Claimed by ${issue.taker}` : ''}

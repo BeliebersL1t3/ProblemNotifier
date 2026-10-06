@@ -171,9 +171,7 @@ export function EmergencyIssueModal({ open, onOpenChange }) {
         setErrorMsg('');
 
         try {
-            const finalDesc = description.trim() 
-                ? `${description.trim()} [EMERGENCY FAST-TRACK]`
-                : '[EMERGENCY FAST-TRACK]';
+            const finalDesc = description.trim();
 
             const res = await addIssue({
                 reporter: reporter.trim(),

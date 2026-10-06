@@ -1633,7 +1633,7 @@ async function startSock() {
 
                         const formData = new FormData();
                         formData.append('title', state.data.title);
-                        formData.append('description', '[EMERGENCY FAST-TRACK]');
+                        formData.append('description', '');
                         formData.append('location', state.data.location);
                         formData.append('category', 'emergency');
                         formData.append('department', 'Emergency');
@@ -1671,10 +1671,10 @@ async function startSock() {
                     continue;
                 }
 
-                let description = '[EMERGENCY FAST-TRACK]';
+                let description = '';
                 const lower = text.toLowerCase();
                 if (lower !== 'skip' && lower !== 'no' && lower !== 'tidak' && text.trim() !== '') {
-                    description = `${text.trim()} [EMERGENCY FAST-TRACK]`;
+                    description = text.trim();
                 }
                 state.data.description = description;
 

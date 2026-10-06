@@ -376,11 +376,15 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
                     </div>
 
                     {/* Description Snippet */}
-                    {issue.description && (
-                        <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed break-words">
-                            {issue.description}
-                        </p>
-                    )}
+                    {issue.description && (() => {
+                        const cleanDesc = issue.description.replace(/\[EMERGENCY FAST-TRACK\]/gi, '').trim();
+                        if (!cleanDesc) return null;
+                        return (
+                            <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed break-words">
+                                {cleanDesc}
+                            </p>
+                        );
+                    })()}
 
                     {/* Status & Operational Indicators (Delay, Overdue, Edits) */}
                     <div className="flex items-center gap-2 flex-wrap">
