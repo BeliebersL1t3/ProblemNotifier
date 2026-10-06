@@ -186,6 +186,10 @@ function DashboardInner() {
         try {
             localStorage.setItem('campusfix_dashboard_density', density);
         } catch (e) {}
+
+        if (density === 'compact' && typeof window !== 'undefined' && window.scrollY > 100) {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
     };
 
     // Smooth layout morphing animation (FLIP - Last, Invert, Play)

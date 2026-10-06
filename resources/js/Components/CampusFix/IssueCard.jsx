@@ -595,7 +595,7 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
                     }
                 }}
                 className={cn(
-                    "group/card relative flex items-center justify-between gap-2.5 sm:gap-3 px-2.5 py-2 sm:px-3.5 sm:py-2.5 rounded-xl border text-left transition-all duration-150 cursor-pointer shadow-xs select-none hover:z-30",
+                    "group/card relative flex items-center justify-between gap-2.5 sm:gap-3 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl border text-left transition-all duration-150 cursor-pointer shadow-xs select-none hover:z-30",
                     borderAccent,
                     bgStyle,
                     isHighlighted && "ring-3 ring-[#C9AA71] shadow-[0_0_25px_rgba(201,170,113,0.85)] z-20 animate-pulse scale-[1.01]"
@@ -636,8 +636,8 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
                         )}
                     </div>
 
-                    {/* Floating Instant Hover-Peek Popover Card (Desktop only, non-blocking) */}
-                    <div className="hidden sm:block pointer-events-none opacity-0 scale-95 translate-y-1 group-hover/avatar:opacity-100 group-hover/avatar:scale-100 group-hover/avatar:translate-y-0 transition-all duration-200 ease-out z-50 absolute left-full top-1/2 -translate-y-1/2 ml-3 w-56 rounded-xl overflow-hidden shadow-[0_10px_35px_rgba(0,0,0,0.85)] border border-primary/40 bg-[#1A1913] p-1.5 backdrop-blur-md ring-1 ring-black/80">
+                    {/* Floating Instant Hover-Peek Popover Card (Desktop only, non-blocking, hidden from overflow when unhovered) */}
+                    <div className="hidden sm:block pointer-events-none invisible group-hover/avatar:visible opacity-0 group-hover/avatar:opacity-100 scale-95 group-hover/avatar:scale-100 transition-all duration-200 ease-out z-50 absolute left-full top-1/2 -translate-y-1/2 ml-3 w-56 rounded-xl overflow-hidden shadow-[0_10px_35px_rgba(0,0,0,0.85)] border border-primary/40 bg-[#1A1913] p-1.5 backdrop-blur-md ring-1 ring-black/80">
                         <div className="relative aspect-[4/3] w-full rounded-lg overflow-hidden bg-black/80 mb-1.5">
                             <img
                                 src={activeImage}
