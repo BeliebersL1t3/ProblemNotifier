@@ -12,6 +12,32 @@ import { useLanguage } from '@/context/LanguageContext';
 
 const FALLBACK_IMAGE = '/barrier-placeholder.svg';
 
+const handleImageErrorWithRetry = (e, fallback = FALLBACK_IMAGE, maxRetries = 2) => {
+    const img = e.currentTarget;
+    if (!img) return;
+
+    if (img.src && img.src.includes('barrier-placeholder.svg')) {
+        return;
+    }
+
+    const retryCount = parseInt(img.dataset.retries || '0', 10);
+    if (retryCount < maxRetries) {
+        img.dataset.retries = String(retryCount + 1);
+        const originalSrc = img.dataset.originalSrc || img.src;
+        img.dataset.originalSrc = originalSrc;
+
+        setTimeout(() => {
+            if (img && img.dataset) {
+                const sep = originalSrc.includes('?') ? '&' : '?';
+                img.src = `${originalSrc}${sep}_retry=${retryCount + 1}`;
+            }
+        }, 1200 * (retryCount + 1));
+    } else {
+        img.onerror = null;
+        img.src = fallback;
+    }
+};
+
 const safeArray = (val) => {
     if (!val) return [];
     if (Array.isArray(val)) return val;
@@ -213,10 +239,7 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
                         alt={issue.title}
                         className="w-full sm:w-4/5 md:w-3/5 h-full object-cover object-left transition-transform duration-500 ease-out group-hover:scale-105"
                         loading="lazy"
-                        onError={(e) => {
-                            e.target.onerror = null;
-                            e.target.src = FALLBACK_IMAGE;
-                        }}
+                        onError={(e) => handleImageErrorWithRetry(e)}
                     />
                     {/* Progressive Frosted Backdrop Blur: Crisp on far-left (0-110px), frosted blur behind text (190px+) */}
                     <div 
@@ -625,10 +648,7 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
                         alt={issue.title}
                         className="w-full sm:w-4/5 md:w-3/5 h-full object-cover object-left transition-transform duration-500 ease-out group-hover:scale-105"
                         loading="lazy"
-                        onError={(e) => {
-                            e.target.onerror = null;
-                            e.target.src = FALLBACK_IMAGE;
-                        }}
+                        onError={(e) => handleImageErrorWithRetry(e)}
                     />
                     {/* Progressive Frosted Backdrop Blur: Crisp on far-left (0-80px), frosted blur behind text (140px+) */}
                     <div 
@@ -1004,7 +1024,7 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
                         src={activeImage}
                         alt={issue.title}
                         loading="lazy"
-                        onError={(e) => { e.currentTarget.src = FALLBACK_IMAGE; }}
+                        onError={(e) => handleImageErrorWithRetry(e)}
                         className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                     />
                     <button
@@ -1353,7 +1373,7 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
                     src={(issue.status === 'pending' && issue.pendingImageUrl) ? issue.pendingImageUrl : (issue.imageUrl || FALLBACK_IMAGE)}
                     alt={issue.title}
                     loading="lazy"
-                    onError={(e) => { e.currentTarget.src = FALLBACK_IMAGE; }}
+                    onError={(e) => handleImageErrorWithRetry(e)}
                     className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                 />
                 <button
