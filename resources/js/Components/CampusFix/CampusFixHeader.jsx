@@ -583,15 +583,6 @@ export function CampusFixHeader({ mode = 'dashboard', query, onQueryChange, onRe
                                     {getShortDepartmentName(department)}
                                 </span>
                             )}
-                            {canViewAllDepartments && !isAdmin && (
-                                <span 
-                                    className="hidden sm:inline-flex items-center gap-1 text-[9px] uppercase px-1.5 py-0.5 rounded font-black tracking-wider bg-sky-500/20 text-sky-300 border border-sky-500/30 shrink-0"
-                                    title={lang === 'id' ? 'Wewenang Akun: Akses Lintas Seluruh Departemen' : 'Account Permission: All Departments Access'}
-                                >
-                                    <Globe className="h-2.5 w-2.5" />
-                                    <span>ALL</span>
-                                </span>
-                            )}
                         </Link>
                     </Tooltip>
                 </div>
