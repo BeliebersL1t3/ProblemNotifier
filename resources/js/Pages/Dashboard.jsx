@@ -367,10 +367,12 @@ function DashboardInner() {
         return () => clearInterval(timer);
     }, []);
 
-    // 3. Department-scoped Overdue Critical Issues (max 6 hours)
+    // 3. Department-scoped Overdue Critical & Emergency Issues
     const isIssueInMyAlarmScope = (issue) => {
         if (isAdmin || canViewAllDepartments) return true;
-        const isEmergency = issue.category === 'emergency' || String(issue.assignedDepartments || '').toLowerCase().includes('all');
+        const isEmergency = (issue.category || '').toLowerCase() === 'emergency' 
+            || String(issue.id || '').toUpperCase().startsWith('SOS') 
+            || String(issue.assignedDepartments || '').toLowerCase().includes('all');
         if (isEmergency) return true;
         if (!department) return false;
         const normUserDept = normalizeDepartment(department);
@@ -421,24 +423,36 @@ function DashboardInner() {
         });
     };
 
-    // Filter scoped overdue critical issues (max 6 hours = 360 mins)
+    // Filter scoped overdue critical & emergency issues
+    // Note: The visual banner stays active as long as the issue is unresolved,
+    // while repetitive audio escalation stops after 6 hours (360 mins).
     const scopedOverdueIssues = useMemo(() => {
         return (issues || []).filter(i => {
             const isArchived = Boolean(i.isArchived || i.statusDisplay === '0' || i.displayStatus === '0');
             if (isArchived) return false;
             if (i.status !== 'open' && i.status !== 'progress') return false;
-            if (i.priority !== 'critical' || !i.deadline) return false;
-            const deadlineTime = parseDeadlineToMs(i.deadline);
-            if (!deadlineTime || now < deadlineTime) return false;
-            const overdueMins = Math.floor((now - deadlineTime) / 60000);
-            if (overdueMins > 360) return false; // Stop after 6 hours
+
+            const isEmergency = (i.category || '').toLowerCase() === 'emergency' 
+                || String(i.id || '').toUpperCase().startsWith('SOS');
+            const isCritical = i.priority === 'critical';
+
+            // Must be emergency SOS or critical priority
+            if (!isEmergency && !isCritical) return false;
+
+            // If critical and not emergency, ensure deadline is defined and overdue
+            if (!isEmergency) {
+                if (!i.deadline) return false;
+                const deadlineTime = parseDeadlineToMs(i.deadline);
+                if (!deadlineTime || now < deadlineTime) return false;
+            }
+
             return isIssueInMyAlarmScope(i);
         }).sort((a, b) => {
-            const aIsEmerg = a.category === 'emergency' ? 1 : 0;
-            const bIsEmerg = b.category === 'emergency' ? 1 : 0;
+            const aIsEmerg = (a.category || '').toLowerCase() === 'emergency' || String(a.id || '').toUpperCase().startsWith('SOS') ? 1 : 0;
+            const bIsEmerg = (b.category || '').toLowerCase() === 'emergency' || String(b.id || '').toUpperCase().startsWith('SOS') ? 1 : 0;
             if (aIsEmerg !== bIsEmerg) return bIsEmerg - aIsEmerg;
-            const aTime = parseDeadlineToMs(a.deadline) || 0;
-            const bTime = parseDeadlineToMs(b.deadline) || 0;
+            const aTime = parseDeadlineToMs(a.deadline) || parseDeadlineToMs(a.reportedAt) || 0;
+            const bTime = parseDeadlineToMs(b.deadline) || parseDeadlineToMs(b.reportedAt) || 0;
             return aTime - bTime;
         });
     }, [issues, now, department, isAdmin, canViewAllDepartments]);
@@ -1013,7 +1027,7 @@ function DashboardInner() {
                 const activeIssue = scopedOverdueIssues[sliderIndex] || scopedOverdueIssues[0];
                 if (!activeIssue) return null;
 
-                const activeDeadline = parseDeadlineToMs(activeIssue.deadline);
+                const activeDeadline = parseDeadlineToMs(activeIssue.deadline) || parseDeadlineToMs(activeIssue.reportedAt);
                 const activeOverdueMins = activeDeadline ? Math.max(0, Math.floor((now - activeDeadline) / 60000)) : 0;
                 const formatOverdueTime = (mins) => {
                     if (mins >= 60) {
@@ -1028,10 +1042,10 @@ function DashboardInner() {
                 const nextM = targetMilestones.find(m => m > activeOverdueMins);
                 const nextMilestoneText = nextM
                     ? (nextM >= 60 ? `${nextM / 60} ${lang === 'id' ? 'jam' : 'hr'}` : `${nextM}m`)
-                    : (lang === 'id' ? 'Maks (6 jam)' : 'Max (6 hrs)');
+                    : (lang === 'id' ? 'Maks (>6 jam)' : 'Max (>6 hrs)');
 
                 const isAck = isIssueAcknowledged(activeIssue.id);
-                const isEmergency = activeIssue.category === 'emergency';
+                const isEmergency = (activeIssue.category || '').toLowerCase() === 'emergency' || String(activeIssue.id || '').toUpperCase().startsWith('SOS');
                 const hasMultiple = scopedOverdueIssues.length > 1;
 
                 return (
