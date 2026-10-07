@@ -179,9 +179,12 @@ function DashboardInner() {
     const [deptViewMode, setDeptViewMode] = useState('all'); // 'all' | 'assigned' | 'origin'
     const [viewDensity, setViewDensity] = useState(() => {
         try {
-            return localStorage.getItem('campusfix_dashboard_density') || '3';
+            const saved = localStorage.getItem('campusfix_dashboard_density');
+            if (saved === 'compact') return 'compact';
+            if (saved === 'grid' || saved === '10') return 'grid';
+            return 'list'; // default is 'list' (representing standard 3 columns)
         } catch (e) {
-            return '3';
+            return 'list';
         }
     });
 
@@ -1326,7 +1329,7 @@ function DashboardInner() {
                                 </div>
                             )}
                             {(isDeptUser || isAdmin) && (
-                                <div className="flex items-center rounded-2xl bg-[#2A281E] p-1.5 border border-[#3B3929] text-xs font-bold shrink-0 max-w-full overflow-x-auto no-scrollbar flex-nowrap gap-1.5 shadow-md">
+                                <div className="flex items-center rounded-2xl bg-[#2A281E] p-1 sm:p-1.5 border border-[#3B3929] text-[10px] sm:text-xs font-bold shrink-0 max-w-full overflow-x-auto no-scrollbar flex-nowrap gap-0.5 sm:gap-1.5 shadow-md">
                                     {isAdmin ? (
                                         /* Admin Monitoring Scope Tabs */
                                         <>
@@ -1334,33 +1337,31 @@ function DashboardInner() {
                                                 type="button"
                                                 onClick={() => setDeptViewMode('all')}
                                                 title={lang === 'id' ? 'Semua Isu Seluruh Resort' : 'All Issues Resort-wide'}
-                                                className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-2 ${
+                                                className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-1 sm:gap-1.5 ${
                                                     deptViewMode === 'all'
-                                                        ? 'px-3.5 py-2 bg-[#C9AA71] text-[#1C1B0E] shadow-md font-extrabold'
-                                                        : 'p-2.5 text-muted-foreground hover:text-foreground hover:bg-white/5'
+                                                        ? 'px-2 py-1 sm:px-3.5 sm:py-2 bg-[#C9AA71] text-[#1C1B0E] shadow-md font-extrabold'
+                                                        : 'px-1.5 py-1 sm:px-2.5 sm:py-2 text-muted-foreground hover:text-foreground hover:bg-white/5'
                                                 }`}
                                             >
-                                                <Globe className="w-5 h-5 shrink-0" />
-                                                <span className={deptViewMode === 'all' ? 'inline font-bold' : 'hidden sm:inline'}>
-                                                    {lang === 'id' ? 'Semua Isu' : 'All Issues'}
-                                                </span>
+                                                <Globe className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                                                <span className="sm:hidden">{lang === 'id' ? 'Semua' : 'All'}</span>
+                                                <span className="hidden sm:inline">{lang === 'id' ? 'Semua Isu' : 'All Issues'}</span>
                                             </button>
                                             <button
                                                 type="button"
                                                 onClick={() => setDeptViewMode('unassigned')}
                                                 title={lang === 'id' ? `Belum Diambil (${unassignedCount} isu belum ada PIC)` : `Unassigned (${unassignedCount} issues unclaimed)`}
-                                                className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-2 ${
+                                                className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-1 sm:gap-1.5 ${
                                                     deptViewMode === 'unassigned'
-                                                        ? 'px-3.5 py-2 bg-[#C9AA71] text-[#1C1B0E] shadow-md font-extrabold'
-                                                        : 'p-2.5 text-muted-foreground hover:text-foreground hover:bg-white/5'
+                                                        ? 'px-2 py-1 sm:px-3.5 sm:py-2 bg-[#C9AA71] text-[#1C1B0E] shadow-md font-extrabold'
+                                                        : 'px-1.5 py-1 sm:px-2.5 sm:py-2 text-muted-foreground hover:text-foreground hover:bg-white/5'
                                                 }`}
                                             >
-                                                <Clock className="w-5 h-5 shrink-0" />
-                                                <span className={deptViewMode === 'unassigned' ? 'inline font-bold' : 'hidden sm:inline'}>
-                                                    {lang === 'id' ? 'Belum Diambil' : 'Unassigned'}
-                                                </span>
+                                                <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                                                <span className="sm:hidden">{lang === 'id' ? 'Belum PIC' : 'Unclaimed'}</span>
+                                                <span className="hidden sm:inline">{lang === 'id' ? 'Belum Diambil' : 'Unassigned'}</span>
                                                 {unassignedCount > 0 && (
-                                                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                                                    <span className={`px-1 sm:px-1.5 py-0 sm:py-0.2 rounded-full text-[9px] sm:text-[10px] font-bold ${
                                                         deptViewMode === 'unassigned'
                                                             ? 'bg-[#1C1B0E] text-[#C9AA71]'
                                                             : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
@@ -1373,18 +1374,17 @@ function DashboardInner() {
                                                 type="button"
                                                 onClick={() => setDeptViewMode('urgent')}
                                                 title={lang === 'id' ? `Darurat & Terlambat (${urgentCount} tiket darurat/lewat deadline)` : `Emergency & Overdue (${urgentCount} urgent tickets)`}
-                                                className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-2 ${
+                                                className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-1 sm:gap-1.5 ${
                                                     deptViewMode === 'urgent'
-                                                        ? 'px-3.5 py-2 bg-red-600 text-white shadow-md font-extrabold ring-1 ring-red-400'
-                                                        : 'p-2.5 text-red-400 hover:text-red-300 hover:bg-red-500/10'
+                                                        ? 'px-2 py-1 sm:px-3.5 sm:py-2 bg-red-600 text-white shadow-md font-extrabold ring-1 ring-red-400'
+                                                        : 'px-1.5 py-1 sm:px-2.5 sm:py-2 text-red-400 hover:text-red-300 hover:bg-red-500/10'
                                                 }`}
                                             >
-                                                <Flame className="w-5 h-5 shrink-0" />
-                                                <span className={deptViewMode === 'urgent' ? 'inline font-bold' : 'hidden sm:inline'}>
-                                                    {lang === 'id' ? 'Darurat & Terlambat' : 'Emergency & Overdue'}
-                                                </span>
+                                                <Flame className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                                                <span className="sm:hidden">{lang === 'id' ? 'Darurat' : 'Urgent'}</span>
+                                                <span className="hidden sm:inline">{lang === 'id' ? 'Darurat & Terlambat' : 'Emergency & Overdue'}</span>
                                                 {urgentCount > 0 && (
-                                                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                                                    <span className={`px-1 sm:px-1.5 py-0 sm:py-0.2 rounded-full text-[9px] sm:text-[10px] font-bold ${
                                                         deptViewMode === 'urgent'
                                                             ? 'bg-white text-red-600'
                                                             : 'bg-red-500/25 text-red-300 border border-red-500/40'
@@ -1397,20 +1397,19 @@ function DashboardInner() {
                                                 <button
                                                     type="button"
                                                     onClick={() => setDeptViewMode('reassign_needed')}
-                                                    className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-2 ${
+                                                    className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-1 sm:gap-1.5 ${
                                                         deptViewMode === 'reassign_needed'
-                                                            ? 'px-3.5 py-2 bg-amber-500 text-black shadow-md font-extrabold'
-                                                            : 'p-2.5 text-amber-400 hover:text-amber-300 hover:bg-amber-500/10'
+                                                            ? 'px-2 py-1 sm:px-3.5 sm:py-2 bg-amber-500 text-black shadow-md font-extrabold'
+                                                            : 'px-1.5 py-1 sm:px-2.5 sm:py-2 text-amber-400 hover:text-amber-300 hover:bg-amber-500/10'
                                                     }`}
                                                     title={lang === 'id' 
                                                         ? `Tugas Perlu Reassign (${reassignNeededCount} pekerjaan aktif yang pemegangnya pindah departemen)` 
                                                         : `Needs Reassignment (${reassignNeededCount} active tasks whose taker transferred out)`}
                                                 >
-                                                    <ArrowRightLeft className="w-5 h-5 shrink-0" />
-                                                    <span className={deptViewMode === 'reassign_needed' ? 'inline font-bold' : 'hidden sm:inline'}>
-                                                        {lang === 'id' ? 'Perlu Reassign' : 'Needs Reassign'}
-                                                    </span>
-                                                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                                                    <ArrowRightLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                                                    <span className="sm:hidden">Reassign</span>
+                                                    <span className="hidden sm:inline">{lang === 'id' ? 'Perlu Reassign' : 'Needs Reassign'}</span>
+                                                    <span className={`px-1 sm:px-1.5 py-0 sm:py-0.2 rounded-full text-[9px] sm:text-[10px] font-bold ${
                                                         deptViewMode === 'reassign_needed'
                                                             ? 'bg-black text-amber-400'
                                                             : 'bg-amber-500/25 text-amber-300 border border-amber-500/40'
@@ -1423,16 +1422,15 @@ function DashboardInner() {
                                                 type="button"
                                                 onClick={() => setDeptViewMode('origin')}
                                                 title={lang === 'id' ? 'Dibuat Oleh Saya' : 'Reported By Me'}
-                                                className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-2 ${
+                                                className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-1 sm:gap-1.5 ${
                                                     deptViewMode === 'origin'
-                                                        ? 'px-3.5 py-2 bg-[#C9AA71] text-[#1C1B0E] shadow-md font-extrabold'
-                                                        : 'p-2.5 text-muted-foreground hover:text-foreground hover:bg-white/5'
+                                                        ? 'px-2 py-1 sm:px-3.5 sm:py-2 bg-[#C9AA71] text-[#1C1B0E] shadow-md font-extrabold'
+                                                        : 'px-1.5 py-1 sm:px-2.5 sm:py-2 text-muted-foreground hover:text-foreground hover:bg-white/5'
                                                 }`}
                                             >
-                                                <FileText className="w-5 h-5 shrink-0" />
-                                                <span className={deptViewMode === 'origin' ? 'inline font-bold' : 'hidden sm:inline'}>
-                                                    {lang === 'id' ? 'Dibuat Oleh Saya' : 'Reported By Me'}
-                                                </span>
+                                                <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                                                <span className="sm:hidden">{lang === 'id' ? 'Saya' : 'Mine'}</span>
+                                                <span className="hidden sm:inline">{lang === 'id' ? 'Dibuat Oleh Saya' : 'Reported By Me'}</span>
                                             </button>
                                         </>
                                     ) : isHOD ? (
@@ -1442,33 +1440,31 @@ function DashboardInner() {
                                                 type="button"
                                                 onClick={() => setDeptViewMode('all')}
                                                 title={lang === 'id' ? 'Semua Departemen Saya' : 'All My Department Scope'}
-                                                className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-2 ${
+                                                className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-1 sm:gap-1.5 ${
                                                     deptViewMode === 'all'
-                                                        ? 'px-3.5 py-2 bg-[#C9AA71] text-[#1C1B0E] shadow-md font-extrabold'
-                                                        : 'p-2.5 text-muted-foreground hover:text-foreground hover:bg-white/5'
+                                                        ? 'px-2 py-1 sm:px-3.5 sm:py-2 bg-[#C9AA71] text-[#1C1B0E] shadow-md font-extrabold'
+                                                        : 'px-1.5 py-1 sm:px-2.5 sm:py-2 text-muted-foreground hover:text-foreground hover:bg-white/5'
                                                 }`}
                                             >
-                                                <Globe className="w-5 h-5 shrink-0" />
-                                                <span className={deptViewMode === 'all' ? 'inline font-bold' : 'hidden sm:inline'}>
-                                                    {lang === 'id' ? 'Semua Departemen' : 'All Department'}
-                                                </span>
+                                                <Globe className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                                                <span className="sm:hidden">Dept</span>
+                                                <span className="hidden sm:inline">{lang === 'id' ? 'Semua Departemen' : 'All Department'}</span>
                                             </button>
                                             <button
                                                 type="button"
                                                 onClick={() => setDeptViewMode('unassigned')}
                                                 title={lang === 'id' ? `Belum Diambil Tim (${unassignedCount} tugas belum dikerjakan staf)` : `Team Unclaimed (${unassignedCount} unclaimed by staff)`}
-                                                className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-2 ${
+                                                className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-1 sm:gap-1.5 ${
                                                     deptViewMode === 'unassigned'
-                                                        ? 'px-3.5 py-2 bg-[#C9AA71] text-[#1C1B0E] shadow-md font-extrabold'
-                                                        : 'p-2.5 text-muted-foreground hover:text-foreground hover:bg-white/5'
+                                                        ? 'px-2 py-1 sm:px-3.5 sm:py-2 bg-[#C9AA71] text-[#1C1B0E] shadow-md font-extrabold'
+                                                        : 'px-1.5 py-1 sm:px-2.5 sm:py-2 text-muted-foreground hover:text-foreground hover:bg-white/5'
                                                 }`}
                                             >
-                                                <Clock className="w-5 h-5 shrink-0" />
-                                                <span className={deptViewMode === 'unassigned' ? 'inline font-bold' : 'hidden sm:inline'}>
-                                                    {lang === 'id' ? 'Belum Diambil Tim' : 'Team Unclaimed'}
-                                                </span>
+                                                <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                                                <span className="sm:hidden">{lang === 'id' ? 'Belum PIC' : 'Unclaimed'}</span>
+                                                <span className="hidden sm:inline">{lang === 'id' ? 'Belum Diambil Tim' : 'Team Unclaimed'}</span>
                                                 {unassignedCount > 0 && (
-                                                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                                                    <span className={`px-1 sm:px-1.5 py-0 sm:py-0.2 rounded-full text-[9px] sm:text-[10px] font-bold ${
                                                         deptViewMode === 'unassigned'
                                                             ? 'bg-[#1C1B0E] text-[#C9AA71]'
                                                             : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
@@ -1481,33 +1477,33 @@ function DashboardInner() {
                                                 type="button"
                                                 onClick={() => setDeptViewMode('assigned')}
                                                 title={t('to_fix')}
-                                                className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-2 ${
+                                                className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-1 sm:gap-1.5 ${
                                                     deptViewMode === 'assigned'
-                                                        ? 'px-3.5 py-2 bg-[#C9AA71] text-[#1C1B0E] shadow-md font-extrabold'
-                                                        : 'p-2.5 text-muted-foreground hover:text-foreground hover:bg-white/5'
+                                                        ? 'px-2 py-1 sm:px-3.5 sm:py-2 bg-[#C9AA71] text-[#1C1B0E] shadow-md font-extrabold'
+                                                        : 'px-1.5 py-1 sm:px-2.5 sm:py-2 text-muted-foreground hover:text-foreground hover:bg-white/5'
                                                 }`}
                                             >
-                                                <Target className="w-5 h-5 shrink-0" />
-                                                <span className={deptViewMode === 'assigned' ? 'inline font-bold' : 'hidden sm:inline'}>{t('to_fix')}</span>
+                                                <Target className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                                                <span className="sm:hidden">{lang === 'id' ? 'Tugas' : 'Tasks'}</span>
+                                                <span className="hidden sm:inline">{t('to_fix')}</span>
                                             </button>
                                             {reassignNeededCount > 0 && (
                                                 <button
                                                     type="button"
                                                     onClick={() => setDeptViewMode('reassign_needed')}
-                                                    className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-2 ${
+                                                    className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-1 sm:gap-1.5 ${
                                                         deptViewMode === 'reassign_needed'
-                                                            ? 'px-3.5 py-2 bg-amber-500 text-black shadow-md font-extrabold'
-                                                            : 'p-2.5 text-amber-400 hover:text-amber-300 hover:bg-amber-500/10'
+                                                            ? 'px-2 py-1 sm:px-3.5 sm:py-2 bg-amber-500 text-black shadow-md font-extrabold'
+                                                            : 'px-1.5 py-1 sm:px-2.5 sm:py-2 text-amber-400 hover:text-amber-300 hover:bg-amber-500/10'
                                                     }`}
                                                     title={lang === 'id' 
                                                         ? `Tugas Perlu Reassign (${reassignNeededCount} pekerjaan aktif yang pemegangnya pindah departemen)` 
                                                         : `Needs Reassignment (${reassignNeededCount} active tasks whose taker transferred out)`}
                                                 >
-                                                    <ArrowRightLeft className="w-5 h-5 shrink-0" />
-                                                    <span className={deptViewMode === 'reassign_needed' ? 'inline font-bold' : 'hidden sm:inline'}>
-                                                        {lang === 'id' ? 'Perlu Reassign' : 'Needs Reassign'}
-                                                    </span>
-                                                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                                                    <ArrowRightLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                                                    <span className="sm:hidden">Reassign</span>
+                                                    <span className="hidden sm:inline">{lang === 'id' ? 'Perlu Reassign' : 'Needs Reassign'}</span>
+                                                    <span className={`px-1 sm:px-1.5 py-0 sm:py-0.2 rounded-full text-[9px] sm:text-[10px] font-bold ${
                                                         deptViewMode === 'reassign_needed'
                                                             ? 'bg-black text-amber-400'
                                                             : 'bg-amber-500/25 text-amber-300 border border-amber-500/40'
@@ -1520,29 +1516,29 @@ function DashboardInner() {
                                                 type="button"
                                                 onClick={() => setDeptViewMode('origin')}
                                                 title={t('reported_by_me')}
-                                                className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-2 ${
+                                                className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-1 sm:gap-1.5 ${
                                                     deptViewMode === 'origin'
-                                                        ? 'px-3.5 py-2 bg-[#C9AA71] text-[#1C1B0E] shadow-md font-extrabold'
-                                                        : 'p-2.5 text-muted-foreground hover:text-foreground hover:bg-white/5'
+                                                        ? 'px-2 py-1 sm:px-3.5 sm:py-2 bg-[#C9AA71] text-[#1C1B0E] shadow-md font-extrabold'
+                                                        : 'px-1.5 py-1 sm:px-2.5 sm:py-2 text-muted-foreground hover:text-foreground hover:bg-white/5'
                                                 }`}
                                             >
-                                                <FileText className="w-5 h-5 shrink-0" />
-                                                <span className={deptViewMode === 'origin' ? 'inline font-bold' : 'hidden sm:inline'}>{t('reported_by_me')}</span>
+                                                <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                                                <span className="sm:hidden">{lang === 'id' ? 'Saya' : 'Mine'}</span>
+                                                <span className="hidden sm:inline">{t('reported_by_me')}</span>
                                             </button>
                                             <button
                                                 type="button"
                                                 onClick={() => setDeptViewMode('tagged')}
                                                 title={lang === 'id' ? 'Mention Departemen' : 'Department Mentions'}
-                                                className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-2 ${
+                                                className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-1 sm:gap-1.5 ${
                                                     deptViewMode === 'tagged'
-                                                        ? 'px-3.5 py-2 bg-[#C9AA71] text-[#1C1B0E] shadow-md font-extrabold'
-                                                        : 'p-2.5 text-muted-foreground hover:text-foreground hover:bg-white/5'
+                                                        ? 'px-2 py-1 sm:px-3.5 sm:py-2 bg-[#C9AA71] text-[#1C1B0E] shadow-md font-extrabold'
+                                                        : 'px-1.5 py-1 sm:px-2.5 sm:py-2 text-muted-foreground hover:text-foreground hover:bg-white/5'
                                                 }`}
                                             >
-                                                <Megaphone className="w-5 h-5 shrink-0" />
-                                                <span className={deptViewMode === 'tagged' ? 'inline font-bold' : 'hidden sm:inline'}>
-                                                    {lang === 'id' ? 'Mention Departemen' : 'Mentions'}
-                                                </span>
+                                                <Megaphone className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                                                <span className="sm:hidden">Mention</span>
+                                                <span className="hidden sm:inline">{lang === 'id' ? 'Mention Departemen' : 'Mentions'}</span>
                                             </button>
                                         </>
                                     ) : (
@@ -1552,72 +1548,75 @@ function DashboardInner() {
                                                 type="button"
                                                 onClick={() => setDeptViewMode('all')}
                                                 title={t('all_my_scope')}
-                                                className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-2 ${
+                                                className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-1 sm:gap-1.5 ${
                                                     deptViewMode === 'all'
-                                                        ? 'px-3.5 py-2 bg-[#C9AA71] text-[#1C1B0E] shadow-md font-extrabold'
-                                                        : 'p-2.5 text-muted-foreground hover:text-foreground hover:bg-white/5'
+                                                        ? 'px-2 py-1 sm:px-3.5 sm:py-2 bg-[#C9AA71] text-[#1C1B0E] shadow-md font-extrabold'
+                                                        : 'px-1.5 py-1 sm:px-2.5 sm:py-2 text-muted-foreground hover:text-foreground hover:bg-white/5'
                                                 }`}
                                             >
-                                                <Globe className="w-5 h-5 shrink-0" />
-                                                <span className={deptViewMode === 'all' ? 'inline font-bold' : 'hidden sm:inline'}>{t('all_my_scope')}</span>
+                                                <Globe className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                                                <span className="sm:hidden">{lang === 'id' ? 'Semua' : 'All'}</span>
+                                                <span className="hidden sm:inline">{t('all_my_scope')}</span>
                                             </button>
                                             <button
                                                 type="button"
                                                 onClick={() => setDeptViewMode('assigned')}
                                                 title={t('to_fix')}
-                                                className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-2 ${
+                                                className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-1 sm:gap-1.5 ${
                                                     deptViewMode === 'assigned'
-                                                        ? 'px-3.5 py-2 bg-[#C9AA71] text-[#1C1B0E] shadow-md font-extrabold'
-                                                        : 'p-2.5 text-muted-foreground hover:text-foreground hover:bg-white/5'
+                                                        ? 'px-2 py-1 sm:px-3.5 sm:py-2 bg-[#C9AA71] text-[#1C1B0E] shadow-md font-extrabold'
+                                                        : 'px-1.5 py-1 sm:px-2.5 sm:py-2 text-muted-foreground hover:text-foreground hover:bg-white/5'
                                                 }`}
                                             >
-                                                <Target className="w-5 h-5 shrink-0" />
-                                                <span className={deptViewMode === 'assigned' ? 'inline font-bold' : 'hidden sm:inline'}>{t('to_fix')}</span>
+                                                <Target className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                                                <span className="sm:hidden">{lang === 'id' ? 'Tugas' : 'Tasks'}</span>
+                                                <span className="hidden sm:inline">{t('to_fix')}</span>
                                             </button>
                                             <button
                                                 type="button"
                                                 onClick={() => setDeptViewMode('origin')}
                                                 title={t('reported_by_me')}
-                                                className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-2 ${
+                                                className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-1 sm:gap-1.5 ${
                                                     deptViewMode === 'origin'
-                                                        ? 'px-3.5 py-2 bg-[#C9AA71] text-[#1C1B0E] shadow-md font-extrabold'
-                                                        : 'p-2.5 text-muted-foreground hover:text-foreground hover:bg-white/5'
+                                                        ? 'px-2 py-1 sm:px-3.5 sm:py-2 bg-[#C9AA71] text-[#1C1B0E] shadow-md font-extrabold'
+                                                        : 'px-1.5 py-1 sm:px-2.5 sm:py-2 text-muted-foreground hover:text-foreground hover:bg-white/5'
                                                 }`}
                                             >
-                                                <FileText className="w-5 h-5 shrink-0" />
-                                                <span className={deptViewMode === 'origin' ? 'inline font-bold' : 'hidden sm:inline'}>{t('reported_by_me')}</span>
+                                                <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                                                <span className="sm:hidden">{lang === 'id' ? 'Saya' : 'Mine'}</span>
+                                                <span className="hidden sm:inline">{t('reported_by_me')}</span>
                                             </button>
                                             <button
                                                 type="button"
                                                 onClick={() => setDeptViewMode('tagged')}
                                                 title={t('mentioned_me')}
-                                                className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-2 ${
+                                                className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-1 sm:gap-1.5 ${
                                                     deptViewMode === 'tagged'
-                                                        ? 'px-3.5 py-2 bg-[#C9AA71] text-[#1C1B0E] shadow-md font-extrabold'
-                                                        : 'p-2.5 text-muted-foreground hover:text-foreground hover:bg-white/5'
+                                                        ? 'px-2 py-1 sm:px-3.5 sm:py-2 bg-[#C9AA71] text-[#1C1B0E] shadow-md font-extrabold'
+                                                        : 'px-1.5 py-1 sm:px-2.5 sm:py-2 text-muted-foreground hover:text-foreground hover:bg-white/5'
                                                 }`}
                                             >
-                                                <Megaphone className="w-5 h-5 shrink-0" />
-                                                <span className={deptViewMode === 'tagged' ? 'inline font-bold' : 'hidden sm:inline'}>{t('mentioned_me')}</span>
+                                                <Megaphone className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                                                <span className="sm:hidden">Mention</span>
+                                                <span className="hidden sm:inline">{t('mentioned_me')}</span>
                                             </button>
                                             {pastContribCount > 0 && (
                                                 <button
                                                     type="button"
                                                     onClick={() => setDeptViewMode('past_contributions')}
-                                                    className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-2 ${
+                                                    className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-1 sm:gap-1.5 ${
                                                         deptViewMode === 'past_contributions'
-                                                            ? 'px-3.5 py-2 bg-[#C9AA71] text-[#1C1B0E] shadow-md font-extrabold'
-                                                            : 'p-2.5 text-muted-foreground hover:text-foreground hover:bg-white/5'
+                                                            ? 'px-2 py-1 sm:px-3.5 sm:py-2 bg-[#C9AA71] text-[#1C1B0E] shadow-md font-extrabold'
+                                                            : 'px-1.5 py-1 sm:px-2.5 sm:py-2 text-muted-foreground hover:text-foreground hover:bg-white/5'
                                                     }`}
                                                     title={lang === 'id' 
                                                         ? `Riwayat Kontribusi (${pastContribCount} isu)` 
                                                         : `Past Contributions (${pastContribCount} issues)`}
                                                 >
-                                                    <Lock className="w-5 h-5 shrink-0" />
-                                                    <span className={deptViewMode === 'past_contributions' ? 'inline font-bold' : 'hidden sm:inline'}>
-                                                        {lang === 'id' ? 'Riwayat' : 'Past Contributions'}
-                                                    </span>
-                                                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                                                    <Lock className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                                                    <span className="sm:hidden">{lang === 'id' ? 'Riwayat' : 'Past'}</span>
+                                                    <span className="hidden sm:inline">{lang === 'id' ? 'Riwayat' : 'Past Contributions'}</span>
+                                                    <span className={`px-1 sm:px-1.5 py-0 sm:py-0.2 rounded-full text-[9px] sm:text-[10px] font-bold ${
                                                         deptViewMode === 'past_contributions'
                                                             ? 'bg-[#1C1B0E] text-[#C9AA71]'
                                                             : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
@@ -1630,20 +1629,19 @@ function DashboardInner() {
                                                 <button
                                                     type="button"
                                                     onClick={() => setDeptViewMode('reassign_needed')}
-                                                    className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-2 ${
+                                                    className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-1 sm:gap-1.5 ${
                                                         deptViewMode === 'reassign_needed'
-                                                            ? 'px-3.5 py-2 bg-amber-500 text-black shadow-md font-extrabold'
-                                                            : 'p-2.5 text-amber-400 hover:text-amber-300 hover:bg-amber-500/10'
+                                                            ? 'px-2 py-1 sm:px-3.5 sm:py-2 bg-amber-500 text-black shadow-md font-extrabold'
+                                                            : 'px-1.5 py-1 sm:px-2.5 sm:py-2 text-amber-400 hover:text-amber-300 hover:bg-amber-500/10'
                                                     }`}
                                                     title={lang === 'id' 
                                                         ? `Tugas Perlu Reassign (${reassignNeededCount} pekerjaan aktif yang pemegangnya pindah departemen)` 
                                                         : `Needs Reassignment (${reassignNeededCount} active tasks whose taker transferred out)`}
                                                 >
-                                                    <ArrowRightLeft className="w-5 h-5 shrink-0" />
-                                                    <span className={deptViewMode === 'reassign_needed' ? 'inline font-bold' : 'hidden sm:inline'}>
-                                                        {lang === 'id' ? 'Perlu Reassign' : 'Needs Reassign'}
-                                                    </span>
-                                                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                                                    <ArrowRightLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                                                    <span className="sm:hidden">Reassign</span>
+                                                    <span className="hidden sm:inline">{lang === 'id' ? 'Perlu Reassign' : 'Needs Reassign'}</span>
+                                                    <span className={`px-1 sm:px-1.5 py-0 sm:py-0.2 rounded-full text-[9px] sm:text-[10px] font-bold ${
                                                         deptViewMode === 'reassign_needed'
                                                             ? 'bg-black text-amber-400'
                                                             : 'bg-amber-500/25 text-amber-300 border border-amber-500/40'
@@ -1658,19 +1656,19 @@ function DashboardInner() {
                             )}
                         </div>
 
-                        {/* View Density Selector (List | Compact | 3 | 5 | 10) */}
-                        <div className="flex items-center rounded-2xl bg-[#2A281E] p-1 sm:p-1.5 border border-[#3B3929] text-xs font-bold shrink-0 self-end lg:self-center shadow-md gap-0.5 sm:gap-1" title="View Options (List, Compact, 3, 5, 10 columns)">
+                        {/* View Density Selector (List | Compact | Grid) */}
+                        <div className="flex items-center rounded-2xl bg-[#2A281E] p-1 sm:p-1.5 border border-[#3B3929] text-xs font-bold shrink-0 self-end lg:self-center shadow-md gap-0.5 sm:gap-1" title="View Options (List, Compact, Grid)">
                             <button
                                 type="button"
                                 onClick={() => handleDensityChange('list')}
                                 className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl transition-all flex items-center gap-1 sm:gap-1.5 cursor-pointer font-bold ${
-                                    viewDensity === 'list'
+                                    viewDensity === 'list' || viewDensity === '3'
                                         ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-sm font-extrabold'
                                         : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
                                 }`}
-                                title="List View — Detailed Operational Feed"
+                                title={lang === 'id' ? 'Tampilan List (Grid 3 Standar)' : 'List View (Standard Cards)'}
                             >
-                                <List className="h-3.5 w-3.5" />
+                                <LayoutGrid className="h-3.5 w-3.5" />
                                 <span>List</span>
                             </button>
                             <button
@@ -1681,49 +1679,23 @@ function DashboardInner() {
                                         ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-sm font-extrabold'
                                         : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
                                 }`}
-                                title="Compact List — 2-Line Row View with Photo"
+                                title={lang === 'id' ? 'Tampilan Compact (Baris Foto Ringkas)' : 'Compact View (2-Line Row with Photo)'}
                             >
                                 <Rows3 className="h-3.5 w-3.5" />
                                 <span>Compact</span>
                             </button>
                             <button
                                 type="button"
-                                onClick={() => handleDensityChange('3')}
+                                onClick={() => handleDensityChange('grid')}
                                 className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl transition-all flex items-center gap-1 sm:gap-1.5 cursor-pointer font-bold ${
-                                    viewDensity === '3'
+                                    viewDensity === 'grid' || viewDensity === '10'
                                         ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-sm font-extrabold'
                                         : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
                                 }`}
-                                title="3 Columns — Detail View (Standard)"
-                            >
-                                <LayoutGrid className="h-3.5 w-3.5" />
-                                <span>3</span>
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => handleDensityChange('5')}
-                                className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl transition-all flex items-center gap-1 sm:gap-1.5 cursor-pointer font-bold ${
-                                    viewDensity === '5'
-                                        ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-sm font-extrabold'
-                                        : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
-                                }`}
-                                title="5 Columns — Compact View"
+                                title={lang === 'id' ? 'Tampilan Grid (Matriks Rapat)' : 'Grid View (Micro Matrix View)'}
                             >
                                 <Grid3X3 className="h-3.5 w-3.5" />
-                                <span>5</span>
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => handleDensityChange('10')}
-                                className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl transition-all flex items-center gap-1 sm:gap-1.5 cursor-pointer font-bold ${
-                                    viewDensity === '10'
-                                        ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-sm font-extrabold'
-                                        : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
-                                }`}
-                                title="10 Columns — Micro Matrix View"
-                            >
-                                <Layers className="h-3.5 w-3.5" />
-                                <span>10</span>
+                                <span>Grid</span>
                             </button>
                         </div>
                     </div>
@@ -1849,13 +1821,9 @@ function DashboardInner() {
                         className={
                             viewDensity === 'compact'
                                 ? 'flex flex-col gap-2 w-full'
-                                : viewDensity === 'list'
-                                    ? 'flex flex-col gap-3 w-full'
-                                    : viewDensity === '10'
-                                        ? 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-10 gap-2'
-                                        : viewDensity === '5'
-                                            ? 'grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3.5'
-                                            : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5'
+                                : (viewDensity === 'grid' || viewDensity === '10')
+                                    ? 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-10 gap-2'
+                                    : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5'
                         }
                     >
                         {visible.map((issue) => (

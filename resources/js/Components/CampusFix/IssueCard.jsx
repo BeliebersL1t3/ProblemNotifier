@@ -143,9 +143,9 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
     }, [issue?.status, pendingTimelineList, issue?.takenAt, issue?.reportedAt]);
 
     // =========================================================================
-    // DENSITY LIST — DETAILED OPERATIONAL FEED ROW
+    // DENSITY WIDE_LIST — DETAILED OPERATIONAL FEED ROW (LEGACY)
     // =========================================================================
-    if (density === 'list') {
+    if (density === 'wide_list') {
         const isEmergency = !isArchived && ((issue.category || '').toLowerCase() === 'emergency' || String(issue.id || '').startsWith('SOS'));
         const isCritical = !isArchived && !isEmergency && issue.priority === 'critical';
         const isSolved = issue.status === 'solved';
@@ -875,7 +875,7 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
     // =========================================================================
     // DENSITY 10 — MICRO MATRIX VIEW
     // =========================================================================
-    if (density === '10') {
+    if (density === '10' || density === 'grid') {
         const isEmergency = !isArchived && ((issue.category || '').toLowerCase() === 'emergency' || String(issue.id || '').startsWith('SOS'));
         const isCritical = !isArchived && !isEmergency && issue.priority === 'critical';
         const isSolved = issue.status === 'solved';
