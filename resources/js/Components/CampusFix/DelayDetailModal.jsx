@@ -10,6 +10,7 @@ import {
 import { ImageLightboxModal } from './ImageLightboxModal';
 import { useState } from 'react';
 import { ZoomIn } from 'lucide-react';
+import { ProgressiveImage } from '@/Components/UI/ProgressiveImage';
 
 export default function DelayDetailModal({ open, onOpenChange, delayItem }) {
     const [previewImage, setPreviewImage] = useState(null);
@@ -28,9 +29,10 @@ export default function DelayDetailModal({ open, onOpenChange, delayItem }) {
                 <div className="flex flex-col gap-4 py-4">
                     {delayItem.image && (
                         <div className="overflow-hidden rounded-md border border-border/50 bg-muted group cursor-pointer relative" onClick={() => setPreviewImage(delayItem.image)}>
-                            <img 
+                            <ProgressiveImage 
                                 src={delayItem.image} 
                                 alt="Delay Proof" 
+                                containerClassName="w-full max-h-[300px] min-h-[160px]"
                                 className="w-full object-contain max-h-[300px] transition-transform duration-200 group-hover:scale-105"
                             />
                             <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">

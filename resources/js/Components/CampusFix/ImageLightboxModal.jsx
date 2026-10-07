@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, ExternalLink, ZoomIn, Download } from 'lucide-react';
+import { ProgressiveImage } from '@/Components/UI/ProgressiveImage';
 
 export function ImageLightboxModal({ src, alt = 'Image preview', title, subtitle, open, onClose }) {
     useEffect(() => {
@@ -72,9 +73,10 @@ export function ImageLightboxModal({ src, alt = 'Image preview', title, subtitle
                         }
                     }}
                 >
-                    <img
+                    <ProgressiveImage
                         src={src}
                         alt={alt}
+                        containerClassName="max-h-[75vh] w-auto max-w-full rounded-lg shadow-2xl bg-black/60 min-w-[280px] min-h-[220px]"
                         className="max-h-[75vh] w-auto max-w-full object-contain rounded-lg shadow-2xl transition-transform duration-200 select-none"
                     />
                 </div>

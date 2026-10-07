@@ -7,6 +7,7 @@ import { Label } from '@/Components/UI/Label';
 import { useIssues } from '@/context/IssuesContext';
 import { CriticalTimer } from './CriticalTimer';
 import { ImageLightboxModal } from './ImageLightboxModal';
+import { ProgressiveImage } from '@/Components/UI/ProgressiveImage';
 import { ALL_DEPARTMENTS, getStaffForDepartment, normalizeDepartment } from '@/constants/staff';
 import { getDepartmentTheme } from '@/constants/departments';
 import { useAuth } from '@/hooks/useAuth';
@@ -215,11 +216,12 @@ export function TakeJobModal({ issue, onClose, onEdit }) {
 
                         <div className="overflow-hidden rounded-xl border border-border bg-muted/40">
                             <div className="relative">
-                                <img
-                                    src={issue.imageUrl || '/barrier-placeholder.svg'}
+                                <ProgressiveImage
+                                    src={issue.imageUrl}
                                     alt={issue.title || 'Issue photo'}
-                                    className="h-48 w-full object-cover bg-black/20"
-                                    onError={(e) => { e.currentTarget.src = '/barrier-placeholder.svg'; }}
+                                    fallbackSrc="/barrier-placeholder.svg"
+                                    containerClassName="h-48 w-full bg-black/20"
+                                    className="h-48 w-full object-cover"
                                 />
                                 {issue.imageUrl && (
                                     <button

@@ -37,6 +37,7 @@ import {
 import { Button } from '@/Components/UI/Button';
 import { Input } from '@/Components/UI/Input';
 import { Label } from '@/Components/UI/Label';
+import { ProgressiveImage } from '@/Components/UI/ProgressiveImage';
 import { useIssues } from '@/context/IssuesContext';
 import { useLanguage } from '@/context/LanguageContext';
 import { getDepartmentForStaff, normalizeDepartment } from '@/constants/staff';
@@ -768,7 +769,12 @@ export function ActivityDetailModal({ issue, onClose, onOpenCardModal, onEdit, o
                                     {step.data.imageUrl && (
                                         <div className="mt-3">
                                             <div className="relative aspect-[16/9] w-full max-h-36 rounded-lg overflow-hidden border border-border/40 bg-black/40">
-                                                <img src={step.data.imageUrl} alt="Initial Issue" className="w-full h-full object-cover" />
+                                                <ProgressiveImage
+                                                    src={step.data.imageUrl}
+                                                    alt="Initial Issue"
+                                                    containerClassName="w-full h-full"
+                                                    className="w-full h-full object-cover"
+                                                />
                                             </div>
                                         </div>
                                     )}
@@ -853,7 +859,12 @@ export function ActivityDetailModal({ issue, onClose, onOpenCardModal, onEdit, o
 
                                         {step.data.imageUrl && (
                                             <div className="relative aspect-[16/9] w-full max-h-36 rounded-lg overflow-hidden border border-border/40 bg-black/40">
-                                                <img src={step.data.imageUrl} alt="Pending Proof" className="w-full h-full object-cover" />
+                                                <ProgressiveImage
+                                                    src={step.data.imageUrl}
+                                                    alt="Pending Proof"
+                                                    containerClassName="w-full h-full"
+                                                    className="w-full h-full object-cover"
+                                                />
                                             </div>
                                         )}
                                     </div>
@@ -1067,7 +1078,12 @@ export function ActivityDetailModal({ issue, onClose, onOpenCardModal, onEdit, o
                                     {step.data.proofImageUrl && (
                                         <div className="mt-3">
                                             <div className="relative aspect-[16/9] w-full max-h-36 rounded-lg overflow-hidden border border-border/40 bg-black/40">
-                                                <img src={step.data.proofImageUrl} alt="Proof of Resolution" className="w-full h-full object-cover" />
+                                                <ProgressiveImage
+                                                    src={step.data.proofImageUrl}
+                                                    alt="Proof of Resolution"
+                                                    containerClassName="w-full h-full"
+                                                    className="w-full h-full object-cover"
+                                                />
                                             </div>
                                         </div>
                                     )}

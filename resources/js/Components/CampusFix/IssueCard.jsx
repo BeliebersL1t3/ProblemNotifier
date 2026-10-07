@@ -4,6 +4,7 @@ import { StatusBadge } from './StatusBadge';
 import { cn } from '@/lib/utils';
 import DelayDetailModal from './DelayDetailModal';
 import { ImageLightboxModal } from './ImageLightboxModal';
+import { ProgressiveImage } from '@/Components/UI/ProgressiveImage';
 import { CriticalTimer } from './CriticalTimer';
 import { getDepartmentForStaff, normalizeDepartment } from '@/constants/staff';
 import { getDepartmentTheme } from '@/constants/departments';
@@ -210,12 +211,13 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
                     className="relative w-full sm:w-36 md:w-44 h-36 sm:h-28 md:h-32 shrink-0 rounded-lg overflow-hidden border border-border/70 bg-black/60 group/thumb cursor-pointer shadow-inner select-none transition-transform duration-200"
                     title={lang === 'id' ? 'Klik untuk perbesar foto' : 'Click to zoom photo'}
                 >
-                    <img
+                    <ProgressiveImage
                         src={activeImage}
                         alt={issue.title}
+                        fallbackSrc={FALLBACK_IMAGE}
+                        containerClassName="w-full h-full"
                         className="w-full h-full object-cover object-center transition-transform duration-500 ease-out group-hover/thumb:scale-105"
                         loading="lazy"
-                        onError={(e) => handleImageErrorWithRetry(e)}
                     />
                     {/* Subtle top/bottom gradient overlay for badge readability */}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/30 pointer-events-none" />

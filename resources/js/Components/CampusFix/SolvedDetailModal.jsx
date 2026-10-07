@@ -12,6 +12,7 @@ import { cn } from '@/lib/utils';
 import { useIssues } from '@/context/IssuesContext';
 import DelayDetailModal from './DelayDetailModal';
 import { ImageLightboxModal } from './ImageLightboxModal';
+import { ProgressiveImage } from '@/Components/UI/ProgressiveImage';
 import { getDepartmentTheme } from '@/constants/departments';
 
 export function SolvedDetailModal({ issue, onClose }) {
@@ -61,10 +62,11 @@ export function SolvedDetailModal({ issue, onClose }) {
                                 })}
                             >
                                 <div className="relative overflow-hidden rounded-lg border border-border bg-black/30">
-                                    <img
-                                        src={issue.imageUrl || '/barrier-placeholder.svg'}
+                                    <ProgressiveImage
+                                        src={issue.imageUrl}
                                         alt={`${issue.title} before the fix`}
-                                        onError={(e) => { e.currentTarget.src = '/barrier-placeholder.svg'; }}
+                                        fallbackSrc="/barrier-placeholder.svg"
+                                        containerClassName="h-48 sm:h-60 w-full"
                                         className="h-48 sm:h-60 w-full object-cover transition-transform duration-300 group-hover:scale-105"
                                     />
                                     <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
@@ -90,10 +92,11 @@ export function SolvedDetailModal({ issue, onClose }) {
                                 })}
                             >
                                 <div className="relative overflow-hidden rounded-lg border border-border bg-black/30">
-                                    <img
-                                        src={(issue.status === 'pending' ? issue.pendingImageUrl : (issue.proofImageUrl ?? issue.imageUrl)) || '/barrier-placeholder.svg'}
+                                    <ProgressiveImage
+                                        src={issue.status === 'pending' ? issue.pendingImageUrl : (issue.proofImageUrl ?? issue.imageUrl)}
                                         alt={`${issue.title} after update`}
-                                        onError={(e) => { e.currentTarget.src = '/barrier-placeholder.svg'; }}
+                                        fallbackSrc="/barrier-placeholder.svg"
+                                        containerClassName="h-48 sm:h-60 w-full"
                                         className="h-48 sm:h-60 w-full object-cover transition-transform duration-300 group-hover:scale-105"
                                     />
                                     <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
