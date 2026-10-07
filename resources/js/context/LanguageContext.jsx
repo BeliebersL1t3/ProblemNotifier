@@ -347,6 +347,11 @@ const translations = {
         to_fix: 'To Fix',
         reported_by_me: 'Reported By Me',
         mentioned_me: 'Mentioned Me',
+        all_issues_admin: 'All Issues',
+        unassigned_issues: 'Unassigned',
+        hod_unassigned: 'Team Unclaimed',
+        urgent_issues: 'Emergency & Overdue',
+        hod_all_dept: 'All Department',
 
         // Schedule Conflict Warning
         schedule_conflict_title: 'Department Schedule Notice',
@@ -846,6 +851,11 @@ const translations = {
         to_fix: 'Pekerjaan Saya',
         reported_by_me: 'Dibuat Oleh Saya',
         mentioned_me: 'Mention Saya',
+        all_issues_admin: 'Semua Isu',
+        unassigned_issues: 'Belum Diambil',
+        hod_unassigned: 'Belum Diambil Tim',
+        urgent_issues: 'Darurat & Terlambat',
+        hod_all_dept: 'Semua Departemen',
 
         // Schedule Conflict Warning
         schedule_conflict_title: 'Pemberitahuan Jadwal Departemen',

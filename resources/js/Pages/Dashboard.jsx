@@ -1,6 +1,6 @@
 import { Head } from '@inertiajs/react';
 import { useMemo, useState, useEffect, useLayoutEffect, useRef } from 'react';
-import { Loader2, RefreshCw, SearchX, LayoutGrid, Grid3X3, Layers, List, Rows3, Search, MapPin, Trash2, AlertTriangle, CalendarPlus, Globe, Target, FileText, Megaphone, Lock, ArrowRightLeft, ChevronLeft, ChevronRight, Volume2, VolumeX, ExternalLink, CheckCheck } from 'lucide-react';
+import { Loader2, RefreshCw, SearchX, LayoutGrid, Grid3X3, Layers, List, Rows3, Search, MapPin, Trash2, AlertTriangle, CalendarPlus, Globe, Target, FileText, Megaphone, Lock, ArrowRightLeft, ChevronLeft, ChevronRight, Volume2, VolumeX, ExternalLink, CheckCheck, Clock, Flame } from 'lucide-react';
 import { getDepartmentTheme } from '@/constants/departments';
 
 const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect;
@@ -128,7 +128,7 @@ function DashboardInner() {
         setCurrentSheet,
     } = useIssues();
     const { t, lang } = useLanguage();
-    const { isDeptUser, department, isAdmin, canViewAllDepartments, canDeleteIssues, canManageIssues, staffName, user } = useAuth();
+    const { isDeptUser, department, isAdmin, isHOD, canViewAllDepartments, canDeleteIssues, canManageIssues, staffName, user } = useAuth();
 
     // Helper: Check if current user personally contributed to this issue in the past
     const isPastContributor = (issue) => {
@@ -578,7 +578,7 @@ function DashboardInner() {
     const reassignNeededCount = useMemo(() => {
         const normUserDept = department ? normalizeDepartment(department) : null;
         const normDeptFilter = (deptFilter && deptFilter !== 'all') ? normalizeDepartment(deptFilter) : null;
-        const targetDept = normDeptFilter || normUserDept;
+        const targetDept = normDeptFilter || (isAdmin ? null : normUserDept);
 
         return issues.filter(issue => {
             const isArchived = Boolean(issue.isArchived || issue.statusDisplay === '0' || issue.displayStatus === '0');
@@ -597,6 +597,58 @@ function DashboardInner() {
         }).length;
     }, [issues, department, deptFilter, isAdmin]);
 
+    // Unassigned (Belum Diambil / Butuh PIC) count
+    const unassignedCount = useMemo(() => {
+        const normUserDept = department ? normalizeDepartment(department) : null;
+        const normDeptFilter = (deptFilter && deptFilter !== 'all') ? normalizeDepartment(deptFilter) : null;
+        const targetDept = normDeptFilter || (isAdmin ? null : normUserDept);
+
+        return (issues || []).filter(issue => {
+            const isArchived = Boolean(issue.isArchived || issue.statusDisplay === '0' || issue.displayStatus === '0');
+            if (isArchived || issue.status === 'solved') return false;
+            const isUnclaimed = issue.status === 'open' || !issue.taker || String(issue.taker).trim() === '';
+            if (!isUnclaimed) return false;
+
+            if (isAdmin && !targetDept) return true;
+
+            const assigned = (Array.isArray(issue.assignedDepartments) 
+                ? issue.assignedDepartments 
+                : (issue.assignedDepartments ? String(issue.assignedDepartments).split(',') : [])
+            ).map(d => normalizeDepartment(d.trim()));
+
+            return Boolean(targetDept && (assigned.includes(targetDept) || assigned.includes('ALL')));
+        }).length;
+    }, [issues, department, deptFilter, isAdmin]);
+
+    // Urgent (Darurat SOS & Terlambat Overdue) count
+    const urgentCount = useMemo(() => {
+        const normUserDept = department ? normalizeDepartment(department) : null;
+        const normDeptFilter = (deptFilter && deptFilter !== 'all') ? normalizeDepartment(deptFilter) : null;
+        const targetDept = normDeptFilter || (isAdmin ? null : normUserDept);
+
+        return (issues || []).filter(issue => {
+            const isArchived = Boolean(issue.isArchived || issue.statusDisplay === '0' || issue.displayStatus === '0');
+            if (isArchived || issue.status === 'solved') return false;
+
+            const isEmergency = (issue.category || '').toLowerCase() === 'emergency' 
+                || String(issue.id || '').toUpperCase().startsWith('SOS');
+            const deadlineMs = issue.deadline ? parseDeadlineToMs(issue.deadline) : null;
+            const isOverdue = Boolean(deadlineMs && deadlineMs < now);
+
+            if (!isEmergency && !isOverdue) return false;
+
+            if (isAdmin && !targetDept) return true;
+
+            const assigned = (Array.isArray(issue.assignedDepartments) 
+                ? issue.assignedDepartments 
+                : (issue.assignedDepartments ? String(issue.assignedDepartments).split(',') : [])
+            ).map(d => normalizeDepartment(d.trim()));
+            const originDept = normalizeDepartment(issue.department || '');
+
+            return isEmergency || Boolean(targetDept && (assigned.includes(targetDept) || originDept === targetDept));
+        }).length;
+    }, [issues, department, deptFilter, isAdmin, now]);
+
     // Auto-hide fallback: if no issues need reassignment, ensure view mode doesn't get stuck on reassign_needed
     useEffect(() => {
         if (reassignNeededCount === 0 && deptViewMode === 'reassign_needed') {
@@ -612,7 +664,7 @@ function DashboardInner() {
         const normUserDept = department ? normalizeDepartment(department) : null;
         const normDeptFilter = (deptFilter && deptFilter !== 'all') ? normalizeDepartment(deptFilter) : null;
         // The effective department being inspected (either specific dropdown selection, or the user's primary dept)
-        const targetDept = normDeptFilter || normUserDept;
+        const targetDept = normDeptFilter || (isAdmin ? null : normUserDept);
 
         // Apply Scope Perspective Tab Filtering
         const deptScoped = sourceIssues.reduce((acc, issue) => {
@@ -666,7 +718,7 @@ function DashboardInner() {
             if (deptViewMode === 'origin') {
                 if (isReportedByCurrentMe) {
                     const inCurrentDept = normUserDept && originDept === normUserDept;
-                    acc.push(inCurrentDept ? issue : { ...issue, _isPastContribution: true });
+                    acc.push(inCurrentDept || isAdmin ? issue : { ...issue, _isPastContribution: true });
                 }
                 return acc;
             }
@@ -675,6 +727,37 @@ function DashboardInner() {
             if (deptViewMode === 'assigned') {
                 if (isAssignedToTarget || isEmergency) {
                     acc.push(issue);
+                }
+                return acc;
+            }
+
+            // 2b. Tab "Unassigned / Open" (Belum Diambil / Butuh PIC)
+            if (deptViewMode === 'unassigned') {
+                const isArchived = Boolean(issue.isArchived || issue.statusDisplay === '0' || issue.displayStatus === '0');
+                const isUnclaimed = !isArchived && issue.status !== 'solved' && (issue.status === 'open' || !issue.taker || String(issue.taker).trim() === '');
+                if (isUnclaimed) {
+                    if (isAdmin && !targetDept) {
+                        acc.push(issue);
+                    } else if (isAssignedToTarget) {
+                        acc.push(issue);
+                    }
+                }
+                return acc;
+            }
+
+            // 2c. Tab "Urgent" (Darurat SOS & Terlambat Overdue)
+            if (deptViewMode === 'urgent') {
+                const isArchived = Boolean(issue.isArchived || issue.statusDisplay === '0' || issue.displayStatus === '0');
+                if (!isArchived && issue.status !== 'solved') {
+                    const deadlineMs = issue.deadline ? parseDeadlineToMs(issue.deadline) : null;
+                    const isOverdue = Boolean(deadlineMs && deadlineMs < now);
+                    if (isEmergency || isOverdue) {
+                        if (isAdmin && !targetDept) {
+                            acc.push(issue);
+                        } else if (isAssignedToTarget || originDept === targetDept) {
+                            acc.push(issue);
+                        }
+                    }
                 }
                 return acc;
             }
@@ -785,7 +868,7 @@ function DashboardInner() {
             }
             return (b.reportedAt || 0) - (a.reportedAt || 0);
         });
-    }, [issues, query, categoryFilter, statusFilter, deptFilter, isDeptUser, department, deptViewMode, staffName, user]);
+    }, [issues, query, categoryFilter, statusFilter, deptFilter, isDeptUser, department, deptViewMode, staffName, user, isAdmin, now]);
 
     const handleSelect = (issue) => {
         if (!issue) return;
@@ -1244,109 +1327,332 @@ function DashboardInner() {
                             )}
                             {(isDeptUser || isAdmin) && (
                                 <div className="flex items-center rounded-2xl bg-[#2A281E] p-1.5 border border-[#3B3929] text-xs font-bold shrink-0 max-w-full overflow-x-auto no-scrollbar flex-nowrap gap-1.5 shadow-md">
-                                    <button
-                                        type="button"
-                                        onClick={() => setDeptViewMode('all')}
-                                        title={t('all_my_scope')}
-                                        className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-2 ${
-                                            deptViewMode === 'all'
-                                                ? 'px-3.5 py-2 bg-[#C9AA71] text-[#1C1B0E] shadow-md font-extrabold'
-                                                : 'p-2.5 text-muted-foreground hover:text-foreground hover:bg-white/5'
-                                        }`}
-                                    >
-                                        <Globe className="w-5 h-5 shrink-0" />
-                                        <span className={deptViewMode === 'all' ? 'inline font-bold' : 'hidden sm:inline'}>{t('all_my_scope')}</span>
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setDeptViewMode('assigned')}
-                                        title={t('to_fix')}
-                                        className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-2 ${
-                                            deptViewMode === 'assigned'
-                                                ? 'px-3.5 py-2 bg-[#C9AA71] text-[#1C1B0E] shadow-md font-extrabold'
-                                                : 'p-2.5 text-muted-foreground hover:text-foreground hover:bg-white/5'
-                                        }`}
-                                    >
-                                        <Target className="w-5 h-5 shrink-0" />
-                                        <span className={deptViewMode === 'assigned' ? 'inline font-bold' : 'hidden sm:inline'}>{t('to_fix')}</span>
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setDeptViewMode('origin')}
-                                        title={t('reported_by_me')}
-                                        className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-2 ${
-                                            deptViewMode === 'origin'
-                                                ? 'px-3.5 py-2 bg-[#C9AA71] text-[#1C1B0E] shadow-md font-extrabold'
-                                                : 'p-2.5 text-muted-foreground hover:text-foreground hover:bg-white/5'
-                                        }`}
-                                    >
-                                        <FileText className="w-5 h-5 shrink-0" />
-                                        <span className={deptViewMode === 'origin' ? 'inline font-bold' : 'hidden sm:inline'}>{t('reported_by_me')}</span>
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setDeptViewMode('tagged')}
-                                        title={t('mentioned_me')}
-                                        className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-2 ${
-                                            deptViewMode === 'tagged'
-                                                ? 'px-3.5 py-2 bg-[#C9AA71] text-[#1C1B0E] shadow-md font-extrabold'
-                                                : 'p-2.5 text-muted-foreground hover:text-foreground hover:bg-white/5'
-                                        }`}
-                                    >
-                                        <Megaphone className="w-5 h-5 shrink-0" />
-                                        <span className={deptViewMode === 'tagged' ? 'inline font-bold' : 'hidden sm:inline'}>{t('mentioned_me')}</span>
-                                    </button>
-                                    {pastContribCount > 0 && (
-                                        <button
-                                            type="button"
-                                            onClick={() => setDeptViewMode('past_contributions')}
-                                            className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-2 ${
-                                                deptViewMode === 'past_contributions'
-                                                    ? 'px-3.5 py-2 bg-[#C9AA71] text-[#1C1B0E] shadow-md font-extrabold'
-                                                    : 'p-2.5 text-muted-foreground hover:text-foreground hover:bg-white/5'
-                                            }`}
-                                            title={lang === 'id' 
-                                                ? `Riwayat Kontribusi (${pastContribCount} isu)` 
-                                                : `Past Contributions (${pastContribCount} issues)`}
-                                        >
-                                            <Lock className="w-5 h-5 shrink-0" />
-                                            <span className={deptViewMode === 'past_contributions' ? 'inline font-bold' : 'hidden sm:inline'}>
-                                                {lang === 'id' ? 'Riwayat' : 'Past Contributions'}
-                                            </span>
-                                            <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
-                                                deptViewMode === 'past_contributions'
-                                                    ? 'bg-[#1C1B0E] text-[#C9AA71]'
-                                                    : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                                            }`}>
-                                                {pastContribCount}
-                                            </span>
-                                        </button>
-                                    )}
-                                    {reassignNeededCount > 0 && (
-                                        <button
-                                            type="button"
-                                            onClick={() => setDeptViewMode('reassign_needed')}
-                                            className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-2 ${
-                                                deptViewMode === 'reassign_needed'
-                                                    ? 'px-3.5 py-2 bg-amber-500 text-black shadow-md font-extrabold'
-                                                    : 'p-2.5 text-amber-400 hover:text-amber-300 hover:bg-amber-500/10'
-                                            }`}
-                                            title={lang === 'id' 
-                                                ? `Tugas Perlu Reassign (${reassignNeededCount} pekerjaan aktif yang pemegangnya pindah departemen)` 
-                                                : `Needs Reassignment (${reassignNeededCount} active tasks whose taker transferred out)`}
-                                        >
-                                            <ArrowRightLeft className="w-5 h-5 shrink-0" />
-                                            <span className={deptViewMode === 'reassign_needed' ? 'inline font-bold' : 'hidden sm:inline'}>
-                                                {lang === 'id' ? 'Perlu Reassign' : 'Needs Reassign'}
-                                            </span>
-                                            <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
-                                                deptViewMode === 'reassign_needed'
-                                                    ? 'bg-black text-amber-400'
-                                                    : 'bg-amber-500/25 text-amber-300 border border-amber-500/40'
-                                            }`}>
-                                                {reassignNeededCount}
-                                            </span>
-                                        </button>
+                                    {isAdmin ? (
+                                        /* Admin Monitoring Scope Tabs */
+                                        <>
+                                            <button
+                                                type="button"
+                                                onClick={() => setDeptViewMode('all')}
+                                                title={lang === 'id' ? 'Semua Isu Seluruh Resort' : 'All Issues Resort-wide'}
+                                                className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-2 ${
+                                                    deptViewMode === 'all'
+                                                        ? 'px-3.5 py-2 bg-[#C9AA71] text-[#1C1B0E] shadow-md font-extrabold'
+                                                        : 'p-2.5 text-muted-foreground hover:text-foreground hover:bg-white/5'
+                                                }`}
+                                            >
+                                                <Globe className="w-5 h-5 shrink-0" />
+                                                <span className={deptViewMode === 'all' ? 'inline font-bold' : 'hidden sm:inline'}>
+                                                    {lang === 'id' ? 'Semua Isu' : 'All Issues'}
+                                                </span>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setDeptViewMode('unassigned')}
+                                                title={lang === 'id' ? `Belum Diambil (${unassignedCount} isu belum ada PIC)` : `Unassigned (${unassignedCount} issues unclaimed)`}
+                                                className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-2 ${
+                                                    deptViewMode === 'unassigned'
+                                                        ? 'px-3.5 py-2 bg-[#C9AA71] text-[#1C1B0E] shadow-md font-extrabold'
+                                                        : 'p-2.5 text-muted-foreground hover:text-foreground hover:bg-white/5'
+                                                }`}
+                                            >
+                                                <Clock className="w-5 h-5 shrink-0" />
+                                                <span className={deptViewMode === 'unassigned' ? 'inline font-bold' : 'hidden sm:inline'}>
+                                                    {lang === 'id' ? 'Belum Diambil' : 'Unassigned'}
+                                                </span>
+                                                {unassignedCount > 0 && (
+                                                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                                                        deptViewMode === 'unassigned'
+                                                            ? 'bg-[#1C1B0E] text-[#C9AA71]'
+                                                            : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                                                    }`}>
+                                                        {unassignedCount}
+                                                    </span>
+                                                )}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setDeptViewMode('urgent')}
+                                                title={lang === 'id' ? `Darurat & Terlambat (${urgentCount} tiket darurat/lewat deadline)` : `Emergency & Overdue (${urgentCount} urgent tickets)`}
+                                                className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-2 ${
+                                                    deptViewMode === 'urgent'
+                                                        ? 'px-3.5 py-2 bg-red-600 text-white shadow-md font-extrabold ring-1 ring-red-400'
+                                                        : 'p-2.5 text-red-400 hover:text-red-300 hover:bg-red-500/10'
+                                                }`}
+                                            >
+                                                <Flame className="w-5 h-5 shrink-0" />
+                                                <span className={deptViewMode === 'urgent' ? 'inline font-bold' : 'hidden sm:inline'}>
+                                                    {lang === 'id' ? 'Darurat & Terlambat' : 'Emergency & Overdue'}
+                                                </span>
+                                                {urgentCount > 0 && (
+                                                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                                                        deptViewMode === 'urgent'
+                                                            ? 'bg-white text-red-600'
+                                                            : 'bg-red-500/25 text-red-300 border border-red-500/40'
+                                                    }`}>
+                                                        {urgentCount}
+                                                    </span>
+                                                )}
+                                            </button>
+                                            {reassignNeededCount > 0 && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setDeptViewMode('reassign_needed')}
+                                                    className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-2 ${
+                                                        deptViewMode === 'reassign_needed'
+                                                            ? 'px-3.5 py-2 bg-amber-500 text-black shadow-md font-extrabold'
+                                                            : 'p-2.5 text-amber-400 hover:text-amber-300 hover:bg-amber-500/10'
+                                                    }`}
+                                                    title={lang === 'id' 
+                                                        ? `Tugas Perlu Reassign (${reassignNeededCount} pekerjaan aktif yang pemegangnya pindah departemen)` 
+                                                        : `Needs Reassignment (${reassignNeededCount} active tasks whose taker transferred out)`}
+                                                >
+                                                    <ArrowRightLeft className="w-5 h-5 shrink-0" />
+                                                    <span className={deptViewMode === 'reassign_needed' ? 'inline font-bold' : 'hidden sm:inline'}>
+                                                        {lang === 'id' ? 'Perlu Reassign' : 'Needs Reassign'}
+                                                    </span>
+                                                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                                                        deptViewMode === 'reassign_needed'
+                                                            ? 'bg-black text-amber-400'
+                                                            : 'bg-amber-500/25 text-amber-300 border border-amber-500/40'
+                                                    }`}>
+                                                        {reassignNeededCount}
+                                                    </span>
+                                                </button>
+                                            )}
+                                            <button
+                                                type="button"
+                                                onClick={() => setDeptViewMode('origin')}
+                                                title={lang === 'id' ? 'Dibuat Oleh Saya' : 'Reported By Me'}
+                                                className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-2 ${
+                                                    deptViewMode === 'origin'
+                                                        ? 'px-3.5 py-2 bg-[#C9AA71] text-[#1C1B0E] shadow-md font-extrabold'
+                                                        : 'p-2.5 text-muted-foreground hover:text-foreground hover:bg-white/5'
+                                                }`}
+                                            >
+                                                <FileText className="w-5 h-5 shrink-0" />
+                                                <span className={deptViewMode === 'origin' ? 'inline font-bold' : 'hidden sm:inline'}>
+                                                    {lang === 'id' ? 'Dibuat Oleh Saya' : 'Reported By Me'}
+                                                </span>
+                                            </button>
+                                        </>
+                                    ) : isHOD ? (
+                                        /* HOD Leadership Scope Tabs */
+                                        <>
+                                            <button
+                                                type="button"
+                                                onClick={() => setDeptViewMode('all')}
+                                                title={lang === 'id' ? 'Semua Departemen Saya' : 'All My Department Scope'}
+                                                className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-2 ${
+                                                    deptViewMode === 'all'
+                                                        ? 'px-3.5 py-2 bg-[#C9AA71] text-[#1C1B0E] shadow-md font-extrabold'
+                                                        : 'p-2.5 text-muted-foreground hover:text-foreground hover:bg-white/5'
+                                                }`}
+                                            >
+                                                <Globe className="w-5 h-5 shrink-0" />
+                                                <span className={deptViewMode === 'all' ? 'inline font-bold' : 'hidden sm:inline'}>
+                                                    {lang === 'id' ? 'Semua Departemen' : 'All Department'}
+                                                </span>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setDeptViewMode('unassigned')}
+                                                title={lang === 'id' ? `Belum Diambil Tim (${unassignedCount} tugas belum dikerjakan staf)` : `Team Unclaimed (${unassignedCount} unclaimed by staff)`}
+                                                className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-2 ${
+                                                    deptViewMode === 'unassigned'
+                                                        ? 'px-3.5 py-2 bg-[#C9AA71] text-[#1C1B0E] shadow-md font-extrabold'
+                                                        : 'p-2.5 text-muted-foreground hover:text-foreground hover:bg-white/5'
+                                                }`}
+                                            >
+                                                <Clock className="w-5 h-5 shrink-0" />
+                                                <span className={deptViewMode === 'unassigned' ? 'inline font-bold' : 'hidden sm:inline'}>
+                                                    {lang === 'id' ? 'Belum Diambil Tim' : 'Team Unclaimed'}
+                                                </span>
+                                                {unassignedCount > 0 && (
+                                                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                                                        deptViewMode === 'unassigned'
+                                                            ? 'bg-[#1C1B0E] text-[#C9AA71]'
+                                                            : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                                                    }`}>
+                                                        {unassignedCount}
+                                                    </span>
+                                                )}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setDeptViewMode('assigned')}
+                                                title={t('to_fix')}
+                                                className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-2 ${
+                                                    deptViewMode === 'assigned'
+                                                        ? 'px-3.5 py-2 bg-[#C9AA71] text-[#1C1B0E] shadow-md font-extrabold'
+                                                        : 'p-2.5 text-muted-foreground hover:text-foreground hover:bg-white/5'
+                                                }`}
+                                            >
+                                                <Target className="w-5 h-5 shrink-0" />
+                                                <span className={deptViewMode === 'assigned' ? 'inline font-bold' : 'hidden sm:inline'}>{t('to_fix')}</span>
+                                            </button>
+                                            {reassignNeededCount > 0 && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setDeptViewMode('reassign_needed')}
+                                                    className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-2 ${
+                                                        deptViewMode === 'reassign_needed'
+                                                            ? 'px-3.5 py-2 bg-amber-500 text-black shadow-md font-extrabold'
+                                                            : 'p-2.5 text-amber-400 hover:text-amber-300 hover:bg-amber-500/10'
+                                                    }`}
+                                                    title={lang === 'id' 
+                                                        ? `Tugas Perlu Reassign (${reassignNeededCount} pekerjaan aktif yang pemegangnya pindah departemen)` 
+                                                        : `Needs Reassignment (${reassignNeededCount} active tasks whose taker transferred out)`}
+                                                >
+                                                    <ArrowRightLeft className="w-5 h-5 shrink-0" />
+                                                    <span className={deptViewMode === 'reassign_needed' ? 'inline font-bold' : 'hidden sm:inline'}>
+                                                        {lang === 'id' ? 'Perlu Reassign' : 'Needs Reassign'}
+                                                    </span>
+                                                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                                                        deptViewMode === 'reassign_needed'
+                                                            ? 'bg-black text-amber-400'
+                                                            : 'bg-amber-500/25 text-amber-300 border border-amber-500/40'
+                                                    }`}>
+                                                        {reassignNeededCount}
+                                                    </span>
+                                                </button>
+                                            )}
+                                            <button
+                                                type="button"
+                                                onClick={() => setDeptViewMode('origin')}
+                                                title={t('reported_by_me')}
+                                                className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-2 ${
+                                                    deptViewMode === 'origin'
+                                                        ? 'px-3.5 py-2 bg-[#C9AA71] text-[#1C1B0E] shadow-md font-extrabold'
+                                                        : 'p-2.5 text-muted-foreground hover:text-foreground hover:bg-white/5'
+                                                }`}
+                                            >
+                                                <FileText className="w-5 h-5 shrink-0" />
+                                                <span className={deptViewMode === 'origin' ? 'inline font-bold' : 'hidden sm:inline'}>{t('reported_by_me')}</span>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setDeptViewMode('tagged')}
+                                                title={lang === 'id' ? 'Mention Departemen' : 'Department Mentions'}
+                                                className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-2 ${
+                                                    deptViewMode === 'tagged'
+                                                        ? 'px-3.5 py-2 bg-[#C9AA71] text-[#1C1B0E] shadow-md font-extrabold'
+                                                        : 'p-2.5 text-muted-foreground hover:text-foreground hover:bg-white/5'
+                                                }`}
+                                            >
+                                                <Megaphone className="w-5 h-5 shrink-0" />
+                                                <span className={deptViewMode === 'tagged' ? 'inline font-bold' : 'hidden sm:inline'}>
+                                                    {lang === 'id' ? 'Mention Departemen' : 'Mentions'}
+                                                </span>
+                                            </button>
+                                        </>
+                                    ) : (
+                                        /* Regular Staff Operational Scope Tabs */
+                                        <>
+                                            <button
+                                                type="button"
+                                                onClick={() => setDeptViewMode('all')}
+                                                title={t('all_my_scope')}
+                                                className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-2 ${
+                                                    deptViewMode === 'all'
+                                                        ? 'px-3.5 py-2 bg-[#C9AA71] text-[#1C1B0E] shadow-md font-extrabold'
+                                                        : 'p-2.5 text-muted-foreground hover:text-foreground hover:bg-white/5'
+                                                }`}
+                                            >
+                                                <Globe className="w-5 h-5 shrink-0" />
+                                                <span className={deptViewMode === 'all' ? 'inline font-bold' : 'hidden sm:inline'}>{t('all_my_scope')}</span>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setDeptViewMode('assigned')}
+                                                title={t('to_fix')}
+                                                className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-2 ${
+                                                    deptViewMode === 'assigned'
+                                                        ? 'px-3.5 py-2 bg-[#C9AA71] text-[#1C1B0E] shadow-md font-extrabold'
+                                                        : 'p-2.5 text-muted-foreground hover:text-foreground hover:bg-white/5'
+                                                }`}
+                                            >
+                                                <Target className="w-5 h-5 shrink-0" />
+                                                <span className={deptViewMode === 'assigned' ? 'inline font-bold' : 'hidden sm:inline'}>{t('to_fix')}</span>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setDeptViewMode('origin')}
+                                                title={t('reported_by_me')}
+                                                className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-2 ${
+                                                    deptViewMode === 'origin'
+                                                        ? 'px-3.5 py-2 bg-[#C9AA71] text-[#1C1B0E] shadow-md font-extrabold'
+                                                        : 'p-2.5 text-muted-foreground hover:text-foreground hover:bg-white/5'
+                                                }`}
+                                            >
+                                                <FileText className="w-5 h-5 shrink-0" />
+                                                <span className={deptViewMode === 'origin' ? 'inline font-bold' : 'hidden sm:inline'}>{t('reported_by_me')}</span>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setDeptViewMode('tagged')}
+                                                title={t('mentioned_me')}
+                                                className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-2 ${
+                                                    deptViewMode === 'tagged'
+                                                        ? 'px-3.5 py-2 bg-[#C9AA71] text-[#1C1B0E] shadow-md font-extrabold'
+                                                        : 'p-2.5 text-muted-foreground hover:text-foreground hover:bg-white/5'
+                                                }`}
+                                            >
+                                                <Megaphone className="w-5 h-5 shrink-0" />
+                                                <span className={deptViewMode === 'tagged' ? 'inline font-bold' : 'hidden sm:inline'}>{t('mentioned_me')}</span>
+                                            </button>
+                                            {pastContribCount > 0 && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setDeptViewMode('past_contributions')}
+                                                    className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-2 ${
+                                                        deptViewMode === 'past_contributions'
+                                                            ? 'px-3.5 py-2 bg-[#C9AA71] text-[#1C1B0E] shadow-md font-extrabold'
+                                                            : 'p-2.5 text-muted-foreground hover:text-foreground hover:bg-white/5'
+                                                    }`}
+                                                    title={lang === 'id' 
+                                                        ? `Riwayat Kontribusi (${pastContribCount} isu)` 
+                                                        : `Past Contributions (${pastContribCount} issues)`}
+                                                >
+                                                    <Lock className="w-5 h-5 shrink-0" />
+                                                    <span className={deptViewMode === 'past_contributions' ? 'inline font-bold' : 'hidden sm:inline'}>
+                                                        {lang === 'id' ? 'Riwayat' : 'Past Contributions'}
+                                                    </span>
+                                                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                                                        deptViewMode === 'past_contributions'
+                                                            ? 'bg-[#1C1B0E] text-[#C9AA71]'
+                                                            : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                                                    }`}>
+                                                        {pastContribCount}
+                                                    </span>
+                                                </button>
+                                            )}
+                                            {reassignNeededCount > 0 && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setDeptViewMode('reassign_needed')}
+                                                    className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-2 ${
+                                                        deptViewMode === 'reassign_needed'
+                                                            ? 'px-3.5 py-2 bg-amber-500 text-black shadow-md font-extrabold'
+                                                            : 'p-2.5 text-amber-400 hover:text-amber-300 hover:bg-amber-500/10'
+                                                    }`}
+                                                    title={lang === 'id' 
+                                                        ? `Tugas Perlu Reassign (${reassignNeededCount} pekerjaan aktif yang pemegangnya pindah departemen)` 
+                                                        : `Needs Reassignment (${reassignNeededCount} active tasks whose taker transferred out)`}
+                                                >
+                                                    <ArrowRightLeft className="w-5 h-5 shrink-0" />
+                                                    <span className={deptViewMode === 'reassign_needed' ? 'inline font-bold' : 'hidden sm:inline'}>
+                                                        {lang === 'id' ? 'Perlu Reassign' : 'Needs Reassign'}
+                                                    </span>
+                                                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                                                        deptViewMode === 'reassign_needed'
+                                                            ? 'bg-black text-amber-400'
+                                                            : 'bg-amber-500/25 text-amber-300 border border-amber-500/40'
+                                                    }`}>
+                                                        {reassignNeededCount}
+                                                    </span>
+                                                </button>
+                                            )}
+                                        </>
                                     )}
                                 </div>
                             )}
@@ -1456,6 +1762,64 @@ function DashboardInner() {
                             variant="outline"
                             onClick={() => setDeptViewMode('all')}
                             className="w-fit text-xs border-amber-500/40 text-amber-300 hover:bg-amber-500/10 cursor-pointer shrink-0"
+                        >
+                            ← {lang === 'id' ? 'Kembali ke Semua Isu' : 'Back to All Issues'}
+                        </Button>
+                    </div>
+                )}
+
+                {deptViewMode === 'urgent' && (
+                    <div className="rounded-xl border border-red-500/35 bg-gradient-to-r from-red-950/40 via-red-900/20 to-red-950/30 p-4 text-red-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-md animate-in fade-in duration-200 backdrop-blur-xs">
+                        <div className="flex items-start sm:items-center gap-3">
+                            <span className="text-2xl shrink-0 p-1.5 rounded-lg bg-red-500/15 border border-red-500/30">🔥</span>
+                            <div>
+                                <h3 className="text-sm font-bold text-red-300 uppercase tracking-wide flex items-center gap-2">
+                                    {lang === 'id' ? 'Isu Darurat & Terlambat (Overdue SLA)' : 'Emergency & Overdue Issues'}
+                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-red-500 text-white">
+                                        {urgentCount}
+                                    </span>
+                                </h3>
+                                <p className="text-xs text-red-200/80 mt-0.5 leading-relaxed">
+                                    {lang === 'id' 
+                                        ? 'Menampilkan tiket darurat (SOS) dan laporan yang telah melewati batas waktu estimasi deadline SLA. Memerlukan penanganan atau eskalasi segera.' 
+                                        : 'Showing emergency (SOS) alerts and issues that have exceeded their target deadline. Immediate attention or escalation required.'}
+                                </p>
+                            </div>
+                        </div>
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setDeptViewMode('all')}
+                            className="w-fit text-xs border-red-500/40 text-red-300 hover:bg-red-500/10 cursor-pointer shrink-0"
+                        >
+                            ← {lang === 'id' ? 'Kembali ke Semua Isu' : 'Back to All Issues'}
+                        </Button>
+                    </div>
+                )}
+
+                {deptViewMode === 'unassigned' && (
+                    <div className="rounded-xl border border-sky-500/35 bg-gradient-to-r from-sky-950/40 via-sky-900/20 to-sky-950/30 p-4 text-sky-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-md animate-in fade-in duration-200 backdrop-blur-xs">
+                        <div className="flex items-start sm:items-center gap-3">
+                            <span className="text-2xl shrink-0 p-1.5 rounded-lg bg-sky-500/15 border border-sky-500/30">⏳</span>
+                            <div>
+                                <h3 className="text-sm font-bold text-sky-300 uppercase tracking-wide flex items-center gap-2">
+                                    {lang === 'id' ? (isAdmin ? 'Laporan Belum Diambil (Butuh PIC)' : 'Tugas Belum Diambil Tim') : 'Unassigned / Open Issues'}
+                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-sky-500 text-black">
+                                        {unassignedCount}
+                                    </span>
+                                </h3>
+                                <p className="text-xs text-sky-200/80 mt-0.5 leading-relaxed">
+                                    {lang === 'id' 
+                                        ? (isAdmin ? 'Menampilkan tiket laporan yang belum diambil oleh staf atau teknisi lapangan. Pantau agar tidak ada kendala yang terbengkalai.' : 'Menampilkan tugas perbaikan departemen Anda yang belum diambil oleh anggota tim.')
+                                        : 'Showing issues that have not yet been claimed by field technicians or team members.'}
+                                </p>
+                            </div>
+                        </div>
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setDeptViewMode('all')}
+                            className="w-fit text-xs border-sky-500/40 text-sky-300 hover:bg-sky-500/10 cursor-pointer shrink-0"
                         >
                             ← {lang === 'id' ? 'Kembali ke Semua Isu' : 'Back to All Issues'}
                         </Button>
