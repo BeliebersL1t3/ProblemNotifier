@@ -1319,7 +1319,7 @@ function DashboardInner() {
                 <div className="space-y-3.5 border-b border-border/50 pb-4">
                     {/* Tier 1: Primary Scope Tabs & Density Selector */}
                     <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
-                        <div className="flex items-center gap-2.5 flex-wrap">
+                        <div className="flex items-center gap-2.5 w-full lg:w-auto">
                             {canViewAllDepartments && !isAdmin && (
                                 <div 
                                     className="hidden md:inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-sky-500/10 border border-sky-500/30 text-sky-300 text-xs font-semibold shadow-xs shrink-0"
@@ -1332,7 +1332,7 @@ function DashboardInner() {
                                 </div>
                             )}
                             {(isDeptUser || isAdmin) && (
-                                <div className="flex items-center rounded-2xl bg-[#2A281E] p-1 sm:p-1.5 border border-[#3B3929] text-[10px] sm:text-xs font-bold shrink-0 max-w-full overflow-x-auto no-scrollbar flex-nowrap gap-0.5 sm:gap-1.5 shadow-md">
+                                <div className="flex items-center rounded-2xl bg-[#2A281E] p-1 sm:p-1.5 border border-[#3B3929] text-[10px] sm:text-xs font-bold w-full sm:w-auto max-w-full overflow-x-auto no-scrollbar flex-nowrap gap-0.5 sm:gap-1.5 shadow-md">
                                     {isAdmin ? (
                                         /* Admin Monitoring Scope Tabs */
                                         <>
@@ -1659,50 +1659,6 @@ function DashboardInner() {
                             )}
                         </div>
 
-                        {/* View Density Selector */}
-                        {/* Mobile View: 3 Options (List [3] | Compact | Grid [10]) */}
-                        <div className="flex sm:hidden items-center rounded-2xl bg-[#2A281E] p-1 border border-[#3B3929] text-[10px] font-bold shrink-0 self-end shadow-md gap-0.5" title="View Options (List, Compact, Grid)">
-                            <button
-                                type="button"
-                                onClick={() => handleDensityChange('3')}
-                                className={`px-2 py-1 rounded-xl transition-all flex items-center gap-1 cursor-pointer font-bold ${
-                                    viewDensity === '3' || viewDensity === 'list'
-                                        ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-sm font-extrabold'
-                                        : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
-                                }`}
-                                title="List View"
-                            >
-                                <LayoutGrid className="h-3 w-3" />
-                                <span>List</span>
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => handleDensityChange('compact')}
-                                className={`px-2 py-1 rounded-xl transition-all flex items-center gap-1 cursor-pointer font-bold ${
-                                    viewDensity === 'compact'
-                                        ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-sm font-extrabold'
-                                        : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
-                                }`}
-                                title="Compact View"
-                            >
-                                <Rows3 className="h-3 w-3" />
-                                <span>Compact</span>
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => handleDensityChange('10')}
-                                className={`px-2 py-1 rounded-xl transition-all flex items-center gap-1 cursor-pointer font-bold ${
-                                    viewDensity === '10' || viewDensity === 'grid' || viewDensity === '5'
-                                        ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-sm font-extrabold'
-                                        : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
-                                }`}
-                                title="Grid View"
-                            >
-                                <Grid3X3 className="h-3 w-3" />
-                                <span>Grid</span>
-                            </button>
-                        </div>
-
                         {/* Desktop View: 5 Options (List | Compact | 3 | 5 | 10) */}
                         <div className="hidden sm:flex items-center rounded-2xl bg-[#2A281E] p-1.5 border border-[#3B3929] text-xs font-bold shrink-0 self-end lg:self-center shadow-md gap-1" title="View Options (List, Compact, 3, 5, 10 columns)">
                             <button
@@ -1773,14 +1729,59 @@ function DashboardInner() {
                         </div>
                     </div>
 
-                    {/* Tier 2: Secondary Filter Bar (Category & Department) */}
-                    <div className="flex items-center justify-between gap-3 pt-0.5">
-                        <FilterChips
-                            categoryFilter={categoryFilter}
-                            onCategoryChange={setCategoryFilter}
-                            deptFilter={deptFilter}
-                            onDeptChange={setDeptFilter}
-                        />
+                    {/* Tier 2: Secondary Filter Bar (Category & Department on Left + Mobile Density Selector on Right) */}
+                    <div className="flex items-center justify-between gap-1.5 sm:gap-3 pt-0.5 w-full">
+                        <div className="min-w-0 shrink">
+                            <FilterChips
+                                categoryFilter={categoryFilter}
+                                onCategoryChange={setCategoryFilter}
+                                deptFilter={deptFilter}
+                                onDeptChange={setDeptFilter}
+                            />
+                        </div>
+
+                        {/* Mobile View: 3 Options (List [3] | Compact | Grid [10]) inline with FilterChips */}
+                        <div className="flex sm:hidden items-center rounded-2xl bg-[#2A281E] p-1 border border-[#3B3929] text-[10px] font-bold shrink-0 shadow-md gap-0.5" title="View Options (List, Compact, Grid)">
+                            <button
+                                type="button"
+                                onClick={() => handleDensityChange('3')}
+                                className={`px-2 py-1 rounded-xl transition-all flex items-center gap-1 cursor-pointer font-bold ${
+                                    viewDensity === '3' || viewDensity === 'list'
+                                        ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-sm font-extrabold'
+                                        : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
+                                }`}
+                                title="List View"
+                            >
+                                <LayoutGrid className="h-3 w-3" />
+                                <span>List</span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => handleDensityChange('compact')}
+                                className={`px-2 py-1 rounded-xl transition-all flex items-center gap-1 cursor-pointer font-bold ${
+                                    viewDensity === 'compact'
+                                        ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-sm font-extrabold'
+                                        : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
+                                }`}
+                                title="Compact View"
+                            >
+                                <Rows3 className="h-3 w-3" />
+                                <span>Compact</span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => handleDensityChange('10')}
+                                className={`px-2 py-1 rounded-xl transition-all flex items-center gap-1 cursor-pointer font-bold ${
+                                    viewDensity === '10' || viewDensity === 'grid' || viewDensity === '5'
+                                        ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-sm font-extrabold'
+                                        : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
+                                }`}
+                                title="Grid View"
+                            >
+                                <Grid3X3 className="h-3 w-3" />
+                                <span>Grid</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
 
