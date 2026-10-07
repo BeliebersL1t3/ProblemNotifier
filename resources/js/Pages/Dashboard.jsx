@@ -1152,50 +1152,27 @@ function DashboardInner() {
                 const hasMultiple = scopedOverdueIssues.length > 1;
 
                 return (
-                    <div className={`relative px-4 py-3 text-white shadow-xl border-b transition-all ${
+                    <div className={`relative px-3 py-2.5 sm:px-4 sm:py-3 text-white shadow-xl border-b transition-all ${
                         isEmergency 
                             ? 'bg-gradient-to-r from-red-700 via-rose-700 to-red-800 border-red-500' 
                             : isAck 
                                 ? 'bg-gradient-to-r from-amber-950 via-[#2A2315] to-amber-900/90 border-amber-600/40 text-amber-100'
                                 : 'bg-gradient-to-r from-red-600 via-rose-600 to-red-700 border-red-500'
                     }`}>
-                        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-3">
-                            {/* Left: Issue Info & Slider Controls */}
-                            <div className="flex items-center gap-3 w-full md:w-auto min-w-0">
-                                {hasMultiple && (
-                                    <div className="flex items-center gap-1 shrink-0 bg-black/40 rounded-lg p-0.5 border border-white/20">
-                                        <button
-                                            type="button"
-                                            onClick={() => setSliderIndex(prev => (prev > 0 ? prev - 1 : scopedOverdueIssues.length - 1))}
-                                            className="p-1 hover:bg-white/20 rounded transition-all cursor-pointer"
-                                            title={lang === 'id' ? 'Isu Sebelumnya' : 'Previous Issue'}
-                                        >
-                                            <ChevronLeft className="h-4 w-4" />
-                                        </button>
-                                        <span className="text-[11px] font-mono font-bold px-1.5 min-w-[36px] text-center">
-                                            {sliderIndex + 1}/{scopedOverdueIssues.length}
+                        <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-2 sm:gap-3">
+                            {/* Left Column: Info & Metadata */}
+                            <div className="flex flex-col gap-1.5 min-w-0 w-full md:w-auto">
+                                {/* Baris 1: Ikon + Judul + Status Badge + Slider Pagination */}
+                                <div className="flex items-center justify-between gap-2 w-full min-w-0">
+                                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                                        <span className="text-lg sm:text-xl shrink-0">
+                                            {isEmergency ? '🔥' : '🚨'}
                                         </span>
-                                        <button
-                                            type="button"
-                                            onClick={() => setSliderIndex(prev => (prev < scopedOverdueIssues.length - 1 ? prev + 1 : 0))}
-                                            className="p-1 hover:bg-white/20 rounded transition-all cursor-pointer"
-                                            title={lang === 'id' ? 'Isu Berikutnya' : 'Next Issue'}
-                                        >
-                                            <ChevronRight className="h-4 w-4" />
-                                        </button>
-                                    </div>
-                                )}
-
-                                <div className="flex items-center gap-2.5 min-w-0">
-                                    <span className="text-xl shrink-0">
-                                        {isEmergency ? '🔥' : '🚨'}
-                                    </span>
-                                    <div className="min-w-0">
-                                        <div className="flex items-center gap-2 flex-wrap">
-                                            <span className="font-extrabold text-sm sm:text-base truncate max-w-[280px] sm:max-w-[420px]">
+                                        <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+                                            <span className="font-extrabold text-sm sm:text-base text-white truncate max-w-[150px] xs:max-w-[210px] sm:max-w-[380px]">
                                                 {activeIssue.title}
                                             </span>
-                                            <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full shrink-0 ${
+                                            <span className={`text-[9px] sm:text-[10px] font-black uppercase px-1.5 py-0.5 rounded-full shrink-0 ${
                                                 activeIssue.status === 'open' 
                                                     ? 'bg-red-950 text-red-200 border border-red-400/50' 
                                                     : 'bg-amber-950 text-amber-200 border border-amber-400/50'
@@ -1203,34 +1180,59 @@ function DashboardInner() {
                                                 {activeIssue.status === 'open' ? (lang === 'id' ? 'Belum Diambil' : 'Unclaimed') : (lang === 'id' ? 'Sedang Dikerjakan' : 'In Progress')}
                                             </span>
                                             {isAck && (
-                                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-900/80 text-emerald-200 border border-emerald-400/50 shrink-0">
-                                                    ✓ {lang === 'id' ? 'Snooze Aktif (30m)' : 'Snoozed (30m)'}
+                                                <span className="text-[9px] sm:text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-900/80 text-emerald-200 border border-emerald-400/50 shrink-0">
+                                                    ✓ {lang === 'id' ? 'Snooze' : 'Snoozed'}
                                                 </span>
                                             )}
                                         </div>
-                                        <div className="flex items-center gap-2 text-xs opacity-90 text-[11px] mt-0.5 flex-wrap">
-                                            <span>
-                                                📍 {activeIssue.location || 'Resort'}
-                                            </span>
-                                            <span>•</span>
-                                            <span className="font-bold">
-                                                ⏱️ {lang === 'id' ? 'Terlambat:' : 'Overdue:'} {formatOverdueTime(activeOverdueMins)}
-                                            </span>
-                                            <span>•</span>
-                                            <span>
-                                                🔔 {lang === 'id' ? 'Eskalasi berikutnya:' : 'Next escalation:'} {nextMilestoneText}
-                                            </span>
-                                        </div>
                                     </div>
+
+                                    {/* Slider Controls (Pagination antar isu jika lebih dari 1) */}
+                                    {hasMultiple && (
+                                        <div className="flex items-center gap-0.5 shrink-0 bg-black/40 rounded-lg p-0.5 border border-white/20">
+                                            <button
+                                                type="button"
+                                                onClick={() => setSliderIndex(prev => (prev > 0 ? prev - 1 : scopedOverdueIssues.length - 1))}
+                                                className="p-1 hover:bg-white/20 rounded transition-all cursor-pointer"
+                                                title={lang === 'id' ? 'Isu Sebelumnya' : 'Previous Issue'}
+                                            >
+                                                <ChevronLeft className="h-3.5 w-3.5" />
+                                            </button>
+                                            <span className="text-[10px] font-mono font-bold px-1 min-w-[28px] text-center">
+                                                {sliderIndex + 1}/{scopedOverdueIssues.length}
+                                            </span>
+                                            <button
+                                                type="button"
+                                                onClick={() => setSliderIndex(prev => (prev < scopedOverdueIssues.length - 1 ? prev + 1 : 0))}
+                                                className="p-1 hover:bg-white/20 rounded transition-all cursor-pointer"
+                                                title={lang === 'id' ? 'Isu Berikutnya' : 'Next Issue'}
+                                            >
+                                                <ChevronRight className="h-3.5 w-3.5" />
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Baris 2: Metadata Chips Rapi (Tanpa bullet liar) */}
+                                <div className="flex items-center gap-1.5 text-[11px] opacity-95 overflow-x-auto no-scrollbar py-0.5 w-full">
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-black/35 border border-white/15 shrink-0 text-[10px] sm:text-[11px]">
+                                        📍 <span>{activeIssue.location || 'Resort'}</span>
+                                    </span>
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-black/35 border border-white/15 shrink-0 font-bold text-amber-200 text-[10px] sm:text-[11px]">
+                                        ⏱️ <span>{lang === 'id' ? 'Terlambat:' : 'Overdue:'} {formatOverdueTime(activeOverdueMins)}</span>
+                                    </span>
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-black/35 border border-white/15 shrink-0 text-[10px] sm:text-[11px]">
+                                        🔔 <span>{lang === 'id' ? 'Eskalasi:' : 'Next:'} {nextMilestoneText}</span>
+                                    </span>
                                 </div>
                             </div>
 
-                            {/* Right: Actions */}
-                            <div className="flex items-center gap-2 shrink-0 self-end md:self-auto flex-wrap">
+                            {/* Baris 3 (Mobile) / Right (Desktop): Actions Sejajar 1 Baris */}
+                            <div className="flex items-center gap-1.5 w-full md:w-auto pt-1 md:pt-0 border-t border-white/15 md:border-0 shrink-0">
                                 <button
                                     type="button"
                                     onClick={() => focusAndOpenIssue(activeIssue.id, activeIssue.sheet)}
-                                    className="px-2.5 py-1 text-xs font-bold rounded-lg bg-white/20 hover:bg-white/30 text-white transition-all flex items-center gap-1.5 cursor-pointer border border-white/20"
+                                    className="flex-1 md:flex-none justify-center px-2.5 py-1.5 text-xs font-bold rounded-lg bg-white/20 hover:bg-white/30 text-white transition-all flex items-center gap-1.5 cursor-pointer border border-white/20 shadow-xs"
                                 >
                                     <ExternalLink className="h-3.5 w-3.5" />
                                     <span>{lang === 'id' ? 'Buka Tiket' : 'View'}</span>
@@ -1240,7 +1242,7 @@ function DashboardInner() {
                                     type="button"
                                     onClick={() => acknowledgeIssue(activeIssue.id)}
                                     disabled={isAck}
-                                    className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
+                                    className={`flex-1 md:flex-none justify-center px-2.5 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer shadow-xs ${
                                         isAck
                                             ? 'bg-emerald-900/60 text-emerald-200 border border-emerald-500/40 cursor-default opacity-80'
                                             : 'bg-black/40 hover:bg-black/60 text-white border border-white/30'
@@ -1255,7 +1257,7 @@ function DashboardInner() {
                                     <button
                                         type="button"
                                         onClick={acknowledgeAll}
-                                        className="px-2.5 py-1 text-xs font-bold rounded-lg bg-black/30 hover:bg-black/50 text-white/90 border border-white/20 transition-all cursor-pointer"
+                                        className="shrink-0 px-2 py-1.5 text-xs font-bold rounded-lg bg-black/30 hover:bg-black/50 text-white/90 border border-white/20 transition-all cursor-pointer shadow-xs"
                                         title={lang === 'id' ? 'Acknowledge & Snooze semua isu yang sedang terlambat selama 30 menit' : 'Acknowledge all overdue issues for 30 minutes'}
                                     >
                                         <span>{lang === 'id' ? 'Ack Semua' : 'Ack All'}</span>
@@ -1265,11 +1267,12 @@ function DashboardInner() {
                                 <button
                                     type="button"
                                     onClick={toggleMute}
-                                    className="px-2.5 py-1 text-xs font-bold rounded-lg bg-black/40 hover:bg-black/60 border border-white/30 transition-all cursor-pointer flex items-center gap-1.5"
+                                    className="shrink-0 px-2.5 py-1.5 text-xs font-bold rounded-lg bg-black/40 hover:bg-black/60 border border-white/30 transition-all cursor-pointer flex items-center gap-1.5 shadow-xs"
                                     title={isMuted ? 'Unmute' : 'Mute'}
                                 >
                                     {isMuted ? <VolumeX className="h-3.5 w-3.5 text-red-200" /> : <Volume2 className="h-3.5 w-3.5 text-emerald-300" />}
-                                    <span>{isMuted ? t('unmute_alarm') : t('sound_active')}</span>
+                                    <span className="hidden sm:inline">{isMuted ? t('unmute_alarm') : t('sound_active')}</span>
+                                    <span className="sm:hidden">{isMuted ? 'Unmute' : 'Mute'}</span>
                                 </button>
                             </div>
                         </div>
