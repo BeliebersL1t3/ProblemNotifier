@@ -49,18 +49,17 @@ export function FilterChips({ categoryFilter, onCategoryChange, deptFilter, onDe
                 <button
                     type="button"
                     onClick={() => setCatSheetOpen(true)}
+                    title={activeCategoryLabel ?? (t('category') || 'Kategori')}
                     className={cn(
-                        'flex items-center justify-between gap-1.5 sm:gap-2.5 rounded-xl border px-2.5 sm:px-3.5 py-1.5 sm:py-2 text-[11px] sm:text-xs font-bold transition-all duration-200 cursor-pointer shadow-xs shrink-0',
+                        'flex items-center justify-center gap-1.5 sm:gap-2.5 rounded-xl border p-2 sm:px-3.5 sm:py-2 text-[11px] sm:text-xs font-bold transition-all duration-200 cursor-pointer shadow-xs shrink-0',
                         hasActiveCategory
                             ? 'border-[#C9AA71] bg-[#C9AA71] text-[#1C1B0E] shadow-sm font-extrabold'
                             : 'border-[#3B3929] bg-[#2A281E] text-[#E3D1AA] hover:border-[#C9AA71]/60 hover:bg-[#343226]',
                     )}
                 >
-                    <div className="flex items-center gap-1.5 sm:gap-2 truncate">
-                        <SlidersHorizontal className={cn("h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0", hasActiveCategory ? "text-[#1C1B0E]" : "text-[#C9AA71]")} />
-                        <span className="truncate max-w-[75px] sm:max-w-none">{activeCategoryLabel ?? (t('category') || 'Kategori')}</span>
-                    </div>
-                    <ChevronDown className={cn("h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0 transition-transform", hasActiveCategory ? "text-[#1C1B0E]" : "text-[#A19F8D]")} />
+                    <SlidersHorizontal className={cn("h-4 w-4 shrink-0", hasActiveCategory ? "text-[#1C1B0E]" : "text-[#C9AA71]")} />
+                    <span className="hidden sm:inline truncate max-w-[90px]">{activeCategoryLabel ?? (t('category') || 'Kategori')}</span>
+                    <ChevronDown className={cn("h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0 hidden sm:inline transition-transform", hasActiveCategory ? "text-[#1C1B0E]" : "text-[#A19F8D]")} />
                 </button>
 
                 {/* Department trigger chip — Interactive for Admin or users with canViewAllDepartments, Locked badge for Dept user */}
@@ -68,37 +67,36 @@ export function FilterChips({ categoryFilter, onCategoryChange, deptFilter, onDe
                     <button
                         type="button"
                         onClick={() => setDeptSheetOpen(true)}
-                        title={!isAdmin && canViewAllDepartments ? (lang === 'id' ? 'Wewenang Khusus: Anda dapat memilih dan memantau isu seluruh departemen' : 'Special Permission: You can view and filter all resort departments') : undefined}
+                        title={deptFilter !== 'all' ? deptFilter : (!isAdmin && canViewAllDepartments ? (lang === 'id' ? 'Wewenang Khusus: Semua Departemen' : 'Special Permission: All Departments') : (t('department') || 'Departemen'))}
                         className={cn(
-                            'flex items-center justify-between gap-1.5 sm:gap-2.5 rounded-xl border px-2.5 sm:px-3.5 py-1.5 sm:py-2 text-[11px] sm:text-xs font-bold transition-all duration-200 cursor-pointer shadow-xs shrink-0',
+                            'flex items-center justify-center gap-1.5 sm:gap-2.5 rounded-xl border p-2 sm:px-3.5 sm:py-2 text-[11px] sm:text-xs font-bold transition-all duration-200 cursor-pointer shadow-xs shrink-0',
                             hasActiveDept
                                 ? 'border-[#C9AA71] bg-[#C9AA71] text-[#1C1B0E] shadow-sm font-extrabold'
                                 : 'border-[#3B3929] bg-[#2A281E] text-[#E3D1AA] hover:border-[#C9AA71]/60 hover:bg-[#343226]',
                         )}
                     >
-                        <div className="flex items-center gap-1.5 sm:gap-2 truncate">
-                            {!isAdmin && canViewAllDepartments ? (
-                                <Globe className={cn("h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0", hasActiveDept ? "text-[#1C1B0E]" : "text-sky-400")} />
-                            ) : (
-                                <Building className={cn("h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0", hasActiveDept ? "text-[#1C1B0E]" : "text-blue-400")} />
-                            )}
-                            <span className="truncate max-w-[85px] sm:max-w-none">{deptFilter !== 'all' ? deptFilter : (t('department') || 'Departemen')}</span>
-                            {!isAdmin && canViewAllDepartments && deptFilter === 'all' && (
-                                <span className="text-[9px] px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300 font-extrabold uppercase">
-                                    ALL
-                                </span>
-                            )}
-                        </div>
-                        <ChevronDown className={cn("h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0 transition-transform", hasActiveDept ? "text-[#1C1B0E]" : "text-[#A19F8D]")} />
+                        {!isAdmin && canViewAllDepartments ? (
+                            <Globe className={cn("h-4 w-4 shrink-0", hasActiveDept ? "text-[#1C1B0E]" : "text-sky-400")} />
+                        ) : (
+                            <Building className={cn("h-4 w-4 shrink-0", hasActiveDept ? "text-[#1C1B0E]" : "text-blue-400")} />
+                        )}
+                        <span className="hidden sm:inline truncate max-w-[95px]">{deptFilter !== 'all' ? deptFilter : (t('department') || 'Departemen')}</span>
+                        {!isAdmin && canViewAllDepartments && deptFilter === 'all' && (
+                            <span className="hidden sm:inline text-[9px] px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300 font-extrabold uppercase">
+                                ALL
+                            </span>
+                        )}
+                        <ChevronDown className={cn("h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0 hidden sm:inline transition-transform", hasActiveDept ? "text-[#1C1B0E]" : "text-[#A19F8D]")} />
                     </button>
                 ) : (
                     <div 
-                        className="flex items-center gap-1.5 sm:gap-2 rounded-xl border border-[#3B3929] bg-[#2A281E] px-2.5 sm:px-3.5 py-1.5 sm:py-2 text-[11px] sm:text-xs font-bold shadow-xs shrink-0"
+                        className="flex items-center justify-center gap-1.5 sm:gap-2 rounded-xl border border-[#3B3929] bg-[#2A281E] p-2 sm:px-3.5 sm:py-2 text-[11px] sm:text-xs font-bold shadow-xs shrink-0"
+                        title={userDept ? `Departemen: ${userDept}` : undefined}
                     >
-                        <Lock className="h-3.5 w-3.5 text-[#C9AA71]" />
+                        <Lock className="h-4 w-4 text-[#C9AA71]" />
                         {userDept && (
                             <span 
-                                className="px-1.5 sm:px-2 py-0.5 rounded text-[10px] sm:text-[11px] font-extrabold uppercase"
+                                className="hidden sm:inline px-1.5 sm:px-2 py-0.5 rounded text-[10px] sm:text-[11px] font-extrabold uppercase"
                                 style={{ 
                                     background: getDepartmentTheme(userDept).bg, 
                                     color: getDepartmentTheme(userDept).text 

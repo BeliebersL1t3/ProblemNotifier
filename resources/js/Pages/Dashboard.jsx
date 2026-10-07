@@ -1347,7 +1347,7 @@ function DashboardInner() {
                                                 }`}
                                             >
                                                 <Globe className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
-                                                <span className="sm:hidden">{lang === 'id' ? 'Semua' : 'All'}</span>
+                                                {deptViewMode === 'all' && <span className="sm:hidden">{lang === 'id' ? 'Semua' : 'All'}</span>}
                                                 <span className="hidden sm:inline">{lang === 'id' ? 'Semua Isu' : 'All Issues'}</span>
                                             </button>
                                             <button
@@ -1361,7 +1361,7 @@ function DashboardInner() {
                                                 }`}
                                             >
                                                 <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
-                                                <span className="sm:hidden">{lang === 'id' ? 'Belum PIC' : 'Unclaimed'}</span>
+                                                {deptViewMode === 'unassigned' && <span className="sm:hidden">{lang === 'id' ? 'Belum PIC' : 'Unclaimed'}</span>}
                                                 <span className="hidden sm:inline">{lang === 'id' ? 'Belum Diambil' : 'Unassigned'}</span>
                                                 {unassignedCount > 0 && (
                                                     <span className={`px-1 sm:px-1.5 py-0 sm:py-0.2 rounded-full text-[9px] sm:text-[10px] font-bold ${
@@ -1384,7 +1384,7 @@ function DashboardInner() {
                                                 }`}
                                             >
                                                 <Flame className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
-                                                <span className="sm:hidden">{lang === 'id' ? 'Darurat' : 'Urgent'}</span>
+                                                {deptViewMode === 'urgent' && <span className="sm:hidden">{lang === 'id' ? 'Darurat' : 'Urgent'}</span>}
                                                 <span className="hidden sm:inline">{lang === 'id' ? 'Darurat & Terlambat' : 'Emergency & Overdue'}</span>
                                                 {urgentCount > 0 && (
                                                     <span className={`px-1 sm:px-1.5 py-0 sm:py-0.2 rounded-full text-[9px] sm:text-[10px] font-bold ${
@@ -1410,7 +1410,7 @@ function DashboardInner() {
                                                         : `Needs Reassignment (${reassignNeededCount} active tasks whose taker transferred out)`}
                                                 >
                                                     <ArrowRightLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
-                                                    <span className="sm:hidden">Reassign</span>
+                                                    {deptViewMode === 'reassign_needed' && <span className="sm:hidden">Reassign</span>}
                                                     <span className="hidden sm:inline">{lang === 'id' ? 'Perlu Reassign' : 'Needs Reassign'}</span>
                                                     <span className={`px-1 sm:px-1.5 py-0 sm:py-0.2 rounded-full text-[9px] sm:text-[10px] font-bold ${
                                                         deptViewMode === 'reassign_needed'
@@ -1432,7 +1432,7 @@ function DashboardInner() {
                                                 }`}
                                             >
                                                 <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
-                                                <span className="sm:hidden">{lang === 'id' ? 'Saya' : 'Mine'}</span>
+                                                {deptViewMode === 'origin' && <span className="sm:hidden">{lang === 'id' ? 'Saya' : 'Mine'}</span>}
                                                 <span className="hidden sm:inline">{lang === 'id' ? 'Dibuat Oleh Saya' : 'Reported By Me'}</span>
                                             </button>
                                         </>
@@ -1450,7 +1450,7 @@ function DashboardInner() {
                                                 }`}
                                             >
                                                 <Globe className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
-                                                <span className="sm:hidden">Dept</span>
+                                                {deptViewMode === 'all' && <span className="sm:hidden">Dept</span>}
                                                 <span className="hidden sm:inline">{lang === 'id' ? 'Semua Departemen' : 'All Department'}</span>
                                             </button>
                                             <button
@@ -1464,7 +1464,7 @@ function DashboardInner() {
                                                 }`}
                                             >
                                                 <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
-                                                <span className="sm:hidden">{lang === 'id' ? 'Belum PIC' : 'Unclaimed'}</span>
+                                                {deptViewMode === 'unassigned' && <span className="sm:hidden">{lang === 'id' ? 'Belum PIC' : 'Unclaimed'}</span>}
                                                 <span className="hidden sm:inline">{lang === 'id' ? 'Belum Diambil Tim' : 'Team Unclaimed'}</span>
                                                 {unassignedCount > 0 && (
                                                     <span className={`px-1 sm:px-1.5 py-0 sm:py-0.2 rounded-full text-[9px] sm:text-[10px] font-bold ${
@@ -1487,7 +1487,7 @@ function DashboardInner() {
                                                 }`}
                                             >
                                                 <Target className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
-                                                <span className="sm:hidden">{lang === 'id' ? 'Tugas' : 'Tasks'}</span>
+                                                {deptViewMode === 'assigned' && <span className="sm:hidden">{lang === 'id' ? 'Tugas' : 'Tasks'}</span>}
                                                 <span className="hidden sm:inline">{t('to_fix')}</span>
                                             </button>
                                             {reassignNeededCount > 0 && (
@@ -1504,7 +1504,7 @@ function DashboardInner() {
                                                         : `Needs Reassignment (${reassignNeededCount} active tasks whose taker transferred out)`}
                                                 >
                                                     <ArrowRightLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
-                                                    <span className="sm:hidden">Reassign</span>
+                                                    {deptViewMode === 'reassign_needed' && <span className="sm:hidden">Reassign</span>}
                                                     <span className="hidden sm:inline">{lang === 'id' ? 'Perlu Reassign' : 'Needs Reassign'}</span>
                                                     <span className={`px-1 sm:px-1.5 py-0 sm:py-0.2 rounded-full text-[9px] sm:text-[10px] font-bold ${
                                                         deptViewMode === 'reassign_needed'
@@ -1526,7 +1526,7 @@ function DashboardInner() {
                                                 }`}
                                             >
                                                 <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
-                                                <span className="sm:hidden">{lang === 'id' ? 'Saya' : 'Mine'}</span>
+                                                {deptViewMode === 'origin' && <span className="sm:hidden">{lang === 'id' ? 'Saya' : 'Mine'}</span>}
                                                 <span className="hidden sm:inline">{t('reported_by_me')}</span>
                                             </button>
                                             <button
@@ -1540,7 +1540,7 @@ function DashboardInner() {
                                                 }`}
                                             >
                                                 <Megaphone className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
-                                                <span className="sm:hidden">Mention</span>
+                                                {deptViewMode === 'tagged' && <span className="sm:hidden">Mention</span>}
                                                 <span className="hidden sm:inline">{lang === 'id' ? 'Mention Departemen' : 'Mentions'}</span>
                                             </button>
                                         </>
@@ -1558,7 +1558,7 @@ function DashboardInner() {
                                                 }`}
                                             >
                                                 <Globe className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
-                                                <span className="sm:hidden">{lang === 'id' ? 'Semua' : 'All'}</span>
+                                                {deptViewMode === 'all' && <span className="sm:hidden">{lang === 'id' ? 'Semua' : 'All'}</span>}
                                                 <span className="hidden sm:inline">{t('all_my_scope')}</span>
                                             </button>
                                             <button
@@ -1572,7 +1572,7 @@ function DashboardInner() {
                                                 }`}
                                             >
                                                 <Target className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
-                                                <span className="sm:hidden">{lang === 'id' ? 'Tugas' : 'Tasks'}</span>
+                                                {deptViewMode === 'assigned' && <span className="sm:hidden">{lang === 'id' ? 'Tugas' : 'Tasks'}</span>}
                                                 <span className="hidden sm:inline">{t('to_fix')}</span>
                                             </button>
                                             <button
@@ -1586,7 +1586,7 @@ function DashboardInner() {
                                                 }`}
                                             >
                                                 <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
-                                                <span className="sm:hidden">{lang === 'id' ? 'Saya' : 'Mine'}</span>
+                                                {deptViewMode === 'origin' && <span className="sm:hidden">{lang === 'id' ? 'Saya' : 'Mine'}</span>}
                                                 <span className="hidden sm:inline">{t('reported_by_me')}</span>
                                             </button>
                                             <button
@@ -1600,7 +1600,7 @@ function DashboardInner() {
                                                 }`}
                                             >
                                                 <Megaphone className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
-                                                <span className="sm:hidden">Mention</span>
+                                                {deptViewMode === 'tagged' && <span className="sm:hidden">Mention</span>}
                                                 <span className="hidden sm:inline">{t('mentioned_me')}</span>
                                             </button>
                                             {pastContribCount > 0 && (
@@ -1617,7 +1617,7 @@ function DashboardInner() {
                                                         : `Past Contributions (${pastContribCount} issues)`}
                                                 >
                                                     <Lock className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
-                                                    <span className="sm:hidden">{lang === 'id' ? 'Riwayat' : 'Past'}</span>
+                                                    {deptViewMode === 'past_contributions' && <span className="sm:hidden">{lang === 'id' ? 'Riwayat' : 'Past'}</span>}
                                                     <span className="hidden sm:inline">{lang === 'id' ? 'Riwayat' : 'Past Contributions'}</span>
                                                     <span className={`px-1 sm:px-1.5 py-0 sm:py-0.2 rounded-full text-[9px] sm:text-[10px] font-bold ${
                                                         deptViewMode === 'past_contributions'
@@ -1642,7 +1642,7 @@ function DashboardInner() {
                                                         : `Needs Reassignment (${reassignNeededCount} active tasks whose taker transferred out)`}
                                                 >
                                                     <ArrowRightLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
-                                                    <span className="sm:hidden">Reassign</span>
+                                                    {deptViewMode === 'reassign_needed' && <span className="sm:hidden">Reassign</span>}
                                                     <span className="hidden sm:inline">{lang === 'id' ? 'Perlu Reassign' : 'Needs Reassign'}</span>
                                                     <span className={`px-1 sm:px-1.5 py-0 sm:py-0.2 rounded-full text-[9px] sm:text-[10px] font-bold ${
                                                         deptViewMode === 'reassign_needed'
@@ -1740,46 +1740,43 @@ function DashboardInner() {
                             />
                         </div>
 
-                        {/* Mobile View: 3 Options (List [3] | Compact | Grid [10]) inline with FilterChips */}
-                        <div className="flex sm:hidden items-center rounded-2xl bg-[#2A281E] p-1 border border-[#3B3929] text-[10px] font-bold shrink-0 shadow-md gap-0.5" title="View Options (List, Compact, Grid)">
+                        {/* Mobile View: 3 Options (List [3] | Compact | Grid [10]) inline with FilterChips (Icon only) */}
+                        <div className="flex sm:hidden items-center rounded-2xl bg-[#2A281E] p-1 border border-[#3B3929] shrink-0 shadow-md gap-0.5" title="View Options (List, Compact, Grid)">
                             <button
                                 type="button"
                                 onClick={() => handleDensityChange('3')}
-                                className={`px-2 py-1 rounded-xl transition-all flex items-center gap-1 cursor-pointer font-bold ${
+                                className={`p-2 rounded-xl transition-all flex items-center justify-center cursor-pointer ${
                                     viewDensity === '3' || viewDensity === 'list'
                                         ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-sm font-extrabold'
                                         : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
                                 }`}
                                 title="List View"
                             >
-                                <LayoutGrid className="h-3 w-3" />
-                                <span>List</span>
+                                <LayoutGrid className="h-4 w-4" />
                             </button>
                             <button
                                 type="button"
                                 onClick={() => handleDensityChange('compact')}
-                                className={`px-2 py-1 rounded-xl transition-all flex items-center gap-1 cursor-pointer font-bold ${
+                                className={`p-2 rounded-xl transition-all flex items-center justify-center cursor-pointer ${
                                     viewDensity === 'compact'
                                         ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-sm font-extrabold'
                                         : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
                                 }`}
                                 title="Compact View"
                             >
-                                <Rows3 className="h-3 w-3" />
-                                <span>Compact</span>
+                                <Rows3 className="h-4 w-4" />
                             </button>
                             <button
                                 type="button"
                                 onClick={() => handleDensityChange('10')}
-                                className={`px-2 py-1 rounded-xl transition-all flex items-center gap-1 cursor-pointer font-bold ${
+                                className={`p-2 rounded-xl transition-all flex items-center justify-center cursor-pointer ${
                                     viewDensity === '10' || viewDensity === 'grid' || viewDensity === '5'
                                         ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-sm font-extrabold'
                                         : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
                                 }`}
                                 title="Grid View"
                             >
-                                <Grid3X3 className="h-3 w-3" />
-                                <span>Grid</span>
+                                <Grid3X3 className="h-4 w-4" />
                             </button>
                         </div>
                     </div>
