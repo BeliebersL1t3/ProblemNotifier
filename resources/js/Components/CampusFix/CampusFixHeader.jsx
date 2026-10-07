@@ -482,49 +482,104 @@ export function CampusFixHeader({ mode = 'dashboard', query, onQueryChange, onRe
                         </>
                     )}
 
-                    {/* WhatsApp Bot Status & Quick Chat Indicator (Staff, HOD, Admin) */}
-                    {botStatus !== null && (
-                        isAdmin ? (
-                            <div 
-                                onClick={() => setBotControlModalOpen(true)}
-                                className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[10px] font-bold border transition-all cursor-pointer select-none ${
-                                    botStatus?.connected 
-                                        ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 shadow-xs' 
-                                        : 'bg-red-500/10 border-red-500/30 text-red-600 dark:text-red-400 animate-pulse hover:bg-red-500/20'
-                                }`}
-                                title={botStatus?.connected 
-                                    ? `WhatsApp Bot Online (${botStatus.phone ? '+' + botStatus.phone : 'Connected'}) - Klik untuk menu kontrol & ganti nomor` 
-                                    : 'WhatsApp Bot Terputus / Offline - Klik untuk menyalakan atau pasang nomor'}
-                            >
-                                <span className={`w-2 h-2 rounded-full ${botStatus?.connected ? 'bg-emerald-500' : 'bg-red-500'}`} />
-                                <MessageSquare className="w-3 h-3 text-[#25D366]" />
-                                <span className="hidden md:inline">{botStatus?.connected ? 'Bot Online' : 'Bot Offline'}</span>
-                            </div>
+                    {/* WhatsApp Bot Status & Quick Chat Indicator (Staff, HOD, Admin) - Responsive Mobile & Desktop */}
+                    {botStatus === null ? (
+                        <div 
+                            className="flex items-center gap-1.5 p-2 sm:px-2.5 sm:py-1 rounded-xl text-[10px] font-bold border border-border/40 bg-muted/20 animate-pulse select-none shrink-0"
+                            title="Memeriksa status WhatsApp Bot..."
+                        >
+                            <span className="w-2 h-2 rounded-full bg-muted-foreground/30" />
+                            <MessageSquare className="w-3.5 h-3.5 text-muted-foreground/40" />
+                            <span className="hidden sm:inline text-muted-foreground/50">Bot...</span>
+                        </div>
+                    ) : (() => {
+                        const isOnline = Boolean(botStatus?.connected);
+                        const isConnecting = !isOnline && (botStatus?.status === 'connecting' || Boolean(botStatus?.connecting));
+                        const isOffline = !isOnline && !isConnecting;
+
+                        const badgeColor = isOnline 
+                            ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 shadow-xs' 
+                            : isConnecting
+                            ? 'bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 shadow-xs'
+                            : 'bg-red-500/10 border-red-500/30 text-red-600 dark:text-red-400 hover:bg-red-500/20';
+
+                        const dotIndicator = isOnline ? (
+                            <span className="relative flex h-2 w-2 shrink-0">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+                            </span>
+                        ) : isConnecting ? (
+                            <span className="relative flex h-2 w-2 shrink-0">
+                                <span className="animate-pulse absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
+                            </span>
                         ) : (
-                            botStatus?.connected && botStatus?.phone ? (
+                            <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
+                        );
+
+                        const labelText = isOnline 
+                            ? (isAdmin ? 'Bot Online' : 'Chat Bot') 
+                            : isConnecting
+                            ? 'Connecting'
+                            : 'Bot Offline';
+
+                        const tooltipText = isAdmin 
+                            ? (isOnline 
+                                ? `WhatsApp Bot Online (${botStatus.phone ? '+' + botStatus.phone : 'Connected'}) - Klik untuk menu kontrol & ganti nomor` 
+                                : isConnecting
+                                ? 'WhatsApp Bot sedang proses menghubungkan... - Klik untuk buka kontrol'
+                                : 'WhatsApp Bot Terputus / Offline - Klik untuk menyalakan atau pasang nomor')
+                            : (isOnline
+                                ? `Hubungi Bot WhatsApp Telunas (+${botStatus.phone || ''})`
+                                : isConnecting
+                                ? 'WhatsApp Bot sedang proses menghubungkan...'
+                                : 'WhatsApp Bot sedang offline');
+
+                        if (isAdmin) {
+                            return (
+                                <button 
+                                    type="button"
+                                    onClick={() => setBotControlModalOpen(true)}
+                                    className={`flex items-center gap-1.5 p-2 sm:px-2.5 sm:py-1 rounded-xl text-[10px] font-bold border transition-all cursor-pointer select-none shrink-0 ${badgeColor}`}
+                                    title={tooltipText}
+                                    aria-label={tooltipText}
+                                >
+                                    {dotIndicator}
+                                    <MessageSquare className={`w-3.5 h-3.5 ${isOnline ? 'text-[#25D366]' : isConnecting ? 'text-amber-500' : 'text-red-400'}`} />
+                                    <span className="hidden sm:inline">{labelText}</span>
+                                </button>
+                            );
+                        }
+
+                        if (isOnline && botStatus?.phone) {
+                            return (
                                 <a 
                                     href={`https://wa.me/${String(botStatus.phone).replace(/[^0-9]/g, '')}`}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[10px] font-bold border border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 transition-all select-none shadow-xs cursor-pointer"
-                                    title={`Hubungi Bot WhatsApp Telunas (+${botStatus.phone})`}
+                                    className={`flex items-center gap-1.5 p-2 sm:px-2.5 sm:py-1 rounded-xl text-[10px] font-bold border transition-all select-none shrink-0 cursor-pointer ${badgeColor}`}
+                                    title={tooltipText}
+                                    aria-label={tooltipText}
                                 >
-                                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                                    <MessageSquare className="w-3 h-3 text-[#25D366]" />
-                                    <span className="hidden md:inline">Chat Bot</span>
+                                    {dotIndicator}
+                                    <MessageSquare className="w-3.5 h-3.5 text-[#25D366]" />
+                                    <span className="hidden sm:inline">{labelText}</span>
                                 </a>
-                            ) : (
-                                <div 
-                                    className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[10px] font-bold border border-stone-500/20 bg-stone-500/10 text-stone-500 select-none cursor-not-allowed opacity-75"
-                                    title="WhatsApp Bot sedang offline"
-                                >
-                                    <span className="w-2 h-2 rounded-full bg-stone-400" />
-                                    <MessageSquare className="w-3 h-3 text-stone-400" />
-                                    <span className="hidden md:inline">Bot Offline</span>
-                                </div>
-                            )
-                        )
-                    )}
+                            );
+                        }
+
+                        return (
+                            <div 
+                                className={`flex items-center gap-1.5 p-2 sm:px-2.5 sm:py-1 rounded-xl text-[10px] font-bold border transition-all select-none shrink-0 cursor-not-allowed opacity-80 ${badgeColor}`}
+                                title={tooltipText}
+                                aria-label={tooltipText}
+                            >
+                                {dotIndicator}
+                                <MessageSquare className={`w-3.5 h-3.5 ${isConnecting ? 'text-amber-500' : 'text-stone-400'}`} />
+                                <span className="hidden sm:inline">{labelText}</span>
+                            </div>
+                        );
+                    })()}
 
                     {/* Notification Bell Dropdown */}
                     <NotificationDropdown />
