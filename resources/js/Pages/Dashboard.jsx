@@ -1319,7 +1319,7 @@ function DashboardInner() {
                 <div className="space-y-3.5 border-b border-border/50 pb-4">
                     {/* Tier 1: Primary Scope Tabs & Density Selector */}
                     <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
-                        <div className="flex items-center gap-2.5 w-full lg:w-auto">
+                        <div className="flex items-center justify-center lg:justify-start gap-2.5 w-full lg:w-auto">
                             {canViewAllDepartments && !isAdmin && (
                                 <div 
                                     className="hidden md:inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-sky-500/10 border border-sky-500/30 text-sky-300 text-xs font-semibold shadow-xs shrink-0"
@@ -1332,7 +1332,7 @@ function DashboardInner() {
                                 </div>
                             )}
                             {(isDeptUser || isAdmin) && (
-                                <div className="flex items-center rounded-2xl bg-[#2A281E] p-1 sm:p-1.5 border border-[#3B3929] text-[10px] sm:text-xs font-bold w-full sm:w-auto max-w-full overflow-x-auto no-scrollbar flex-nowrap gap-0.5 sm:gap-1.5 shadow-md">
+                                <div className="flex items-center rounded-2xl bg-[#2A281E] p-1 sm:p-1.5 border border-[#3B3929] text-[10px] sm:text-xs font-bold w-fit mx-auto lg:mx-0 max-w-full overflow-x-auto no-scrollbar flex-nowrap gap-0.5 sm:gap-1.5 shadow-md">
                                     {isAdmin ? (
                                         /* Admin Monitoring Scope Tabs */
                                         <>
@@ -1729,19 +1729,18 @@ function DashboardInner() {
                         </div>
                     </div>
 
-                    {/* Tier 2: Secondary Filter Bar (Category & Department on Left + Mobile Density Selector on Right) */}
-                    <div className="flex items-center justify-between gap-1.5 sm:gap-3 pt-0.5 w-full">
-                        <div className="min-w-0 shrink">
+                    {/* Tier 2: Secondary Filter Bar (Centered Unified Toolbar on Mobile, Left-aligned on Desktop) */}
+                    <div className="flex items-center justify-center sm:justify-start pt-0.5 w-full">
+                        {/* Mobile: Centered Unified Toolbar Pill ( [ ⚙️ ] [ 🏢 ] | [ ⊞ ] [ ☰ ] [ ▦ ] ) */}
+                        <div className="flex sm:hidden items-center rounded-2xl bg-[#2A281E] p-1 border border-[#3B3929] shadow-md gap-0.5 mx-auto" title="Filters & View Options">
                             <FilterChips
                                 categoryFilter={categoryFilter}
                                 onCategoryChange={setCategoryFilter}
                                 deptFilter={deptFilter}
                                 onDeptChange={setDeptFilter}
+                                isMobileToolbar={true}
                             />
-                        </div>
-
-                        {/* Mobile View: 3 Options (List [3] | Compact | Grid [10]) inline with FilterChips (Icon only) */}
-                        <div className="flex sm:hidden items-center rounded-2xl bg-[#2A281E] p-1 border border-[#3B3929] shrink-0 shadow-md gap-0.5" title="View Options (List, Compact, Grid)">
+                            <div className="h-4 w-px bg-[#3B3929] mx-1 shrink-0" />
                             <button
                                 type="button"
                                 onClick={() => handleDensityChange('3')}
@@ -1778,6 +1777,16 @@ function DashboardInner() {
                             >
                                 <Grid3X3 className="h-4 w-4" />
                             </button>
+                        </div>
+
+                        {/* Desktop: Standard FilterChips on Left */}
+                        <div className="hidden sm:block min-w-0 shrink">
+                            <FilterChips
+                                categoryFilter={categoryFilter}
+                                onCategoryChange={setCategoryFilter}
+                                deptFilter={deptFilter}
+                                onDeptChange={setDeptFilter}
+                            />
                         </div>
                     </div>
                 </div>
