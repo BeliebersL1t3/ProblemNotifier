@@ -1,6 +1,6 @@
 import { Head } from '@inertiajs/react';
 import { useMemo, useState, useEffect, useLayoutEffect, useRef } from 'react';
-import { Loader2, RefreshCw, SearchX, LayoutGrid, Grid3X3, Layers, List, Rows3, Search, MapPin, Trash2, AlertTriangle, CalendarPlus, Globe, Target, FileText, Megaphone, Lock, ArrowRightLeft, ChevronLeft, ChevronRight, Volume2, VolumeX, ExternalLink, CheckCheck, Clock, Flame } from 'lucide-react';
+import { Loader2, RefreshCw, SearchX, LayoutGrid, Grid3X3, Layers, List, Rows3, Search, MapPin, Trash2, AlertTriangle, CalendarPlus, Globe, Target, FileText, Megaphone, Lock, ArrowRightLeft, ChevronLeft, ChevronRight, Volume2, VolumeX, ExternalLink, CheckCheck, Clock, Flame, Settings, X } from 'lucide-react';
 import { getDepartmentTheme } from '@/constants/departments';
 
 const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect;
@@ -193,6 +193,20 @@ function DashboardInner() {
 
     const feedContainerRef = useRef(null);
     const prevPositionsRef = useRef(new Map());
+    const [isMobileDockOpen, setIsMobileDockOpen] = useState(false);
+    const mobileDockRef = useRef(null);
+
+    // Click outside to collapse mobile floating dock
+    useEffect(() => {
+        if (!isMobileDockOpen) return;
+        const handleClickOutside = (e) => {
+            if (mobileDockRef.current && !mobileDockRef.current.contains(e.target)) {
+                setIsMobileDockOpen(false);
+            }
+        };
+        document.addEventListener('pointerdown', handleClickOutside);
+        return () => document.removeEventListener('pointerdown', handleClickOutside);
+    }, [isMobileDockOpen]);
 
     const handleDensityChange = (density) => {
         if (density === viewDensity) return;
@@ -1963,60 +1977,90 @@ function DashboardInner() {
                 </DialogContent>
             </Dialog>
 
-            {/* Mobile Floating Dock Toolbar (Category, Department & View Density) */}
+            {/* Mobile Click-to-Reveal Floating Option (Logo Setting on Left) */}
             <div 
-                className="fixed inset-x-0 z-30 flex justify-center pointer-events-none px-4 sm:hidden animate-in fade-in slide-in-from-bottom-3 duration-300"
+                ref={mobileDockRef}
+                className="fixed z-30 left-4 sm:hidden flex items-center"
                 style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 4.75rem)' }}
             >
-                <div 
-                    className="pointer-events-auto flex items-center rounded-2xl bg-[#2A281E]/95 backdrop-blur-xl p-1.5 border border-[#3B3929]/90 shadow-[0_12px_36px_rgba(0,0,0,0.65)] gap-1 ring-1 ring-white/5" 
-                    title="Filters & View Options"
-                >
-                    <FilterChips
-                        categoryFilter={categoryFilter}
-                        onCategoryChange={setCategoryFilter}
-                        deptFilter={deptFilter}
-                        onDeptChange={setDeptFilter}
-                        isMobileToolbar={true}
-                    />
-                    <div className="h-5 w-px bg-[#3B3929] mx-1.5 shrink-0" />
+                {!isMobileDockOpen ? (
                     <button
                         type="button"
-                        onClick={() => handleDensityChange('3')}
-                        className={`p-2.5 rounded-xl transition-all flex items-center justify-center cursor-pointer ${
-                            viewDensity === '3' || viewDensity === 'list'
-                                ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-sm font-extrabold'
-                                : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
-                        }`}
-                        title="List View"
+                        onClick={() => setIsMobileDockOpen(true)}
+                        className="w-11 h-11 rounded-2xl flex items-center justify-center bg-[#2A281E]/95 backdrop-blur-xl border border-[#3B3929]/90 shadow-[0_10px_26px_rgba(0,0,0,0.65)] text-[#C9AA71] hover:text-[#FAFAFA] active:scale-95 transition-all cursor-pointer relative ring-1 ring-white/5 group"
+                        title={lang === 'id' ? 'Buka Pengaturan Filter & Tampilan' : 'Open Filter & View Settings'}
+                        aria-label="Filter and View Settings"
                     >
-                        <LayoutGrid className="h-5 w-5" />
+                        <Settings className="h-5 w-5 stroke-[2.2] group-hover:rotate-45 transition-transform duration-300" />
+                        {((categoryFilter && categoryFilter !== 'all') || (deptFilter && deptFilter !== 'all')) && (
+                            <span className="absolute top-2 right-2 w-2.5 h-2.5 rounded-full bg-amber-400 ring-2 ring-[#2A281E] shadow-xs animate-pulse" />
+                        )}
                     </button>
-                    <button
-                        type="button"
-                        onClick={() => handleDensityChange('compact')}
-                        className={`p-2.5 rounded-xl transition-all flex items-center justify-center cursor-pointer ${
-                            viewDensity === 'compact'
-                                ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-sm font-extrabold'
-                                : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
-                        }`}
-                        title="Compact View"
+                ) : (
+                    <div 
+                        className="flex items-center rounded-2xl bg-[#2A281E]/95 backdrop-blur-xl p-1.5 border border-[#3B3929]/90 shadow-[0_14px_36px_rgba(0,0,0,0.7)] gap-1 ring-1 ring-white/10 animate-in fade-in slide-in-from-left-3 duration-200 overflow-x-auto no-scrollbar max-w-[calc(100vw-2rem)]"
+                        title="Filters & View Options"
                     >
-                        <Rows3 className="h-5 w-5" />
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => handleDensityChange('10')}
-                        className={`p-2.5 rounded-xl transition-all flex items-center justify-center cursor-pointer ${
-                            viewDensity === '10' || viewDensity === 'grid' || viewDensity === '5'
-                                ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-sm font-extrabold'
-                                : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
-                        }`}
-                        title="Grid View"
-                    >
-                        <Grid3X3 className="h-5 w-5" />
-                    </button>
-                </div>
+                        {/* Close button to collapse back to single logo setting */}
+                        <button
+                            type="button"
+                            onClick={() => setIsMobileDockOpen(false)}
+                            className="p-2.5 rounded-xl bg-white/5 text-[#C9AA71] hover:text-foreground active:scale-90 transition-all flex items-center justify-center cursor-pointer shrink-0"
+                            title={lang === 'id' ? 'Tutup menu' : 'Close menu'}
+                        >
+                            <X className="h-5 w-5" />
+                        </button>
+
+                        <div className="h-5 w-px bg-[#3B3929] mx-0.5 shrink-0" />
+
+                        <FilterChips
+                            categoryFilter={categoryFilter}
+                            onCategoryChange={setCategoryFilter}
+                            deptFilter={deptFilter}
+                            onDeptChange={setDeptFilter}
+                            isMobileToolbar={true}
+                        />
+
+                        <div className="h-5 w-px bg-[#3B3929] mx-1 shrink-0" />
+
+                        <button
+                            type="button"
+                            onClick={() => handleDensityChange('3')}
+                            className={`p-2.5 rounded-xl transition-all flex items-center justify-center cursor-pointer shrink-0 ${
+                                viewDensity === '3' || viewDensity === 'list'
+                                    ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-sm font-extrabold'
+                                    : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
+                            }`}
+                            title="List View"
+                        >
+                            <LayoutGrid className="h-5 w-5" />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => handleDensityChange('compact')}
+                            className={`p-2.5 rounded-xl transition-all flex items-center justify-center cursor-pointer shrink-0 ${
+                                viewDensity === 'compact'
+                                    ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-sm font-extrabold'
+                                    : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
+                            }`}
+                            title="Compact View"
+                        >
+                            <Rows3 className="h-5 w-5" />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => handleDensityChange('10')}
+                            className={`p-2.5 rounded-xl transition-all flex items-center justify-center cursor-pointer shrink-0 ${
+                                viewDensity === '10' || viewDensity === 'grid' || viewDensity === '5'
+                                    ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-sm font-extrabold'
+                                    : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
+                            }`}
+                            title="Grid View"
+                        >
+                            <Grid3X3 className="h-5 w-5" />
+                        </button>
+                    </div>
+                )}
             </div>
 
             <ScrollToTop />
