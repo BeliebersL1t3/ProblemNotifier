@@ -1980,13 +1980,35 @@ function DashboardInner() {
             {/* Mobile Click-to-Reveal Floating Option (Logo Setting on Left, Popover Reveals Upward) */}
             <div 
                 ref={mobileDockRef}
-                className="fixed z-30 left-4 sm:hidden flex flex-col items-start"
-                style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 4.75rem)' }}
+                className="fixed z-40 left-4 sm:hidden"
+                style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 4.85rem)' }}
             >
-                {/* Upward Floating Popover Card (Reveals Above Trigger Button) */}
+                {/* Main Trigger Button (Logo Setting) */}
+                <button
+                    type="button"
+                    onClick={() => setIsMobileDockOpen(!isMobileDockOpen)}
+                    className={`w-12 h-12 rounded-2xl flex items-center justify-center backdrop-blur-xl border shadow-[0_10px_28px_rgba(0,0,0,0.7)] transition-all cursor-pointer relative ring-1 ring-white/5 active:scale-95 group ${
+                        isMobileDockOpen
+                            ? 'bg-[#C9AA71] text-[#1C1B0E] border-[#C9AA71]'
+                            : 'bg-[#2A281E]/95 text-[#C9AA71] border-[#3B3929]/90 hover:text-[#FAFAFA]'
+                    }`}
+                    title={lang === 'id' ? 'Pengaturan Tampilan & Filter' : 'View & Filter Settings'}
+                    aria-label="View and Filter Settings"
+                >
+                    {isMobileDockOpen ? (
+                        <X className="h-5 w-5 stroke-[2.4]" />
+                    ) : (
+                        <Settings className="h-5 w-5 stroke-[2.2] group-hover:rotate-45 transition-transform duration-300" />
+                    )}
+                    {!isMobileDockOpen && ((categoryFilter && categoryFilter !== 'all') || (deptFilter && deptFilter !== 'all')) && (
+                        <span className="absolute top-2 right-2 w-2.5 h-2.5 rounded-full bg-amber-400 ring-2 ring-[#2A281E] shadow-xs animate-pulse" />
+                    )}
+                </button>
+
+                {/* Upward Floating Popover Card (Anchored ABOVE Trigger Button) */}
                 {isMobileDockOpen && (
                     <div 
-                        className="absolute bottom-13 left-0 mb-1 w-56 rounded-2xl bg-[#2A281E]/95 backdrop-blur-xl border border-[#3B3929]/90 p-2.5 shadow-[0_16px_40px_rgba(0,0,0,0.75)] ring-1 ring-white/10 animate-in fade-in slide-in-from-bottom-3 duration-200 z-40"
+                        className="absolute bottom-full mb-3 left-0 w-60 rounded-2xl bg-[#2A281E]/95 backdrop-blur-2xl border border-[#3B3929] p-3 shadow-[0_20px_50px_rgba(0,0,0,0.85)] ring-1 ring-white/10 animate-in fade-in slide-in-from-bottom-2 duration-200 z-50 pointer-events-auto"
                     >
                         {/* Section 1: Mode Tampilan / View Density */}
                         <div className="space-y-1">
@@ -2080,14 +2102,14 @@ function DashboardInner() {
                         </div>
 
                         {/* Section 2: Filter Cepat (Kategori & Departemen) */}
-                        <div className="mt-2 pt-2 border-t border-[#3B3929]/80 space-y-1">
+                        <div className="mt-2.5 pt-2 border-t border-[#3B3929]/80 space-y-1">
                             <div className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[#A19F8D] flex items-center justify-between">
                                 <span>{lang === 'id' ? 'Filter Isu' : 'Filter Issues'}</span>
                                 {((categoryFilter && categoryFilter !== 'all') || (deptFilter && deptFilter !== 'all')) && (
                                     <span className="text-[10px] font-bold text-amber-400">Aktif</span>
                                 )}
                             </div>
-                            <div className="p-1 rounded-xl bg-black/20 flex items-center justify-between">
+                            <div className="p-1 rounded-xl bg-black/25 flex items-center justify-between">
                                 <FilterChips
                                     categoryFilter={categoryFilter}
                                     onCategoryChange={setCategoryFilter}
@@ -2102,28 +2124,6 @@ function DashboardInner() {
                         </div>
                     </div>
                 )}
-
-                {/* Main Trigger Button (Logo Setting) */}
-                <button
-                    type="button"
-                    onClick={() => setIsMobileDockOpen(!isMobileDockOpen)}
-                    className={`w-11 h-11 rounded-2xl flex items-center justify-center backdrop-blur-xl border shadow-[0_10px_26px_rgba(0,0,0,0.65)] transition-all cursor-pointer relative ring-1 ring-white/5 active:scale-95 group ${
-                        isMobileDockOpen
-                            ? 'bg-[#C9AA71] text-[#1C1B0E] border-[#C9AA71]'
-                            : 'bg-[#2A281E]/95 text-[#C9AA71] border-[#3B3929]/90 hover:text-[#FAFAFA]'
-                    }`}
-                    title={lang === 'id' ? 'Pengaturan Tampilan & Filter' : 'View & Filter Settings'}
-                    aria-label="View and Filter Settings"
-                >
-                    {isMobileDockOpen ? (
-                        <X className="h-5 w-5 stroke-[2.4]" />
-                    ) : (
-                        <Settings className="h-5 w-5 stroke-[2.2] group-hover:rotate-45 transition-transform duration-300" />
-                    )}
-                    {!isMobileDockOpen && ((categoryFilter && categoryFilter !== 'all') || (deptFilter && deptFilter !== 'all')) && (
-                        <span className="absolute top-2 right-2 w-2.5 h-2.5 rounded-full bg-amber-400 ring-2 ring-[#2A281E] shadow-xs animate-pulse" />
-                    )}
-                </button>
             </div>
 
             <ScrollToTop />
