@@ -1263,7 +1263,7 @@ function DashboardInner() {
                 );
             })()}
 
-            <main className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6 sm:py-8 pb-28 md:pb-8">
+            <main className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6 sm:py-8 pb-36 md:pb-8">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div className="space-y-1">
                         <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
@@ -1729,58 +1729,9 @@ function DashboardInner() {
                         </div>
                     </div>
 
-                    {/* Tier 2: Secondary Filter Bar (Centered Unified Toolbar on Mobile, Left-aligned on Desktop) */}
-                    <div className="flex items-center justify-center sm:justify-start pt-0.5 w-full">
-                        {/* Mobile: Centered Unified Toolbar Pill ( [ ⚙️ ] [ 🏢 ] | [ ⊞ ] [ ☰ ] [ ▦ ] ) */}
-                        <div className="flex sm:hidden items-center rounded-2xl bg-[#2A281E] p-1.5 border border-[#3B3929] shadow-md gap-1 mx-auto" title="Filters & View Options">
-                            <FilterChips
-                                categoryFilter={categoryFilter}
-                                onCategoryChange={setCategoryFilter}
-                                deptFilter={deptFilter}
-                                onDeptChange={setDeptFilter}
-                                isMobileToolbar={true}
-                            />
-                            <div className="h-5 w-px bg-[#3B3929] mx-1.5 shrink-0" />
-                            <button
-                                type="button"
-                                onClick={() => handleDensityChange('3')}
-                                className={`p-2.5 rounded-xl transition-all flex items-center justify-center cursor-pointer ${
-                                    viewDensity === '3' || viewDensity === 'list'
-                                        ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-sm font-extrabold'
-                                        : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
-                                }`}
-                                title="List View"
-                            >
-                                <LayoutGrid className="h-5 w-5" />
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => handleDensityChange('compact')}
-                                className={`p-2.5 rounded-xl transition-all flex items-center justify-center cursor-pointer ${
-                                    viewDensity === 'compact'
-                                        ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-sm font-extrabold'
-                                        : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
-                                }`}
-                                title="Compact View"
-                            >
-                                <Rows3 className="h-5 w-5" />
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => handleDensityChange('10')}
-                                className={`p-2.5 rounded-xl transition-all flex items-center justify-center cursor-pointer ${
-                                    viewDensity === '10' || viewDensity === 'grid' || viewDensity === '5'
-                                        ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-sm font-extrabold'
-                                        : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
-                                }`}
-                                title="Grid View"
-                            >
-                                <Grid3X3 className="h-5 w-5" />
-                            </button>
-                        </div>
-
-                        {/* Desktop: Standard FilterChips on Left */}
-                        <div className="hidden sm:block min-w-0 shrink">
+                    {/* Tier 2: Secondary Filter Bar (Desktop FilterChips on Left; mobile toolbar is in Floating Dock) */}
+                    <div className="hidden sm:flex items-center justify-start pt-0.5 w-full">
+                        <div className="min-w-0 shrink">
                             <FilterChips
                                 categoryFilter={categoryFilter}
                                 onCategoryChange={setCategoryFilter}
@@ -2011,6 +1962,62 @@ function DashboardInner() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            {/* Mobile Floating Dock Toolbar (Category, Department & View Density) */}
+            <div 
+                className="fixed inset-x-0 z-30 flex justify-center pointer-events-none px-4 sm:hidden animate-in fade-in slide-in-from-bottom-3 duration-300"
+                style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 4.75rem)' }}
+            >
+                <div 
+                    className="pointer-events-auto flex items-center rounded-2xl bg-[#2A281E]/95 backdrop-blur-xl p-1.5 border border-[#3B3929]/90 shadow-[0_12px_36px_rgba(0,0,0,0.65)] gap-1 ring-1 ring-white/5" 
+                    title="Filters & View Options"
+                >
+                    <FilterChips
+                        categoryFilter={categoryFilter}
+                        onCategoryChange={setCategoryFilter}
+                        deptFilter={deptFilter}
+                        onDeptChange={setDeptFilter}
+                        isMobileToolbar={true}
+                    />
+                    <div className="h-5 w-px bg-[#3B3929] mx-1.5 shrink-0" />
+                    <button
+                        type="button"
+                        onClick={() => handleDensityChange('3')}
+                        className={`p-2.5 rounded-xl transition-all flex items-center justify-center cursor-pointer ${
+                            viewDensity === '3' || viewDensity === 'list'
+                                ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-sm font-extrabold'
+                                : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
+                        }`}
+                        title="List View"
+                    >
+                        <LayoutGrid className="h-5 w-5" />
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => handleDensityChange('compact')}
+                        className={`p-2.5 rounded-xl transition-all flex items-center justify-center cursor-pointer ${
+                            viewDensity === 'compact'
+                                ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-sm font-extrabold'
+                                : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
+                        }`}
+                        title="Compact View"
+                    >
+                        <Rows3 className="h-5 w-5" />
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => handleDensityChange('10')}
+                        className={`p-2.5 rounded-xl transition-all flex items-center justify-center cursor-pointer ${
+                            viewDensity === '10' || viewDensity === 'grid' || viewDensity === '5'
+                                ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-sm font-extrabold'
+                                : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
+                        }`}
+                        title="Grid View"
+                    >
+                        <Grid3X3 className="h-5 w-5" />
+                    </button>
+                </div>
+            </div>
 
             <ScrollToTop />
             <MobileBottomNav currentTab="dashboard" onReport={() => setReportOpen(true)} />
