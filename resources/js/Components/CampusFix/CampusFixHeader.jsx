@@ -249,6 +249,97 @@ export function CampusFixHeader({ mode = 'dashboard', query, onQueryChange, onRe
                                 </button>
                             )}
 
+                            {/* Mobile WhatsApp Bot Status Button */}
+                            {botStatus === null ? (
+                                <div className="p-1.5 rounded-lg border border-[#1C1B0E]/20 bg-[#1C1B0E]/10 animate-pulse text-[#1C1B0E]/50 shrink-0">
+                                    <MessageSquare className="w-3.5 h-3.5" />
+                                </div>
+                            ) : (() => {
+                                const isOnline = Boolean(botStatus?.connected);
+                                const isConnecting = !isOnline && (botStatus?.status === 'connecting' || Boolean(botStatus?.connecting));
+                                const isOffline = !isOnline && !isConnecting;
+
+                                const mobileBtnColor = isOnline
+                                    ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/25'
+                                    : isConnecting
+                                    ? 'bg-amber-500/15 border-amber-500/40 text-amber-700 dark:text-amber-400 hover:bg-amber-500/25'
+                                    : 'bg-red-500/15 border-red-500/40 text-red-700 dark:text-red-400 hover:bg-red-500/25';
+
+                                const mobileDot = isOnline ? (
+                                    <span className="absolute -top-1 -right-1 flex h-2 w-2">
+                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                                        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500 ring-1 ring-white" />
+                                    </span>
+                                ) : isConnecting ? (
+                                    <span className="absolute -top-1 -right-1 flex h-2 w-2">
+                                        <span className="animate-pulse absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                                        <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500 ring-1 ring-white" />
+                                    </span>
+                                ) : (
+                                    <span className="absolute -top-1 -right-1 flex h-1.5 w-1.5 rounded-full bg-red-500 ring-1 ring-white" />
+                                );
+
+                                const tooltip = isAdmin
+                                    ? (isOnline
+                                        ? `WhatsApp Bot Online (${botStatus.phone ? '+' + botStatus.phone : 'Connected'}) - Ketuk untuk kontrol bot`
+                                        : isConnecting
+                                        ? 'WhatsApp Bot sedang menghubungkan... - Ketuk untuk kontrol'
+                                        : 'WhatsApp Bot Offline - Ketuk untuk nyalakan/pasang')
+                                    : (isOnline
+                                        ? `Hubungi Bot WhatsApp Telunas (+${botStatus.phone || ''})`
+                                        : isConnecting
+                                        ? 'WhatsApp Bot sedang proses menghubungkan...'
+                                        : 'WhatsApp Bot sedang offline');
+
+                                if (isAdmin) {
+                                    return (
+                                        <button
+                                            type="button"
+                                            onClick={() => setBotControlModalOpen(true)}
+                                            className={`p-1.5 rounded-lg border transition-all cursor-pointer select-none shrink-0 ${mobileBtnColor}`}
+                                            title={tooltip}
+                                            aria-label={tooltip}
+                                        >
+                                            <div className="relative flex items-center justify-center">
+                                                <MessageSquare className={`w-3.5 h-3.5 ${isOnline ? 'text-[#25D366]' : isConnecting ? 'text-amber-500' : 'text-red-400'}`} />
+                                                {mobileDot}
+                                            </div>
+                                        </button>
+                                    );
+                                }
+
+                                if (isOnline && botStatus?.phone) {
+                                    return (
+                                        <a
+                                            href={`https://wa.me/${String(botStatus.phone).replace(/[^0-9]/g, '')}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className={`p-1.5 rounded-lg border transition-all select-none shrink-0 cursor-pointer ${mobileBtnColor}`}
+                                            title={tooltip}
+                                            aria-label={tooltip}
+                                        >
+                                            <div className="relative flex items-center justify-center">
+                                                <MessageSquare className="w-3.5 h-3.5 text-[#25D366]" />
+                                                {mobileDot}
+                                            </div>
+                                        </a>
+                                    );
+                                }
+
+                                return (
+                                    <div
+                                        className={`p-1.5 rounded-lg border transition-all select-none shrink-0 opacity-80 cursor-not-allowed ${mobileBtnColor}`}
+                                        title={tooltip}
+                                        aria-label={tooltip}
+                                    >
+                                        <div className="relative flex items-center justify-center">
+                                            <MessageSquare className={`w-3.5 h-3.5 ${isConnecting ? 'text-amber-500' : 'text-stone-400'}`} />
+                                            {mobileDot}
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+
                             {/* Mobile Notification Bell Dropdown */}
                             <NotificationDropdown isMobile={true} />
 
