@@ -45,20 +45,20 @@ export function FilterChips({ categoryFilter, onCategoryChange, deptFilter, onDe
     return (
         <>
             {isMobileToolbar ? (
-                <div className="flex items-center gap-0.5 shrink-0">
+                <div className="flex items-center gap-1 shrink-0">
                     {/* Category trigger icon */}
                     <button
                         type="button"
                         onClick={() => setCatSheetOpen(true)}
                         title={activeCategoryLabel ?? (t('category') || 'Kategori')}
                         className={cn(
-                            'p-2 rounded-xl transition-all flex items-center justify-center cursor-pointer',
+                            'p-2.5 rounded-xl transition-all flex items-center justify-center cursor-pointer',
                             hasActiveCategory
                                 ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-sm font-extrabold'
                                 : 'text-muted-foreground hover:text-foreground hover:bg-white/5',
                         )}
                     >
-                        <SlidersHorizontal className="h-4 w-4" />
+                        <SlidersHorizontal className="h-5 w-5" />
                     </button>
 
                     {/* Department trigger icon */}
@@ -68,24 +68,24 @@ export function FilterChips({ categoryFilter, onCategoryChange, deptFilter, onDe
                             onClick={() => setDeptSheetOpen(true)}
                             title={deptFilter !== 'all' ? deptFilter : (!isAdmin && canViewAllDepartments ? (lang === 'id' ? 'Wewenang Khusus: Semua Departemen' : 'Special Permission: All Departments') : (t('department') || 'Departemen'))}
                             className={cn(
-                                'p-2 rounded-xl transition-all flex items-center justify-center cursor-pointer',
+                                'p-2.5 rounded-xl transition-all flex items-center justify-center cursor-pointer',
                                 hasActiveDept
                                     ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-sm font-extrabold'
                                     : 'text-muted-foreground hover:text-foreground hover:bg-white/5',
                             )}
                         >
                             {!isAdmin && canViewAllDepartments ? (
-                                <Globe className="h-4 w-4" />
+                                <Globe className="h-5 w-5" />
                             ) : (
-                                <Building className="h-4 w-4" />
+                                <Building className="h-5 w-5" />
                             )}
                         </button>
                     ) : (
                         <div 
-                            className="p-2 rounded-xl flex items-center justify-center text-[#C9AA71]"
+                            className="p-2.5 rounded-xl flex items-center justify-center text-[#C9AA71]"
                             title={userDept ? `Departemen: ${userDept}` : undefined}
                         >
-                            <Lock className="h-4 w-4" />
+                            <Lock className="h-5 w-5" />
                         </div>
                     )}
 
@@ -96,10 +96,10 @@ export function FilterChips({ categoryFilter, onCategoryChange, deptFilter, onDe
                                 onCategoryChange('all');
                                 if (canSelectDept) onDeptChange('all');
                             }}
-                            className="p-2 rounded-xl text-amber-400 hover:text-amber-300 hover:bg-white/5 transition-all cursor-pointer"
+                            className="p-2.5 rounded-xl text-amber-400 hover:text-amber-300 hover:bg-white/5 transition-all cursor-pointer"
                             title={lang === 'id' ? 'Reset filter' : 'Reset filters'}
                         >
-                            <RotateCcw className="h-3.5 w-3.5" />
+                            <RotateCcw className="h-4 w-4" />
                         </button>
                     )}
                 </div>
