@@ -1977,90 +1977,153 @@ function DashboardInner() {
                 </DialogContent>
             </Dialog>
 
-            {/* Mobile Click-to-Reveal Floating Option (Logo Setting on Left) */}
+            {/* Mobile Click-to-Reveal Floating Option (Logo Setting on Left, Popover Reveals Upward) */}
             <div 
                 ref={mobileDockRef}
-                className="fixed z-30 left-4 sm:hidden flex items-center"
+                className="fixed z-30 left-4 sm:hidden flex flex-col items-start"
                 style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 4.75rem)' }}
             >
-                {!isMobileDockOpen ? (
-                    <button
-                        type="button"
-                        onClick={() => setIsMobileDockOpen(true)}
-                        className="w-11 h-11 rounded-2xl flex items-center justify-center bg-[#2A281E]/95 backdrop-blur-xl border border-[#3B3929]/90 shadow-[0_10px_26px_rgba(0,0,0,0.65)] text-[#C9AA71] hover:text-[#FAFAFA] active:scale-95 transition-all cursor-pointer relative ring-1 ring-white/5 group"
-                        title={lang === 'id' ? 'Buka Pengaturan Filter & Tampilan' : 'Open Filter & View Settings'}
-                        aria-label="Filter and View Settings"
-                    >
-                        <Settings className="h-5 w-5 stroke-[2.2] group-hover:rotate-45 transition-transform duration-300" />
-                        {((categoryFilter && categoryFilter !== 'all') || (deptFilter && deptFilter !== 'all')) && (
-                            <span className="absolute top-2 right-2 w-2.5 h-2.5 rounded-full bg-amber-400 ring-2 ring-[#2A281E] shadow-xs animate-pulse" />
-                        )}
-                    </button>
-                ) : (
+                {/* Upward Floating Popover Card (Reveals Above Trigger Button) */}
+                {isMobileDockOpen && (
                     <div 
-                        className="flex items-center rounded-2xl bg-[#2A281E]/95 backdrop-blur-xl p-1.5 border border-[#3B3929]/90 shadow-[0_14px_36px_rgba(0,0,0,0.7)] gap-1 ring-1 ring-white/10 animate-in fade-in slide-in-from-left-3 duration-200 overflow-x-auto no-scrollbar max-w-[calc(100vw-2rem)]"
-                        title="Filters & View Options"
+                        className="absolute bottom-13 left-0 mb-1 w-56 rounded-2xl bg-[#2A281E]/95 backdrop-blur-xl border border-[#3B3929]/90 p-2.5 shadow-[0_16px_40px_rgba(0,0,0,0.75)] ring-1 ring-white/10 animate-in fade-in slide-in-from-bottom-3 duration-200 z-40"
                     >
-                        {/* Close button to collapse back to single logo setting */}
-                        <button
-                            type="button"
-                            onClick={() => setIsMobileDockOpen(false)}
-                            className="p-2.5 rounded-xl bg-white/5 text-[#C9AA71] hover:text-foreground active:scale-90 transition-all flex items-center justify-center cursor-pointer shrink-0"
-                            title={lang === 'id' ? 'Tutup menu' : 'Close menu'}
-                        >
-                            <X className="h-5 w-5" />
-                        </button>
+                        {/* Section 1: Mode Tampilan / View Density */}
+                        <div className="space-y-1">
+                            <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-[#A19F8D] flex items-center justify-between">
+                                <span>{lang === 'id' ? 'Mode Tampilan' : 'View Mode'}</span>
+                            </div>
 
-                        <div className="h-5 w-px bg-[#3B3929] mx-0.5 shrink-0" />
+                            {/* Option 1: List */}
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    handleDensityChange('3');
+                                    setIsMobileDockOpen(false);
+                                }}
+                                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs transition-all cursor-pointer ${
+                                    viewDensity === '3' || viewDensity === 'list'
+                                        ? 'bg-[#C9AA71]/20 text-[#E3D1AA] font-bold border border-[#C9AA71]/40'
+                                        : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
+                                }`}
+                            >
+                                <div className="flex items-center gap-2.5">
+                                    <LayoutGrid className="h-4 w-4 shrink-0 text-[#C9AA71]" />
+                                    <span>List</span>
+                                </div>
+                                <span className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center shrink-0 ${
+                                    viewDensity === '3' || viewDensity === 'list'
+                                        ? 'border-[#C9AA71] bg-[#C9AA71]'
+                                        : 'border-[#3B3929] bg-transparent'
+                                }`}>
+                                    {(viewDensity === '3' || viewDensity === 'list') && (
+                                        <span className="w-1.5 h-1.5 rounded-full bg-[#1C1B0E]" />
+                                    )}
+                                </span>
+                            </button>
 
-                        <FilterChips
-                            categoryFilter={categoryFilter}
-                            onCategoryChange={setCategoryFilter}
-                            deptFilter={deptFilter}
-                            onDeptChange={setDeptFilter}
-                            isMobileToolbar={true}
-                        />
+                            {/* Option 2: Compact */}
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    handleDensityChange('compact');
+                                    setIsMobileDockOpen(false);
+                                }}
+                                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs transition-all cursor-pointer ${
+                                    viewDensity === 'compact'
+                                        ? 'bg-[#C9AA71]/20 text-[#E3D1AA] font-bold border border-[#C9AA71]/40'
+                                        : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
+                                }`}
+                            >
+                                <div className="flex items-center gap-2.5">
+                                    <Rows3 className="h-4 w-4 shrink-0 text-[#C9AA71]" />
+                                    <span>Compact</span>
+                                </div>
+                                <span className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center shrink-0 ${
+                                    viewDensity === 'compact'
+                                        ? 'border-[#C9AA71] bg-[#C9AA71]'
+                                        : 'border-[#3B3929] bg-transparent'
+                                }`}>
+                                    {viewDensity === 'compact' && (
+                                        <span className="w-1.5 h-1.5 rounded-full bg-[#1C1B0E]" />
+                                    )}
+                                </span>
+                            </button>
 
-                        <div className="h-5 w-px bg-[#3B3929] mx-1 shrink-0" />
+                            {/* Option 3: Grid */}
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    handleDensityChange('10');
+                                    setIsMobileDockOpen(false);
+                                }}
+                                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs transition-all cursor-pointer ${
+                                    viewDensity === '10' || viewDensity === 'grid' || viewDensity === '5'
+                                        ? 'bg-[#C9AA71]/20 text-[#E3D1AA] font-bold border border-[#C9AA71]/40'
+                                        : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
+                                }`}
+                            >
+                                <div className="flex items-center gap-2.5">
+                                    <Grid3X3 className="h-4 w-4 shrink-0 text-[#C9AA71]" />
+                                    <span>Grid</span>
+                                </div>
+                                <span className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center shrink-0 ${
+                                    viewDensity === '10' || viewDensity === 'grid' || viewDensity === '5'
+                                        ? 'border-[#C9AA71] bg-[#C9AA71]'
+                                        : 'border-[#3B3929] bg-transparent'
+                                }`}>
+                                    {(viewDensity === '10' || viewDensity === 'grid' || viewDensity === '5') && (
+                                        <span className="w-1.5 h-1.5 rounded-full bg-[#1C1B0E]" />
+                                    )}
+                                </span>
+                            </button>
+                        </div>
 
-                        <button
-                            type="button"
-                            onClick={() => handleDensityChange('3')}
-                            className={`p-2.5 rounded-xl transition-all flex items-center justify-center cursor-pointer shrink-0 ${
-                                viewDensity === '3' || viewDensity === 'list'
-                                    ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-sm font-extrabold'
-                                    : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
-                            }`}
-                            title="List View"
-                        >
-                            <LayoutGrid className="h-5 w-5" />
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => handleDensityChange('compact')}
-                            className={`p-2.5 rounded-xl transition-all flex items-center justify-center cursor-pointer shrink-0 ${
-                                viewDensity === 'compact'
-                                    ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-sm font-extrabold'
-                                    : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
-                            }`}
-                            title="Compact View"
-                        >
-                            <Rows3 className="h-5 w-5" />
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => handleDensityChange('10')}
-                            className={`p-2.5 rounded-xl transition-all flex items-center justify-center cursor-pointer shrink-0 ${
-                                viewDensity === '10' || viewDensity === 'grid' || viewDensity === '5'
-                                    ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-sm font-extrabold'
-                                    : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
-                            }`}
-                            title="Grid View"
-                        >
-                            <Grid3X3 className="h-5 w-5" />
-                        </button>
+                        {/* Section 2: Filter Cepat (Kategori & Departemen) */}
+                        <div className="mt-2 pt-2 border-t border-[#3B3929]/80 space-y-1">
+                            <div className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[#A19F8D] flex items-center justify-between">
+                                <span>{lang === 'id' ? 'Filter Isu' : 'Filter Issues'}</span>
+                                {((categoryFilter && categoryFilter !== 'all') || (deptFilter && deptFilter !== 'all')) && (
+                                    <span className="text-[10px] font-bold text-amber-400">Aktif</span>
+                                )}
+                            </div>
+                            <div className="p-1 rounded-xl bg-black/20 flex items-center justify-between">
+                                <FilterChips
+                                    categoryFilter={categoryFilter}
+                                    onCategoryChange={setCategoryFilter}
+                                    deptFilter={deptFilter}
+                                    onDeptChange={setDeptFilter}
+                                    isMobileToolbar={true}
+                                />
+                                <div className="text-[11px] text-[#A19F8D] font-medium pr-2 truncate max-w-[120px]">
+                                    {categoryFilter !== 'all' ? categoryFilter : (deptFilter !== 'all' ? deptFilter : (lang === 'id' ? 'Kategori & Dept' : 'Category & Dept'))}
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 )}
+
+                {/* Main Trigger Button (Logo Setting) */}
+                <button
+                    type="button"
+                    onClick={() => setIsMobileDockOpen(!isMobileDockOpen)}
+                    className={`w-11 h-11 rounded-2xl flex items-center justify-center backdrop-blur-xl border shadow-[0_10px_26px_rgba(0,0,0,0.65)] transition-all cursor-pointer relative ring-1 ring-white/5 active:scale-95 group ${
+                        isMobileDockOpen
+                            ? 'bg-[#C9AA71] text-[#1C1B0E] border-[#C9AA71]'
+                            : 'bg-[#2A281E]/95 text-[#C9AA71] border-[#3B3929]/90 hover:text-[#FAFAFA]'
+                    }`}
+                    title={lang === 'id' ? 'Pengaturan Tampilan & Filter' : 'View & Filter Settings'}
+                    aria-label="View and Filter Settings"
+                >
+                    {isMobileDockOpen ? (
+                        <X className="h-5 w-5 stroke-[2.4]" />
+                    ) : (
+                        <Settings className="h-5 w-5 stroke-[2.2] group-hover:rotate-45 transition-transform duration-300" />
+                    )}
+                    {!isMobileDockOpen && ((categoryFilter && categoryFilter !== 'all') || (deptFilter && deptFilter !== 'all')) && (
+                        <span className="absolute top-2 right-2 w-2.5 h-2.5 rounded-full bg-amber-400 ring-2 ring-[#2A281E] shadow-xs animate-pulse" />
+                    )}
+                </button>
             </div>
 
             <ScrollToTop />
