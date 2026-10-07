@@ -1992,13 +1992,13 @@ function AnalyticsInner() {
                             </div>
                         </div>
 
-                        <div className="w-full h-[310px]">
+                        <div className={`w-full ${departmentData.length > 6 ? 'h-[335px]' : 'h-[310px]'}`}>
                             {departmentData.length > 0 ? (
                                 chartsVisible && (
                                     <ResponsiveContainer width="100%" height="100%">
                                         <BarChart 
                                             data={departmentData} 
-                                            margin={{ top: 22, right: 10, left: -15, bottom: 0 }}
+                                            margin={{ top: 22, right: 10, left: -15, bottom: departmentData.length > 6 ? 15 : 0 }}
                                             barCategoryGap="22%"
                                             barGap={3}
                                         >
@@ -2007,7 +2007,17 @@ function AnalyticsInner() {
                                                 dataKey="displayName" 
                                                 axisLine={false} 
                                                 tickLine={false} 
-                                                tick={{ fontSize: 11, fill: '#A19F8D', fontWeight: 600, cursor: 'pointer' }} 
+                                                interval={0}
+                                                angle={departmentData.length > 6 ? -35 : 0}
+                                                textAnchor={departmentData.length > 6 ? 'end' : 'middle'}
+                                                height={departmentData.length > 6 ? 44 : 28}
+                                                dy={departmentData.length > 6 ? 4 : 0}
+                                                tick={{ 
+                                                    fontSize: departmentData.length > 12 ? 9.5 : (departmentData.length > 6 ? 10 : 11), 
+                                                    fill: '#A19F8D', 
+                                                    fontWeight: 600, 
+                                                    cursor: 'pointer' 
+                                                }} 
                                                 onClick={(e) => handleDepartmentBarClick({ name: e?.value })}
                                             />
                                             <YAxis 
