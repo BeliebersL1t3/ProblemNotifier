@@ -181,10 +181,13 @@ function DashboardInner() {
         try {
             const saved = localStorage.getItem('campusfix_dashboard_density');
             if (saved === 'compact') return 'compact';
-            if (saved === 'grid' || saved === '10') return 'grid';
-            return 'list'; // default is 'list' (representing standard 3 columns)
+            if (saved === 'grid' || saved === '10') return '10';
+            if (saved === '5') return '5';
+            if (saved === 'list') return 'list';
+            if (saved === '3') return '3';
+            return '3';
         } catch (e) {
-            return 'list';
+            return '3';
         }
     });
 
@@ -1656,46 +1659,116 @@ function DashboardInner() {
                             )}
                         </div>
 
-                        {/* View Density Selector (List | Compact | Grid) */}
-                        <div className="flex items-center rounded-2xl bg-[#2A281E] p-1 sm:p-1.5 border border-[#3B3929] text-xs font-bold shrink-0 self-end lg:self-center shadow-md gap-0.5 sm:gap-1" title="View Options (List, Compact, Grid)">
+                        {/* View Density Selector */}
+                        {/* Mobile View: 3 Options (List [3] | Compact | Grid [10]) */}
+                        <div className="flex sm:hidden items-center rounded-2xl bg-[#2A281E] p-1 border border-[#3B3929] text-[10px] font-bold shrink-0 self-end shadow-md gap-0.5" title="View Options (List, Compact, Grid)">
                             <button
                                 type="button"
-                                onClick={() => handleDensityChange('list')}
-                                className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl transition-all flex items-center gap-1 sm:gap-1.5 cursor-pointer font-bold ${
-                                    viewDensity === 'list' || viewDensity === '3'
+                                onClick={() => handleDensityChange('3')}
+                                className={`px-2 py-1 rounded-xl transition-all flex items-center gap-1 cursor-pointer font-bold ${
+                                    viewDensity === '3' || viewDensity === 'list'
                                         ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-sm font-extrabold'
                                         : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
                                 }`}
-                                title={lang === 'id' ? 'Tampilan List (Grid 3 Standar)' : 'List View (Standard Cards)'}
+                                title="List View"
                             >
-                                <LayoutGrid className="h-3.5 w-3.5" />
+                                <LayoutGrid className="h-3 w-3" />
                                 <span>List</span>
                             </button>
                             <button
                                 type="button"
                                 onClick={() => handleDensityChange('compact')}
-                                className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl transition-all flex items-center gap-1 sm:gap-1.5 cursor-pointer font-bold ${
+                                className={`px-2 py-1 rounded-xl transition-all flex items-center gap-1 cursor-pointer font-bold ${
                                     viewDensity === 'compact'
                                         ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-sm font-extrabold'
                                         : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
                                 }`}
-                                title={lang === 'id' ? 'Tampilan Compact (Baris Foto Ringkas)' : 'Compact View (2-Line Row with Photo)'}
+                                title="Compact View"
+                            >
+                                <Rows3 className="h-3 w-3" />
+                                <span>Compact</span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => handleDensityChange('10')}
+                                className={`px-2 py-1 rounded-xl transition-all flex items-center gap-1 cursor-pointer font-bold ${
+                                    viewDensity === '10' || viewDensity === 'grid' || viewDensity === '5'
+                                        ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-sm font-extrabold'
+                                        : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
+                                }`}
+                                title="Grid View"
+                            >
+                                <Grid3X3 className="h-3 w-3" />
+                                <span>Grid</span>
+                            </button>
+                        </div>
+
+                        {/* Desktop View: 5 Options (List | Compact | 3 | 5 | 10) */}
+                        <div className="hidden sm:flex items-center rounded-2xl bg-[#2A281E] p-1.5 border border-[#3B3929] text-xs font-bold shrink-0 self-end lg:self-center shadow-md gap-1" title="View Options (List, Compact, 3, 5, 10 columns)">
+                            <button
+                                type="button"
+                                onClick={() => handleDensityChange('list')}
+                                className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer font-bold ${
+                                    viewDensity === 'list'
+                                        ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-sm font-extrabold'
+                                        : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
+                                }`}
+                                title="List View — Detailed Operational Feed"
+                            >
+                                <List className="h-3.5 w-3.5" />
+                                <span>List</span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => handleDensityChange('compact')}
+                                className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer font-bold ${
+                                    viewDensity === 'compact'
+                                        ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-sm font-extrabold'
+                                        : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
+                                }`}
+                                title="Compact List — 2-Line Row View with Photo"
                             >
                                 <Rows3 className="h-3.5 w-3.5" />
                                 <span>Compact</span>
                             </button>
                             <button
                                 type="button"
-                                onClick={() => handleDensityChange('grid')}
-                                className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl transition-all flex items-center gap-1 sm:gap-1.5 cursor-pointer font-bold ${
-                                    viewDensity === 'grid' || viewDensity === '10'
+                                onClick={() => handleDensityChange('3')}
+                                className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer font-bold ${
+                                    viewDensity === '3'
                                         ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-sm font-extrabold'
                                         : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
                                 }`}
-                                title={lang === 'id' ? 'Tampilan Grid (Matriks Rapat)' : 'Grid View (Micro Matrix View)'}
+                                title="3 Columns — Detail View (Standard)"
+                            >
+                                <LayoutGrid className="h-3.5 w-3.5" />
+                                <span>3</span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => handleDensityChange('5')}
+                                className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer font-bold ${
+                                    viewDensity === '5'
+                                        ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-sm font-extrabold'
+                                        : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
+                                }`}
+                                title="5 Columns — Compact View"
                             >
                                 <Grid3X3 className="h-3.5 w-3.5" />
-                                <span>Grid</span>
+                                <span>5</span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => handleDensityChange('10')}
+                                className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer font-bold ${
+                                    viewDensity === '10' || viewDensity === 'grid'
+                                        ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-sm font-extrabold'
+                                        : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
+                                }`}
+                                title="10 Columns — Micro Matrix View"
+                            >
+                                <Layers className="h-3.5 w-3.5" />
+                                <span>10</span>
                             </button>
                         </div>
                     </div>
@@ -1821,9 +1894,13 @@ function DashboardInner() {
                         className={
                             viewDensity === 'compact'
                                 ? 'flex flex-col gap-2 w-full'
-                                : (viewDensity === 'grid' || viewDensity === '10')
-                                    ? 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-10 gap-2'
-                                    : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5'
+                                : viewDensity === 'list'
+                                    ? 'flex flex-col gap-3 w-full'
+                                    : (viewDensity === 'grid' || viewDensity === '10')
+                                        ? 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-10 gap-2'
+                                        : viewDensity === '5'
+                                            ? 'grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3.5'
+                                            : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5'
                         }
                     >
                         {visible.map((issue) => (

@@ -143,9 +143,9 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
     }, [issue?.status, pendingTimelineList, issue?.takenAt, issue?.reportedAt]);
 
     // =========================================================================
-    // DENSITY WIDE_LIST — DETAILED OPERATIONAL FEED ROW (LEGACY)
+    // DENSITY LIST — DETAILED OPERATIONAL FEED ROW
     // =========================================================================
-    if (density === 'wide_list') {
+    if (density === 'list') {
         const isEmergency = !isArchived && ((issue.category || '').toLowerCase() === 'emergency' || String(issue.id || '').startsWith('SOS'));
         const isCritical = !isArchived && !isEmergency && issue.priority === 'critical';
         const isSolved = issue.status === 'solved';
