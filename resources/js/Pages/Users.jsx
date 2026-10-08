@@ -507,7 +507,6 @@ function UsersInner({ initialUsers, initialStats }) {
                                     <option value="all">Semua Role</option>
                                     <option value="admin">Administrator</option>
                                     <option value="department">Department</option>
-                                    <option value="viewer">Viewer</option>
                                     <option value="hod">👑 HOD ({stats.total_hod ?? 0})</option>
                                 </select>
 

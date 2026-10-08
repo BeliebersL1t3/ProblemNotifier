@@ -150,7 +150,6 @@ class UserController extends Controller
                 COUNT(*) as total_users,
                 SUM(CASE WHEN role = "admin" THEN 1 ELSE 0 END) as total_admins,
                 SUM(CASE WHEN role = "department" THEN 1 ELSE 0 END) as total_departments,
-                SUM(CASE WHEN role = "viewer" THEN 1 ELSE 0 END) as total_viewers,
                 SUM(CASE WHEN is_hod = 1 THEN 1 ELSE 0 END) as total_hod,
                 SUM(CASE WHEN whatsapp_number IS NOT NULL AND whatsapp_number != "" THEN 1 ELSE 0 END) as total_whatsapp
             ')
@@ -160,7 +159,6 @@ class UserController extends Controller
             'total_users'       => (int) ($aggregate->total_users ?? 0),
             'total_admins'      => (int) ($aggregate->total_admins ?? 0),
             'total_departments' => (int) ($aggregate->total_departments ?? 0),
-            'total_viewers'     => (int) ($aggregate->total_viewers ?? 0),
             'total_hod'         => (int) ($aggregate->total_hod ?? 0),
             'total_whatsapp'    => (int) ($aggregate->total_whatsapp ?? 0),
             'total_archived'    => User::onlyTrashed()->count(),
