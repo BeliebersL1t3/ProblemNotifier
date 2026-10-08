@@ -40,7 +40,6 @@ class UserController extends Controller
                 'can_manage_issues'        => true,
                 'can_access_analytics'     => true,
                 'can_access_calendar'      => true,
-                'can_sync_google_calendar' => true,
                 'can_export_reports'       => true,
                 'can_manage_categories'    => true,
             ];
@@ -52,7 +51,6 @@ class UserController extends Controller
             'can_manage_issues'        => true,
             'can_access_analytics'     => true,
             'can_access_calendar'      => true,
-            'can_sync_google_calendar' => false,
             'can_export_reports'       => true,
             'can_manage_categories'    => false,
         ];

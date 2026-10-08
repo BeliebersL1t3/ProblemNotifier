@@ -28,11 +28,6 @@ const PERMISSION_CONFIGS = [
         desc: 'Menampilkan tab kalender jadwal dan timeline kegiatan operasional.',
     },
     {
-        key: 'can_sync_google_calendar',
-        label: 'Sinkronisasi Google Calendar (Tarik & Dorong)',
-        desc: 'Mengizinkan pengguna menarik pembaruan jadwal dari Google Calendar atau menyinkronkan tugas ke Google Calendar.',
-    },
-    {
         key: 'can_export_reports',
         label: 'Ekspor Laporan (PDF & Excel)',
         desc: 'Mengizinkan pengunduhan rekap data tiket isu ke format dokumen PDF atau spreadsheet Excel (.xlsx).',
