@@ -1383,6 +1383,37 @@ function CalendarInner() {
         }
     };
 
+    // Background auto-sync from Google Calendar on mount and every 90 seconds
+    useEffect(() => {
+        if (!canSyncCalendar) return;
+
+        const silentPull = async () => {
+            try {
+                const res = await axios.post('/api/operations/pull-calendar', { silent: true });
+                const d = res.data?.data;
+                if (res.data?.success && ((d?.created > 0) || (d?.updated > 0) || (d?.deleted > 0))) {
+                    reload(true, true);
+                }
+            } catch (err) {
+                // Silently ignore background pull network hiccups
+            }
+        };
+
+        // Small 3s delay after initial load to avoid blocking render
+        const initialTimer = setTimeout(() => {
+            silentPull();
+        }, 3000);
+
+        const interval = setInterval(() => {
+            silentPull();
+        }, 90000);
+
+        return () => {
+            clearTimeout(initialTimer);
+            clearInterval(interval);
+        };
+    }, [canSyncCalendar, reload]);
+
     const [restoringTaskId, setRestoringTaskId] = useState(null);
 
     const handleRestoreTask = async (task) => {
@@ -1598,37 +1629,36 @@ function CalendarInner() {
 
                             {canSyncCalendar && (
                                 <>
-                                    {/* Pull from Google Calendar */}
-                                    <button
-                                        type="button"
-                                        onClick={handlePullGoogleCalendar}
-                                        disabled={pullingCalendar || syncingCalendar}
-                                        title={lang === 'id' ? 'Tarik perubahan jadwal dari Google Calendar' : 'Pull updates from Google Calendar'}
-                                        className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-[#1C1B0E] text-sky-300 border border-sky-500/40 hover:border-sky-400 hover:bg-sky-950/30 transition-all hover:scale-105 cursor-pointer backdrop-blur-sm shadow-sm disabled:opacity-50"
-                                    >
-                                        {pullingCalendar ? (
-                                            <Loader2 className="h-3.5 w-3.5 animate-spin text-sky-400" />
-                                        ) : (
-                                            <ArrowDownToLine className="h-3.5 w-3.5 text-sky-400" />
-                                        )}
-                                        <span>{pullingCalendar ? (lang === 'id' ? 'Menarik...' : 'Pulling...') : (lang === 'id' ? 'Tarik dari G-Cal' : 'Pull G-Cal')}</span>
-                                    </button>
-
-                                    {/* Push to Google Calendar */}
-                                    <button
-                                        type="button"
-                                        onClick={handleSyncGoogleCalendar}
-                                        disabled={syncingCalendar || pullingCalendar}
-                                        title={lang === 'id' ? 'Kirim/perbarui seluruh jadwal ke Google Calendar' : 'Sync all schedules to Google Calendar'}
-                                        className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-[#1C1B0E] text-[#E3D1AA] border border-[#C9AA71]/40 hover:border-[#C9AA71] hover:bg-[#C9AA71]/10 transition-all hover:scale-105 cursor-pointer backdrop-blur-sm shadow-sm disabled:opacity-50"
-                                    >
-                                        {syncingCalendar ? (
-                                            <Loader2 className="h-3.5 w-3.5 animate-spin text-[#C9AA71]" />
-                                        ) : (
-                                            <ArrowUpToLine className="h-3.5 w-3.5 text-[#C9AA71]" />
-                                        )}
-                                        <span>{syncingCalendar ? (lang === 'id' ? 'Mengirim...' : 'Pushing...') : (lang === 'id' ? 'Kirim ke G-Cal' : 'Push G-Cal')}</span>
-                                    </button>
+                                    {/* Auto-Sync Status Badge & Manual Refresh */}
+                                    <div className="flex items-center bg-[#1C1B0E]/90 border border-emerald-500/30 rounded-xl p-0.5 shadow-sm backdrop-blur-sm">
+                                        <div
+                                            className="flex items-center gap-2 px-2.5 py-1.5 text-xs font-medium text-emerald-300"
+                                            title={lang === 'id' ? 'Sinkronisasi 2 arah berjalan otomatis setiap saat' : 'Two-way auto sync is actively running'}
+                                        >
+                                            {pullingCalendar || syncingCalendar ? (
+                                                <Loader2 className="h-3 w-3 animate-spin text-emerald-400" />
+                                            ) : (
+                                                <span className="relative flex h-2 w-2">
+                                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                                                </span>
+                                            )}
+                                            <span className="text-[11px] font-semibold tracking-wide">
+                                                {pullingCalendar || syncingCalendar
+                                                    ? (lang === 'id' ? 'Menyinkronkan...' : 'Syncing...')
+                                                    : (lang === 'id' ? 'Otomatis Sinkron' : 'Auto-Sync Active')}
+                                            </span>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={handlePullGoogleCalendar}
+                                            disabled={pullingCalendar || syncingCalendar}
+                                            title={lang === 'id' ? 'Klik untuk sinkronisasi sekarang' : 'Click to sync now'}
+                                            className="p-1.5 rounded-lg text-emerald-300/80 hover:text-emerald-200 hover:bg-emerald-500/20 transition-all cursor-pointer disabled:opacity-40"
+                                        >
+                                            <RefreshCw className={`h-3 w-3 ${pullingCalendar || syncingCalendar ? 'animate-spin text-emerald-400' : ''}`} />
+                                        </button>
+                                    </div>
 
                                     {/* History / Sync Logs */}
                                     <button

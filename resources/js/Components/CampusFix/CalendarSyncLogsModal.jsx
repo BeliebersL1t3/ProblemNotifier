@@ -3,7 +3,7 @@ import axios from 'axios';
 import {
     History, X, RefreshCw, CheckCircle2, AlertCircle,
     ArrowDownToLine, ArrowUpToLine, RotateCcw, Clock,
-    Loader2, User, Building2
+    Loader2, User, Building2, PlusCircle, Edit3, Trash2
 } from 'lucide-react';
 
 function formatRelativeTime(dateStr, lang = 'id') {
@@ -74,7 +74,7 @@ export default function CalendarSyncLogsModal({ isOpen, onClose, lang = 'id' }) 
         switch (action) {
             case 'AUTO_SYNC':
                 return {
-                    label: lang === 'id' ? 'Auto-Sync (5m)' : 'Auto-Sync (5m)',
+                    label: lang === 'id' ? 'Auto-Sync' : 'Auto-Sync',
                     icon: Clock,
                     badgeClass: 'bg-indigo-950/80 text-indigo-300 border-indigo-700/60',
                 };
@@ -95,6 +95,42 @@ export default function CalendarSyncLogsModal({ isOpen, onClose, lang = 'id' }) 
                     label: lang === 'id' ? 'Pemulihan Jadwal' : 'Task Restored',
                     icon: RotateCcw,
                     badgeClass: 'bg-emerald-950/80 text-emerald-300 border-emerald-700/60',
+                };
+            case 'GCAL_NEW_EVENT':
+                return {
+                    label: lang === 'id' ? 'Event Baru dari G-Cal' : 'New Event (G-Cal)',
+                    icon: ArrowDownToLine,
+                    badgeClass: 'bg-emerald-950/80 text-emerald-300 border-emerald-700/60',
+                };
+            case 'GCAL_UPDATE_EVENT':
+                return {
+                    label: lang === 'id' ? 'Update dari G-Cal' : 'Updated from G-Cal',
+                    icon: RefreshCw,
+                    badgeClass: 'bg-cyan-950/80 text-cyan-300 border-cyan-700/60',
+                };
+            case 'GCAL_DELETE_EVENT':
+                return {
+                    label: lang === 'id' ? 'Dihapus di G-Cal' : 'Deleted in G-Cal',
+                    icon: Trash2,
+                    badgeClass: 'bg-rose-950/80 text-rose-300 border-rose-700/60',
+                };
+            case 'WEB_CREATE_EVENT':
+                return {
+                    label: lang === 'id' ? 'Dibuat di Kalender Web' : 'Created in Web',
+                    icon: PlusCircle,
+                    badgeClass: 'bg-amber-950/80 text-amber-300 border-amber-700/60',
+                };
+            case 'WEB_UPDATE_EVENT':
+                return {
+                    label: lang === 'id' ? 'Diperbarui di Web' : 'Updated in Web',
+                    icon: Edit3,
+                    badgeClass: 'bg-blue-950/80 text-blue-300 border-blue-700/60',
+                };
+            case 'WEB_DELETE_EVENT':
+                return {
+                    label: lang === 'id' ? 'Dihapus di Web' : 'Deleted in Web',
+                    icon: Trash2,
+                    badgeClass: 'bg-rose-950/80 text-rose-300 border-rose-700/60',
                 };
             default:
                 return {

@@ -18,10 +18,11 @@ class SyncGoogleCalendar extends Command
 
         try {
             $result = $googleService->pullFromGoogleCalendar();
+            $created = $result['created'] ?? 0;
             $updated = $result['updated'] ?? 0;
             $deleted = $result['deleted'] ?? 0;
 
-            $this->info("Calendar sync completed: {$updated} updated, {$deleted} marked deleted.");
+            $this->info("Calendar sync completed: {$created} created, {$updated} updated, {$deleted} marked deleted.");
 
             if (!empty($result['newlyDeletedTasks'])) {
                 $count = count($result['newlyDeletedTasks']);
@@ -29,16 +30,19 @@ class SyncGoogleCalendar extends Command
                 $operationsController->sendCalendarDeletionNotification($result['newlyDeletedTasks']);
             }
 
-            CalendarSyncLog::record(
-                action: 'AUTO_SYNC',
-                performedBy: 'System Scheduler',
-                status: 'success',
-                details: [
-                    'updated_tasks' => $updated,
-                    'deleted_tasks' => $deleted,
-                ],
-                message: "Auto-sync berhasil: {$updated} diperbarui, {$deleted} ditandai dihapus."
-            );
+            if ($created > 0 || $updated > 0 || $deleted > 0) {
+                CalendarSyncLog::record(
+                    action: 'AUTO_SYNC',
+                    performedBy: 'System Scheduler',
+                    status: 'success',
+                    details: [
+                        'created_tasks' => $created,
+                        'updated_tasks' => $updated,
+                        'deleted_tasks' => $deleted,
+                    ],
+                    message: "Auto-sync berhasil: {$created} jadwal baru, {$updated} diperbarui, {$deleted} ditandai dihapus."
+                );
+            }
 
             return 0;
         } catch (\Throwable $e) {

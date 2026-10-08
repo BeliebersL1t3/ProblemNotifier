@@ -175,4 +175,39 @@ class OperationsApiTest extends TestCase
                 'data'    => ['synced' => 12, 'deleted' => 0],
             ]);
     }
+
+    public function test_pull_calendar_records_sync_logs_and_returns_data(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin', 'name' => 'Super Admin']);
+
+        $googleMock = \Mockery::mock(GoogleService::class);
+        $googleMock->shouldReceive('pullFromGoogleCalendar')
+            ->once()
+            ->andReturn([
+                'created'           => 1,
+                'updated'           => 2,
+                'deleted'           => 0,
+                'newlyDeletedTasks' => [],
+                'message'           => 'Sync success',
+            ]);
+
+        $this->app->instance(GoogleService::class, $googleMock);
+
+        $response = $this->actingAs($admin)->postJson('/api/operations/pull-calendar');
+
+        $response->assertOk()
+            ->assertJson([
+                'success' => true,
+                'data'    => [
+                    'created' => 1,
+                    'updated' => 2,
+                ],
+            ]);
+
+        $this->assertDatabaseHas('calendar_sync_logs', [
+            'action'       => 'MANUAL_PULL',
+            'status'       => 'success',
+            'performed_by' => 'Super Admin',
+        ]);
+    }
 }

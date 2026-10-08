@@ -291,6 +291,22 @@ class OperationsController extends Controller
             Cache::flush();
             $fullPhotoUrl = !empty($data['photoUrl']) ? $this->resolveImageUrl($data['photoUrl']) : '';
 
+            $authorName = $authUser ? ($authUser->staff_name ?: ($authUser->name ?: 'Admin')) : ($data['createdBy'] ?? 'Admin');
+            CalendarSyncLog::record(
+                action: 'WEB_CREATE_EVENT',
+                performedBy: $authorName,
+                status: 'success',
+                department: $data['dept'],
+                taskId: $id,
+                taskTitle: $data['title'],
+                details: [
+                    'start_date' => $data['startDate'] ?? null,
+                    'end_date'   => $data['endDate'] ?? null,
+                    'location'   => $data['location'] ?? null,
+                ],
+                message: "Jadwal '{$data['title']}' dibuat di kalender web dan otomatis disinkronkan ke Google Calendar."
+            );
+
             return response()->json([
                 'success'  => true,
                 'id'       => $id,
@@ -340,6 +356,21 @@ class OperationsController extends Controller
             Cache::forget('google_ops_work_items_' . $dept);
             Cache::flush();
             $fullPhotoUrl = isset($fields['photoUrl']) ? $this->resolveImageUrl($fields['photoUrl']) : null;
+
+            $modifierName = auth()->check() ? (auth()->user()->staff_name ?: (auth()->user()->name ?: 'User')) : 'User';
+            CalendarSyncLog::record(
+                action: 'WEB_UPDATE_EVENT',
+                performedBy: $modifierName,
+                status: 'success',
+                department: $dept,
+                taskTitle: $fields['title'] ?? null,
+                details: [
+                    'row_index' => $rowIndex,
+                    'updated_fields' => array_keys(array_filter($fields, fn($v) => !is_null($v))),
+                ],
+                message: "Jadwal '" . ($fields['title'] ?? "baris #{$rowIndex}") . "' diperbarui di kalender web dan Google Calendar."
+            );
+
             return response()->json([
                 'success'  => true,
                 'photoUrl' => $fullPhotoUrl,
@@ -370,6 +401,17 @@ class OperationsController extends Controller
             $this->googleService->deleteOpsWorkItem($dept, $rowIndex);
             Cache::forget('google_ops_work_items_' . $dept);
             Cache::flush();
+
+            $deleterName = auth()->check() ? (auth()->user()->staff_name ?: (auth()->user()->name ?: 'User')) : 'User';
+            CalendarSyncLog::record(
+                action: 'WEB_DELETE_EVENT',
+                performedBy: $deleterName,
+                status: 'success',
+                department: $dept,
+                details: ['row_index' => $rowIndex],
+                message: "Jadwal baris #{$rowIndex} departemen {$dept} dihapus di kalender web dan Google Calendar."
+            );
+
             return response()->json(['success' => true]);
         } catch (\Throwable $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
@@ -494,16 +536,23 @@ class OperationsController extends Controller
                 $this->sendCalendarDeletionNotification($result['newlyDeletedTasks']);
             }
 
-            CalendarSyncLog::record(
-                action: 'MANUAL_PULL',
-                performedBy: $user->staff_name ?: ($user->name ?: 'Admin'),
-                status: 'success',
-                details: [
-                    'updated' => $result['updated'] ?? 0,
-                    'deleted' => $result['deleted'] ?? 0,
-                ],
-                message: $result['message'] ?? 'Tarik pembaruan dari Google Calendar berhasil.'
-            );
+            $isSilent = $request->boolean('silent');
+            $hasChanges = (($result['created'] ?? 0) > 0) || (($result['updated'] ?? 0) > 0) || (($result['deleted'] ?? 0) > 0);
+
+            // Record log if it is a manual trigger OR if actual changes were pulled
+            if (!$isSilent || $hasChanges) {
+                CalendarSyncLog::record(
+                    action: $isSilent ? 'AUTO_SYNC' : 'MANUAL_PULL',
+                    performedBy: $isSilent ? 'Background Auto-Sync' : ($user->staff_name ?: ($user->name ?: 'Admin')),
+                    status: 'success',
+                    details: [
+                        'created' => $result['created'] ?? 0,
+                        'updated' => $result['updated'] ?? 0,
+                        'deleted' => $result['deleted'] ?? 0,
+                    ],
+                    message: $result['message'] ?? 'Sinkronisasi Google Calendar berhasil.'
+                );
+            }
 
             return response()->json([
                 'success' => true,
@@ -511,8 +560,8 @@ class OperationsController extends Controller
             ]);
         } catch (\Throwable $e) {
             CalendarSyncLog::record(
-                action: 'MANUAL_PULL',
-                performedBy: $user->staff_name ?: ($user->name ?: 'Admin'),
+                action: $request->boolean('silent') ? 'AUTO_SYNC' : 'MANUAL_PULL',
+                performedBy: $request->boolean('silent') ? 'Background Auto-Sync' : ($user->staff_name ?: ($user->name ?: 'Admin')),
                 status: 'failed',
                 message: $e->getMessage()
             );

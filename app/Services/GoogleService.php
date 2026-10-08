@@ -13,6 +13,7 @@ use Google\Service\Sheets\BatchUpdateValuesRequest;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
+use App\Models\CalendarSyncLog;
 
 class GoogleService
 {
@@ -1041,6 +1042,86 @@ class GoogleService
 
         $code = strtoupper(substr(preg_replace('/[^a-zA-Z0-9]/', '', $dept), 0, 4));
         return $code ?: 'OPS';
+    }
+
+    /**
+     * Resolve full department name from prefix code or title text (e.g. 'ENG' -> 'Engineer').
+     * Defaults to 'General' if not matched.
+     */
+    public function resolveDeptFromCodeOrName(string $identifier): string
+    {
+        $id = strtolower(trim($identifier));
+
+        $codeMap = [
+            'eng'             => 'Engineer',
+            'engineer'        => 'Engineer',
+            'engineering'     => 'Engineer',
+            'fas'             => 'Fasilitas',
+            'fasilitas'       => 'Fasilitas',
+            'facility'        => 'Fasilitas',
+            'sec'             => 'Fasilitas',
+            'security'        => 'Fasilitas',
+            'hk'              => 'HK',
+            'housekeeping'    => 'HK',
+            'pst'             => 'HK',
+            'pest control'    => 'HK',
+            'pestcontrol'     => 'HK',
+            'ktc'             => 'Kitchen',
+            'kitchen'         => 'Kitchen',
+            'fb'              => 'Kitchen',
+            'f&b'             => 'Kitchen',
+            'fnb'             => 'Kitchen',
+            'food'            => 'Kitchen',
+            'gr'              => 'GR',
+            'gre'             => 'GR',
+            'guest relations' => 'GR',
+            'svc'             => 'GR',
+            'service'         => 'GR',
+            'bar'             => 'GR',
+            'spa'             => 'GR',
+            'trk'             => 'GR',
+            'tirek'           => 'GR',
+            'hr'              => 'HR',
+            'legal'           => 'HR',
+            'lgl'             => 'HR',
+            'lnd'             => 'HR',
+            'trp'             => 'HR',
+            'transportasi'    => 'HR',
+            'tkg'             => 'HR',
+            'tekong'          => 'HR',
+            'it'              => 'IT',
+            'oe'              => 'OE',
+            'prc'             => 'Procurement',
+            'procurement'     => 'Procurement',
+            'res'             => 'Reservasi',
+            'reservasi'       => 'Reservasi',
+            'sls'             => 'Reservasi',
+            'sales'           => 'Reservasi',
+            'mkt'             => 'Reservasi',
+            'marketing'       => 'Reservasi',
+            'fin'             => 'Finance',
+            'finance'         => 'Finance',
+            'general'         => 'General',
+        ];
+
+        if (isset($codeMap[$id])) {
+            return $codeMap[$id];
+        }
+
+        // Check if any existing sheet matches Ops_{Identifier}
+        try {
+            $existingSheets = $this->listOpsSheets(false);
+            foreach ($existingSheets as $sh) {
+                $deptName = preg_replace('/^Ops_/', '', $sh);
+                if (strtolower($deptName) === $id) {
+                    return $deptName;
+                }
+            }
+        } catch (\Throwable $e) {
+            // fallback
+        }
+
+        return 'General';
     }
 
     /**
@@ -2268,7 +2349,18 @@ class GoogleService
     public function pullFromGoogleCalendar(): array
     {
         if (empty($this->calendarId) || !$this->calendar) {
-            return ['updated' => 0, 'deleted' => 0, 'message' => 'GOOGLE_CALENDAR_ID not configured'];
+            return ['updated' => 0, 'deleted' => 0, 'created' => 0, 'message' => 'GOOGLE_CALENDAR_ID not configured'];
+        }
+
+        $lock = Cache::lock('gcal_sync_lock', 25);
+        if (!$lock->get()) {
+            return [
+                'updated'           => 0,
+                'deleted'           => 0,
+                'created'           => 0,
+                'newlyDeletedTasks' => [],
+                'message'           => 'Sinkronisasi Google Calendar sedang berlangsung di proses lain.',
+            ];
         }
 
         try {
@@ -2289,14 +2381,17 @@ class GoogleService
             $opsTasks = $this->getAllOpsWorkItems(true);
             $updatedCount = 0;
             $deletedCount = 0;
+            $createdCount = 0;
             $batchUpdates = [];
-
             $newlyDeletedTasks = [];
+            $knownEventIds = [];
 
+            // A. Process existing tasks in Google Sheets
             foreach ($opsTasks as $task) {
                 $eventId = trim($task['googleEventId'] ?? '');
                 if (empty($eventId)) continue;
 
+                $knownEventIds[$eventId] = true;
                 $sheetName = $this->ensureOpsDeptSheet($task['department']);
                 $row = $task['rowIndex'];
 
@@ -2333,16 +2428,30 @@ class GoogleService
                         'startDate'  => $task['startDate'] ?? '',
                         'endDate'    => $task['endDate'] ?? '',
                     ];
+
+                    CalendarSyncLog::record(
+                        action: 'GCAL_DELETE_EVENT',
+                        performedBy: 'Google Calendar',
+                        status: 'success',
+                        department: $task['department'],
+                        taskId: $task['id'],
+                        taskTitle: $task['title'],
+                        details: [
+                            'google_event_id' => $eventId,
+                        ],
+                        message: "Jadwal '{$task['title']}' ditandai dihapus dari Google Calendar."
+                    );
+
                     continue;
                 }
 
                 // Parse Google Calendar dates
-                $gStart = $event->getStart()->getDate() ?: substr($event->getStart()->getDateTime(), 0, 10);
-                $gEndRaw = $event->getEnd()->getDate() ?: substr($event->getEnd()->getDateTime(), 0, 10);
+                $gStart = $event->getStart()->getDate() ?: substr((string)$event->getStart()->getDateTime(), 0, 10);
+                $gEndRaw = $event->getEnd()->getDate() ?: substr((string)$event->getEnd()->getDateTime(), 0, 10);
 
                 if (!empty($gEndRaw)) {
                     // Google Calendar all-day end date is exclusive, subtract 1 day for inclusive end date
-                    $gEnd = date('Y-m-d', strtotime($gEndRaw . ' -1 day'));
+                    $gEnd = ($event->getStart()->getDate()) ? date('Y-m-d', strtotime($gEndRaw . ' -1 day')) : substr($gEndRaw, 0, 10);
                     if ($gEnd < $gStart) {
                         $gEnd = $gStart;
                     }
@@ -2352,7 +2461,7 @@ class GoogleService
 
                 $gSummary = trim($event->getSummary() ?? '');
                 // Clean department prefix e.g. "[Engineer] My Task" -> "My Task"
-                $cleanedTitle = preg_replace('/^\[.*?\]\s*/', '', $gSummary);
+                $cleanedTitle = preg_replace('/^\[.*?\]\s*/u', '', $gSummary);
 
                 $hasDateChange = ($gStart && $gStart !== $task['startDate']) || ($gEnd && $gEnd !== $task['endDate']);
                 $hasTitleChange = ($cleanedTitle && $cleanedTitle !== $task['title'] && $cleanedTitle !== $gSummary);
@@ -2371,10 +2480,29 @@ class GoogleService
                         ];
                     }
                     $updatedCount++;
+
+                    CalendarSyncLog::record(
+                        action: 'GCAL_UPDATE_EVENT',
+                        performedBy: 'Google Calendar',
+                        status: 'success',
+                        department: $task['department'],
+                        taskId: $task['id'],
+                        taskTitle: $cleanedTitle ?: $task['title'],
+                        details: [
+                            'google_event_id' => $eventId,
+                            'old_title'       => $task['title'],
+                            'new_title'       => $cleanedTitle,
+                            'old_start'       => $task['startDate'],
+                            'new_start'       => $gStart,
+                            'old_end'         => $task['endDate'],
+                            'new_end'         => $gEnd,
+                        ],
+                        message: "Jadwal '{$task['title']}' diperbarui dari Google Calendar."
+                    );
                 }
             }
 
-            // Execute batch update on Google Sheets
+            // Execute batch update for modifications & deletions on Google Sheets
             if (!empty($batchUpdates)) {
                 $data = [];
                 foreach ($batchUpdates as $u) {
@@ -2390,6 +2518,113 @@ class GoogleService
                 $this->sheets->spreadsheets_values->batchUpdate($this->opsSpreadsheetId, $req);
             }
 
+            // B. Detect and import NEW events created directly in Google Calendar
+            foreach ($eventsList->getItems() as $event) {
+                if ($event->getStatus() === 'cancelled') {
+                    continue;
+                }
+
+                $eventId = $event->getId();
+                if (isset($knownEventIds[$eventId])) {
+                    continue; // Already exists in Google Sheets
+                }
+
+                $rawSummary = trim((string)$event->getSummary());
+                if ($rawSummary === '') {
+                    $rawSummary = 'Jadwal Google Calendar';
+                }
+
+                $targetDept = 'General';
+                $taskTitle = $rawSummary;
+
+                // Check for [Dept] or 【Dept】 prefix
+                if (preg_match('/^\[(.*?)\]\s*(.*)$/u', $rawSummary, $m) || preg_match('/^【(.*?)】\s*(.*)$/u', $rawSummary, $m)) {
+                    $targetDept = $this->resolveDeptFromCodeOrName($m[1]);
+                    $taskTitle = trim($m[2]) !== '' ? trim($m[2]) : $rawSummary;
+                }
+
+                // Determine dates
+                $gStart = $event->getStart()->getDate() ?: substr((string)$event->getStart()->getDateTime(), 0, 10);
+                $gEndRaw = $event->getEnd()->getDate() ?: substr((string)$event->getEnd()->getDateTime(), 0, 10);
+
+                if (!empty($gEndRaw)) {
+                    $gEnd = ($event->getStart()->getDate()) ? date('Y-m-d', strtotime($gEndRaw . ' -1 day')) : substr($gEndRaw, 0, 10);
+                    if ($gEnd < $gStart) {
+                        $gEnd = $gStart;
+                    }
+                } else {
+                    $gEnd = $gStart;
+                }
+
+                if (empty($gStart)) {
+                    $gStart = date('Y-m-d');
+                    $gEnd = $gStart;
+                }
+
+                $sheetName = $this->ensureOpsDeptSheet($targetDept);
+                $deptCode  = $this->getDeptCode($targetDept);
+                $dateStr   = date('dmy');
+
+                $existingItems = $this->getOpsWorkItems($targetDept, true);
+                $nextSeq = count($existingItems) + 1;
+                $newId = sprintf("OPS-%s-%s-%03d", $deptCode, $dateStr, $nextSeq);
+                $existingIds = array_column($existingItems, 'id');
+                while (in_array($newId, $existingIds, true)) {
+                    $nextSeq++;
+                    $newId = sprintf("OPS-%s-%s-%03d", $deptCode, $dateStr, $nextSeq);
+                }
+
+                $now = now()->toIso8601String();
+                $desc = (string)($event->getDescription() ?? '');
+                $location = (string)($event->getLocation() ?? '');
+
+                $newRow = [
+                    $newId,
+                    $targetDept,
+                    $taskTitle,
+                    $desc,
+                    $location,
+                    '', // photoUrl
+                    $gStart,
+                    $gEnd,
+                    'normal', // priority
+                    'active', // status
+                    $now,
+                    '', // completedAt
+                    'Google Calendar',
+                    'Diimpor otomatis dari Google Calendar',
+                    $eventId,
+                    '', // scheduleBlocks
+                ];
+
+                $body = new ValueRange(['values' => [array_pad($newRow, 16, '')]]);
+                $this->sheets->spreadsheets_values->append(
+                    $this->opsSpreadsheetId,
+                    "{$sheetName}!A:P",
+                    $body,
+                    ['valueInputOption' => 'RAW', 'insertDataOption' => 'INSERT_ROWS']
+                );
+
+                $knownEventIds[$eventId] = true;
+                $createdCount++;
+
+                CalendarSyncLog::record(
+                    action: 'GCAL_NEW_EVENT',
+                    performedBy: 'Google Calendar',
+                    status: 'success',
+                    department: $targetDept,
+                    taskId: $newId,
+                    taskTitle: $taskTitle,
+                    details: [
+                        'google_event_id' => $eventId,
+                        'start_date'      => $gStart,
+                        'end_date'        => $gEnd,
+                        'raw_summary'     => $rawSummary,
+                    ],
+                    message: "Jadwal baru '{$taskTitle}' diimpor dari Google Calendar ke departemen {$targetDept}."
+                );
+            }
+
             // Clear cache so website updates instantly
             $this->clearCache();
             Cache::forget('ops_all_work_items');
@@ -2397,15 +2632,26 @@ class GoogleService
                 Cache::forget("ops_rows_{$sh}");
             }
 
+            $messages = [];
+            if ($createdCount > 0) $messages[] = "{$createdCount} jadwal baru diimpor";
+            if ($updatedCount > 0) $messages[] = "{$updatedCount} tugas diperbarui";
+            if ($deletedCount > 0) $messages[] = "{$deletedCount} tugas ditandai dihapus";
+            $messageStr = !empty($messages) 
+                ? "Sinkronisasi berhasil: " . implode(', ', $messages) . " dari Google Calendar."
+                : "Sinkronisasi selesai: Semua data kalender sudah selaras dengan Google Calendar.";
+
             return [
+                'created'           => $createdCount,
                 'updated'           => $updatedCount,
                 'deleted'           => $deletedCount,
                 'newlyDeletedTasks' => $newlyDeletedTasks,
-                'message'           => "Sinkronisasi berhasil: {$updatedCount} tugas diperbarui, {$deletedCount} tugas ditandai dihapus dari Google Calendar.",
+                'message'           => $messageStr,
             ];
         } catch (\Throwable $e) {
             Log::error('Pull from Google Calendar error: ' . $e->getMessage());
             throw $e;
+        } finally {
+            optional($lock)->release();
         }
     }
 
