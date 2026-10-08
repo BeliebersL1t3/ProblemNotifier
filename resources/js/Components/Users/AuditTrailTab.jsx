@@ -22,11 +22,12 @@ export function AuditTrailTab() {
     // Filters
     const [searchQuery, setSearchQuery] = useState('');
     const [actionFilter, setActionFilter] = useState('all');
+    const [timeFilter, setTimeFilter] = useState('all'); // 'today' | 'week' | 'month' | '6months' | 'year' | 'all'
 
-    const fetchLogs = async () => {
+    const fetchLogs = async (period = timeFilter) => {
         setLoading(true);
         try {
-            const res = await axios.get('/api/user-audit-logs?limit=150');
+            const res = await axios.get(`/api/user-audit-logs?limit=300&period=${period}`);
             const data = res.data;
             if (data.success) {
                 setLogs(data.data || []);
@@ -71,12 +72,25 @@ export function AuditTrailTab() {
     };
 
     useEffect(() => {
-        fetchLogs();
-    }, []);
+        fetchLogs(timeFilter);
+    }, [timeFilter]);
 
     // Filtered logs
     const filteredLogs = useMemo(() => {
+        const now = Date.now();
+        const startOfToday = new Date().setHours(0, 0, 0, 0);
+
         return logs.filter(log => {
+            // Time range filter (client-side fallback / local verification)
+            if (timeFilter !== 'all' && log.created_at) {
+                const logTime = new Date(log.created_at).getTime();
+                if (timeFilter === 'today' && logTime < startOfToday) return false;
+                if (timeFilter === 'week' && logTime < now - 7 * 24 * 60 * 60 * 1000) return false;
+                if (timeFilter === 'month' && logTime < now - 30 * 24 * 60 * 60 * 1000) return false;
+                if (timeFilter === '6months' && logTime < now - 182 * 24 * 60 * 60 * 1000) return false;
+                if (timeFilter === 'year' && logTime < now - 365 * 24 * 60 * 60 * 1000) return false;
+            }
+
             // Action filter
             if (actionFilter !== 'all') {
                 if (actionFilter === 'password' && log.action !== 'PASSWORD_RESET') return false;
@@ -100,7 +114,7 @@ export function AuditTrailTab() {
 
             return true;
         });
-    }, [logs, actionFilter, searchQuery]);
+    }, [logs, actionFilter, searchQuery, timeFilter]);
 
     // Statistics computation
     const stats = useMemo(() => {
@@ -222,6 +236,12 @@ export function AuditTrailTab() {
             default:
                 return <span className="px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-gray-500/20 text-gray-300 border border-gray-500/30">{action}</span>;
         }
+    };
+
+    const getMonthLabel = (dateStr) => {
+        if (!dateStr) return '';
+        const d = new Date(dateStr);
+        return d.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
     };
 
     const formatDate = (dateStr) => {
@@ -369,13 +389,29 @@ export function AuditTrailTab() {
                         )}
                     </div>
 
-                    {/* Action Filter */}
-                    <div className="flex items-center gap-2 w-full md:w-auto">
+                    {/* Time Range & Action Filters */}
+                    <div className="flex flex-col sm:flex-row items-center gap-2 w-full md:w-auto">
+                        {/* Time Period Filter */}
+                        <select
+                            value={timeFilter}
+                            onChange={(e) => setTimeFilter(e.target.value)}
+                            aria-label="Rentang Waktu Audit"
+                            className="w-full sm:w-44 px-3.5 py-2.5 rounded-xl bg-[#1C1B0E] border border-[#3B3929] text-xs font-semibold text-[#FAFAFA] focus:outline-none focus:border-[#C9AA71] cursor-pointer"
+                        >
+                            <option value="all">Semua Waktu</option>
+                            <option value="today">Hari Ini</option>
+                            <option value="week">1 Minggu Terakhir</option>
+                            <option value="month">1 Bulan Terakhir</option>
+                            <option value="6months">6 Bulan Terakhir</option>
+                            <option value="year">1 Tahun Terakhir</option>
+                        </select>
+
+                        {/* Action Filter */}
                         <select
                             value={actionFilter}
                             onChange={(e) => setActionFilter(e.target.value)}
                             aria-label="Filter Tipe Aksi"
-                            className="w-full md:w-56 px-3.5 py-2.5 rounded-xl bg-[#1C1B0E] border border-[#3B3929] text-xs font-semibold text-[#FAFAFA] focus:outline-none focus:border-[#C9AA71] cursor-pointer"
+                            className="w-full sm:w-52 px-3.5 py-2.5 rounded-xl bg-[#1C1B0E] border border-[#3B3929] text-xs font-semibold text-[#FAFAFA] focus:outline-none focus:border-[#C9AA71] cursor-pointer"
                         >
                             <option value="all">Semua Tipe Aksi</option>
                             <option value="profile_permission">Perubahan Izin / Profil</option>
@@ -387,7 +423,7 @@ export function AuditTrailTab() {
 
                         <button
                             type="button"
-                            onClick={fetchLogs}
+                            onClick={() => fetchLogs(timeFilter)}
                             disabled={loading}
                             title="Segarkan Log Audit"
                             className="p-2.5 rounded-xl bg-[#1C1B0E] border border-[#3B3929] text-[#A19F8D] hover:text-[#FAFAFA] hover:bg-[#3B3929] transition-all cursor-pointer shrink-0"
@@ -431,17 +467,35 @@ export function AuditTrailTab() {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-[#3B3929]/50 text-xs">
-                                {filteredLogs.map(log => {
-                                    const isExpanded = expandedId === log.id;
-                                    return (
-                                        <React.Fragment key={log.id}>
-                                            <tr className="hover:bg-[#1C1B0E]/40 transition-colors">
-                                                <td className="py-3.5 px-4 text-[#A19F8D] font-mono text-[11px] whitespace-nowrap">
-                                                    <div className="flex items-center gap-1.5">
-                                                        <Clock className="h-3.5 w-3.5 text-[#C9AA71]" />
-                                                        <span>{formatDate(log.created_at)}</span>
-                                                    </div>
-                                                </td>
+                                {(() => {
+                                    let currentMonth = null;
+                                    return filteredLogs.map(log => {
+                                        const logMonth = getMonthLabel(log.created_at);
+                                        const showDivider = logMonth && logMonth !== currentMonth;
+                                        if (showDivider) {
+                                            currentMonth = logMonth;
+                                        }
+                                        const isExpanded = expandedId === log.id;
+                                        return (
+                                            <React.Fragment key={log.id}>
+                                                {showDivider && (
+                                                    <tr className="bg-[#1C1B0E] border-y border-[#C9AA71]/30">
+                                                        <td colSpan={6} className="py-2.5 px-4">
+                                                            <div className="flex items-center gap-2 text-xs font-extrabold text-[#C9AA71] tracking-wider uppercase">
+                                                                <Calendar className="h-3.5 w-3.5 text-[#C9AA71]" />
+                                                                <span>Periode: {logMonth}</span>
+                                                                <div className="flex-1 h-px bg-[#3B3929]/80" />
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                                <tr className="hover:bg-[#1C1B0E]/40 transition-colors">
+                                                    <td className="py-3.5 px-4 text-[#A19F8D] font-mono text-[11px] whitespace-nowrap">
+                                                        <div className="flex items-center gap-1.5">
+                                                            <Clock className="h-3.5 w-3.5 text-[#C9AA71]" />
+                                                            <span>{formatDate(log.created_at)}</span>
+                                                        </div>
+                                                    </td>
                                                 <td className="py-3.5 px-4">
                                                     {getActionBadge(log)}
                                                 </td>
@@ -493,66 +547,84 @@ export function AuditTrailTab() {
                                             )}
                                         </React.Fragment>
                                     );
-                                })}
+                                });
+                                })()}
                             </tbody>
                         </table>
                     </div>
 
                     {/* Mobile Cards List */}
                     <div className="block md:hidden space-y-3">
-                        {filteredLogs.map(log => {
-                            const isExpanded = expandedId === log.id;
-                            return (
-                                <div 
-                                    key={log.id}
-                                    className="rounded-2xl border border-[#3B3929] bg-[#2A281E]/90 p-4 space-y-2.5 shadow-md"
-                                >
-                                    <div className="flex items-start justify-between gap-2">
-                                        <div className="space-y-1">
-                                            {getActionBadge(log)}
-                                            <div className="text-sm font-bold text-[#FAFAFA]">
-                                                {log.target_user_name}
-                                            </div>
-                                            <div className="text-xs text-[#A19F8D]">
-                                                Oleh: <strong className="text-[#E3D1AA]">{log.admin_name}</strong>
-                                            </div>
-                                        </div>
+                        {(() => {
+                            let mobileCurrentMonth = null;
+                            return filteredLogs.map(log => {
+                                const isExpanded = expandedId === log.id;
+                                const logMonth = getMonthLabel(log.created_at);
+                                const showDivider = logMonth && logMonth !== mobileCurrentMonth;
+                                if (showDivider) {
+                                    mobileCurrentMonth = logMonth;
+                                }
 
-                                        <div className="text-right shrink-0">
-                                            <div className="text-[11px] text-[#A19F8D] flex items-center justify-end gap-1">
-                                                <Clock className="h-3 w-3 text-[#C9AA71]" />
-                                                <span>{formatDate(log.created_at)}</span>
+                                return (
+                                    <React.Fragment key={log.id}>
+                                        {showDivider && (
+                                            <div className="flex items-center gap-2 py-2 px-1 text-xs font-extrabold text-[#C9AA71] tracking-wider uppercase">
+                                                <Calendar className="h-3.5 w-3.5 text-[#C9AA71]" />
+                                                <span>Periode: {logMonth}</span>
+                                                <div className="flex-1 h-px bg-[#3B3929]/80" />
                                             </div>
-                                            {log.ip_address && (
-                                                <span className="text-[10px] text-[#A19F8D]/60 font-mono">
-                                                    IP: {log.ip_address}
-                                                </span>
-                                            )}
-                                        </div>
-                                    </div>
+                                        )}
+                                        <div 
+                                            className="rounded-2xl border border-[#3B3929] bg-[#2A281E]/90 p-4 space-y-2.5 shadow-md"
+                                        >
+                                            <div className="flex items-start justify-between gap-2">
+                                                <div className="space-y-1">
+                                                    {getActionBadge(log)}
+                                                    <div className="text-sm font-bold text-[#FAFAFA]">
+                                                        {log.target_user_name}
+                                                    </div>
+                                                    <div className="text-xs text-[#A19F8D]">
+                                                        Oleh: <strong className="text-[#E3D1AA]">{log.admin_name}</strong>
+                                                    </div>
+                                                </div>
 
-                                    {/* Diff toggle */}
-                                    {log.changes && (
-                                        <div className="pt-1 border-t border-[#3B3929]/50">
-                                            <button
-                                                type="button"
-                                                onClick={() => setExpandedId(isExpanded ? null : log.id)}
-                                                className="w-full flex items-center justify-between text-xs font-semibold text-[#C9AA71] hover:text-[#E3D1AA] py-1 cursor-pointer"
-                                            >
-                                                <span>{isExpanded ? 'Sembunyikan Rincian' : 'Lihat Rincian Perubahan'}</span>
-                                                {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                                            </button>
+                                                <div className="text-right shrink-0">
+                                                    <div className="text-[11px] text-[#A19F8D] flex items-center justify-end gap-1">
+                                                        <Clock className="h-3 w-3 text-[#C9AA71]" />
+                                                        <span>{formatDate(log.created_at)}</span>
+                                                    </div>
+                                                    {log.ip_address && (
+                                                        <span className="text-[10px] text-[#A19F8D]/60 font-mono">
+                                                            IP: {log.ip_address}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
 
-                                            {isExpanded && (
-                                                <div className="mt-2 pt-2 border-t border-[#3B3929] animate-in fade-in duration-200">
-                                                    <AuditDiffViewer log={log} />
+                                            {/* Diff toggle */}
+                                            {log.changes && (
+                                                <div className="pt-1 border-t border-[#3B3929]/50">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setExpandedId(isExpanded ? null : log.id)}
+                                                        className="w-full flex items-center justify-between text-xs font-semibold text-[#C9AA71] hover:text-[#E3D1AA] py-1 cursor-pointer"
+                                                    >
+                                                        <span>{isExpanded ? 'Sembunyikan Rincian' : 'Lihat Rincian Perubahan'}</span>
+                                                        {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                                                    </button>
+
+                                                    {isExpanded && (
+                                                        <div className="mt-2 pt-2 border-t border-[#3B3929] animate-in fade-in duration-200">
+                                                            <AuditDiffViewer log={log} />
+                                                        </div>
+                                                    )}
                                                 </div>
                                             )}
                                         </div>
-                                    )}
-                                </div>
-                            );
-                        })}
+                                    </React.Fragment>
+                                );
+                            });
+                        })()}
                     </div>
                 </div>
             )}

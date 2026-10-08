@@ -333,15 +333,48 @@ class AuditSheetService
     }
 
     /**
+     * Format a decorative monthly divider row for Google Sheets.
+     */
+    public static function formatMonthSeparator(string $monthKey): array
+    {
+        $carbon = Carbon::createFromFormat('Y-m', $monthKey)->locale('id');
+        $monthName = strtoupper($carbon->translatedFormat('F Y'));
+
+        return [
+            "📅 {$monthName}",
+            "=== AWAL PERIODE BULAN {$monthName} ===",
+            "---",
+            "---",
+            "---",
+            "---",
+            "---",
+        ];
+    }
+
+    /**
      * Real-time append single log to sheet. Non-blocking & silent on failure.
      */
     public function appendLog(UserAuditLog $log): bool
     {
         try {
             $service = $this->getSheetsService();
-            $row = self::formatRow($log);
 
-            $valueRange = new ValueRange(['values' => [$row]]);
+            // Check if this log initiates a new month compared to the preceding log
+            $prevLog = UserAuditLog::where('id', '<', $log->id)->latest('id')->first();
+            $logMonth = $log->created_at 
+                ? Carbon::parse($log->created_at)->setTimezone('Asia/Jakarta')->format('Y-m') 
+                : null;
+            $prevMonth = ($prevLog && $prevLog->created_at)
+                ? Carbon::parse($prevLog->created_at)->setTimezone('Asia/Jakarta')->format('Y-m')
+                : null;
+
+            $rowsToAppend = [];
+            if ($logMonth && $logMonth !== $prevMonth) {
+                $rowsToAppend[] = self::formatMonthSeparator($logMonth);
+            }
+            $rowsToAppend[] = self::formatRow($log);
+
+            $valueRange = new ValueRange(['values' => $rowsToAppend]);
             $service->spreadsheets_values->append($this->spreadsheetId, 'Sheet1!A:G', $valueRange, [
                 'valueInputOption' => 'USER_ENTERED',
                 'insertDataOption' => 'INSERT_ROWS',
@@ -355,12 +388,13 @@ class AuditSheetService
     }
 
     /**
-     * Full synchronization: rewrite all logs to the Google Sheet cleanly.
+     * Full synchronization: rewrite all logs to the Google Sheet cleanly with monthly dividers.
      */
     public function syncAllLogs(): array
     {
         $service = $this->getSheetsService();
         $spreadsheet = $service->spreadsheets->get($this->spreadsheetId);
+        $sheetId = $spreadsheet->getSheets()[0]->getProperties()->getSheetId() ?? 0;
         $sheetTitle = $spreadsheet->getSheets()[0]->getProperties()->getTitle() ?? 'Sheet1';
 
         // 1. Clear existing sheet values
@@ -377,7 +411,21 @@ class AuditSheetService
         $logs = UserAuditLog::with(['admin', 'targetUser'])->orderBy('id', 'asc')->get();
 
         $rows = [];
+        $separatorRowIndices = [];
+        $currentMonth = null;
+
         foreach ($logs as $log) {
+            $logMonth = $log->created_at 
+                ? Carbon::parse($log->created_at)->setTimezone('Asia/Jakarta')->format('Y-m') 
+                : null;
+
+            if ($logMonth && $logMonth !== $currentMonth) {
+                $currentMonth = $logMonth;
+                // Row index for separator: row 0 is header, next row will be count($rows) + 1 (0-based)
+                $separatorRowIndices[] = count($rows) + 1;
+                $rows[] = self::formatMonthSeparator($logMonth);
+            }
+
             $rows[] = self::formatRow($log);
         }
 
@@ -387,13 +435,61 @@ class AuditSheetService
             $service->spreadsheets_values->update($this->spreadsheetId, $range, $valueRange, [
                 'valueInputOption' => 'USER_ENTERED',
             ]);
+
+            // 4. Style separator rows with prominent gold/charcoal background
+            if (!empty($separatorRowIndices)) {
+                try {
+                    $styleRequests = [];
+                    foreach ($separatorRowIndices as $rowIndex) {
+                        $styleRequests[] = new Request([
+                            'repeatCell' => [
+                                'range' => [
+                                    'sheetId'          => $sheetId,
+                                    'startRowIndex'    => $rowIndex,
+                                    'endRowIndex'      => $rowIndex + 1,
+                                    'startColumnIndex' => 0,
+                                    'endColumnIndex'   => 7,
+                                ],
+                                'cell' => [
+                                    'userEnteredFormat' => [
+                                        'backgroundColor' => [
+                                            'red'   => 0.231,
+                                            'green' => 0.224,
+                                            'blue'  => 0.161,
+                                        ],
+                                        'textFormat' => [
+                                            'foregroundColor' => [
+                                                'red'   => 0.788,
+                                                'green' => 0.667,
+                                                'blue'  => 0.443,
+                                            ],
+                                            'fontSize' => 9,
+                                            'bold'     => true,
+                                        ],
+                                        'horizontalAlignment' => 'LEFT',
+                                        'verticalAlignment'   => 'MIDDLE',
+                                    ],
+                                ],
+                                'fields' => 'userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,verticalAlignment)',
+                            ],
+                        ]);
+                    }
+
+                    $batchRequest = new BatchUpdateSpreadsheetRequest([
+                        'requests' => $styleRequests,
+                    ]);
+                    $service->spreadsheets->batchUpdate($this->spreadsheetId, $batchRequest);
+                } catch (\Throwable $e) {
+                    Log::warning("AuditSheetService: failed to apply separator styling: " . $e->getMessage());
+                }
+            }
         }
 
         return [
             'success'   => true,
             'count'     => count($rows),
             'sheet_url' => $this->getSpreadsheetUrl(),
-            'message'   => 'Berhasil menyinkronkan ' . count($rows) . ' data riwayat audit ke Google Spreadsheet.',
+            'message'   => 'Berhasil menyinkronkan ' . count($rows) . ' data riwayat audit dengan pembatas bulanan ke Google Spreadsheet.',
         ];
     }
 }

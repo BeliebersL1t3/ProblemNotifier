@@ -865,18 +865,51 @@ class UserController extends Controller
     }
 
     /**
-     * Fetch recent audit logs.
+     * Fetch recent audit logs with period, action, and search filters.
      */
     public function auditLogs(Request $request)
     {
         $this->ensureAdmin();
 
-        $limit = min((int) $request->input('limit', 100), 500);
+        $limit = min((int) $request->input('limit', 200), 1000);
 
-        $logs = UserAuditLog::with(['admin', 'targetUser'])
-            ->latest()
-            ->take($limit)
-            ->get();
+        $query = UserAuditLog::with(['admin', 'targetUser']);
+
+        $period = $request->input('period', 'all');
+        match ($period) {
+            'today'   => $query->where('created_at', '>=', now()->startOfDay()),
+            'week'    => $query->where('created_at', '>=', now()->subDays(7)->startOfDay()),
+            'month'   => $query->where('created_at', '>=', now()->subDays(30)->startOfDay()),
+            '6months' => $query->where('created_at', '>=', now()->subMonths(6)->startOfDay()),
+            'year'    => $query->where('created_at', '>=', now()->subYear()->startOfDay()),
+            default   => null,
+        };
+
+        if ($action = $request->input('action')) {
+            if ($action === 'password') {
+                $query->where('action', 'PASSWORD_RESET');
+            } elseif ($action === 'profile_permission') {
+                $query->whereIn('action', ['USER_UPDATED', 'PERMISSIONS_UPDATED', 'BATCH_PERMISSIONS_UPDATED', 'USER_PERMISSIONS_BATCH_UPDATED']);
+            } elseif ($action === 'created') {
+                $query->where('action', 'USER_CREATED');
+            } elseif ($action === 'archive') {
+                $query->whereIn('action', ['USER_ARCHIVED', 'BATCH_USERS_ARCHIVED']);
+            } elseif ($action === 'restore') {
+                $query->whereIn('action', ['USER_RESTORED', 'BATCH_USERS_RESTORED']);
+            }
+        }
+
+        if ($search = trim($request->input('q', ''))) {
+            $query->where(function ($q) use ($search) {
+                $q->where('admin_name', 'like', "%{$search}%")
+                  ->orWhere('target_user_name', 'like', "%{$search}%")
+                  ->orWhere('ip_address', 'like', "%{$search}%")
+                  ->orWhere('action', 'like', "%{$search}%");
+            });
+        }
+
+        $filteredCount = (clone $query)->count();
+        $logs = $query->latest()->take($limit)->get();
 
         $auditSheet = app(\App\Services\AuditSheetService::class);
 
@@ -884,6 +917,7 @@ class UserController extends Controller
             'success'         => true,
             'data'            => $logs,
             'total_count'     => UserAuditLog::count(),
+            'filtered_count'  => $filteredCount,
             'spreadsheet_url' => $auditSheet->getSpreadsheetUrl(),
             'spreadsheet_id'  => $auditSheet->getSpreadsheetId(),
         ]);
