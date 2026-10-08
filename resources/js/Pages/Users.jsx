@@ -37,7 +37,7 @@ function UsersInner({ initialUsers, initialStats }) {
     const [roleFilter, setRoleFilter] = useState('all');
     const [deptFilter, setDeptFilter] = useState('all');
     const [hodFilter, setHodFilter] = useState(false);
-    const [statusFilter, setStatusFilter] = useState('active'); // 'active' | 'archived' | 'all'
+    const [statusFilter, setStatusFilter] = useState('active'); // 'active' | 'archived'
     const [loading, setLoading] = useState(false);
 
     // Multi-Select & Batch Action State
@@ -66,12 +66,10 @@ function UsersInner({ initialUsers, initialStats }) {
         setSelectedUserIds([]);
     }, [statusFilter]);
 
-    // Selection helpers: in archived tab, selectable are archived; in active tab, active accounts; in all tab, all accounts
+    // Selection helpers: in archived tab, selectable are archived; in active tab, active accounts
     const selectableUsers = statusFilter === 'archived'
         ? users.filter(u => u.is_archived)
-        : statusFilter === 'active'
-            ? users.filter(u => !u.is_archived)
-            : users;
+        : users.filter(u => !u.is_archived);
 
     const isAllSelected = selectableUsers.length > 0 && selectableUsers.every(u => selectedUserIds.includes(u.id));
     const isSomeSelected = selectedUserIds.length > 0 && !isAllSelected;
@@ -465,9 +463,25 @@ function UsersInner({ initialUsers, initialStats }) {
                             <div className="text-xl font-extrabold text-emerald-400">{stats.total_whatsapp ?? 0}</div>
                         </div>
 
-                        <div className="rounded-xl border border-[#3B3929] bg-[#2A281E]/80 p-3.5 space-y-1">
-                            <div className="text-[11px] font-bold text-[#A19F8D] uppercase tracking-wider">Di-Archive</div>
-                            <div className="text-xl font-extrabold text-[#A19F8D]">{stats.total_archived ?? 0}</div>
+                        {/* Di-Archive Stat Card with 1-click Filter Toggle */}
+                        <div 
+                            onClick={() => setStatusFilter(prev => prev === 'archived' ? 'active' : 'archived')}
+                            className={`rounded-xl border p-3.5 space-y-1 cursor-pointer transition-all ${
+                                statusFilter === 'archived'
+                                    ? 'border-rose-400 bg-rose-500/25 ring-1 ring-rose-400 shadow-md'
+                                    : 'border-[#3B3929] bg-[#2A281E]/80 hover:bg-[#3B3929]/50'
+                            }`}
+                            title="Klik untuk filter akun yang di-archive"
+                        >
+                            <div className="text-[11px] font-bold text-[#A19F8D] uppercase tracking-wider flex items-center justify-between">
+                                <span>Di-Archive</span>
+                                {statusFilter === 'archived' && (
+                                    <span className="text-[9px] font-black bg-rose-400 text-[#1C1B0E] px-1.5 py-0.2 rounded">
+                                        AKTIF
+                                    </span>
+                                )}
+                            </div>
+                            <div className="text-xl font-extrabold text-[#FAFAFA]">{stats.total_archived ?? 0}</div>
                         </div>
                     </div>
 
@@ -523,34 +537,25 @@ function UsersInner({ initialUsers, initialStats }) {
                                 </select>
                             </div>
 
-                            {/* Status Filter Tabs (Aktif / Archived / Semua) */}
+                            {/* Status Filter Tabs (Aktif / Archived) */}
                             <div className="flex items-center rounded-xl border border-[#3B3929] bg-[#1C1B0E] p-1 text-xs font-bold shrink-0">
                                 <button
                                     type="button"
                                     onClick={() => setStatusFilter('active')}
-                                    className={`flex-1 sm:flex-initial px-3 py-1.5 rounded-lg transition-all text-center ${
+                                    className={`flex-1 sm:flex-initial px-3.5 py-1.5 rounded-lg transition-all text-center cursor-pointer ${
                                         statusFilter === 'active' ? 'bg-[#C9AA71] text-[#1C1B0E]' : 'text-[#A19F8D] hover:text-[#FAFAFA]'
                                     }`}
                                 >
-                                    Aktif
+                                    Aktif ({stats.total_users ?? 0})
                                 </button>
                                 <button
                                     type="button"
                                     onClick={() => setStatusFilter('archived')}
-                                    className={`flex-1 sm:flex-initial px-3 py-1.5 rounded-lg transition-all text-center ${
+                                    className={`flex-1 sm:flex-initial px-3.5 py-1.5 rounded-lg transition-all text-center cursor-pointer ${
                                         statusFilter === 'archived' ? 'bg-[#C9AA71] text-[#1C1B0E]' : 'text-[#A19F8D] hover:text-[#FAFAFA]'
                                     }`}
                                 >
-                                    Archived
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setStatusFilter('all')}
-                                    className={`flex-1 sm:flex-initial px-3 py-1.5 rounded-lg transition-all text-center ${
-                                        statusFilter === 'all' ? 'bg-[#C9AA71] text-[#1C1B0E]' : 'text-[#A19F8D] hover:text-[#FAFAFA]'
-                                    }`}
-                                >
-                                    Semua
+                                    Archived ({stats.total_archived ?? 0})
                                 </button>
                             </div>
                         </div>
