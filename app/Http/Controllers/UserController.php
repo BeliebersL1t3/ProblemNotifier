@@ -613,13 +613,10 @@ class UserController extends Controller
                 continue;
             }
 
-            // Rule 2: Cannot delete the last active administrator
-            if ($target->isAdmin() && $target->is_active) {
-                if ($activeAdminsCount <= 1) {
-                    $skippedAccounts[] = "{$target->name} (Administrator aktif terakhir di sistem)";
-                    continue;
-                }
-                $activeAdminsCount--;
+            // Rule 2: Cannot delete administrator accounts via bulk operation
+            if ($target->isAdmin()) {
+                $skippedAccounts[] = "{$target->name} (Akun Administrator dilindungi dari penghapusan massal)";
+                continue;
             }
 
             $target->delete();

@@ -66,16 +66,21 @@ function UsersInner({ initialUsers, initialStats }) {
         setSelectedUserIds([]);
     }, [statusFilter]);
 
-    // Selection helpers: in archived tab, selectable are archived; in active tab, active accounts
+    // Selection helpers: in archived tab, selectable are archived; in active tab, only department/staff accounts (admins excluded from auto-select all)
     const selectableUsers = statusFilter === 'archived'
         ? users.filter(u => u.is_archived)
-        : users.filter(u => !u.is_archived);
+        : users.filter(u => !u.is_archived && u.role !== 'admin');
 
     const isAllSelected = selectableUsers.length > 0 && selectableUsers.every(u => selectedUserIds.includes(u.id));
     const isSomeSelected = selectedUserIds.length > 0 && !isAllSelected;
 
+    const selectedUsers = users.filter(u => selectedUserIds.includes(u.id));
+    const selectedAdminUsers = selectedUsers.filter(u => u.role === 'admin');
+    const selectedDeptUsers = selectedUsers.filter(u => u.role !== 'admin');
     const selectedIncludesSelf = selectedUserIds.includes(currentUser?.id);
-    const effectiveDeleteCount = selectedUserIds.filter(id => id !== currentUser?.id).length;
+
+    // Only non-admin active users can be deleted via batch (excluding current user and admins)
+    const effectiveDeleteCount = selectedUsers.filter(u => u.id !== currentUser?.id && u.role !== 'admin').length;
 
     const handleSelectAll = () => {
         if (isAllSelected) {
@@ -156,20 +161,27 @@ function UsersInner({ initialUsers, initialStats }) {
     };
 
     const handleQuickToggleViewAllDepts = async (enabled) => {
-        if (selectedUserIds.length === 0) return;
+        const targetIds = selectedUsers.filter(u => u.role !== 'admin').map(u => u.id);
+        if (targetIds.length === 0) {
+            showToast(lang === 'id' ? 'Akun Administrator selalu memiliki akses ke seluruh departemen.' : 'Administrator accounts always have full department access.', true);
+            return;
+        }
         setBatchQuickProcessing(true);
         try {
             const res = await axios.post('/api/users/batch-permissions', {
-                user_ids: selectedUserIds,
+                user_ids: targetIds,
                 permissions: {
                     can_view_all_departments: enabled,
                 },
             });
             if (res.data?.success) {
+                const noticeMsg = selectedAdminUsers.length > 0
+                    ? (lang === 'id' ? ` (Akun Administrator dilewati karena memiliki akses penuh).` : ` (Administrator accounts skipped due to full access).`)
+                    : '';
                 showToast(
-                    lang === 'id' 
-                        ? `${selectedUserIds.length} akun berhasil ${enabled ? 'diberikan akses' : 'dibatasi dari'} semua departemen.`
-                        : `${selectedUserIds.length} accounts successfully ${enabled ? 'granted access to' : 'restricted from'} all departments.`
+                    (lang === 'id' 
+                        ? `${targetIds.length} akun staf berhasil ${enabled ? 'diberikan akses' : 'dibatasi dari'} semua departemen.`
+                        : `${targetIds.length} staff accounts successfully ${enabled ? 'granted access to' : 'restricted from'} all departments.`) + noticeMsg
                 );
                 fetchUsers();
             } else {
@@ -586,8 +598,14 @@ function UsersInner({ initialUsers, initialStats }) {
                                     {selectedUserIds.length}
                                 </div>
                                 <div>
-                                    <div className="font-extrabold text-sm sm:text-base text-[#FAFAFA] flex items-center gap-2">
-                                        <span>{selectedUserIds.length} Akun Dipilih</span>
+                                    <div className="font-extrabold text-sm sm:text-base text-[#FAFAFA] flex items-center gap-2 flex-wrap">
+                                        <span>
+                                            {selectedAdminUsers.length > 0 && selectedDeptUsers.length > 0
+                                                ? `${selectedUserIds.length} Akun Dipilih (${selectedDeptUsers.length} Staf, ${selectedAdminUsers.length} Admin)`
+                                                : selectedAdminUsers.length > 0
+                                                    ? `${selectedAdminUsers.length} Akun Administrator Dipilih`
+                                                    : `${selectedDeptUsers.length} Akun Staf Dipilih`}
+                                        </span>
                                         <button
                                             type="button"
                                             onClick={handleDeselectAll}
@@ -596,10 +614,12 @@ function UsersInner({ initialUsers, initialStats }) {
                                             Batalkan
                                         </button>
                                     </div>
-                                    <p className="text-xs text-[#A19F8D]">
+                                    <p className="text-xs text-[#A19F8D] mt-0.5">
                                         {statusFilter === 'archived' 
                                             ? 'Pulihkan massal akun yang dipilih agar aktif kembali.' 
-                                            : 'Ubah izin massal atau archive (soft delete) akun terpilih dengan aman.'}
+                                            : selectedAdminUsers.length > 0
+                                                ? 'Akun Administrator memiliki hak penuh inheren dan dilindungi dari pembatasan akses.'
+                                                : 'Ubah izin massal atau archive (soft delete) akun staf terpilih dengan aman.'}
                                     </p>
                                 </div>
                             </div>
@@ -622,9 +642,9 @@ function UsersInner({ initialUsers, initialStats }) {
                                         <button
                                             type="button"
                                             onClick={() => handleQuickToggleViewAllDepts(false)}
-                                            disabled={batchQuickProcessing || batchDeleteLoading}
-                                            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-amber-950/50 hover:bg-amber-900/60 border border-amber-500/40 text-amber-300 hover:text-amber-200 transition-all cursor-pointer shadow-xs disabled:opacity-50"
-                                            title="Matikan 'Bisa Melihat Semua Departemen' untuk akun terpilih"
+                                            disabled={batchQuickProcessing || batchDeleteLoading || selectedDeptUsers.length === 0}
+                                            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-amber-950/50 hover:bg-amber-900/60 border border-amber-500/40 text-amber-300 hover:text-amber-200 transition-all cursor-pointer shadow-xs disabled:opacity-40 disabled:cursor-not-allowed"
+                                            title={selectedDeptUsers.length === 0 ? "Akun Administrator tidak dapat dibatasi departemennya" : "Matikan 'Bisa Melihat Semua Departemen' untuk staf terpilih"}
                                         >
                                             <Lock className="h-3.5 w-3.5 text-amber-400" />
                                             <span>Batasi Dept (OFF)</span>
@@ -634,9 +654,9 @@ function UsersInner({ initialUsers, initialStats }) {
                                         <button
                                             type="button"
                                             onClick={() => handleQuickToggleViewAllDepts(true)}
-                                            disabled={batchQuickProcessing || batchDeleteLoading}
-                                            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-950/50 hover:bg-emerald-900/60 border border-emerald-500/40 text-emerald-300 hover:text-emerald-200 transition-all cursor-pointer shadow-xs disabled:opacity-50"
-                                            title="Nyalakan 'Bisa Melihat Semua Departemen' untuk akun terpilih"
+                                            disabled={batchQuickProcessing || batchDeleteLoading || selectedDeptUsers.length === 0}
+                                            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-950/50 hover:bg-emerald-900/60 border border-emerald-500/40 text-emerald-300 hover:text-emerald-200 transition-all cursor-pointer shadow-xs disabled:opacity-40 disabled:cursor-not-allowed"
+                                            title={selectedDeptUsers.length === 0 ? "Akun Administrator sudah memiliki hak akses penuh" : "Nyalakan 'Bisa Melihat Semua Departemen' untuk staf terpilih"}
                                         >
                                             <Check className="h-3.5 w-3.5 text-emerald-400" />
                                             <span>Buka Semua (ON)</span>
@@ -645,9 +665,16 @@ function UsersInner({ initialUsers, initialStats }) {
                                         {/* Granular Batch Permissions Modal Button */}
                                         <button
                                             type="button"
-                                            onClick={() => setIsBatchModalOpen(true)}
-                                            disabled={batchQuickProcessing || batchDeleteLoading}
-                                            className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-extrabold bg-[#C9AA71] hover:bg-[#b89960] text-[#1C1B0E] transition-all shadow-md hover:shadow-lg cursor-pointer hover:scale-[1.02] disabled:opacity-50"
+                                            onClick={() => {
+                                                if (selectedDeptUsers.length === 0) {
+                                                    showToast(lang === 'id' ? 'Akun Administrator memiliki hak akses penuh inheren dan tidak dapat diubah izinnya via matriks staf.' : 'Administrator accounts have full inherent permissions.', true);
+                                                    return;
+                                                }
+                                                setIsBatchModalOpen(true);
+                                            }}
+                                            disabled={batchQuickProcessing || batchDeleteLoading || selectedDeptUsers.length === 0}
+                                            className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-extrabold bg-[#C9AA71] hover:bg-[#b89960] text-[#1C1B0E] transition-all shadow-md hover:shadow-lg cursor-pointer hover:scale-[1.02] disabled:opacity-40 disabled:cursor-not-allowed"
+                                            title={selectedDeptUsers.length === 0 ? "Izin Administrator tidak dapat diubah via matriks staf" : "Atur hak akses granular staf terpilih"}
                                         >
                                             <ShieldCheck className="h-4 w-4" />
                                             <span>Atur Izin...</span>
@@ -656,13 +683,19 @@ function UsersInner({ initialUsers, initialStats }) {
                                         {/* Batch Soft Delete Button */}
                                         <button
                                             type="button"
-                                            onClick={() => setIsBatchDeleteModalOpen(true)}
-                                            disabled={batchQuickProcessing || batchDeleteLoading}
-                                            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-extrabold bg-rose-950/70 hover:bg-rose-900 border border-rose-500/50 text-rose-300 hover:text-rose-100 transition-all shadow-md hover:shadow-lg cursor-pointer hover:scale-[1.02] disabled:opacity-50"
-                                            title="Hapus / Archive (Soft Delete) akun yang dipilih"
+                                            onClick={() => {
+                                                if (effectiveDeleteCount === 0) {
+                                                    showToast(lang === 'id' ? 'Akun Administrator dan akun sendiri dilindungi dari penghapusan massal.' : 'Administrator accounts and your own account are protected from batch deletion.', true);
+                                                    return;
+                                                }
+                                                setIsBatchDeleteModalOpen(true);
+                                            }}
+                                            disabled={batchQuickProcessing || batchDeleteLoading || effectiveDeleteCount === 0}
+                                            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-extrabold bg-rose-950/70 hover:bg-rose-900 border border-rose-500/50 text-rose-300 hover:text-rose-100 transition-all shadow-md hover:shadow-lg cursor-pointer hover:scale-[1.02] disabled:opacity-40 disabled:cursor-not-allowed"
+                                            title={effectiveDeleteCount === 0 ? "Akun yang dipilih dilindungi dari penghapusan massal" : `Archive ${effectiveDeleteCount} akun staf yang dipilih`}
                                         >
                                             <Trash2 className="h-4 w-4 text-rose-400" />
-                                            <span>Hapus / Archive ({selectedUserIds.length})</span>
+                                            <span>Hapus / Archive ({effectiveDeleteCount})</span>
                                         </button>
                                     </>
                                 )}
@@ -683,7 +716,13 @@ function UsersInner({ initialUsers, initialStats }) {
                                         onChange={handleSelectAll}
                                         className="w-4 h-4 rounded border-[#3B3929] bg-[#1C1B0E] text-[#C9AA71] accent-[#C9AA71] focus:ring-[#C9AA71] focus:ring-offset-0 cursor-pointer"
                                     />
-                                    <span>{isAllSelected ? 'Batalkan Semua' : 'Pilih Semua Akun'}</span>
+                                    <span>
+                                        {isAllSelected 
+                                            ? 'Batalkan Semua' 
+                                            : statusFilter === 'active' 
+                                                ? 'Pilih Semua Staf' 
+                                                : 'Pilih Semua Akun'}
+                                    </span>
                                 </label>
                                 <span className="text-[11px] font-medium">{users.length} akun</span>
                             </div>
@@ -939,7 +978,7 @@ function UsersInner({ initialUsers, initialStats }) {
                                                 ref={el => { if (el) el.indeterminate = isSomeSelected; }}
                                                 onChange={handleSelectAll}
                                                 className="w-4 h-4 rounded border-[#3B3929] bg-[#1C1B0E] text-[#C9AA71] accent-[#C9AA71] focus:ring-[#C9AA71] focus:ring-offset-0 cursor-pointer"
-                                                title={isAllSelected ? "Batalkan semua pilihan" : "Pilih semua akun"}
+                                                title={isAllSelected ? "Batalkan semua pilihan" : (statusFilter === 'active' ? "Pilih semua staf departemen (Akun Admin dikecualikan)" : "Pilih semua akun")}
                                             />
                                         </th>
                                         <th className="py-3.5 px-4">Pengguna / Nama Staf</th>
@@ -1221,7 +1260,7 @@ function UsersInner({ initialUsers, initialStats }) {
             <BatchPermissionsModal
                 isOpen={isBatchModalOpen}
                 onClose={() => setIsBatchModalOpen(false)}
-                selectedUsers={users.filter(u => selectedUserIds.includes(u.id))}
+                selectedUsers={users.filter(u => selectedUserIds.includes(u.id) && u.role !== 'admin')}
                 onBatchSuccess={handleBatchSuccess}
                 showToast={showToast}
             />
@@ -1258,6 +1297,15 @@ function UsersInner({ initialUsers, initialStats }) {
                                 <AlertCircle className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
                                 <div>
                                     <span className="font-bold text-amber-300">Proteksi Keamanan:</span> Akun Anda sendiri ({currentUser?.name || 'Administrator'}) otomatis dilewati dan tidak akan di-archive.
+                                </div>
+                            </div>
+                        )}
+
+                        {selectedAdminUsers.length > 0 && (
+                            <div className="p-3 rounded-xl bg-sky-500/15 border border-sky-500/40 text-sky-200 text-xs flex items-start gap-2.5">
+                                <ShieldCheck className="h-4 w-4 text-sky-400 shrink-0 mt-0.5" />
+                                <div>
+                                    <span className="font-bold text-sky-300">Proteksi Administrator:</span> {selectedAdminUsers.length} akun Administrator otomatis dilindungi dan tidak dapat di-archive secara massal.
                                 </div>
                             </div>
                         )}
