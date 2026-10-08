@@ -582,7 +582,18 @@ function DashboardInner() {
             ).map(d => normalizeDepartment(d.trim()));
 
             const originDept = normalizeDepartment(issue.department || '');
-            const inCurrentDeptScope = assigned.includes(normUserDept) || tagged.includes(normUserDept) || originDept === normUserDept;
+            const isAllOrEmergency = assigned.includes('ALL') || 
+                tagged.includes('ALL') || 
+                assigned.some(d => String(d).trim().toUpperCase() === 'ALL') || 
+                tagged.some(d => String(d).trim().toUpperCase() === 'ALL') || 
+                (issue.category || '').toLowerCase() === 'emergency' || 
+                String(issue.id || '').startsWith('SOS');
+
+            const inCurrentDeptScope = assigned.includes(normUserDept) || 
+                tagged.includes(normUserDept) || 
+                originDept === normUserDept || 
+                isAllOrEmergency;
+
             return isPastContributor(issue) && !inCurrentDeptScope;
         }).length;
     }, [issues, department, canViewAllDepartments, isAdmin, user, staffName]);
@@ -737,7 +748,7 @@ function DashboardInner() {
             // 1. Tab "Reported By Me" (Dibuat Oleh Saya Pribadi)
             if (deptViewMode === 'origin') {
                 if (isReportedByCurrentMe) {
-                    const inCurrentDept = normUserDept && originDept === normUserDept;
+                    const inCurrentDept = (normUserDept && originDept === normUserDept) || isEmergency;
                     acc.push(inCurrentDept || isAdmin ? issue : { ...issue, _isPastContribution: true });
                 }
                 return acc;
@@ -792,7 +803,12 @@ function DashboardInner() {
 
             // 4. Tab "Past Contributions" (Riwayat Kontribusi Departemen Lama)
             if (deptViewMode === 'past_contributions') {
-                const inCurrentDeptScope = normUserDept && (assigned.includes(normUserDept) || tagged.includes(normUserDept) || originDept === normUserDept);
+                const inCurrentDeptScope = normUserDept && (
+                    assigned.includes(normUserDept) || 
+                    tagged.includes(normUserDept) || 
+                    originDept === normUserDept || 
+                    isEmergency
+                );
                 if (isPastContrib && !inCurrentDeptScope) {
                     acc.push({
                         ...issue,
