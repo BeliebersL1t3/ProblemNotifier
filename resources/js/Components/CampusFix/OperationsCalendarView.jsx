@@ -1747,7 +1747,7 @@ export function OperationsCalendarView({
                 </div>
 
                 {/* ─── Day Agenda / All Tasks Inspector (4 Cols on Desktop) ─── */}
-                <div id="day-agenda-inspector" className="lg:col-span-4 bg-[#2A281E]/95 border border-[#3B3929] rounded-2xl p-4 sm:p-5 shadow-2xl backdrop-blur-xl flex flex-col h-full">
+                <div id="day-agenda-inspector" className="lg:col-span-4 bg-[#2A281E]/95 border border-[#3B3929] rounded-2xl p-4 sm:p-5 shadow-2xl backdrop-blur-xl flex flex-col h-auto lg:h-full lg:sticky lg:top-24">
                     {/* Mode Switcher: Date vs All Tasks */}
                     <div className="flex items-center gap-1 p-1 bg-[#14140B] rounded-xl border border-[#3B3929] mb-3">
                         <button
@@ -1849,7 +1849,7 @@ export function OperationsCalendarView({
                     </div>
 
                     {/* Task List on Selected Date or Range */}
-                    <div className="space-y-3.5 flex-1 overflow-y-auto max-h-[560px] pr-1 custom-scrollbar">
+                    <div className="space-y-3.5 flex-1 overflow-visible max-h-none lg:overflow-y-auto lg:max-h-[560px] pr-0 lg:pr-1 custom-scrollbar">
                         {displayedAgendaTasks.length === 0 ? (
                             <div className="text-center py-12 px-4 rounded-xl border border-dashed border-[#3B3929] bg-[#1C1B0E]/50">
                                 <CalendarIcon className="h-10 w-10 mx-auto mb-2 text-[#A19F8D]/40" />
