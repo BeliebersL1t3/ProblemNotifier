@@ -18,6 +18,7 @@ import { ImageDropzone } from '@/Components/CampusFix/ImageDropzone';
 import { ExportCalendarPdfModal } from '@/Components/CampusFix/ExportCalendarPdfModal';
 import CalendarSyncLogsModal from '@/Components/CampusFix/CalendarSyncLogsModal';
 import RegisterCalendarModal from '@/Components/CampusFix/RegisterCalendarModal';
+import { ScrollToTop } from '@/Components/CampusFix/ScrollToTop';
 import { ALL_DEPARTMENTS, normalizeDepartment } from '@/constants/staff';
 import { getDepartmentTheme } from '@/constants/departments';
 import { useAuth } from '@/hooks/useAuth';
@@ -1834,6 +1835,9 @@ function CalendarInner() {
                 user={user}
                 lang={lang}
             />
+
+            {/* Scroll to Top Button */}
+            <ScrollToTop />
 
             <MobileBottomNav currentTab="calendar" />
         </div>
