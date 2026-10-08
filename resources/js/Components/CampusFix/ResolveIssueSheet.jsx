@@ -19,7 +19,7 @@ import DelayDetailModal from './DelayDetailModal';
 import { ImageLightboxModal } from './ImageLightboxModal';
 import { CriticalTimer } from './CriticalTimer';
 import { getStaffForDepartment, normalizeDepartment } from '@/constants/staff';
-import { getDepartmentTheme } from '@/constants/departments';
+import { ALL_DEPARTMENTS, getDepartmentTheme } from '@/constants/departments';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/context/LanguageContext';
 
@@ -47,7 +47,7 @@ export function ResolveIssueSheet({ issue, onClose, onEdit }) {
     const [proofImageUrl, setProofImageUrl] = useState(undefined);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [errorMsg, setErrorMsg] = useState('');
-    const { isDeptUser, department, staffName, isAdmin, activeStaffRoster } = useAuth();
+    const { isDeptUser, department, staffName, isAdmin, activeStaffRoster, user } = useAuth();
     const [selectedDelay, setSelectedDelay] = useState(null);
     const [previewImage, setPreviewImage] = useState(null);
     const [isNotifyingDept, setIsNotifyingDept] = useState(false);
@@ -66,35 +66,80 @@ export function ResolveIssueSheet({ issue, onClose, onEdit }) {
             });
     }, [issue?.pendingTimeline]);
 
-    // Check if the current user can resolve/pending this issue (only assigned department or admin; maker/origin department CANNOT)
+    const isEmergency = useMemo(() => {
+        if (!issue) return false;
+        return (issue.category || '').toLowerCase() === 'emergency'
+            || String(issue.id || '').startsWith('SOS');
+    }, [issue]);
+
+    const isAllAssigned = useMemo(() => {
+        return assignedList.length === 0 || assignedList.some(d => String(d).trim().toUpperCase() === 'ALL');
+    }, [assignedList]);
+
+    // Check if the currently logged-in user is the one who claimed this issue.
+    // Handles all formats including WhatsApp bot claims: "Bray via WhatsApp", "Bray (Fasilitas) via WhatsApp", etc.
+    const isClaimant = useMemo(() => {
+        if (!issue?.taker) return false;
+        const myNames = [user?.name, user?.staff_name, staffName]
+            .filter(Boolean)
+            .map(n => String(n).trim().toLowerCase());
+
+        if (myNames.length === 0) return false;
+
+        const rawTaker = String(issue.taker);
+        const cleanedTaker = rawTaker
+            .replace(/\s*\(?via\s+whatsapp\)?/gi, '')
+            .replace(/\s*\([^)]*\)/g, '')
+            .trim()
+            .toLowerCase();
+
+        return myNames.some(name => {
+            return name === cleanedTaker || 
+                   cleanedTaker.startsWith(name) || 
+                   name.startsWith(cleanedTaker) ||
+                   rawTaker.toLowerCase().includes(name);
+        });
+    }, [issue?.taker, user, staffName]);
+
+    // Check if the current user can resolve/pending this issue (claimant, admin, or assigned department)
     const canAct = useMemo(() => {
         if (!issue || Boolean(issue._isPastContribution)) return false;
         if (isAdmin) return true;
+
+        // Staff holding the claim can ALWAYS resolve or pending their own issue!
+        if (isClaimant) return true;
+
         if (!department) return false;
 
         const userDeptNorm = normalizeDepartment(department).toLowerCase();
         const originDeptNorm = normalizeDepartment(issue.department).toLowerCase();
 
-        // If the logged-in department is the maker / origin department, they CANNOT pending/solve
-        if (userDeptNorm === originDeptNorm) return false;
+        // If the logged-in department is the maker / origin department, they CANNOT pending/solve UNLESS emergency
+        if (userDeptNorm === originDeptNorm && !isEmergency) return false;
 
-        if (assignedList.length === 0) return true;
+        // If assigned to ALL or emergency or no assigned departments, allow all users
+        if (isAllAssigned || isEmergency) return true;
 
-        // Must be in assigned list (excluding origin)
+        // Must be in assigned list (excluding origin if not emergency)
         return assignedList.some(d => {
             const dNorm = normalizeDepartment(d).toLowerCase();
-            return dNorm === userDeptNorm && dNorm !== originDeptNorm;
+            return dNorm === userDeptNorm && (isEmergency || dNorm !== originDeptNorm);
         });
-    }, [isAdmin, issue, department, assignedList]);
+    }, [isAdmin, isClaimant, issue, department, assignedList, isEmergency, isAllAssigned]);
 
-    // Build authorized departments (assigned + tagged, EXCLUDING origin department)
+    // Build authorized departments (assigned + tagged, EXCLUDING origin department unless emergency)
     const authorizedDepts = useMemo(() => {
         if (!issue) return [];
         const originDeptNorm = normalizeDepartment(issue.department).toLowerCase();
+
+        if (isAllAssigned || isEmergency) {
+            return ALL_DEPARTMENTS.filter(d => isEmergency || normalizeDepartment(d).toLowerCase() !== originDeptNorm);
+        }
+
         return [...new Set([...assignedList, ...taggedList])]
             .filter(Boolean)
-            .filter(d => normalizeDepartment(d).toLowerCase() !== originDeptNorm);
-    }, [issue, assignedList, taggedList]);
+            .filter(d => isEmergency || normalizeDepartment(d).toLowerCase() !== originDeptNorm);
+    }, [issue, assignedList, taggedList, isAllAssigned, isEmergency]);
 
     const staffForSelectedDept = useMemo(() => {
         if (!selectedDept) return [];
@@ -108,7 +153,10 @@ export function ResolveIssueSheet({ issue, onClose, onEdit }) {
             setIsPendingMode(false);
             if (isDeptUser && department) {
                 setSelectedDept(department);
-                setSelectedStaff(staffName || issue.taker || '');
+                const defaultStaff = isClaimant 
+                    ? (staffName || user?.staff_name || user?.name || issue.taker)
+                    : (staffName || issue.taker || '');
+                setSelectedStaff(defaultStaff);
             } else {
                 setSelectedDept('');
                 setSelectedStaff(issue.taker ?? '');
@@ -120,7 +168,7 @@ export function ResolveIssueSheet({ issue, onClose, onEdit }) {
             setIsSubmitting(false);
             setPreviewImage(null);
         }
-    }, [issue, isDeptUser, department, staffName]);
+    }, [issue, isDeptUser, department, staffName, user, isClaimant]);
 
     useEffect(() => {
         setNotifiedEmptySuccess(false);

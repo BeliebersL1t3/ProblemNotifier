@@ -767,7 +767,8 @@ class IssueController extends Controller
                                 : (!empty($latestRow[21]) ? array_map('trim', explode(',', $latestRow[21])) : []);
                             $taggedDepts = !empty($latestRow[21]) ? array_map('trim', explode(',', $latestRow[21])) : [];
                             $allScopes = array_map('strtolower', array_merge($assignedDepts, $taggedDepts, [$safeDept]));
-                            $takerHasTransferred = !in_array(strtolower($takerCurrentDept), $allScopes);
+                            $isAssignedToAll = in_array('all', $allScopes) || empty($assignedDepts);
+                            $takerHasTransferred = !$isAssignedToAll && !in_array(strtolower($takerCurrentDept), $allScopes);
                         }
                     }
 

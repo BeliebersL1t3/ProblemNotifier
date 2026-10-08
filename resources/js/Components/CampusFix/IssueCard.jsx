@@ -60,7 +60,7 @@ function formatDate(ts) {
 export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, density = '3', isHighlighted = false }) {
     const [selectedDelay, setSelectedDelay] = useState(null);
     const [previewImage, setPreviewImage] = useState(null);
-    const { isAdmin, isDeptUser, department, activeStaffRoster } = useAuth();
+    const { isAdmin, isDeptUser, department, activeStaffRoster, staffName, user } = useAuth();
     const { lang } = useLanguage();
 
     const isArchived = Boolean(issue?.isArchived || issue?.statusDisplay === '0' || issue?.displayStatus === '0');
@@ -75,20 +75,35 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
     const solverDept = normalizeDepartment(getDepartmentForStaff(issue?.solver, issue));
     const assignedList = safeArray(issue?.assignedDepartments);
     const assignedDeptsNormalized = assignedList.map(normalizeDepartment);
+    const isAllAssigned = assignedList.length === 0 || assignedList.some(d => String(d).trim().toUpperCase() === 'ALL');
+    const isIssueEmergency = (issue?.category || '').toLowerCase() === 'emergency' || String(issue?.id || '').startsWith('SOS');
 
-    const canEditReport = isAdmin || (isDeptUser && userDept && userDept === originDept);
+    // Robust claimant check including WhatsApp formats:
+    const isClaimant = Boolean(
+        staffName && issue?.taker && (
+            String(issue.taker).replace(/\s*\(?via\s+whatsapp\)?/gi, '').replace(/\s*\([^)]*\)/g, '').trim().toLowerCase() === staffName.trim().toLowerCase() ||
+            String(issue.taker).toLowerCase().includes(staffName.toLowerCase())
+        )
+    );
+
+    const canEditReport = isAdmin || (isDeptUser && userDept && (userDept === originDept || isIssueEmergency));
     const canEditClaim = isAdmin || (isDeptUser && userDept && (
+        isClaimant ||
         (takerDept && userDept === takerDept) || 
-        (!issue?.taker && assignedDeptsNormalized.includes(userDept)) ||
-        (issue?.takerHasTransferred && assignedDeptsNormalized.includes(userDept))
+        (!issue?.taker && (assignedDeptsNormalized.includes(userDept) || isAllAssigned || isIssueEmergency)) ||
+        (issue?.takerHasTransferred && (assignedDeptsNormalized.includes(userDept) || isAllAssigned || isIssueEmergency))
     ));
     const canEditPending = isAdmin || (isDeptUser && userDept && (
+        isClaimant ||
         (pendingDept && userDept === pendingDept) ||
-        (!issue?.pendingBy && assignedDeptsNormalized.includes(userDept))
+        (!issue?.pendingBy && (assignedDeptsNormalized.includes(userDept) || isAllAssigned || isIssueEmergency))
     ));
     const canEditSolved = isAdmin || (isDeptUser && userDept && (
+        isClaimant ||
         (solverDept && userDept === solverDept) ||
-        assignedDeptsNormalized.includes(userDept)
+        assignedDeptsNormalized.includes(userDept) ||
+        isAllAssigned ||
+        isIssueEmergency
     ));
 
     const isPastContribution = Boolean(issue?._isPastContribution);
