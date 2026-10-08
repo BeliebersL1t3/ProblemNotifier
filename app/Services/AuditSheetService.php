@@ -170,19 +170,145 @@ class AuditSheetService
         ];
     }
 
+    private array $sheetCache = [];
+
     /**
-     * Ensure headers and styling on the target spreadsheet.
+     * Map Carbon/string date to Indonesian abbreviated month name tab (e.g. "Okt 2026").
      */
-    public function ensureHeaderAndStyling(): void
+    public static function getSheetTitleForDate(?string $dateString = null): string
+    {
+        $carbon = $dateString 
+            ? Carbon::parse($dateString)->setTimezone('Asia/Jakarta') 
+            : Carbon::now('Asia/Jakarta');
+
+        $monthNum = (int) $carbon->format('n');
+        $year = $carbon->format('Y');
+
+        $months = [
+            1 => 'Jan', 2 => 'Feb', 3 => 'Mar', 4 => 'Apr', 5 => 'Mei', 6 => 'Jun',
+            7 => 'Jul', 8 => 'Agu', 9 => 'Sep', 10 => 'Okt', 11 => 'Nov', 12 => 'Des'
+        ];
+
+        $mName = $months[$monthNum] ?? $carbon->format('M');
+        return "{$mName} {$year}";
+    }
+
+    /**
+     * Retrieve and cache current sheet titles and IDs from the spreadsheet.
+     *
+     * @return array<string, int> [sheetTitle => sheetId]
+     */
+    private function getSpreadsheetSheets(): array
     {
         try {
             $service = $this->getSheetsService();
             $spreadsheet = $service->spreadsheets->get($this->spreadsheetId);
-            $sheetId = $spreadsheet->getSheets()[0]->getProperties()->getSheetId() ?? 0;
-            $sheetTitle = $spreadsheet->getSheets()[0]->getProperties()->getTitle() ?? 'Sheet1';
+            $sheetsMap = [];
 
-            // 1. Write Header row values
-            $headerRange = "{$sheetTitle}!A1:G1";
+            foreach ($spreadsheet->getSheets() as $sheet) {
+                $props = $sheet->getProperties();
+                if ($props) {
+                    $sheetsMap[$props->getTitle()] = (int) $props->getSheetId();
+                }
+            }
+
+            $this->sheetCache = $sheetsMap;
+            return $sheetsMap;
+        } catch (\Throwable $e) {
+            Log::warning('AuditSheetService: failed to get sheets metadata: ' . $e->getMessage());
+            return $this->sheetCache;
+        }
+    }
+
+    /**
+     * Ensure a specific monthly tab exists in the spreadsheet.
+     * If 'Sheet1' is present, rename it to $sheetTitle. Otherwise, create a new sheet tab.
+     */
+    public function ensureSheetExists(string $sheetTitle): int
+    {
+        if (empty($this->sheetCache)) {
+            $this->getSpreadsheetSheets();
+        }
+
+        // 1. If tab already exists, return its sheetId
+        if (isset($this->sheetCache[$sheetTitle])) {
+            return $this->sheetCache[$sheetTitle];
+        }
+
+        $service = $this->getSheetsService();
+
+        // 2. If default 'Sheet1' exists, rename it to the target monthly title
+        if (isset($this->sheetCache['Sheet1'])) {
+            try {
+                $sheet1Id = $this->sheetCache['Sheet1'];
+                $renameRequest = new Request([
+                    'updateSheetProperties' => [
+                        'properties' => [
+                            'sheetId' => $sheet1Id,
+                            'title'   => $sheetTitle,
+                        ],
+                        'fields' => 'title',
+                    ],
+                ]);
+
+                $batchUpdate = new BatchUpdateSpreadsheetRequest(['requests' => [$renameRequest]]);
+                $service->spreadsheets->batchUpdate($this->spreadsheetId, $batchUpdate);
+
+                unset($this->sheetCache['Sheet1']);
+                $this->sheetCache[$sheetTitle] = $sheet1Id;
+
+                $this->ensureHeaderAndStyling($sheet1Id, $sheetTitle);
+                return $sheet1Id;
+            } catch (\Throwable $e) {
+                Log::warning("AuditSheetService: failed to rename Sheet1 to '{$sheetTitle}': " . $e->getMessage());
+            }
+        }
+
+        // 3. Otherwise, create a new sheet tab with $sheetTitle
+        try {
+            $addSheetRequest = new Request([
+                'addSheet' => [
+                    'properties' => [
+                        'title' => $sheetTitle,
+                    ],
+                ],
+            ]);
+
+            $batchUpdate = new BatchUpdateSpreadsheetRequest(['requests' => [$addSheetRequest]]);
+            $response = $service->spreadsheets->batchUpdate($this->spreadsheetId, $batchUpdate);
+
+            $newSheetId = (int) $response->getReplies()[0]->getAddSheet()->getProperties()->getSheetId();
+            $this->sheetCache[$sheetTitle] = $newSheetId;
+
+            $this->ensureHeaderAndStyling($newSheetId, $sheetTitle);
+            return $newSheetId;
+        } catch (\Throwable $e) {
+            Log::warning("AuditSheetService: failed to add sheet '{$sheetTitle}': " . $e->getMessage());
+            return $this->sheetCache[$sheetTitle] ?? 0;
+        }
+    }
+
+    /**
+     * Ensure headers and styling on the specific monthly sheet tab.
+     */
+    public function ensureHeaderAndStyling(?int $sheetId = null, ?string $sheetTitle = null): void
+    {
+        try {
+            $service = $this->getSheetsService();
+
+            if ($sheetTitle === null) {
+                $sheetTitle = self::getSheetTitleForDate();
+            }
+
+            if ($sheetId === null) {
+                if (empty($this->sheetCache)) {
+                    $this->getSpreadsheetSheets();
+                }
+                $sheetId = $this->sheetCache[$sheetTitle] ?? 0;
+            }
+
+            // 1. Write Header row values: 'Okt 2026'!A1:G1
+            $headerRange = "'{$sheetTitle}'!A1:G1";
             $valueRange = new ValueRange([
                 'values' => [self::getHeaders()],
             ]);
@@ -333,7 +459,7 @@ class AuditSheetService
     }
 
     /**
-     * Format a decorative monthly divider row for Google Sheets.
+     * Format a decorative monthly divider row (kept for utility/backward compatibility).
      */
     public static function formatMonthSeparator(string $monthKey): array
     {
@@ -352,144 +478,107 @@ class AuditSheetService
     }
 
     /**
-     * Real-time append single log to sheet. Non-blocking & silent on failure.
+     * Real-time append single log to its respective monthly sheet tab. Non-blocking & silent on failure.
      */
     public function appendLog(UserAuditLog $log): bool
     {
         try {
             $service = $this->getSheetsService();
+            $sheetTitle = self::getSheetTitleForDate($log->created_at ? (string) $log->created_at : null);
 
-            // Check if this log initiates a new month compared to the preceding log
-            $prevLog = UserAuditLog::where('id', '<', $log->id)->latest('id')->first();
-            $logMonth = $log->created_at 
-                ? Carbon::parse($log->created_at)->setTimezone('Asia/Jakarta')->format('Y-m') 
-                : null;
-            $prevMonth = ($prevLog && $prevLog->created_at)
-                ? Carbon::parse($prevLog->created_at)->setTimezone('Asia/Jakarta')->format('Y-m')
-                : null;
+            // Ensure the monthly sheet exists and is styled
+            $this->ensureSheetExists($sheetTitle);
 
-            $rowsToAppend = [];
-            if ($logMonth && $logMonth !== $prevMonth) {
-                $rowsToAppend[] = self::formatMonthSeparator($logMonth);
-            }
-            $rowsToAppend[] = self::formatRow($log);
+            $rowsToAppend = [self::formatRow($log)];
 
             $valueRange = new ValueRange(['values' => $rowsToAppend]);
-            $service->spreadsheets_values->append($this->spreadsheetId, 'Sheet1!A:G', $valueRange, [
+            $service->spreadsheets_values->append($this->spreadsheetId, "'{$sheetTitle}'!A:G", $valueRange, [
                 'valueInputOption' => 'USER_ENTERED',
                 'insertDataOption' => 'INSERT_ROWS',
             ]);
 
             return true;
         } catch (\Throwable $e) {
-            Log::warning("AuditSheetService: failed to append log #{$log->id}: " . $e->getMessage());
+            Log::warning("AuditSheetService: failed to append log #{$log->id} to '{$sheetTitle}': " . $e->getMessage());
             return false;
         }
     }
 
     /**
-     * Full synchronization: rewrite all logs to the Google Sheet cleanly with monthly dividers.
+     * Full synchronization: rewrite all logs cleanly distributed into their respective monthly sheets.
      */
     public function syncAllLogs(): array
     {
         $service = $this->getSheetsService();
-        $spreadsheet = $service->spreadsheets->get($this->spreadsheetId);
-        $sheetId = $spreadsheet->getSheets()[0]->getProperties()->getSheetId() ?? 0;
-        $sheetTitle = $spreadsheet->getSheets()[0]->getProperties()->getTitle() ?? 'Sheet1';
 
-        // 1. Clear existing sheet values
-        try {
-            $service->spreadsheets_values->clear($this->spreadsheetId, "{$sheetTitle}!A:Z", new ClearValuesRequest());
-        } catch (\Throwable $e) {
-            Log::warning("AuditSheetService: error clearing sheet: " . $e->getMessage());
-        }
-
-        // 2. Setup Headers & Layout Styling
-        $this->ensureHeaderAndStyling();
-
-        // 3. Fetch all logs ordered chronologically
+        // 1. Fetch all logs ordered chronologically
         $logs = UserAuditLog::with(['admin', 'targetUser'])->orderBy('id', 'asc')->get();
 
-        $rows = [];
-        $separatorRowIndices = [];
-        $currentMonth = null;
+        // 2. Group logs by monthly tab title (e.g. "Okt 2026")
+        $grouped = $logs->groupBy(function ($log) {
+            return self::getSheetTitleForDate($log->created_at ? (string) $log->created_at : null);
+        });
 
-        foreach ($logs as $log) {
-            $logMonth = $log->created_at 
-                ? Carbon::parse($log->created_at)->setTimezone('Asia/Jakarta')->format('Y-m') 
-                : null;
+        // If no logs, ensure at least current month sheet exists
+        if ($grouped->isEmpty()) {
+            $currentTitle = self::getSheetTitleForDate();
+            $sheetId = $this->ensureSheetExists($currentTitle);
+            $this->ensureHeaderAndStyling($sheetId, $currentTitle);
 
-            if ($logMonth && $logMonth !== $currentMonth) {
-                $currentMonth = $logMonth;
-                // Row index for separator: row 0 is header, next row will be count($rows) + 1 (0-based)
-                $separatorRowIndices[] = count($rows) + 1;
-                $rows[] = self::formatMonthSeparator($logMonth);
-            }
-
-            $rows[] = self::formatRow($log);
+            return [
+                'success'   => true,
+                'count'     => 0,
+                'sheet_url' => $this->getSpreadsheetUrl(),
+                'message'   => 'Belum ada data riwayat audit untuk disinkronkan.',
+            ];
         }
 
-        if (count($rows) > 0) {
-            $range = "{$sheetTitle}!A2:G" . (count($rows) + 1);
-            $valueRange = new ValueRange(['values' => $rows]);
-            $service->spreadsheets_values->update($this->spreadsheetId, $range, $valueRange, [
-                'valueInputOption' => 'USER_ENTERED',
-            ]);
+        $totalRowsSynced = 0;
+        $syncedSheets = [];
 
-            // 4. Style separator rows with prominent gold/charcoal background
-            if (!empty($separatorRowIndices)) {
-                try {
-                    $styleRequests = [];
-                    foreach ($separatorRowIndices as $rowIndex) {
-                        $styleRequests[] = new Request([
-                            'repeatCell' => [
-                                'range' => [
-                                    'sheetId'          => $sheetId,
-                                    'startRowIndex'    => $rowIndex,
-                                    'endRowIndex'      => $rowIndex + 1,
-                                    'startColumnIndex' => 0,
-                                    'endColumnIndex'   => 7,
-                                ],
-                                'cell' => [
-                                    'userEnteredFormat' => [
-                                        'backgroundColor' => [
-                                            'red'   => 0.231,
-                                            'green' => 0.224,
-                                            'blue'  => 0.161,
-                                        ],
-                                        'textFormat' => [
-                                            'foregroundColor' => [
-                                                'red'   => 0.788,
-                                                'green' => 0.667,
-                                                'blue'  => 0.443,
-                                            ],
-                                            'fontSize' => 9,
-                                            'bold'     => true,
-                                        ],
-                                        'horizontalAlignment' => 'LEFT',
-                                        'verticalAlignment'   => 'MIDDLE',
-                                    ],
-                                ],
-                                'fields' => 'userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,verticalAlignment)',
-                            ],
-                        ]);
-                    }
+        foreach ($grouped as $sheetTitle => $monthLogs) {
+            // Ensure monthly sheet tab exists and is formatted
+            $sheetId = $this->ensureSheetExists($sheetTitle);
 
-                    $batchRequest = new BatchUpdateSpreadsheetRequest([
-                        'requests' => $styleRequests,
-                    ]);
-                    $service->spreadsheets->batchUpdate($this->spreadsheetId, $batchRequest);
-                } catch (\Throwable $e) {
-                    Log::warning("AuditSheetService: failed to apply separator styling: " . $e->getMessage());
-                }
+            // Clear previous records in this sheet (from row 2 downwards)
+            try {
+                $service->spreadsheets_values->clear(
+                    $this->spreadsheetId,
+                    "'{$sheetTitle}'!A2:Z",
+                    new ClearValuesRequest()
+                );
+            } catch (\Throwable $e) {
+                Log::warning("AuditSheetService: error clearing '{$sheetTitle}': " . $e->getMessage());
+            }
+
+            // Ensure header row is intact
+            $this->ensureHeaderAndStyling($sheetId, $sheetTitle);
+
+            // Build rows
+            $rows = [];
+            foreach ($monthLogs as $log) {
+                $rows[] = self::formatRow($log);
+            }
+
+            if (!empty($rows)) {
+                $range = "'{$sheetTitle}'!A2:G" . (count($rows) + 1);
+                $valueRange = new ValueRange(['values' => $rows]);
+                $service->spreadsheets_values->update($this->spreadsheetId, $range, $valueRange, [
+                    'valueInputOption' => 'USER_ENTERED',
+                ]);
+
+                $totalRowsSynced += count($rows);
+                $syncedSheets[] = $sheetTitle;
             }
         }
+
+        $sheetsListStr = implode(', ', $syncedSheets);
 
         return [
             'success'   => true,
-            'count'     => count($rows),
+            'count'     => $totalRowsSynced,
             'sheet_url' => $this->getSpreadsheetUrl(),
-            'message'   => 'Berhasil menyinkronkan ' . count($rows) . ' data riwayat audit dengan pembatas bulanan ke Google Spreadsheet.',
+            'message'   => "Berhasil menyinkronkan {$totalRowsSynced} data audit ke dalam " . count($syncedSheets) . " tab bulanan ({$sheetsListStr}) di Google Spreadsheet.",
         ];
     }
 }
