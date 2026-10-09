@@ -22,38 +22,54 @@ import { useLanguage } from '@/context/LanguageContext';
 import { 
     Loader2, Download, FileText, ChevronDown, Layers, Wrench, Send, AtSign, Globe,
     Mail, Check, CheckCircle2, AlertCircle, X, Users, User, Plus, Sparkles,
-    FileSpreadsheet, Table
+    FileSpreadsheet, Table, Search, SlidersHorizontal, Building, Building2, Droplets,
+    Zap, Bug, Monitor, Anchor, ShieldAlert, UserRound, HelpCircle, AlertTriangle,
+    Calendar, Filter, RotateCcw
 } from 'lucide-react';
 import { normalizeDepartment } from '@/constants/staff';
 import { formatDurationLabel } from '@/lib/duration';
 import { generateExcelReport } from '@/utils/excelExporter';
-
-// Mobile-friendly collapsible section
-function CollapsibleSection({ label, toggleLabel, onToggleAll, children, defaultOpen = true }) {
-    const [open, setOpen] = useState(defaultOpen);
-    return (
-        <div className="grid gap-2">
-            <div className="flex items-center justify-between">
-                <button
-                    type="button"
-                    className="flex items-center gap-1 text-sm font-semibold text-foreground"
-                    onClick={() => setOpen(o => !o)}
-                >
-                    <ChevronDown className={`h-4 w-4 transition-transform ${open ? '' : '-rotate-90'}`} />
-                    {label}
-                </button>
-                {toggleLabel && onToggleAll && (
-                    <button type="button" onClick={onToggleAll} className="text-xs text-primary hover:underline">
-                        {toggleLabel}
-                    </button>
-                )}
-            </div>
-            {open && children}
-        </div>
-    );
-}
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+
+const STATUS_ITEMS = [
+    { id: 'open',     label: 'Open',        color: 'bg-red-500',    borderActive: 'border-red-500/60',    textActive: 'text-red-400' },
+    { id: 'progress', label: 'In Progress', color: 'bg-blue-500',   borderActive: 'border-blue-500/60',   textActive: 'text-blue-400' },
+    { id: 'pending',  label: 'Pending',     color: 'bg-amber-500',  borderActive: 'border-amber-500/60',  textActive: 'text-amber-400' },
+    { id: 'solved',   label: 'Solved',      color: 'bg-emerald-500',borderActive: 'border-emerald-500/60',textActive: 'text-emerald-400' },
+];
+
+const getCategoryIcon = (catId) => {
+    switch (catId) {
+        case 'emergency': return AlertTriangle;
+        case 'broken': return Wrench;
+        case 'plumbing': return Droplets;
+        case 'electrical': return Zap;
+        case 'structural': return Building2;
+        case 'pest-hygiene': return Bug;
+        case 'it-technology': return Monitor;
+        case 'marine-outdoor': return Anchor;
+        case 'safety-hazard': return ShieldAlert;
+        case 'guest-issues': return UserRound;
+        default: return HelpCircle;
+    }
+};
+
+const getCategoryColor = (catId) => {
+    switch (catId) {
+        case 'emergency': return 'text-red-400';
+        case 'broken': return 'text-amber-400';
+        case 'plumbing': return 'text-blue-400';
+        case 'electrical': return 'text-yellow-400';
+        case 'structural': return 'text-stone-400';
+        case 'pest-hygiene': return 'text-emerald-400';
+        case 'it-technology': return 'text-violet-400';
+        case 'marine-outdoor': return 'text-cyan-400';
+        case 'safety-hazard': return 'text-rose-400';
+        case 'guest-issues': return 'text-pink-400';
+        default: return 'text-muted-foreground';
+    }
+};
 
 const LIMITS = [
     5, 10, 15, 20, 25, 30, 35, 40, 45, 50,
@@ -125,6 +141,23 @@ export function ExportPdfModal({ open, onOpenChange }) {
         'HK', 'F&B', 'Service', 'Bar', 'GR', 'Spa', 'TiRek', 'OE', 
         'IT', 'Procurement', 'Sales/Marketing', 'Reservasi', 'Finance'
     ];
+
+    const [categorySearch, setCategorySearch] = useState('');
+    const [deptSearch, setDeptSearch] = useState('');
+    const [isCategoriesOpen, setIsCategoriesOpen] = useState(false);
+    const [isDeptsOpen, setIsDeptsOpen] = useState(false);
+
+    const filteredCategories = useMemo(() => {
+        if (!categorySearch.trim()) return categories;
+        const q = categorySearch.toLowerCase().trim();
+        return categories.filter(c => (c.label || c.id || '').toLowerCase().includes(q));
+    }, [categories, categorySearch]);
+
+    const filteredDepts = useMemo(() => {
+        if (!deptSearch.trim()) return DEPARTMENTS;
+        const q = deptSearch.toLowerCase().trim();
+        return DEPARTMENTS.filter(d => d.toLowerCase().includes(q));
+    }, [deptSearch]);
     
     // Store logo in ref to avoid re-fetching
     const logoImgRef = useRef(null);
@@ -1003,17 +1036,41 @@ export function ExportPdfModal({ open, onOpenChange }) {
                 <div className="flex-1 min-h-0 flex flex-col gap-4 py-4 overflow-y-auto md:grid md:grid-cols-[340px_1fr] md:overflow-hidden">
 
                     {/* LEFT COLUMN: Controls */}
-                    <div className="flex flex-col gap-5 md:overflow-y-auto pr-2">
+                    <div className="flex flex-col gap-4 md:overflow-y-auto pr-2">
+                        {/* Filter Section Header with Quick Reset */}
+                        <div className="flex items-center justify-between pb-1 border-b border-[#3B3929]/50">
+                            <div className="flex items-center gap-1.5 text-xs font-bold text-[#E3D1AA] uppercase tracking-wider">
+                                <Filter className="w-3.5 h-3.5 text-[#C9AA71]" />
+                                <span>Filter Laporan</span>
+                            </div>
+                            {(selectedStatuses.length < 4 || selectedCategories.length < categories.length || limit !== 'All' || (isAdmin && selectedDepartments.length < DEPARTMENTS.length)) && (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setSelectedStatuses(['open', 'progress', 'pending', 'solved']);
+                                        setSelectedCategories(categories.map(c => c.id));
+                                        setSelectedDepartments([...DEPARTMENTS]);
+                                        setDeptFilterMode(isAdmin ? 'all' : 'my_scope');
+                                        setLimit('All');
+                                    }}
+                                    className="text-[11px] text-[#C9AA71] hover:underline flex items-center gap-1 font-medium transition-colors"
+                                >
+                                    <RotateCcw className="w-3 h-3" />
+                                    <span>Reset</span>
+                                </button>
+                            )}
+                        </div>
+
                         {/* Row Limit */}
-                        <div className="grid gap-2">
-                            <label className="text-sm font-semibold">Row Limit</label>
+                        <div className="grid gap-1.5">
+                            <label className="text-xs font-semibold text-[#E3D1AA]">Batas Baris (Row Limit)</label>
                             <Select value={limit.toString()} onValueChange={setLimit}>
-                                <SelectTrigger>
+                                <SelectTrigger className="h-9 bg-[#2A281E] border-[#3B3929] text-xs font-medium">
                                     <SelectValue placeholder="Select limit" />
                                 </SelectTrigger>
-                                <SelectContent className="max-h-64">
+                                <SelectContent className="max-h-64 bg-[#1C1B0E] border-[#3B3929]">
                                     {LIMITS.map(l => (
-                                        <SelectItem key={l} value={l.toString()}>
+                                        <SelectItem key={l} value={l.toString()} className="text-xs">
                                             {l === 'All' ? 'Export All Records' : `First ${l} Records`}
                                         </SelectItem>
                                     ))}
@@ -1021,201 +1078,387 @@ export function ExportPdfModal({ open, onOpenChange }) {
                             </Select>
                         </div>
 
-                        {/* Periods — pill buttons */}
+                        {/* Periods — sleek compact tags */}
                         {availableSheets.length > 0 && (
-                            <div className="grid gap-2">
+                            <div className="space-y-1.5">
                                 <div className="flex items-center justify-between">
-                                    <label className="text-sm font-semibold">Include Periods</label>
-                                    <button type="button" onClick={() => {
-                                        if (selectedSheets.length === availableSheets.length) setSelectedSheets([]);
-                                        else setSelectedSheets([...availableSheets]);
-                                    }} className="text-xs text-primary hover:underline">Toggle All</button>
+                                    <label className="text-xs font-semibold text-[#E3D1AA] flex items-center gap-1.5">
+                                        <Calendar className="w-3.5 h-3.5 text-[#C9AA71]" />
+                                        <span>Periode ({selectedSheets.length}/{availableSheets.length})</span>
+                                    </label>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            if (selectedSheets.length === availableSheets.length) setSelectedSheets([]);
+                                            else setSelectedSheets([...availableSheets]);
+                                        }}
+                                        className="text-[11px] text-[#C9AA71] hover:underline font-medium"
+                                    >
+                                        {selectedSheets.length === availableSheets.length ? 'Clear' : 'Select All'}
+                                    </button>
                                 </div>
-                                <div className="flex flex-wrap gap-2">
-                                    {availableSheets.map(sheet => (
-                                        <button
-                                            key={sheet}
-                                            type="button"
-                                            onClick={() => {
-                                                setSelectedSheets(prev =>
-                                                    prev.includes(sheet) ? prev.filter(s => s !== sheet) : [...prev, sheet]
-                                                );
-                                            }}
-                                            className={`px-3 py-1.5 text-xs font-semibold rounded-full border transition-colors ${
-                                                selectedSheets.includes(sheet)
-                                                    ? 'bg-primary text-primary-foreground border-primary'
-                                                    : 'bg-surface text-muted-foreground border-border hover:border-primary/50'
-                                            }`}
-                                        >
-                                            {sheet}
-                                        </button>
-                                    ))}
+                                <div className="flex flex-wrap gap-1.5">
+                                    {availableSheets.map(sheet => {
+                                        const isSelected = selectedSheets.includes(sheet);
+                                        return (
+                                            <button
+                                                key={sheet}
+                                                type="button"
+                                                onClick={() => {
+                                                    setSelectedSheets(prev =>
+                                                        prev.includes(sheet) ? prev.filter(s => s !== sheet) : [...prev, sheet]
+                                                    );
+                                                }}
+                                                className={`px-3 py-1 text-xs font-semibold rounded-lg border transition-all flex items-center gap-1.5 ${
+                                                    isSelected
+                                                        ? 'bg-[#C9AA71] text-[#1C1B0E] border-[#C9AA71] shadow-xs'
+                                                        : 'bg-[#2A281E] text-muted-foreground border-[#3B3929] hover:border-[#C9AA71]/40 hover:text-foreground'
+                                                }`}
+                                            >
+                                                <span>{sheet}</span>
+                                            </button>
+                                        );
+                                    })}
                                 </div>
                             </div>
                         )}
 
-                        {/* Statuses — pill buttons */}
-                        <div className="grid gap-2">
+                        {/* Statuses — Modern 2x2 Toggle Grid */}
+                        <div className="space-y-1.5">
                             <div className="flex items-center justify-between">
-                                <label className="text-sm font-semibold">Include Statuses</label>
-                                <button type="button" onClick={toggleAllStatuses} className="text-xs text-primary hover:underline">Toggle All</button>
+                                <label className="text-xs font-semibold text-[#E3D1AA] flex items-center gap-1.5">
+                                    <span className="w-2 h-2 rounded-full bg-[#C9AA71]" />
+                                    <span>Status ({selectedStatuses.length}/4)</span>
+                                </label>
+                                <button
+                                    type="button"
+                                    onClick={toggleAllStatuses}
+                                    className="text-[11px] text-[#C9AA71] hover:underline font-medium"
+                                >
+                                    {selectedStatuses.length === 4 ? 'Clear' : 'Select All'}
+                                </button>
                             </div>
-                            <div className="flex flex-wrap gap-2">
-                                {[
-                                    { id: 'open',     label: 'Open' },
-                                    { id: 'progress', label: 'In Progress' },
-                                    { id: 'pending',  label: 'Pending' },
-                                    { id: 'solved',   label: 'Solved' },
-                                ].map(status => (
-                                    <button
-                                        key={status.id}
-                                        type="button"
-                                        onClick={() => handleStatusToggle(status.id)}
-                                        className={`px-3 py-1.5 text-xs font-semibold rounded-full border transition-colors ${
-                                            selectedStatuses.includes(status.id)
-                                                ? 'bg-primary text-primary-foreground border-primary'
-                                                : 'bg-surface text-muted-foreground border-border hover:border-primary/50'
-                                        }`}
-                                    >
-                                        {status.label}
-                                    </button>
-                                ))}
+                            <div className="grid grid-cols-2 gap-1.5">
+                                {STATUS_ITEMS.map(status => {
+                                    const isSelected = selectedStatuses.includes(status.id);
+                                    return (
+                                        <button
+                                            key={status.id}
+                                            type="button"
+                                            onClick={() => handleStatusToggle(status.id)}
+                                            className={`flex items-center justify-between px-2.5 py-2 rounded-xl border text-xs font-semibold transition-all ${
+                                                isSelected
+                                                    ? `bg-[#2A281E] ${status.borderActive} text-foreground shadow-xs ring-1 ring-white/5`
+                                                    : 'bg-[#1C1B0E]/60 border-[#3B3929]/70 text-muted-foreground/60 hover:border-[#3B3929] hover:text-muted-foreground'
+                                            }`}
+                                        >
+                                            <div className="flex items-center gap-2 min-w-0">
+                                                <span className={`w-2 h-2 rounded-full shrink-0 ${status.color} ${isSelected ? 'ring-2 ring-white/20' : 'opacity-40'}`} />
+                                                <span className="truncate">{status.label}</span>
+                                            </div>
+                                            {isSelected ? (
+                                                <Check className="w-3.5 h-3.5 text-[#C9AA71] shrink-0 ml-1" />
+                                            ) : (
+                                                <span className="w-3.5 h-3.5 shrink-0" />
+                                            )}
+                                        </button>
+                                    );
+                                })}
                             </div>
                         </div>
 
-                        {/* Categories — collapsible pill section */}
-                        <CollapsibleSection
-                            label="Include Categories"
-                            toggleLabel="Toggle All"
-                            onToggleAll={toggleAllCategories}
-                            defaultOpen={true}
-                        >
-                            <div className="flex flex-wrap gap-2">
-                                {categories.map(cat => (
-                                    <button
-                                        key={cat.id}
-                                        type="button"
-                                        onClick={() => handleCategoryToggle(cat.id)}
-                                        className={`px-3 py-1.5 text-xs font-semibold rounded-full border transition-colors ${
-                                            selectedCategories.includes(cat.id)
-                                                ? 'bg-primary text-primary-foreground border-primary'
-                                                : 'bg-surface text-muted-foreground border-border hover:border-primary/50'
-                                        }`}
-                                    >
-                                        {cat.label}
-                                    </button>
-                                ))}
-                            </div>
-                        </CollapsibleSection>
+                        {/* Categories — Collapsible & Searchable Selector */}
+                        <div className="rounded-xl border border-[#3B3929] bg-[#2A281E]/60 overflow-hidden transition-all">
+                            <button
+                                type="button"
+                                onClick={() => setIsCategoriesOpen(prev => !prev)}
+                                className="w-full flex items-center justify-between p-2.5 text-xs font-semibold text-foreground hover:bg-[#343226]/50 transition-colors"
+                            >
+                                <div className="flex items-center gap-2">
+                                    <SlidersHorizontal className="w-3.5 h-3.5 text-[#C9AA71]" />
+                                    <span>Kategori Masalah</span>
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                                        selectedCategories.length === categories.length
+                                            ? 'bg-[#C9AA71]/20 text-[#C9AA71]'
+                                            : selectedCategories.length === 0
+                                                ? 'bg-red-500/20 text-red-400'
+                                                : 'bg-[#C9AA71] text-[#1C1B0E]'
+                                    }`}>
+                                        {selectedCategories.length === categories.length ? `Semua (${categories.length})` : `${selectedCategories.length}/${categories.length}`}
+                                    </span>
+                                    <ChevronDown className={`w-3.5 h-3.5 text-muted-foreground transition-transform duration-200 ${isCategoriesOpen ? 'rotate-180' : ''}`} />
+                                </div>
+                            </button>
 
-                        {/* Departments — with Scope Presets & Active counts */}
-                        <CollapsibleSection
-                            label="Department Scope & Filters"
-                            toggleLabel={isAdmin ? "Toggle All" : undefined}
-                            onToggleAll={isAdmin ? toggleAllDepartments : undefined}
-                            defaultOpen={true}
-                        >
+                            {isCategoriesOpen && (
+                                <div className="p-2.5 pt-0 border-t border-[#3B3929]/50 space-y-2 mt-1">
+                                    {/* Search Input */}
+                                    <div className="relative mt-2">
+                                        <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                                        <input
+                                            type="text"
+                                            value={categorySearch}
+                                            onChange={(e) => setCategorySearch(e.target.value)}
+                                            placeholder="Cari kategori..."
+                                            className="w-full pl-8 pr-2 py-1 text-xs bg-[#1C1B0E] border border-[#3B3929] rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-[#C9AA71]"
+                                        />
+                                    </div>
+
+                                    {/* Quick Actions */}
+                                    <div className="flex items-center justify-between text-[11px] px-0.5">
+                                        <span className="text-muted-foreground">
+                                            {selectedCategories.length} terpilih
+                                        </span>
+                                        <button
+                                            type="button"
+                                            onClick={toggleAllCategories}
+                                            className="text-[#C9AA71] hover:underline font-medium"
+                                        >
+                                            {selectedCategories.length === categories.length ? 'Hapus Semua' : 'Pilih Semua'}
+                                        </button>
+                                    </div>
+
+                                    {/* List */}
+                                    <div className="max-h-48 overflow-y-auto space-y-0.5 pr-0.5">
+                                        {filteredCategories.map(cat => {
+                                            const isSelected = selectedCategories.includes(cat.id);
+                                            const CatIcon = getCategoryIcon(cat.id);
+                                            const catColorClass = getCategoryColor(cat.id);
+
+                                            return (
+                                                <button
+                                                    key={cat.id}
+                                                    type="button"
+                                                    onClick={() => handleCategoryToggle(cat.id)}
+                                                    className={`w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-xs transition-colors ${
+                                                        isSelected
+                                                            ? 'bg-[#C9AA71]/15 text-foreground font-medium'
+                                                            : 'text-muted-foreground hover:bg-[#1C1B0E]/80 hover:text-foreground'
+                                                    }`}
+                                                >
+                                                    <div className="flex items-center gap-2 min-w-0">
+                                                        <CatIcon className={`w-3.5 h-3.5 shrink-0 ${catColorClass}`} />
+                                                        <span className="truncate">{cat.label}</span>
+                                                    </div>
+                                                    <div className={`w-4 h-4 rounded flex items-center justify-center border transition-all ${
+                                                        isSelected
+                                                            ? 'bg-[#C9AA71] border-[#C9AA71] text-[#1C1B0E]'
+                                                            : 'border-[#3B3929] bg-[#1C1B0E]'
+                                                    }`}>
+                                                        {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                                                    </div>
+                                                </button>
+                                            );
+                                        })}
+                                        {filteredCategories.length === 0 && (
+                                            <div className="text-center py-3 text-xs text-muted-foreground">
+                                                Tidak ada kategori ditemukan
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Department Scope & Filters */}
+                        <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                                <label className="text-xs font-semibold text-[#E3D1AA] flex items-center gap-1.5">
+                                    <Building className="w-3.5 h-3.5 text-[#C9AA71]" />
+                                    <span>Scope & Departemen</span>
+                                </label>
+                                {isAdmin && deptFilterMode === 'all' && (
+                                    <button
+                                        type="button"
+                                        onClick={toggleAllDepartments}
+                                        className="text-[11px] text-[#C9AA71] hover:underline font-medium"
+                                    >
+                                        {selectedDepartments.length === DEPARTMENTS.length ? 'Clear' : 'Select All'}
+                                    </button>
+                                )}
+                            </div>
+
                             {/* Quick Scope Presets */}
                             {userDept && (
-                                <div className="flex flex-wrap gap-1.5 pb-1">
+                                <div className="grid grid-cols-2 gap-1.5">
                                     {isAdmin && (
                                         <button
                                             type="button"
                                             onClick={() => { setDeptFilterMode('all'); setSelectedDepartments([...DEPARTMENTS]); }}
-                                            className={`px-2.5 py-1 text-xs font-semibold rounded-lg border transition-all flex items-center gap-1 ${
+                                            className={`px-2.5 py-1.5 text-xs font-semibold rounded-lg border transition-all flex items-center justify-center gap-1.5 ${
                                                 deptFilterMode === 'all'
-                                                    ? 'bg-[#C9AA71] text-[#1C1B0E] border-[#C9AA71] shadow-sm'
+                                                    ? 'bg-[#C9AA71] text-[#1C1B0E] border-[#C9AA71] shadow-xs'
                                                     : 'bg-[#2A281E] text-muted-foreground border-[#3B3929] hover:text-foreground'
                                             }`}
                                         >
-                                            <Globe className="w-3 h-3" />
+                                            <Globe className="w-3.5 h-3.5" />
                                             <span>All Scope</span>
                                         </button>
                                     )}
                                     <button
                                         type="button"
                                         onClick={() => setDeptFilterMode('my_scope')}
-                                        className={`px-2.5 py-1 text-xs font-semibold rounded-lg border transition-all flex items-center gap-1 ${
+                                        className={`px-2.5 py-1.5 text-xs font-semibold rounded-lg border transition-all flex items-center justify-center gap-1.5 ${
                                             deptFilterMode === 'my_scope'
-                                                ? 'bg-[#C9AA71] text-[#1C1B0E] border-[#C9AA71] shadow-sm'
+                                                ? 'bg-[#C9AA71] text-[#1C1B0E] border-[#C9AA71] shadow-xs'
                                                 : 'bg-[#2A281E] text-muted-foreground border-[#3B3929] hover:text-foreground'
                                         }`}
                                     >
-                                        <Layers className="w-3 h-3 text-amber-400" />
-                                        <span>My Scope ({auth?.user?.department || 'You'})</span>
+                                        <Layers className="w-3.5 h-3.5 text-amber-400" />
+                                        <span className="truncate">My Scope ({auth?.user?.department || 'You'})</span>
                                     </button>
                                     <button
                                         type="button"
                                         onClick={() => setDeptFilterMode('to_fix')}
-                                        className={`px-2.5 py-1 text-xs font-semibold rounded-lg border transition-all flex items-center gap-1 ${
+                                        className={`px-2.5 py-1.5 text-xs font-semibold rounded-lg border transition-all flex items-center justify-center gap-1.5 ${
                                             deptFilterMode === 'to_fix'
-                                                ? 'bg-[#C9AA71] text-[#1C1B0E] border-[#C9AA71] shadow-sm'
+                                                ? 'bg-[#C9AA71] text-[#1C1B0E] border-[#C9AA71] shadow-xs'
                                                 : 'bg-[#2A281E] text-muted-foreground border-[#3B3929] hover:text-foreground'
                                         }`}
                                     >
-                                        <Wrench className="w-3 h-3 text-blue-400" />
+                                        <Wrench className="w-3.5 h-3.5 text-blue-400" />
                                         <span>To Fix</span>
                                     </button>
                                     <button
                                         type="button"
                                         onClick={() => setDeptFilterMode('my_reports')}
-                                        className={`px-2.5 py-1 text-xs font-semibold rounded-lg border transition-all flex items-center gap-1 ${
+                                        className={`px-2.5 py-1.5 text-xs font-semibold rounded-lg border transition-all flex items-center justify-center gap-1.5 ${
                                             deptFilterMode === 'my_reports'
-                                                ? 'bg-[#C9AA71] text-[#1C1B0E] border-[#C9AA71] shadow-sm'
+                                                ? 'bg-[#C9AA71] text-[#1C1B0E] border-[#C9AA71] shadow-xs'
                                                 : 'bg-[#2A281E] text-muted-foreground border-[#3B3929] hover:text-foreground'
                                         }`}
                                     >
-                                        <Send className="w-3 h-3 text-purple-400" />
+                                        <Send className="w-3.5 h-3.5 text-purple-400" />
                                         <span>My Reports</span>
                                     </button>
                                     <button
                                         type="button"
                                         onClick={() => setDeptFilterMode('mentions')}
-                                        className={`px-2.5 py-1 text-xs font-semibold rounded-lg border transition-all flex items-center gap-1 ${
+                                        className={`px-2.5 py-1.5 text-xs font-semibold rounded-lg border transition-all flex items-center justify-center gap-1.5 ${
                                             deptFilterMode === 'mentions'
-                                                ? 'bg-[#C9AA71] text-[#1C1B0E] border-[#C9AA71] shadow-sm'
+                                                ? 'bg-[#C9AA71] text-[#1C1B0E] border-[#C9AA71] shadow-xs'
                                                 : 'bg-[#2A281E] text-muted-foreground border-[#3B3929] hover:text-foreground'
                                         }`}
                                     >
-                                        <AtSign className="w-3 h-3 text-pink-400" />
+                                        <AtSign className="w-3.5 h-3.5 text-pink-400" />
                                         <span>Mentions</span>
                                     </button>
                                 </div>
                             )}
 
-                            {/* Individual Department Pills with live counts - Admin only */}
+                            {/* Admin: Filter Specific Departments (Collapsible & Searchable) */}
                             {isAdmin && (
-                                <div className="flex flex-wrap gap-1.5 pt-1 pb-2">
-                                    {DEPARTMENTS.map(dept => {
-                                        const count = deptCounts[dept] || 0;
-                                        const isUser = normalizeDepartment(dept) === userDept;
-                                        const isSelected = deptFilterMode === 'all' && selectedDepartments.includes(dept);
+                                <div className="rounded-xl border border-[#3B3929] bg-[#2A281E]/60 overflow-hidden transition-all mt-1">
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsDeptsOpen(prev => !prev)}
+                                        className="w-full flex items-center justify-between p-2.5 text-xs font-semibold text-foreground hover:bg-[#343226]/50 transition-colors"
+                                    >
+                                        <div className="flex items-center gap-2">
+                                            <Building className="w-3.5 h-3.5 text-[#C9AA71]" />
+                                            <span>Filter Tiap Departemen</span>
+                                        </div>
+                                        <div className="flex items-center gap-1.5">
+                                            <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                                                selectedDepartments.length === DEPARTMENTS.length
+                                                    ? 'bg-[#C9AA71]/20 text-[#C9AA71]'
+                                                    : selectedDepartments.length === 0
+                                                        ? 'bg-red-500/20 text-red-400'
+                                                        : 'bg-[#C9AA71] text-[#1C1B0E]'
+                                            }`}>
+                                                {selectedDepartments.length === DEPARTMENTS.length ? `Semua (${DEPARTMENTS.length})` : `${selectedDepartments.length}/${DEPARTMENTS.length}`}
+                                            </span>
+                                            <ChevronDown className={`w-3.5 h-3.5 text-muted-foreground transition-transform duration-200 ${isDeptsOpen ? 'rotate-180' : ''}`} />
+                                        </div>
+                                    </button>
 
-                                        return (
-                                            <button
-                                                key={dept}
-                                                type="button"
-                                                onClick={() => {
-                                                    setDeptFilterMode('all');
-                                                    handleDepartmentToggle(dept);
-                                                }}
-                                                className={`px-2.5 py-1 text-xs font-medium rounded-lg border transition-all flex items-center gap-1.5 ${
-                                                    isSelected
-                                                        ? 'bg-primary text-primary-foreground border-primary'
-                                                        : 'bg-surface text-muted-foreground border-border hover:border-primary/50'
-                                                } ${count === 0 ? 'opacity-40' : ''}`}
-                                            >
-                                                <span>{dept}</span>
-                                                {isUser && <span className="text-[9px] px-1 py-0.2 rounded bg-amber-400/20 text-amber-300 font-bold">YOU</span>}
-                                                <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${isSelected ? 'bg-black/30 text-white' : 'bg-muted text-muted-foreground'}`}>
-                                                    {count}
+                                    {isDeptsOpen && (
+                                        <div className="p-2.5 pt-0 border-t border-[#3B3929]/50 space-y-2 mt-1">
+                                            {/* Search Input */}
+                                            <div className="relative mt-2">
+                                                <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                                                <input
+                                                    type="text"
+                                                    value={deptSearch}
+                                                    onChange={(e) => setDeptSearch(e.target.value)}
+                                                    placeholder="Cari departemen..."
+                                                    className="w-full pl-8 pr-2 py-1 text-xs bg-[#1C1B0E] border border-[#3B3929] rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-[#C9AA71]"
+                                                />
+                                            </div>
+
+                                            {/* Quick Actions */}
+                                            <div className="flex items-center justify-between text-[11px] px-0.5">
+                                                <span className="text-muted-foreground">
+                                                    {selectedDepartments.length} terpilih
                                                 </span>
-                                            </button>
-                                        );
-                                    })}
+                                                <button
+                                                    type="button"
+                                                    onClick={toggleAllDepartments}
+                                                    className="text-[#C9AA71] hover:underline font-medium"
+                                                >
+                                                    {selectedDepartments.length === DEPARTMENTS.length ? 'Hapus Semua' : 'Pilih Semua'}
+                                                </button>
+                                            </div>
+
+                                            {/* List */}
+                                            <div className="max-h-48 overflow-y-auto space-y-0.5 pr-0.5">
+                                                {filteredDepts.map(dept => {
+                                                    const count = deptCounts[dept] || 0;
+                                                    const isUser = normalizeDepartment(dept) === userDept;
+                                                    const isSelected = deptFilterMode === 'all' && selectedDepartments.includes(dept);
+
+                                                    return (
+                                                        <button
+                                                            key={dept}
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setDeptFilterMode('all');
+                                                                handleDepartmentToggle(dept);
+                                                            }}
+                                                            className={`w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-xs transition-colors ${
+                                                                isSelected
+                                                                    ? 'bg-[#C9AA71]/15 text-foreground font-medium'
+                                                                    : 'text-muted-foreground hover:bg-[#1C1B0E]/80 hover:text-foreground'
+                                                            } ${count === 0 ? 'opacity-40' : ''}`}
+                                                        >
+                                                            <div className="flex items-center gap-2 min-w-0">
+                                                                <span className="truncate">{dept}</span>
+                                                                {isUser && (
+                                                                    <span className="text-[9px] px-1 py-0.2 rounded bg-amber-400/20 text-amber-300 font-bold shrink-0">
+                                                                        YOU
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            <div className="flex items-center gap-2 shrink-0">
+                                                                <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                                                                    isSelected ? 'bg-[#C9AA71]/20 text-[#C9AA71]' : 'bg-[#1C1B0E] text-muted-foreground'
+                                                                }`}>
+                                                                    {count}
+                                                                </span>
+                                                                <div className={`w-4 h-4 rounded flex items-center justify-center border transition-all ${
+                                                                    isSelected
+                                                                        ? 'bg-[#C9AA71] border-[#C9AA71] text-[#1C1B0E]'
+                                                                        : 'border-[#3B3929] bg-[#1C1B0E]'
+                                                                }`}>
+                                                                    {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                                                                </div>
+                                                            </div>
+                                                        </button>
+                                                    );
+                                                })}
+                                                {filteredDepts.length === 0 && (
+                                                    <div className="text-center py-3 text-xs text-muted-foreground">
+                                                        Tidak ada departemen ditemukan
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             )}
-                        </CollapsibleSection>
+                        </div>
 
                         {/* Appendices / Detail Options */}
                         <div className="grid gap-2.5 p-3 rounded-xl bg-[#2A281E] border border-[#3B3929]">
