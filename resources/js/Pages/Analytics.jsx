@@ -980,7 +980,7 @@ function AnalyticsInner() {
                 return;
             }
 
-            const rawTime = issue.reportedAt || (issue.reportedAtIso ? new Date(issue.reportedAtIso).getTime() : 0);
+            const rawTime = issue.reportedAt || (issue.reportedAtIso ? new Date(issue.reportedAtIso).getTime() : 0) || Date.now();
             const issueEvents = [];
             
             // 1. Created
@@ -1158,8 +1158,23 @@ function AnalyticsInner() {
                 });
             }
 
-            // 4. Fallback Active Claim (if current taker is not yet represented and not closed)
-            if (issue.taker && !['solved', 'open'].includes(issue.status) && !recordedClaimPersons.has(issue.taker)) {
+            // 4. Fallback Active Claim (guarantee representation for in-progress issues and active takers)
+            const isProgressStatus = ['progress', 'in_progress'].includes(issue.status);
+            if (isProgressStatus) {
+                const hasClaimEvent = issueEvents.some(ev => ev.type === 'claim');
+                if (!hasClaimEvent) {
+                    const claimDate = issue.takenAt ? new Date(issue.takenAt).getTime() : (rawTime + 60000);
+                    issueEvents.push({
+                        id: `${issue.id}-claimed-fallback`,
+                        issueId: issue.id,
+                        title: issue.title,
+                        type: 'claim',
+                        date: isNaN(claimDate) ? (rawTime + 60000) : claimDate,
+                        person: issue.taker || 'Technician',
+                        originalIssue: issue
+                    });
+                }
+            } else if (issue.taker && !['solved', 'open'].includes(issue.status) && !recordedClaimPersons.has(issue.taker)) {
                 const claimDate = issue.takenAt ? new Date(issue.takenAt).getTime() : (rawTime + 60000);
                 issueEvents.push({
                     id: `${issue.id}-claimed-active`,
@@ -1263,6 +1278,12 @@ function AnalyticsInner() {
             'edit': 'edit'
         };
         
+        // Setup deduplication tracking when critical or emergency urgency filters are applied
+        const isCriticalFilterActive = selectedStatusFilters.includes('critical') || selectedPriorityFilters.includes('critical');
+        const isEmergencyFilterActive = selectedStatusFilters.includes('emergency');
+        const shouldDeduplicateByIssue = isCriticalFilterActive || isEmergencyFilterActive;
+        const seenIssueIds = new Set();
+
         const filtered = events.filter(ev => {
             // Search Query Filter
             if (searchQuery.trim()) {
@@ -1278,47 +1299,46 @@ function AnalyticsInner() {
                 if (!matchesQuery) return false;
             }
 
+            const currentStatus = (ev.originalIssue?.status || 'open').toLowerCase();
+            const isEmergencyIssue = (ev.originalIssue?.category || '').toLowerCase() === 'emergency' || String(ev.issueId || '').startsWith('SOS');
+            const isCriticalIssue = !isEmergencyIssue && ev.originalIssue?.priority === 'critical';
+
+            const statusToAllowedEventTypes = {
+                solved: ['solve'],
+                pending: ['pending'],
+                progress: ['claim'],
+                in_progress: ['claim'],
+                open: ['create'],
+                archived: ['archive']
+            };
+            const allowedTypes = statusToAllowedEventTypes[currentStatus] || [];
+            const isCurrentStatusEvent = allowedTypes.includes(ev.type) || 
+                (ev.type === 'revert' && String(ev.statusChange || '').toLowerCase().includes(currentStatus));
+
             // 1. Combinable Status & Priority Filters (matches current status of the issue)
             if (selectedStatusFilters.length > 0) {
                 const isCriticalSelected = selectedStatusFilters.includes('critical');
                 const isEmergencySelected = selectedStatusFilters.includes('emergency');
                 const selectedStatuses = selectedStatusFilters.filter(f => f !== 'critical' && f !== 'emergency');
 
-                const currentStatus = ev.originalIssue?.status;
-                const isEmergencyIssue = (ev.originalIssue?.category || '').toLowerCase() === 'emergency' || String(ev.issueId || '').startsWith('SOS');
-                const isCriticalIssue = !isEmergencyIssue && ev.originalIssue?.priority === 'critical';
+                if (isCriticalSelected || isEmergencySelected) {
+                    const isTargetUrgencyIssue = (isCriticalSelected && isCriticalIssue) || (isEmergencySelected && isEmergencyIssue);
+                    if (!isTargetUrgencyIssue) return false;
 
-                let matchesSpecial = false;
-                if (isCriticalSelected && isCriticalIssue) matchesSpecial = true;
-                if (isEmergencySelected && isEmergencyIssue) matchesSpecial = true;
+                    // Strictly show only the current status event (hide past edits, old created logs, etc.)
+                    if (!isCurrentStatusEvent) return false;
 
-                let matchesStatus = false;
-                if (selectedStatuses.length > 0) {
-                    const statusToAllowedEventTypes = {
-                        solved: ['solve'],
-                        pending: ['pending'],
-                        progress: ['claim'],
-                        open: ['create']
-                    };
+                    // If combined with other status filters (e.g. Critical + Solved), must also match that status
+                    if (selectedStatuses.length > 0 && !selectedStatuses.includes(currentStatus)) return false;
+                } else if (selectedStatuses.length > 0) {
+                    // Regular status filters (open, progress, pending, solved)
                     const isStatusMatch = selectedStatuses.includes(currentStatus);
-                    const allowedTypes = statusToAllowedEventTypes[currentStatus] || [];
-                    const isEventMatch = allowedTypes.includes(ev.type) || (ev.type === 'revert' && String(ev.statusChange || '').toLowerCase().includes(currentStatus));
-
-                    if (isCriticalSelected || isEmergencySelected) {
-                        matchesStatus = (isStatusMatch && isEventMatch) || matchesSpecial;
-                    } else {
-                        matchesStatus = isStatusMatch && isEventMatch;
-                    }
-                } else {
-                    matchesStatus = matchesSpecial;
+                    if (!isStatusMatch || !isCurrentStatusEvent) return false;
                 }
-
-                if (!matchesStatus) return false;
             }
 
             // 1b. Combinable Priority Filters (standard | high | critical)
             if (selectedPriorityFilters.length > 0) {
-                const isEmergencyIssue = (ev.originalIssue?.category || '').toLowerCase() === 'emergency' || String(ev.issueId || '').startsWith('SOS');
                 const rawPriority = (ev.originalIssue?.priority || '').toLowerCase();
                 let issuePriorityKey = 'standard';
                 if (!isEmergencyIssue && rawPriority === 'critical') issuePriorityKey = 'critical';
@@ -1326,6 +1346,11 @@ function AnalyticsInner() {
                 else issuePriorityKey = 'standard';
 
                 if (!selectedPriorityFilters.includes(issuePriorityKey)) {
+                    return false;
+                }
+
+                // If user filtered by critical in priority dropdown, also strictly show only current status event
+                if (selectedPriorityFilters.includes('critical') && isCriticalIssue && !isCurrentStatusEvent) {
                     return false;
                 }
             }
@@ -1365,6 +1390,14 @@ function AnalyticsInner() {
                 });
 
                 if (!matchesCat) return false;
+            }
+
+            // If critical or emergency filter is active, guarantee exactly 1 entry per issue showing its latest status event
+            if (shouldDeduplicateByIssue && (isCriticalIssue || isEmergencyIssue)) {
+                if (seenIssueIds.has(ev.issueId)) {
+                    return false;
+                }
+                seenIssueIds.add(ev.issueId);
             }
 
             return true;
