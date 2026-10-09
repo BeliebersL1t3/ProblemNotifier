@@ -17,7 +17,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/Components/UI/Select';
-import { useIssues } from '@/context/IssuesContext';
+import { useIssues, DEFAULT_CATEGORIES } from '@/context/IssuesContext';
 import { useLanguage } from '@/context/LanguageContext';
 import { 
     Loader2, Download, FileText, ChevronDown, Layers, Wrench, Send, AtSign, Globe,
@@ -144,14 +144,17 @@ export function ExportPdfModal({ open, onOpenChange }) {
 
     const [categorySearch, setCategorySearch] = useState('');
     const [deptSearch, setDeptSearch] = useState('');
-    const [isCategoriesOpen, setIsCategoriesOpen] = useState(false);
     const [isDeptsOpen, setIsDeptsOpen] = useState(false);
 
+    const allCategories = useMemo(() => {
+        return (categories && categories.length > 0) ? categories : DEFAULT_CATEGORIES;
+    }, [categories]);
+
     const filteredCategories = useMemo(() => {
-        if (!categorySearch.trim()) return categories;
+        if (!categorySearch.trim()) return allCategories;
         const q = categorySearch.toLowerCase().trim();
-        return categories.filter(c => (c.label || c.id || '').toLowerCase().includes(q));
-    }, [categories, categorySearch]);
+        return allCategories.filter(c => (c.label || c.id || '').toLowerCase().includes(q));
+    }, [allCategories, categorySearch]);
 
     const filteredDepts = useMemo(() => {
         if (!deptSearch.trim()) return DEPARTMENTS;
@@ -164,8 +167,8 @@ export function ExportPdfModal({ open, onOpenChange }) {
 
     // Initialize all categories as selected when modal opens or categories load
     useEffect(() => {
-        if (categories.length > 0 && selectedCategories.length === 0) {
-            setSelectedCategories(categories.map(c => c.id));
+        if (allCategories.length > 0 && selectedCategories.length === 0) {
+            setSelectedCategories(allCategories.map(c => c.id));
         }
         if (selectedDepartments.length === 0) {
             setSelectedDepartments([...DEPARTMENTS]);
@@ -177,7 +180,7 @@ export function ExportPdfModal({ open, onOpenChange }) {
         if (open && !isAdmin) {
             setDeptFilterMode(prev => prev === 'all' ? 'my_scope' : prev);
         }
-    }, [categories, open, currentSheet, issues, isAdmin]);
+    }, [allCategories, open, currentSheet, issues, isAdmin]);
 
     // Fetch missing sheets dynamically
     useEffect(() => {
@@ -256,10 +259,10 @@ export function ExportPdfModal({ open, onOpenChange }) {
     };
 
     const toggleAllCategories = () => {
-        if (selectedCategories.length === categories.length) {
+        if (selectedCategories.length === allCategories.length) {
             setSelectedCategories([]);
         } else {
-            setSelectedCategories(categories.map(c => c.id));
+            setSelectedCategories(allCategories.map(c => c.id));
         }
     };
 
@@ -1043,12 +1046,12 @@ export function ExportPdfModal({ open, onOpenChange }) {
                                 <Filter className="w-3.5 h-3.5 text-[#C9AA71]" />
                                 <span>Filter Laporan</span>
                             </div>
-                            {(selectedStatuses.length < 4 || selectedCategories.length < categories.length || limit !== 'All' || (isAdmin && selectedDepartments.length < DEPARTMENTS.length)) && (
+                            {(selectedStatuses.length < 4 || selectedCategories.length < allCategories.length || limit !== 'All' || (isAdmin && selectedDepartments.length < DEPARTMENTS.length)) && (
                                 <button
                                     type="button"
                                     onClick={() => {
                                         setSelectedStatuses(['open', 'progress', 'pending', 'solved']);
-                                        setSelectedCategories(categories.map(c => c.id));
+                                        setSelectedCategories(allCategories.map(c => c.id));
                                         setSelectedDepartments([...DEPARTMENTS]);
                                         setDeptFilterMode(isAdmin ? 'all' : 'my_scope');
                                         setLimit('All');
@@ -1167,99 +1170,79 @@ export function ExportPdfModal({ open, onOpenChange }) {
                             </div>
                         </div>
 
-                        {/* Categories — Collapsible & Searchable Selector */}
-                        <div className="rounded-xl border border-[#3B3929] bg-[#2A281E]/60 overflow-hidden transition-all">
-                            <button
-                                type="button"
-                                onClick={() => setIsCategoriesOpen(prev => !prev)}
-                                className="w-full flex items-center justify-between p-2.5 text-xs font-semibold text-foreground hover:bg-[#343226]/50 transition-colors"
-                            >
-                                <div className="flex items-center gap-2">
+                        {/* Categories — Open 2-Column Grid with Search */}
+                        <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                                <label className="text-xs font-semibold text-[#E3D1AA] flex items-center gap-1.5">
                                     <SlidersHorizontal className="w-3.5 h-3.5 text-[#C9AA71]" />
-                                    <span>Kategori Masalah</span>
-                                </div>
-                                <div className="flex items-center gap-1.5">
-                                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
-                                        selectedCategories.length === categories.length
-                                            ? 'bg-[#C9AA71]/20 text-[#C9AA71]'
-                                            : selectedCategories.length === 0
-                                                ? 'bg-red-500/20 text-red-400'
-                                                : 'bg-[#C9AA71] text-[#1C1B0E]'
-                                    }`}>
-                                        {selectedCategories.length === categories.length ? `Semua (${categories.length})` : `${selectedCategories.length}/${categories.length}`}
-                                    </span>
-                                    <ChevronDown className={`w-3.5 h-3.5 text-muted-foreground transition-transform duration-200 ${isCategoriesOpen ? 'rotate-180' : ''}`} />
-                                </div>
-                            </button>
+                                    <span>Kategori Masalah ({selectedCategories.length}/{allCategories.length})</span>
+                                </label>
+                                <button
+                                    type="button"
+                                    onClick={toggleAllCategories}
+                                    className="text-[11px] text-[#C9AA71] hover:underline font-medium"
+                                >
+                                    {selectedCategories.length === allCategories.length ? 'Clear' : 'Select All'}
+                                </button>
+                            </div>
 
-                            {isCategoriesOpen && (
-                                <div className="p-2.5 pt-0 border-t border-[#3B3929]/50 space-y-2 mt-1">
-                                    {/* Search Input */}
-                                    <div className="relative mt-2">
-                                        <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                                        <input
-                                            type="text"
-                                            value={categorySearch}
-                                            onChange={(e) => setCategorySearch(e.target.value)}
-                                            placeholder="Cari kategori..."
-                                            className="w-full pl-8 pr-2 py-1 text-xs bg-[#1C1B0E] border border-[#3B3929] rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-[#C9AA71]"
-                                        />
-                                    </div>
+                            {/* Compact Search Bar */}
+                            <div className="relative">
+                                <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                                <input
+                                    type="text"
+                                    value={categorySearch}
+                                    onChange={(e) => setCategorySearch(e.target.value)}
+                                    placeholder="Cari kategori..."
+                                    className="w-full pl-8 pr-7 py-1 text-xs bg-[#1C1B0E] border border-[#3B3929] rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-[#C9AA71]"
+                                />
+                                {categorySearch && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setCategorySearch('')}
+                                        className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                                    >
+                                        <X className="w-3 h-3" />
+                                    </button>
+                                )}
+                            </div>
 
-                                    {/* Quick Actions */}
-                                    <div className="flex items-center justify-between text-[11px] px-0.5">
-                                        <span className="text-muted-foreground">
-                                            {selectedCategories.length} terpilih
-                                        </span>
+                            {/* 2-Column Grid of Category Chips */}
+                            <div className="grid grid-cols-2 gap-1.5 max-h-52 overflow-y-auto pr-0.5">
+                                {filteredCategories.map(cat => {
+                                    const isSelected = selectedCategories.includes(cat.id);
+                                    const CatIcon = getCategoryIcon(cat.id);
+                                    const catColorClass = getCategoryColor(cat.id);
+
+                                    return (
                                         <button
+                                            key={cat.id}
                                             type="button"
-                                            onClick={toggleAllCategories}
-                                            className="text-[#C9AA71] hover:underline font-medium"
+                                            onClick={() => handleCategoryToggle(cat.id)}
+                                            className={`flex items-center justify-between px-2.5 py-2 rounded-xl border text-xs font-semibold transition-all ${
+                                                isSelected
+                                                    ? 'bg-[#2A281E] border-[#C9AA71]/60 text-foreground shadow-xs ring-1 ring-white/5'
+                                                    : 'bg-[#1C1B0E]/60 border-[#3B3929]/70 text-muted-foreground/60 hover:border-[#3B3929] hover:text-muted-foreground'
+                                            }`}
                                         >
-                                            {selectedCategories.length === categories.length ? 'Hapus Semua' : 'Pilih Semua'}
-                                        </button>
-                                    </div>
-
-                                    {/* List */}
-                                    <div className="max-h-48 overflow-y-auto space-y-0.5 pr-0.5">
-                                        {filteredCategories.map(cat => {
-                                            const isSelected = selectedCategories.includes(cat.id);
-                                            const CatIcon = getCategoryIcon(cat.id);
-                                            const catColorClass = getCategoryColor(cat.id);
-
-                                            return (
-                                                <button
-                                                    key={cat.id}
-                                                    type="button"
-                                                    onClick={() => handleCategoryToggle(cat.id)}
-                                                    className={`w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-xs transition-colors ${
-                                                        isSelected
-                                                            ? 'bg-[#C9AA71]/15 text-foreground font-medium'
-                                                            : 'text-muted-foreground hover:bg-[#1C1B0E]/80 hover:text-foreground'
-                                                    }`}
-                                                >
-                                                    <div className="flex items-center gap-2 min-w-0">
-                                                        <CatIcon className={`w-3.5 h-3.5 shrink-0 ${catColorClass}`} />
-                                                        <span className="truncate">{cat.label}</span>
-                                                    </div>
-                                                    <div className={`w-4 h-4 rounded flex items-center justify-center border transition-all ${
-                                                        isSelected
-                                                            ? 'bg-[#C9AA71] border-[#C9AA71] text-[#1C1B0E]'
-                                                            : 'border-[#3B3929] bg-[#1C1B0E]'
-                                                    }`}>
-                                                        {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
-                                                    </div>
-                                                </button>
-                                            );
-                                        })}
-                                        {filteredCategories.length === 0 && (
-                                            <div className="text-center py-3 text-xs text-muted-foreground">
-                                                Tidak ada kategori ditemukan
+                                            <div className="flex items-center gap-1.5 min-w-0">
+                                                <CatIcon className={`w-3.5 h-3.5 shrink-0 ${catColorClass}`} />
+                                                <span className="truncate text-[11px]">{cat.label}</span>
                                             </div>
-                                        )}
+                                            {isSelected ? (
+                                                <Check className="w-3 h-3 text-[#C9AA71] shrink-0 ml-1" />
+                                            ) : (
+                                                <span className="w-3 h-3 shrink-0" />
+                                            )}
+                                        </button>
+                                    );
+                                })}
+                                {filteredCategories.length === 0 && (
+                                    <div className="col-span-2 text-center py-3 text-xs text-muted-foreground">
+                                        Tidak ada kategori ditemukan
                                     </div>
-                                </div>
-                            )}
+                                )}
+                            </div>
                         </div>
 
                         {/* Department Scope & Filters */}
