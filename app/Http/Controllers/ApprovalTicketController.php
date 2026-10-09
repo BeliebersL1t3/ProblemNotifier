@@ -346,6 +346,18 @@ class ApprovalTicketController extends Controller
                     'rejected_by' => $user->id,
                     'rejected_at' => now(),
                 ]);
+
+                \App\Models\UserAuditLog::record(
+                    $user,
+                    $ticket->user,
+                    'USER_REJECTED',
+                    [
+                        'rejected_by_role' => 'HOD',
+                        'ticket_number'    => $ticket->ticket_number,
+                        'rejection_reason' => $rejectionReason,
+                        'notes'            => $request->input('notes'),
+                    ]
+                );
             }
 
             // Notify user
@@ -477,6 +489,18 @@ class ApprovalTicketController extends Controller
                     'rejected_by' => $user->id,
                     'rejected_at' => now(),
                 ]);
+
+                \App\Models\UserAuditLog::record(
+                    $user,
+                    $ticket->user,
+                    'USER_REJECTED',
+                    [
+                        'rejected_by_role' => 'Admin',
+                        'ticket_number'    => $ticket->ticket_number,
+                        'rejection_reason' => $rejectionReason,
+                        'notes'            => $request->input('notes'),
+                    ]
+                );
             }
 
             // Notify user

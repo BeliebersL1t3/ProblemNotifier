@@ -66,6 +66,12 @@ class UserController extends Controller
 
         $query = User::query();
 
+        // Exclude rejected accounts from the main CRUD table so they do not clutter user management
+        $query->where(function ($q) {
+            $q->whereNull('approval_status')
+              ->orWhere('approval_status', '!=', 'rejected');
+        });
+
         // Status filter: active (default), archived, all
         $status = $request->query('status', 'active');
         if ($status === 'archived') {
@@ -142,8 +148,12 @@ class UserController extends Controller
             ];
         });
 
-        // Summary statistics (Optimized: database aggregate query instead of hydrating full models)
+        // Summary statistics (Optimized: database aggregate query excluding rejected accounts)
         $aggregate = User::query()
+            ->where(function ($q) {
+                $q->whereNull('approval_status')
+                  ->orWhere('approval_status', '!=', 'rejected');
+            })
             ->selectRaw('
                 COUNT(*) as total_users,
                 SUM(CASE WHEN role = "admin" THEN 1 ELSE 0 END) as total_admins,
@@ -891,7 +901,9 @@ class UserController extends Controller
             } elseif ($action === 'profile_permission') {
                 $query->whereIn('action', ['USER_UPDATED', 'PERMISSIONS_UPDATED', 'BATCH_PERMISSIONS_UPDATED', 'USER_PERMISSIONS_BATCH_UPDATED']);
             } elseif ($action === 'created') {
-                $query->where('action', 'USER_CREATED');
+                $query->whereIn('action', ['USER_CREATED', 'USER_RE_REGISTERED']);
+            } elseif ($action === 'rejected') {
+                $query->where('action', 'USER_REJECTED');
             } elseif ($action === 'archive') {
                 $query->whereIn('action', ['USER_ARCHIVED', 'BATCH_USERS_ARCHIVED']);
             } elseif ($action === 'restore') {

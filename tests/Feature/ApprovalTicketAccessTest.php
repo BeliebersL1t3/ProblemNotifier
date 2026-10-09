@@ -125,4 +125,37 @@ class ApprovalTicketAccessTest extends TestCase
             ->where('filters.id', (string)$ticket1->id)
         );
     }
+
+    public function test_rejected_users_are_excluded_from_user_crud_index(): void
+    {
+        $admin = User::factory()->create([
+            'role' => 'admin',
+            'is_active' => true,
+            'approval_status' => 'approved',
+        ]);
+
+        $approvedUser = User::factory()->create([
+            'name' => 'Active Worker',
+            'role' => 'department',
+            'is_active' => true,
+            'approval_status' => 'approved',
+        ]);
+
+        $rejectedUser = User::factory()->create([
+            'name' => 'Rejected Applicant',
+            'role' => 'department',
+            'is_active' => false,
+            'approval_status' => 'rejected',
+        ]);
+
+        $response = $this->actingAs($admin)->getJson('/users');
+        $response->assertStatus(200);
+
+        $userIds = collect($response->json('data'))->pluck('id');
+        $this->assertTrue($userIds->contains($approvedUser->id));
+        $this->assertFalse($userIds->contains($rejectedUser->id));
+
+        // Stats should also exclude rejected user
+        $this->assertEquals(2, $response->json('stats.total_users')); // admin + approvedUser
+    }
 }

@@ -1008,7 +1008,7 @@ function UsersInner({ initialUsers, initialStats }) {
                                             const deptTheme = u.department ? getDepartmentTheme(u.department) : { bg: '#C9AA71', text: '#1C1B0E' };
                                             const isMe = u.id === currentUser?.id;
                                             const isSelected = selectedUserIds.includes(u.id);
-                                            const isPending = Boolean(u.approval_status && u.approval_status !== 'approved');
+                                            const isPending = Boolean(u.approval_status && ['pending_hod', 'pending_admin'].includes(u.approval_status));
                                             const approvalTicketUrl = u.pending_ticket_number 
                                                 ? `/tickets?search=${encodeURIComponent(u.pending_ticket_number)}` 
                                                 : `/tickets?search=${encodeURIComponent(u.email || u.name)}`;

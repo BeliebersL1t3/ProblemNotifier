@@ -79,4 +79,85 @@ class RegistrationTest extends TestCase
         $this->assertTrue($resValid->json('valid'));
         $this->assertTrue($resValid->json('available'));
     }
+
+    public function test_rejected_user_can_re_register_seamlessly(): void
+    {
+        $rejectedUser = \App\Models\User::factory()->create([
+            'name' => 'Old Name',
+            'email' => 'rejected@example.com',
+            'whatsapp_number' => '081299990001',
+            'department' => 'Kitchen',
+            'role' => 'department',
+            'approval_status' => 'rejected',
+            'is_active' => false,
+            'rejection_reason' => 'Data tidak lengkap',
+        ]);
+
+        // Phone check should report available: true
+        $resPhone = $this->postJson('/register/check-phone', ['phone' => '081299990001']);
+        $resPhone->assertStatus(200);
+        $this->assertTrue($resPhone->json('available'));
+
+        // Post re-registration with same email and phone
+        $response = $this->post('/register', [
+            'name' => 'Updated Name',
+            'email' => 'rejected@example.com',
+            'password' => 'newpassword123',
+            'password_confirmation' => 'newpassword123',
+            'department' => 'Front Office',
+            'subdivision' => 'Reception',
+            'whatsapp_number' => '081299990001',
+        ]);
+
+        $response->assertRedirect(route('login'));
+
+        $rejectedUser->refresh();
+        $this->assertEquals('Updated Name', $rejectedUser->name);
+        $this->assertEquals('Front Office', $rejectedUser->department);
+        $this->assertEquals('pending_hod', $rejectedUser->approval_status);
+        $this->assertFalse($rejectedUser->is_active);
+        $this->assertNull($rejectedUser->rejection_reason);
+
+        // Check new approval ticket created
+        $this->assertDatabaseHas('approval_tickets', [
+            'user_id' => $rejectedUser->id,
+            'type' => 'account_registration',
+            'department' => 'Front Office',
+            'status' => 'pending_hod',
+        ]);
+
+        // Check audit log recorded
+        $this->assertDatabaseHas('user_audit_logs', [
+            'target_user_id' => $rejectedUser->id,
+            'action' => 'USER_RE_REGISTERED',
+        ]);
+    }
+
+    public function test_pending_user_blocks_re_registration_with_clear_message(): void
+    {
+        \App\Models\User::factory()->create([
+            'email' => 'pending_hod@example.com',
+            'whatsapp_number' => '081299990002',
+            'approval_status' => 'pending_hod',
+            'is_active' => false,
+        ]);
+
+        // Phone check should be unavailable and mention pending HOD
+        $resPhone = $this->postJson('/register/check-phone', ['phone' => '081299990002']);
+        $resPhone->assertStatus(200);
+        $this->assertFalse($resPhone->json('available'));
+        $this->assertStringContainsString('HOD', $resPhone->json('message'));
+
+        // Registration form submission should fail with error
+        $response = $this->post('/register', [
+            'name' => 'Someone',
+            'email' => 'pending_hod@example.com',
+            'password' => 'password123',
+            'password_confirmation' => 'password123',
+            'department' => 'Kitchen',
+            'whatsapp_number' => '081299990002',
+        ]);
+
+        $response->assertSessionHasErrors(['email', 'whatsapp_number']);
+    }
 }
