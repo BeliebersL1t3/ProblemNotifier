@@ -334,7 +334,8 @@ export async function generateExcelReport(issues = [], options = {}) {
         // Kelompok 2: Detail Masalah & Departemen
         { header: 'Judul Masalah', key: 'title', width: 42, align: 'left' },
         { header: 'Kategori', key: 'category', width: 22, align: 'left' },
-        { header: 'Departemen Utama', key: 'department', width: 24, align: 'left' },
+        { header: 'Departemen Pembuat (Asal)', key: 'originDept', width: 26, align: 'left' },
+        { header: 'Ditugaskan Ke (To Fix)', key: 'assignedDept', width: 26, align: 'left' },
         { header: 'Departemen Terkait (Tags)', key: 'tags', width: 26, align: 'left', isGroupEnd: true },
 
         // Kelompok 3: Status & Penanggung Jawab
@@ -392,9 +393,17 @@ export async function generateExcelReport(issues = [], options = {}) {
         // Category Label
         const catLabel = catMap.get(issue.category) || issue.category || '-';
 
-        // Department Tags
-        const tags = (issue.taggedDepartments || []).join(', ') || '-';
-        const assignedDept = (issue.assignedDepartments || []).join(', ') || issue.department || '-';
+        // Department Breakdown (Origin vs Assigned vs Tags)
+        const originDept = issue.department || '-';
+        const assignedDeptsList = Array.isArray(issue.assignedDepartments)
+            ? issue.assignedDepartments.filter(Boolean)
+            : (issue.assignedDepartments ? [issue.assignedDepartments] : []);
+        const assignedDeptText = assignedDeptsList.length > 0 ? assignedDeptsList.join(', ') : originDept;
+
+        const taggedDeptsList = Array.isArray(issue.taggedDepartments)
+            ? issue.taggedDepartments.filter(Boolean)
+            : (issue.taggedDepartments ? [issue.taggedDepartments] : []);
+        const taggedDeptText = taggedDeptsList.length > 0 ? taggedDeptsList.join(', ') : '-';
 
         // Pending Timeline / Reason
         let pendingText = '-';
@@ -421,8 +430,9 @@ export async function generateExcelReport(issues = [], options = {}) {
             location: issue.location || '-',
             title: (issue.isConfidential ? '[RAHASIA] ' : '') + (issue.title || issue.description || '-'),
             category: catLabel,
-            department: assignedDept,
-            tags: tags,
+            originDept: originDept,
+            assignedDept: assignedDeptText,
+            tags: taggedDeptText,
             status: statusKey,
             priority: (issue.priority || 'LOW').toUpperCase(),
             reporter: issue.reporter || '-',
@@ -463,7 +473,7 @@ export async function generateExcelReport(issues = [], options = {}) {
             cell.alignment = {
                 vertical: 'middle',
                 horizontal: config?.align || 'left',
-                wrapText: ['title', 'location', 'pendingReason', 'solvedNotes'].includes(config?.key),
+                wrapText: ['title', 'location', 'pendingReason', 'solvedNotes', 'originDept', 'assignedDept', 'tags'].includes(config?.key),
             };
 
             // Custom styling for Status column

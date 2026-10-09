@@ -1650,27 +1650,32 @@ export function ExportPdfModal({ open, onOpenChange }) {
                                             </div>
                                         </div>
 
-                                        {/* KPI Cards Grid */}
-                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                                            <div className="p-3 rounded-xl bg-[#2A281E]/80 border border-[#3B3929]">
+                                        {/* KPI Cards Grid (5 Status Lifecycle) */}
+                                        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                                            <div className="p-2.5 rounded-xl bg-[#2A281E]/80 border border-[#3B3929]">
                                                 <div className="text-[10px] uppercase font-bold text-[#A19F8D]">Total Tiket</div>
                                                 <div className="text-xl font-black text-[#FAFAFA] mt-1">{excelPreviewKpi.total}</div>
                                                 <div className="text-[10px] text-[#A19F8D] mt-0.5">Semua data terfilter</div>
                                             </div>
-                                            <div className="p-3 rounded-xl bg-emerald-950/20 border border-emerald-800/40">
-                                                <div className="text-[10px] uppercase font-bold text-emerald-400">Selesai (Solved)</div>
-                                                <div className="text-xl font-black text-emerald-300 mt-1">{excelPreviewKpi.solved}</div>
-                                                <div className="text-[10px] text-emerald-400/80 mt-0.5">{excelPreviewKpi.rate}% rasio</div>
+                                            <div className="p-2.5 rounded-xl bg-rose-950/25 border border-rose-800/40">
+                                                <div className="text-[10px] uppercase font-bold text-rose-400">Terbuka (Open)</div>
+                                                <div className="text-xl font-black text-rose-300 mt-1">{excelPreviewKpi.open}</div>
+                                                <div className="text-[10px] text-rose-400/80 mt-0.5">Belum diambil</div>
                                             </div>
-                                            <div className="p-3 rounded-xl bg-amber-950/20 border border-amber-800/40">
+                                            <div className="p-2.5 rounded-xl bg-blue-950/20 border border-blue-800/40">
+                                                <div className="text-[10px] uppercase font-bold text-blue-400">Progress</div>
+                                                <div className="text-xl font-black text-blue-300 mt-1">{excelPreviewKpi.progress}</div>
+                                                <div className="text-[10px] text-blue-400/80 mt-0.5">Dalam pengerjaan</div>
+                                            </div>
+                                            <div className="p-2.5 rounded-xl bg-amber-950/20 border border-amber-800/40">
                                                 <div className="text-[10px] uppercase font-bold text-amber-400">Tertunda (Pending)</div>
                                                 <div className="text-xl font-black text-amber-300 mt-1">{excelPreviewKpi.pending}</div>
                                                 <div className="text-[10px] text-amber-400/80 mt-0.5">Menunggu part/akses</div>
                                             </div>
-                                            <div className="p-3 rounded-xl bg-blue-950/20 border border-blue-800/40">
-                                                <div className="text-[10px] uppercase font-bold text-blue-400">Dalam Pengerjaan</div>
-                                                <div className="text-xl font-black text-blue-300 mt-1">{excelPreviewKpi.progress}</div>
-                                                <div className="text-[10px] text-blue-400/80 mt-0.5">Progress aktif</div>
+                                            <div className="p-2.5 rounded-xl bg-emerald-950/20 border border-emerald-800/40">
+                                                <div className="text-[10px] uppercase font-bold text-emerald-400">Selesai (Solved)</div>
+                                                <div className="text-xl font-black text-emerald-300 mt-1">{excelPreviewKpi.solved}</div>
+                                                <div className="text-[10px] text-emerald-400/80 mt-0.5">{excelPreviewKpi.rate}% rasio</div>
                                             </div>
                                         </div>
 
@@ -1708,53 +1713,109 @@ export function ExportPdfModal({ open, onOpenChange }) {
                                                         <th className="px-3 py-2 whitespace-nowrap">ID Tiket</th>
                                                         <th className="px-3 py-2 whitespace-nowrap">Waktu</th>
                                                         <th className="px-3 py-2 whitespace-nowrap">Lokasi</th>
-                                                        <th className="px-3 py-2 min-w-[180px]">Judul Masalah</th>
-                                                        <th className="px-3 py-2 whitespace-nowrap">Departemen</th>
+                                                        <th className="px-3 py-2 min-w-[150px]">Judul Masalah</th>
+                                                        <th className="px-3 py-2 whitespace-nowrap">Asal (Pembuat)</th>
+                                                        <th className="px-3 py-2 whitespace-nowrap">Ditugaskan (To Fix)</th>
+                                                        <th className="px-3 py-2 whitespace-nowrap">Tag Terkait (Mentions)</th>
                                                         <th className="px-3 py-2 whitespace-nowrap">Status</th>
                                                         <th className="px-3 py-2 whitespace-nowrap">Pelapor</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y divide-[#3B3929]/60">
-                                                    {filteredIssues.slice(0, 6).map((item) => (
-                                                        <tr key={item.id} className="hover:bg-white/[0.03] transition-colors">
-                                                            <td className="px-3 py-2 font-mono text-[11px] text-[#C9AA71] font-bold whitespace-nowrap">
-                                                                {String(item.id || '').replace(/^TEL-/, 'TEL-')}
-                                                            </td>
-                                                            <td className="px-3 py-2 text-[11px] text-[#A19F8D] whitespace-nowrap">
-                                                                {item.reportedAt ? new Date(item.reportedAt).toLocaleDateString('id-ID') : '-'}
-                                                            </td>
-                                                            <td className="px-3 py-2 text-[11px] font-medium whitespace-nowrap">
-                                                                {item.location || '-'}
-                                                            </td>
-                                                            <td className="px-3 py-2 text-[11px] max-w-xs truncate">
-                                                                {item.title || item.description || '-'}
-                                                            </td>
-                                                            <td className="px-3 py-2 text-[11px] text-[#A19F8D] whitespace-nowrap">
-                                                                {item.department || (item.assignedDepartments || [])[0] || '-'}
-                                                            </td>
-                                                            <td className="px-3 py-2 whitespace-nowrap">
-                                                                <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${
-                                                                    item.status === 'solved'
-                                                                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                                                                        : item.status === 'pending'
-                                                                        ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                                                                        : item.status === 'progress'
-                                                                        ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
-                                                                        : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
-                                                                }`}>
-                                                                    {item.status || 'OPEN'}
-                                                                </span>
-                                                            </td>
-                                                            <td className="px-3 py-2 text-[11px] text-[#A19F8D] whitespace-nowrap">
-                                                                {item.reporter || '-'}
-                                                            </td>
-                                                        </tr>
-                                                    ))}
+                                                    {filteredIssues.slice(0, 6).map((item) => {
+                                                        const assignedList = Array.isArray(item.assignedDepartments)
+                                                            ? item.assignedDepartments.filter(Boolean)
+                                                            : (item.assignedDepartments ? [item.assignedDepartments] : []);
+                                                        const isAssignedToUser = userDept && assignedList.some(d => normalizeDepartment(d) === userDept);
+
+                                                        const taggedList = Array.isArray(item.taggedDepartments)
+                                                            ? item.taggedDepartments.filter(Boolean)
+                                                            : (item.taggedDepartments ? [item.taggedDepartments] : []);
+                                                        const isTaggedToUser = userDept && taggedList.some(d => normalizeDepartment(d) === userDept);
+                                                        const isOriginUser = userDept && normalizeDepartment(item.department) === userDept;
+
+                                                        return (
+                                                            <tr key={item.id} className="hover:bg-white/[0.03] transition-colors">
+                                                                <td className="px-3 py-2 font-mono text-[11px] text-[#C9AA71] font-bold whitespace-nowrap">
+                                                                    {String(item.id || '').replace(/^TEL-/, 'TEL-')}
+                                                                </td>
+                                                                <td className="px-3 py-2 text-[11px] text-[#A19F8D] whitespace-nowrap">
+                                                                    {item.reportedAt ? new Date(item.reportedAt).toLocaleDateString('id-ID') : '-'}
+                                                                </td>
+                                                                <td className="px-3 py-2 text-[11px] font-medium whitespace-nowrap">
+                                                                    {item.location || '-'}
+                                                                </td>
+                                                                <td className="px-3 py-2 text-[11px] max-w-xs truncate font-medium">
+                                                                    {item.title || item.description || '-'}
+                                                                </td>
+                                                                {/* Departemen Asal / Pembuat */}
+                                                                <td className="px-3 py-2 text-[11px] whitespace-nowrap">
+                                                                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                                                                        isOriginUser
+                                                                            ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30 font-bold'
+                                                                            : 'text-[#FAFAFA]'
+                                                                    }`}>
+                                                                        {item.department || '-'}
+                                                                    </span>
+                                                                </td>
+                                                                {/* Ditugaskan Ke (To Fix) */}
+                                                                <td className="px-3 py-2 text-[11px] whitespace-nowrap">
+                                                                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                                                                        isAssignedToUser
+                                                                            ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30 font-bold'
+                                                                            : assignedList.length > 0 ? 'text-[#FAFAFA]' : 'text-[#A19F8D]'
+                                                                    }`}>
+                                                                        {assignedList.length > 0 ? assignedList.join(', ') : (item.department || '-')}
+                                                                    </span>
+                                                                </td>
+                                                                {/* Tag Terkait (Mentions) */}
+                                                                <td className="px-3 py-2 text-[11px] whitespace-nowrap">
+                                                                    {taggedList.length === 0 ? (
+                                                                        <span className="text-[#A19F8D] text-[10px]">-</span>
+                                                                    ) : (
+                                                                        <div className="flex flex-wrap gap-1">
+                                                                            {taggedList.map(tag => {
+                                                                                const match = userDept && normalizeDepartment(tag) === userDept;
+                                                                                return (
+                                                                                    <span
+                                                                                        key={tag}
+                                                                                        className={`px-1.5 py-0.5 rounded text-[9.5px] font-semibold ${
+                                                                                            match
+                                                                                                ? 'bg-[#C9AA71]/25 text-[#E3D1AA] border border-[#C9AA71]/50 font-bold shadow-sm'
+                                                                                                : 'bg-[#2A281E] text-[#A19F8D] border border-[#3B3929]'
+                                                                                        }`}
+                                                                                    >
+                                                                                        @{tag}
+                                                                                    </span>
+                                                                                );
+                                                                            })}
+                                                                        </div>
+                                                                    )}
+                                                                </td>
+                                                                <td className="px-3 py-2 whitespace-nowrap">
+                                                                    <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${
+                                                                        item.status === 'solved'
+                                                                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                                                            : item.status === 'pending'
+                                                                            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                                                                            : item.status === 'progress'
+                                                                            ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+                                                                            : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                                                                    }`}>
+                                                                        {item.status || 'OPEN'}
+                                                                    </span>
+                                                                </td>
+                                                                <td className="px-3 py-2 text-[11px] text-[#A19F8D] whitespace-nowrap">
+                                                                    {item.reporter || '-'}
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    })}
                                                 </tbody>
                                             </table>
                                         </div>
                                         <div className="text-[11px] text-[#A19F8D] italic text-center py-1">
-                                            Menampilkan cuplikan 6 dari {filteredIssuesCount} baris. File spreadsheet .xlsx lengkap mencakup 18 kolom data mentah, auto-filter di setiap kolom, freeze header, dan pewarnaan status otomatis.
+                                            Menampilkan cuplikan 6 dari {filteredIssuesCount} baris. File spreadsheet .xlsx lengkap mencakup kolom spesifik Departemen Pembuat, Ditugaskan Ke (To Fix), dan Tag Terkait, auto-filter, freeze header, serta pewarnaan status otomatis.
                                         </div>
                                     </div>
                                 )}
