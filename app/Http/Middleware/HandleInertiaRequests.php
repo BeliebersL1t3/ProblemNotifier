@@ -40,6 +40,10 @@ class HandleInertiaRequests extends Middleware
                 }
                 return \Illuminate\Support\Facades\Cache::remember('active_staff_roster', 120, function () {
                     return \App\Models\User::where('is_active', true)
+                        ->where(function ($q) {
+                            $q->whereNull('approval_status')
+                              ->orWhere('approval_status', 'approved');
+                        })
                         ->whereNotNull('department')
                         ->where('department', '!=', '')
                         ->select('id', 'name', 'staff_name', 'department', 'subdivision')
@@ -60,11 +64,31 @@ class HandleInertiaRequests extends Middleware
                     return [];
                 }
                 return \Illuminate\Support\Facades\Cache::remember('archived_staff_names', 120, function () {
-                    return \App\Models\User::onlyTrashed()
-                        ->select('name', 'staff_name')
+                    return \App\Models\User::withTrashed()
+                        ->where(function ($q) {
+                            $q->whereNotNull('deleted_at')
+                              ->orWhere('is_active', false)
+                              ->orWhere('approval_status', '!=', 'approved');
+                        })
+                        ->select('name', 'staff_name', 'department')
                         ->get()
                         ->flatMap(function ($u) {
-                            return [trim($u->name), trim($u->staff_name)];
+                            $names = [trim($u->name ?? ''), trim($u->staff_name ?? '')];
+                            $dept = trim($u->department ?? '');
+                            $expanded = [];
+                            foreach ($names as $n) {
+                                if (!$n) continue;
+                                $expanded[] = $n;
+                                // Expand variations like "Dani IT" -> "Dani", "Dani (IT)"
+                                if ($dept && preg_match('/\s+' . preg_quote($dept, '/') . '$/i', $n)) {
+                                    $base = trim(preg_replace('/\s+' . preg_quote($dept, '/') . '$/i', '', $n));
+                                    if ($base) {
+                                        $expanded[] = $base;
+                                        $expanded[] = "{$base} ({$dept})";
+                                    }
+                                }
+                            }
+                            return $expanded;
                         })
                         ->filter()
                         ->unique()

@@ -236,17 +236,35 @@ export function getArchivedStaffNames() {
 }
 
 function isStaffArchived(name, archivedSet) {
-    if (!name || typeof name !== 'string') return false;
+    if (!name || typeof name !== 'string' || !archivedSet || archivedSet.size === 0) return false;
+
     const nLower = name.toLowerCase().trim();
+    if (archivedSet.has(nLower)) return true;
+
+    // Strip parentheses and brackets: "Dani (IT)" -> "dani"
     const nClean = name.replace(/\([^)]*\)/g, '').trim().toLowerCase();
-    return archivedSet.has(nLower) || (nClean && archivedSet.has(nClean));
+    if (nClean && archivedSet.has(nClean)) return true;
+
+    // Alphanumeric compact comparison: "dani (it)" -> "daniit" vs "dani it" -> "daniit"
+    const nAlpha = nLower.replace(/[^a-z0-9]/g, '');
+    const nCleanAlpha = nClean.replace(/[^a-z0-9]/g, '');
+
+    for (const arch of archivedSet) {
+        if (!arch) continue;
+        const archAlpha = String(arch).toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (nAlpha === archAlpha || (nCleanAlpha && nCleanAlpha === archAlpha)) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 /**
  * Returns the list of staff names for a given department.
- * - If real active users exist in the database for this department, they are used exclusively.
- * - Soft-deleted (archived) users are strictly excluded.
- * - Fallback static roster is only used if NO registered database accounts exist for this department.
+ * - When user is authenticated / dynamic roster is present: Database is the STRICT single source of truth.
+ * - If all accounts in this department are turned off / archived, returns STRICTLY [] (empty array).
+ * - Soft-deleted / inactive / rejected accounts are strictly excluded.
  */
 export function getStaffForDepartment(departmentName, overrideRoster = null, overrideArchived = null) {
     if (!departmentName) return [];
@@ -254,7 +272,21 @@ export function getStaffForDepartment(departmentName, overrideRoster = null, ove
     const dynamic = overrideRoster || dynamicRosterCache;
     const archived = overrideArchived ? new Set(overrideArchived.map(n => String(n).toLowerCase().trim())) : archivedStaffCache;
 
-    // 1. Get base static roster
+    // 1. If dynamic database roster is available: DATABASE IS THE STRICT SINGLE SOURCE OF TRUTH!
+    if (dynamic && typeof dynamic === 'object') {
+        const dynKey = Object.keys(dynamic).find(
+            (k) => normalizeDepartment(k).toLowerCase() === normalized.toLowerCase()
+        );
+        if (dynKey && Array.isArray(dynamic[dynKey])) {
+            return dynamic[dynKey].filter(name => !isStaffArchived(name, archived));
+        }
+
+        // If the department has NO active accounts in the database (or all accounts were turned off/archived),
+        // return strictly empty ([]) so ghost/inactive accounts are NEVER selectable!
+        return [];
+    }
+
+    // 2. Base static roster ONLY as offline / unauthenticated fallback
     let staticList = DEPARTMENT_STAFF[normalized] || [];
     if (!staticList.length) {
         const key = Object.keys(DEPARTMENT_STAFF).find(
@@ -265,50 +297,7 @@ export function getStaffForDepartment(departmentName, overrideRoster = null, ove
         }
     }
 
-    // 2. Extract dynamic staff assigned to this department
-    let dynamicList = [];
-    if (dynamic && typeof dynamic === 'object') {
-        const dynKey = Object.keys(dynamic).find(
-            (k) => normalizeDepartment(k).toLowerCase() === normalized.toLowerCase()
-        );
-        if (dynKey && Array.isArray(dynamic[dynKey])) {
-            dynamicList = dynamic[dynKey].filter(name => !isStaffArchived(name, archived));
-        }
-    }
-
-    // If dynamic active accounts exist in the database for this department, USE THEM as the true roster!
-    // Do NOT pollute with hardcoded dummy/deleted staff.
-    if (dynamicList.length > 0) {
-        return dynamicList;
-    }
-
-    // 3. Fallback: only if NO dynamic database accounts exist for this department, use static fallback
-    if (!dynamic || typeof dynamic !== 'object') {
-        return staticList.filter(name => !isStaffArchived(name, archived));
-    }
-
-    // Find any users who currently belong to a DIFFERENT department in the database
-    const otherDeptUsers = new Set();
-    Object.entries(dynamic).forEach(([dKey, staffArr]) => {
-        if (normalizeDepartment(dKey).toLowerCase() !== normalized.toLowerCase() && Array.isArray(staffArr)) {
-            staffArr.forEach(name => {
-                if (name && typeof name === 'string') {
-                    otherDeptUsers.add(name.toLowerCase().trim());
-                    const cleanBase = name.replace(/\([^)]*\)/g, '').trim().toLowerCase();
-                    if (cleanBase) otherDeptUsers.add(cleanBase);
-                }
-            });
-        }
-    });
-
-    // Filter static list: remove any static name that matches a user now in another department OR is archived
-    return staticList.filter(sName => {
-        if (!sName || typeof sName !== 'string') return false;
-        if (isStaffArchived(sName, archived)) return false;
-        const sNorm = sName.toLowerCase().trim();
-        const sClean = sName.replace(/\([^)]*\)/g, '').trim().toLowerCase();
-        return !otherDeptUsers.has(sNorm) && !otherDeptUsers.has(sClean);
-    });
+    return staticList.filter(name => !isStaffArchived(name, archived));
 }
 
 /**
