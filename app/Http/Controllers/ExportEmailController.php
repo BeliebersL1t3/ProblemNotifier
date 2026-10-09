@@ -74,15 +74,23 @@ class ExportEmailController extends Controller
     }
 
     /**
-     * Send client-generated PDF report via email attachment.
+     * Send client-generated PDF/Excel report via email attachment.
      */
     public function sendPdfReport(Request $request): JsonResponse
     {
         $request->validate([
-            'pdf_file' => 'required|file|mimes:pdf|max:25600', // max 25MB, strictly PDF
-            'subject'  => 'required|string|max:255',
-            'message'  => 'nullable|string|max:5000',
+            'pdf_file'   => 'nullable|file|mimes:pdf|max:25600', // max 25MB
+            'excel_file' => 'nullable|file|mimes:xlsx,xls|max:25600', // max 25MB
+            'subject'    => 'required|string|max:255',
+            'message'    => 'nullable|string|max:5000',
         ]);
+
+        if (!$request->hasFile('pdf_file') && !$request->hasFile('excel_file')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Silakan lampirkan minimal satu file laporan (PDF atau Excel).',
+            ], 422);
+        }
 
         // Parse recipients (support JSON string or array)
         $rawRecipients = $request->input('recipients');
@@ -138,13 +146,42 @@ class ExportEmailController extends Controller
         $subject = trim($request->input('subject'));
         $customMessage = $request->input('message');
 
-        $uploadedFile = $request->file('pdf_file');
-        $rawFilename = $uploadedFile->getClientOriginalName() ?: ('Telunas_Report_' . date('Y-m-d') . '.pdf');
-        $safeFilename = preg_replace('/[^a-zA-Z0-9_\-\. ]/', '_', basename($rawFilename));
-        if (!str_ends_with(strtolower($safeFilename), '.pdf')) {
-            $safeFilename .= '.pdf';
+        // Process PDF file if attached
+        $uploadedPdf = $request->file('pdf_file');
+        $safePdfFilename = null;
+        if ($uploadedPdf) {
+            $rawPdfName = $uploadedPdf->getClientOriginalName() ?: ('Telunas_Report_' . date('Y-m-d') . '.pdf');
+            $safePdf = preg_replace('/[^a-zA-Z0-9_\-\. ]/', '_', basename($rawPdfName));
+            if (!str_ends_with(strtolower($safePdf), '.pdf')) {
+                $safePdf .= '.pdf';
+            }
+            $safePdfFilename = $safePdf;
         }
-        $originalFilename = $safeFilename;
+
+        // Process Excel file if attached
+        $uploadedExcel = $request->file('excel_file');
+        $safeExcelFilename = null;
+        if ($uploadedExcel) {
+            $rawExcelName = $uploadedExcel->getClientOriginalName() ?: ('Telunas_Report_' . date('Y-m-d') . '.xlsx');
+            $safeXls = preg_replace('/[^a-zA-Z0-9_\-\. ]/', '_', basename($rawExcelName));
+            if (!str_ends_with(strtolower($safeXls), '.xlsx') && !str_ends_with(strtolower($safeXls), '.xls')) {
+                $safeXls .= '.xlsx';
+            }
+            $safeExcelFilename = $safeXls;
+        }
+
+        // Determine format label for notifications
+        if ($safePdfFilename && $safeExcelFilename) {
+            $formatLabel = 'Excel (.xlsx) & PDF';
+        } elseif ($safeExcelFilename) {
+            $formatLabel = 'Excel (.xlsx)';
+        } else {
+            $formatLabel = 'PDF';
+        }
+
+        $reportMeta['pdf_filename'] = $safePdfFilename;
+        $reportMeta['excel_filename'] = $safeExcelFilename;
+        $reportMeta['format'] = ($safePdfFilename && $safeExcelFilename) ? 'both' : ($safeExcelFilename ? 'excel' : 'pdf');
 
         $forceSystemMailer = $request->input('mailer') === 'system' || ($reportMeta['type'] ?? '') === 'calendar';
         $hasGoogleConnected = false;
@@ -166,8 +203,8 @@ class ExportEmailController extends Controller
                     'senderName'       => $senderName,
                     'senderDepartment' => $senderDept,
                     'reportMeta'       => $reportMeta,
-                    'pdfFilename'      => $originalFilename,
-                    'excelFilename'    => null,
+                    'pdfFilename'      => $safePdfFilename,
+                    'excelFilename'    => $safeExcelFilename,
                 ])->render();
 
                 $this->gmailApiService->sendEmail(
@@ -175,8 +212,10 @@ class ExportEmailController extends Controller
                     recipients: $validRecipients,
                     subject: $subject,
                     htmlBody: $htmlBody,
-                    pdfFile: $uploadedFile,
-                    pdfFilename: $originalFilename
+                    pdfFile: $uploadedPdf,
+                    pdfFilename: $safePdfFilename ?: 'Telunas_Report.pdf',
+                    excelFile: $uploadedExcel,
+                    excelFilename: $safeExcelFilename ?: 'Telunas_Report.xlsx'
                 );
 
                 $accountEmail = $sender->google_email ?: $sender->email;
@@ -187,10 +226,10 @@ class ExportEmailController extends Controller
                     'sender_name'       => $senderName,
                     'sender_email'      => $accountEmail,
                     'sender_department' => $senderDept,
-                    'report_type'       => $reportMeta['type'] ?? 'issues',
+                    'report_type'       => $reportMeta['type'] ?? ($safeExcelFilename ? 'excel' : 'issues'),
                     'recipients'        => $validRecipients,
                     'subject'           => $subject,
-                    'pdf_filename'      => $originalFilename,
+                    'pdf_filename'      => $safePdfFilename ?: $safeExcelFilename,
                     'sent_via'          => 'gmail_api',
                     'status'            => 'sent',
                     'ip_address'        => $request->ip(),
@@ -199,7 +238,7 @@ class ExportEmailController extends Controller
 
                 return response()->json([
                     'success'          => true,
-                    'message'          => "Laporan PDF berhasil dikirimkan langsung dari akun Gmail Anda ({$accountEmail}) ke " . count($validRecipients) . " penerima.",
+                    'message'          => "Laporan {$formatLabel} berhasil dikirimkan langsung dari akun Gmail Anda ({$accountEmail}) ke " . count($validRecipients) . " penerima.",
                     'sent_via'         => 'gmail_api',
                     'sender_email'     => $accountEmail,
                     'recipients_count' => count($validRecipients),
@@ -218,29 +257,40 @@ class ExportEmailController extends Controller
                 'sender_name'       => $senderName,
                 'sender_email'      => $senderEmail ?: ($sender?->email ?? config('mail.from.address')),
                 'sender_department' => $senderDept,
-                'report_type'       => $reportMeta['type'] ?? 'calendar',
+                'report_type'       => $reportMeta['type'] ?? ($safeExcelFilename ? 'excel' : 'issues'),
                 'recipients'        => $validRecipients,
                 'subject'           => $subject,
-                'pdf_filename'      => $originalFilename,
+                'pdf_filename'      => $safePdfFilename ?: $safeExcelFilename,
                 'sent_via'          => 'smtp',
                 'status'            => 'queued',
                 'ip_address'        => $request->ip(),
                 'meta'              => $reportMeta,
             ]);
 
-            // 2. Safely store uploaded file in temp storage for async worker/afterResponse dispatch
+            // 2. Safely store uploaded files in temp storage for async worker/afterResponse dispatch
             $tempDir = storage_path('app/temp_exports');
             if (!is_dir($tempDir)) {
                 mkdir($tempDir, 0755, true);
             }
-            $tempFileName = 'export_' . uniqid('', true) . '.pdf';
-            $uploadedFile->move($tempDir, $tempFileName);
-            $tempFilePath = $tempDir . DIRECTORY_SEPARATOR . $tempFileName;
+
+            $tempPdfPath = null;
+            if ($uploadedPdf) {
+                $tempPdfName = 'export_pdf_' . uniqid('', true) . '.pdf';
+                $uploadedPdf->move($tempDir, $tempPdfName);
+                $tempPdfPath = $tempDir . DIRECTORY_SEPARATOR . $tempPdfName;
+            }
+
+            $tempExcelPath = null;
+            if ($uploadedExcel) {
+                $tempExcelName = 'export_excel_' . uniqid('', true) . '.xlsx';
+                $uploadedExcel->move($tempDir, $tempExcelName);
+                $tempExcelPath = $tempDir . DIRECTORY_SEPARATOR . $tempExcelName;
+            }
 
             // 3. Dispatch asynchronous Job after response
             SendExportPdfReportJob::dispatchAfterResponse(
-                tempFilePath: $tempFilePath,
-                pdfFilename: $originalFilename,
+                tempFilePath: $tempPdfPath,
+                pdfFilename: $safePdfFilename,
                 recipients: $validRecipients,
                 subject: $subject,
                 customMessage: $customMessage,
@@ -248,12 +298,14 @@ class ExportEmailController extends Controller
                 senderDept: $senderDept,
                 senderEmail: $senderEmail,
                 reportMeta: $reportMeta,
-                logId: $log->id
+                logId: $log->id,
+                tempExcelFilePath: $tempExcelPath,
+                excelFilename: $safeExcelFilename
             );
 
             return response()->json([
                 'success'          => true,
-                'message'          => 'Laporan PDF berhasil dijadwalkan dan sedang dikirimkan via email ke ' . count($validRecipients) . ' penerima.',
+                'message'          => "Laporan {$formatLabel} berhasil dijadwalkan dan sedang dikirimkan via email ke " . count($validRecipients) . " penerima.",
                 'sent_via'         => 'smtp',
                 'sender_email'     => config('mail.from.address'),
                 'recipients_count' => count($validRecipients),
@@ -261,7 +313,7 @@ class ExportEmailController extends Controller
                 'log_id'           => $log->id,
             ]);
         } catch (\Throwable $e) {
-            Log::error('General Error during PDF export email: ' . $e->getMessage());
+            Log::error('General Error during export email dispatch: ' . $e->getMessage());
 
             return response()->json([
                 'success' => false,

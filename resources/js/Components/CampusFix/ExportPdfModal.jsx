@@ -28,7 +28,7 @@ import {
 } from 'lucide-react';
 import { normalizeDepartment } from '@/constants/staff';
 import { formatDurationLabel } from '@/lib/duration';
-import { generateExcelReport } from '@/utils/excelExporter';
+import { generateExcelReport, generateExcelReportBlob } from '@/utils/excelExporter';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -126,6 +126,8 @@ export function ExportPdfModal({ open, onOpenChange }) {
     const [availableRecipients, setAvailableRecipients] = useState({ users: [], by_department: {}, hods: [] });
     const [isLoadingRecipients, setIsLoadingRecipients] = useState(false);
     const [emailStatusToast, setEmailStatusToast] = useState(null);
+    const [includePdfBundle, setIncludePdfBundle] = useState(false);
+    const [includeExcelBundle, setIncludeExcelBundle] = useState(false);
     const [googleStatus, setGoogleStatus] = useState({ connected: false, google_email: null });
     const [isCheckingGoogle, setIsCheckingGoogle] = useState(false);
 
@@ -815,6 +817,8 @@ export function ExportPdfModal({ open, onOpenChange }) {
     const handleOpenEmailModal = async () => {
         setIsEmailModalOpen(true);
         setEmailStatusToast(null);
+        setIncludePdfBundle(false);
+        setIncludeExcelBundle(false);
 
         const scopeLabels = {
             'all': 'All Scope',
@@ -825,7 +829,8 @@ export function ExportPdfModal({ open, onOpenChange }) {
         };
         const scopeStr = scopeLabels[deptFilterMode] || 'General Scope';
         const dateStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-        setEmailSubject(`[Telunas CampusFix] Issue Report - ${scopeStr} (${dateStr})`);
+        const formatTitle = exportFormat === 'excel' ? 'Excel Spreadsheet Report' : 'Issue Report';
+        setEmailSubject(`[Telunas CampusFix] ${formatTitle} - ${scopeStr} (${dateStr})`);
 
         if (!availableRecipients.users || availableRecipients.users.length === 0) {
             setIsLoadingRecipients(true);
@@ -942,16 +947,54 @@ export function ExportPdfModal({ open, onOpenChange }) {
         setEmailStatusToast(null);
 
         try {
-            const doc = buildPdfDocument();
-            const pdfBlob = doc.output('blob');
-            const pdfFilename = `Telunas_Report_${new Date().toISOString().split('T')[0]}.pdf`;
-
             const formData = new FormData();
-            formData.append('pdf_file', pdfBlob, pdfFilename);
+            const dateIso = new Date().toISOString().split('T')[0];
+
+            if (exportFormat === 'excel') {
+                // 1. Generate Excel Blob
+                const excelResult = await generateExcelReportBlob(filteredIssues, {
+                    selectedSheets,
+                    categories,
+                    includeKpiSummary,
+                    includeDelayTimeline,
+                    includeSolvedNotes,
+                });
+                formData.append('excel_file', excelResult.blob, excelResult.filename);
+
+                // 2. Dual Attachment: PDF if bundled
+                if (includePdfBundle) {
+                    const doc = buildPdfDocument();
+                    const pdfBlob = doc.output('blob');
+                    const pdfFilename = `Telunas_Report_${dateIso}.pdf`;
+                    formData.append('pdf_file', pdfBlob, pdfFilename);
+                }
+            } else {
+                // PDF Mode
+                const doc = buildPdfDocument();
+                const pdfBlob = doc.output('blob');
+                const pdfFilename = `Telunas_Report_${dateIso}.pdf`;
+                formData.append('pdf_file', pdfBlob, pdfFilename);
+
+                // Dual Attachment: Excel if bundled
+                if (includeExcelBundle) {
+                    const excelResult = await generateExcelReportBlob(filteredIssues, {
+                        selectedSheets,
+                        categories,
+                        includeKpiSummary,
+                        includeDelayTimeline,
+                        includeSolvedNotes,
+                    });
+                    formData.append('excel_file', excelResult.blob, excelResult.filename);
+                }
+            }
+
+            const isBundled = exportFormat === 'excel' ? includePdfBundle : includeExcelBundle;
             formData.append('recipients', JSON.stringify(emailRecipients));
             formData.append('subject', emailSubject || 'Telunas Issue Report');
             formData.append('message', emailMessage || '');
             formData.append('meta', JSON.stringify({
+                type: 'issues',
+                format: isBundled ? 'both' : exportFormat,
                 scope: deptFilterMode,
                 sheets: selectedSheets,
                 total_issues: filteredIssuesCount,
@@ -1751,15 +1794,26 @@ export function ExportPdfModal({ open, onOpenChange }) {
                     </Button>
                     <div className="flex items-center gap-2 w-full sm:w-auto">
                         {exportFormat === 'excel' ? (
-                            <Button
-                                type="button"
-                                onClick={handleExportExcel}
-                                disabled={isExportingExcel || filteredIssuesCount === 0}
-                                className="gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold transition-all shadow-md active:scale-95 flex-1 sm:flex-initial"
-                            >
-                                {isExportingExcel ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSpreadsheet className="h-4 w-4" />}
-                                {isExportingExcel ? (t('generating_excel') || 'Membuat Excel...') : (t('download_excel') || 'Unduh Excel (.xlsx)')}
-                            </Button>
+                            <>
+                                <Button
+                                    type="button"
+                                    onClick={handleOpenEmailModal}
+                                    disabled={isExportingExcel || isSendingEmail || filteredIssuesCount === 0}
+                                    className="gap-2 bg-[#1C2A1E] border border-emerald-500/60 text-emerald-200 hover:bg-emerald-950/80 hover:border-emerald-400 transition-all flex-1 sm:flex-initial font-semibold shadow-sm"
+                                >
+                                    <Mail className="h-4 w-4 text-emerald-400" />
+                                    {t('send_via_email') || 'Kirim via Email'}
+                                </Button>
+                                <Button
+                                    type="button"
+                                    onClick={handleExportExcel}
+                                    disabled={isExportingExcel || filteredIssuesCount === 0}
+                                    className="gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold transition-all shadow-md active:scale-95 flex-1 sm:flex-initial"
+                                >
+                                    {isExportingExcel ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSpreadsheet className="h-4 w-4" />}
+                                    {isExportingExcel ? (t('generating_excel') || 'Membuat Excel...') : (t('download_excel') || 'Unduh Excel (.xlsx)')}
+                                </Button>
+                            </>
                         ) : (
                             <>
                                 <Button
@@ -1796,12 +1850,20 @@ export function ExportPdfModal({ open, onOpenChange }) {
                                 </div>
                                 <div>
                                     <h3 className="text-lg font-bold text-[#FAFAFA]">
-                                        {t('email_report_title') || 'Send Report via Email'}
+                                        {exportFormat === 'excel'
+                                            ? (lang === 'id' ? 'Kirim Laporan Excel via Email' : 'Send Excel Report via Email')
+                                            : (t('email_report_title') || 'Send Report via Email')
+                                        }
                                     </h3>
                                     <p className="text-xs text-muted-foreground">
-                                        {lang === 'id' 
-                                            ? 'Kirimkan lampiran laporan PDF ini langsung ke alamat email staf, HOD, atau manajemen.'
-                                            : 'Send this generated PDF report directly to staff, HODs, or management email addresses.'}
+                                        {exportFormat === 'excel'
+                                            ? (lang === 'id'
+                                                ? 'Kirimkan spreadsheet Excel (.xlsx) langsung ke alamat email staf, HOD, atau manajemen.'
+                                                : 'Send this Excel (.xlsx) spreadsheet report directly to staff, HODs, or management email addresses.')
+                                            : (lang === 'id' 
+                                                ? 'Kirimkan lampiran laporan PDF ini langsung ke alamat email staf, HOD, atau manajemen.'
+                                                : 'Send this generated PDF report directly to staff, HODs, or management email addresses.')
+                                        }
                                     </p>
                                 </div>
                             </div>
@@ -2094,22 +2156,151 @@ export function ExportPdfModal({ open, onOpenChange }) {
                                 />
                             </div>
 
-                            {/* Attachment Details Pill */}
-                            <div className="p-3 rounded-xl bg-[#242217] border border-[#C9AA71]/40 flex items-center justify-between text-xs">
-                                <div className="flex items-center gap-2">
-                                    <FileText className="h-4 w-4 text-[#C9AA71]" />
-                                    <div>
-                                        <p className="font-bold text-[#FAFAFA]">
-                                            Telunas_Report_{new Date().toISOString().split('T')[0]}.pdf
-                                        </p>
-                                        <p className="text-[11px] text-muted-foreground">
-                                            {filteredIssuesCount} issues included • Scope: {deptFilterMode} • Periods: {selectedSheets.join(', ') || 'All'}
-                                        </p>
-                                    </div>
-                                </div>
-                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#C9AA71]/20 text-[#C9AA71] border border-[#C9AA71]/30">
-                                    PDF ATTACHMENT
-                                </span>
+                            {/* Attachment Details & Dual Bundling Options */}
+                            <div className="space-y-2.5">
+                                <label className="text-xs font-semibold text-foreground flex items-center justify-between">
+                                    <span>{lang === 'id' ? 'Berkas Lampiran Laporan' : 'Report Attachment Files'}</span>
+                                    <span className="text-[11px] text-muted-foreground">
+                                        {exportFormat === 'excel' 
+                                            ? (includePdfBundle ? (lang === 'id' ? '2 Berkas (Excel + PDF)' : '2 Files (Excel + PDF)') : '1 Berkas (.xlsx)') 
+                                            : (includeExcelBundle ? (lang === 'id' ? '2 Berkas (PDF + Excel)' : '2 Files (PDF + Excel)') : '1 Berkas (.pdf)')
+                                        }
+                                    </span>
+                                </label>
+
+                                {exportFormat === 'excel' ? (
+                                    <>
+                                        {/* Main Excel Card */}
+                                        <div className="p-3 rounded-xl bg-[#142318] border border-emerald-500/40 flex items-center justify-between text-xs shadow-sm">
+                                            <div className="flex items-center gap-2.5">
+                                                <div className="p-2 rounded-lg bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                                                    <FileSpreadsheet className="h-4 w-4" />
+                                                </div>
+                                                <div>
+                                                    <p className="font-bold text-[#FAFAFA]">
+                                                        Telunas_Issues_Report_{selectedSheets.join('_')}_{new Date().toISOString().split('T')[0]}.xlsx
+                                                    </p>
+                                                    <p className="text-[11px] text-emerald-200/80">
+                                                        {filteredIssuesCount} issues included • 2 Sheet (Ringkasan KPI + Data Tiket) • Scope: {deptFilterMode}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                                                XLSX SPREADSHEET
+                                            </span>
+                                        </div>
+
+                                        {/* Bundling Checkbox: Also attach official PDF */}
+                                        <label className="flex items-start gap-2.5 p-3 rounded-xl bg-[#2A281E]/60 border border-[#3B3929] hover:border-[#C9AA71]/50 cursor-pointer transition-all">
+                                            <input
+                                                type="checkbox"
+                                                checked={includePdfBundle}
+                                                onChange={(e) => setIncludePdfBundle(e.target.checked)}
+                                                className="mt-0.5 rounded border-[#3B3929] text-[#C9AA71] focus:ring-[#C9AA71]/30 w-4 h-4 bg-[#1C1B0E]"
+                                            />
+                                            <div className="flex-1 text-xs">
+                                                <div className="flex items-center gap-1.5 font-bold text-[#FAFAFA]">
+                                                    <FileText className="w-3.5 h-3.5 text-[#C9AA71]" />
+                                                    <span>{lang === 'id' ? 'Sertakan juga salinan Dokumen PDF Resmi (.pdf)' : 'Also attach official PDF document (.pdf)'}</span>
+                                                    <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/25 text-amber-300 border border-amber-500/30 font-bold uppercase tracking-wider">DUAL ATTACHMENT</span>
+                                                </div>
+                                                <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
+                                                    {lang === 'id'
+                                                        ? 'Kirimkan spreadsheet Excel lengkap untuk olah data dan salinan PDF resmi untuk cetak/arsip dalam satu email sekaligus.'
+                                                        : 'Attach both the full Excel spreadsheet for data analysis and the official formatted PDF in a single email dispatch.'}
+                                                </p>
+                                            </div>
+                                        </label>
+
+                                        {/* Optional Bundled PDF Card */}
+                                        {includePdfBundle && (
+                                            <div className="p-3 rounded-xl bg-[#242217] border border-[#C9AA71]/40 flex items-center justify-between text-xs animate-in fade-in duration-150">
+                                                <div className="flex items-center gap-2.5">
+                                                    <div className="p-2 rounded-lg bg-[#C9AA71]/15 text-[#C9AA71] border border-[#C9AA71]/30">
+                                                        <FileText className="h-4 w-4" />
+                                                    </div>
+                                                    <div>
+                                                        <p className="font-bold text-[#FAFAFA]">
+                                                            Telunas_Report_{new Date().toISOString().split('T')[0]}.pdf
+                                                        </p>
+                                                        <p className="text-[11px] text-muted-foreground">
+                                                            {filteredIssuesCount} issues included • Official printable document layout
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#C9AA71]/20 text-[#C9AA71] border border-[#C9AA71]/30">
+                                                    PDF ATTACHMENT
+                                                </span>
+                                            </div>
+                                        )}
+                                    </>
+                                ) : (
+                                    <>
+                                        {/* Main PDF Card */}
+                                        <div className="p-3 rounded-xl bg-[#242217] border border-[#C9AA71]/40 flex items-center justify-between text-xs">
+                                            <div className="flex items-center gap-2.5">
+                                                <div className="p-2 rounded-lg bg-[#C9AA71]/15 text-[#C9AA71] border border-[#C9AA71]/30">
+                                                    <FileText className="h-4 w-4" />
+                                                </div>
+                                                <div>
+                                                    <p className="font-bold text-[#FAFAFA]">
+                                                        Telunas_Report_{new Date().toISOString().split('T')[0]}.pdf
+                                                    </p>
+                                                    <p className="text-[11px] text-muted-foreground">
+                                                        {filteredIssuesCount} issues included • Scope: {deptFilterMode} • Periods: {selectedSheets.join(', ') || 'All'}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#C9AA71]/20 text-[#C9AA71] border border-[#C9AA71]/30">
+                                                PDF ATTACHMENT
+                                            </span>
+                                        </div>
+
+                                        {/* Bundling Checkbox: Also attach Excel spreadsheet */}
+                                        <label className="flex items-start gap-2.5 p-3 rounded-xl bg-[#2A281E]/60 border border-[#3B3929] hover:border-emerald-500/50 cursor-pointer transition-all">
+                                            <input
+                                                type="checkbox"
+                                                checked={includeExcelBundle}
+                                                onChange={(e) => setIncludeExcelBundle(e.target.checked)}
+                                                className="mt-0.5 rounded border-[#3B3929] text-emerald-500 focus:ring-emerald-500/30 w-4 h-4 bg-[#1C1B0E]"
+                                            />
+                                            <div className="flex-1 text-xs">
+                                                <div className="flex items-center gap-1.5 font-bold text-[#FAFAFA]">
+                                                    <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
+                                                    <span>{lang === 'id' ? 'Sertakan juga Spreadsheet Excel (.xlsx)' : 'Also attach Excel spreadsheet (.xlsx)'}</span>
+                                                    <span className="text-[9px] px-1.5 py-0.2 rounded bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 font-bold uppercase tracking-wider">DUAL ATTACHMENT</span>
+                                                </div>
+                                                <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
+                                                    {lang === 'id'
+                                                        ? 'Kirimkan juga file spreadsheet 2 sheet (Ringkasan KPI & Data Tiket) bersama lampiran PDF ini.'
+                                                        : 'Attach the full 2-sheet raw Excel spreadsheet alongside this PDF in a single email dispatch.'}
+                                                </p>
+                                            </div>
+                                        </label>
+
+                                        {/* Optional Bundled Excel Card */}
+                                        {includeExcelBundle && (
+                                            <div className="p-3 rounded-xl bg-[#142318] border border-emerald-500/40 flex items-center justify-between text-xs animate-in fade-in duration-150">
+                                                <div className="flex items-center gap-2.5">
+                                                    <div className="p-2 rounded-lg bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                                                        <FileSpreadsheet className="h-4 w-4" />
+                                                    </div>
+                                                    <div>
+                                                        <p className="font-bold text-[#FAFAFA]">
+                                                            Telunas_Issues_Report_{selectedSheets.join('_')}_{new Date().toISOString().split('T')[0]}.xlsx
+                                                        </p>
+                                                        <p className="text-[11px] text-emerald-200/80">
+                                                            {filteredIssuesCount} tiket • 2 Sheet (Ringkasan KPI + Data Tiket)
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                                                    XLSX SPREADSHEET
+                                                </span>
+                                            </div>
+                                        )}
+                                    </>
+                                )}
                             </div>
                         </div>
 
@@ -2144,7 +2335,11 @@ export function ExportPdfModal({ open, onOpenChange }) {
                                     type="button"
                                     onClick={handleSendEmail}
                                     disabled={isSendingEmail || emailRecipients.length === 0}
-                                    className="gap-2 bg-[#C9AA71] text-[#1C1B0E] hover:bg-[#b89960] font-bold"
+                                    className={`gap-2 font-bold shadow-md transition-all active:scale-95 ${
+                                        exportFormat === 'excel'
+                                            ? 'bg-emerald-600 text-white hover:bg-emerald-500'
+                                            : 'bg-[#C9AA71] text-[#1C1B0E] hover:bg-[#b89960]'
+                                    }`}
                                 >
                                     {isSendingEmail ? (
                                         <>

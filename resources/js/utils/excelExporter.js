@@ -492,6 +492,10 @@ export async function generateExcelReport(issues = [], options = {}) {
     const nowStr = new Date().toISOString().slice(0, 10);
     const finalFilename = filename || `Telunas_Issues_Report_${selectedSheets.join('_')}_${nowStr}.xlsx`;
 
+    if (options.returnBlob) {
+        return { blob, filename: finalFilename };
+    }
+
     const downloadUrl = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = downloadUrl;
@@ -503,3 +507,11 @@ export async function generateExcelReport(issues = [], options = {}) {
 
     return true;
 }
+
+/**
+ * Generate Excel report blob directly without triggering browser download (ideal for email attachments)
+ */
+export async function generateExcelReportBlob(issues = [], options = {}) {
+    return generateExcelReport(issues, { ...options, returnBlob: true });
+}
+

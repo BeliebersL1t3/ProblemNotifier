@@ -112,5 +112,92 @@ class ExportEmailOptimizationTest extends TestCase
         $this->assertStringNotContainsString('Total Issues', $view);
         $this->assertStringNotContainsString('Telunas_Report.xlsx', $view);
     }
+
+    public function test_email_excel_dispatch_creates_audit_log_and_processes_excel_file(): void
+    {
+        Mail::fake();
+
+        $user = User::factory()->create([
+            'role'       => 'admin',
+            'email'      => 'admin2@example.com',
+            'department' => 'IT',
+        ]);
+
+        $fakeExcel = UploadedFile::fake()->create('Telunas_Issues_Report_2026.xlsx', 150, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+
+        $response = $this->actingAs($user)->postJson('/api/export/email-pdf', [
+            'excel_file' => $fakeExcel,
+            'subject'    => 'Test Excel Report Subject',
+            'message'    => 'Here is the spreadsheet.',
+            'mailer'     => 'system',
+            'recipients' => json_encode(['staff@example.com']),
+            'meta'       => json_encode([
+                'type'   => 'issues',
+                'format' => 'excel',
+            ]),
+        ]);
+
+        $response->assertStatus(200);
+        $response->assertJson([
+            'success'  => true,
+            'sent_via' => 'smtp',
+        ]);
+
+        $this->assertDatabaseHas('export_report_logs', [
+            'user_id'      => $user->id,
+            'subject'      => 'Test Excel Report Subject',
+            'pdf_filename' => 'Telunas_Issues_Report_2026.xlsx',
+            'report_type'  => 'issues',
+        ]);
+    }
+
+    public function test_email_dual_attachment_bundle_dispatches_both_pdf_and_excel(): void
+    {
+        Mail::fake();
+
+        $user = User::factory()->create([
+            'role'       => 'admin',
+            'email'      => 'admin3@example.com',
+            'department' => 'IT',
+        ]);
+
+        $fakePdf = UploadedFile::fake()->create('Telunas_Report.pdf', 100, 'application/pdf');
+        $fakeExcel = UploadedFile::fake()->create('Telunas_Issues_Report_2026.xlsx', 150, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+
+        $response = $this->actingAs($user)->postJson('/api/export/email-pdf', [
+            'pdf_file'   => $fakePdf,
+            'excel_file' => $fakeExcel,
+            'subject'    => 'Test Dual Bundle Subject',
+            'mailer'     => 'system',
+            'recipients' => json_encode(['manager@example.com']),
+        ]);
+
+        $response->assertStatus(200);
+        $response->assertJson([
+            'success' => true,
+        ]);
+
+        $this->assertDatabaseHas('export_report_logs', [
+            'user_id'      => $user->id,
+            'subject'      => 'Test Dual Bundle Subject',
+            'pdf_filename' => 'Telunas_Report.pdf',
+        ]);
+    }
+
+    public function test_email_dispatch_fails_when_neither_pdf_nor_excel_provided(): void
+    {
+        $user = User::factory()->create(['role' => 'admin']);
+
+        $response = $this->actingAs($user)->postJson('/api/export/email-pdf', [
+            'subject'    => 'Missing File Test',
+            'recipients' => json_encode(['staff@example.com']),
+        ]);
+
+        $response->assertStatus(422);
+        $response->assertJson([
+            'success' => false,
+            'message' => 'Silakan lampirkan minimal satu file laporan (PDF atau Excel).',
+        ]);
+    }
 }
 

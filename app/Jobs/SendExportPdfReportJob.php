@@ -22,8 +22,8 @@ class SendExportPdfReportJob implements ShouldQueue
     /**
      * Create a new job instance.
      *
-     * @param string $tempFilePath Path to temporary stored PDF file
-     * @param string $pdfFilename User-facing name of the PDF attachment
+     * @param string|null $tempFilePath Path to temporary stored PDF file
+     * @param string|null $pdfFilename User-facing name of the PDF attachment
      * @param array $recipients Array of verified recipient email addresses
      * @param string $subject Subject line of email
      * @param string|null $customMessage Optional custom body text
@@ -32,10 +32,12 @@ class SendExportPdfReportJob implements ShouldQueue
      * @param string|null $senderEmail Sender email address
      * @param array $reportMeta Report metadata
      * @param int|null $logId ID of ExportReportLog record
+     * @param string|null $tempExcelFilePath Path to temporary stored Excel file
+     * @param string|null $excelFilename User-facing name of the Excel attachment
      */
     public function __construct(
-        public string $tempFilePath,
-        public string $pdfFilename,
+        public ?string $tempFilePath,
+        public ?string $pdfFilename,
         public array $recipients,
         public string $subject,
         public ?string $customMessage,
@@ -43,7 +45,9 @@ class SendExportPdfReportJob implements ShouldQueue
         public string $senderDept,
         public ?string $senderEmail = null,
         public array $reportMeta = [],
-        public ?int $logId = null
+        public ?int $logId = null,
+        public ?string $tempExcelFilePath = null,
+        public ?string $excelFilename = null
     ) {}
 
     /**
@@ -60,7 +64,10 @@ class SendExportPdfReportJob implements ShouldQueue
                 reportMeta: $this->reportMeta,
                 pdfFile: $this->tempFilePath,
                 pdfFilename: $this->pdfFilename,
-                senderEmail: $this->senderEmail
+                senderEmail: $this->senderEmail,
+                isNoReply: false,
+                excelFile: $this->tempExcelFilePath,
+                excelFilename: $this->excelFilename
             );
 
             Mail::to($this->recipients)->send($mailable);
@@ -72,9 +79,13 @@ class SendExportPdfReportJob implements ShouldQueue
                 ]);
             }
 
-            Log::info("SendExportPdfReportJob: PDF report '{$this->pdfFilename}' successfully emailed to " . count($this->recipients) . " recipients.");
+            $attachmentInfo = array_filter([$this->pdfFilename, $this->excelFilename]);
+            $attachmentNames = implode(' & ', $attachmentInfo) ?: 'Report';
+            Log::info("SendExportPdfReportJob: Report '{$attachmentNames}' successfully emailed to " . count($this->recipients) . " recipients.");
         } catch (\Throwable $e) {
-            Log::error("SendExportPdfReportJob: Failed to send PDF report '{$this->pdfFilename}': " . $e->getMessage());
+            $attachmentInfo = array_filter([$this->pdfFilename, $this->excelFilename]);
+            $attachmentNames = implode(' & ', $attachmentInfo) ?: 'Report';
+            Log::error("SendExportPdfReportJob: Failed to send report '{$attachmentNames}': " . $e->getMessage());
 
             if ($this->logId) {
                 ExportReportLog::where('id', $this->logId)->update([
@@ -85,12 +96,14 @@ class SendExportPdfReportJob implements ShouldQueue
 
             throw $e;
         } finally {
-            // Secure cleanup of temporary file strictly within storage directory
-            if (!empty($this->tempFilePath) && file_exists($this->tempFilePath)) {
-                $realPath = realpath($this->tempFilePath);
-                $storageBase = realpath(storage_path('app'));
-                if ($realPath && $storageBase && str_starts_with($realPath, $storageBase)) {
-                    @unlink($realPath);
+            // Secure cleanup of temporary files strictly within storage directory
+            $storageBase = realpath(storage_path('app'));
+            foreach ([$this->tempFilePath, $this->tempExcelFilePath] as $filePath) {
+                if (!empty($filePath) && file_exists($filePath)) {
+                    $realPath = realpath($filePath);
+                    if ($realPath && $storageBase && str_starts_with($realPath, $storageBase)) {
+                        @unlink($realPath);
+                    }
                 }
             }
         }

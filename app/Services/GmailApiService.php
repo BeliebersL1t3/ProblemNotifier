@@ -161,8 +161,10 @@ class GmailApiService
         array $recipients,
         string $subject,
         string $htmlBody,
-        $pdfFile,
-        string $pdfFilename = 'Telunas_Report.pdf'
+        $pdfFile = null,
+        string $pdfFilename = 'Telunas_Report.pdf',
+        $excelFile = null,
+        string $excelFilename = 'Telunas_Report.xlsx'
     ): Message {
         $client = $this->getAuthenticatedClient($user);
         $gmail = new Gmail($client);
@@ -193,6 +195,18 @@ class GmailApiService
                 $email->addPart(new DataPart(new File($pdfFile->getRealPath()), $pdfFilename, 'application/pdf'));
             } elseif (is_string($pdfFile)) {
                 $email->addPart(new DataPart($pdfFile, $pdfFilename, 'application/pdf'));
+            }
+        }
+
+        // Attach Excel
+        if ($excelFile) {
+            $xlsxMime = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+            if (is_string($excelFile) && file_exists($excelFile)) {
+                $email->addPart(new DataPart(new File($excelFile), $excelFilename ?: 'Telunas_Report.xlsx', $xlsxMime));
+            } elseif (is_object($excelFile) && method_exists($excelFile, 'getRealPath')) {
+                $email->addPart(new DataPart(new File($excelFile->getRealPath()), $excelFilename ?: 'Telunas_Report.xlsx', $xlsxMime));
+            } elseif (is_string($excelFile)) {
+                $email->addPart(new DataPart($excelFile, $excelFilename ?: 'Telunas_Report.xlsx', $xlsxMime));
             }
         }
 
