@@ -454,6 +454,71 @@ export function getTaskPreviewDate(item, lang = 'id') {
     return '';
 }
 
+// ─── Year Selector Dropdown ───────────────────────────────────────────────────
+function YearDropdown({ selectedYear, onChange, years = [], className = '', lang = 'id' }) {
+    const [open, setOpen] = useState(false);
+    const ref = useRef(null);
+
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (ref.current && !ref.current.contains(e.target)) {
+                setOpen(false);
+            }
+        };
+        if (open) document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [open]);
+
+    return (
+        <div className={`relative inline-block ${className}`} ref={ref}>
+            <button
+                type="button"
+                onClick={() => setOpen(!open)}
+                className={`inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 rounded-xl text-xs sm:text-sm font-black border transition-all cursor-pointer shadow-xs select-none ${
+                    open
+                        ? 'bg-[#353326] border-[#C9AA71] text-[#FAFAFA]'
+                        : 'bg-[#1C1B0E] border-[#3B3929] text-[#E3D1AA] hover:border-[#C9AA71]/60 hover:text-[#FAFAFA]'
+                }`}
+                title={lang === 'id' ? `Pilih Tahun (Saat ini: ${selectedYear})` : `Select Year (Current: ${selectedYear})`}
+            >
+                <span>{selectedYear}</span>
+                <ChevronDown className={`h-3 w-3 sm:h-3.5 sm:w-3.5 text-[#C9AA71] transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+            </button>
+
+            {open && (
+                <div className="absolute left-0 top-full mt-1.5 z-[130] w-32 max-h-56 overflow-y-auto rounded-xl border border-[#3B3929] bg-[#2A281E] p-1.5 shadow-2xl backdrop-blur-2xl animate-in fade-in zoom-in-95">
+                    <div className="text-[10px] font-black uppercase tracking-wider text-[#A19F8D] px-2 py-1 mb-1 border-b border-[#3B3929]">
+                        {lang === 'id' ? 'Pilih Tahun' : 'Select Year'}
+                    </div>
+                    <div className="space-y-0.5">
+                        {years.map((y) => {
+                            const isSelected = y === selectedYear;
+                            return (
+                                <button
+                                    key={y}
+                                    type="button"
+                                    onClick={() => {
+                                        onChange(y);
+                                        setOpen(false);
+                                    }}
+                                    className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-between cursor-pointer ${
+                                        isSelected
+                                            ? 'bg-[#C9AA71] text-[#1C1B0E] font-black'
+                                            : 'text-[#E3D1AA] hover:bg-[#353326] hover:text-[#FAFAFA]'
+                                    }`}
+                                >
+                                    <span>{y}</span>
+                                    {isSelected && <Check className="h-3.5 w-3.5 text-[#1C1B0E] stroke-[3]" />}
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
 export function OperationsCalendarView({
     manual = [],
     tasks = [],
@@ -507,7 +572,19 @@ export function OperationsCalendarView({
     const [activeCardHighlightId, setActiveCardHighlightId] = useState(null);
     const [selectedBlockFilter, setSelectedBlockFilter] = useState(null); // null = all blocks, or block index number (0, 1, 2, ...)
     const [agendaViewMode, setAgendaViewMode] = useState('date'); // 'date' | 'all'
-    const [allTasksRange, setAllTasksRange] = useState(1); // 1 | 3 | 6 | 'all'
+    const [allTasksRange, setAllTasksRange] = useState(1); // 1 | 3 | 6 | 'all' | specific year (e.g. 2026)
+    const [agendaYearDropdownOpen, setAgendaYearDropdownOpen] = useState(false);
+    const agendaYearDropdownRef = useRef(null);
+
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (agendaYearDropdownRef.current && !agendaYearDropdownRef.current.contains(e.target)) {
+                setAgendaYearDropdownOpen(false);
+            }
+        };
+        if (agendaYearDropdownOpen) document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [agendaYearDropdownOpen]);
 
     // ─── Display Options State (Persisted in localStorage) ─────────────────────
     const [displayOptions, setDisplayOptions] = useState(() => {
@@ -609,10 +686,32 @@ export function OperationsCalendarView({
     const year = currentMonth.getFullYear();
     const month = currentMonth.getMonth();
 
+    const monthName = new Intl.DateTimeFormat(lang === 'id' ? 'id-ID' : 'en-US', {
+        month: 'long'
+    }).format(currentMonth);
+
     const monthTitle = new Intl.DateTimeFormat(lang === 'id' ? 'id-ID' : 'en-US', {
         month: 'long',
         year: 'numeric'
     }).format(currentMonth);
+
+    const availableYears = useMemo(() => {
+        const currentY = new Date().getFullYear();
+        const yearsSet = new Set([currentY - 2, currentY - 1, currentY, currentY + 1, currentY + 2, year]);
+        const taskSource = tasks.length > 0 ? tasks : manual;
+        taskSource.forEach(task => {
+            const dates = getTaskAllDates(task);
+            dates.forEach(d => {
+                const y = parseInt(d.split('-')[0], 10);
+                if (!isNaN(y) && y >= 2020 && y <= 2040) yearsSet.add(y);
+            });
+            if (task.createdAt) {
+                const cy = new Date(task.createdAt).getFullYear();
+                if (!isNaN(cy) && cy >= 2020 && cy <= 2040) yearsSet.add(cy);
+            }
+        });
+        return Array.from(yearsSet).sort((a, b) => b - a);
+    }, [tasks, manual, year]);
 
     const isCurrentMonth = useMemo(() => {
         const now = new Date();
@@ -946,7 +1045,7 @@ export function OperationsCalendarView({
         return days;
     }, [year, month, startDayOfWeek, totalDaysInMonth, todayStr, allTasks, searchQuery, activeCardHighlightId, selectedBlockFilter, activeTaskDateBlockMap]);
 
-    // Compute date range info for "All Tasks" mode (1, 3, 6 months forward or all)
+    // Compute date range info for "All Tasks" mode (1, 3, 6 months forward, full year, or all)
     const allTasksRangeInfo = useMemo(() => {
         if (allTasksRange === 'all') {
             return {
@@ -954,6 +1053,20 @@ export function OperationsCalendarView({
                 endStr: null,
                 title: lang === 'id' ? 'Semua Tugas (Seluruh Waktu)' : 'All Tasks (All Time)',
                 subtitle: lang === 'id' ? 'Semua tugas tanpa batasan tanggal' : 'All scheduled tasks without date limit'
+            };
+        }
+        if (typeof allTasksRange === 'number' && allTasksRange >= 2000) {
+            const targetY = allTasksRange;
+            const startStr = `${targetY}-01-01`;
+            const endStr = `${targetY}-12-31`;
+            return {
+                startStr,
+                endStr,
+                title: lang === 'id' ? `Semua Tugas Tahun ${targetY}` : `All Tasks Year ${targetY}`,
+                numMonths: 12,
+                subtitle: lang === 'id' 
+                    ? `Menampilkan seluruh tugas terjadwal sepanjang tahun ${targetY}` 
+                    : `Showing all tasks scheduled throughout year ${targetY}`
             };
         }
         const numMonths = Number(allTasksRange) || 1;
@@ -1037,8 +1150,16 @@ export function OperationsCalendarView({
                         </div>
                         <div className="flex items-center gap-2.5">
                             <h2 className="text-xl font-black text-[#FAFAFA] capitalize tracking-tight truncate">
-                                {monthTitle}
+                                {monthName}
                             </h2>
+                            <YearDropdown
+                                selectedYear={year}
+                                onChange={(newYear) => {
+                                    setCurrentMonth(new Date(newYear, month, 1));
+                                }}
+                                years={availableYears}
+                                lang={lang}
+                            />
                             <span className="px-2.5 py-0.5 rounded-full bg-[#1C1B0E] border border-[#3B3929] text-[11px] font-semibold text-[#E3D1AA]">
                                 {allTasks.length} {t('total_work') || 'Total Tugas'}
                             </span>
@@ -1165,8 +1286,17 @@ export function OperationsCalendarView({
                                         </button>
 
                                         <h2 className="text-lg sm:text-2xl font-black text-[#FAFAFA] capitalize tracking-tight truncate">
-                                            {monthTitle}
+                                            {monthName}
                                         </h2>
+
+                                        <YearDropdown
+                                            selectedYear={year}
+                                            onChange={(newYear) => {
+                                                setCurrentMonth(new Date(newYear, month, 1));
+                                            }}
+                                            years={availableYears}
+                                            lang={lang}
+                                        />
 
                                         {/* Mobile Month Next Button */}
                                         <button
@@ -1776,20 +1906,19 @@ export function OperationsCalendarView({
                         </button>
                     </div>
 
-                    {/* Range Filter Buttons if in 'all' mode: 1, 3, 6 forward or all */}
+                    {/* Range Filter Buttons if in 'all' mode: 1, 3, 6 forward, Year, or all */}
                     {agendaViewMode === 'all' && (
                         <div className="flex items-center gap-1.5 mb-3.5 overflow-x-auto pb-0.5">
                             {[
                                 { id: 1, label: `1 ${t('month_label') || (lang === 'id' ? 'Bulan' : 'Month')}` },
                                 { id: 3, label: `3 ${t('months_label') || (lang === 'id' ? 'Bulan' : 'Months')}` },
                                 { id: 6, label: `6 ${t('months_label') || (lang === 'id' ? 'Bulan' : 'Months')}` },
-                                { id: 'all', label: t('all_time') || (lang === 'id' ? 'Semua' : 'All') },
                             ].map((r) => (
                                 <button
                                     key={r.id}
                                     type="button"
                                     onClick={() => setAllTasksRange(r.id)}
-                                    className={`px-3 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer ${
+                                    className={`px-3 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer shrink-0 ${
                                         allTasksRange === r.id
                                             ? 'bg-[#C9AA71]/25 border-[#C9AA71] text-[#E3D1AA] font-black shadow-sm'
                                             : 'bg-[#1C1B0E]/70 border-[#3B3929] text-[#A19F8D] hover:text-[#FAFAFA]'
@@ -1798,6 +1927,68 @@ export function OperationsCalendarView({
                                     {r.label}
                                 </button>
                             ))}
+
+                            {/* Year Filter Dropdown Pill */}
+                            <div className="relative inline-block shrink-0" ref={agendaYearDropdownRef}>
+                                <button
+                                    type="button"
+                                    onClick={() => setAgendaYearDropdownOpen(!agendaYearDropdownOpen)}
+                                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all flex items-center gap-1 cursor-pointer shrink-0 ${
+                                        typeof allTasksRange === 'number' && allTasksRange >= 2000
+                                            ? 'bg-[#C9AA71]/25 border-[#C9AA71] text-[#E3D1AA] font-black shadow-sm'
+                                            : 'bg-[#1C1B0E]/70 border-[#3B3929] text-[#A19F8D] hover:text-[#FAFAFA]'
+                                    }`}
+                                    title={lang === 'id' ? 'Filter berdasarkan Tahun' : 'Filter by Year'}
+                                >
+                                    <span>
+                                        {typeof allTasksRange === 'number' && allTasksRange >= 2000
+                                            ? `${lang === 'id' ? 'Thn' : 'Yr'} ${allTasksRange}`
+                                            : (lang === 'id' ? 'Pilih Tahun' : 'Year')}
+                                    </span>
+                                    <ChevronDown className={`h-3 w-3 text-[#C9AA71] transition-transform duration-200 ${agendaYearDropdownOpen ? 'rotate-180' : ''}`} />
+                                </button>
+
+                                {agendaYearDropdownOpen && (
+                                    <div className="absolute left-0 top-full mt-1.5 z-[130] w-32 max-h-48 overflow-y-auto rounded-xl border border-[#3B3929] bg-[#2A281E] p-1 shadow-2xl backdrop-blur-2xl animate-in fade-in zoom-in-95">
+                                        <div className="text-[9px] font-black uppercase tracking-wider text-[#A19F8D] px-2 py-0.5 mb-1 border-b border-[#3B3929]">
+                                            {lang === 'id' ? 'Pilih Tahun' : 'Select Year'}
+                                        </div>
+                                        {availableYears.map(y => {
+                                            const isSelected = allTasksRange === y;
+                                            return (
+                                                <button
+                                                    key={y}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setAllTasksRange(y);
+                                                        setAgendaYearDropdownOpen(false);
+                                                    }}
+                                                    className={`w-full text-left px-2 py-1 rounded-md text-xs font-bold transition-all flex items-center justify-between cursor-pointer ${
+                                                        isSelected
+                                                            ? 'bg-[#C9AA71] text-[#1C1B0E] font-black'
+                                                            : 'text-[#E3D1AA] hover:bg-[#353326] hover:text-[#FAFAFA]'
+                                                    }`}
+                                                >
+                                                    <span>{y}</span>
+                                                    {isSelected && <Check className="h-3 w-3 text-[#1C1B0E] stroke-[3]" />}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={() => setAllTasksRange('all')}
+                                className={`px-3 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer shrink-0 ${
+                                    allTasksRange === 'all'
+                                        ? 'bg-[#C9AA71]/25 border-[#C9AA71] text-[#E3D1AA] font-black shadow-sm'
+                                        : 'bg-[#1C1B0E]/70 border-[#3B3929] text-[#A19F8D] hover:text-[#FAFAFA]'
+                                }`}
+                            >
+                                {t('all_time') || (lang === 'id' ? 'Semua' : 'All')}
+                            </button>
                         </div>
                     )}
 
@@ -1814,7 +2005,13 @@ export function OperationsCalendarView({
                                     <>
                                         <Layers className="h-3.5 w-3.5" />
                                         <span>
-                                            {t('all_tasks_scope') || 'Semua Tugas'} • {allTasksRange === 'all' ? (t('all_time') || (lang === 'id' ? 'Semua' : 'All')) : `${allTasksRange} ${t('months_label') || (lang === 'id' ? 'Bulan' : 'Months')}`}
+                                            {t('all_tasks_scope') || 'Semua Tugas'} • {
+                                                allTasksRange === 'all'
+                                                    ? (t('all_time') || (lang === 'id' ? 'Semua' : 'All'))
+                                                    : (typeof allTasksRange === 'number' && allTasksRange >= 2000)
+                                                        ? `${lang === 'id' ? 'Tahun' : 'Year'} ${allTasksRange}`
+                                                        : `${allTasksRange} ${t('months_label') || (lang === 'id' ? 'Bulan' : 'Months')}`
+                                            }
                                         </span>
                                     </>
                                 )}
