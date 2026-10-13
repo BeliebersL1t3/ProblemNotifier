@@ -1906,89 +1906,105 @@ export function OperationsCalendarView({
                         </button>
                     </div>
 
-                    {/* Range Filter Buttons if in 'all' mode: 1, 3, 6 forward, Year, or all */}
+                    {/* Range & Year Filter (2-Row Structured Grid - Zero Horizontal Scroll) */}
                     {agendaViewMode === 'all' && (
-                        <div className="flex items-center gap-1.5 mb-3.5 overflow-x-auto pb-0.5">
-                            {[
-                                { id: 1, label: `1 ${t('month_label') || (lang === 'id' ? 'Bulan' : 'Month')}` },
-                                { id: 3, label: `3 ${t('months_label') || (lang === 'id' ? 'Bulan' : 'Months')}` },
-                                { id: 6, label: `6 ${t('months_label') || (lang === 'id' ? 'Bulan' : 'Months')}` },
-                            ].map((r) => (
-                                <button
-                                    key={r.id}
-                                    type="button"
-                                    onClick={() => setAllTasksRange(r.id)}
-                                    className={`px-3 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer shrink-0 ${
-                                        allTasksRange === r.id
-                                            ? 'bg-[#C9AA71]/25 border-[#C9AA71] text-[#E3D1AA] font-black shadow-sm'
-                                            : 'bg-[#1C1B0E]/70 border-[#3B3929] text-[#A19F8D] hover:text-[#FAFAFA]'
-                                    }`}
-                                >
-                                    {r.label}
-                                </button>
-                            ))}
+                        <div className="space-y-2 mb-3.5">
+                            {/* Baris 1: Rentang Cepat 4 Kolom Pas (100% width, no scroll) */}
+                            <div className="grid grid-cols-4 gap-1 p-1 bg-[#14140B] rounded-xl border border-[#3B3929]">
+                                {[
+                                    { id: 1, label: lang === 'id' ? '1 Bln' : '1 Mo' },
+                                    { id: 3, label: lang === 'id' ? '3 Bln' : '3 Mo' },
+                                    { id: 6, label: lang === 'id' ? '6 Bln' : '6 Mo' },
+                                    { id: 'all', label: t('all_time') || (lang === 'id' ? 'Semua' : 'All') },
+                                ].map((r) => (
+                                    <button
+                                        key={r.id}
+                                        type="button"
+                                        onClick={() => setAllTasksRange(r.id)}
+                                        className={`py-1.5 px-1 rounded-lg text-center text-xs font-bold transition-all cursor-pointer ${
+                                            allTasksRange === r.id
+                                                ? 'bg-[#C9AA71] text-[#1C1B0E] font-black shadow-sm'
+                                                : 'text-[#A19F8D] hover:text-[#FAFAFA]'
+                                        }`}
+                                    >
+                                        {r.label}
+                                    </button>
+                                ))}
+                            </div>
 
-                            {/* Year Filter Dropdown Pill */}
-                            <div className="relative inline-block shrink-0" ref={agendaYearDropdownRef}>
+                            {/* Baris 2: Pemilih Tahun Full Width (Lega & Mudah Ditekan di HP) */}
+                            <div className="relative w-full" ref={agendaYearDropdownRef}>
                                 <button
                                     type="button"
                                     onClick={() => setAgendaYearDropdownOpen(!agendaYearDropdownOpen)}
-                                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all flex items-center gap-1 cursor-pointer shrink-0 ${
+                                    className={`w-full py-1.5 px-3 rounded-xl text-xs font-bold border transition-all flex items-center justify-between cursor-pointer ${
                                         typeof allTasksRange === 'number' && allTasksRange >= 2000
                                             ? 'bg-[#C9AA71]/25 border-[#C9AA71] text-[#E3D1AA] font-black shadow-sm'
-                                            : 'bg-[#1C1B0E]/70 border-[#3B3929] text-[#A19F8D] hover:text-[#FAFAFA]'
+                                            : 'bg-[#14140B] border-[#3B3929] text-[#A19F8D] hover:border-[#C9AA71]/50 hover:text-[#FAFAFA]'
                                     }`}
-                                    title={lang === 'id' ? 'Filter berdasarkan Tahun' : 'Filter by Year'}
                                 >
-                                    <span>
-                                        {typeof allTasksRange === 'number' && allTasksRange >= 2000
-                                            ? `${lang === 'id' ? 'Thn' : 'Yr'} ${allTasksRange}`
-                                            : (lang === 'id' ? 'Pilih Tahun' : 'Year')}
-                                    </span>
-                                    <ChevronDown className={`h-3 w-3 text-[#C9AA71] transition-transform duration-200 ${agendaYearDropdownOpen ? 'rotate-180' : ''}`} />
+                                    <div className="flex items-center gap-2">
+                                        <CalendarIcon className="h-3.5 w-3.5 text-[#C9AA71] shrink-0" />
+                                        <span>
+                                            {typeof allTasksRange === 'number' && allTasksRange >= 2000
+                                                ? `${lang === 'id' ? 'Filter Tahun' : 'Year Filter'}: ${allTasksRange}`
+                                                : (lang === 'id' ? 'Saring per Tahun Tertentu' : 'Filter by Specific Year')}
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                        {typeof allTasksRange === 'number' && allTasksRange >= 2000 && (
+                                            <span className="text-[10px] px-1.5 py-0.2 rounded font-extrabold uppercase bg-[#C9AA71] text-[#1C1B0E]">
+                                                Aktif
+                                            </span>
+                                        )}
+                                        <ChevronDown className={`h-3.5 w-3.5 text-[#C9AA71] transition-transform duration-200 ${agendaYearDropdownOpen ? 'rotate-180' : ''}`} />
+                                    </div>
                                 </button>
 
                                 {agendaYearDropdownOpen && (
-                                    <div className="absolute left-0 top-full mt-1.5 z-[130] w-32 max-h-48 overflow-y-auto rounded-xl border border-[#3B3929] bg-[#2A281E] p-1 shadow-2xl backdrop-blur-2xl animate-in fade-in zoom-in-95">
-                                        <div className="text-[9px] font-black uppercase tracking-wider text-[#A19F8D] px-2 py-0.5 mb-1 border-b border-[#3B3929]">
-                                            {lang === 'id' ? 'Pilih Tahun' : 'Select Year'}
-                                        </div>
-                                        {availableYears.map(y => {
-                                            const isSelected = allTasksRange === y;
-                                            return (
+                                    <div className="absolute left-0 right-0 top-full mt-1.5 z-[130] w-full max-h-56 overflow-y-auto rounded-xl border border-[#3B3929] bg-[#2A281E] p-1.5 shadow-2xl backdrop-blur-2xl animate-in fade-in zoom-in-95">
+                                        <div className="text-[10px] font-black uppercase tracking-wider text-[#A19F8D] px-2.5 py-1 mb-1 border-b border-[#3B3929] flex items-center justify-between">
+                                            <span>{lang === 'id' ? 'Pilih Tahun Tugas' : 'Select Task Year'}</span>
+                                            {typeof allTasksRange === 'number' && allTasksRange >= 2000 && (
                                                 <button
-                                                    key={y}
                                                     type="button"
-                                                    onClick={() => {
-                                                        setAllTasksRange(y);
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setAllTasksRange(1);
                                                         setAgendaYearDropdownOpen(false);
                                                     }}
-                                                    className={`w-full text-left px-2 py-1 rounded-md text-xs font-bold transition-all flex items-center justify-between cursor-pointer ${
-                                                        isSelected
-                                                            ? 'bg-[#C9AA71] text-[#1C1B0E] font-black'
-                                                            : 'text-[#E3D1AA] hover:bg-[#353326] hover:text-[#FAFAFA]'
-                                                    }`}
+                                                    className="text-[10px] font-bold text-amber-400 hover:underline cursor-pointer"
                                                 >
-                                                    <span>{y}</span>
-                                                    {isSelected && <Check className="h-3 w-3 text-[#1C1B0E] stroke-[3]" />}
+                                                    Reset
                                                 </button>
-                                            );
-                                        })}
+                                            )}
+                                        </div>
+                                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-1">
+                                            {availableYears.map(y => {
+                                                const isSelected = allTasksRange === y;
+                                                return (
+                                                    <button
+                                                        key={y}
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setAllTasksRange(y);
+                                                            setAgendaYearDropdownOpen(false);
+                                                        }}
+                                                        className={`text-left px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-between cursor-pointer ${
+                                                            isSelected
+                                                                ? 'bg-[#C9AA71] text-[#1C1B0E] font-black'
+                                                                : 'text-[#E3D1AA] hover:bg-[#353326] hover:text-[#FAFAFA]'
+                                                        }`}
+                                                    >
+                                                        <span>{y}</span>
+                                                        {isSelected && <Check className="h-3.5 w-3.5 text-[#1C1B0E] stroke-[3]" />}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
                                     </div>
                                 )}
                             </div>
-
-                            <button
-                                type="button"
-                                onClick={() => setAllTasksRange('all')}
-                                className={`px-3 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer shrink-0 ${
-                                    allTasksRange === 'all'
-                                        ? 'bg-[#C9AA71]/25 border-[#C9AA71] text-[#E3D1AA] font-black shadow-sm'
-                                        : 'bg-[#1C1B0E]/70 border-[#3B3929] text-[#A19F8D] hover:text-[#FAFAFA]'
-                                }`}
-                            >
-                                {t('all_time') || (lang === 'id' ? 'Semua' : 'All')}
-                            </button>
                         </div>
                     )}
 
