@@ -239,17 +239,6 @@ export function CampusFixHeader({ mode = 'dashboard', query, onQueryChange, onRe
                                 </button>
                             </div>
 
-                            {/* Quick Emergency Button on Dashboard */}
-                            {mode === 'dashboard' && onEmergency && (
-                                <button
-                                    type="button"
-                                    onClick={onEmergency}
-                                    className="p-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white shadow-[0_0_8px_rgba(239,68,68,0.4)] transition-all animate-pulse cursor-pointer"
-                                    title={t('emergency')}
-                                >
-                                    <span className="text-xs leading-none">🚨</span>
-                                </button>
-                            )}
 
                             {/* Mobile Universal Auto-Sync Indicator */}
                             {canSync && (
@@ -590,18 +579,6 @@ export function CampusFixHeader({ mode = 'dashboard', query, onQueryChange, onRe
                     {/* Only show Report & Emergency buttons on Dashboard */}
                     {mode === 'dashboard' && (
                         <>
-                            <Tooltip content={t('tooltip_emergency_btn')} position="bottom">
-                                <Button 
-                                    onClick={onEmergency} 
-                                    className="group gap-0 bg-red-600 hover:bg-red-500 text-white animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.5)] transition-all duration-300 px-3.5"
-                                    title={t('emergency')}
-                                >
-                                    <span className="shrink-0 text-sm leading-none">🚨</span>
-                                    <span className="max-w-0 opacity-0 group-hover:max-w-[120px] group-hover:opacity-100 transition-all duration-300 ease-out overflow-hidden whitespace-nowrap ml-0 group-hover:ml-2 font-bold tracking-wider">
-                                        {t('emergency')}
-                                    </span>
-                                </Button>
-                            </Tooltip>
 
                             <Tooltip content={t('tooltip_report_btn')} position="bottom">
                                 <Button 

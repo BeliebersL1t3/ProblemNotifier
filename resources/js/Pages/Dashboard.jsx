@@ -21,6 +21,7 @@ import { NewPeriodModal } from '@/Components/CampusFix/NewPeriodModal';
 import { ScrollToTop } from '@/Components/CampusFix/ScrollToTop';
 import { MobileBottomNav } from '@/Components/CampusFix/MobileBottomNav';
 import { Button } from '@/Components/UI/Button';
+import { Tooltip } from '@/Components/UI/Tooltip';
 import { normalizeDepartment } from '@/constants/staff';
 import {
     Dialog,
@@ -1334,6 +1335,18 @@ function DashboardInner() {
                             <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
                             {t('sync_sheets')}
                         </Button>
+
+                        <Tooltip content={t('tooltip_emergency_btn') || t('emergency')} position="bottom">
+                            <Button
+                                size="sm"
+                                onClick={() => setEmergencyOpen(true)}
+                                className="w-fit shrink-0 gap-1.5 bg-red-600 hover:bg-red-500 text-white font-bold animate-pulse shadow-[0_0_12px_rgba(239,68,68,0.45)] border border-red-400/40 transition-all cursor-pointer select-none"
+                                title={t('emergency')}
+                            >
+                                <span className="text-xs leading-none">🚨</span>
+                                <span>{t('emergency')}</span>
+                            </Button>
+                        </Tooltip>
                     </div>
                 </div>
 
