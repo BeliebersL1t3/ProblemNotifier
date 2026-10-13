@@ -70,7 +70,7 @@ export function AnalyticsBar({ statusFilter = 'all', onStatusChange }) {
     };
 
     return (
-        <section aria-label="Issue statistics and filters" className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        <section aria-label="Issue statistics and filters" className="grid grid-cols-2 gap-2.5 sm:gap-3 sm:grid-cols-3 lg:grid-cols-5">
             {cards.map(({ key, status, label, value, Icon, accent, activeRing, activeAccent }, idx) => {
                 const isActive = statusFilter === status;
                 const isFiltered = statusFilter !== 'all';
@@ -81,7 +81,7 @@ export function AnalyticsBar({ statusFilter = 'all', onStatusChange }) {
                         onClick={() => handleCardClick(status)}
                         aria-pressed={isActive}
                         className={cn(
-                            'group relative flex items-center justify-between gap-3 rounded-xl border p-4 text-left transition-all duration-200 shadow-card select-none cursor-pointer',
+                            'group relative flex items-center justify-between gap-2.5 sm:gap-3 rounded-xl border p-3 sm:p-4 text-left transition-all duration-200 shadow-card select-none cursor-pointer',
                             idx === 0 ? 'col-span-2 sm:col-span-1' : '',
                             isActive
                                 ? cn('bg-surface ring-2 scale-[1.01]', activeRing)
@@ -90,17 +90,17 @@ export function AnalyticsBar({ statusFilter = 'all', onStatusChange }) {
                                     : 'border-border bg-surface hover:border-primary/40 hover:bg-surface/90 hover:scale-[1.01] active:scale-[0.99]',
                         )}
                     >
-                        <div className="flex items-center gap-3 min-w-0">
+                        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
                             <span
                                 className={cn(
-                                    'flex h-10 w-10 shrink-0 items-center justify-center rounded-lg transition-transform group-hover:scale-105',
+                                    'flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-lg transition-transform group-hover:scale-105',
                                     isActive ? activeAccent : accent,
                                 )}
                             >
-                                <Icon className="h-5 w-5" aria-hidden />
+                                <Icon className="h-4.5 w-4.5 sm:h-5 sm:w-5" aria-hidden />
                             </span>
                             <div className="min-w-0">
-                                <p className="text-2xl font-bold leading-none text-foreground">{value}</p>
+                                <p className="text-xl sm:text-2xl font-bold leading-none text-foreground">{value}</p>
                                 <p className="mt-1 text-xs font-medium text-muted-foreground truncate">{label}</p>
                             </div>
                         </div>
