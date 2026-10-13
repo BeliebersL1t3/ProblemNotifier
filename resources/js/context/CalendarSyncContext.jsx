@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import { usePage } from '@inertiajs/react';
+import { router } from '@inertiajs/react';
 import axios from 'axios';
 
 const CalendarSyncContext = createContext({
@@ -16,9 +16,23 @@ const STORAGE_KEY_LAST_SYNC = 'telunas_calendar_last_sync_timestamp';
 const STORAGE_KEY_LEASE = 'telunas_calendar_sync_lease';
 const CHANNEL_NAME = 'telunas_calendar_sync_channel';
 
-export function CalendarSyncProvider({ children }) {
-    const { calendar_sync_meta, auth } = usePage().props;
-    const user = auth?.user;
+export function CalendarSyncProvider({ children, initialProps = {} }) {
+    const [pageProps, setPageProps] = useState(initialProps || {});
+
+    // Listen to Inertia page navigations safely without usePage hook
+    useEffect(() => {
+        const unbind = router.on('navigate', (event) => {
+            if (event.detail?.page?.props) {
+                setPageProps(event.detail.page.props);
+            }
+        });
+        return () => {
+            unbind();
+        };
+    }, []);
+
+    const calendar_sync_meta = pageProps.calendar_sync_meta;
+    const user = pageProps.auth?.user;
     const canSync = Boolean(user && (user.role === 'admin' || user.is_admin || user.is_hod));
 
     // Anchor: server timestamp reference
@@ -29,7 +43,7 @@ export function CalendarSyncProvider({ children }) {
         if (calendar_sync_meta?.last_synced_at) {
             return calendar_sync_meta.last_synced_at * 1000;
         }
-        const cached = localStorage.getItem(STORAGE_KEY_LAST_SYNC);
+        const cached = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY_LAST_SYNC) : null;
         return cached ? parseInt(cached, 10) : Date.now();
     });
 
@@ -72,7 +86,9 @@ export function CalendarSyncProvider({ children }) {
             setLastSyncTime(prev => {
                 // If server millis is newer, align with server
                 if (serverMillis > prev) {
-                    localStorage.setItem(STORAGE_KEY_LAST_SYNC, String(serverMillis));
+                    if (typeof window !== 'undefined') {
+                        localStorage.setItem(STORAGE_KEY_LAST_SYNC, String(serverMillis));
+                    }
                     return serverMillis;
                 }
                 return prev;
@@ -82,6 +98,7 @@ export function CalendarSyncProvider({ children }) {
 
     // Leader election / lease to prevent multiple tabs from syncing at the exact same moment
     const acquireLease = () => {
+        if (typeof window === 'undefined') return true;
         const now = Date.now();
         const existing = parseInt(localStorage.getItem(STORAGE_KEY_LEASE) || '0', 10);
         // If lease is held and still active (less than 25s old), do not acquire
@@ -111,7 +128,9 @@ export function CalendarSyncProvider({ children }) {
             const nowMillis = (res.data?.last_synced_at ? res.data.last_synced_at * 1000 : Date.now());
 
             setLastSyncTime(nowMillis);
-            localStorage.setItem(STORAGE_KEY_LAST_SYNC, String(nowMillis));
+            if (typeof window !== 'undefined') {
+                localStorage.setItem(STORAGE_KEY_LAST_SYNC, String(nowMillis));
+            }
 
             // Notify all tabs
             if (channelRef.current) {
@@ -121,20 +140,28 @@ export function CalendarSyncProvider({ children }) {
                     data: res.data?.data,
                 });
             }
-            window.dispatchEvent(new CustomEvent('telunas:calendar-synced', { detail: res.data }));
+            if (typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('telunas:calendar-synced', { detail: res.data }));
+            }
             return res.data;
         } catch (err) {
             // In case of error (e.g. rate limit), still update lastSyncTime to prevent rapid spamming
             const nowMillis = Date.now();
             setLastSyncTime(nowMillis);
-            localStorage.setItem(STORAGE_KEY_LAST_SYNC, String(nowMillis));
+            if (typeof window !== 'undefined') {
+                localStorage.setItem(STORAGE_KEY_LAST_SYNC, String(nowMillis));
+            }
             if (channelRef.current) {
                 channelRef.current.postMessage({ type: 'SYNC_COMPLETED', timestamp: nowMillis });
             }
-            window.dispatchEvent(new CustomEvent('telunas:calendar-synced', { detail: { error: err.message } }));
+            if (typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('telunas:calendar-synced', { detail: { error: err.message } }));
+            }
         } finally {
             setIsSyncing(false);
-            localStorage.removeItem(STORAGE_KEY_LEASE);
+            if (typeof window !== 'undefined') {
+                localStorage.removeItem(STORAGE_KEY_LEASE);
+            }
         }
     }, [canSync]);
 

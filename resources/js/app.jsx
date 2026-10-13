@@ -33,7 +33,7 @@ createInertiaApp({
         root.render(
             <ErrorBoundary>
                 <LanguageProvider>
-                    <CalendarSyncProvider>
+                    <CalendarSyncProvider initialProps={props.initialPage?.props}>
                         <SlashProvider>
                             <App {...props} />
                         </SlashProvider>
