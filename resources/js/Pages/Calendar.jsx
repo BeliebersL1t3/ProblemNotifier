@@ -1343,6 +1343,13 @@ function CalendarInner() {
     const [pullingCalendar, setPullingCalendar] = useState(false);
     const [logsModalOpen, setLogsModalOpen] = useState(false);
     const [syncMsg, setSyncMsg] = useState(null);
+    const [syncCountdown, setSyncCountdown] = useState(300);
+
+    const formatCountdown = (seconds) => {
+        const m = Math.floor(seconds / 60);
+        const s = seconds % 60;
+        return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    };
 
     const handleSyncGoogleCalendar = async () => {
         setSyncingCalendar(true);
@@ -1373,6 +1380,7 @@ function CalendarInner() {
             if (json.success) {
                 setSyncMsg({ type: 'success', text: json.data?.message || 'Berhasil menarik pembaruan dari Google Calendar!' });
                 reload(true, true);
+                setSyncCountdown(300);
             } else {
                 setSyncMsg({ type: 'error', text: json.message || 'Gagal menarik data dari Google Calendar' });
             }
@@ -1384,11 +1392,12 @@ function CalendarInner() {
         }
     };
 
-    // Background auto-sync from Google Calendar on mount and every 90 seconds
+    // Background auto-sync from Google Calendar every 5 minutes (300 seconds) with accurate countdown ticker
     useEffect(() => {
         if (!canSyncCalendar) return;
 
         const silentPull = async () => {
+            setPullingCalendar(true);
             try {
                 const res = await axios.post('/api/operations/pull-calendar', { silent: true });
                 const d = res.data?.data;
@@ -1397,20 +1406,22 @@ function CalendarInner() {
                 }
             } catch (err) {
                 // Silently ignore background pull network hiccups
+            } finally {
+                setPullingCalendar(false);
             }
         };
 
-        // Small 3s delay after initial load to avoid blocking render
-        const initialTimer = setTimeout(() => {
-            silentPull();
-        }, 3000);
-
         const interval = setInterval(() => {
-            silentPull();
-        }, 90000);
+            setSyncCountdown(prev => {
+                if (prev <= 1) {
+                    silentPull();
+                    return 300;
+                }
+                return prev - 1;
+            });
+        }, 1000);
 
         return () => {
-            clearTimeout(initialTimer);
             clearInterval(interval);
         };
     }, [canSyncCalendar, reload]);
@@ -1630,11 +1641,11 @@ function CalendarInner() {
 
                             {canSyncCalendar && (
                                 <>
-                                    {/* Auto-Sync Status Badge & Manual Refresh */}
-                                    <div className="flex items-center bg-[#1C1B0E]/90 border border-emerald-500/30 rounded-xl p-0.5 shadow-sm backdrop-blur-sm">
+                                    {/* Auto-Sync Status Badge with Accurate Countdown Timer */}
+                                    <div className="flex items-center bg-[#1C1B0E]/90 border border-emerald-500/30 rounded-xl px-2.5 py-1.5 shadow-sm backdrop-blur-sm gap-2">
                                         <div
-                                            className="flex items-center gap-2 px-2.5 py-1.5 text-xs font-medium text-emerald-300"
-                                            title={lang === 'id' ? 'Sinkronisasi 2 arah berjalan otomatis setiap saat' : 'Two-way auto sync is actively running'}
+                                            className="flex items-center gap-2 text-xs font-medium text-emerald-300"
+                                            title={lang === 'id' ? `Sinkronisasi otomatis berjalan setiap 5 menit (berikutnya dalam ${formatCountdown(syncCountdown)})` : `Auto sync runs every 5 minutes (next in ${formatCountdown(syncCountdown)})`}
                                         >
                                             {pullingCalendar || syncingCalendar ? (
                                                 <Loader2 className="h-3 w-3 animate-spin text-emerald-400" />
@@ -1650,15 +1661,14 @@ function CalendarInner() {
                                                     : (lang === 'id' ? 'Otomatis Sinkron' : 'Auto-Sync Active')}
                                             </span>
                                         </div>
-                                        <button
-                                            type="button"
-                                            onClick={handlePullGoogleCalendar}
-                                            disabled={pullingCalendar || syncingCalendar}
-                                            title={lang === 'id' ? 'Klik untuk sinkronisasi sekarang' : 'Click to sync now'}
-                                            className="p-1.5 rounded-lg text-emerald-300/80 hover:text-emerald-200 hover:bg-emerald-500/20 transition-all cursor-pointer disabled:opacity-40"
+
+                                        {/* Countdown Timer Pill */}
+                                        <span 
+                                            className="font-mono text-[10px] px-1.5 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30 shadow-inner select-none"
+                                            title={lang === 'id' ? `Hitung mundur autosync berikutnya: ${formatCountdown(syncCountdown)}` : `Countdown to next autosync: ${formatCountdown(syncCountdown)}`}
                                         >
-                                            <RefreshCw className={`h-3 w-3 ${pullingCalendar || syncingCalendar ? 'animate-spin text-emerald-400' : ''}`} />
-                                        </button>
+                                            {formatCountdown(syncCountdown)}
+                                        </span>
                                     </div>
 
                                     {/* History / Sync Logs */}

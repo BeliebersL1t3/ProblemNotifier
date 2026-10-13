@@ -39,6 +39,63 @@ function formatExactDate(dateStr) {
     }
 }
 
+function parseErrorMessage(msg, lang = 'id') {
+    if (!msg) return null;
+    const lower = msg.toLowerCase();
+
+    // 1. Quota / Rate limit (429 / RESOURCE_EXHAUSTED / Quota exceeded)
+    if (lower.includes('quota exceeded') || lower.includes('ratelimitexceeded') || lower.includes('resource_exhausted') || lower.includes('code": 429') || lower.includes('code":429') || lower.includes('429')) {
+        return {
+            title: lang === 'id' ? 'Batas Kuota Google Tercapai (Rate Limit 429)' : 'Google Quota Limit Reached (Rate Limit 429)',
+            explanation: lang === 'id'
+                ? 'Google Cloud API membatasi pembacaan spreadsheet maksimal 60 request/menit. Terjadi beberapa permintaan sinkronisasi dalam waktu singkat. Sistem akan otomatis mencoba kembali setelah masa reset 1 menit berlalu.'
+                : 'Google Cloud API restricts spreadsheet reads to a maximum of 60 requests/minute. Multiple requests occurred within a short time frame. Sync will resume automatically after the reset window.',
+            badgeClass: 'bg-amber-950/60 border-amber-500/50 text-amber-200',
+        };
+    }
+
+    // 2. Permission Denied (403)
+    if (lower.includes('permission denied') || lower.includes('caller does not have permission') || lower.includes('code": 403') || lower.includes('accessnotconfigured')) {
+        return {
+            title: lang === 'id' ? 'Izin Akses Google Ditolak (Permission Denied 403)' : 'Google Permission Denied (403)',
+            explanation: lang === 'id'
+                ? 'Service Account Google belum memiliki izin akses Editor atau Viewer pada kalender atau file spreadsheet tujuan.'
+                : 'The Google Service Account lacks Editor or Viewer permissions on the target calendar or spreadsheet.',
+            badgeClass: 'bg-rose-950/60 border-rose-500/50 text-rose-200',
+        };
+    }
+
+    // 3. Not Found (404)
+    if (lower.includes('not found') || lower.includes('code": 404')) {
+        return {
+            title: lang === 'id' ? 'Resource Tidak Ditemukan (404 Not Found)' : 'Resource Not Found (404)',
+            explanation: lang === 'id'
+                ? 'ID Google Calendar atau Google Spreadsheet tidak ditemukan atau sudah dihapus di Google Cloud.'
+                : 'The Google Calendar ID or Spreadsheet ID was not found or has been removed.',
+            badgeClass: 'bg-rose-950/60 border-rose-500/50 text-rose-200',
+        };
+    }
+
+    // 4. Network / Timeout
+    if (lower.includes('curl error') || lower.includes('timed out') || lower.includes('timeout') || lower.includes('could not resolve host') || lower.includes('network')) {
+        return {
+            title: lang === 'id' ? 'Gangguan Koneksi Jaringan (Network Timeout)' : 'Network Connection Issue (Timeout)',
+            explanation: lang === 'id'
+                ? 'Server lokal gagal terhubung ke Google API karena koneksi internet lambat atau terputus.'
+                : 'The local server could not reach Google API endpoints due to internet latency or disruption.',
+            badgeClass: 'bg-sky-950/60 border-sky-500/50 text-sky-200',
+        };
+    }
+
+    return {
+        title: lang === 'id' ? 'Kegagalan Sinkronisasi Sistem' : 'System Sync Error',
+        explanation: lang === 'id'
+            ? 'Terjadi kendala saat memproses sinkronisasi data dengan Google. Periksa detail teknis di bawah ini.'
+            : 'An issue occurred while synchronizing data with Google. See technical details below.',
+        badgeClass: 'bg-red-950/60 border-red-500/50 text-red-200',
+    };
+}
+
 export default function CalendarSyncLogsModal({ isOpen, onClose, lang = 'id' }) {
     const [logs, setLogs] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -258,8 +315,36 @@ export default function CalendarSyncLogsModal({ isOpen, onClose, lang = 'id' }) 
                                         </div>
                                     )}
 
-                                    {/* Message or details */}
-                                    {log.message && (
+                                    {/* Error with Human-Readable Explanation + Raw Technical Detail */}
+                                    {!isSuccess && log.message && (() => {
+                                        const errorInfo = parseErrorMessage(log.message, lang);
+                                        return (
+                                            <div className="space-y-2 mt-1">
+                                                {errorInfo && (
+                                                    <div className={`p-2.5 rounded-xl border ${errorInfo.badgeClass} space-y-1`}>
+                                                        <div className="text-xs font-black flex items-center gap-1.5">
+                                                            <AlertCircle className="h-3.5 w-3.5 shrink-0 text-amber-400" />
+                                                            <span>{errorInfo.title}</span>
+                                                        </div>
+                                                        <p className="text-[11px] leading-relaxed opacity-95">
+                                                            {errorInfo.explanation}
+                                                        </p>
+                                                    </div>
+                                                )}
+                                                <div className="space-y-1">
+                                                    <div className="text-[10px] font-bold text-[#A19F8D] uppercase tracking-wider">
+                                                        {lang === 'id' ? 'Detail Error Teknis (Asli):' : 'Raw Technical Error:'}
+                                                    </div>
+                                                    <pre className="text-[10px] font-mono p-2.5 rounded-lg bg-black/60 border border-white/10 text-red-300/90 whitespace-pre-wrap break-all max-h-36 overflow-y-auto custom-scrollbar select-text">
+                                                        {log.message}
+                                                    </pre>
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
+
+                                    {/* Success Message */}
+                                    {isSuccess && log.message && (
                                         <p className="text-[11px] text-[#A19F8D] leading-relaxed">
                                             {log.message}
                                         </p>
