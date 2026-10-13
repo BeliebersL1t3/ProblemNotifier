@@ -1055,8 +1055,8 @@ export function OperationsCalendarView({
                 subtitle: lang === 'id' ? 'Semua tugas tanpa batasan tanggal' : 'All scheduled tasks without date limit'
             };
         }
-        if (typeof allTasksRange === 'number' && allTasksRange >= 2000) {
-            const targetY = allTasksRange;
+        if (allTasksRange === 'year' || (typeof allTasksRange === 'number' && allTasksRange >= 2000)) {
+            const targetY = allTasksRange === 'year' ? year : allTasksRange;
             const startStr = `${targetY}-01-01`;
             const endStr = `${targetY}-12-31`;
             return {
@@ -1915,7 +1915,7 @@ export function OperationsCalendarView({
                                     { id: 1, label: lang === 'id' ? '1 Bln' : '1 Mo' },
                                     { id: 3, label: lang === 'id' ? '3 Bln' : '3 Mo' },
                                     { id: 6, label: lang === 'id' ? '6 Bln' : '6 Mo' },
-                                    { id: 'all', label: t('all_time') || (lang === 'id' ? 'Semua' : 'All') },
+                                    { id: 'year', label: lang === 'id' ? 'Thn Ini' : 'This Yr' },
                                 ].map((r) => (
                                     <button
                                         key={r.id}
@@ -1938,7 +1938,7 @@ export function OperationsCalendarView({
                                     type="button"
                                     onClick={() => setAgendaYearDropdownOpen(!agendaYearDropdownOpen)}
                                     className={`w-full py-1.5 px-3 rounded-xl text-xs font-bold border transition-all flex items-center justify-between cursor-pointer ${
-                                        typeof allTasksRange === 'number' && allTasksRange >= 2000
+                                        (typeof allTasksRange === 'number' && allTasksRange >= 2000) || allTasksRange === 'all'
                                             ? 'bg-[#C9AA71]/25 border-[#C9AA71] text-[#E3D1AA] font-black shadow-sm'
                                             : 'bg-[#14140B] border-[#3B3929] text-[#A19F8D] hover:border-[#C9AA71]/50 hover:text-[#FAFAFA]'
                                     }`}
@@ -1948,11 +1948,13 @@ export function OperationsCalendarView({
                                         <span>
                                             {typeof allTasksRange === 'number' && allTasksRange >= 2000
                                                 ? `${lang === 'id' ? 'Filter Tahun' : 'Year Filter'}: ${allTasksRange}`
-                                                : (lang === 'id' ? 'Saring per Tahun Tertentu' : 'Filter by Specific Year')}
+                                                : allTasksRange === 'all'
+                                                    ? `${lang === 'id' ? 'Filter' : 'Filter'}: ${lang === 'id' ? 'Semua Waktu' : 'All Time'}`
+                                                    : (lang === 'id' ? 'Saring per Tahun / Semua Waktu' : 'Filter by Year / All Time')}
                                         </span>
                                     </div>
                                     <div className="flex items-center gap-1.5">
-                                        {typeof allTasksRange === 'number' && allTasksRange >= 2000 && (
+                                        {((typeof allTasksRange === 'number' && allTasksRange >= 2000) || allTasksRange === 'all') && (
                                             <span className="text-[10px] px-1.5 py-0.2 rounded font-extrabold uppercase bg-[#C9AA71] text-[#1C1B0E]">
                                                 Aktif
                                             </span>
@@ -1964,8 +1966,8 @@ export function OperationsCalendarView({
                                 {agendaYearDropdownOpen && (
                                     <div className="absolute left-0 right-0 top-full mt-1.5 z-[130] w-full max-h-56 overflow-y-auto rounded-xl border border-[#3B3929] bg-[#2A281E] p-1.5 shadow-2xl backdrop-blur-2xl animate-in fade-in zoom-in-95">
                                         <div className="text-[10px] font-black uppercase tracking-wider text-[#A19F8D] px-2.5 py-1 mb-1 border-b border-[#3B3929] flex items-center justify-between">
-                                            <span>{lang === 'id' ? 'Pilih Tahun Tugas' : 'Select Task Year'}</span>
-                                            {typeof allTasksRange === 'number' && allTasksRange >= 2000 && (
+                                            <span>{lang === 'id' ? 'Pilih Tahun / Rentang' : 'Select Year / Range'}</span>
+                                            {(allTasksRange === 'all' || (typeof allTasksRange === 'number' && allTasksRange >= 2000)) && (
                                                 <button
                                                     type="button"
                                                     onClick={(e) => {
@@ -1979,6 +1981,21 @@ export function OperationsCalendarView({
                                                 </button>
                                             )}
                                         </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setAllTasksRange('all');
+                                                setAgendaYearDropdownOpen(false);
+                                            }}
+                                            className={`w-full text-left px-2.5 py-1.5 mb-1 rounded-lg text-xs font-bold transition-all flex items-center justify-between cursor-pointer ${
+                                                allTasksRange === 'all'
+                                                    ? 'bg-[#C9AA71] text-[#1C1B0E] font-black'
+                                                    : 'text-[#E3D1AA] hover:bg-[#353326] hover:text-[#FAFAFA]'
+                                            }`}
+                                        >
+                                            <span>{lang === 'id' ? '🌐 Semua Waktu (Tanpa Batas)' : '🌐 All Time (No Limit)'}</span>
+                                            {allTasksRange === 'all' && <Check className="h-3.5 w-3.5 text-[#1C1B0E] stroke-[3]" />}
+                                        </button>
                                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-1">
                                             {availableYears.map(y => {
                                                 const isSelected = allTasksRange === y;
@@ -2023,9 +2040,9 @@ export function OperationsCalendarView({
                                         <span>
                                             {t('all_tasks_scope') || 'Semua Tugas'} • {
                                                 allTasksRange === 'all'
-                                                    ? (t('all_time') || (lang === 'id' ? 'Semua' : 'All'))
-                                                    : (typeof allTasksRange === 'number' && allTasksRange >= 2000)
-                                                        ? `${lang === 'id' ? 'Tahun' : 'Year'} ${allTasksRange}`
+                                                    ? (lang === 'id' ? 'Semua Waktu' : 'All Time')
+                                                    : (allTasksRange === 'year' || (typeof allTasksRange === 'number' && allTasksRange >= 2000))
+                                                        ? `${lang === 'id' ? 'Tahun' : 'Year'} ${allTasksRange === 'year' ? year : allTasksRange}`
                                                         : `${allTasksRange} ${t('months_label') || (lang === 'id' ? 'Bulan' : 'Months')}`
                                             }
                                         </span>
