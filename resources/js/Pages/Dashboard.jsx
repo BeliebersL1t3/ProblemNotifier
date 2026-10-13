@@ -1365,7 +1365,7 @@ function DashboardInner() {
                                 </div>
                             )}
                             {(isDeptUser || isAdmin) && (
-                                <div className="flex items-center rounded-2xl bg-[#2A281E] p-1.5 border border-[#3B3929] text-xs font-bold w-full sm:w-fit overflow-x-auto no-scrollbar flex-nowrap gap-1.5 shadow-md">
+                                <div className="flex flex-wrap sm:flex-nowrap items-center rounded-2xl bg-[#2A281E] p-1.5 border border-[#3B3929] text-xs font-bold w-full sm:w-fit gap-1.5 shadow-md">
                                     {isAdmin ? (
                                         /* Admin Monitoring Scope Tabs */
                                         <>
@@ -1373,7 +1373,7 @@ function DashboardInner() {
                                                 type="button"
                                                 onClick={() => setDeptViewMode('all')}
                                                 title={lang === 'id' ? 'Semua Isu Seluruh Resort' : 'All Issues Resort-wide'}
-                                                className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-1.5 px-3 py-2 sm:px-3.5 sm:py-2 shrink-0 ${
+                                                className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center justify-center sm:justify-start gap-1.5 px-3 py-2 sm:px-3.5 sm:py-2 flex-1 basis-[calc(50%-0.25rem)] sm:basis-auto sm:flex-initial shrink-0 ${
                                                     deptViewMode === 'all'
                                                         ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-md font-extrabold'
                                                         : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
@@ -1387,7 +1387,7 @@ function DashboardInner() {
                                                 type="button"
                                                 onClick={() => setDeptViewMode('unassigned')}
                                                 title={lang === 'id' ? `Belum Diambil (${unassignedCount} isu belum ada PIC)` : `Unassigned (${unassignedCount} issues unclaimed)`}
-                                                className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-1.5 px-3 py-2 sm:px-3.5 sm:py-2 shrink-0 ${
+                                                className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center justify-center sm:justify-start gap-1.5 px-3 py-2 sm:px-3.5 sm:py-2 flex-1 basis-[calc(50%-0.25rem)] sm:basis-auto sm:flex-initial shrink-0 ${
                                                     deptViewMode === 'unassigned'
                                                         ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-md font-extrabold'
                                                         : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
@@ -1410,7 +1410,7 @@ function DashboardInner() {
                                                 type="button"
                                                 onClick={() => setDeptViewMode('urgent')}
                                                 title={lang === 'id' ? `Darurat & Terlambat (${urgentCount} tiket darurat/lewat deadline)` : `Emergency & Overdue (${urgentCount} urgent tickets)`}
-                                                className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-1.5 px-3 py-2 sm:px-3.5 sm:py-2 shrink-0 ${
+                                                className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center justify-center sm:justify-start gap-1.5 px-3 py-2 sm:px-3.5 sm:py-2 flex-1 basis-[calc(50%-0.25rem)] sm:basis-auto sm:flex-initial shrink-0 ${
                                                     deptViewMode === 'urgent'
                                                         ? 'bg-red-600 text-white shadow-md font-extrabold ring-1 ring-red-400'
                                                         : 'text-red-400 hover:text-red-300 hover:bg-red-500/10'
@@ -1433,7 +1433,7 @@ function DashboardInner() {
                                                 <button
                                                     type="button"
                                                     onClick={() => setDeptViewMode('reassign_needed')}
-                                                    className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-1.5 px-3 py-2 sm:px-3.5 sm:py-2 shrink-0 ${
+                                                    className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center justify-center sm:justify-start gap-1.5 px-3 py-2 sm:px-3.5 sm:py-2 flex-1 basis-[calc(50%-0.25rem)] sm:basis-auto sm:flex-initial shrink-0 ${
                                                         deptViewMode === 'reassign_needed'
                                                             ? 'bg-amber-500 text-black shadow-md font-extrabold'
                                                             : 'text-amber-400 hover:text-amber-300 hover:bg-amber-500/10'
@@ -1458,7 +1458,7 @@ function DashboardInner() {
                                                 type="button"
                                                 onClick={() => setDeptViewMode('origin')}
                                                 title={lang === 'id' ? 'Dibuat Oleh Saya' : 'Reported By Me'}
-                                                className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-1.5 px-3 py-2 sm:px-3.5 sm:py-2 shrink-0 ${
+                                                className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center justify-center sm:justify-start gap-1.5 px-3 py-2 sm:px-3.5 sm:py-2 flex-1 basis-[calc(50%-0.25rem)] sm:basis-auto sm:flex-initial shrink-0 ${
                                                     deptViewMode === 'origin'
                                                         ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-md font-extrabold'
                                                         : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
@@ -1476,7 +1476,7 @@ function DashboardInner() {
                                                 type="button"
                                                 onClick={() => setDeptViewMode('all')}
                                                 title={lang === 'id' ? 'Semua Departemen Saya' : 'All My Department Scope'}
-                                                className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-1.5 px-3 py-2 sm:px-3.5 sm:py-2 shrink-0 ${
+                                                className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center justify-center sm:justify-start gap-1.5 px-3 py-2 sm:px-3.5 sm:py-2 flex-1 basis-[calc(50%-0.25rem)] sm:basis-auto sm:flex-initial shrink-0 ${
                                                     deptViewMode === 'all'
                                                         ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-md font-extrabold'
                                                         : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
@@ -1490,7 +1490,7 @@ function DashboardInner() {
                                                 type="button"
                                                 onClick={() => setDeptViewMode('unassigned')}
                                                 title={lang === 'id' ? `Belum Diambil Tim (${unassignedCount} tugas belum dikerjakan staf)` : `Team Unclaimed (${unassignedCount} unclaimed by staff)`}
-                                                className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-1.5 px-3 py-2 sm:px-3.5 sm:py-2 shrink-0 ${
+                                                className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center justify-center sm:justify-start gap-1.5 px-3 py-2 sm:px-3.5 sm:py-2 flex-1 basis-[calc(50%-0.25rem)] sm:basis-auto sm:flex-initial shrink-0 ${
                                                     deptViewMode === 'unassigned'
                                                         ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-md font-extrabold'
                                                         : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
@@ -1513,7 +1513,7 @@ function DashboardInner() {
                                                 type="button"
                                                 onClick={() => setDeptViewMode('assigned')}
                                                 title={t('to_fix')}
-                                                className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-1.5 px-3 py-2 sm:px-3.5 sm:py-2 shrink-0 ${
+                                                className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center justify-center sm:justify-start gap-1.5 px-3 py-2 sm:px-3.5 sm:py-2 flex-1 basis-[calc(50%-0.25rem)] sm:basis-auto sm:flex-initial shrink-0 ${
                                                     deptViewMode === 'assigned'
                                                         ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-md font-extrabold'
                                                         : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
@@ -1527,14 +1527,14 @@ function DashboardInner() {
                                                 <button
                                                     type="button"
                                                     onClick={() => setDeptViewMode('reassign_needed')}
-                                                    className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-1.5 px-3 py-2 sm:px-3.5 sm:py-2 shrink-0 ${
+                                                    className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center justify-center sm:justify-start gap-1.5 px-3 py-2 sm:px-3.5 sm:py-2 flex-1 basis-[calc(50%-0.25rem)] sm:basis-auto sm:flex-initial shrink-0 ${
                                                         deptViewMode === 'reassign_needed'
                                                             ? 'bg-amber-500 text-black shadow-md font-extrabold'
                                                             : 'text-amber-400 hover:text-amber-300 hover:bg-amber-500/10'
                                                     }`}
                                                     title={lang === 'id' 
                                                         ? `Tugas Perlu Reassign (${reassignNeededCount} pekerjaan aktif yang pemegangnya pindah departemen)` 
-                                                        : `Needs Reassignment (${reassignNeededCount} active tasks whose taker transferred out)`}
+                                                        : `Needs Reassignment (${reassignNeededCount} active tasks balance)`}
                                                 >
                                                     <ArrowRightLeft className="w-4 h-4 shrink-0" />
                                                     <span className="sm:hidden">Reassign</span>
@@ -1552,7 +1552,7 @@ function DashboardInner() {
                                                 type="button"
                                                 onClick={() => setDeptViewMode('origin')}
                                                 title={t('reported_by_me')}
-                                                className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-1.5 px-3 py-2 sm:px-3.5 sm:py-2 shrink-0 ${
+                                                className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center justify-center sm:justify-start gap-1.5 px-3 py-2 sm:px-3.5 sm:py-2 flex-1 basis-[calc(50%-0.25rem)] sm:basis-auto sm:flex-initial shrink-0 ${
                                                     deptViewMode === 'origin'
                                                         ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-md font-extrabold'
                                                         : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
@@ -1566,7 +1566,7 @@ function DashboardInner() {
                                                 type="button"
                                                 onClick={() => setDeptViewMode('tagged')}
                                                 title={lang === 'id' ? 'Mention Departemen' : 'Department Mentions'}
-                                                className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-1.5 px-3 py-2 sm:px-3.5 sm:py-2 shrink-0 ${
+                                                className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center justify-center sm:justify-start gap-1.5 px-3 py-2 sm:px-3.5 sm:py-2 flex-1 basis-[calc(50%-0.25rem)] sm:basis-auto sm:flex-initial shrink-0 ${
                                                     deptViewMode === 'tagged'
                                                         ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-md font-extrabold'
                                                         : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
@@ -1584,7 +1584,7 @@ function DashboardInner() {
                                                 type="button"
                                                 onClick={() => setDeptViewMode('all')}
                                                 title={t('all_my_scope')}
-                                                className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-1.5 px-3 py-2 sm:px-3.5 sm:py-2 shrink-0 ${
+                                                className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center justify-center sm:justify-start gap-1.5 px-3 py-2 sm:px-3.5 sm:py-2 flex-1 basis-[calc(50%-0.25rem)] sm:basis-auto sm:flex-initial shrink-0 ${
                                                     deptViewMode === 'all'
                                                         ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-md font-extrabold'
                                                         : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
@@ -1598,7 +1598,7 @@ function DashboardInner() {
                                                 type="button"
                                                 onClick={() => setDeptViewMode('assigned')}
                                                 title={t('to_fix')}
-                                                className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-1.5 px-3 py-2 sm:px-3.5 sm:py-2 shrink-0 ${
+                                                className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center justify-center sm:justify-start gap-1.5 px-3 py-2 sm:px-3.5 sm:py-2 flex-1 basis-[calc(50%-0.25rem)] sm:basis-auto sm:flex-initial shrink-0 ${
                                                     deptViewMode === 'assigned'
                                                         ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-md font-extrabold'
                                                         : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
@@ -1612,7 +1612,7 @@ function DashboardInner() {
                                                 type="button"
                                                 onClick={() => setDeptViewMode('origin')}
                                                 title={t('reported_by_me')}
-                                                className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-1.5 px-3 py-2 sm:px-3.5 sm:py-2 shrink-0 ${
+                                                className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center justify-center sm:justify-start gap-1.5 px-3 py-2 sm:px-3.5 sm:py-2 flex-1 basis-[calc(50%-0.25rem)] sm:basis-auto sm:flex-initial shrink-0 ${
                                                     deptViewMode === 'origin'
                                                         ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-md font-extrabold'
                                                         : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
@@ -1626,7 +1626,7 @@ function DashboardInner() {
                                                 type="button"
                                                 onClick={() => setDeptViewMode('tagged')}
                                                 title={t('mentioned_me')}
-                                                className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-1.5 px-3 py-2 sm:px-3.5 sm:py-2 shrink-0 ${
+                                                className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center justify-center sm:justify-start gap-1.5 px-3 py-2 sm:px-3.5 sm:py-2 flex-1 basis-[calc(50%-0.25rem)] sm:basis-auto sm:flex-initial shrink-0 ${
                                                     deptViewMode === 'tagged'
                                                         ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-md font-extrabold'
                                                         : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
@@ -1640,7 +1640,7 @@ function DashboardInner() {
                                                 <button
                                                     type="button"
                                                     onClick={() => setDeptViewMode('past_contributions')}
-                                                    className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-1.5 px-3 py-2 sm:px-3.5 sm:py-2 shrink-0 ${
+                                                    className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center justify-center sm:justify-start gap-1.5 px-3 py-2 sm:px-3.5 sm:py-2 flex-1 basis-[calc(50%-0.25rem)] sm:basis-auto sm:flex-initial shrink-0 ${
                                                         deptViewMode === 'past_contributions'
                                                             ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-md font-extrabold'
                                                             : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
@@ -1665,7 +1665,7 @@ function DashboardInner() {
                                                 <button
                                                     type="button"
                                                     onClick={() => setDeptViewMode('reassign_needed')}
-                                                    className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center gap-1.5 px-3 py-2 sm:px-3.5 sm:py-2 shrink-0 ${
+                                                    className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center justify-center sm:justify-start gap-1.5 px-3 py-2 sm:px-3.5 sm:py-2 flex-1 basis-[calc(50%-0.25rem)] sm:basis-auto sm:flex-initial shrink-0 ${
                                                         deptViewMode === 'reassign_needed'
                                                             ? 'bg-amber-500 text-black shadow-md font-extrabold'
                                                             : 'text-amber-400 hover:text-amber-300 hover:bg-amber-500/10'
