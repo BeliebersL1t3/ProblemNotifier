@@ -237,9 +237,18 @@ export function FilterChips({ categoryFilter, onCategoryChange, deptFilter, onDe
             <Sheet open={deptSheetOpen} onOpenChange={setDeptSheetOpen}>
                 <SheetContent side="bottom" className="max-h-[75vh] overflow-y-auto rounded-t-2xl pb-8">
                     <SheetHeader className="mb-5">
-                        <SheetTitle>Filter by Department</SheetTitle>
+                        <SheetTitle>
+                            {lang === 'id' ? 'Filter Berdasarkan Departemen' : 'Filter by Department'}
+                        </SheetTitle>
                         <SheetDescription>
-                            Select a department to narrow down issues.
+                            {!isAdmin && canViewAllDepartments
+                                ? (lang === 'id'
+                                    ? 'Akun Anda memiliki izin Lintas Departemen untuk memantau isu seluruh departemen resort Telunas.'
+                                    : 'Your account has Cross-Department permission to monitor issues resort-wide across Telunas.')
+                                : (lang === 'id'
+                                    ? 'Pilih departemen untuk menyaring laporan.'
+                                    : 'Select a department to narrow down issues.')
+                            }
                         </SheetDescription>
                     </SheetHeader>
 

@@ -362,15 +362,16 @@ export function CampusFixHeader({ mode = 'dashboard', query, onQueryChange, onRe
                                     borderColor: `${deptTheme.bg}80`,
                                     backgroundColor: `${deptTheme.bg}22`,
                                 } : {}}
-                                title={`${user?.name || 'Account'} (${user?.department || (isAdmin ? 'Admin' : '')})`}
+                                title={`${user?.name || 'Account'} (${user?.department || (isAdmin ? 'Admin' : '')})${canViewAllDepartments && !isAdmin ? ' • Lintas Seluruh Dept' : ''}`}
                             >
-                                <div 
-                                    className="w-6 h-6 rounded-full flex items-center justify-center font-black text-xs shrink-0 shadow-xs ring-1 ring-black/20 overflow-hidden"
-                                    style={{
-                                        backgroundColor: deptTheme.bg,
-                                        color: deptTheme.text,
-                                    }}
-                                >
+                                <div className="relative">
+                                    <div 
+                                        className="w-6 h-6 rounded-full flex items-center justify-center font-black text-xs shrink-0 shadow-xs ring-1 ring-black/20 overflow-hidden"
+                                        style={{
+                                            backgroundColor: deptTheme.bg,
+                                            color: deptTheme.text,
+                                        }}
+                                    >
                                     {avatarUrl ? (
                                         <img 
                                             src={avatarUrl} 
@@ -379,6 +380,13 @@ export function CampusFixHeader({ mode = 'dashboard', query, onQueryChange, onRe
                                         />
                                     ) : (
                                         user?.name ? user.name.charAt(0).toUpperCase() : <User className="h-3 w-3" />
+                                    )}
+                                    </div>
+                                    {canViewAllDepartments && !isAdmin && (
+                                        <span 
+                                            className="absolute -bottom-0.5 -right-0.5 flex h-2 w-2 rounded-full bg-sky-400 ring-1 ring-[#1C1B0E]" 
+                                            title={lang === 'id' ? 'Izin Lintas Seluruh Departemen Aktif' : 'Cross-Dept Access Active'}
+                                        />
                                     )}
                                 </div>
                             </Link>
@@ -749,6 +757,15 @@ export function CampusFixHeader({ mode = 'dashboard', query, onQueryChange, onRe
                                     title={department}
                                 >
                                     {getShortDepartmentName(department)}
+                                </span>
+                            )}
+                            {canViewAllDepartments && !isAdmin && (
+                                <span 
+                                    className="flex items-center text-[9px] font-black px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-800 dark:text-sky-300 border border-sky-500/30 shrink-0"
+                                    title={lang === 'id' ? 'Izin Wewenang: Akses Lintas Seluruh Departemen' : 'Special Permission: All Departments Access'}
+                                >
+                                    <Globe className="w-2.5 h-2.5 mr-0.5" />
+                                    ALL
                                 </span>
                             )}
                         </Link>

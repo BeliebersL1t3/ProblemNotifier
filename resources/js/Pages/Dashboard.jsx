@@ -1366,17 +1366,6 @@ function DashboardInner() {
                     {/* Tier 1: Primary Scope Tabs & Density Selector */}
                     <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
                         <div className="flex items-center justify-start gap-2.5 w-full lg:w-auto">
-                            {canViewAllDepartments && !isAdmin && (
-                                <div 
-                                    className="hidden md:inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-sky-500/10 border border-sky-500/30 text-sky-300 text-xs font-semibold shadow-xs shrink-0"
-                                    title={lang === 'id' 
-                                        ? 'Wewenang Akun: Anda memiliki izin akses untuk memantau isu seluruh departemen resort Telunas.' 
-                                        : 'Account Permission: You have permission to view and monitor all Telunas resort departments.'}
-                                >
-                                    <Globe className="h-4 w-4 text-sky-400 shrink-0" />
-                                    <span>{lang === 'id' ? 'Lintas Seluruh Departemen' : 'All Departments Access'}</span>
-                                </div>
-                            )}
                             {(isDeptUser || isAdmin) && (
                                 <div className="flex items-center rounded-2xl bg-[#2A281E] p-1.5 border border-[#3B3929] text-xs font-bold w-full sm:w-fit gap-1 sm:gap-1.5 shadow-md">
                                     {isAdmin ? (
@@ -1488,7 +1477,9 @@ function DashboardInner() {
                                             <button
                                                 type="button"
                                                 onClick={() => setDeptViewMode('all')}
-                                                title={lang === 'id' ? 'Semua Departemen Saya' : 'All My Department Scope'}
+                                                title={canViewAllDepartments 
+                                                    ? (lang === 'id' ? 'Seluruh Isu Resort (Wewenang Akses Lintas Departemen)' : 'All Resort Issues (Cross-Department Access)')
+                                                    : (lang === 'id' ? 'Semua Pekerjaan Departemen Saya' : 'All My Department Scope')}
                                                 className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center justify-center gap-1 sm:gap-1.5 py-2.5 px-2 sm:py-2 sm:px-3.5 flex-1 sm:flex-initial shrink-0 ${
                                                     deptViewMode === 'all'
                                                         ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-md font-extrabold'
@@ -1496,8 +1487,25 @@ function DashboardInner() {
                                                 }`}
                                             >
                                                 <Globe className="w-4 h-4 shrink-0" />
-                                                {deptViewMode === 'all' && <span className="sm:hidden">Dept</span>}
-                                                <span className="hidden sm:inline">{lang === 'id' ? 'Semua Departemen' : 'All Department'}</span>
+                                                {deptViewMode === 'all' && (
+                                                    <span className="sm:hidden">
+                                                        {canViewAllDepartments ? (lang === 'id' ? 'Resort' : 'All') : 'Dept'}
+                                                    </span>
+                                                )}
+                                                <span className="hidden sm:inline">
+                                                    {canViewAllDepartments 
+                                                        ? (lang === 'id' ? 'Semua Isu (Resort)' : 'All Issues (Resort)') 
+                                                        : (lang === 'id' ? 'Departemen Saya' : 'My Department')}
+                                                </span>
+                                                {canViewAllDepartments && (
+                                                    <span className={`text-[9px] px-1.5 py-0.2 rounded font-extrabold uppercase tracking-wider hidden md:inline ${
+                                                        deptViewMode === 'all'
+                                                            ? 'bg-[#1C1B0E]/20 text-[#1C1B0E]'
+                                                            : 'bg-sky-500/20 text-sky-300 border border-sky-500/30'
+                                                    }`}>
+                                                        ALL
+                                                    </span>
+                                                )}
                                             </button>
                                             <button
                                                 type="button"
@@ -1596,7 +1604,9 @@ function DashboardInner() {
                                             <button
                                                 type="button"
                                                 onClick={() => setDeptViewMode('all')}
-                                                title={t('all_my_scope')}
+                                                title={canViewAllDepartments 
+                                                    ? (lang === 'id' ? 'Seluruh Isu Resort (Wewenang Akses Lintas Departemen)' : 'All Resort Issues (Cross-Department Access)')
+                                                    : t('all_my_scope')}
                                                 className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center justify-center gap-1 sm:gap-1.5 py-2.5 px-2 sm:py-2 sm:px-3.5 flex-1 sm:flex-initial shrink-0 ${
                                                     deptViewMode === 'all'
                                                         ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-md font-extrabold'
@@ -1604,8 +1614,25 @@ function DashboardInner() {
                                                 }`}
                                             >
                                                 <Globe className="w-4 h-4 shrink-0" />
-                                                {deptViewMode === 'all' && <span className="sm:hidden">{lang === 'id' ? 'Semua' : 'All'}</span>}
-                                                <span className="hidden sm:inline">{t('all_my_scope')}</span>
+                                                {deptViewMode === 'all' && (
+                                                    <span className="sm:hidden">
+                                                        {canViewAllDepartments ? (lang === 'id' ? 'Resort' : 'All') : (lang === 'id' ? 'Semua' : 'All')}
+                                                    </span>
+                                                )}
+                                                <span className="hidden sm:inline">
+                                                    {canViewAllDepartments 
+                                                        ? (lang === 'id' ? 'Semua Isu (Resort)' : 'All Issues (Resort)') 
+                                                        : t('all_my_scope')}
+                                                </span>
+                                                {canViewAllDepartments && (
+                                                    <span className={`text-[9px] px-1.5 py-0.2 rounded font-extrabold uppercase tracking-wider hidden md:inline ${
+                                                        deptViewMode === 'all'
+                                                            ? 'bg-[#1C1B0E]/20 text-[#1C1B0E]'
+                                                            : 'bg-sky-500/20 text-sky-300 border border-sky-500/30'
+                                                    }`}>
+                                                        ALL
+                                                    </span>
+                                                )}
                                             </button>
                                             <button
                                                 type="button"
