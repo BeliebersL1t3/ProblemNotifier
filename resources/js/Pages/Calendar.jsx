@@ -22,6 +22,7 @@ import { ScrollToTop } from '@/Components/CampusFix/ScrollToTop';
 import { ALL_DEPARTMENTS, normalizeDepartment } from '@/constants/staff';
 import { getDepartmentTheme } from '@/constants/departments';
 import { useAuth } from '@/hooks/useAuth';
+import { useCalendarSync } from '@/context/CalendarSyncContext';
 
 const MAIN_LOCATIONS = ['TPI', 'TBR', 'Kantor'];
 
@@ -949,6 +950,20 @@ function CalendarInner() {
     const { t, lang } = useLanguage();
     const { tasks, setTasks, loading, error, reload } = useAllOpsTasks();
     const { user, isDeptUser, department: userDept, staffName, canAccessCalendar, canExportReports, canSyncCalendar } = useAuth();
+    const { formattedCountdown, isSyncing: globalSyncing, triggerSync } = useCalendarSync();
+
+    // Listen to universal background sync events from any page/tab to auto-reload tasks
+    useEffect(() => {
+        const handleCalendarSynced = (e) => {
+            if (!e.detail?.error) {
+                reload(true, true);
+            }
+        };
+        window.addEventListener('telunas:calendar-synced', handleCalendarSynced);
+        return () => {
+            window.removeEventListener('telunas:calendar-synced', handleCalendarSynced);
+        };
+    }, [reload]);
 
     // Multi-Department Selection: Defaults to ALL departments for everyone
     const [selectedDepartments, setSelectedDepartments] = useState(ALL_DEPARTMENTS);
@@ -1340,16 +1355,8 @@ function CalendarInner() {
     const doneTasks = filteredTasks.filter(m => m.status === 'done').length;
 
     const [syncingCalendar, setSyncingCalendar] = useState(false);
-    const [pullingCalendar, setPullingCalendar] = useState(false);
     const [logsModalOpen, setLogsModalOpen] = useState(false);
     const [syncMsg, setSyncMsg] = useState(null);
-    const [syncCountdown, setSyncCountdown] = useState(300);
-
-    const formatCountdown = (seconds) => {
-        const m = Math.floor(seconds / 60);
-        const s = seconds % 60;
-        return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-    };
 
     const handleSyncGoogleCalendar = async () => {
         setSyncingCalendar(true);
@@ -1370,61 +1377,6 @@ function CalendarInner() {
             setTimeout(() => setSyncMsg(null), 6000);
         }
     };
-
-    const handlePullGoogleCalendar = async () => {
-        setPullingCalendar(true);
-        setSyncMsg(null);
-        try {
-            const res = await axios.post('/api/operations/pull-calendar');
-            const json = res.data;
-            if (json.success) {
-                setSyncMsg({ type: 'success', text: json.data?.message || 'Berhasil menarik pembaruan dari Google Calendar!' });
-                reload(true, true);
-                setSyncCountdown(300);
-            } else {
-                setSyncMsg({ type: 'error', text: json.message || 'Gagal menarik data dari Google Calendar' });
-            }
-        } catch (e) {
-            setSyncMsg({ type: 'error', text: e.response?.data?.message || e.message || 'Gagal menarik data dari Google Calendar' });
-        } finally {
-            setPullingCalendar(false);
-            setTimeout(() => setSyncMsg(null), 6000);
-        }
-    };
-
-    // Background auto-sync from Google Calendar every 5 minutes (300 seconds) with accurate countdown ticker
-    useEffect(() => {
-        if (!canSyncCalendar) return;
-
-        const silentPull = async () => {
-            setPullingCalendar(true);
-            try {
-                const res = await axios.post('/api/operations/pull-calendar', { silent: true });
-                const d = res.data?.data;
-                if (res.data?.success && ((d?.created > 0) || (d?.updated > 0) || (d?.deleted > 0))) {
-                    reload(true, true);
-                }
-            } catch (err) {
-                // Silently ignore background pull network hiccups
-            } finally {
-                setPullingCalendar(false);
-            }
-        };
-
-        const interval = setInterval(() => {
-            setSyncCountdown(prev => {
-                if (prev <= 1) {
-                    silentPull();
-                    return 300;
-                }
-                return prev - 1;
-            });
-        }, 1000);
-
-        return () => {
-            clearInterval(interval);
-        };
-    }, [canSyncCalendar, reload]);
 
     const [restoringTaskId, setRestoringTaskId] = useState(null);
 
@@ -1641,13 +1593,13 @@ function CalendarInner() {
 
                             {canSyncCalendar && (
                                 <>
-                                    {/* Auto-Sync Status Badge with Accurate Countdown Timer */}
+                                    {/* Auto-Sync Status Badge with Accurate Universal Countdown Timer */}
                                     <div className="flex items-center bg-[#1C1B0E]/90 border border-emerald-500/30 rounded-xl px-2.5 py-1.5 shadow-sm backdrop-blur-sm gap-2">
                                         <div
                                             className="flex items-center gap-2 text-xs font-medium text-emerald-300"
-                                            title={lang === 'id' ? `Sinkronisasi otomatis berjalan setiap 5 menit (berikutnya dalam ${formatCountdown(syncCountdown)})` : `Auto sync runs every 5 minutes (next in ${formatCountdown(syncCountdown)})`}
+                                            title={lang === 'id' ? `Sinkronisasi otomatis universal berjalan setiap 5 menit (berikutnya dalam ${formattedCountdown})` : `Universal auto sync runs every 5 minutes (next in ${formattedCountdown})`}
                                         >
-                                            {pullingCalendar || syncingCalendar ? (
+                                            {globalSyncing || syncingCalendar ? (
                                                 <Loader2 className="h-3 w-3 animate-spin text-emerald-400" />
                                             ) : (
                                                 <span className="relative flex h-2 w-2">
@@ -1656,18 +1608,18 @@ function CalendarInner() {
                                                 </span>
                                             )}
                                             <span className="text-[11px] font-semibold tracking-wide">
-                                                {pullingCalendar || syncingCalendar
+                                                {globalSyncing || syncingCalendar
                                                     ? (lang === 'id' ? 'Menyinkronkan...' : 'Syncing...')
                                                     : (lang === 'id' ? 'Otomatis Sinkron' : 'Auto-Sync Active')}
                                             </span>
                                         </div>
 
-                                        {/* Countdown Timer Pill */}
+                                        {/* Universal Countdown Timer Pill */}
                                         <span 
                                             className="font-mono text-[10px] px-1.5 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30 shadow-inner select-none"
-                                            title={lang === 'id' ? `Hitung mundur autosync berikutnya: ${formatCountdown(syncCountdown)}` : `Countdown to next autosync: ${formatCountdown(syncCountdown)}`}
+                                            title={lang === 'id' ? `Hitung mundur autosync universal: ${formattedCountdown}` : `Countdown to next universal autosync: ${formattedCountdown}`}
                                         >
-                                            {formatCountdown(syncCountdown)}
+                                            {formattedCountdown}
                                         </span>
                                     </div>
 

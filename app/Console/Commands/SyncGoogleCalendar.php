@@ -44,6 +44,8 @@ class SyncGoogleCalendar extends Command
                 );
             }
 
+            \Illuminate\Support\Facades\Cache::forever('last_calendar_sync_time', time());
+
             return 0;
         } catch (\Throwable $e) {
             $this->error("Failed to sync Google Calendar: " . $e->getMessage());

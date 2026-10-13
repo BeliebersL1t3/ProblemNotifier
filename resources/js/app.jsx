@@ -9,6 +9,7 @@ const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 
 import { SlashProvider } from '@/Components/CampusFix/SlashTransition';
 import { LanguageProvider } from '@/context/LanguageContext';
+import { CalendarSyncProvider } from '@/context/CalendarSyncContext';
 import { ErrorBoundary } from '@/Components/CampusFix/ErrorBoundary';
 import { registerServiceWorker } from '@/services/webPushService';
 
@@ -32,9 +33,11 @@ createInertiaApp({
         root.render(
             <ErrorBoundary>
                 <LanguageProvider>
-                    <SlashProvider>
-                        <App {...props} />
-                    </SlashProvider>
+                    <CalendarSyncProvider>
+                        <SlashProvider>
+                            <App {...props} />
+                        </SlashProvider>
+                    </CalendarSyncProvider>
                 </LanguageProvider>
             </ErrorBoundary>
         );

@@ -554,19 +554,50 @@ class OperationsController extends Controller
                 );
             }
 
+            Cache::forever('last_calendar_sync_time', time());
+
             return response()->json([
-                'success' => true,
-                'data'    => $result,
+                'success'        => true,
+                'data'           => $result,
+                'last_synced_at' => time(),
+                'server_time'    => time(),
             ]);
         } catch (\Throwable $e) {
+            // In case of rate limit, set last sync time to now so clients pause before retrying
+            Cache::put('last_calendar_sync_time', time(), 3600);
+
             CalendarSyncLog::record(
                 action: $request->boolean('silent') ? 'AUTO_SYNC' : 'MANUAL_PULL',
                 performedBy: $request->boolean('silent') ? 'Background Auto-Sync' : ($user->staff_name ?: ($user->name ?: 'Admin')),
                 status: 'failed',
                 message: $e->getMessage()
             );
-            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+            return response()->json([
+                'success'        => false, 
+                'message'        => $e->getMessage(),
+                'last_synced_at' => time(),
+                'server_time'    => time(),
+            ], 500);
         }
+    }
+
+    /** GET /api/operations/calendar-sync-status */
+    public function getCalendarSyncStatus(Request $request)
+    {
+        $user = $request->user();
+        if (!$user || !$user->canSyncCalendar()) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+        }
+
+        $now = time();
+        $lastSynced = (int) Cache::get('last_calendar_sync_time', $now);
+
+        return response()->json([
+            'success'          => true,
+            'interval_seconds' => 300,
+            'last_synced_at'   => $lastSynced,
+            'server_time'      => $now,
+        ]);
     }
 
     /** POST /api/operations/restore-task */

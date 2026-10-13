@@ -151,6 +151,7 @@ Route::prefix('api')->group(function () {
         Route::post('/operations/pull-calendar', [OperationsController::class, 'pullCalendar']);
         Route::post('/operations/restore-task', [OperationsController::class, 'restoreTask']);
         Route::get('/operations/calendar-logs', [OperationsController::class, 'calendarLogs']);
+        Route::get('/operations/calendar-sync-status', [OperationsController::class, 'getCalendarSyncStatus']);
         Route::post('/operations/format-sheets', [OperationsController::class, 'formatSheets']);
         Route::match(['patch', 'post'], '/operations/{rowIndex}', [OperationsController::class, 'update']);
         Route::delete('/operations/{rowIndex}', [OperationsController::class, 'destroy']);

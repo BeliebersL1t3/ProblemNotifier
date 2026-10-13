@@ -99,6 +99,19 @@ class HandleInertiaRequests extends Middleware
             'tickets_sheet_url' => config('services.google.tickets_spreadsheet_id')
                 ? 'https://docs.google.com/spreadsheets/d/' . config('services.google.tickets_spreadsheet_id') . '/edit?usp=sharing'
                 : null,
+            'calendar_sync_meta' => function () use ($request) {
+                $user = $request->user();
+                if (!$user || !$user->canSyncCalendar()) {
+                    return null;
+                }
+                $now = time();
+                $lastSynced = (int) \Illuminate\Support\Facades\Cache::get('last_calendar_sync_time', $now);
+                return [
+                    'interval_seconds' => 300,
+                    'last_synced_at'   => $lastSynced,
+                    'server_time'      => $now,
+                ];
+            },
         ];
     }
 }

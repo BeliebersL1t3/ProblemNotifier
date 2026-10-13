@@ -9,6 +9,7 @@ import { NewPeriodModal } from '@/Components/CampusFix/NewPeriodModal';
 import { MandatoryRealEmailModal } from '@/Components/CampusFix/MandatoryRealEmailModal';
 import { useSlashTransition } from '@/Components/CampusFix/SlashTransition';
 import { useLanguage } from '@/context/LanguageContext';
+import { useCalendarSync } from '@/context/CalendarSyncContext';
 import { useAuth } from '@/hooks/useAuth';
 import { Tooltip } from '@/Components/UI/Tooltip';
 import { getDepartmentTheme, getShortDepartmentName } from '@/constants/departments';
@@ -18,6 +19,7 @@ import { BotControlModal } from '@/Components/CampusFix/BotControlModal';
 export function CampusFixHeader({ mode = 'dashboard', query, onQueryChange, onReport, onEmergency, onNewPeriod, searchDropdown }) {
     const { currentSheet } = useIssues();
     const { lang, setLang, t } = useLanguage();
+    const { formattedCountdown, isSyncing, canSync } = useCalendarSync();
     const { user, isAdmin, department, staffName, canAccessAnalytics, canAccessCalendar, canViewAllDepartments, avatarUrl } = useAuth();
     const userDept = user?.department || department;
     const deptTheme = userDept ? getDepartmentTheme(userDept) : (isAdmin ? { bg: '#C9AA71', text: '#1C1B0E' } : { bg: '#607D8B', text: '#FFFFFF' });
@@ -247,6 +249,25 @@ export function CampusFixHeader({ mode = 'dashboard', query, onQueryChange, onRe
                                 >
                                     <span className="text-xs leading-none">🚨</span>
                                 </button>
+                            )}
+
+                            {/* Mobile Universal Auto-Sync Indicator */}
+                            {canSync && (
+                                <Link
+                                    href="/calendar"
+                                    className="flex items-center gap-1 px-1.5 py-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 shrink-0 text-[10px] font-mono font-bold hover:bg-emerald-500/20 transition-all select-none"
+                                    title={lang === 'id' ? `Google Calendar Auto-Sync Universal (${formattedCountdown})` : `Universal Auto-Sync (${formattedCountdown})`}
+                                >
+                                    {isSyncing ? (
+                                        <span className="w-2 h-2 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin shrink-0" />
+                                    ) : (
+                                        <span className="relative flex h-1.5 w-1.5 shrink-0">
+                                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                                            <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
+                                        </span>
+                                    )}
+                                    <span>{formattedCountdown}</span>
+                                </Link>
                             )}
 
                             {/* Mobile WhatsApp Bot Status Button */}
@@ -524,6 +545,30 @@ export function CampusFixHeader({ mode = 'dashboard', query, onQueryChange, onRe
 
                 {/* Desktop Action Area: Hidden on mobile */}
                 <div className="hidden md:flex items-center justify-end gap-2.5 shrink-0 py-0.5">
+                    {/* Universal Google Calendar Auto-Sync Live Indicator */}
+                    {canSync && (
+                        <Link
+                            href="/calendar"
+                            className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold border border-emerald-500/30 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-500/20 hover:border-emerald-500/50 transition-all select-none shrink-0 shadow-xs"
+                            title={lang === 'id' ? `Google Calendar Auto-Sync Universal (Sinkronisasi otomatis berikutnya dalam ${formattedCountdown})` : `Universal Google Calendar Auto-Sync (Next in ${formattedCountdown})`}
+                        >
+                            {isSyncing ? (
+                                <span className="w-2.5 h-2.5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin shrink-0" />
+                            ) : (
+                                <span className="relative flex h-2 w-2 shrink-0">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+                                </span>
+                            )}
+                            <span className="text-[11px] font-bold tracking-tight hidden lg:inline">
+                                {isSyncing ? (lang === 'id' ? 'Menyinkronkan...' : 'Syncing...') : 'Auto-Sync'}
+                            </span>
+                            <span className="font-mono text-[10px] px-1.5 py-0.2 rounded bg-black/20 dark:bg-black/60 border border-emerald-500/30 font-bold text-emerald-700 dark:text-emerald-300 shadow-inner">
+                                {formattedCountdown}
+                            </span>
+                        </Link>
+                    )}
+
                     {/* ID | EN Switcher on Desktop */}
                     <div className="flex items-center rounded-lg border border-[#1C1B0E]/20 bg-[#1C1B0E]/10 p-0.5 text-xs font-bold shrink-0 mr-1">
                         <button
