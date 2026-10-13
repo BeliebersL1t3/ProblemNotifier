@@ -519,6 +519,82 @@ function YearDropdown({ selectedYear, onChange, years = [], className = '', lang
     );
 }
 
+// ─── Month Selector Dropdown ──────────────────────────────────────────────────
+function MonthDropdown({ selectedMonth, onChange, year, className = '', lang = 'id' }) {
+    const [open, setOpen] = useState(false);
+    const ref = useRef(null);
+
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (ref.current && !ref.current.contains(e.target)) {
+                setOpen(false);
+            }
+        };
+        if (open) document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [open]);
+
+    const months = useMemo(() => {
+        return Array.from({ length: 12 }, (_, i) => {
+            const d = new Date(year || 2026, i, 1);
+            const longName = new Intl.DateTimeFormat(lang === 'id' ? 'id-ID' : 'en-US', { month: 'long' }).format(d);
+            const shortName = new Intl.DateTimeFormat(lang === 'id' ? 'id-ID' : 'en-US', { month: 'short' }).format(d);
+            return { index: i, longName, shortName };
+        });
+    }, [year, lang]);
+
+    const currentMonthObj = months[selectedMonth] || months[0];
+
+    return (
+        <div className={`relative inline-block ${className}`} ref={ref}>
+            <button
+                type="button"
+                onClick={() => setOpen(!open)}
+                className={`inline-flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1 rounded-xl text-base sm:text-lg font-black border transition-all cursor-pointer shadow-xs select-none capitalize ${
+                    open
+                        ? 'bg-[#353326] border-[#C9AA71] text-[#FAFAFA]'
+                        : 'bg-[#1C1B0E] border-[#3B3929] text-[#FAFAFA] hover:border-[#C9AA71]/60 hover:text-[#E3D1AA]'
+                }`}
+                title={lang === 'id' ? `Pilih Bulan (Saat ini: ${currentMonthObj.longName})` : `Select Month (Current: ${currentMonthObj.longName})`}
+            >
+                <span>{currentMonthObj.longName}</span>
+                <ChevronDown className={`h-3.5 w-3.5 sm:h-4 sm:w-4 text-[#C9AA71] transition-transform duration-200 shrink-0 ${open ? 'rotate-180' : ''}`} />
+            </button>
+
+            {open && (
+                <div className="absolute left-0 top-full mt-1.5 z-[130] w-56 sm:w-64 max-h-64 overflow-y-auto rounded-xl border border-[#3B3929] bg-[#2A281E] p-1.5 shadow-2xl backdrop-blur-2xl animate-in fade-in zoom-in-95">
+                    <div className="text-[10px] font-black uppercase tracking-wider text-[#A19F8D] px-2 py-0.5 mb-1 border-b border-[#3B3929] flex items-center justify-between">
+                        <span>{lang === 'id' ? 'Pilih Bulan' : 'Select Month'}</span>
+                        <span className="text-[#C9AA71]">{year}</span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-1">
+                        {months.map((m) => {
+                            const isSelected = m.index === selectedMonth;
+                            return (
+                                <button
+                                    key={m.index}
+                                    type="button"
+                                    onClick={() => {
+                                        onChange(m.index);
+                                        setOpen(false);
+                                    }}
+                                    className={`px-2 py-1.5 rounded-lg text-xs font-bold capitalize transition-all text-center cursor-pointer ${
+                                        isSelected
+                                            ? 'bg-[#C9AA71] text-[#1C1B0E] font-black shadow-xs'
+                                            : 'text-[#E3D1AA] hover:bg-[#353326] hover:text-[#FAFAFA]'
+                                    }`}
+                                >
+                                    {m.shortName}
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
 export function OperationsCalendarView({
     manual = [],
     tasks = [],
@@ -1148,10 +1224,15 @@ export function OperationsCalendarView({
                         <div className="w-10 h-10 rounded-xl bg-[#1C1B0E] border border-[#3B3929] flex items-center justify-center shrink-0 shadow-inner">
                             <CalendarIcon className="h-5 w-5 text-[#C9AA71]" />
                         </div>
-                        <div className="flex items-center gap-2.5">
-                            <h2 className="text-xl font-black text-[#FAFAFA] capitalize tracking-tight truncate">
-                                {monthName}
-                            </h2>
+                        <div className="flex items-center gap-2">
+                            <MonthDropdown
+                                selectedMonth={month}
+                                year={year}
+                                onChange={(newMonth) => {
+                                    setCurrentMonth(new Date(year, newMonth, 1));
+                                }}
+                                lang={lang}
+                            />
                             <YearDropdown
                                 selectedYear={year}
                                 onChange={(newYear) => {
@@ -1285,9 +1366,14 @@ export function OperationsCalendarView({
                                             <ChevronLeft className="h-4 w-4" />
                                         </button>
 
-                                        <h2 className="text-lg sm:text-2xl font-black text-[#FAFAFA] capitalize tracking-tight truncate">
-                                            {monthName}
-                                        </h2>
+                                        <MonthDropdown
+                                            selectedMonth={month}
+                                            year={year}
+                                            onChange={(newMonth) => {
+                                                setCurrentMonth(new Date(year, newMonth, 1));
+                                            }}
+                                            lang={lang}
+                                        />
 
                                         <YearDropdown
                                             selectedYear={year}
