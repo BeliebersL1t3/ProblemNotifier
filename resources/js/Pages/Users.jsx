@@ -424,44 +424,113 @@ function UsersInner({ initialUsers, initialStats }) {
 
                     {activeMainTab === 'users' ? (
                         <>
-                    {/* Quick Stats Grid - 6 Balanced Columns */}
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-                        <div className="rounded-xl border border-[#3B3929] bg-[#2A281E]/80 p-3.5 space-y-1">
-                            <div className="text-[11px] font-bold text-[#A19F8D] uppercase tracking-wider">Total Akun</div>
+                    {/* Quick Stats Grid - 5 Balanced Columns, All Clickable with Two-Way Filter Sync */}
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                        {/* Total Akun Stat Card - Click to reset to All Active */}
+                        <div 
+                            onClick={() => {
+                                setStatusFilter('active');
+                                setRoleFilter('all');
+                                setHodFilter(false);
+                            }}
+                            className={`rounded-xl border p-3.5 space-y-1 cursor-pointer transition-all hover:scale-[1.01] ${
+                                statusFilter === 'active' && roleFilter === 'all' && !hodFilter
+                                    ? 'border-[#C9AA71] bg-[#C9AA71]/20 ring-1 ring-[#C9AA71] shadow-md'
+                                    : 'border-[#3B3929] bg-[#2A281E]/80 hover:bg-[#3B3929]/50'
+                            }`}
+                            title={lang === 'id' ? 'Klik untuk tampilkan semua akun aktif' : 'Click to show all active accounts'}
+                        >
+                            <div className="text-[11px] font-bold text-[#A19F8D] uppercase tracking-wider flex items-center justify-between">
+                                <span>{lang === 'id' ? 'Total Akun' : 'Total Accounts'}</span>
+                                {statusFilter === 'active' && roleFilter === 'all' && !hodFilter && (
+                                    <span className="text-[9px] font-black bg-[#C9AA71] text-[#1C1B0E] px-1.5 py-0.2 rounded">
+                                        AKTIF
+                                    </span>
+                                )}
+                            </div>
                             <div className="text-xl font-extrabold text-[#FAFAFA]">{stats.total_users ?? 0}</div>
                         </div>
 
-                        <div className="rounded-xl border border-[#3B3929] bg-[#2A281E]/80 p-3.5 space-y-1">
-                            <div className="text-[11px] font-bold text-[#C9AA71] uppercase tracking-wider">Admin</div>
+                        {/* Admin Stat Card with 1-click Filter Toggle */}
+                        <div 
+                            onClick={() => {
+                                if (roleFilter === 'admin' && !hodFilter && statusFilter === 'active') {
+                                    setRoleFilter('all');
+                                } else {
+                                    setStatusFilter('active');
+                                    setRoleFilter('admin');
+                                    setHodFilter(false);
+                                }
+                            }}
+                            className={`rounded-xl border p-3.5 space-y-1 cursor-pointer transition-all hover:scale-[1.01] ${
+                                roleFilter === 'admin' && !hodFilter && statusFilter === 'active'
+                                    ? 'border-[#C9AA71] bg-[#C9AA71]/25 ring-1 ring-[#C9AA71] shadow-md'
+                                    : 'border-[#C9AA71]/30 bg-[#C9AA71]/10 hover:bg-[#C9AA71]/15'
+                            }`}
+                            title={lang === 'id' ? 'Klik untuk filter akun Administrator' : 'Click to filter Administrator accounts'}
+                        >
+                            <div className="text-[11px] font-bold text-[#C9AA71] uppercase tracking-wider flex items-center justify-between">
+                                <span>Admin</span>
+                                {roleFilter === 'admin' && !hodFilter && statusFilter === 'active' && (
+                                    <span className="text-[9px] font-black bg-[#C9AA71] text-[#1C1B0E] px-1.5 py-0.2 rounded">
+                                        AKTIF
+                                    </span>
+                                )}
+                            </div>
                             <div className="text-xl font-extrabold text-[#C9AA71]">{stats.total_admins ?? 0}</div>
                         </div>
 
-                        <div className="rounded-xl border border-[#3B3929] bg-[#2A281E]/80 p-3.5 space-y-1">
-                            <div className="text-[11px] font-bold text-sky-400 uppercase tracking-wider">Departemen</div>
+                        {/* Departemen Stat Card with 1-click Filter Toggle */}
+                        <div 
+                            onClick={() => {
+                                if (roleFilter === 'department' && !hodFilter && statusFilter === 'active') {
+                                    setRoleFilter('all');
+                                } else {
+                                    setStatusFilter('active');
+                                    setRoleFilter('department');
+                                    setHodFilter(false);
+                                }
+                            }}
+                            className={`rounded-xl border p-3.5 space-y-1 cursor-pointer transition-all hover:scale-[1.01] ${
+                                roleFilter === 'department' && !hodFilter && statusFilter === 'active'
+                                    ? 'border-sky-400 bg-sky-500/25 ring-1 ring-sky-400 shadow-md'
+                                    : 'border-sky-500/30 bg-sky-500/10 hover:bg-sky-500/15'
+                            }`}
+                            title={lang === 'id' ? 'Klik untuk filter akun Departemen' : 'Click to filter Department accounts'}
+                        >
+                            <div className="text-[11px] font-bold text-sky-400 uppercase tracking-wider flex items-center justify-between">
+                                <span>Departemen</span>
+                                {roleFilter === 'department' && !hodFilter && statusFilter === 'active' && (
+                                    <span className="text-[9px] font-black bg-sky-400 text-[#1C1B0E] px-1.5 py-0.2 rounded">
+                                        AKTIF
+                                    </span>
+                                )}
+                            </div>
                             <div className="text-xl font-extrabold text-sky-400">{stats.total_departments ?? 0}</div>
                         </div>
 
                         {/* HOD Stat Card with 1-click Filter Toggle */}
                         <div 
                             onClick={() => {
-                                if (roleFilter === 'hod') {
+                                if ((hodFilter || roleFilter === 'hod') && statusFilter === 'active') {
                                     setRoleFilter('all');
                                     setHodFilter(false);
                                 } else {
+                                    setStatusFilter('active');
                                     setRoleFilter('all');
-                                    setHodFilter(prev => !prev);
+                                    setHodFilter(true);
                                 }
                             }}
-                            className={`rounded-xl border p-3.5 space-y-1 cursor-pointer transition-all ${
-                                hodFilter || roleFilter === 'hod'
+                            className={`rounded-xl border p-3.5 space-y-1 cursor-pointer transition-all hover:scale-[1.01] ${
+                                (hodFilter || roleFilter === 'hod') && statusFilter === 'active'
                                     ? 'border-amber-400 bg-amber-500/25 ring-1 ring-amber-400 shadow-md'
                                     : 'border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/15'
                             }`}
-                            title="Klik untuk filter hanya akun HOD"
+                            title={lang === 'id' ? 'Klik untuk filter hanya akun HOD' : 'Click to filter HOD accounts'}
                         >
                             <div className="text-[11px] font-bold text-amber-400 uppercase tracking-wider flex items-center justify-between">
                                 <span>👑 HOD</span>
-                                {(hodFilter || roleFilter === 'hod') && (
+                                {(hodFilter || roleFilter === 'hod') && statusFilter === 'active' && (
                                     <span className="text-[9px] font-black bg-amber-400 text-[#1C1B0E] px-1.5 py-0.2 rounded">
                                         AKTIF
                                     </span>
@@ -470,20 +539,21 @@ function UsersInner({ initialUsers, initialStats }) {
                             <div className="text-xl font-extrabold text-amber-400">{stats.total_hod ?? 0}</div>
                         </div>
 
-                        <div className="rounded-xl border border-[#3B3929] bg-[#2A281E]/80 p-3.5 space-y-1">
-                            <div className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider">WA Linked</div>
-                            <div className="text-xl font-extrabold text-emerald-400">{stats.total_whatsapp ?? 0}</div>
-                        </div>
-
                         {/* Di-Archive Stat Card with 1-click Filter Toggle */}
                         <div 
-                            onClick={() => setStatusFilter(prev => prev === 'archived' ? 'active' : 'archived')}
-                            className={`rounded-xl border p-3.5 space-y-1 cursor-pointer transition-all ${
+                            onClick={() => {
+                                if (statusFilter === 'archived') {
+                                    setStatusFilter('active');
+                                } else {
+                                    setStatusFilter('archived');
+                                }
+                            }}
+                            className={`col-span-2 sm:col-span-1 rounded-xl border p-3.5 space-y-1 cursor-pointer transition-all hover:scale-[1.01] ${
                                 statusFilter === 'archived'
                                     ? 'border-rose-400 bg-rose-500/25 ring-1 ring-rose-400 shadow-md'
                                     : 'border-[#3B3929] bg-[#2A281E]/80 hover:bg-[#3B3929]/50'
                             }`}
-                            title="Klik untuk filter akun yang di-archive"
+                            title={lang === 'id' ? 'Klik untuk filter akun yang di-archive' : 'Click to filter archived accounts'}
                         >
                             <div className="text-[11px] font-bold text-[#A19F8D] uppercase tracking-wider flex items-center justify-between">
                                 <span>Di-Archive</span>
