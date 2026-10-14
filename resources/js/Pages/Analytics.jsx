@@ -5,7 +5,7 @@ import {
     Loader2, Wrench, Sparkles, Laptop, Anchor, ShieldAlert, Utensils, Building, Hammer, Zap,
     Droplets, Building2, Bug, Tag, User, HelpCircle, Download, AlertTriangle, Layers, Database, Clock, CheckSquare, Check, Eye, ChevronRight,
     ClipboardList, PauseCircle, CheckCircle2, Filter, SlidersHorizontal, ChevronDown, ChevronUp, Archive,
-    Calendar, Target, FileText, Megaphone, Globe, Palette
+    Calendar, Target, FileText, Megaphone, Globe, Palette, Inbox, Send
 } from 'lucide-react';
 import anime from 'animejs';
 import {
@@ -423,6 +423,7 @@ function AnalyticsInner() {
     // Department filter: empty by default so it shows all issues within the user's scope
     const [selectedDepartmentFilters, setSelectedDepartmentFilters] = useState([]);
     const [deptFilterMode, setDeptFilterMode] = useState('assigned');
+    const [deptAllSubFilter, setDeptAllSubFilter] = useState('all'); // 'all' | 'incoming' | 'outgoing' | 'internal' | 'tagged'
     const [deptColorMode, setDeptColorMode] = useState(() => {
         if (typeof window !== 'undefined') {
             return localStorage.getItem('telunas_dept_chart_color_mode') || 'dept';
@@ -634,6 +635,63 @@ function AnalyticsInner() {
             .sort((a, b) => b.value - a.value);
     }, [timeFilteredIssues]);
 
+    // Sub-Filter Count Badges for Admin "Semua Terkait"
+    const deptSubFilterCounts = useMemo(() => {
+        if (!timeFilteredIssues || timeFilteredIssues.length === 0) {
+            return { all: 0, incoming: 0, outgoing: 0, internal: 0, tagged: 0 };
+        }
+        let all = 0, incoming = 0, outgoing = 0, internal = 0, tagged = 0;
+
+        timeFilteredIssues.filter(i => !i.isArchived).forEach(issue => {
+            const rawOrigin = (issue.department || '').trim();
+            const originNorm = normalizeDepartment(rawOrigin).toLowerCase();
+            const isValidOrigin = rawOrigin && !['emergency', 'undefined', 'unknown', 'all', 'none'].includes(originNorm);
+
+            const assignedDepts = safeArray(issue.assignedDepartments)
+                .map(d => (d || '').trim())
+                .filter(d => {
+                    const lower = d.toLowerCase();
+                    return d && lower !== 'all' && lower !== 'none' && lower !== 'emergency' && lower !== 'undefined' && lower !== 'unknown';
+                });
+
+            const taggedDepts = safeArray(issue.taggedDepartments)
+                .map(d => (d || '').trim())
+                .filter(d => {
+                    const lower = d.toLowerCase();
+                    return d && lower !== 'all' && lower !== 'none' && lower !== 'emergency' && lower !== 'undefined' && lower !== 'unknown';
+                });
+
+            if (isValidOrigin) {
+                const isInternal = assignedDepts.length === 0 || assignedDepts.some(d => normalizeDepartment(d).toLowerCase() === originNorm);
+                if (isInternal) {
+                    internal += 1;
+                    all += 1;
+                } else {
+                    outgoing += 1;
+                    all += 1;
+                }
+            }
+
+            assignedDepts.forEach(dept => {
+                const dNorm = normalizeDepartment(dept).toLowerCase();
+                if (!isValidOrigin || dNorm !== originNorm) {
+                    incoming += 1;
+                    all += 1;
+                }
+            });
+
+            taggedDepts.forEach(dept => {
+                const dNorm = normalizeDepartment(dept).toLowerCase();
+                if ((!isValidOrigin || dNorm !== originNorm) && !assignedDepts.some(a => normalizeDepartment(a).toLowerCase() === dNorm)) {
+                    tagged += 1;
+                    all += 1;
+                }
+            });
+        });
+
+        return { all, incoming, outgoing, internal, tagged };
+    }, [timeFilteredIssues]);
+
     const departmentData = useMemo(() => {
         if (!timeFilteredIssues || timeFilteredIssues.length === 0) return [];
         const counts = {};
@@ -645,21 +703,48 @@ function AnalyticsInner() {
             return 'inProgress'; // 'progress', 'pending', etc.
         };
 
-        const addDeptCount = (deptName, state) => {
+        const addDeptRoleCount = (deptName, role, state) => {
             if (!deptName) return;
             const trimmed = deptName.trim();
             const lower = trimmed.toLowerCase();
             if (!trimmed || lower === 'emergency' || lower === 'undefined' || lower === 'unknown' || lower === 'all' || lower === 'none') return;
             if (!counts[trimmed]) {
-                counts[trimmed] = { total: 0, unclaimed: 0, inProgress: 0, solved: 0 };
+                counts[trimmed] = { 
+                    total: 0, 
+                    unclaimed: 0, 
+                    inProgress: 0, 
+                    solved: 0,
+                    roles: {
+                        incoming: { total: 0, unclaimed: 0, inProgress: 0, solved: 0 },
+                        outgoing: { total: 0, unclaimed: 0, inProgress: 0, solved: 0 },
+                        internal: { total: 0, unclaimed: 0, inProgress: 0, solved: 0 },
+                        tagged: { total: 0, unclaimed: 0, inProgress: 0, solved: 0 },
+                    }
+                };
             }
-            counts[trimmed].total += 1;
+
+            // Always increment role breakdown
+            const r = counts[trimmed].roles[role] || counts[trimmed].roles.incoming;
+            r.total += 1;
             if (state === 'solved') {
-                counts[trimmed].solved += 1;
+                r.solved += 1;
             } else if (state === 'inProgress') {
-                counts[trimmed].inProgress += 1;
+                r.inProgress += 1;
             } else {
-                counts[trimmed].unclaimed += 1;
+                r.unclaimed += 1;
+            }
+
+            // Increment active display counts based on deptAllSubFilter (when in 'all' mode)
+            const isSubFilterMatch = deptFilterMode !== 'all' || deptAllSubFilter === 'all' || deptAllSubFilter === role;
+            if (isSubFilterMatch) {
+                counts[trimmed].total += 1;
+                if (state === 'solved') {
+                    counts[trimmed].solved += 1;
+                } else if (state === 'inProgress') {
+                    counts[trimmed].inProgress += 1;
+                } else {
+                    counts[trimmed].unclaimed += 1;
+                }
             }
         };
 
@@ -676,60 +761,87 @@ function AnalyticsInner() {
                 const tags = safeArray(issue.taggedDepartments).map(d => (d || '').trim()).filter(Boolean);
 
                 if (deptFilterMode === 'assigned') {
-                    // INCOMING (Pekerjaan Masuk untuk kita): Siapa yang melapor / menugaskan tiket ke departemen kita?
                     const isAssignedToMe = assigns.some(d => normalizeDepartment(d).toLowerCase() === userDeptNorm) || (assigns.length === 0 && originNorm === userDeptNorm);
                     if (isAssignedToMe) {
-                        addDeptCount(rawOrigin || 'Unknown', state);
+                        addDeptRoleCount(rawOrigin || 'Unknown', 'incoming', state);
                     }
                 } else if (deptFilterMode === 'origin') {
-                    // OUTGOING (Permintaan Keluar dari kita): Tiket yang dilaporkan oleh kita ditugaskan ke departemen mana?
                     if (originNorm === userDeptNorm) {
                         if (assigns.length > 0) {
-                            assigns.forEach(d => addDeptCount(d, state));
+                            assigns.forEach(d => addDeptRoleCount(d, 'outgoing', state));
                         } else {
-                            addDeptCount(rawOrigin || department, state);
+                            addDeptRoleCount(rawOrigin || department, 'internal', state);
                         }
                     }
                 } else if (deptFilterMode === 'tagged') {
-                    // TAGGED (Di-tag / CC): Siapa pelapor tiket di mana kita di-tag?
                     const isTaggedMe = tags.some(d => normalizeDepartment(d).toLowerCase() === userDeptNorm);
                     if (isTaggedMe) {
-                        addDeptCount(rawOrigin, state);
+                        addDeptRoleCount(rawOrigin, 'tagged', state);
                     }
                 } else {
-                    // ALL SCOPE: Seluruh departemen yang berinteraksi dengan kita
                     const partnerDepts = new Set();
                     if (rawOrigin && !['emergency', 'undefined', 'unknown'].includes(originNorm)) {
                         partnerDepts.add(rawOrigin);
                     }
                     assigns.forEach(d => { if (d && d !== 'ALL') partnerDepts.add(d); });
                     tags.forEach(d => { if (d && d !== 'ALL' && d !== 'None') partnerDepts.add(d); });
-                    partnerDepts.forEach(d => addDeptCount(d, state));
+                    partnerDepts.forEach(d => addDeptRoleCount(d, 'incoming', state));
                 }
             } else {
                 // =========================================================================
                 // ADMIN MACRO PERSPECTIVE (Resort-wide Workload & Reporting)
                 // =========================================================================
                 if (deptFilterMode === 'origin') {
-                    addDeptCount(issue.department, state);
+                    addDeptRoleCount(issue.department, 'outgoing', state);
                 } else if (deptFilterMode === 'tagged') {
-                    safeArray(issue.taggedDepartments).forEach(d => addDeptCount(d, state));
+                    safeArray(issue.taggedDepartments).forEach(d => addDeptRoleCount(d, 'tagged', state));
                 } else if (deptFilterMode === 'all') {
-                    const depts = new Set();
                     const rawOrigin = (issue.department || '').trim();
-                    if (rawOrigin && !['emergency', 'undefined', 'unknown'].includes(rawOrigin.toLowerCase())) {
-                        depts.add(rawOrigin);
+                    const originNorm = normalizeDepartment(rawOrigin).toLowerCase();
+                    const isValidOrigin = rawOrigin && !['emergency', 'undefined', 'unknown', 'all', 'none'].includes(originNorm);
+
+                    const assignedDepts = safeArray(issue.assignedDepartments)
+                        .map(d => (d || '').trim())
+                        .filter(d => {
+                            const lower = d.toLowerCase();
+                            return d && lower !== 'all' && lower !== 'none' && lower !== 'emergency' && lower !== 'undefined' && lower !== 'unknown';
+                        });
+
+                    const taggedDepts = safeArray(issue.taggedDepartments)
+                        .map(d => (d || '').trim())
+                        .filter(d => {
+                            const lower = d.toLowerCase();
+                            return d && lower !== 'all' && lower !== 'none' && lower !== 'emergency' && lower !== 'undefined' && lower !== 'unknown';
+                        });
+
+                    // 1. Origin Dept: Internal or Outgoing
+                    if (isValidOrigin) {
+                        const isInternal = assignedDepts.length === 0 || assignedDepts.some(d => normalizeDepartment(d).toLowerCase() === originNorm);
+                        addDeptRoleCount(rawOrigin, isInternal ? 'internal' : 'outgoing', state);
                     }
-                    safeArray(issue.assignedDepartments).forEach(d => { if (d && d !== 'ALL') depts.add(d); });
-                    safeArray(issue.taggedDepartments).forEach(d => { if (d && d !== 'ALL' && d !== 'None') depts.add(d); });
-                    depts.forEach(dept => addDeptCount(dept, state));
+
+                    // 2. Assigned Depts: Incoming
+                    assignedDepts.forEach(dept => {
+                        const dNorm = normalizeDepartment(dept).toLowerCase();
+                        if (!isValidOrigin || dNorm !== originNorm) {
+                            addDeptRoleCount(dept, 'incoming', state);
+                        }
+                    });
+
+                    // 3. Tagged Depts: Tagged (CC)
+                    taggedDepts.forEach(dept => {
+                        const dNorm = normalizeDepartment(dept).toLowerCase();
+                        if ((!isValidOrigin || dNorm !== originNorm) && !assignedDepts.some(a => normalizeDepartment(a).toLowerCase() === dNorm)) {
+                            addDeptRoleCount(dept, 'tagged', state);
+                        }
+                    });
                 } else {
                     // Default: 'assigned'
                     const assigns = safeArray(issue.assignedDepartments);
                     if (assigns.length > 0) {
-                        assigns.forEach(d => addDeptCount(d, state));
+                        assigns.forEach(d => addDeptRoleCount(d, 'incoming', state));
                     } else {
-                        addDeptCount(issue.department, state);
+                        addDeptRoleCount(issue.department, 'internal', state);
                     }
                 }
             }
@@ -757,13 +869,19 @@ function AnalyticsInner() {
                     solved: solved,
                     handled: handled,
                     solvedPct: solvedPct,
+                    roles: stat.roles || {
+                        incoming: { total: 0, unclaimed: 0, inProgress: 0, solved: 0 },
+                        outgoing: { total: 0, unclaimed: 0, inProgress: 0, solved: 0 },
+                        internal: { total: 0, unclaimed: 0, inProgress: 0, solved: 0 },
+                        tagged: { total: 0, unclaimed: 0, inProgress: 0, solved: 0 },
+                    }
                 };
             })
             .sort((a, b) => b.Issues - a.Issues);
 
         if (deptLimit === 'all') return sorted;
         return sorted.slice(0, Number(deptLimit));
-    }, [timeFilteredIssues, deptLimit, deptFilterMode, isDeptUser, department]);
+    }, [timeFilteredIssues, deptLimit, deptFilterMode, deptAllSubFilter, isDeptUser, department]);
 
     const deptSummaryStats = useMemo(() => {
         let unclaimed = 0;
@@ -944,6 +1062,237 @@ function AnalyticsInner() {
                     {handledTotal}
                 </text>
             </g>
+        );
+    };
+
+    // Custom Bar Shapes for Multi-Segment Visualization (Opsi C)
+    const renderSegmentedUnclaimedBar = (props) => {
+        const { x, y, width, height, payload, fill } = props;
+        if (!payload || height <= 0 || width <= 0) return null;
+        const isSelected = selectedDepartmentFilters.some(d => d.toLowerCase() === (payload.name || '').toLowerCase());
+
+        // When in 'all' mode with 'all' subfilter, show proportional multi-segment role breakdown
+        if (deptFilterMode === 'all' && deptAllSubFilter === 'all' && payload.roles) {
+            const inc = payload.roles.incoming?.unclaimed || 0;
+            const intr = payload.roles.internal?.unclaimed || 0;
+            const out = payload.roles.outgoing?.unclaimed || 0;
+            const tag = payload.roles.tagged?.unclaimed || 0;
+            const total = inc + intr + out + tag;
+
+            if (total > 0) {
+                const segments = [
+                    { val: inc, fill: '#475569' }, // Incoming: Slate solid
+                    { val: intr, fill: '#334155' }, // Internal: Dark slate-teal
+                    { val: out, fill: '#64748B' },  // Outgoing: Lighter slate
+                    { val: tag, fill: '#1E293B' },  // Tagged: Dark slate
+                ].filter(s => s.val > 0);
+
+                let currentY = y + height;
+                return (
+                    <g pointerEvents="none">
+                        {segments.map((seg, idx) => {
+                            const segH = (seg.val / total) * height;
+                            currentY -= segH;
+                            const isTop = (idx === segments.length - 1);
+                            return (
+                                <rect
+                                    key={`unclaimed-seg-${idx}`}
+                                    x={x}
+                                    y={currentY}
+                                    width={width}
+                                    height={segH}
+                                    rx={isTop ? 4 : 0}
+                                    ry={isTop ? 4 : 0}
+                                    fill={seg.fill}
+                                    stroke="#1C1B0E"
+                                    strokeWidth={segments.length > 1 ? 0.75 : 0}
+                                />
+                            );
+                        })}
+                        {isSelected && (
+                            <rect
+                                x={x}
+                                y={y}
+                                width={width}
+                                height={height}
+                                rx={4}
+                                ry={4}
+                                fill="none"
+                                stroke="#F59E0B"
+                                strokeWidth={1.5}
+                            />
+                        )}
+                    </g>
+                );
+            }
+        }
+
+        return (
+            <rect
+                x={x}
+                y={y}
+                width={width}
+                height={height}
+                rx={4}
+                ry={4}
+                fill={fill}
+                stroke={isSelected ? '#F59E0B' : 'transparent'}
+                strokeWidth={isSelected ? 1.5 : 0}
+                opacity={selectedDepartmentFilters.length > 0 ? (isSelected ? 1 : 0.35) : 1}
+            />
+        );
+    };
+
+    const renderSegmentedInProgressBar = (props) => {
+        const { x, y, width, height, payload, fill } = props;
+        if (!payload || height <= 0 || width <= 0) return null;
+        const isSelected = selectedDepartmentFilters.some(d => d.toLowerCase() === (payload.name || '').toLowerCase());
+        const isTopSegment = (payload.solved || 0) === 0;
+
+        if (deptFilterMode === 'all' && deptAllSubFilter === 'all' && payload.roles) {
+            const inc = payload.roles.incoming?.inProgress || 0;
+            const intr = payload.roles.internal?.inProgress || 0;
+            const out = payload.roles.outgoing?.inProgress || 0;
+            const tag = payload.roles.tagged?.inProgress || 0;
+            const total = inc + intr + out + tag;
+
+            if (total > 0) {
+                const segments = [
+                    { val: inc, fill: '#F59E0B' }, // Incoming: Amber
+                    { val: intr, fill: '#D97706' }, // Internal: Deep amber
+                    { val: out, fill: '#FBBF24' },  // Outgoing: Warm amber
+                    { val: tag, fill: '#92400E' },  // Tagged: Muted amber
+                ].filter(s => s.val > 0);
+
+                let currentY = y + height;
+                return (
+                    <g pointerEvents="none">
+                        {segments.map((seg, idx) => {
+                            const segH = (seg.val / total) * height;
+                            currentY -= segH;
+                            const isTop = isTopSegment && (idx === segments.length - 1);
+                            return (
+                                <rect
+                                    key={`inprogress-seg-${idx}`}
+                                    x={x}
+                                    y={currentY}
+                                    width={width}
+                                    height={segH}
+                                    rx={isTop ? 4 : 0}
+                                    ry={isTop ? 4 : 0}
+                                    fill={seg.fill}
+                                    stroke="#1C1B0E"
+                                    strokeWidth={segments.length > 1 ? 0.75 : 0}
+                                />
+                            );
+                        })}
+                        {isSelected && (
+                            <rect
+                                x={x}
+                                y={y}
+                                width={width}
+                                height={height}
+                                rx={isTopSegment ? 4 : 0}
+                                ry={isTopSegment ? 4 : 0}
+                                fill="none"
+                                stroke="#F59E0B"
+                                strokeWidth={1.5}
+                            />
+                        )}
+                    </g>
+                );
+            }
+        }
+
+        return (
+            <rect
+                x={x}
+                y={y}
+                width={width}
+                height={height}
+                rx={isTopSegment ? 4 : 0}
+                ry={isTopSegment ? 4 : 0}
+                fill={fill}
+                stroke={isSelected ? '#F59E0B' : 'transparent'}
+                strokeWidth={isSelected ? 1.5 : 0}
+                opacity={selectedDepartmentFilters.length > 0 ? (isSelected ? 1 : 0.35) : 1}
+            />
+        );
+    };
+
+    const renderSegmentedSolvedBar = (props) => {
+        const { x, y, width, height, payload, fill } = props;
+        if (!payload || height <= 0 || width <= 0) return null;
+        const isSelected = selectedDepartmentFilters.some(d => d.toLowerCase() === (payload.name || '').toLowerCase());
+
+        if (deptFilterMode === 'all' && deptAllSubFilter === 'all' && payload.roles) {
+            const inc = payload.roles.incoming?.solved || 0;
+            const intr = payload.roles.internal?.solved || 0;
+            const out = payload.roles.outgoing?.solved || 0;
+            const tag = payload.roles.tagged?.solved || 0;
+            const total = inc + intr + out + tag;
+
+            if (total > 0) {
+                const segments = [
+                    { val: inc, fill: '#10B981' }, // Incoming: Emerald
+                    { val: intr, fill: '#059669' }, // Internal: Deep emerald
+                    { val: out, fill: '#34D399' },  // Outgoing: Bright emerald
+                    { val: tag, fill: '#047857' },  // Tagged: Forest emerald
+                ].filter(s => s.val > 0);
+
+                let currentY = y + height;
+                return (
+                    <g pointerEvents="none">
+                        {segments.map((seg, idx) => {
+                            const segH = (seg.val / total) * height;
+                            currentY -= segH;
+                            const isTop = (idx === segments.length - 1);
+                            return (
+                                <rect
+                                    key={`solved-seg-${idx}`}
+                                    x={x}
+                                    y={currentY}
+                                    width={width}
+                                    height={segH}
+                                    rx={isTop ? 4 : 0}
+                                    ry={isTop ? 4 : 0}
+                                    fill={seg.fill}
+                                    stroke="#1C1B0E"
+                                    strokeWidth={segments.length > 1 ? 0.75 : 0}
+                                />
+                            );
+                        })}
+                        {isSelected && (
+                            <rect
+                                x={x}
+                                y={y}
+                                width={width}
+                                height={height}
+                                rx={4}
+                                ry={4}
+                                fill="none"
+                                stroke="#F59E0B"
+                                strokeWidth={1.5}
+                            />
+                        )}
+                    </g>
+                );
+            }
+        }
+
+        return (
+            <rect
+                x={x}
+                y={y}
+                width={width}
+                height={height}
+                rx={4}
+                ry={4}
+                fill={fill}
+                stroke={isSelected ? '#F59E0B' : 'transparent'}
+                strokeWidth={isSelected ? 1.5 : 0}
+                opacity={selectedDepartmentFilters.length > 0 ? (isSelected ? 1 : 0.35) : 1}
+            />
         );
     };
 
@@ -1372,6 +1721,15 @@ function AnalyticsInner() {
                     } else if (deptFilterMode === 'tagged') {
                         return isTagged;
                     } else if (deptFilterMode === 'all') {
+                        if (deptAllSubFilter === 'incoming') {
+                            return assigned.includes(s) && issueDept !== s;
+                        } else if (deptAllSubFilter === 'outgoing') {
+                            return isOrigin && (!assigned.includes(s) && assigned.length > 0);
+                        } else if (deptAllSubFilter === 'internal') {
+                            return isOrigin && (assigned.includes(s) || assigned.length === 0);
+                        } else if (deptAllSubFilter === 'tagged') {
+                            return isTagged && !isOrigin && !assigned.includes(s);
+                        }
                         return isAssigned || isOrigin || isTagged;
                     } else {
                         // Default: 'assigned'
@@ -1404,7 +1762,7 @@ function AnalyticsInner() {
         });
 
         return timelineLimit === 'all' ? filtered : filtered.slice(0, timelineLimit);
-    }, [timeFilteredIssues, timelineLimit, searchQuery, selectedStatusFilters, selectedPriorityFilters, selectedDepartmentFilters, deptFilterMode, selectedCategoryFilters, showArchivedInTimeline]);
+    }, [timeFilteredIssues, timelineLimit, searchQuery, selectedStatusFilters, selectedPriorityFilters, selectedDepartmentFilters, deptFilterMode, deptAllSubFilter, selectedCategoryFilters, showArchivedInTimeline]);
 
     // Scroll-Linked Animation for Timeline Items
     useEffect(() => {
@@ -1881,7 +2239,13 @@ function AnalyticsInner() {
                                             {deptFilterMode === 'assigned' && (lang === 'id' ? 'Beban perbaikan: Jumlah tiket yang ditugaskan ke tiap departemen di resort' : 'Repair workload: Total issues assigned to each department in the resort')}
                                             {deptFilterMode === 'origin' && (lang === 'id' ? 'Volume pelaporan: Jumlah tiket yang dilaporkan oleh tiap departemen' : 'Reporting volume: Total issues discovered and reported by each department')}
                                             {deptFilterMode === 'tagged' && (lang === 'id' ? 'Koordinasi: Departemen yang paling sering ditandai (CC)' : 'Coordination: Departments most frequently tagged (CC)')}
-                                            {deptFilterMode === 'all' && (lang === 'id' ? 'Total keterlibatan: Gabungan seluruh peran departemen di resort' : 'Total involvement: Combined department activity across the resort')}
+                                            {deptFilterMode === 'all' && (
+                                                deptAllSubFilter === 'incoming' ? (lang === 'id' ? 'Tugas Masuk: Tiket yang ditugaskan oleh departemen lain untuk diselesaikan' : 'Incoming Tasks: Tickets assigned by other departments to be resolved') :
+                                                deptAllSubFilter === 'outgoing' ? (lang === 'id' ? 'Laporan Keluar: Permintaan bantuan yang diajukan ke departemen lain' : 'Outgoing Reports: Requests submitted to other departments') :
+                                                deptAllSubFilter === 'internal' ? (lang === 'id' ? 'Internal: Masalah yang dilaporkan dan ditangani sendiri di departemen itu' : 'Internal: Issues reported and handled entirely within the department') :
+                                                deptAllSubFilter === 'tagged' ? (lang === 'id' ? 'Koordinasi: Tiket di mana departemen ini hanya ditandai (CC)' : 'Coordination: Tickets where department is tagged (CC) only') :
+                                                (lang === 'id' ? 'Total keterlibatan: Gabungan seluruh peran departemen di resort (Tugas Masuk, Keluar, Internal, CC)' : 'Total involvement: Combined department activity across the resort (Incoming, Outgoing, Internal, CC)')
+                                            )}
                                         </>
                                     )}
                                 </p>
@@ -2023,6 +2387,124 @@ function AnalyticsInner() {
                                     </div>
                                 </Tooltip>
                             </div>
+
+                            {/* Role Sub-Filter Row for Admin "Semua Terkait" (Opsi A) */}
+                            {!isDeptUser && deptFilterMode === 'all' && (
+                                <div className="w-full flex items-center justify-between gap-2.5 pt-3 mt-1 pb-0.5 border-t border-[#3B3929]/50 flex-wrap">
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                        <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider mr-1 flex items-center gap-1">
+                                            <SlidersHorizontal className="w-3 h-3 text-[#C9AA71]" />
+                                            {lang === 'id' ? 'Filter Peran:' : 'Role Filter:'}
+                                        </span>
+                                        {/* Pill 1: All */}
+                                        <Tooltip content={t('tooltip_dept_sub_all')} position="top">
+                                            <button
+                                                type="button"
+                                                onClick={() => setDeptAllSubFilter('all')}
+                                                className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1.5 border ${
+                                                    deptAllSubFilter === 'all'
+                                                        ? 'bg-[#C9AA71] text-[#1C1B0E] font-bold border-[#C9AA71] shadow-sm'
+                                                        : 'bg-[#2A281E] text-muted-foreground border-[#3B3929] hover:text-foreground hover:border-[#C9AA71]/50'
+                                                }`}
+                                            >
+                                                <Globe className="w-3 h-3 shrink-0" />
+                                                <span>{t('dept_sub_all')}</span>
+                                                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${deptAllSubFilter === 'all' ? 'bg-[#1C1B0E]/20 text-[#1C1B0E]' : 'bg-[#1C1B0E] text-muted-foreground'}`}>
+                                                    {deptSubFilterCounts.all}
+                                                </span>
+                                            </button>
+                                        </Tooltip>
+
+                                        {/* Pill 2: Incoming */}
+                                        <Tooltip content={t('tooltip_dept_sub_incoming')} position="top">
+                                            <button
+                                                type="button"
+                                                onClick={() => setDeptAllSubFilter('incoming')}
+                                                className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1.5 border ${
+                                                    deptAllSubFilter === 'incoming'
+                                                        ? 'bg-[#C9AA71] text-[#1C1B0E] font-bold border-[#C9AA71] shadow-sm'
+                                                        : 'bg-[#2A281E] text-muted-foreground border-[#3B3929] hover:text-foreground hover:border-[#C9AA71]/50'
+                                                }`}
+                                            >
+                                                <Inbox className="w-3 h-3 shrink-0" />
+                                                <span>{t('dept_sub_incoming')}</span>
+                                                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${deptAllSubFilter === 'incoming' ? 'bg-[#1C1B0E]/20 text-[#1C1B0E]' : 'bg-[#1C1B0E] text-muted-foreground'}`}>
+                                                    {deptSubFilterCounts.incoming}
+                                                </span>
+                                            </button>
+                                        </Tooltip>
+
+                                        {/* Pill 3: Outgoing */}
+                                        <Tooltip content={t('tooltip_dept_sub_outgoing')} position="top">
+                                            <button
+                                                type="button"
+                                                onClick={() => setDeptAllSubFilter('outgoing')}
+                                                className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1.5 border ${
+                                                    deptAllSubFilter === 'outgoing'
+                                                        ? 'bg-[#C9AA71] text-[#1C1B0E] font-bold border-[#C9AA71] shadow-sm'
+                                                        : 'bg-[#2A281E] text-muted-foreground border-[#3B3929] hover:text-foreground hover:border-[#C9AA71]/50'
+                                                }`}
+                                            >
+                                                <Send className="w-3 h-3 shrink-0" />
+                                                <span>{t('dept_sub_outgoing')}</span>
+                                                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${deptAllSubFilter === 'outgoing' ? 'bg-[#1C1B0E]/20 text-[#1C1B0E]' : 'bg-[#1C1B0E] text-muted-foreground'}`}>
+                                                    {deptSubFilterCounts.outgoing}
+                                                </span>
+                                            </button>
+                                        </Tooltip>
+
+                                        {/* Pill 4: Internal */}
+                                        <Tooltip content={t('tooltip_dept_sub_internal')} position="top">
+                                            <button
+                                                type="button"
+                                                onClick={() => setDeptAllSubFilter('internal')}
+                                                className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1.5 border ${
+                                                    deptAllSubFilter === 'internal'
+                                                        ? 'bg-[#C9AA71] text-[#1C1B0E] font-bold border-[#C9AA71] shadow-sm'
+                                                        : 'bg-[#2A281E] text-muted-foreground border-[#3B3929] hover:text-foreground hover:border-[#C9AA71]/50'
+                                                }`}
+                                            >
+                                                <Building2 className="w-3 h-3 shrink-0" />
+                                                <span>{t('dept_sub_internal')}</span>
+                                                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${deptAllSubFilter === 'internal' ? 'bg-[#1C1B0E]/20 text-[#1C1B0E]' : 'bg-[#1C1B0E] text-muted-foreground'}`}>
+                                                    {deptSubFilterCounts.internal}
+                                                </span>
+                                            </button>
+                                        </Tooltip>
+
+                                        {/* Pill 5: Tagged */}
+                                        <Tooltip content={t('tooltip_dept_sub_tagged')} position="top">
+                                            <button
+                                                type="button"
+                                                onClick={() => setDeptAllSubFilter('tagged')}
+                                                className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1.5 border ${
+                                                    deptAllSubFilter === 'tagged'
+                                                        ? 'bg-[#C9AA71] text-[#1C1B0E] font-bold border-[#C9AA71] shadow-sm'
+                                                        : 'bg-[#2A281E] text-muted-foreground border-[#3B3929] hover:text-foreground hover:border-[#C9AA71]/50'
+                                                }`}
+                                            >
+                                                <Megaphone className="w-3 h-3 shrink-0" />
+                                                <span>{t('dept_sub_tagged')}</span>
+                                                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${deptAllSubFilter === 'tagged' ? 'bg-[#1C1B0E]/20 text-[#1C1B0E]' : 'bg-[#1C1B0E] text-muted-foreground'}`}>
+                                                    {deptSubFilterCounts.tagged}
+                                                </span>
+                                            </button>
+                                        </Tooltip>
+                                    </div>
+
+                                    {/* Multi-segment Indicator / Explainer (Opsi C) */}
+                                    {deptAllSubFilter === 'all' && (
+                                        <div className="flex items-center gap-2 text-[10px] text-muted-foreground bg-[#1C1B0E] px-2.5 py-1 rounded-md border border-[#3B3929]/50">
+                                            <span className="font-semibold text-[#C9AA71]">{lang === 'id' ? 'Multi-Segmen Batang:' : 'Multi-Segment:'}</span>
+                                            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-[2px] bg-[#475569] inline-block"></span> {lang === 'id' ? 'Masuk' : 'In'}</span>
+                                            <span>•</span>
+                                            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-[2px] bg-[#64748B] inline-block"></span> {lang === 'id' ? 'Keluar' : 'Out'}</span>
+                                            <span>•</span>
+                                            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-[2px] bg-[#334155] inline-block"></span> {lang === 'id' ? 'Internal' : 'Self'}</span>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
 
                         <div className={`w-full ${departmentData.length > 6 ? 'h-[335px]' : 'h-[310px]'}`}>
@@ -2073,16 +2555,26 @@ function AnalyticsInner() {
                                                     const baseColor = isStatusMode ? '#F59E0B' : getDepartmentColor(item.name);
                                                     const lightColor = isStatusMode ? '#10B981' : getDepartmentLightColor(item.name);
                                                     const isSelected = selectedDepartmentFilters.some(d => d.toLowerCase() === item.name.toLowerCase());
+                                                    const isAllMode = deptFilterMode === 'all';
                                                     return (
                                                         <div 
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
                                                                 handleDepartmentBarClick({ name: item.name });
                                                             }}
-                                                            className={`bg-[#2A281E] border ${isSelected ? 'border-[#C9AA71] ring-2 ring-[#C9AA71]/40' : 'border-[#3B3929]'} rounded-xl p-3.5 shadow-2xl text-xs space-y-2.5 min-w-[245px] cursor-pointer hover:border-[#C9AA71] transition-all select-none`}
+                                                            className={`bg-[#2A281E] border ${isSelected ? 'border-[#C9AA71] ring-2 ring-[#C9AA71]/40' : 'border-[#3B3929]'} rounded-xl p-3.5 shadow-2xl text-xs space-y-2.5 min-w-[260px] cursor-pointer hover:border-[#C9AA71] transition-all select-none`}
                                                         >
                                                             <div className="flex items-center justify-between gap-2 border-b border-[#3B3929] pb-2">
-                                                                <span className="font-bold text-[#C9AA71] text-sm">{item.name}</span>
+                                                                <div className="flex items-center gap-1.5 flex-wrap">
+                                                                    <span className="font-bold text-[#C9AA71] text-sm">{item.name}</span>
+                                                                    {isAllMode && deptAllSubFilter !== 'all' && (
+                                                                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#C9AA71]/15 text-[#C9AA71] border border-[#C9AA71]/30">
+                                                                            {deptAllSubFilter === 'incoming' ? t('dept_sub_incoming') :
+                                                                             deptAllSubFilter === 'outgoing' ? t('dept_sub_outgoing') :
+                                                                             deptAllSubFilter === 'internal' ? t('dept_sub_internal') : t('dept_sub_tagged')}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
                                                                 <span className="text-[10px] text-muted-foreground font-mono bg-[#1C1B0E] px-1.5 py-0.5 rounded border border-[#3B3929]">
                                                                     #{item.shortName}
                                                                 </span>
@@ -2095,14 +2587,25 @@ function AnalyticsInner() {
 
                                                                 {/* Batang 1: Belum Diambil */}
                                                                 <div 
-                                                                    className="flex items-center justify-between font-semibold px-2 py-1 rounded-md border" 
+                                                                    className="flex flex-col gap-0.5 px-2 py-1 rounded-md border" 
                                                                     style={{ backgroundColor: `${veryDarkColor}50`, borderColor: `${veryDarkColor}90`, color: '#FAFAFA' }}
                                                                 >
-                                                                    <span className="flex items-center gap-1.5">
-                                                                        <span className="w-2.5 h-2.5 rounded-xs inline-block shadow-sm border border-white/20" style={{ backgroundColor: veryDarkColor }}></span>
-                                                                        <span>{lang === 'id' ? '1. Belum Diambil' : '1. Unclaimed'}:</span>
-                                                                    </span>
-                                                                    <span className="font-mono">{item.unclaimed} <span className="text-[10px] opacity-75">({item.total > 0 ? Math.round((item.unclaimed / item.total) * 100) : 0}%)</span></span>
+                                                                    <div className="flex items-center justify-between font-semibold">
+                                                                        <span className="flex items-center gap-1.5">
+                                                                            <span className="w-2.5 h-2.5 rounded-xs inline-block shadow-sm border border-white/20" style={{ backgroundColor: veryDarkColor }}></span>
+                                                                            <span>{lang === 'id' ? '1. Belum Diambil' : '1. Unclaimed'}:</span>
+                                                                        </span>
+                                                                        <span className="font-mono">{item.unclaimed} <span className="text-[10px] opacity-75">({item.total > 0 ? Math.round((item.unclaimed / item.total) * 100) : 0}%)</span></span>
+                                                                    </div>
+                                                                    {isAllMode && deptAllSubFilter === 'all' && item.roles && item.unclaimed > 0 && (
+                                                                        <div className="text-[9.5px] text-[#A19F8D] font-mono flex items-center gap-1.5 pl-4 pt-0.5 border-t border-white/10 flex-wrap">
+                                                                            <span>📥 {item.roles.incoming?.unclaimed || 0}</span>
+                                                                            <span>•</span>
+                                                                            <span>📤 {item.roles.outgoing?.unclaimed || 0}</span>
+                                                                            <span>•</span>
+                                                                            <span>🏠 {item.roles.internal?.unclaimed || 0}</span>
+                                                                        </div>
+                                                                    )}
                                                                 </div>
 
                                                                 {/* Batang 2: Sudah Diambil (Stacked: Sedang Dikerjakan + Selesai) */}
@@ -2114,28 +2617,85 @@ function AnalyticsInner() {
                                                                     
                                                                     {/* Sedang Dikerjakan */}
                                                                     <div 
-                                                                        className="flex items-center justify-between font-semibold px-1.5 py-0.5 rounded text-[11px]" 
+                                                                        className="flex flex-col gap-0.5 px-1.5 py-0.5 rounded text-[11px]" 
                                                                         style={{ backgroundColor: `${baseColor}20`, color: '#FAFAFA' }}
                                                                     >
-                                                                        <span className="flex items-center gap-1.5">
-                                                                            <span className="w-2 h-2 rounded-xs inline-block shadow-sm" style={{ backgroundColor: baseColor }}></span>
-                                                                            <span>{lang === 'id' ? 'Sedang Dikerjakan' : 'In Progress'}:</span>
-                                                                        </span>
-                                                                        <span className="font-mono">{item.inProgress} <span className="text-[10px] opacity-75">({item.handled > 0 ? Math.round((item.inProgress / item.handled) * 100) : 0}%)</span></span>
+                                                                        <div className="flex items-center justify-between font-semibold">
+                                                                            <span className="flex items-center gap-1.5">
+                                                                                <span className="w-2 h-2 rounded-xs inline-block shadow-sm" style={{ backgroundColor: baseColor }}></span>
+                                                                                <span>{lang === 'id' ? 'Sedang Dikerjakan' : 'In Progress'}:</span>
+                                                                            </span>
+                                                                            <span className="font-mono">{item.inProgress} <span className="text-[10px] opacity-75">({item.handled > 0 ? Math.round((item.inProgress / item.handled) * 100) : 0}%)</span></span>
+                                                                        </div>
+                                                                        {isAllMode && deptAllSubFilter === 'all' && item.roles && item.inProgress > 0 && (
+                                                                            <div className="text-[9.5px] text-[#A19F8D] font-mono flex items-center gap-1.5 pl-3.5 pt-0.5 border-t border-white/10 flex-wrap">
+                                                                                <span>📥 {item.roles.incoming?.inProgress || 0}</span>
+                                                                                <span>•</span>
+                                                                                <span>📤 {item.roles.outgoing?.inProgress || 0}</span>
+                                                                                <span>•</span>
+                                                                                <span>🏠 {item.roles.internal?.inProgress || 0}</span>
+                                                                            </div>
+                                                                        )}
                                                                     </div>
 
                                                                     {/* Sudah Selesai */}
                                                                     <div 
-                                                                        className="flex items-center justify-between font-semibold px-1.5 py-0.5 rounded text-[11px]" 
+                                                                        className="flex flex-col gap-0.5 px-1.5 py-0.5 rounded text-[11px]" 
                                                                         style={{ backgroundColor: `${lightColor}20`, color: '#FAFAFA' }}
                                                                     >
-                                                                        <span className="flex items-center gap-1.5">
-                                                                            <span className="w-2 h-2 rounded-xs inline-block shadow-sm" style={{ backgroundColor: lightColor }}></span>
-                                                                            <span>{lang === 'id' ? 'Sudah Selesai' : 'Solved'}:</span>
-                                                                        </span>
-                                                                        <span className="font-mono">{item.solved} <span className="text-[10px] opacity-75">({item.handled > 0 ? Math.round((item.solved / item.handled) * 100) : 0}%)</span></span>
+                                                                        <div className="flex items-center justify-between font-semibold">
+                                                                            <span className="flex items-center gap-1.5">
+                                                                                <span className="w-2 h-2 rounded-xs inline-block shadow-sm" style={{ backgroundColor: lightColor }}></span>
+                                                                                <span>{lang === 'id' ? 'Sudah Selesai' : 'Solved'}:</span>
+                                                                            </span>
+                                                                            <span className="font-mono">{item.solved} <span className="text-[10px] opacity-75">({item.handled > 0 ? Math.round((item.solved / item.handled) * 100) : 0}%)</span></span>
+                                                                        </div>
+                                                                        {isAllMode && deptAllSubFilter === 'all' && item.roles && item.solved > 0 && (
+                                                                            <div className="text-[9.5px] text-[#A19F8D] font-mono flex items-center gap-1.5 pl-3.5 pt-0.5 border-t border-white/10 flex-wrap">
+                                                                                <span>📥 {item.roles.incoming?.solved || 0}</span>
+                                                                                <span>•</span>
+                                                                                <span>📤 {item.roles.outgoing?.solved || 0}</span>
+                                                                                <span>•</span>
+                                                                                <span>🏠 {item.roles.internal?.solved || 0}</span>
+                                                                            </div>
+                                                                        )}
                                                                     </div>
                                                                 </div>
+
+                                                                {/* Role Summary Grid for All Mode (Opsi C) */}
+                                                                {isAllMode && item.roles && (
+                                                                    <div className="pt-2 border-t border-[#3B3929]/70 space-y-1">
+                                                                        <div className="text-[9.5px] font-bold text-[#A19F8D] uppercase tracking-wider">
+                                                                            {lang === 'id' ? 'Distribusi Peran Keterlibatan:' : 'Role Distribution:'}
+                                                                        </div>
+                                                                        <div className="grid grid-cols-2 gap-1 text-[10px]">
+                                                                            <div className="flex items-center justify-between bg-[#1C1B0E] px-1.5 py-0.5 rounded border border-[#3B3929]/40">
+                                                                                <span className="text-muted-foreground flex items-center gap-1">
+                                                                                    <span>📥</span> {lang === 'id' ? 'Masuk' : 'In'}:
+                                                                                </span>
+                                                                                <span className="font-bold text-[#C9AA71] font-mono">{item.roles.incoming?.total || 0}</span>
+                                                                            </div>
+                                                                            <div className="flex items-center justify-between bg-[#1C1B0E] px-1.5 py-0.5 rounded border border-[#3B3929]/40">
+                                                                                <span className="text-muted-foreground flex items-center gap-1">
+                                                                                    <span>📤</span> {lang === 'id' ? 'Keluar' : 'Out'}:
+                                                                                </span>
+                                                                                <span className="font-bold text-amber-400 font-mono">{item.roles.outgoing?.total || 0}</span>
+                                                                            </div>
+                                                                            <div className="flex items-center justify-between bg-[#1C1B0E] px-1.5 py-0.5 rounded border border-[#3B3929]/40">
+                                                                                <span className="text-muted-foreground flex items-center gap-1">
+                                                                                    <span>🏠</span> {lang === 'id' ? 'Internal' : 'Self'}:
+                                                                                </span>
+                                                                                <span className="font-bold text-emerald-400 font-mono">{item.roles.internal?.total || 0}</span>
+                                                                            </div>
+                                                                            <div className="flex items-center justify-between bg-[#1C1B0E] px-1.5 py-0.5 rounded border border-[#3B3929]/40">
+                                                                                <span className="text-muted-foreground flex items-center gap-1">
+                                                                                    <span>📢</span> {lang === 'id' ? 'Ditandai' : 'Tagged'}:
+                                                                                </span>
+                                                                                <span className="font-bold text-slate-400 font-mono">{item.roles.tagged?.total || 0}</span>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                             {/* Click to filter hint */}
                                                             <div className="pt-1.5 border-t border-[#3B3929]/70 flex items-center justify-center gap-1 text-[10px] text-[#C9AA71] font-semibold">
@@ -2152,6 +2712,7 @@ function AnalyticsInner() {
                                                 name={lang === 'id' ? 'Belum Diambil' : 'Unclaimed'} 
                                                 stackId="unclaimed"
                                                 radius={[4, 4, 0, 0]}
+                                                shape={renderSegmentedUnclaimedBar}
                                                 onClick={(data) => handleDepartmentBarClick(data)}
                                                 cursor="pointer"
                                             >
@@ -2176,6 +2737,7 @@ function AnalyticsInner() {
                                                 name={lang === 'id' ? 'Sedang Dikerjakan' : 'In Progress'} 
                                                 stackId="handled"
                                                 radius={entry => entry?.solved > 0 ? [0, 0, 0, 0] : [4, 4, 0, 0]}
+                                                shape={renderSegmentedInProgressBar}
                                                 onClick={(data) => handleDepartmentBarClick(data)}
                                                 cursor="pointer"
                                             >
@@ -2200,6 +2762,7 @@ function AnalyticsInner() {
                                                 name={lang === 'id' ? 'Sudah Selesai' : 'Solved'} 
                                                 stackId="handled"
                                                 radius={[4, 4, 0, 0]}
+                                                shape={renderSegmentedSolvedBar}
                                                 onClick={(data) => handleDepartmentBarClick(data)}
                                                 cursor="pointer"
                                             >
