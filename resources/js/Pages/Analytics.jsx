@@ -424,6 +424,7 @@ function AnalyticsInner() {
     const [selectedDepartmentFilters, setSelectedDepartmentFilters] = useState([]);
     const [deptFilterMode, setDeptFilterMode] = useState('assigned');
     const [deptAllSubFilter, setDeptAllSubFilter] = useState('all'); // 'all' | 'incoming' | 'outgoing' | 'internal' | 'tagged'
+    const [roleGuideModalOpen, setRoleGuideModalOpen] = useState(false);
     const [deptColorMode, setDeptColorMode] = useState(() => {
         if (typeof window !== 'undefined') {
             return localStorage.getItem('telunas_dept_chart_color_mode') || 'dept';
