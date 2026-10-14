@@ -5,7 +5,7 @@ import {
     Loader2, Wrench, Sparkles, Laptop, Anchor, ShieldAlert, Utensils, Building, Hammer, Zap,
     Droplets, Building2, Bug, Tag, User, HelpCircle, Download, AlertTriangle, Layers, Database, Clock, CheckSquare, Check, Eye, ChevronRight,
     ClipboardList, PauseCircle, CheckCircle2, Filter, SlidersHorizontal, ChevronDown, ChevronUp, Archive,
-    Calendar, Target, FileText, Megaphone, Globe, Palette, Inbox, Send
+    Calendar, Target, FileText, Megaphone, Globe, Palette, Inbox, Send, Info, X
 } from 'lucide-react';
 import anime from 'animejs';
 import {
@@ -693,8 +693,8 @@ function AnalyticsInner() {
         return { all, incoming, outgoing, internal, tagged };
     }, [timeFilteredIssues]);
 
-    const departmentData = useMemo(() => {
-        if (!timeFilteredIssues || timeFilteredIssues.length === 0) return [];
+    const departmentDataBundle = useMemo(() => {
+        if (!timeFilteredIssues || timeFilteredIssues.length === 0) return { allList: [], displayList: [] };
         const counts = {};
         const userDeptNorm = isDeptUser && department ? normalizeDepartment(department).toLowerCase() : null;
 
@@ -878,17 +878,22 @@ function AnalyticsInner() {
                     }
                 };
             })
+            .filter(d => d.Issues > 0)
             .sort((a, b) => b.Issues - a.Issues);
 
-        if (deptLimit === 'all') return sorted;
-        return sorted.slice(0, Number(deptLimit));
+        return {
+            allList: sorted,
+            displayList: deptLimit === 'all' ? sorted : sorted.slice(0, Number(deptLimit))
+        };
     }, [timeFilteredIssues, deptLimit, deptFilterMode, deptAllSubFilter, isDeptUser, department]);
+
+    const departmentData = departmentDataBundle?.displayList || [];
 
     const deptSummaryStats = useMemo(() => {
         let unclaimed = 0;
         let inProgress = 0;
         let solved = 0;
-        departmentData.forEach(d => {
+        (departmentDataBundle?.allList || []).forEach(d => {
             unclaimed += (d.unclaimed || 0);
             inProgress += (d.inProgress || 0);
             solved += (d.solved || 0);
@@ -900,7 +905,7 @@ function AnalyticsInner() {
             handled: inProgress + solved, 
             total: unclaimed + inProgress + solved 
         };
-    }, [departmentData]);
+    }, [departmentDataBundle]);
 
     // Intelligent integer Y-Axis configuration without decimals
     const deptYAxisConfig = useMemo(() => {
@@ -1071,6 +1076,7 @@ function AnalyticsInner() {
         const { x, y, width, height, payload, fill } = props;
         if (!payload || height <= 0 || width <= 0) return null;
         const isSelected = selectedDepartmentFilters.some(d => d.toLowerCase() === (payload.name || '').toLowerCase());
+        const isStatusMode = deptColorMode === 'status';
 
         // When in 'all' mode with 'all' subfilter, show proportional multi-segment role breakdown
         if (deptFilterMode === 'all' && deptAllSubFilter === 'all' && payload.roles) {
@@ -1081,11 +1087,17 @@ function AnalyticsInner() {
             const total = inc + intr + out + tag;
 
             if (total > 0) {
-                const segments = [
-                    { val: inc, fill: '#475569' }, // Incoming: Slate solid
-                    { val: intr, fill: '#334155' }, // Internal: Dark slate-teal
-                    { val: out, fill: '#64748B' },  // Outgoing: Lighter slate
-                    { val: tag, fill: '#1E293B' },  // Tagged: Dark slate
+                const deptBase = getDepartmentVeryDarkColor(payload.name);
+                const segments = isStatusMode ? [
+                    { val: inc, fill: '#475569', opacity: 1 }, // Incoming: Slate solid
+                    { val: intr, fill: '#334155', opacity: 1 }, // Internal: Dark slate-teal
+                    { val: out, fill: '#64748B', opacity: 1 },  // Outgoing: Lighter slate
+                    { val: tag, fill: '#1E293B', opacity: 1 },  // Tagged: Dark slate
+                ].filter(s => s.val > 0) : [
+                    { val: inc, fill: deptBase, opacity: 1 },     // Incoming: Full department shade
+                    { val: intr, fill: deptBase, opacity: 0.78 }, // Internal: 78% opacity
+                    { val: out, fill: deptBase, opacity: 0.58 },  // Outgoing: 58% opacity
+                    { val: tag, fill: deptBase, opacity: 0.38 },  // Tagged: 38% opacity
                 ].filter(s => s.val > 0);
 
                 let currentY = y + height;
@@ -1105,6 +1117,7 @@ function AnalyticsInner() {
                                     rx={isTop ? 4 : 0}
                                     ry={isTop ? 4 : 0}
                                     fill={seg.fill}
+                                    fillOpacity={seg.opacity ?? 1}
                                     stroke="#1C1B0E"
                                     strokeWidth={segments.length > 1 ? 0.75 : 0}
                                 />
@@ -1128,6 +1141,7 @@ function AnalyticsInner() {
             }
         }
 
+        const fallbackFill = isStatusMode ? '#475569' : getDepartmentVeryDarkColor(payload.name);
         return (
             <rect
                 x={x}
@@ -1136,7 +1150,7 @@ function AnalyticsInner() {
                 height={height}
                 rx={4}
                 ry={4}
-                fill={fill}
+                fill={fallbackFill || fill}
                 stroke={isSelected ? '#F59E0B' : 'transparent'}
                 strokeWidth={isSelected ? 1.5 : 0}
                 opacity={selectedDepartmentFilters.length > 0 ? (isSelected ? 1 : 0.35) : 1}
@@ -1149,6 +1163,7 @@ function AnalyticsInner() {
         if (!payload || height <= 0 || width <= 0) return null;
         const isSelected = selectedDepartmentFilters.some(d => d.toLowerCase() === (payload.name || '').toLowerCase());
         const isTopSegment = (payload.solved || 0) === 0;
+        const isStatusMode = deptColorMode === 'status';
 
         if (deptFilterMode === 'all' && deptAllSubFilter === 'all' && payload.roles) {
             const inc = payload.roles.incoming?.inProgress || 0;
@@ -1158,11 +1173,17 @@ function AnalyticsInner() {
             const total = inc + intr + out + tag;
 
             if (total > 0) {
-                const segments = [
-                    { val: inc, fill: '#F59E0B' }, // Incoming: Amber
-                    { val: intr, fill: '#D97706' }, // Internal: Deep amber
-                    { val: out, fill: '#FBBF24' },  // Outgoing: Warm amber
-                    { val: tag, fill: '#92400E' },  // Tagged: Muted amber
+                const deptBase = getDepartmentColor(payload.name);
+                const segments = isStatusMode ? [
+                    { val: inc, fill: '#F59E0B', opacity: 1 }, // Incoming: Amber
+                    { val: intr, fill: '#D97706', opacity: 1 }, // Internal: Deep amber
+                    { val: out, fill: '#FBBF24', opacity: 1 },  // Outgoing: Warm amber
+                    { val: tag, fill: '#92400E', opacity: 1 },  // Tagged: Muted amber
+                ].filter(s => s.val > 0) : [
+                    { val: inc, fill: deptBase, opacity: 1 },     // Incoming: Full department theme
+                    { val: intr, fill: deptBase, opacity: 0.78 }, // Internal: 78% opacity
+                    { val: out, fill: deptBase, opacity: 0.58 },  // Outgoing: 58% opacity
+                    { val: tag, fill: deptBase, opacity: 0.38 },  // Tagged: 38% opacity
                 ].filter(s => s.val > 0);
 
                 let currentY = y + height;
@@ -1182,6 +1203,7 @@ function AnalyticsInner() {
                                     rx={isTop ? 4 : 0}
                                     ry={isTop ? 4 : 0}
                                     fill={seg.fill}
+                                    fillOpacity={seg.opacity ?? 1}
                                     stroke="#1C1B0E"
                                     strokeWidth={segments.length > 1 ? 0.75 : 0}
                                 />
@@ -1205,6 +1227,7 @@ function AnalyticsInner() {
             }
         }
 
+        const fallbackFill = isStatusMode ? '#F59E0B' : getDepartmentColor(payload.name);
         return (
             <rect
                 x={x}
@@ -1213,7 +1236,7 @@ function AnalyticsInner() {
                 height={height}
                 rx={isTopSegment ? 4 : 0}
                 ry={isTopSegment ? 4 : 0}
-                fill={fill}
+                fill={fallbackFill || fill}
                 stroke={isSelected ? '#F59E0B' : 'transparent'}
                 strokeWidth={isSelected ? 1.5 : 0}
                 opacity={selectedDepartmentFilters.length > 0 ? (isSelected ? 1 : 0.35) : 1}
@@ -1225,6 +1248,7 @@ function AnalyticsInner() {
         const { x, y, width, height, payload, fill } = props;
         if (!payload || height <= 0 || width <= 0) return null;
         const isSelected = selectedDepartmentFilters.some(d => d.toLowerCase() === (payload.name || '').toLowerCase());
+        const isStatusMode = deptColorMode === 'status';
 
         if (deptFilterMode === 'all' && deptAllSubFilter === 'all' && payload.roles) {
             const inc = payload.roles.incoming?.solved || 0;
@@ -1234,11 +1258,17 @@ function AnalyticsInner() {
             const total = inc + intr + out + tag;
 
             if (total > 0) {
-                const segments = [
-                    { val: inc, fill: '#10B981' }, // Incoming: Emerald
-                    { val: intr, fill: '#059669' }, // Internal: Deep emerald
-                    { val: out, fill: '#34D399' },  // Outgoing: Bright emerald
-                    { val: tag, fill: '#047857' },  // Tagged: Forest emerald
+                const deptBase = getDepartmentLightColor(payload.name);
+                const segments = isStatusMode ? [
+                    { val: inc, fill: '#10B981', opacity: 1 }, // Incoming: Emerald
+                    { val: intr, fill: '#059669', opacity: 1 }, // Internal: Deep emerald
+                    { val: out, fill: '#34D399', opacity: 1 },  // Outgoing: Bright emerald
+                    { val: tag, fill: '#047857', opacity: 1 },  // Tagged: Forest emerald
+                ].filter(s => s.val > 0) : [
+                    { val: inc, fill: deptBase, opacity: 1 },     // Incoming: Light department theme
+                    { val: intr, fill: deptBase, opacity: 0.78 }, // Internal: 78% opacity
+                    { val: out, fill: deptBase, opacity: 0.58 },  // Outgoing: 58% opacity
+                    { val: tag, fill: deptBase, opacity: 0.38 },  // Tagged: 38% opacity
                 ].filter(s => s.val > 0);
 
                 let currentY = y + height;
@@ -1258,6 +1288,7 @@ function AnalyticsInner() {
                                     rx={isTop ? 4 : 0}
                                     ry={isTop ? 4 : 0}
                                     fill={seg.fill}
+                                    fillOpacity={seg.opacity ?? 1}
                                     stroke="#1C1B0E"
                                     strokeWidth={segments.length > 1 ? 0.75 : 0}
                                 />
@@ -1281,6 +1312,7 @@ function AnalyticsInner() {
             }
         }
 
+        const fallbackFill = isStatusMode ? '#10B981' : getDepartmentLightColor(payload.name);
         return (
             <rect
                 x={x}
@@ -1289,7 +1321,7 @@ function AnalyticsInner() {
                 height={height}
                 rx={4}
                 ry={4}
-                fill={fill}
+                fill={fallbackFill || fill}
                 stroke={isSelected ? '#F59E0B' : 'transparent'}
                 strokeWidth={isSelected ? 1.5 : 0}
                 opacity={selectedDepartmentFilters.length > 0 ? (isSelected ? 1 : 0.35) : 1}
@@ -2317,6 +2349,19 @@ function AnalyticsInner() {
 
                                 {/* Tri-Tone Status Legend (2 Bars, 3 Lifecycle States) */}
                                 <div className="flex flex-wrap items-center gap-3 bg-[#2A281E] px-3 py-1 rounded-lg border border-[#3B3929] text-[11px]">
+                                    {!isDeptUser && deptFilterMode === 'all' && deptAllSubFilter !== 'all' && (
+                                        <>
+                                            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-[#C9AA71]/15 text-[#C9AA71] border border-[#C9AA71]/30 font-semibold text-[10.5px]">
+                                                <span>Filter:</span>
+                                                <span className="font-bold">
+                                                    {deptAllSubFilter === 'incoming' ? t('dept_sub_incoming') :
+                                                     deptAllSubFilter === 'outgoing' ? t('dept_sub_outgoing') :
+                                                     deptAllSubFilter === 'internal' ? t('dept_sub_internal') : t('dept_sub_tagged')}
+                                                </span>
+                                            </div>
+                                            <div className="h-3 w-px bg-[#3B3929]"></div>
+                                        </>
+                                    )}
                                     {/* Batang 1: Belum Diambil */}
                                     <div className="flex items-center gap-1.5 font-semibold text-[#FAFAFA]" title={lang === 'id' ? 'Batang 1: Belum diambil sama sekali' : 'Bar 1: Not taken / unclaimed'}>
                                         <span className={`w-3 h-2.5 rounded-[3px] ${deptColorMode === 'status' ? 'bg-[#475569] border border-[#64748B]' : 'bg-[#2C2B22] border border-[#5A5540]'} inline-block shadow-xs`}></span>
@@ -2397,6 +2442,15 @@ function AnalyticsInner() {
                                             <SlidersHorizontal className="w-3 h-3 text-[#C9AA71]" />
                                             {lang === 'id' ? 'Filter Peran:' : 'Role Filter:'}
                                         </span>
+                                        <button
+                                            type="button"
+                                            onClick={() => setRoleGuideModalOpen(true)}
+                                            className="px-2 py-0.5 rounded text-[10px] font-bold text-[#C9AA71] bg-[#C9AA71]/10 hover:bg-[#C9AA71]/20 border border-[#C9AA71]/30 transition-all flex items-center gap-1 cursor-pointer mr-1"
+                                            title={t('role_guide_title')}
+                                        >
+                                            <Info className="w-3 h-3" />
+                                            <span>{t('role_guide_btn')}</span>
+                                        </button>
                                         {/* Pill 1: All */}
                                         <Tooltip content={t('tooltip_dept_sub_all')} position="top">
                                             <button
@@ -2496,12 +2550,24 @@ function AnalyticsInner() {
                                     {/* Multi-segment Indicator / Explainer (Opsi C) */}
                                     {deptAllSubFilter === 'all' && (
                                         <div className="flex items-center gap-2 text-[10px] text-muted-foreground bg-[#1C1B0E] px-2.5 py-1 rounded-md border border-[#3B3929]/50">
-                                            <span className="font-semibold text-[#C9AA71]">{lang === 'id' ? 'Multi-Segmen Batang:' : 'Multi-Segment:'}</span>
-                                            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-[2px] bg-[#475569] inline-block"></span> {lang === 'id' ? 'Masuk' : 'In'}</span>
-                                            <span>•</span>
-                                            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-[2px] bg-[#64748B] inline-block"></span> {lang === 'id' ? 'Keluar' : 'Out'}</span>
-                                            <span>•</span>
-                                            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-[2px] bg-[#334155] inline-block"></span> {lang === 'id' ? 'Internal' : 'Self'}</span>
+                                            <span className="font-semibold text-[#C9AA71]">{lang === 'id' ? 'Multi-Segmen:' : 'Multi-Segment:'}</span>
+                                            {deptColorMode === 'status' ? (
+                                                <>
+                                                    <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-[2px] bg-[#475569] inline-block"></span> {lang === 'id' ? 'Masuk' : 'In'}</span>
+                                                    <span>•</span>
+                                                    <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-[2px] bg-[#64748B] inline-block"></span> {lang === 'id' ? 'Keluar' : 'Out'}</span>
+                                                    <span>•</span>
+                                                    <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-[2px] bg-[#334155] inline-block"></span> {lang === 'id' ? 'Internal' : 'Self'}</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-[2px] bg-[#C9AA71] inline-block"></span> {lang === 'id' ? 'Masuk (100%)' : 'In (100%)'}</span>
+                                                    <span>•</span>
+                                                    <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-[2px] bg-[#C9AA71]/75 inline-block"></span> {lang === 'id' ? 'Internal (78%)' : 'Self (78%)'}</span>
+                                                    <span>•</span>
+                                                    <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-[2px] bg-[#C9AA71]/55 inline-block"></span> {lang === 'id' ? 'Keluar (58%)' : 'Out (58%)'}</span>
+                                                </>
+                                            )}
                                         </div>
                                     )}
                                 </div>
@@ -3692,6 +3758,97 @@ function AnalyticsInner() {
                     issue={cardModalTarget} 
                     onClose={() => setCardModalTarget(null)} 
                 />
+            )}
+            {/* Modal Panduan Filter Peran */}
+            {roleGuideModalOpen && (
+                <div 
+                    className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs animate-in fade-in duration-150"
+                    onClick={() => setRoleGuideModalOpen(false)}
+                >
+                    <div 
+                        className="bg-[#2A281E] border border-[#3B3929] rounded-2xl max-w-lg w-full p-5 shadow-2xl text-[#FAFAFA] space-y-4"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="flex items-start justify-between gap-3 border-b border-[#3B3929] pb-3">
+                            <div className="flex items-center gap-2.5">
+                                <div className="p-2 rounded-xl bg-[#C9AA71]/15 text-[#C9AA71] border border-[#C9AA71]/30">
+                                    <SlidersHorizontal className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-[#FAFAFA] text-base leading-tight">
+                                        {t('role_guide_title')}
+                                    </h3>
+                                    <p className="text-xs text-[#A19F8D] mt-0.5">
+                                        {t('role_guide_desc')}
+                                    </p>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setRoleGuideModalOpen(false)}
+                                className="p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-[#3B3929] transition-colors cursor-pointer"
+                            >
+                                <X className="w-4 h-4" />
+                            </button>
+                        </div>
+
+                        <div className="space-y-2.5 text-xs">
+                            {/* 1. Tugas Masuk */}
+                            <div className="p-3 rounded-xl bg-[#1C1B0E] border border-[#3B3929] space-y-1">
+                                <div className="flex items-center gap-2 font-bold text-[#C9AA71]">
+                                    <Inbox className="w-4 h-4 text-[#C9AA71]" />
+                                    <span>{t('role_guide_incoming_title')}</span>
+                                </div>
+                                <p className="text-[#A19F8D] text-[11.5px] leading-relaxed pl-6">
+                                    {t('role_guide_incoming_desc')}
+                                </p>
+                            </div>
+
+                            {/* 2. Laporan Keluar */}
+                            <div className="p-3 rounded-xl bg-[#1C1B0E] border border-[#3B3929] space-y-1">
+                                <div className="flex items-center gap-2 font-bold text-amber-400">
+                                    <Send className="w-4 h-4 text-amber-400" />
+                                    <span>{t('role_guide_outgoing_title')}</span>
+                                </div>
+                                <p className="text-[#A19F8D] text-[11.5px] leading-relaxed pl-6">
+                                    {t('role_guide_outgoing_desc')}
+                                </p>
+                            </div>
+
+                            {/* 3. Internal Dept */}
+                            <div className="p-3 rounded-xl bg-[#1C1B0E] border border-[#3B3929] space-y-1">
+                                <div className="flex items-center gap-2 font-bold text-emerald-400">
+                                    <Building2 className="w-4 h-4 text-emerald-400" />
+                                    <span>{t('role_guide_internal_title')}</span>
+                                </div>
+                                <p className="text-[#A19F8D] text-[11.5px] leading-relaxed pl-6">
+                                    {t('role_guide_internal_desc')}
+                                </p>
+                            </div>
+
+                            {/* 4. Ditandai */}
+                            <div className="p-3 rounded-xl bg-[#1C1B0E] border border-[#3B3929] space-y-1">
+                                <div className="flex items-center gap-2 font-bold text-slate-300">
+                                    <Megaphone className="w-4 h-4 text-slate-300" />
+                                    <span>{t('role_guide_tagged_title')}</span>
+                                </div>
+                                <p className="text-[#A19F8D] text-[11.5px] leading-relaxed pl-6">
+                                    {t('role_guide_tagged_desc')}
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="pt-2 border-t border-[#3B3929] flex justify-end">
+                            <button
+                                type="button"
+                                onClick={() => setRoleGuideModalOpen(false)}
+                                className="px-4 py-2 rounded-xl bg-[#C9AA71] hover:bg-[#B3935B] text-[#1C1B0E] font-bold text-xs transition-colors cursor-pointer"
+                            >
+                                {lang === 'id' ? 'Mengerti' : 'Got It'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
             <MobileBottomNav currentTab="analytics" />
             </div>
