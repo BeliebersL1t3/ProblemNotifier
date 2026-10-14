@@ -5,7 +5,7 @@ import {
     Loader2, Wrench, Sparkles, Laptop, Anchor, ShieldAlert, Utensils, Building, Hammer, Zap,
     Droplets, Building2, Bug, Tag, User, HelpCircle, Download, AlertTriangle, Layers, Database, Clock, CheckSquare, Check, Eye, ChevronRight,
     ClipboardList, PauseCircle, CheckCircle2, Filter, SlidersHorizontal, ChevronDown, ChevronUp, Archive,
-    Calendar, Target, FileText, Megaphone, Globe, Palette
+    Calendar, Target, FileText, Megaphone, Globe, Palette, LayoutGrid, BarChart3, Search
 } from 'lucide-react';
 import anime from 'animejs';
 import {
@@ -423,6 +423,9 @@ function AnalyticsInner() {
     // Department filter: empty by default so it shows all issues within the user's scope
     const [selectedDepartmentFilters, setSelectedDepartmentFilters] = useState([]);
     const [deptFilterMode, setDeptFilterMode] = useState('assigned');
+    const [allRelatedViewType, setAllRelatedViewType] = useState('matrix'); // 'matrix' | 'chart'
+    const [allRelatedSort, setAllRelatedSort] = useState('total'); // 'total' | 'incoming' | 'outgoing' | 'tagged'
+    const [allRelatedSearch, setAllRelatedSearch] = useState('');
     const [deptColorMode, setDeptColorMode] = useState(() => {
         if (typeof window !== 'undefined') {
             return localStorage.getItem('telunas_dept_chart_color_mode') || 'dept';
@@ -782,6 +785,199 @@ function AnalyticsInner() {
             total: unclaimed + inProgress + solved 
         };
     }, [departmentData]);
+
+    // Detailed Role Matrix Data for "Semua Terkait"
+    const allRelatedMatrixData = useMemo(() => {
+        if (!timeFilteredIssues || timeFilteredIssues.length === 0) return [];
+
+        const matrix = {};
+
+        const getIssueState = (issue) => {
+            if (issue.status === 'solved') return 'solved';
+            if (issue.status === 'open') return 'unclaimed';
+            return 'inProgress';
+        };
+
+        const initDept = (deptName) => {
+            if (!deptName) return null;
+            const trimmed = deptName.trim();
+            const lower = trimmed.toLowerCase();
+            if (!trimmed || ['emergency', 'undefined', 'unknown', 'all', 'none'].includes(lower)) return null;
+            if (!matrix[trimmed]) {
+                matrix[trimmed] = {
+                    name: trimmed,
+                    shortName: getDeptAbbreviation(trimmed),
+                    totalRelated: 0,
+                    // 1. Tugas Masuk (Workload to resolve)
+                    incoming: {
+                        total: 0,
+                        unclaimed: 0,
+                        inProgress: 0,
+                        solved: 0,
+                    },
+                    // 2. Laporan Keluar (Outbound requests to other depts)
+                    outgoing: {
+                        total: 0,
+                        unclaimed: 0,
+                        inProgress: 0,
+                        solved: 0,
+                    },
+                    // 3. Ditandai (Tagged / CC)
+                    tagged: {
+                        total: 0,
+                        unclaimed: 0,
+                        inProgress: 0,
+                        solved: 0,
+                    },
+                    // 4. Internal (Dibuat & Dikerjakan oleh dept yang sama)
+                    internal: {
+                        total: 0,
+                        unclaimed: 0,
+                        inProgress: 0,
+                        solved: 0,
+                    }
+                };
+            }
+            return matrix[trimmed];
+        };
+
+        timeFilteredIssues.filter(i => !i.isArchived).forEach(issue => {
+            const state = getIssueState(issue);
+            const rawOrigin = (issue.department || '').trim();
+            const originNorm = normalizeDepartment(rawOrigin).toLowerCase();
+            const isValidOrigin = rawOrigin && !['emergency', 'undefined', 'unknown', 'all', 'none'].includes(originNorm);
+
+            const assigns = safeArray(issue.assignedDepartments)
+                .map(d => (d || '').trim())
+                .filter(d => d && !['ALL', 'none', 'undefined', 'unknown'].includes(d.toLowerCase()));
+
+            const tags = safeArray(issue.taggedDepartments)
+                .map(d => (d || '').trim())
+                .filter(d => d && !['ALL', 'none', 'None', 'undefined', 'unknown'].includes(d.toLowerCase()));
+
+            const touchedInThisIssue = new Set();
+
+            // A. Check Assigned Departments (Tugas Masuk)
+            if (assigns.length > 0) {
+                assigns.forEach(assignedDept => {
+                    const assignedDeptObj = initDept(assignedDept);
+                    if (assignedDeptObj) {
+                        const isSelfHandled = isValidOrigin && normalizeDepartment(assignedDept).toLowerCase() === originNorm;
+                        if (isSelfHandled) {
+                            assignedDeptObj.internal.total += 1;
+                            assignedDeptObj.internal[state] += 1;
+                            assignedDeptObj.incoming.total += 1;
+                            assignedDeptObj.incoming[state] += 1;
+                        } else {
+                            assignedDeptObj.incoming.total += 1;
+                            assignedDeptObj.incoming[state] += 1;
+                        }
+                        touchedInThisIssue.add(assignedDeptObj.name);
+                    }
+                });
+            } else if (isValidOrigin) {
+                // If no assigned departments specified, origin dept is responsible
+                const originDeptObj = initDept(rawOrigin);
+                if (originDeptObj) {
+                    originDeptObj.internal.total += 1;
+                    originDeptObj.internal[state] += 1;
+                    originDeptObj.incoming.total += 1;
+                    originDeptObj.incoming[state] += 1;
+                    touchedInThisIssue.add(originDeptObj.name);
+                }
+            }
+
+            // B. Check Origin Department (Laporan Keluar)
+            if (isValidOrigin) {
+                const originDeptObj = initDept(rawOrigin);
+                if (originDeptObj) {
+                    const hasExternalAssignees = assigns.some(d => normalizeDepartment(d).toLowerCase() !== originNorm);
+                    if (hasExternalAssignees) {
+                        originDeptObj.outgoing.total += 1;
+                        originDeptObj.outgoing[state] += 1;
+                    }
+                    touchedInThisIssue.add(originDeptObj.name);
+                }
+            }
+
+            // C. Check Tagged Departments (Ditandai / CC)
+            tags.forEach(taggedDept => {
+                const taggedDeptObj = initDept(taggedDept);
+                if (taggedDeptObj) {
+                    taggedDeptObj.tagged.total += 1;
+                    taggedDeptObj.tagged[state] += 1;
+                    touchedInThisIssue.add(taggedDeptObj.name);
+                }
+            });
+
+            // Increment totalRelated uniquely per issue for each involved department
+            touchedInThisIssue.forEach(deptName => {
+                if (matrix[deptName]) {
+                    matrix[deptName].totalRelated += 1;
+                }
+            });
+        });
+
+        // Convert to array and calculate rates
+        let list = Object.values(matrix).map(item => {
+            const incomingDoneRate = item.incoming.total > 0 ? Math.round((item.incoming.solved / item.incoming.total) * 100) : 0;
+            const outgoingDoneRate = item.outgoing.total > 0 ? Math.round((item.outgoing.solved / item.outgoing.total) * 100) : 0;
+            return {
+                ...item,
+                incomingDoneRate,
+                outgoingDoneRate
+            };
+        });
+
+        // Filtering by search
+        if (allRelatedSearch.trim()) {
+            const q = allRelatedSearch.trim().toLowerCase();
+            list = list.filter(item => 
+                item.name.toLowerCase().includes(q) || 
+                item.shortName.toLowerCase().includes(q)
+            );
+        }
+
+        // Sorting
+        list.sort((a, b) => {
+            if (allRelatedSort === 'incoming') {
+                return b.incoming.total - a.incoming.total || b.totalRelated - a.totalRelated;
+            }
+            if (allRelatedSort === 'outgoing') {
+                return b.outgoing.total - a.outgoing.total || b.totalRelated - a.totalRelated;
+            }
+            if (allRelatedSort === 'tagged') {
+                return b.tagged.total - a.tagged.total || b.totalRelated - a.totalRelated;
+            }
+            return b.totalRelated - a.totalRelated || b.incoming.total - a.incoming.total;
+        });
+
+        return list;
+    }, [timeFilteredIssues, allRelatedSort, allRelatedSearch]);
+
+    const allRelatedMacroSummary = useMemo(() => {
+        let totalInteractions = 0;
+        let incomingTotal = 0;
+        let outgoingTotal = 0;
+        let taggedTotal = 0;
+        let internalTotal = 0;
+
+        allRelatedMatrixData.forEach(d => {
+            totalInteractions += d.totalRelated;
+            incomingTotal += d.incoming.total;
+            outgoingTotal += d.outgoing.total;
+            taggedTotal += d.tagged.total;
+            internalTotal += d.internal.total;
+        });
+
+        return {
+            totalInteractions,
+            incomingTotal,
+            outgoingTotal,
+            taggedTotal,
+            internalTotal
+        };
+    }, [allRelatedMatrixData]);
 
     // Intelligent integer Y-Axis configuration without decimals
     const deptYAxisConfig = useMemo(() => {
@@ -1485,6 +1681,243 @@ function AnalyticsInner() {
         );
     }
 
+    const renderAllRelatedMatrixCards = () => {
+        return (
+            <div className="w-full space-y-4 pt-1">
+                {/* Matrix Filter Bar: Badges + Search + Sort */}
+                <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 bg-[#232118] p-3 rounded-xl border border-[#3B3929]">
+                    {/* Macro Badges */}
+                    <div className="flex flex-wrap items-center gap-2 text-[11px]">
+                        <div className="flex items-center gap-1.5 bg-[#1C1B0E] px-2.5 py-1 rounded-lg border border-emerald-500/30 text-emerald-400 font-semibold shadow-xs">
+                            <span className="font-bold text-xs">↓</span>
+                            <span>{t('matrix_incoming_tasks')}:</span>
+                            <span className="font-mono font-bold text-emerald-300">{allRelatedMacroSummary.incomingTotal}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 bg-[#1C1B0E] px-2.5 py-1 rounded-lg border border-rose-500/30 text-rose-400 font-semibold shadow-xs">
+                            <span className="font-bold text-xs">↑</span>
+                            <span>{t('matrix_outgoing_reports')}:</span>
+                            <span className="font-mono font-bold text-rose-300">{allRelatedMacroSummary.outgoingTotal}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 bg-[#1C1B0E] px-2.5 py-1 rounded-lg border border-slate-500/30 text-slate-300 font-semibold shadow-xs">
+                            <span>📢</span>
+                            <span>{t('matrix_tagged_cc')}:</span>
+                            <span className="font-mono font-bold text-slate-200">{allRelatedMacroSummary.taggedTotal}</span>
+                        </div>
+                        {allRelatedMacroSummary.internalTotal > 0 && (
+                            <div className="flex items-center gap-1.5 bg-[#1C1B0E] px-2.5 py-1 rounded-lg border border-[#C9AA71]/30 text-[#C9AA71] font-semibold shadow-xs">
+                                <span>🏠</span>
+                                <span>{t('matrix_internal_label')}:</span>
+                                <span className="font-mono font-bold text-[#E2C38A]">{allRelatedMacroSummary.internalTotal}</span>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Search & Sort Controls */}
+                    <div className="flex items-center gap-2">
+                        <div className="relative flex-1 md:w-52">
+                            <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+                            <input 
+                                type="text"
+                                value={allRelatedSearch}
+                                onChange={(e) => setAllRelatedSearch(e.target.value)}
+                                placeholder={t('matrix_search_placeholder')}
+                                className="w-full pl-8 pr-2.5 py-1 text-xs rounded-lg bg-[#1C1B0E] border border-[#3B3929] text-foreground focus:outline-none focus:border-[#C9AA71] placeholder:text-muted-foreground/60"
+                            />
+                        </div>
+                        <select
+                            value={allRelatedSort}
+                            onChange={(e) => setAllRelatedSort(e.target.value)}
+                            className="appearance-none px-2.5 py-1 text-xs font-semibold rounded-lg bg-[#1C1B0E] border border-[#3B3929] text-[#C9AA71] focus:outline-none focus:border-[#C9AA71] cursor-pointer shadow-xs"
+                        >
+                            <option value="total" className="bg-[#2A281E] text-[#FAFAFA]">{t('matrix_sort_total')}</option>
+                            <option value="incoming" className="bg-[#2A281E] text-[#FAFAFA]">{t('matrix_sort_incoming')}</option>
+                            <option value="outgoing" className="bg-[#2A281E] text-[#FAFAFA]">{t('matrix_sort_outgoing')}</option>
+                            <option value="tagged" className="bg-[#2A281E] text-[#FAFAFA]">{t('matrix_sort_tagged')}</option>
+                        </select>
+                    </div>
+                </div>
+
+                {/* Matrix Cards Grid */}
+                {allRelatedMatrixData.length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 max-h-[560px] overflow-y-auto pr-1">
+                        {allRelatedMatrixData.map((item) => {
+                            const isSelected = selectedDepartmentFilters.some(d => d.toLowerCase() === item.name.toLowerCase());
+                            const deptColor = getDepartmentColor(item.name);
+
+                            return (
+                                <div
+                                    key={item.name}
+                                    onClick={() => handleDepartmentBarClick({ name: item.name })}
+                                    className={`p-3.5 rounded-xl border transition-all cursor-pointer select-none bg-[#232118] hover:bg-[#28261C] flex flex-col justify-between gap-3 ${
+                                        isSelected 
+                                            ? 'border-[#C9AA71] ring-2 ring-[#C9AA71]/40 shadow-lg' 
+                                            : 'border-[#3B3929] hover:border-[#5A5540]'
+                                    }`}
+                                >
+                                    {/* Card Header */}
+                                    <div className="flex items-center justify-between gap-2 border-b border-[#3B3929] pb-2">
+                                        <div className="flex items-center gap-2 min-w-0">
+                                            <span 
+                                                className="w-3 h-3 rounded-full shrink-0 shadow-sm" 
+                                                style={{ backgroundColor: deptColor }}
+                                            />
+                                            <span className="font-bold text-[#FAFAFA] text-sm truncate" title={item.name}>
+                                                {item.name}
+                                            </span>
+                                            <span className="text-[10px] text-muted-foreground font-mono bg-[#1C1B0E] px-1.5 py-0.5 rounded border border-[#3B3929] shrink-0">
+                                                #{item.shortName}
+                                            </span>
+                                        </div>
+                                        <span className="bg-[#C9AA71]/15 text-[#C9AA71] border border-[#C9AA71]/30 px-2 py-0.5 rounded-full font-bold text-[11px] shrink-0">
+                                            {item.totalRelated} {lang === 'id' ? 'Isu Terkait' : 'Related'}
+                                        </span>
+                                    </div>
+
+                                    {/* 3 Pillars Breakdown */}
+                                    <div className="space-y-2 text-xs">
+                                        {/* 1. Tugas Masuk (Workload To Fix) */}
+                                        <div className="p-2 rounded-lg bg-[#1C1B0E] border border-emerald-500/20 space-y-1.5">
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-emerald-400 font-bold flex items-center gap-1.5 text-[11px]">
+                                                    <span className="font-black text-xs">↓</span>
+                                                    <span>{t('matrix_incoming_tasks')}</span>
+                                                </span>
+                                                <div className="flex items-center gap-1.5">
+                                                    <span className="font-mono font-bold text-emerald-400 text-xs">{item.incoming.total}</span>
+                                                    {item.incoming.total > 0 && (
+                                                        <span className="text-[10px] text-emerald-400/80 font-medium">({item.incomingDoneRate}% {lang === 'id' ? 'selesai' : 'done'})</span>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {item.incoming.total > 0 ? (
+                                                <>
+                                                    {/* Segmented Progress Bar */}
+                                                    <div className="w-full h-1.5 rounded-full bg-[#2A281E] overflow-hidden flex">
+                                                        {item.incoming.unclaimed > 0 && (
+                                                            <div 
+                                                                className="h-full bg-slate-500" 
+                                                                style={{ width: `${(item.incoming.unclaimed / item.incoming.total) * 100}%` }} 
+                                                                title={`Belum Diambil: ${item.incoming.unclaimed}`}
+                                                            />
+                                                        )}
+                                                        {item.incoming.inProgress > 0 && (
+                                                            <div 
+                                                                className="h-full bg-amber-500" 
+                                                                style={{ width: `${(item.incoming.inProgress / item.incoming.total) * 100}%` }} 
+                                                                title={`Sedang Dikerjakan: ${item.incoming.inProgress}`}
+                                                            />
+                                                        )}
+                                                        {item.incoming.solved > 0 && (
+                                                            <div 
+                                                                className="h-full bg-emerald-500" 
+                                                                style={{ width: `${(item.incoming.solved / item.incoming.total) * 100}%` }} 
+                                                                title={`Selesai: ${item.incoming.solved}`}
+                                                            />
+                                                        )}
+                                                    </div>
+                                                    {/* Micro Counters */}
+                                                    <div className="flex items-center justify-between text-[10.5px] text-[#A19F8D] pt-0.5">
+                                                        <span className="flex items-center gap-1">
+                                                            <span className="w-1.5 h-1.5 rounded-full bg-slate-400 inline-block"></span>
+                                                            <span>{lang === 'id' ? 'Belum' : 'Open'}: <strong className="text-slate-300 font-mono">{item.incoming.unclaimed}</strong></span>
+                                                        </span>
+                                                        <span className="flex items-center gap-1">
+                                                            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block"></span>
+                                                            <span>{lang === 'id' ? 'Proses' : 'Prog'}: <strong className="text-amber-300 font-mono">{item.incoming.inProgress}</strong></span>
+                                                        </span>
+                                                        <span className="flex items-center gap-1">
+                                                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block"></span>
+                                                            <span>{lang === 'id' ? 'Selesai' : 'Done'}: <strong className="text-emerald-300 font-mono">{item.incoming.solved}</strong></span>
+                                                        </span>
+                                                    </div>
+                                                </>
+                                            ) : (
+                                                <div className="text-[10px] text-muted-foreground italic">
+                                                    {lang === 'id' ? 'Tidak ada tugas masuk' : 'No incoming tasks'}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* 2. Laporan Keluar (Outgoing Requests) */}
+                                        <div className="p-2 rounded-lg bg-[#1C1B0E] border border-rose-500/20 space-y-1.5">
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-rose-400 font-bold flex items-center gap-1.5 text-[11px]">
+                                                    <span className="font-black text-xs">↑</span>
+                                                    <span>{t('matrix_outgoing_reports')}</span>
+                                                </span>
+                                                <div className="flex items-center gap-1.5">
+                                                    <span className="font-mono font-bold text-rose-400 text-xs">{item.outgoing.total}</span>
+                                                    {item.outgoing.total > 0 && (
+                                                        <span className="text-[10px] text-rose-400/80 font-medium">({item.outgoingDoneRate}% {lang === 'id' ? 'selesai' : 'done'})</span>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {item.outgoing.total > 0 ? (
+                                                <>
+                                                    {/* Segmented Progress Bar */}
+                                                    <div className="w-full h-1.5 rounded-full bg-[#2A281E] overflow-hidden flex">
+                                                        {(item.outgoing.unclaimed + item.outgoing.inProgress) > 0 && (
+                                                            <div 
+                                                                className="h-full bg-amber-500" 
+                                                                style={{ width: `${((item.outgoing.unclaimed + item.outgoing.inProgress) / item.outgoing.total) * 100}%` }} 
+                                                                title={`Diproses di luar: ${item.outgoing.unclaimed + item.outgoing.inProgress}`}
+                                                            />
+                                                        )}
+                                                        {item.outgoing.solved > 0 && (
+                                                            <div 
+                                                                className="h-full bg-emerald-500" 
+                                                                style={{ width: `${(item.outgoing.solved / item.outgoing.total) * 100}%` }} 
+                                                                title={`Selesai: ${item.outgoing.solved}`}
+                                                            />
+                                                        )}
+                                                    </div>
+                                                    <div className="flex items-center justify-between text-[10.5px] text-[#A19F8D] pt-0.5">
+                                                        <span className="flex items-center gap-1">
+                                                            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block"></span>
+                                                            <span>{lang === 'id' ? 'Diproses luar' : 'Pending'}: <strong className="text-amber-300 font-mono">{item.outgoing.unclaimed + item.outgoing.inProgress}</strong></span>
+                                                        </span>
+                                                        <span className="flex items-center gap-1">
+                                                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block"></span>
+                                                            <span>{lang === 'id' ? 'Selesai di luar' : 'Solved'}: <strong className="text-emerald-300 font-mono">{item.outgoing.solved}</strong></span>
+                                                        </span>
+                                                    </div>
+                                                </>
+                                            ) : (
+                                                <div className="text-[10px] text-muted-foreground italic">
+                                                    {lang === 'id' ? 'Tidak ada laporan keluar' : 'No outgoing reports'}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* 3. Footer Row: Ditandai & Internal Badge */}
+                                        <div className="flex items-center justify-between pt-0.5 text-[11px]">
+                                            <div className="flex items-center gap-1.5 text-slate-400">
+                                                <span>📢</span>
+                                                <span>{t('matrix_tagged_cc')}:</span>
+                                                <strong className="text-slate-200 font-mono">{item.tagged.total}</strong>
+                                            </div>
+
+                                            {item.internal.total > 0 && (
+                                                <div className="flex items-center gap-1 text-[#C9AA71] bg-[#1C1B0E] px-2 py-0.5 rounded border border-[#C9AA71]/30 text-[10.5px]">
+                                                    <span>🏠</span>
+                                                    <span>{item.internal.total} {lang === 'id' ? 'Internal' : 'Internal'}</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                ) : (
+                    <div className="flex h-48 items-center justify-center text-muted-foreground">{t('matrix_no_depts')}</div>
+                )}
+            </div>
+        );
+    };
+
     return (
         <div className="min-h-screen bg-[#1C1B0E] text-[#FAFAFA] relative overflow-x-clip antialiased selection:bg-[#C9AA71]/30">
             {/* Background Motif Wallpaper */}
@@ -1952,82 +2385,125 @@ function AnalyticsInner() {
                                     )}
                                 </div>
 
-                                {/* Tri-Tone Status Legend (2 Bars, 3 Lifecycle States) */}
-                                <div className="flex flex-wrap items-center gap-3 bg-[#2A281E] px-3 py-1 rounded-lg border border-[#3B3929] text-[11px]">
-                                    {/* Batang 1: Belum Diambil */}
-                                    <div className="flex items-center gap-1.5 font-semibold text-[#FAFAFA]" title={lang === 'id' ? 'Batang 1: Belum diambil sama sekali' : 'Bar 1: Not taken / unclaimed'}>
-                                        <span className={`w-3 h-2.5 rounded-[3px] ${deptColorMode === 'status' ? 'bg-[#475569] border border-[#64748B]' : 'bg-[#2C2B22] border border-[#5A5540]'} inline-block shadow-xs`}></span>
-                                        <span className="text-muted-foreground">{lang === 'id' ? 'Belum Diambil' : 'Unclaimed'}:</span>
-                                        <span className="font-bold text-[#C9AA71] font-mono">{deptSummaryStats.unclaimed}</span>
+                                {/* View Switcher for All Related (Matrix Cards vs Bar Chart) */}
+                                {!isDeptUser && deptFilterMode === 'all' && (
+                                    <div className="flex items-center rounded-lg bg-[#2A281E] p-0.5 border border-[#3B3929] text-xs">
+                                        <Tooltip content={lang === 'id' ? 'Tampilan kartu matriks peran interaktif' : 'Interactive role matrix cards'} position="top">
+                                            <button
+                                                type="button"
+                                                onClick={() => setAllRelatedViewType('matrix')}
+                                                className={`px-2.5 py-1 rounded text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+                                                    allRelatedViewType === 'matrix'
+                                                        ? 'bg-[#C9AA71] text-[#1C1B0E] font-bold shadow-sm'
+                                                        : 'text-muted-foreground hover:text-foreground'
+                                                }`}
+                                            >
+                                                <LayoutGrid className="w-3.5 h-3.5 shrink-0" />
+                                                <span>{t('dept_view_matrix')}</span>
+                                            </button>
+                                        </Tooltip>
+                                        <Tooltip content={lang === 'id' ? 'Tampilan grafik batang standar' : 'Standard bar chart'} position="top">
+                                            <button
+                                                type="button"
+                                                onClick={() => setAllRelatedViewType('chart')}
+                                                className={`px-2.5 py-1 rounded text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+                                                    allRelatedViewType === 'chart'
+                                                        ? 'bg-[#C9AA71] text-[#1C1B0E] font-bold shadow-sm'
+                                                        : 'text-muted-foreground hover:text-foreground'
+                                                }`}
+                                            >
+                                                <BarChart3 className="w-3.5 h-3.5 shrink-0" />
+                                                <span>{t('dept_view_chart')}</span>
+                                            </button>
+                                        </Tooltip>
                                     </div>
-                                    <div className="h-3 w-px bg-[#3B3929]"></div>
-                                    {/* Batang 2 Segmen 1: Sedang Dikerjakan */}
-                                    <div className="flex items-center gap-1.5 font-semibold text-[#FAFAFA]" title={lang === 'id' ? 'Batang 2: Sedang dikerjakan' : 'Bar 2: In progress'}>
-                                        <span className={`w-3 h-2.5 rounded-[3px] ${deptColorMode === 'status' ? 'bg-[#F59E0B] border border-amber-300/40' : 'bg-[#E58C36] border border-white/20'} inline-block shadow-xs`}></span>
-                                        <span className="text-muted-foreground">{lang === 'id' ? 'Sedang Dikerjakan' : 'In Progress'}:</span>
-                                        <span className="font-bold text-amber-400 font-mono">{deptSummaryStats.inProgress}</span>
-                                    </div>
-                                    <div className="h-3 w-px bg-[#3B3929]"></div>
-                                    {/* Batang 2 Segmen 2: Sudah Selesai */}
-                                    <div className="flex items-center gap-1.5 font-semibold text-[#FAFAFA]" title={lang === 'id' ? 'Batang 2: Sudah selesai' : 'Bar 2: Finished / solved'}>
-                                        <span className={`w-3 h-2.5 rounded-[3px] ${deptColorMode === 'status' ? 'bg-[#10B981] border border-emerald-300/40' : 'bg-[#B0BEC5] border border-white/30'} inline-block shadow-xs`}></span>
-                                        <span className="text-muted-foreground">{lang === 'id' ? 'Selesai' : 'Solved'}:</span>
-                                        <span className="font-bold text-emerald-400 font-mono">{deptSummaryStats.solved}</span>
-                                    </div>
-                                </div>
+                                )}
 
-                                {/* Color Mode Selector (Warna Dept vs Warna Statis) */}
-                                <div className="flex items-center rounded-lg bg-[#2A281E] p-0.5 border border-[#3B3929] text-xs">
-                                    <Tooltip content={lang === 'id' ? 'Gunakan warna identitas tiap departemen' : 'Use individual department theme colors'} position="top">
-                                        <button
-                                            type="button"
-                                            onClick={() => handleSetDeptColorMode('dept')}
-                                            className={`px-2 py-1 rounded text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1 ${
-                                                deptColorMode === 'dept'
-                                                    ? 'bg-[#C9AA71] text-[#1C1B0E] font-bold shadow-sm'
-                                                    : 'text-muted-foreground hover:text-foreground'
-                                            }`}
-                                        >
-                                            <Palette className="w-3.5 h-3.5 shrink-0" />
-                                            <span>{lang === 'id' ? 'Warna Dept' : 'Dept Colors'}</span>
-                                        </button>
-                                    </Tooltip>
-                                    <Tooltip content={lang === 'id' ? 'Gunakan warna status statis (Belum, Sedang, Selesai)' : 'Use static status colors (Unclaimed, Progress, Solved)'} position="top">
-                                        <button
-                                            type="button"
-                                            onClick={() => handleSetDeptColorMode('status')}
-                                            className={`px-2 py-1 rounded text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1 ${
-                                                deptColorMode === 'status'
-                                                    ? 'bg-[#C9AA71] text-[#1C1B0E] font-bold shadow-sm'
-                                                    : 'text-muted-foreground hover:text-foreground'
-                                            }`}
-                                        >
-                                            <Layers className="w-3.5 h-3.5 shrink-0" />
-                                            <span>{lang === 'id' ? 'Warna Status' : 'Status Colors'}</span>
-                                        </button>
-                                    </Tooltip>
-                                </div>
-
-                                {/* Department Amount Selector (5, 10, 15, 20, All) */}
-                                <Tooltip content={t('tooltip_dept_limit')} position="top">
-                                    <div className="flex items-center gap-1.5 text-xs">
-                                        <select
-                                            value={deptLimit}
-                                            onChange={(e) => setDeptLimit(e.target.value === 'all' ? 'all' : Number(e.target.value))}
-                                            className="appearance-none px-2.5 py-1 text-xs font-bold rounded-lg border border-[#3B3929] bg-[#2A281E] text-[#C9AA71] cursor-pointer focus:outline-none focus:ring-1 focus:ring-primary shadow-sm"
-                                        >
-                                            <option value={5} className="bg-[#2A281E] text-[#FAFAFA]">Top 5</option>
-                                            <option value={10} className="bg-[#2A281E] text-[#FAFAFA]">Top 10</option>
-                                            <option value={15} className="bg-[#2A281E] text-[#FAFAFA]">Top 15</option>
-                                            <option value={20} className="bg-[#2A281E] text-[#FAFAFA]">Top 20</option>
-                                            <option value="all" className="bg-[#2A281E] text-[#FAFAFA]">{t('all_items')}</option>
-                                        </select>
+                                {/* Tri-Tone Status Legend (Only when in chart mode) */}
+                                {(deptFilterMode !== 'all' || allRelatedViewType === 'chart') && (
+                                    <div className="flex flex-wrap items-center gap-3 bg-[#2A281E] px-3 py-1 rounded-lg border border-[#3B3929] text-[11px]">
+                                        {/* Batang 1: Belum Diambil */}
+                                        <div className="flex items-center gap-1.5 font-semibold text-[#FAFAFA]" title={lang === 'id' ? 'Batang 1: Belum diambil sama sekali' : 'Bar 1: Not taken / unclaimed'}>
+                                            <span className={`w-3 h-2.5 rounded-[3px] ${deptColorMode === 'status' ? 'bg-[#475569] border border-[#64748B]' : 'bg-[#2C2B22] border border-[#5A5540]'} inline-block shadow-xs`}></span>
+                                            <span className="text-muted-foreground">{lang === 'id' ? 'Belum Diambil' : 'Unclaimed'}:</span>
+                                            <span className="font-bold text-[#C9AA71] font-mono">{deptSummaryStats.unclaimed}</span>
+                                        </div>
+                                        <div className="h-3 w-px bg-[#3B3929]"></div>
+                                        {/* Batang 2 Segmen 1: Sedang Dikerjakan */}
+                                        <div className="flex items-center gap-1.5 font-semibold text-[#FAFAFA]" title={lang === 'id' ? 'Batang 2: Sedang dikerjakan' : 'Bar 2: In progress'}>
+                                            <span className={`w-3 h-2.5 rounded-[3px] ${deptColorMode === 'status' ? 'bg-[#F59E0B] border border-amber-300/40' : 'bg-[#E58C36] border border-white/20'} inline-block shadow-xs`}></span>
+                                            <span className="text-muted-foreground">{lang === 'id' ? 'Sedang Dikerjakan' : 'In Progress'}:</span>
+                                            <span className="font-bold text-amber-400 font-mono">{deptSummaryStats.inProgress}</span>
+                                        </div>
+                                        <div className="h-3 w-px bg-[#3B3929]"></div>
+                                        {/* Batang 2 Segmen 2: Sudah Selesai */}
+                                        <div className="flex items-center gap-1.5 font-semibold text-[#FAFAFA]" title={lang === 'id' ? 'Batang 2: Sudah selesai' : 'Bar 2: Finished / solved'}>
+                                            <span className={`w-3 h-2.5 rounded-[3px] ${deptColorMode === 'status' ? 'bg-[#10B981] border border-emerald-300/40' : 'bg-[#B0BEC5] border border-white/30'} inline-block shadow-xs`}></span>
+                                            <span className="text-muted-foreground">{lang === 'id' ? 'Selesai' : 'Solved'}:</span>
+                                            <span className="font-bold text-emerald-400 font-mono">{deptSummaryStats.solved}</span>
+                                        </div>
                                     </div>
-                                </Tooltip>
+                                )}
+
+                                {/* Color Mode Selector (Warna Dept vs Warna Statis) (Only when in chart mode) */}
+                                {(deptFilterMode !== 'all' || allRelatedViewType === 'chart') && (
+                                    <div className="flex items-center rounded-lg bg-[#2A281E] p-0.5 border border-[#3B3929] text-xs">
+                                        <Tooltip content={lang === 'id' ? 'Gunakan warna identitas tiap departemen' : 'Use individual department theme colors'} position="top">
+                                            <button
+                                                type="button"
+                                                onClick={() => handleSetDeptColorMode('dept')}
+                                                className={`px-2 py-1 rounded text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1 ${
+                                                    deptColorMode === 'dept'
+                                                        ? 'bg-[#C9AA71] text-[#1C1B0E] font-bold shadow-sm'
+                                                        : 'text-muted-foreground hover:text-foreground'
+                                                }`}
+                                            >
+                                                <Palette className="w-3.5 h-3.5 shrink-0" />
+                                                <span>{lang === 'id' ? 'Warna Dept' : 'Dept Colors'}</span>
+                                            </button>
+                                        </Tooltip>
+                                        <Tooltip content={lang === 'id' ? 'Gunakan warna status statis (Belum, Sedang, Selesai)' : 'Use static status colors (Unclaimed, Progress, Solved)'} position="top">
+                                            <button
+                                                type="button"
+                                                onClick={() => handleSetDeptColorMode('status')}
+                                                className={`px-2 py-1 rounded text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1 ${
+                                                    deptColorMode === 'status'
+                                                        ? 'bg-[#C9AA71] text-[#1C1B0E] font-bold shadow-sm'
+                                                        : 'text-muted-foreground hover:text-foreground'
+                                                }`}
+                                            >
+                                                <Layers className="w-3.5 h-3.5 shrink-0" />
+                                                <span>{lang === 'id' ? 'Warna Status' : 'Status Colors'}</span>
+                                            </button>
+                                        </Tooltip>
+                                    </div>
+                                )}
+
+                                {/* Department Amount Selector (5, 10, 15, 20, All) (Only when in chart mode) */}
+                                {(deptFilterMode !== 'all' || allRelatedViewType === 'chart') && (
+                                    <Tooltip content={t('tooltip_dept_limit')} position="top">
+                                        <div className="flex items-center gap-1.5 text-xs">
+                                            <select
+                                                value={deptLimit}
+                                                onChange={(e) => setDeptLimit(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+                                                className="appearance-none px-2.5 py-1 text-xs font-bold rounded-lg border border-[#3B3929] bg-[#2A281E] text-[#C9AA71] cursor-pointer focus:outline-none focus:ring-1 focus:ring-primary shadow-sm"
+                                            >
+                                                <option value={5} className="bg-[#2A281E] text-[#FAFAFA]">Top 5</option>
+                                                <option value={10} className="bg-[#2A281E] text-[#FAFAFA]">Top 10</option>
+                                                <option value={15} className="bg-[#2A281E] text-[#FAFAFA]">Top 15</option>
+                                                <option value={20} className="bg-[#2A281E] text-[#FAFAFA]">Top 20</option>
+                                                <option value="all" className="bg-[#2A281E] text-[#FAFAFA]">{t('all_items')}</option>
+                                            </select>
+                                        </div>
+                                    </Tooltip>
+                                )}
                             </div>
                         </div>
 
-                        <div className={`w-full ${departmentData.length > 6 ? 'h-[335px]' : 'h-[310px]'}`}>
+                        {deptFilterMode === 'all' && allRelatedViewType === 'matrix' ? (
+                            renderAllRelatedMatrixCards()
+                        ) : (
+                            <div className={`w-full ${departmentData.length > 6 ? 'h-[335px]' : 'h-[310px]'}`}>
                             {departmentData.length > 0 ? (
                                 chartsVisible && (
                                     <ResponsiveContainer width="100%" height="100%">
@@ -2227,8 +2703,9 @@ function AnalyticsInner() {
                                 <div className="flex h-full items-center justify-center text-muted-foreground">{t('no_data')}</div>
                             )}
                         </div>
-                    </div>
+                    )}
                 </div>
+            </div>
 
                 {/* Animated Timeline Section */}
                 <div ref={recentActivityRef} className="bg-surface p-6 rounded-2xl shadow-sm border border-border/50 flex flex-col gap-5">
