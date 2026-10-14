@@ -422,130 +422,177 @@ function TicketsInner({
                         </div>
                     </div>
 
-                    {/* Filters & Search Toolbar */}
-                    <div className="bg-[#2A281E]/90 backdrop-blur-md p-4 rounded-2xl border border-[#3B3929] shadow-xl flex flex-col lg:flex-row gap-4 items-center justify-between">
-                        {/* Status Tabs */}
-                        <div className="flex items-center gap-1.5 overflow-x-auto w-full lg:w-auto pb-2 lg:pb-0 scrollbar-none">
+                    {/* Filters & Search Toolbar (2-Tier Structured Card — Zero Horizontal Slider) */}
+                    <div className="bg-[#2A281E]/95 backdrop-blur-md p-3.5 sm:p-5 rounded-2xl border border-[#3B3929] shadow-xl space-y-3 sm:space-y-4">
+                        {/* ── Tier 1: Status Filter Tabs (Symmetrical, Wrap, Zero Horizontal Slider) ── */}
+                        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                             {[
-                                { key: 'all', label: t('ticket_all_status') },
-                                { key: 'pending_hod', label: isUserAdmin ? `${t('ticket_status_pending_hod')} (Monitor)` : t('ticket_status_pending_hod') },
-                                { key: 'pending_admin', label: isUserAdmin ? t('ticket_status_pending_admin') : t('ticket_status_waiting_admin') },
-                                { key: 'approved', label: t('ticket_status_approved') },
-                                { key: 'rejected', label: t('ticket_status_rejected') },
+                                {
+                                    key: 'all',
+                                    label: t('ticket_all_status') || 'Semua Status',
+                                    shortLabel: lang === 'id' ? 'Semua' : 'All',
+                                },
+                                {
+                                    key: 'pending_hod',
+                                    label: isUserAdmin ? `${t('ticket_status_pending_hod')} (Monitor)` : t('ticket_status_pending_hod'),
+                                    shortLabel: lang === 'id' ? 'Tinjau HOD' : 'HOD Review',
+                                },
+                                {
+                                    key: 'pending_admin',
+                                    label: isUserAdmin ? t('ticket_status_pending_admin') : t('ticket_status_waiting_admin'),
+                                    shortLabel: isUserAdmin ? (lang === 'id' ? 'ACC Admin' : 'Admin ACC') : (lang === 'id' ? 'Tunggu Admin' : 'Wait Admin'),
+                                },
+                                {
+                                    key: 'approved',
+                                    label: t('ticket_status_approved') || 'Disetujui',
+                                    shortLabel: t('ticket_status_approved') || 'Disetujui',
+                                },
+                                {
+                                    key: 'rejected',
+                                    label: t('ticket_status_rejected') || 'Ditolak',
+                                    shortLabel: t('ticket_status_rejected') || 'Ditolak',
+                                },
                             ].map(tab => {
                                 const isActive = statusFilter === tab.key;
                                 return (
                                     <button
                                         key={tab.key}
+                                        type="button"
                                         onClick={() => {
                                             setStatusFilter(tab.key);
                                             handleFilterChange(tab.key, undefined, undefined, undefined);
                                         }}
-                                        className={`px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all duration-150 ${
+                                        className={`flex-1 sm:flex-initial text-center justify-center min-w-[90px] sm:min-w-0 px-3 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all duration-150 cursor-pointer select-none ${
                                             isActive
-                                                ? 'bg-gradient-to-r from-[#C9AA71] to-[#B39355] text-[#1C1B0E] font-bold shadow-md shadow-[#C9AA71]/20'
-                                                : 'bg-[#1C1B0E]/60 text-[#A19F8D] hover:text-[#FAFAFA] hover:bg-[#1C1B0E] border border-[#3B3929]/80'
+                                                ? 'bg-gradient-to-r from-[#C9AA71] to-[#B39355] text-[#1C1B0E] font-black shadow-md shadow-[#C9AA71]/25 ring-1 ring-[#C9AA71]/50'
+                                                : 'bg-[#1C1B0E]/70 text-[#A19F8D] hover:text-[#FAFAFA] hover:bg-[#353326]/60 border border-[#3B3929]/80'
                                         }`}
                                     >
-                                        {tab.label}
+                                        <span className="hidden sm:inline">{tab.label}</span>
+                                        <span className="sm:hidden">{tab.shortLabel}</span>
                                     </button>
                                 );
                             })}
                         </div>
 
-                        {/* Secondary Filters: Department (Admin Only), Type, and Search */}
-                        <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
-                            {/* Department Filter (Admin Only) */}
-                            {isUserAdmin && (
-                                <select
-                                    value={departmentFilter}
-                                    onChange={(e) => {
-                                        setDepartmentFilter(e.target.value);
-                                        handleFilterChange(undefined, undefined, undefined, e.target.value);
-                                    }}
-                                    className="bg-[#1C1B0E] border border-[#3B3929] text-[#FAFAFA] rounded-xl text-xs py-2 px-3 focus:border-[#C9AA71] focus:ring-1 focus:ring-[#C9AA71]"
-                                >
-                                    <option value="all">{t('all_departments')}</option>
-                                    {DEPARTMENTS.map(d => (
-                                        <option key={d} value={d}>{d}</option>
-                                    ))}
-                                </select>
-                            )}
-
-                            {/* Ticket Type Filter */}
-                            <select
-                                value={typeFilter}
-                                onChange={(e) => {
-                                    setTypeFilter(e.target.value);
-                                    handleFilterChange(undefined, e.target.value, undefined, undefined);
-                                }}
-                                className="bg-[#1C1B0E] border border-[#3B3929] text-[#FAFAFA] rounded-xl text-xs py-2 px-3 focus:border-[#C9AA71] focus:ring-1 focus:ring-[#C9AA71]"
-                            >
-                                <option value="all">{t('ticket_all_types')}</option>
-                                <option value="account_registration">{t('ticket_type_account_reg')}</option>
-                                <option value="whatsapp_change">{t('ticket_type_wa_change')}</option>
-                                <option value="whatsapp_unlink">{t('ticket_type_wa_unlink')}</option>
-                                <option value="password_reset">{t('ticket_type_pwd_reset')}</option>
-                                <option value="department_transfer">{t('ticket_type_dept_transfer')}</option>
-                            </select>
-
-                            {/* Search Input */}
-                            <div className="relative flex-1 sm:w-64">
-                                <Search className="w-4 h-4 text-[#A19F8D] absolute left-3 top-1/2 -translate-y-1/2" />
-                                <input
-                                    type="text"
-                                    value={search}
-                                    onChange={(e) => setSearch(e.target.value)}
-                                    onKeyDown={(e) => e.key === 'Enter' && handleFilterChange(undefined, undefined, search, undefined)}
-                                    placeholder={t('ticket_search_placeholder')}
-                                    className="w-full pl-9 pr-3 py-2 text-xs rounded-xl bg-[#1C1B0E] border border-[#3B3929] text-[#FAFAFA] placeholder-[#A19F8D]/60 focus:border-[#C9AA71] focus:ring-1 focus:ring-[#C9AA71]"
-                                />
-                            </div>
-
-                            {/* Refresh Button */}
-                            <button
-                                onClick={() => handleFilterChange(undefined, undefined, search, undefined)}
-                                className="p-2 rounded-xl bg-[#1C1B0E] hover:bg-[#C9AA71] hover:text-[#1C1B0E] text-[#A19F8D] border border-[#3B3929] transition-colors"
-                                title={t('ticket_refresh_btn')}
-                            >
-                                <RefreshCw className="w-4 h-4" />
-                            </button>
-
-                            {/* Admin Controls: Export PDF & Google Spreadsheet */}
-                            {isUserAdmin && (
-                                <div className="flex items-center gap-1.5 ml-auto sm:ml-0">
-                                    <button
-                                        type="button"
-                                        onClick={() => setExportPdfOpen(true)}
-                                        className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r from-[#C9AA71] to-[#B39355] hover:brightness-110 text-[#1C1B0E] font-bold text-xs shadow-md transition-all shrink-0"
-                                        title={t('ticket_export_pdf_btn')}
-                                    >
-                                        <FileText className="w-4 h-4" />
-                                        <span className="hidden sm:inline">{t('ticket_export_pdf_btn')}</span>
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={handleSyncSheet}
-                                        disabled={isSyncingSheet}
-                                        className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#1C1B0E] hover:bg-[#2A281E] text-emerald-400 border border-emerald-500/30 text-xs font-semibold transition-all shrink-0 disabled:opacity-60"
-                                        title={t('ticket_sync_sheet_btn')}
-                                    >
-                                        {isSyncingSheet ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-                                        <span className="hidden sm:inline">{t('ticket_sync_sheet_btn')}</span>
-                                    </button>
-                                    {tickets_sheet_url && (
-                                        <a
-                                            href={tickets_sheet_url}
-                                            target="_blank"
-                                            rel="noreferrer"
-                                            className="flex items-center gap-1.5 p-2 rounded-xl bg-[#1C1B0E] hover:bg-[#2A281E] text-emerald-300 border border-emerald-500/30 transition-colors shrink-0"
-                                            title={t('ticket_open_sheet_btn')}
+                        {/* ── Tier 2: Search, Filters & Action Controls ── */}
+                        <div className="pt-3 sm:pt-3.5 border-t border-[#3B3929]/70 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5 sm:gap-3">
+                            {/* Left Group: Search Bar + Department (Admin) & Type Dropdowns */}
+                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-2.5 flex-1 min-w-0">
+                                {/* Search Input */}
+                                <div className="relative flex-1 min-w-0">
+                                    <Search className="w-4 h-4 text-[#A19F8D] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                                    <input
+                                        type="text"
+                                        value={search}
+                                        onChange={(e) => setSearch(e.target.value)}
+                                        onKeyDown={(e) => e.key === 'Enter' && handleFilterChange(undefined, undefined, search, undefined)}
+                                        placeholder={t('ticket_search_placeholder')}
+                                        className="w-full pl-9 pr-8 py-2 text-xs rounded-xl bg-[#1C1B0E] border border-[#3B3929] text-[#FAFAFA] placeholder-[#A19F8D]/60 focus:border-[#C9AA71] focus:ring-1 focus:ring-[#C9AA71]"
+                                    />
+                                    {search && (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setSearch('');
+                                                handleFilterChange(undefined, undefined, '', undefined);
+                                            }}
+                                            className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 rounded-full text-[#A19F8D] hover:text-white transition-colors cursor-pointer"
+                                            title="Clear search"
                                         >
-                                            <ExternalLink className="w-4 h-4" />
-                                        </a>
+                                            <X className="w-3.5 h-3.5" />
+                                        </button>
                                     )}
                                 </div>
-                            )}
+
+                                {/* Dropdowns Row */}
+                                <div className="flex items-center gap-2 shrink-0">
+                                    {/* Department Filter (Admin Only) */}
+                                    {isUserAdmin && (
+                                        <select
+                                            value={departmentFilter}
+                                            onChange={(e) => {
+                                                setDepartmentFilter(e.target.value);
+                                                handleFilterChange(undefined, undefined, undefined, e.target.value);
+                                            }}
+                                            className="flex-1 sm:flex-initial bg-[#1C1B0E] border border-[#3B3929] text-[#FAFAFA] rounded-xl text-xs py-2 px-3 focus:border-[#C9AA71] focus:ring-1 focus:ring-[#C9AA71] cursor-pointer"
+                                        >
+                                            <option value="all">{t('all_departments')}</option>
+                                            {DEPARTMENTS.map(d => (
+                                                <option key={d} value={d}>{d}</option>
+                                            ))}
+                                        </select>
+                                    )}
+
+                                    {/* Ticket Type Filter */}
+                                    <select
+                                        value={typeFilter}
+                                        onChange={(e) => {
+                                            setTypeFilter(e.target.value);
+                                            handleFilterChange(undefined, e.target.value, undefined, undefined);
+                                        }}
+                                        className="flex-1 sm:flex-initial bg-[#1C1B0E] border border-[#3B3929] text-[#FAFAFA] rounded-xl text-xs py-2 px-3 focus:border-[#C9AA71] focus:ring-1 focus:ring-[#C9AA71] cursor-pointer"
+                                    >
+                                        <option value="all">{t('ticket_all_types')}</option>
+                                        <option value="account_registration">{t('ticket_type_account_reg')}</option>
+                                        <option value="whatsapp_change">{t('ticket_type_wa_change')}</option>
+                                        <option value="whatsapp_unlink">{t('ticket_type_wa_unlink')}</option>
+                                        <option value="password_reset">{t('ticket_type_pwd_reset')}</option>
+                                        <option value="department_transfer">{t('ticket_type_dept_transfer')}</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            {/* Right Group: Action Buttons (Refresh + Export PDF + Sync Sheet) */}
+                            <div className="flex items-center justify-end gap-1.5 sm:gap-2 shrink-0 pt-1 sm:pt-0">
+                                {/* Refresh Button */}
+                                <button
+                                    type="button"
+                                    onClick={() => handleFilterChange(undefined, undefined, search, undefined)}
+                                    className="p-2 rounded-xl bg-[#1C1B0E] hover:bg-[#C9AA71] hover:text-[#1C1B0E] text-[#A19F8D] border border-[#3B3929] transition-colors cursor-pointer shrink-0"
+                                    title={t('ticket_refresh_btn')}
+                                >
+                                    <RefreshCw className="w-4 h-4" />
+                                </button>
+
+                                {/* Admin Controls: Export PDF & Google Spreadsheet */}
+                                {isUserAdmin && (
+                                    <>
+                                        <button
+                                            type="button"
+                                            onClick={() => setExportPdfOpen(true)}
+                                            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r from-[#C9AA71] to-[#B39355] hover:brightness-110 text-[#1C1B0E] font-bold text-xs shadow-md transition-all shrink-0 cursor-pointer"
+                                            title={t('ticket_export_pdf_btn')}
+                                        >
+                                            <FileText className="w-4 h-4" />
+                                            <span className="hidden sm:inline">{t('ticket_export_pdf_btn')}</span>
+                                            <span className="sm:hidden">PDF</span>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={handleSyncSheet}
+                                            disabled={isSyncingSheet}
+                                            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#1C1B0E] hover:bg-[#2A281E] text-emerald-400 border border-emerald-500/30 text-xs font-semibold transition-all shrink-0 disabled:opacity-60 cursor-pointer"
+                                            title={t('ticket_sync_sheet_btn')}
+                                        >
+                                            {isSyncingSheet ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                                            <span className="hidden sm:inline">{t('ticket_sync_sheet_btn')}</span>
+                                            <span className="sm:hidden">Sync</span>
+                                        </button>
+                                        {tickets_sheet_url && (
+                                            <a
+                                                href={tickets_sheet_url}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="flex items-center gap-1.5 p-2 rounded-xl bg-[#1C1B0E] hover:bg-[#2A281E] text-emerald-300 border border-emerald-500/30 transition-colors shrink-0"
+                                                title={t('ticket_open_sheet_btn')}
+                                            >
+                                                <ExternalLink className="w-4 h-4" />
+                                            </a>
+                                        )}
+                                    </>
+                                )}
+                            </div>
                         </div>
                     </div>
 
