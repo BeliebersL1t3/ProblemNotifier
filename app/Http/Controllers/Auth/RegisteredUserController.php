@@ -229,6 +229,16 @@ class RegisteredUserController extends Controller
             $otherConflict->update(['whatsapp_number' => null]);
         }
 
+        $availableSubs = User::getSubdivisionsForDepartment($request->department);
+        if (count($availableSubs) > 1 && empty($request->subdivision)) {
+            return back()->withErrors([
+                'subdivision' => "Staf di departemen {$request->department} wajib memilih salah satu unit kerja / subdivisi spesifik."
+            ]);
+        }
+        $subdivision = (count($availableSubs) === 1 && empty($request->subdivision))
+            ? $availableSubs[0]
+            : $request->subdivision;
+
         $isReRegistration = false;
 
         if ($existingUser && $existingUser->approval_status === 'rejected') {
@@ -237,7 +247,7 @@ class RegisteredUserController extends Controller
                 'name'                    => $request->name,
                 'password'                => Hash::make($request->password),
                 'department'              => $request->department,
-                'subdivision'             => $request->subdivision,
+                'subdivision'             => $subdivision,
                 'whatsapp_number'         => $zeroPhone,
                 'role'                    => 'department',
                 'is_active'               => false,
@@ -256,7 +266,7 @@ class RegisteredUserController extends Controller
                 'USER_RE_REGISTERED',
                 [
                     'department'      => $request->department,
-                    'subdivision'     => $request->subdivision,
+                    'subdivision'     => $subdivision,
                     'whatsapp_number' => $zeroPhone,
                     'note'            => 'Pengguna mendaftar ulang setelah pendaftaran sebelumnya ditolak.',
                 ]
@@ -267,7 +277,7 @@ class RegisteredUserController extends Controller
                 'email'                   => $request->email,
                 'password'                => Hash::make($request->password),
                 'department'              => $request->department,
-                'subdivision'             => $request->subdivision,
+                'subdivision'             => $subdivision,
                 'whatsapp_number'         => $zeroPhone,
                 'role'                    => 'department',
                 'is_active'               => false,

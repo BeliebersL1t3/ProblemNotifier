@@ -113,15 +113,16 @@ export default function Register() {
     };
 
     const normDept = normalizeDepartment(data.department);
-    const rawSubs = data.department 
+    const availableSubdivisions = data.department 
         ? (DEPARTMENT_SUBDIVISIONS[normDept] || DEPARTMENT_SUBDIVISIONS[data.department] || [])
         : [];
-    const specificSubdivisions = rawSubs.filter(
-        s => s.toLowerCase() !== (data.department || '').toLowerCase() && s.toLowerCase() !== normDept.toLowerCase()
-    );
 
     const submit = (e) => {
         e.preventDefault();
+
+        if (availableSubdivisions.length > 1 && !data.subdivision) {
+            return;
+        }
 
         const formatError = getPhoneFormatError(data.whatsapp_number);
         if (formatError) {
@@ -183,10 +184,12 @@ export default function Register() {
                         className="mt-1 block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500 bg-white text-gray-900 font-medium py-2 px-3"
                         onChange={(e) => {
                             const val = e.target.value;
+                            const norm = normalizeDepartment(val);
+                            const subs = val ? (DEPARTMENT_SUBDIVISIONS[norm] || DEPARTMENT_SUBDIVISIONS[val] || []) : [];
                             setData(prev => ({
                                 ...prev,
                                 department: val,
-                                subdivision: '',
+                                subdivision: subs.length === 1 ? subs[0] : '',
                             }));
                         }}
                         required
@@ -202,22 +205,31 @@ export default function Register() {
                 </div>
 
                 <div>
-                    <InputLabel htmlFor="subdivision" value="Subdivisi (Opsional)" />
-                    {specificSubdivisions.length > 0 ? (
+                    <InputLabel 
+                        htmlFor="subdivision" 
+                        value={availableSubdivisions.length > 1 ? "Subdivisi / Unit Spesifik * (Wajib)" : "Subdivisi / Unit Spesifik"} 
+                    />
+                    {availableSubdivisions.length > 1 ? (
                         <select
                             id="subdivision"
                             name="subdivision"
                             value={data.subdivision}
+                            required
                             className="mt-1 block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500 bg-white text-gray-900 font-medium py-2 px-3"
                             onChange={(e) => setData('subdivision', e.target.value)}
                         >
-                            <option value="" className="text-gray-500 bg-white">-- Tanpa Subdivisi Khusus ({data.department}) --</option>
-                            {specificSubdivisions.map((sub) => (
+                            <option value="" className="text-gray-500 bg-white">-- Pilih Unit Spesifik (Wajib) --</option>
+                            {availableSubdivisions.map((sub) => (
                                 <option key={sub} value={sub} className="text-gray-900 bg-white">
                                     {sub}
                                 </option>
                             ))}
                         </select>
+                    ) : availableSubdivisions.length === 1 ? (
+                        <div className="mt-1 flex items-center justify-between py-2 px-3 rounded-md bg-gray-50 border border-gray-200 text-sm text-gray-800">
+                            <span className="font-semibold">{availableSubdivisions[0]}</span>
+                            <span className="text-xs text-gray-500 italic">(Unit Tunggal Departemen)</span>
+                        </div>
                     ) : (
                         <select
                             id="subdivision"

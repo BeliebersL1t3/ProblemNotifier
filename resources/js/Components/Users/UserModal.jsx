@@ -134,7 +134,24 @@ export function UserModal({ isOpen, onClose, user = null, onSaved }) {
             return;
         }
 
+        if (role !== 'admin') {
+            if (!department) {
+                setErrorMessage('Departemen induk wajib dipilih.');
+                setActiveTab('role');
+                return;
+            }
+            if (!isHod && availableSubdivisions.length > 1 && !subdivision.trim()) {
+                setErrorMessage(`Staf biasa wajib memilih salah satu unit kerja / subdivisi di bawah departemen ${department}.`);
+                setActiveTab('role');
+                return;
+            }
+        }
+
         setLoading(true);
+
+        const effectiveSubdivision = role === 'admin' 
+            ? null 
+            : (availableSubdivisions.length === 1 ? availableSubdivisions[0] : (subdivision || null));
 
         const payload = {
             name,
@@ -142,7 +159,7 @@ export function UserModal({ isOpen, onClose, user = null, onSaved }) {
             email,
             role,
             department: role === 'admin' ? null : department,
-            subdivision: role === 'admin' ? null : subdivision,
+            subdivision: effectiveSubdivision,
             whatsapp_number: whatsappNumber,
             is_hod: role === 'admin' ? false : isHod,
             hod_title: (role !== 'admin' && isHod) ? hodTitle : null,
@@ -382,8 +399,14 @@ export function UserModal({ isOpen, onClose, user = null, onSaved }) {
                                         <select
                                             value={department}
                                             onChange={e => {
-                                                setDepartment(e.target.value);
-                                                setSubdivision('');
+                                                const newDept = e.target.value;
+                                                setDepartment(newDept);
+                                                const subs = newDept && SUBDEPARTMENTS[newDept] ? SUBDEPARTMENTS[newDept] : [];
+                                                if (subs.length === 1) {
+                                                    setSubdivision(subs[0]);
+                                                } else {
+                                                    setSubdivision('');
+                                                }
                                             }}
                                             className="w-full rounded-xl bg-[#1C1B0E] border border-[#3B3929] px-3.5 py-2.5 text-xs font-medium text-[#FAFAFA] focus:border-[#C9AA71] focus:outline-none"
                                         >
@@ -396,22 +419,54 @@ export function UserModal({ isOpen, onClose, user = null, onSaved }) {
 
                                     {availableSubdivisions.length > 0 && (
                                         <div>
-                                            <label className="block text-xs font-bold text-[#A19F8D] uppercase tracking-wider mb-1">
-                                                Subdivisi / Unit Spesifik (Opsional)
-                                            </label>
-                                            <select
-                                                value={subdivision}
-                                                onChange={e => setSubdivision(e.target.value)}
-                                                className="w-full rounded-xl bg-[#1C1B0E] border border-[#3B3929] px-3.5 py-2.5 text-xs font-medium text-[#FAFAFA] focus:border-[#C9AA71] focus:outline-none"
-                                            >
-                                                <option value="">Semua Subdivisi ({department})</option>
-                                                {availableSubdivisions.map(s => (
-                                                    <option key={s} value={s}>{s}</option>
-                                                ))}
-                                            </select>
-                                            <p className="text-[11px] text-[#A19F8D] mt-1">
-                                                Contoh: Legal / Transportasi di bawah HR, atau Bar / Spa di bawah GR.
-                                            </p>
+                                            <div className="flex items-center justify-between mb-1">
+                                                <label className="block text-xs font-bold text-[#A19F8D] uppercase tracking-wider">
+                                                    Subdivisi / Unit Spesifik {availableSubdivisions.length > 1 && !isHod ? (
+                                                        <span className="text-red-400 font-extrabold">* (Wajib)</span>
+                                                    ) : (isHod ? (
+                                                        <span className="text-[#C9AA71] font-normal normal-case">(Opsional untuk HOD)</span>
+                                                    ) : (
+                                                        <span className="text-emerald-400 font-normal normal-case">(Otomatis)</span>
+                                                    ))}
+                                                </label>
+                                                {availableSubdivisions.length > 1 && !isHod && (
+                                                    <span className="text-[10px] text-amber-400 font-medium">Wajib pilih unit kerja</span>
+                                                )}
+                                            </div>
+
+                                            {availableSubdivisions.length === 1 ? (
+                                                <div className="flex items-center gap-2 p-2.5 rounded-xl bg-[#1C1B0E]/80 border border-[#3B3929] text-xs text-[#FAFAFA]">
+                                                    <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
+                                                    <span className="font-semibold">{availableSubdivisions[0]}</span>
+                                                    <span className="text-[10px] text-[#A19F8D] italic ml-auto">(Unit Tunggal Departemen)</span>
+                                                </div>
+                                            ) : (
+                                                <>
+                                                    <select
+                                                        value={subdivision}
+                                                        onChange={e => setSubdivision(e.target.value)}
+                                                        className={`w-full rounded-xl bg-[#1C1B0E] border px-3.5 py-2.5 text-xs font-medium text-[#FAFAFA] focus:outline-none transition-all ${
+                                                            !isHod && !subdivision
+                                                                ? 'border-amber-500/60 focus:border-amber-400 ring-1 ring-amber-500/30'
+                                                                : 'border-[#3B3929] focus:border-[#C9AA71]'
+                                                        }`}
+                                                    >
+                                                        {isHod ? (
+                                                            <option value="">Semua Subdivisi (Seluruh {department})</option>
+                                                        ) : (
+                                                            <option value="">-- Pilih Unit Spesifik (Wajib) --</option>
+                                                        )}
+                                                        {availableSubdivisions.map(s => (
+                                                            <option key={s} value={s}>{s}</option>
+                                                        ))}
+                                                    </select>
+                                                    <p className="text-[11px] text-[#A19F8D] mt-1">
+                                                        {isHod
+                                                            ? `Sebagai HOD, Anda dapat memilih "Semua Subdivisi" untuk memegang wewenang seluruh ${department}, atau pilih unit khusus jika diperlukan.`
+                                                            : `Staf operasional ${department} wajib ditempatkan pada salah satu unit kerja spesifik.`}
+                                                    </p>
+                                                </>
+                                            )}
                                         </div>
                                     )}
 

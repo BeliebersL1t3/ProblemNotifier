@@ -42,6 +42,34 @@ class User extends Authenticatable
         'google_token_expires_at',
     ];
 
+    public const DEPARTMENT_SUBDIVISIONS = [
+        'HR'          => ['HR', 'Legal', 'LnD', 'Transportasi', 'Tekong'],
+        'GR'          => ['GRE', 'Service', 'TIrek', 'Spa', 'Bar'],
+        'OE'          => ['OE'],
+        'Kitchen'     => ['Kitchen'],
+        'HK'          => ['HK', 'Pest Control'],
+        'IT'          => ['IT'],
+        'Procurement' => ['Procurement'],
+        'Finance'     => ['Finance'],
+        'Reservasi'   => ['Reservasi', 'Sales', 'Marketing'],
+        'Engineer'    => ['Engineer'],
+        'Fasilitas'   => ['Fasilitas', 'Security'],
+    ];
+
+    public static function getSubdivisionsForDepartment(?string $department): array
+    {
+        if (empty($department)) {
+            return [];
+        }
+        $deptTrim = trim($department);
+        foreach (self::DEPARTMENT_SUBDIVISIONS as $deptKey => $subs) {
+            if (strcasecmp($deptKey, $deptTrim) === 0) {
+                return $subs;
+            }
+        }
+        return [];
+    }
+
     protected $appends = [
         'avatar_url',
         'is_dummy_email',

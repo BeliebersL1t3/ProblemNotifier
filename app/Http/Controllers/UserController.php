@@ -209,6 +209,21 @@ class UserController extends Controller
 
         $role = $validated['role'];
         $permissions = $validated['permissions'] ?? self::getDefaultPermissions($role);
+        $isHod = $request->boolean('is_hod');
+        $department = $validated['department'] ?? null;
+        $subdivision = $validated['subdivision'] ?? null;
+
+        if ($role !== 'admin' && !empty($department)) {
+            $availableSubs = User::getSubdivisionsForDepartment($department);
+            if (!$isHod && count($availableSubs) > 1 && empty($subdivision)) {
+                return back()->withErrors([
+                    'subdivision' => "Staf biasa di departemen {$department} wajib memilih salah satu unit kerja / subdivisi spesifik."
+                ]);
+            }
+            if (count($availableSubs) === 1 && empty($subdivision)) {
+                $subdivision = $availableSubs[0];
+            }
+        }
 
         // Normalize WhatsApp phone to 08...
         $cleanPhone = !empty($validated['whatsapp_number']) 
@@ -235,10 +250,10 @@ class UserController extends Controller
             'password'        => Hash::make($validated['password']),
             'raw_password'    => $validated['password'],
             'role'            => $role,
-            'department'      => $validated['department'] ?? null,
-            'subdivision'     => $validated['subdivision'] ?? null,
+            'department'      => $department,
+            'subdivision'     => $subdivision,
             'whatsapp_number' => $cleanPhone,
-            'is_hod'          => $request->boolean('is_hod'),
+            'is_hod'          => $isHod,
             'hod_title'       => $validated['hod_title'] ?? null,
             'approval_status' => 'approved',
             'is_active'       => true,
@@ -380,9 +395,27 @@ class UserController extends Controller
             }
         }
 
-        $user->role = $validated['role'];
-        $user->department = $validated['department'] ?? null;
-        $user->subdivision = $validated['subdivision'] ?? null;
+        $newRole = $validated['role'];
+        $newIsHod = $request->has('is_hod') ? $request->boolean('is_hod') : (bool) $user->is_hod;
+        $department = $validated['department'] ?? null;
+        $subdivision = $validated['subdivision'] ?? null;
+
+        if ($newRole !== 'admin' && !empty($department)) {
+            $availableSubs = User::getSubdivisionsForDepartment($department);
+            if (!$newIsHod && count($availableSubs) > 1 && empty($subdivision)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "Staf biasa di departemen {$department} wajib memilih salah satu unit kerja / subdivisi spesifik.",
+                ], 422);
+            }
+            if (count($availableSubs) === 1 && empty($subdivision)) {
+                $subdivision = $availableSubs[0];
+            }
+        }
+
+        $user->role = $newRole;
+        $user->department = $department;
+        $user->subdivision = $subdivision;
         $user->whatsapp_number = $cleanPhone;
         if (empty($cleanPhone)) {
             $user->notify_whatsapp_tickets = false;
