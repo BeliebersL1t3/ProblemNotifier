@@ -1739,7 +1739,7 @@ function AnalyticsInner() {
 
                 {/* Matrix Cards Grid */}
                 {allRelatedMatrixData.length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 max-h-[560px] overflow-y-auto pr-1">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5 max-h-[640px] overflow-y-auto pr-1">
                         {allRelatedMatrixData.map((item) => {
                             const isSelected = selectedDepartmentFilters.some(d => d.toLowerCase() === item.name.toLowerCase());
                             const deptColor = getDepartmentColor(item.name);
@@ -2174,119 +2174,143 @@ function AnalyticsInner() {
                     </div>
                 </div>
 
-                {/* Charts Section */}
-                <div ref={chartsContainerRef} className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {/* Category Chart */}
-                    <div className="chart-card bg-surface p-6 rounded-2xl shadow-sm border border-border/50 flex flex-col items-center">
-                        <div className="flex items-center justify-between w-full mb-2 flex-wrap gap-2">
-                            <h2 className="text-lg font-bold text-foreground">{t('issues_by_category')}</h2>
+                {/* Charts Section: Vertical Stack (Category Chart Top, Department Chart Bottom) */}
+                <div ref={chartsContainerRef} className="flex flex-col gap-6">
+                    {/* Category Chart (Full-width with Split Donut + Interactive Legend) */}
+                    <div className="chart-card bg-surface p-5 sm:p-6 rounded-2xl shadow-sm border border-border/50 flex flex-col">
+                        <div className="flex items-center justify-between w-full mb-1 flex-wrap gap-2">
+                            <div>
+                                <h2 className="text-lg font-bold text-foreground">{t('issues_by_category')}</h2>
+                                <p className="text-xs text-muted-foreground mt-0.5">
+                                    {lang === 'id' 
+                                        ? 'Klik bagian lingkaran atau daftar kategori di samping untuk menyaring aktivitas laporan' 
+                                        : 'Click pie slice or category card to filter activity log'}
+                                </p>
+                            </div>
                             {selectedCategoryFilters.length > 0 && (
                                 <button
                                     type="button"
                                     onClick={() => setSelectedCategoryFilters([])}
-                                    className="text-xs font-semibold text-[#C9AA71] hover:underline cursor-pointer"
+                                    className="text-xs font-semibold text-[#C9AA71] hover:underline cursor-pointer bg-[#2A281E] px-2.5 py-1 rounded-lg border border-[#3B3929] transition-all"
                                 >
                                     ✕ {lang === 'id' ? 'Reset Kategori' : 'Reset Category'}
                                 </button>
                             )}
                         </div>
-                        <p className="text-xs text-muted-foreground w-full mb-3">
-                            {lang === 'id' ? 'Klik bagian lingkaran untuk memfilter aktivitas laporan menurut kategori' : 'Click pie slice to filter activity log by category'}
-                        </p>
-                        <div className="relative w-full h-[300px] flex items-center justify-center">
-                            {categoryData.length > 0 ? (
-                                chartsVisible && (
-                                    <>
-                                        <ResponsiveContainer width="100%" height="100%">
-                                            <PieChart>
-                                                <Pie
-                                                    data={categoryData}
-                                                    cx="50%"
-                                                    cy="50%"
-                                                    innerRadius={65}
-                                                    outerRadius={112}
-                                                    paddingAngle={3}
-                                                    dataKey="value"
-                                                    labelLine={false}
-                                                    label={<CustomCategoryPieLabel />}
-                                                    isAnimationActive={true}
-                                                    onClick={(entry) => handleCategoryPieClick(entry)}
-                                                    cursor="pointer"
-                                                >
-                                                    {categoryData.map((entry, index) => {
-                                                        const isSelected = selectedCategoryFilters.some(c => c.toLowerCase() === entry.id.toLowerCase());
-                                                        return (
-                                                            <Cell 
-                                                                key={`cell-${index}`} 
-                                                                fill={getCategoryColor(entry.id, index)}
-                                                                stroke={isSelected ? '#F59E0B' : '#1C1B0E'}
-                                                                strokeWidth={isSelected ? 3.5 : 1}
-                                                                opacity={selectedCategoryFilters.length > 0 ? (isSelected ? 1 : 0.35) : 1}
-                                                                style={{ cursor: 'pointer', transition: 'all 0.2s ease' }}
-                                                            />
-                                                        );
-                                                    })}
-                                                </Pie>
-                                                <RechartsTooltip 
-                                                    contentStyle={{ 
-                                                        backgroundColor: '#2A281E', 
-                                                        borderColor: '#3B3929', 
-                                                        borderRadius: '10px', 
-                                                        color: '#FAFAFA',
-                                                        boxShadow: '0 6px 20px rgba(0, 0, 0, 0.45)',
-                                                        padding: '8px 12px' 
-                                                    }}
-                                                    itemStyle={{ color: '#FAFAFA', fontWeight: 'bold' }}
-                                                    labelStyle={{ color: '#C9AA71', fontWeight: 'bold' }}
-                                                    formatter={(value, name) => [`${value} issue${value !== 1 ? 's' : ''}`, name]}
-                                                />
-                                            </PieChart>
-                                        </ResponsiveContainer>
 
-                                        {/* Center Hole Summary */}
-                                        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                                            <span className="text-3xl font-black text-foreground tracking-tight">
-                                                {categoryData.reduce((acc, curr) => acc + curr.value, 0)}
-                                            </span>
-                                            <span className="text-[10px] font-extrabold text-muted-foreground uppercase tracking-widest mt-0.5">
-                                                {t('total_issues')}
-                                            </span>
-                                        </div>
-                                    </>
-                                )
-                            ) : (
-                                <div className="flex h-full items-center justify-center text-muted-foreground">{t('no_data')}</div>
-                            )}
-                        </div>
+                        {categoryData.length > 0 ? (
+                            <div className="flex flex-col lg:flex-row items-center justify-between gap-6 lg:gap-10 pt-3">
+                                {/* Left: Donut Chart */}
+                                <div className="relative w-full lg:w-[320px] h-[260px] sm:h-[280px] shrink-0 flex items-center justify-center">
+                                    {chartsVisible && (
+                                        <>
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <PieChart>
+                                                    <Pie
+                                                        data={categoryData}
+                                                        cx="50%"
+                                                        cy="50%"
+                                                        innerRadius={65}
+                                                        outerRadius={108}
+                                                        paddingAngle={3}
+                                                        dataKey="value"
+                                                        labelLine={false}
+                                                        label={<CustomCategoryPieLabel />}
+                                                        isAnimationActive={true}
+                                                        onClick={(entry) => handleCategoryPieClick(entry)}
+                                                        cursor="pointer"
+                                                    >
+                                                        {categoryData.map((entry, index) => {
+                                                            const isSelected = selectedCategoryFilters.some(c => c.toLowerCase() === entry.id.toLowerCase());
+                                                            return (
+                                                                <Cell 
+                                                                    key={`cell-${index}`} 
+                                                                    fill={getCategoryColor(entry.id, index)}
+                                                                    stroke={isSelected ? '#F59E0B' : '#1C1B0E'}
+                                                                    strokeWidth={isSelected ? 3.5 : 1}
+                                                                    opacity={selectedCategoryFilters.length > 0 ? (isSelected ? 1 : 0.35) : 1}
+                                                                    style={{ cursor: 'pointer', transition: 'all 0.2s ease' }}
+                                                                />
+                                                            );
+                                                        })}
+                                                    </Pie>
+                                                    <RechartsTooltip 
+                                                        contentStyle={{ 
+                                                            backgroundColor: '#2A281E', 
+                                                            borderColor: '#3B3929', 
+                                                            borderRadius: '10px', 
+                                                            color: '#FAFAFA',
+                                                            boxShadow: '0 6px 20px rgba(0, 0, 0, 0.45)',
+                                                            padding: '8px 12px' 
+                                                        }}
+                                                        itemStyle={{ color: '#FAFAFA', fontWeight: 'bold' }}
+                                                        labelStyle={{ color: '#C9AA71', fontWeight: 'bold' }}
+                                                        formatter={(value, name) => [`${value} issue${value !== 1 ? 's' : ''}`, name]}
+                                                    />
+                                                </PieChart>
+                                            </ResponsiveContainer>
 
-                        {/* Category Filter Chips / Legend */}
-                        {categoryData.length > 0 && (
-                            <div className="flex flex-wrap items-center justify-center gap-1.5 mt-3 pt-3 border-t border-border/40 w-full text-xs">
-                                {categoryData.map((cat, idx) => {
-                                    const isSelected = selectedCategoryFilters.some(c => c.toLowerCase() === cat.id.toLowerCase());
-                                    return (
-                                        <button
-                                            key={cat.id}
-                                            type="button"
-                                            onClick={() => handleCategoryPieClick(cat)}
-                                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-all cursor-pointer ${
-                                                isSelected
-                                                    ? 'bg-amber-500/25 text-amber-300 border-amber-400 shadow-sm ring-1 ring-amber-400/50'
-                                                    : 'bg-[#2A281E]/60 text-muted-foreground border-transparent hover:border-[#3B3929] hover:text-foreground'
-                                            }`}
-                                        >
-                                            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: getCategoryColor(cat.id, idx) }} />
-                                            <span>{cat.name}</span>
-                                            <span className="opacity-70 font-mono text-[10px]">({cat.value})</span>
-                                        </button>
-                                    );
-                                })}
+                                            {/* Center Hole Summary */}
+                                            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                                                <span className="text-3xl font-black text-foreground tracking-tight">
+                                                    {categoryData.reduce((acc, curr) => acc + curr.value, 0)}
+                                                </span>
+                                                <span className="text-[10px] font-extrabold text-muted-foreground uppercase tracking-widest mt-0.5">
+                                                    {t('total_issues')}
+                                                </span>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+
+                                {/* Right: Interactive Category Breakdown Grid */}
+                                <div className="w-full flex-1 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2.5">
+                                    {categoryData.map((cat, idx) => {
+                                        const totalCatIssues = categoryData.reduce((acc, curr) => acc + curr.value, 0);
+                                        const pct = totalCatIssues > 0 ? Math.round((cat.value / totalCatIssues) * 100) : 0;
+                                        const isSelected = selectedCategoryFilters.some(c => c.toLowerCase() === cat.id.toLowerCase());
+                                        const catColor = getCategoryColor(cat.id, idx);
+
+                                        return (
+                                            <button
+                                                key={cat.id}
+                                                type="button"
+                                                onClick={() => handleCategoryPieClick(cat)}
+                                                className={`flex items-center justify-between p-2.5 rounded-xl border transition-all text-left cursor-pointer select-none ${
+                                                    isSelected
+                                                        ? 'bg-[#2A281E] border-[#C9AA71] ring-2 ring-[#C9AA71]/40 shadow-md'
+                                                        : 'bg-[#232118] border-[#3B3929] hover:border-[#5A5540] hover:bg-[#28261C]'
+                                                } ${selectedCategoryFilters.length > 0 && !isSelected ? 'opacity-40' : 'opacity-100'}`}
+                                            >
+                                                <div className="flex items-center gap-2.5 min-w-0 pr-2">
+                                                    <span 
+                                                        className="w-3 h-3 rounded-full shrink-0 shadow-xs" 
+                                                        style={{ backgroundColor: catColor }} 
+                                                    />
+                                                    <span className="font-semibold text-xs text-foreground truncate" title={cat.name}>
+                                                        {cat.name}
+                                                    </span>
+                                                </div>
+                                                <div className="flex items-center gap-1.5 shrink-0">
+                                                    <span className="font-mono font-bold text-xs text-[#FAFAFA] bg-[#1C1B0E] px-2 py-0.5 rounded border border-[#3B3929]">
+                                                        {cat.value}
+                                                    </span>
+                                                    <span className="text-[10.5px] text-muted-foreground font-mono w-9 text-right">
+                                                        {pct}%
+                                                    </span>
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
                             </div>
+                        ) : (
+                            <div className="flex h-48 items-center justify-center text-muted-foreground">{t('no_data')}</div>
                         )}
                     </div>
 
-                    {/* Department Chart */}
-                    <div className="chart-card bg-surface p-6 rounded-2xl shadow-sm border border-border/50 flex flex-col items-center">
+                    {/* Department Chart (Full Width at Bottom) */}
+                    <div className="chart-card bg-surface p-5 sm:p-6 rounded-2xl shadow-sm border border-border/50 flex flex-col">
 
 
                         <div className="flex items-center justify-between w-full mb-4 gap-2 flex-wrap">
@@ -2503,15 +2527,15 @@ function AnalyticsInner() {
                         {deptFilterMode === 'all' && allRelatedViewType === 'matrix' ? (
                             renderAllRelatedMatrixCards()
                         ) : (
-                            <div className={`w-full ${departmentData.length > 6 ? 'h-[335px]' : 'h-[310px]'}`}>
+                            <div className={`w-full ${departmentData.length > 6 ? 'h-[360px] sm:h-[400px]' : 'h-[330px] sm:h-[360px]'}`}>
                             {departmentData.length > 0 ? (
                                 chartsVisible && (
                                     <ResponsiveContainer width="100%" height="100%">
                                         <BarChart 
                                             data={departmentData} 
-                                            margin={{ top: 22, right: 10, left: -15, bottom: departmentData.length > 6 ? 15 : 0 }}
-                                            barCategoryGap="22%"
-                                            barGap={3}
+                                            margin={{ top: 24, right: 15, left: -15, bottom: departmentData.length > 6 ? 15 : 5 }}
+                                            barCategoryGap="18%"
+                                            barGap={4}
                                         >
                                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#3B3929" />
                                             <XAxis 
