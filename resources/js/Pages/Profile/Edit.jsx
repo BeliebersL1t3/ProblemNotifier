@@ -1586,11 +1586,21 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, notifyWhatsAppTick
                         <div className="p-3 rounded-xl bg-[#1C1B0E]/80 border border-[#3B3929] text-[11px] text-[#A19F8D] space-y-1 leading-relaxed">
                             <p className="font-bold text-[#C9AA71] flex items-center gap-1.5">
                                 <ShieldAlert className="w-3.5 h-3.5 text-[#C9AA71]" />
-                                Alur Persetujuan Bertingkat:
+                                {isHOD ? 'Alur Persetujuan Mutasi Pimpinan:' : 'Alur Persetujuan Bertingkat:'}
                             </p>
-                            <p>1. Permohonan akan ditinjau & diverifikasi oleh <strong>HOD Departemen {department}</strong>.</p>
-                            <p>2. Setelah disetujui HOD, <strong>Admin Resort</strong> akan memberikan ACC final.</p>
-                            <p>3. Riwayat isu yang pernah Anda tangani sebelumnya tetap dapat dilihat (Read-Only).</p>
+                            {isHOD ? (
+                                <>
+                                    <p>1. Sebagai <strong>Head of Department (HOD)</strong>, tiket Anda otomatis langsung diteruskan ke <strong>Admin Resort</strong> untuk ACC final.</p>
+                                    <p>2. Admin Resort akan menentukan penetapan status pimpinan Anda di departemen baru.</p>
+                                    <p>3. Riwayat isu yang pernah Anda tangani sebelumnya tetap dapat dilihat (Read-Only).</p>
+                                </>
+                            ) : (
+                                <>
+                                    <p>1. Permohonan akan ditinjau & diverifikasi oleh <strong>HOD Departemen {department}</strong>.</p>
+                                    <p>2. Setelah disetujui HOD, <strong>Admin Resort</strong> akan memberikan ACC final.</p>
+                                    <p>3. Riwayat isu yang pernah Anda tangani sebelumnya tetap dapat dilihat (Read-Only).</p>
+                                </>
+                            )}
                         </div>
 
                         {/* Footer Buttons */}

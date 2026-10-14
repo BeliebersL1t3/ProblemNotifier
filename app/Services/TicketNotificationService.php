@@ -218,12 +218,17 @@ class TicketNotificationService
      */
     public static function notifyAdmins(ApprovalTicket $ticket, string $actionTitle): void
     {
+        $isDirectHodTransfer = ($ticket->type === 'department_transfer' && !$ticket->hod_id);
+        $targetDisplay = str_replace('::', ' - ', $ticket->requested_value ?: '-');
+
         // 1. In-app notification for Admins
         self::createDashboardNotification([
             'role_target' => 'admin',
             'type' => 'ticket_request',
             'title' => "Tiket Menunggu ACC Admin: {$actionTitle} ({$ticket->ticket_number})",
-            'message' => "Tiket {$ticket->ticket_number} ({$ticket->staff_name} - {$ticket->department}) telah disetujui HOD dan menunggu ACC final Admin.",
+            'message' => $isDirectHodTransfer
+                ? "HoD {$ticket->staff_name} ({$ticket->department} ➔ {$targetDisplay}) mengajukan pindah departemen. Menunggu ACC final Admin."
+                : "Tiket {$ticket->ticket_number} ({$ticket->staff_name} - {$ticket->department}) telah disetujui HOD dan menunggu ACC final Admin.",
             'link' => "/tickets?id={$ticket->id}",
         ]);
 
@@ -234,12 +239,22 @@ class TicketNotificationService
             ->get();
 
         foreach ($admins as $admin) {
-            $msg = "👑 *Pemberitahuan Tiket Menunggu ACC Final Admin*\n\n"
-                 . "Tipe: *{$actionTitle}*\n"
-                 . "Nomor: *{$ticket->ticket_number}*\n"
-                 . "Staf: *{$ticket->staff_name}* ({$ticket->department})\n"
-                 . "Catatan HOD: " . ($ticket->hod_notes ?: '-') . "\n\n"
-                 . "Silakan login ke Web Dashboard untuk memberikan persetujuan final.";
+            if ($isDirectHodTransfer) {
+                $msg = "👑 *Permohonan Pindah Departemen (HOD)*\n\n"
+                     . "Nomor Tiket: *#{$ticket->ticket_number}*\n"
+                     . "Pemohon: *{$ticket->staff_name}* (HOD {$ticket->department})\n"
+                     . "Departemen Tujuan: *{$targetDisplay}*\n"
+                     . "Alasan: " . ($ticket->reason ?: '-') . "\n\n"
+                     . "Status: Menunggu ACC Final Admin (Tersedia opsi penetapan status HOD di departemen baru).\n"
+                     . "Silakan login ke Web Dashboard untuk meninjau tiket.";
+            } else {
+                $msg = "👑 *Pemberitahuan Tiket Menunggu ACC Final Admin*\n\n"
+                     . "Tipe: *{$actionTitle}*\n"
+                     . "Nomor: *{$ticket->ticket_number}*\n"
+                     . "Staf: *{$ticket->staff_name}* ({$ticket->department})\n"
+                     . "Catatan HOD: " . ($ticket->hod_notes ?: '-') . "\n\n"
+                     . "Silakan login ke Web Dashboard untuk memberikan persetujuan final.";
+            }
             self::sendWhatsApp($admin->whatsapp_number, $msg);
         }
     }

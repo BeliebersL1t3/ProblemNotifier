@@ -33,7 +33,8 @@ function TicketsInner({
     pendingAdminCount = 0, 
     adminApprovedCount = 0,
     myTicketsCount = 0,
-    myPendingCount = 0 
+    myPendingCount = 0,
+    departmentHods = {}
 }) {
     const { t, lang } = useLanguage();
     const { user: currentUser } = useAuth();
@@ -51,6 +52,7 @@ function TicketsInner({
         role: null,   // 'hod' | 'admin'
         notes: '',
         rejectionReason: '',
+        assignAsHod: false,
         processing: false,
         error: '',
     });
@@ -122,7 +124,15 @@ function TicketsInner({
         });
     };
 
+    const getTargetDeptFromTicket = (ticket) => {
+        if (!ticket?.requested_value) return '';
+        const parts = ticket.requested_value.split('::');
+        return parts[0]?.trim() || '';
+    };
+
     const openActionModal = (ticket, action, role) => {
+        // If ticket is department_transfer and role is admin, default assignAsHod to applicant's current is_hod status
+        const isApplicantHod = Boolean(ticket?.user?.is_hod);
         setActionModal({
             isOpen: true,
             ticket,
@@ -130,6 +140,7 @@ function TicketsInner({
             role,
             notes: '',
             rejectionReason: '',
+            assignAsHod: isApplicantHod,
             processing: false,
             error: '',
         });
@@ -143,6 +154,7 @@ function TicketsInner({
             role: null,
             notes: '',
             rejectionReason: '',
+            assignAsHod: false,
             processing: false,
             error: '',
         });
@@ -167,6 +179,9 @@ function TicketsInner({
             action,
             notes,
             rejection_reason: rejectionReason,
+            assign_as_hod: (role === 'admin' && ticket.type === 'department_transfer' && action === 'approve')
+                ? actionModal.assignAsHod
+                : undefined,
         }, {
             onSuccess: () => {
                 closeActionModal();
@@ -837,6 +852,11 @@ function TicketsInner({
                                                         <div className="flex items-center gap-2">
                                                             <span className="text-[#A19F8D]">{t('ticket_origin_dept')}:</span>
                                                             <span className="font-semibold text-[#FAFAFA]">{ticket.current_value || ticket.department}</span>
+                                                            {ticket.user?.is_hod && (
+                                                                <span className="px-1.5 py-0.5 rounded text-[10px] bg-[#C9AA71]/20 text-[#E3D1AA] font-bold border border-[#C9AA71]/30">
+                                                                    HOD
+                                                                </span>
+                                                            )}
                                                         </div>
                                                         <div className="flex items-center gap-2">
                                                             <span className="text-[#A19F8D]">{t('ticket_target_dept')}:</span>
@@ -866,12 +886,19 @@ function TicketsInner({
                                                             <span className="text-emerald-400 font-semibold flex items-center gap-1">
                                                                 <Check className="w-3 h-3" /> {t('ticket_completed')}
                                                             </span>
+                                                        ) : (ticket.type === 'department_transfer' && ticket.user?.is_hod && !ticket.hod_id) ? (
+                                                            <span className="text-teal-400 font-semibold flex items-center gap-1">
+                                                                <Check className="w-3 h-3" /> {lang === 'id' ? 'Bypass (Pemohon HOD)' : 'Bypassed (HOD Applicant)'}
+                                                            </span>
                                                         ) : (
                                                             <span className="text-amber-400 font-medium">{t('ticket_status_pending_hod')}</span>
                                                         )}
                                                     </div>
                                                     {ticket.hod && <p className="text-[#A19F8D]">{t('ticket_by_label')}: {ticket.hod.name}</p>}
                                                     {ticket.hod_notes && <p className="text-[#E3D1AA] italic">"{ticket.hod_notes}"</p>}
+                                                    {ticket.type === 'department_transfer' && ticket.user?.is_hod && !ticket.hod_id && (
+                                                        <p className="text-[#A19F8D] italic">{lang === 'id' ? 'Permohonan HOD langsung ke Admin' : 'HOD request routed directly to Admin'}</p>
+                                                    )}
                                                 </div>
 
                                                 {/* Step 2: Admin ACC */}
@@ -1008,6 +1035,100 @@ function TicketsInner({
                                     <strong className="text-[#FAFAFA]">{t('ticket_modal_type')}:</strong> {getTypeBadge(actionModal.ticket?.type)}
                                 </p>
                             </div>
+
+                            {actionModal.action === 'approve' && actionModal.role === 'admin' && actionModal.ticket?.type === 'department_transfer' && (() => {
+                                const targetDept = getTargetDeptFromTicket(actionModal.ticket);
+                                const existingHods = departmentHods[targetDept] || [];
+                                const isApplicantCurrentHod = Boolean(actionModal.ticket?.user?.is_hod);
+
+                                return (
+                                    <div className="p-3.5 rounded-xl bg-[#1C1B0E] border border-[#3B3929] space-y-3">
+                                        <div className="flex items-center justify-between">
+                                            <label className="text-xs font-bold text-[#E3D1AA] flex items-center gap-1.5">
+                                                <Crown className="w-4 h-4 text-[#C9AA71]" />
+                                                <span>{lang === 'id' ? 'Penetapan Peran di Departemen Baru:' : 'Role Assignment in Target Dept:'}</span>
+                                            </label>
+                                            {isApplicantCurrentHod && (
+                                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#C9AA71]/15 text-[#E3D1AA] border border-[#C9AA71]/30 font-semibold">
+                                                    {lang === 'id' ? 'Pemohon: HOD' : 'Applicant: HOD'}
+                                                </span>
+                                            )}
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            {/* Option 1: Tetapkan Sebagai HOD */}
+                                            <label className={`flex items-start gap-3 p-2.5 rounded-xl border cursor-pointer transition-all ${
+                                                actionModal.assignAsHod
+                                                    ? 'bg-[#C9AA71]/15 border-[#C9AA71] text-[#FAFAFA]'
+                                                    : 'bg-[#2A281E]/60 border-[#3B3929] text-[#A19F8D] hover:border-[#A19F8D]/40'
+                                            }`}>
+                                                <input
+                                                    type="radio"
+                                                    name="assign_as_hod"
+                                                    checked={actionModal.assignAsHod === true}
+                                                    onChange={() => setActionModal(prev => ({ ...prev, assignAsHod: true }))}
+                                                    className="mt-0.5 text-[#C9AA71] focus:ring-[#C9AA71] cursor-pointer"
+                                                />
+                                                <div className="text-xs">
+                                                    <p className="font-bold text-[#FAFAFA] flex items-center gap-1.5">
+                                                        <Crown className="w-3.5 h-3.5 text-[#C9AA71]" />
+                                                        <span>{lang === 'id' ? 'Tetapkan sebagai Head of Department (HOD)' : 'Assign as Head of Department (HOD)'}</span>
+                                                    </p>
+                                                    <p className="text-[11px] text-[#A19F8D] mt-0.5 leading-relaxed">
+                                                        {lang === 'id' 
+                                                            ? `Pengguna akan memegang hak akses & wewenang pimpinan di departemen ${targetDept || 'tujuan'}.` 
+                                                            : `User will hold HOD permissions and leadership in ${targetDept || 'target dept'}.`}
+                                                    </p>
+                                                </div>
+                                            </label>
+
+                                            {/* Option 2: Pindah sebagai Staf Biasa */}
+                                            <label className={`flex items-start gap-3 p-2.5 rounded-xl border cursor-pointer transition-all ${
+                                                actionModal.assignAsHod === false
+                                                    ? 'bg-amber-500/10 border-amber-500/50 text-[#FAFAFA]'
+                                                    : 'bg-[#2A281E]/60 border-[#3B3929] text-[#A19F8D] hover:border-[#A19F8D]/40'
+                                            }`}>
+                                                <input
+                                                    type="radio"
+                                                    name="assign_as_hod"
+                                                    checked={actionModal.assignAsHod === false}
+                                                    onChange={() => setActionModal(prev => ({ ...prev, assignAsHod: false }))}
+                                                    className="mt-0.5 text-[#C9AA71] focus:ring-[#C9AA71] cursor-pointer"
+                                                />
+                                                <div className="text-xs">
+                                                    <p className="font-bold text-[#FAFAFA] flex items-center gap-1.5">
+                                                        <User className="w-3.5 h-3.5 text-[#A19F8D]" />
+                                                        <span>{lang === 'id' ? 'Pindah sebagai Staf Biasa (Cabut status HOD)' : 'Transfer as Regular Staff (Revoke HOD status)'}</span>
+                                                    </p>
+                                                    <p className="text-[11px] text-[#A19F8D] mt-0.5 leading-relaxed">
+                                                        {lang === 'id' 
+                                                            ? 'Hak akses pimpinan dicabut. Pengguna menjadi Department User biasa.' 
+                                                            : 'Leadership role revoked. User will become a regular Department User.'}
+                                                    </p>
+                                                </div>
+                                            </label>
+                                        </div>
+
+                                        {/* Warning if Target Department already has active HOD(s) */}
+                                        {existingHods.length > 0 && (
+                                            <div className="p-2.5 rounded-xl bg-amber-950/40 border border-amber-500/40 text-amber-200 text-[11px] space-y-1">
+                                                <div className="flex items-center gap-1.5 font-bold text-amber-400">
+                                                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                                                    <span>{lang === 'id' ? 'Info: Departemen Tujuan Sudah Memiliki HOD' : 'Info: Target Department Already Has an HOD'}</span>
+                                                </div>
+                                                <p className="text-amber-200/90 leading-relaxed">
+                                                    {lang === 'id'
+                                                        ? `Departemen ${targetDept} saat ini dipimpin oleh: `
+                                                        : `Department ${targetDept} is currently headed by: `}
+                                                    <strong className="text-[#FAFAFA]">
+                                                        {existingHods.map(h => `${h.staff_name || h.name}${h.hod_title ? ` (${h.hod_title})` : ''}`).join(', ')}
+                                                    </strong>.
+                                                </p>
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })()}
 
                             {actionModal.action === 'reject' ? (
                                 <div>

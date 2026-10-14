@@ -92,6 +92,17 @@ class ApprovalTicketController extends Controller
                 ->count();
         }
 
+        $departmentHods = [];
+        if ($user->isAdmin()) {
+            $departmentHods = User::where('is_hod', true)
+                ->where('is_active', true)
+                ->whereNotNull('department')
+                ->select('id', 'name', 'staff_name', 'department', 'hod_title')
+                ->get()
+                ->groupBy('department')
+                ->toArray();
+        }
+
         return Inertia::render('Tickets/Index', [
             'tickets' => $tickets,
             'filters' => $request->only(['status', 'type', 'search', 'department', 'id']),
@@ -100,6 +111,7 @@ class ApprovalTicketController extends Controller
             'adminApprovedCount' => $adminApprovedCount,
             'myTicketsCount' => $myTicketsCount,
             'myPendingCount' => $myPendingCount,
+            'departmentHods' => $departmentHods,
         ]);
     }
 
@@ -266,6 +278,7 @@ class ApprovalTicketController extends Controller
         }
 
         $requestedValue = $targetDept . ($targetSubdiv ? '::' . $targetSubdiv : '');
+        $isApplicantHod = $user->isHOD();
 
         $ticket = ApprovalTicket::create([
             'ticket_number' => ApprovalTicket::generateTicketNumber('department_transfer'),
@@ -278,11 +291,14 @@ class ApprovalTicketController extends Controller
             'current_value' => $user->department . ($user->subdivision ? ' (' . $user->subdivision . ')' : ''),
             'requested_value' => $requestedValue,
             'reason' => $request->input('reason'),
-            'status' => 'pending_hod',
+            'status' => $isApplicantHod ? 'pending_admin' : 'pending_hod',
         ]);
 
-        // Notify HODs of current department
-        TicketNotificationService::notifyHods($ticket, 'Permohonan Pindah Departemen');
+        if ($isApplicantHod) {
+            TicketNotificationService::notifyAdmins($ticket, 'Permohonan Pindah Departemen (HOD)');
+        } else {
+            TicketNotificationService::notifyHods($ticket, 'Permohonan Pindah Departemen');
+        }
 
         return back()->with('status', 'transfer-ticket-submitted');
     }
@@ -380,13 +396,14 @@ class ApprovalTicketController extends Controller
         $ticket = ApprovalTicket::findOrFail($id);
 
         if ($ticket->status !== 'pending_admin') {
-            return back()->withErrors(['message' => 'Hanya tiket yang telah disetujui dan diteruskan oleh HOD (status Menunggu Admin) yang dapat diproses oleh Admin.']);
+            return back()->withErrors(['message' => 'Hanya tiket dengan status Menunggu Admin yang dapat diproses oleh Admin.']);
         }
 
         $request->validate([
             'action' => 'required|in:approve,reject',
             'notes' => 'nullable|string|max:500',
             'rejection_reason' => 'required_if:action,reject|nullable|string|max:500',
+            'assign_as_hod' => 'nullable|boolean',
         ]);
 
         $action = $request->input('action');
@@ -448,13 +465,32 @@ class ApprovalTicketController extends Controller
                         $targetSubdiv = isset($parts[1]) && trim($parts[1]) !== '' ? trim($parts[1]) : null;
 
                         if ($targetDept) {
+                            $oldDept = $ticket->user->department;
+                            $wasHod = (bool) $ticket->user->is_hod;
+                            $assignAsHod = $request->boolean('assign_as_hod');
+
                             $ticket->user->department = $targetDept;
                             $ticket->user->subdivision = $targetSubdiv;
-                            // Revoke HOD role if user was HOD in previous department
-                            if ($ticket->user->is_hod) {
-                                $ticket->user->is_hod = false;
+                            $ticket->user->is_hod = $assignAsHod;
+                            if (!$assignAsHod) {
+                                $ticket->user->hod_title = null;
                             }
                             $ticket->user->save();
+
+                            \App\Models\UserAuditLog::record(
+                                $user,
+                                $ticket->user,
+                                'DEPT_TRANSFERRED',
+                                [
+                                    'ticket_number' => $ticket->ticket_number,
+                                    'from_dept'     => $oldDept,
+                                    'to_dept'       => $targetDept,
+                                    'subdivision'   => $targetSubdiv,
+                                    'was_hod'       => $wasHod,
+                                    'is_hod'        => $assignAsHod,
+                                    'notes'         => $request->input('notes'),
+                                ]
+                            );
                         }
                     }
                     break;
@@ -470,7 +506,12 @@ class ApprovalTicketController extends Controller
             // Notify user
             TicketNotificationService::notifyUserResolution($ticket, true);
 
-            return back()->with('success', "Tiket {$ticket->ticket_number} telah BERHASIL disetujui (ACC Final).");
+            $roleFeedback = '';
+            if ($ticket->type === 'department_transfer') {
+                $roleFeedback = $request->boolean('assign_as_hod') ? ' (Ditetapkan sebagai HoD)' : ' (Sebagai Staf Biasa)';
+            }
+
+            return back()->with('success', "Tiket {$ticket->ticket_number} telah BERHASIL disetujui (ACC Final){$roleFeedback}.");
         } else {
             $rejectionReason = $request->input('rejection_reason');
             $ticket->status = 'rejected';
