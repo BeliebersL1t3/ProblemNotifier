@@ -2313,7 +2313,8 @@ function AnalyticsInner() {
                     <div className="chart-card bg-surface p-5 sm:p-6 rounded-2xl shadow-sm border border-border/50 flex flex-col">
 
 
-                        <div className="flex items-center justify-between w-full mb-4 gap-2 flex-wrap">
+                        {/* Header Row 1: Title & Main Mode Switcher */}
+                        <div className="flex flex-col md:flex-row md:items-center justify-between w-full gap-3 pb-3 border-b border-border/40">
                             <div>
                                 <div className="flex items-center gap-2">
                                     <h2 className="text-lg font-bold text-foreground">{t('issues_by_department')}</h2>
@@ -2321,7 +2322,7 @@ function AnalyticsInner() {
                                         <button
                                             type="button"
                                             onClick={() => setSelectedDepartmentFilters([])}
-                                            className="text-xs font-semibold text-[#C9AA71] hover:underline cursor-pointer"
+                                            className="text-xs font-semibold text-[#C9AA71] hover:underline cursor-pointer bg-[#2A281E] px-2 py-0.5 rounded border border-[#3B3929]"
                                         >
                                             ✕ {lang === 'id' ? 'Reset Dept' : 'Reset Dept'}
                                         </button>
@@ -2346,7 +2347,7 @@ function AnalyticsInner() {
                                 </p>
                             </div>
                             
-                            <div className="flex items-center gap-2 flex-wrap">
+                            <div className="flex items-center gap-2 flex-wrap shrink-0">
                                 {/* Mode Selector with Role-Adaptive Buttons */}
                                 <div className="flex items-center rounded-lg bg-[#2A281E] p-0.5 border border-[#3B3929] text-xs">
                                     <Tooltip content={isDeptUser ? t('tooltip_incoming_dept') : t('tooltip_assigned_dept')} position="top">
@@ -2442,41 +2443,45 @@ function AnalyticsInner() {
                                         </Tooltip>
                                     </div>
                                 )}
+                            </div>
+                        </div>
 
-                                {/* Tri-Tone Status Legend (Only when in chart mode) */}
-                                {(deptFilterMode !== 'all' || allRelatedViewType === 'chart') && (
-                                    <div className="flex flex-wrap items-center gap-3 bg-[#2A281E] px-3 py-1 rounded-lg border border-[#3B3929] text-[11px]">
-                                        {/* Batang 1: Belum Diambil */}
-                                        <div className="flex items-center gap-1.5 font-semibold text-[#FAFAFA]" title={lang === 'id' ? 'Batang 1: Belum diambil sama sekali' : 'Bar 1: Not taken / unclaimed'}>
-                                            <span className={`w-3 h-2.5 rounded-[3px] ${deptColorMode === 'status' ? 'bg-[#475569] border border-[#64748B]' : 'bg-[#2C2B22] border border-[#5A5540]'} inline-block shadow-xs`}></span>
-                                            <span className="text-muted-foreground">{lang === 'id' ? 'Belum Diambil' : 'Unclaimed'}:</span>
-                                            <span className="font-bold text-[#C9AA71] font-mono">{deptSummaryStats.unclaimed}</span>
-                                        </div>
-                                        <div className="h-3 w-px bg-[#3B3929]"></div>
-                                        {/* Batang 2 Segmen 1: Sedang Dikerjakan */}
-                                        <div className="flex items-center gap-1.5 font-semibold text-[#FAFAFA]" title={lang === 'id' ? 'Batang 2: Sedang dikerjakan' : 'Bar 2: In progress'}>
-                                            <span className={`w-3 h-2.5 rounded-[3px] ${deptColorMode === 'status' ? 'bg-[#F59E0B] border border-amber-300/40' : 'bg-[#E58C36] border border-white/20'} inline-block shadow-xs`}></span>
-                                            <span className="text-muted-foreground">{lang === 'id' ? 'Sedang Dikerjakan' : 'In Progress'}:</span>
-                                            <span className="font-bold text-amber-400 font-mono">{deptSummaryStats.inProgress}</span>
-                                        </div>
-                                        <div className="h-3 w-px bg-[#3B3929]"></div>
-                                        {/* Batang 2 Segmen 2: Sudah Selesai */}
-                                        <div className="flex items-center gap-1.5 font-semibold text-[#FAFAFA]" title={lang === 'id' ? 'Batang 2: Sudah selesai' : 'Bar 2: Finished / solved'}>
-                                            <span className={`w-3 h-2.5 rounded-[3px] ${deptColorMode === 'status' ? 'bg-[#10B981] border border-emerald-300/40' : 'bg-[#B0BEC5] border border-white/30'} inline-block shadow-xs`}></span>
-                                            <span className="text-muted-foreground">{lang === 'id' ? 'Selesai' : 'Solved'}:</span>
-                                            <span className="font-bold text-emerald-400 font-mono">{deptSummaryStats.solved}</span>
-                                        </div>
+                        {/* Header Row 2: Secondary Toolbar (Only when in chart mode) */}
+                        {(deptFilterMode !== 'all' || allRelatedViewType === 'chart') && (
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between w-full gap-2.5 pt-3 mb-3">
+                                {/* Tri-Tone Status Legend */}
+                                <div className="flex flex-wrap items-center gap-3 bg-[#2A281E] px-3 py-1.5 rounded-xl border border-[#3B3929] text-[11px] shadow-xs">
+                                    {/* Batang 1: Belum Diambil */}
+                                    <div className="flex items-center gap-1.5 font-semibold text-[#FAFAFA]" title={lang === 'id' ? 'Batang 1: Belum diambil sama sekali' : 'Bar 1: Not taken / unclaimed'}>
+                                        <span className={`w-3 h-2.5 rounded-[3px] ${deptColorMode === 'status' ? 'bg-[#475569] border border-[#64748B]' : 'bg-[#2C2B22] border border-[#5A5540]'} inline-block shadow-xs`}></span>
+                                        <span className="text-muted-foreground">{lang === 'id' ? 'Belum Diambil' : 'Unclaimed'}:</span>
+                                        <span className="font-bold text-[#C9AA71] font-mono">{deptSummaryStats.unclaimed}</span>
                                     </div>
-                                )}
+                                    <div className="h-3 w-px bg-[#3B3929]"></div>
+                                    {/* Batang 2 Segmen 1: Sedang Dikerjakan */}
+                                    <div className="flex items-center gap-1.5 font-semibold text-[#FAFAFA]" title={lang === 'id' ? 'Batang 2: Sedang dikerjakan' : 'Bar 2: In progress'}>
+                                        <span className={`w-3 h-2.5 rounded-[3px] ${deptColorMode === 'status' ? 'bg-[#F59E0B] border border-amber-300/40' : 'bg-[#E58C36] border border-white/20'} inline-block shadow-xs`}></span>
+                                        <span className="text-muted-foreground">{lang === 'id' ? 'Sedang Dikerjakan' : 'In Progress'}:</span>
+                                        <span className="font-bold text-amber-400 font-mono">{deptSummaryStats.inProgress}</span>
+                                    </div>
+                                    <div className="h-3 w-px bg-[#3B3929]"></div>
+                                    {/* Batang 2 Segmen 2: Sudah Selesai */}
+                                    <div className="flex items-center gap-1.5 font-semibold text-[#FAFAFA]" title={lang === 'id' ? 'Batang 2: Sudah selesai' : 'Bar 2: Finished / solved'}>
+                                        <span className={`w-3 h-2.5 rounded-[3px] ${deptColorMode === 'status' ? 'bg-[#10B981] border border-emerald-300/40' : 'bg-[#B0BEC5] border border-white/30'} inline-block shadow-xs`}></span>
+                                        <span className="text-muted-foreground">{lang === 'id' ? 'Selesai' : 'Solved'}:</span>
+                                        <span className="font-bold text-emerald-400 font-mono">{deptSummaryStats.solved}</span>
+                                    </div>
+                                </div>
 
-                                {/* Color Mode Selector (Warna Dept vs Warna Statis) (Only when in chart mode) */}
-                                {(deptFilterMode !== 'all' || allRelatedViewType === 'chart') && (
-                                    <div className="flex items-center rounded-lg bg-[#2A281E] p-0.5 border border-[#3B3929] text-xs">
+                                {/* Controls: Color Mode Selector + Department Amount Selector */}
+                                <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                                    {/* Color Mode Selector (Warna Dept vs Warna Statis) */}
+                                    <div className="flex items-center rounded-lg bg-[#2A281E] p-0.5 border border-[#3B3929] text-xs shadow-xs">
                                         <Tooltip content={lang === 'id' ? 'Gunakan warna identitas tiap departemen' : 'Use individual department theme colors'} position="top">
                                             <button
                                                 type="button"
                                                 onClick={() => handleSetDeptColorMode('dept')}
-                                                className={`px-2 py-1 rounded text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1 ${
+                                                className={`px-2.5 py-1 rounded text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
                                                     deptColorMode === 'dept'
                                                         ? 'bg-[#C9AA71] text-[#1C1B0E] font-bold shadow-sm'
                                                         : 'text-muted-foreground hover:text-foreground'
@@ -2490,7 +2495,7 @@ function AnalyticsInner() {
                                             <button
                                                 type="button"
                                                 onClick={() => handleSetDeptColorMode('status')}
-                                                className={`px-2 py-1 rounded text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1 ${
+                                                className={`px-2.5 py-1 rounded text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
                                                     deptColorMode === 'status'
                                                         ? 'bg-[#C9AA71] text-[#1C1B0E] font-bold shadow-sm'
                                                         : 'text-muted-foreground hover:text-foreground'
@@ -2501,16 +2506,14 @@ function AnalyticsInner() {
                                             </button>
                                         </Tooltip>
                                     </div>
-                                )}
 
-                                {/* Department Amount Selector (5, 10, 15, 20, All) (Only when in chart mode) */}
-                                {(deptFilterMode !== 'all' || allRelatedViewType === 'chart') && (
+                                    {/* Department Amount Selector (5, 10, 15, 20, All) */}
                                     <Tooltip content={t('tooltip_dept_limit')} position="top">
                                         <div className="flex items-center gap-1.5 text-xs">
                                             <select
                                                 value={deptLimit}
                                                 onChange={(e) => setDeptLimit(e.target.value === 'all' ? 'all' : Number(e.target.value))}
-                                                className="appearance-none px-2.5 py-1 text-xs font-bold rounded-lg border border-[#3B3929] bg-[#2A281E] text-[#C9AA71] cursor-pointer focus:outline-none focus:ring-1 focus:ring-primary shadow-sm"
+                                                className="appearance-none px-3 py-1 text-xs font-bold rounded-lg border border-[#3B3929] bg-[#2A281E] text-[#C9AA71] cursor-pointer focus:outline-none focus:ring-1 focus:ring-primary shadow-xs"
                                             >
                                                 <option value={5} className="bg-[#2A281E] text-[#FAFAFA]">Top 5</option>
                                                 <option value={10} className="bg-[#2A281E] text-[#FAFAFA]">Top 10</option>
@@ -2520,9 +2523,9 @@ function AnalyticsInner() {
                                             </select>
                                         </div>
                                     </Tooltip>
-                                )}
+                                </div>
                             </div>
-                        </div>
+                        )}
 
                         {deptFilterMode === 'all' && allRelatedViewType === 'matrix' ? (
                             renderAllRelatedMatrixCards()
@@ -2533,8 +2536,8 @@ function AnalyticsInner() {
                                     <ResponsiveContainer width="100%" height="100%">
                                         <BarChart 
                                             data={departmentData} 
-                                            margin={{ top: 24, right: 15, left: -15, bottom: departmentData.length > 6 ? 15 : 5 }}
-                                            barCategoryGap="18%"
+                                            margin={{ top: 24, right: 20, left: -10, bottom: departmentData.length > 6 ? 20 : 8 }}
+                                            barCategoryGap={departmentData.length <= 5 ? "28%" : "18%"}
                                             barGap={4}
                                         >
                                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#3B3929" />
@@ -2653,6 +2656,7 @@ function AnalyticsInner() {
                                                 dataKey="unclaimed" 
                                                 name={lang === 'id' ? 'Belum Diambil' : 'Unclaimed'} 
                                                 stackId="unclaimed"
+                                                maxBarSize={38}
                                                 radius={[4, 4, 0, 0]}
                                                 onClick={(data) => handleDepartmentBarClick(data)}
                                                 cursor="pointer"
@@ -2677,6 +2681,7 @@ function AnalyticsInner() {
                                                 dataKey="inProgress" 
                                                 name={lang === 'id' ? 'Sedang Dikerjakan' : 'In Progress'} 
                                                 stackId="handled"
+                                                maxBarSize={38}
                                                 radius={entry => entry?.solved > 0 ? [0, 0, 0, 0] : [4, 4, 0, 0]}
                                                 onClick={(data) => handleDepartmentBarClick(data)}
                                                 cursor="pointer"
@@ -2701,6 +2706,7 @@ function AnalyticsInner() {
                                                 dataKey="solved" 
                                                 name={lang === 'id' ? 'Sudah Selesai' : 'Solved'} 
                                                 stackId="handled"
+                                                maxBarSize={38}
                                                 radius={[4, 4, 0, 0]}
                                                 onClick={(data) => handleDepartmentBarClick(data)}
                                                 cursor="pointer"
