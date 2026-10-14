@@ -5,7 +5,7 @@ import {
     Loader2, Wrench, Sparkles, Laptop, Anchor, ShieldAlert, Utensils, Building, Hammer, Zap,
     Droplets, Building2, Bug, Tag, User, HelpCircle, Download, AlertTriangle, Layers, Database, Clock, CheckSquare, Check, Eye, ChevronRight,
     ClipboardList, PauseCircle, CheckCircle2, Filter, SlidersHorizontal, ChevronDown, ChevronUp, Archive,
-    Calendar, Target, FileText, Megaphone, Globe, Palette, Inbox, Send, Info, X
+    Calendar, Target, FileText, Megaphone, Globe, Palette
 } from 'lucide-react';
 import anime from 'animejs';
 import {
@@ -423,8 +423,6 @@ function AnalyticsInner() {
     // Department filter: empty by default so it shows all issues within the user's scope
     const [selectedDepartmentFilters, setSelectedDepartmentFilters] = useState([]);
     const [deptFilterMode, setDeptFilterMode] = useState('assigned');
-    const [deptAllSubFilter, setDeptAllSubFilter] = useState('all'); // 'all' | 'incoming' | 'outgoing' | 'internal' | 'tagged'
-    const [roleGuideModalOpen, setRoleGuideModalOpen] = useState(false);
     const [deptColorMode, setDeptColorMode] = useState(() => {
         if (typeof window !== 'undefined') {
             return localStorage.getItem('telunas_dept_chart_color_mode') || 'dept';
@@ -636,65 +634,8 @@ function AnalyticsInner() {
             .sort((a, b) => b.value - a.value);
     }, [timeFilteredIssues]);
 
-    // Sub-Filter Count Badges for Admin "Semua Terkait"
-    const deptSubFilterCounts = useMemo(() => {
-        if (!timeFilteredIssues || timeFilteredIssues.length === 0) {
-            return { all: 0, incoming: 0, outgoing: 0, internal: 0, tagged: 0 };
-        }
-        let all = 0, incoming = 0, outgoing = 0, internal = 0, tagged = 0;
-
-        timeFilteredIssues.filter(i => !i.isArchived).forEach(issue => {
-            const rawOrigin = (issue.department || '').trim();
-            const originNorm = normalizeDepartment(rawOrigin).toLowerCase();
-            const isValidOrigin = rawOrigin && !['emergency', 'undefined', 'unknown', 'all', 'none'].includes(originNorm);
-
-            const assignedDepts = safeArray(issue.assignedDepartments)
-                .map(d => (d || '').trim())
-                .filter(d => {
-                    const lower = d.toLowerCase();
-                    return d && lower !== 'all' && lower !== 'none' && lower !== 'emergency' && lower !== 'undefined' && lower !== 'unknown';
-                });
-
-            const taggedDepts = safeArray(issue.taggedDepartments)
-                .map(d => (d || '').trim())
-                .filter(d => {
-                    const lower = d.toLowerCase();
-                    return d && lower !== 'all' && lower !== 'none' && lower !== 'emergency' && lower !== 'undefined' && lower !== 'unknown';
-                });
-
-            if (isValidOrigin) {
-                const isInternal = assignedDepts.length === 0 || assignedDepts.some(d => normalizeDepartment(d).toLowerCase() === originNorm);
-                if (isInternal) {
-                    internal += 1;
-                    all += 1;
-                } else {
-                    outgoing += 1;
-                    all += 1;
-                }
-            }
-
-            assignedDepts.forEach(dept => {
-                const dNorm = normalizeDepartment(dept).toLowerCase();
-                if (!isValidOrigin || dNorm !== originNorm) {
-                    incoming += 1;
-                    all += 1;
-                }
-            });
-
-            taggedDepts.forEach(dept => {
-                const dNorm = normalizeDepartment(dept).toLowerCase();
-                if ((!isValidOrigin || dNorm !== originNorm) && !assignedDepts.some(a => normalizeDepartment(a).toLowerCase() === dNorm)) {
-                    tagged += 1;
-                    all += 1;
-                }
-            });
-        });
-
-        return { all, incoming, outgoing, internal, tagged };
-    }, [timeFilteredIssues]);
-
-    const departmentDataBundle = useMemo(() => {
-        if (!timeFilteredIssues || timeFilteredIssues.length === 0) return { allList: [], displayList: [] };
+    const departmentData = useMemo(() => {
+        if (!timeFilteredIssues || timeFilteredIssues.length === 0) return [];
         const counts = {};
         const userDeptNorm = isDeptUser && department ? normalizeDepartment(department).toLowerCase() : null;
 
@@ -704,48 +645,21 @@ function AnalyticsInner() {
             return 'inProgress'; // 'progress', 'pending', etc.
         };
 
-        const addDeptRoleCount = (deptName, role, state) => {
+        const addDeptCount = (deptName, state) => {
             if (!deptName) return;
             const trimmed = deptName.trim();
             const lower = trimmed.toLowerCase();
             if (!trimmed || lower === 'emergency' || lower === 'undefined' || lower === 'unknown' || lower === 'all' || lower === 'none') return;
             if (!counts[trimmed]) {
-                counts[trimmed] = { 
-                    total: 0, 
-                    unclaimed: 0, 
-                    inProgress: 0, 
-                    solved: 0,
-                    roles: {
-                        incoming: { total: 0, unclaimed: 0, inProgress: 0, solved: 0 },
-                        outgoing: { total: 0, unclaimed: 0, inProgress: 0, solved: 0 },
-                        internal: { total: 0, unclaimed: 0, inProgress: 0, solved: 0 },
-                        tagged: { total: 0, unclaimed: 0, inProgress: 0, solved: 0 },
-                    }
-                };
+                counts[trimmed] = { total: 0, unclaimed: 0, inProgress: 0, solved: 0 };
             }
-
-            // Always increment role breakdown
-            const r = counts[trimmed].roles[role] || counts[trimmed].roles.incoming;
-            r.total += 1;
+            counts[trimmed].total += 1;
             if (state === 'solved') {
-                r.solved += 1;
+                counts[trimmed].solved += 1;
             } else if (state === 'inProgress') {
-                r.inProgress += 1;
+                counts[trimmed].inProgress += 1;
             } else {
-                r.unclaimed += 1;
-            }
-
-            // Increment active display counts based on deptAllSubFilter (when in 'all' mode)
-            const isSubFilterMatch = deptFilterMode !== 'all' || deptAllSubFilter === 'all' || deptAllSubFilter === role;
-            if (isSubFilterMatch) {
-                counts[trimmed].total += 1;
-                if (state === 'solved') {
-                    counts[trimmed].solved += 1;
-                } else if (state === 'inProgress') {
-                    counts[trimmed].inProgress += 1;
-                } else {
-                    counts[trimmed].unclaimed += 1;
-                }
+                counts[trimmed].unclaimed += 1;
             }
         };
 
@@ -762,87 +676,60 @@ function AnalyticsInner() {
                 const tags = safeArray(issue.taggedDepartments).map(d => (d || '').trim()).filter(Boolean);
 
                 if (deptFilterMode === 'assigned') {
+                    // INCOMING (Pekerjaan Masuk untuk kita): Siapa yang melapor / menugaskan tiket ke departemen kita?
                     const isAssignedToMe = assigns.some(d => normalizeDepartment(d).toLowerCase() === userDeptNorm) || (assigns.length === 0 && originNorm === userDeptNorm);
                     if (isAssignedToMe) {
-                        addDeptRoleCount(rawOrigin || 'Unknown', 'incoming', state);
+                        addDeptCount(rawOrigin || 'Unknown', state);
                     }
                 } else if (deptFilterMode === 'origin') {
+                    // OUTGOING (Permintaan Keluar dari kita): Tiket yang dilaporkan oleh kita ditugaskan ke departemen mana?
                     if (originNorm === userDeptNorm) {
                         if (assigns.length > 0) {
-                            assigns.forEach(d => addDeptRoleCount(d, 'outgoing', state));
+                            assigns.forEach(d => addDeptCount(d, state));
                         } else {
-                            addDeptRoleCount(rawOrigin || department, 'internal', state);
+                            addDeptCount(rawOrigin || department, state);
                         }
                     }
                 } else if (deptFilterMode === 'tagged') {
+                    // TAGGED (Di-tag / CC): Siapa pelapor tiket di mana kita di-tag?
                     const isTaggedMe = tags.some(d => normalizeDepartment(d).toLowerCase() === userDeptNorm);
                     if (isTaggedMe) {
-                        addDeptRoleCount(rawOrigin, 'tagged', state);
+                        addDeptCount(rawOrigin, state);
                     }
                 } else {
+                    // ALL SCOPE: Seluruh departemen yang berinteraksi dengan kita
                     const partnerDepts = new Set();
                     if (rawOrigin && !['emergency', 'undefined', 'unknown'].includes(originNorm)) {
                         partnerDepts.add(rawOrigin);
                     }
                     assigns.forEach(d => { if (d && d !== 'ALL') partnerDepts.add(d); });
                     tags.forEach(d => { if (d && d !== 'ALL' && d !== 'None') partnerDepts.add(d); });
-                    partnerDepts.forEach(d => addDeptRoleCount(d, 'incoming', state));
+                    partnerDepts.forEach(d => addDeptCount(d, state));
                 }
             } else {
                 // =========================================================================
                 // ADMIN MACRO PERSPECTIVE (Resort-wide Workload & Reporting)
                 // =========================================================================
                 if (deptFilterMode === 'origin') {
-                    addDeptRoleCount(issue.department, 'outgoing', state);
+                    addDeptCount(issue.department, state);
                 } else if (deptFilterMode === 'tagged') {
-                    safeArray(issue.taggedDepartments).forEach(d => addDeptRoleCount(d, 'tagged', state));
+                    safeArray(issue.taggedDepartments).forEach(d => addDeptCount(d, state));
                 } else if (deptFilterMode === 'all') {
+                    const depts = new Set();
                     const rawOrigin = (issue.department || '').trim();
-                    const originNorm = normalizeDepartment(rawOrigin).toLowerCase();
-                    const isValidOrigin = rawOrigin && !['emergency', 'undefined', 'unknown', 'all', 'none'].includes(originNorm);
-
-                    const assignedDepts = safeArray(issue.assignedDepartments)
-                        .map(d => (d || '').trim())
-                        .filter(d => {
-                            const lower = d.toLowerCase();
-                            return d && lower !== 'all' && lower !== 'none' && lower !== 'emergency' && lower !== 'undefined' && lower !== 'unknown';
-                        });
-
-                    const taggedDepts = safeArray(issue.taggedDepartments)
-                        .map(d => (d || '').trim())
-                        .filter(d => {
-                            const lower = d.toLowerCase();
-                            return d && lower !== 'all' && lower !== 'none' && lower !== 'emergency' && lower !== 'undefined' && lower !== 'unknown';
-                        });
-
-                    // 1. Origin Dept: Internal or Outgoing
-                    if (isValidOrigin) {
-                        const isInternal = assignedDepts.length === 0 || assignedDepts.some(d => normalizeDepartment(d).toLowerCase() === originNorm);
-                        addDeptRoleCount(rawOrigin, isInternal ? 'internal' : 'outgoing', state);
+                    if (rawOrigin && !['emergency', 'undefined', 'unknown'].includes(rawOrigin.toLowerCase())) {
+                        depts.add(rawOrigin);
                     }
-
-                    // 2. Assigned Depts: Incoming
-                    assignedDepts.forEach(dept => {
-                        const dNorm = normalizeDepartment(dept).toLowerCase();
-                        if (!isValidOrigin || dNorm !== originNorm) {
-                            addDeptRoleCount(dept, 'incoming', state);
-                        }
-                    });
-
-                    // 3. Tagged Depts: Tagged (CC)
-                    taggedDepts.forEach(dept => {
-                        const dNorm = normalizeDepartment(dept).toLowerCase();
-                        if ((!isValidOrigin || dNorm !== originNorm) && !assignedDepts.some(a => normalizeDepartment(a).toLowerCase() === dNorm)) {
-                            addDeptRoleCount(dept, 'tagged', state);
-                        }
-                    });
+                    safeArray(issue.assignedDepartments).forEach(d => { if (d && d !== 'ALL') depts.add(d); });
+                    safeArray(issue.taggedDepartments).forEach(d => { if (d && d !== 'ALL' && d !== 'None') depts.add(d); });
+                    depts.forEach(dept => addDeptCount(dept, state));
                 } else {
                     // Default: 'assigned'
                     const assigns = safeArray(issue.assignedDepartments);
                     if (assigns.length > 0) {
-                        assigns.forEach(d => addDeptRoleCount(d, 'incoming', state));
+                        assigns.forEach(d => addDeptCount(d, state));
                     } else {
-                        addDeptRoleCount(issue.department, 'internal', state);
+                        addDeptCount(issue.department, state);
                     }
                 }
             }
@@ -870,30 +757,19 @@ function AnalyticsInner() {
                     solved: solved,
                     handled: handled,
                     solvedPct: solvedPct,
-                    roles: stat.roles || {
-                        incoming: { total: 0, unclaimed: 0, inProgress: 0, solved: 0 },
-                        outgoing: { total: 0, unclaimed: 0, inProgress: 0, solved: 0 },
-                        internal: { total: 0, unclaimed: 0, inProgress: 0, solved: 0 },
-                        tagged: { total: 0, unclaimed: 0, inProgress: 0, solved: 0 },
-                    }
                 };
             })
-            .filter(d => d.Issues > 0)
             .sort((a, b) => b.Issues - a.Issues);
 
-        return {
-            allList: sorted,
-            displayList: deptLimit === 'all' ? sorted : sorted.slice(0, Number(deptLimit))
-        };
-    }, [timeFilteredIssues, deptLimit, deptFilterMode, deptAllSubFilter, isDeptUser, department]);
-
-    const departmentData = departmentDataBundle?.displayList || [];
+        if (deptLimit === 'all') return sorted;
+        return sorted.slice(0, Number(deptLimit));
+    }, [timeFilteredIssues, deptLimit, deptFilterMode, isDeptUser, department]);
 
     const deptSummaryStats = useMemo(() => {
         let unclaimed = 0;
         let inProgress = 0;
         let solved = 0;
-        (departmentDataBundle?.allList || []).forEach(d => {
+        departmentData.forEach(d => {
             unclaimed += (d.unclaimed || 0);
             inProgress += (d.inProgress || 0);
             solved += (d.solved || 0);
@@ -905,7 +781,7 @@ function AnalyticsInner() {
             handled: inProgress + solved, 
             total: unclaimed + inProgress + solved 
         };
-    }, [departmentDataBundle]);
+    }, [departmentData]);
 
     // Intelligent integer Y-Axis configuration without decimals
     const deptYAxisConfig = useMemo(() => {
@@ -1035,9 +911,8 @@ function AnalyticsInner() {
     // Bar 2 Upper (Sudah Selesai) Label Renderer: inside number & top total handled
     const renderSolvedBarLabels = (props) => {
         const { x, y, width, height, value, index } = props;
+        if (!value || value <= 0) return null;
         const entry = departmentData[index];
-        const solvedVal = entry?.solved ?? value;
-        if (!solvedVal || solvedVal <= 0) return null;
         const handledTotal = entry ? (entry.inProgress || 0) + (entry.solved || 0) : value;
 
         return (
@@ -1053,7 +928,7 @@ function AnalyticsInner() {
                         fontWeight="bold"
                         style={{ textShadow: '0 1px 3px rgba(0,0,0,0.9)' }}
                     >
-                        {solvedVal}
+                        {value}
                     </text>
                 )}
                 <text
@@ -1069,77 +944,6 @@ function AnalyticsInner() {
                     {handledTotal}
                 </text>
             </g>
-        );
-    };
-
-    // Clean Bar Shapes for Department Visualization (Removed confusing multi-segment brown/striped slices)
-    const renderSegmentedUnclaimedBar = (props) => {
-        const { x, y, width, height, payload, fill } = props;
-        if (!payload || height <= 0 || width <= 0) return null;
-        const isSelected = selectedDepartmentFilters.some(d => d.toLowerCase() === (payload.name || '').toLowerCase());
-        const isStatusMode = deptColorMode === 'status';
-        const barFill = isStatusMode ? '#475569' : getDepartmentVeryDarkColor(payload.name);
-
-        return (
-            <rect
-                x={x}
-                y={y}
-                width={width}
-                height={height}
-                rx={4}
-                ry={4}
-                fill={barFill || fill}
-                stroke={isSelected ? '#F59E0B' : 'transparent'}
-                strokeWidth={isSelected ? 1.5 : 0}
-                opacity={selectedDepartmentFilters.length > 0 ? (isSelected ? 1 : 0.35) : 1}
-            />
-        );
-    };
-
-    const renderSegmentedInProgressBar = (props) => {
-        const { x, y, width, height, payload, fill } = props;
-        if (!payload || height <= 0 || width <= 0) return null;
-        const isSelected = selectedDepartmentFilters.some(d => d.toLowerCase() === (payload.name || '').toLowerCase());
-        const isTopSegment = (payload.solved || 0) === 0;
-        const isStatusMode = deptColorMode === 'status';
-        const barFill = isStatusMode ? '#F59E0B' : getDepartmentColor(payload.name);
-
-        return (
-            <rect
-                x={x}
-                y={y}
-                width={width}
-                height={height}
-                rx={isTopSegment ? 4 : 0}
-                ry={isTopSegment ? 4 : 0}
-                fill={barFill || fill}
-                stroke={isSelected ? '#F59E0B' : 'transparent'}
-                strokeWidth={isSelected ? 1.5 : 0}
-                opacity={selectedDepartmentFilters.length > 0 ? (isSelected ? 1 : 0.35) : 1}
-            />
-        );
-    };
-
-    const renderSegmentedSolvedBar = (props) => {
-        const { x, y, width, height, payload, fill } = props;
-        if (!payload || height <= 0 || width <= 0) return null;
-        const isSelected = selectedDepartmentFilters.some(d => d.toLowerCase() === (payload.name || '').toLowerCase());
-        const isStatusMode = deptColorMode === 'status';
-        const barFill = isStatusMode ? '#10B981' : getDepartmentLightColor(payload.name);
-
-        return (
-            <rect
-                x={x}
-                y={y}
-                width={width}
-                height={height}
-                rx={4}
-                ry={4}
-                fill={barFill || fill}
-                stroke={isSelected ? '#F59E0B' : 'transparent'}
-                strokeWidth={isSelected ? 1.5 : 0}
-                opacity={selectedDepartmentFilters.length > 0 ? (isSelected ? 1 : 0.35) : 1}
-            />
         );
     };
 
@@ -1568,15 +1372,6 @@ function AnalyticsInner() {
                     } else if (deptFilterMode === 'tagged') {
                         return isTagged;
                     } else if (deptFilterMode === 'all') {
-                        if (deptAllSubFilter === 'incoming') {
-                            return assigned.includes(s) && issueDept !== s;
-                        } else if (deptAllSubFilter === 'outgoing') {
-                            return isOrigin && (!assigned.includes(s) && assigned.length > 0);
-                        } else if (deptAllSubFilter === 'internal') {
-                            return isOrigin && (assigned.includes(s) || assigned.length === 0);
-                        } else if (deptAllSubFilter === 'tagged') {
-                            return isTagged && !isOrigin && !assigned.includes(s);
-                        }
                         return isAssigned || isOrigin || isTagged;
                     } else {
                         // Default: 'assigned'
@@ -1609,7 +1404,7 @@ function AnalyticsInner() {
         });
 
         return timelineLimit === 'all' ? filtered : filtered.slice(0, timelineLimit);
-    }, [timeFilteredIssues, timelineLimit, searchQuery, selectedStatusFilters, selectedPriorityFilters, selectedDepartmentFilters, deptFilterMode, deptAllSubFilter, selectedCategoryFilters, showArchivedInTimeline]);
+    }, [timeFilteredIssues, timelineLimit, searchQuery, selectedStatusFilters, selectedPriorityFilters, selectedDepartmentFilters, deptFilterMode, selectedCategoryFilters, showArchivedInTimeline]);
 
     // Scroll-Linked Animation for Timeline Items
     useEffect(() => {
@@ -2086,13 +1881,7 @@ function AnalyticsInner() {
                                             {deptFilterMode === 'assigned' && (lang === 'id' ? 'Beban perbaikan: Jumlah tiket yang ditugaskan ke tiap departemen di resort' : 'Repair workload: Total issues assigned to each department in the resort')}
                                             {deptFilterMode === 'origin' && (lang === 'id' ? 'Volume pelaporan: Jumlah tiket yang dilaporkan oleh tiap departemen' : 'Reporting volume: Total issues discovered and reported by each department')}
                                             {deptFilterMode === 'tagged' && (lang === 'id' ? 'Koordinasi: Departemen yang paling sering ditandai (CC)' : 'Coordination: Departments most frequently tagged (CC)')}
-                                            {deptFilterMode === 'all' && (
-                                                deptAllSubFilter === 'incoming' ? (lang === 'id' ? 'Tugas Masuk: Tiket yang ditugaskan oleh departemen lain untuk diselesaikan' : 'Incoming Tasks: Tickets assigned by other departments to be resolved') :
-                                                deptAllSubFilter === 'outgoing' ? (lang === 'id' ? 'Laporan Keluar: Permintaan bantuan yang diajukan ke departemen lain' : 'Outgoing Reports: Requests submitted to other departments') :
-                                                deptAllSubFilter === 'internal' ? (lang === 'id' ? 'Internal: Masalah yang dilaporkan dan ditangani sendiri di departemen itu' : 'Internal: Issues reported and handled entirely within the department') :
-                                                deptAllSubFilter === 'tagged' ? (lang === 'id' ? 'Koordinasi: Tiket di mana departemen ini hanya ditandai (CC)' : 'Coordination: Tickets where department is tagged (CC) only') :
-                                                (lang === 'id' ? 'Total keterlibatan: Gabungan seluruh peran departemen di resort (Tugas Masuk, Keluar, Internal, CC)' : 'Total involvement: Combined department activity across the resort (Incoming, Outgoing, Internal, CC)')
-                                            )}
+                                            {deptFilterMode === 'all' && (lang === 'id' ? 'Total keterlibatan: Gabungan seluruh peran departemen di resort' : 'Total involvement: Combined department activity across the resort')}
                                         </>
                                     )}
                                 </p>
@@ -2163,19 +1952,6 @@ function AnalyticsInner() {
 
                                 {/* Tri-Tone Status Legend (2 Bars, 3 Lifecycle States) */}
                                 <div className="flex flex-wrap items-center gap-3 bg-[#2A281E] px-3 py-1 rounded-lg border border-[#3B3929] text-[11px]">
-                                    {!isDeptUser && deptFilterMode === 'all' && deptAllSubFilter !== 'all' && (
-                                        <>
-                                            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-[#C9AA71]/15 text-[#C9AA71] border border-[#C9AA71]/30 font-semibold text-[10.5px]">
-                                                <span>Filter:</span>
-                                                <span className="font-bold">
-                                                    {deptAllSubFilter === 'incoming' ? t('dept_sub_incoming') :
-                                                     deptAllSubFilter === 'outgoing' ? t('dept_sub_outgoing') :
-                                                     deptAllSubFilter === 'internal' ? t('dept_sub_internal') : t('dept_sub_tagged')}
-                                                </span>
-                                            </div>
-                                            <div className="h-3 w-px bg-[#3B3929]"></div>
-                                        </>
-                                    )}
                                     {/* Batang 1: Belum Diambil */}
                                     <div className="flex items-center gap-1.5 font-semibold text-[#FAFAFA]" title={lang === 'id' ? 'Batang 1: Belum diambil sama sekali' : 'Bar 1: Not taken / unclaimed'}>
                                         <span className={`w-3 h-2.5 rounded-[3px] ${deptColorMode === 'status' ? 'bg-[#475569] border border-[#64748B]' : 'bg-[#2C2B22] border border-[#5A5540]'} inline-block shadow-xs`}></span>
@@ -2247,121 +2023,6 @@ function AnalyticsInner() {
                                     </div>
                                 </Tooltip>
                             </div>
-
-                            {/* Role Sub-Filter Row for Admin "Semua Terkait" (Opsi A) */}
-                            {!isDeptUser && deptFilterMode === 'all' && (
-                                <div className="w-full flex items-center justify-between gap-2.5 pt-3 mt-1 pb-0.5 border-t border-[#3B3929]/50 flex-wrap">
-                                    <div className="flex items-center gap-1.5 flex-wrap">
-                                        <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider mr-1 flex items-center gap-1">
-                                            <SlidersHorizontal className="w-3 h-3 text-[#C9AA71]" />
-                                            {lang === 'id' ? 'Filter Peran:' : 'Role Filter:'}
-                                        </span>
-                                        <button
-                                            type="button"
-                                            onClick={() => setRoleGuideModalOpen(true)}
-                                            className="px-2 py-0.5 rounded text-[10px] font-bold text-[#C9AA71] bg-[#C9AA71]/10 hover:bg-[#C9AA71]/20 border border-[#C9AA71]/30 transition-all flex items-center gap-1 cursor-pointer mr-1"
-                                            title={t('role_guide_title')}
-                                        >
-                                            <Info className="w-3 h-3" />
-                                            <span>{t('role_guide_btn')}</span>
-                                        </button>
-                                        {/* Pill 1: All */}
-                                        <Tooltip content={t('tooltip_dept_sub_all')} position="top">
-                                            <button
-                                                type="button"
-                                                onClick={() => setDeptAllSubFilter('all')}
-                                                className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1.5 border ${
-                                                    deptAllSubFilter === 'all'
-                                                        ? 'bg-[#C9AA71] text-[#1C1B0E] font-bold border-[#C9AA71] shadow-sm'
-                                                        : 'bg-[#2A281E] text-muted-foreground border-[#3B3929] hover:text-foreground hover:border-[#C9AA71]/50'
-                                                }`}
-                                            >
-                                                <Globe className="w-3 h-3 shrink-0" />
-                                                <span>{t('dept_sub_all')}</span>
-                                                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${deptAllSubFilter === 'all' ? 'bg-[#1C1B0E]/20 text-[#1C1B0E]' : 'bg-[#1C1B0E] text-muted-foreground'}`}>
-                                                    {deptSubFilterCounts.all}
-                                                </span>
-                                            </button>
-                                        </Tooltip>
-
-                                        {/* Pill 2: Incoming */}
-                                        <Tooltip content={t('tooltip_dept_sub_incoming')} position="top">
-                                            <button
-                                                type="button"
-                                                onClick={() => setDeptAllSubFilter('incoming')}
-                                                className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1.5 border ${
-                                                    deptAllSubFilter === 'incoming'
-                                                        ? 'bg-emerald-500 text-white font-bold border-emerald-400 shadow-sm'
-                                                        : 'bg-[#2A281E] text-muted-foreground border-[#3B3929] hover:text-emerald-400 hover:border-emerald-500/50'
-                                                }`}
-                                            >
-                                                <span className={`font-black text-xs ${deptAllSubFilter === 'incoming' ? 'text-white' : 'text-emerald-400'}`}>↓</span>
-                                                <span>{t('dept_sub_incoming')}</span>
-                                                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${deptAllSubFilter === 'incoming' ? 'bg-black/25 text-white' : 'bg-[#1C1B0E] text-muted-foreground'}`}>
-                                                    {deptSubFilterCounts.incoming}
-                                                </span>
-                                            </button>
-                                        </Tooltip>
-
-                                        {/* Pill 3: Outgoing */}
-                                        <Tooltip content={t('tooltip_dept_sub_outgoing')} position="top">
-                                            <button
-                                                type="button"
-                                                onClick={() => setDeptAllSubFilter('outgoing')}
-                                                className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1.5 border ${
-                                                    deptAllSubFilter === 'outgoing'
-                                                        ? 'bg-rose-500 text-white font-bold border-rose-400 shadow-sm'
-                                                        : 'bg-[#2A281E] text-muted-foreground border-[#3B3929] hover:text-rose-400 hover:border-rose-500/50'
-                                                }`}
-                                            >
-                                                <span className={`font-black text-xs ${deptAllSubFilter === 'outgoing' ? 'text-white' : 'text-rose-400'}`}>↑</span>
-                                                <span>{t('dept_sub_outgoing')}</span>
-                                                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${deptAllSubFilter === 'outgoing' ? 'bg-black/25 text-white' : 'bg-[#1C1B0E] text-muted-foreground'}`}>
-                                                    {deptSubFilterCounts.outgoing}
-                                                </span>
-                                            </button>
-                                        </Tooltip>
-
-                                        {/* Pill 4: Internal */}
-                                        <Tooltip content={t('tooltip_dept_sub_internal')} position="top">
-                                            <button
-                                                type="button"
-                                                onClick={() => setDeptAllSubFilter('internal')}
-                                                className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1.5 border ${
-                                                    deptAllSubFilter === 'internal'
-                                                        ? 'bg-[#C9AA71] text-[#1C1B0E] font-bold border-[#C9AA71] shadow-sm'
-                                                        : 'bg-[#2A281E] text-muted-foreground border-[#3B3929] hover:text-foreground hover:border-[#C9AA71]/50'
-                                                }`}
-                                            >
-                                                <Building2 className="w-3 h-3 shrink-0" />
-                                                <span>{t('dept_sub_internal')}</span>
-                                                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${deptAllSubFilter === 'internal' ? 'bg-[#1C1B0E]/20 text-[#1C1B0E]' : 'bg-[#1C1B0E] text-muted-foreground'}`}>
-                                                    {deptSubFilterCounts.internal}
-                                                </span>
-                                            </button>
-                                        </Tooltip>
-
-                                        {/* Pill 5: Tagged */}
-                                        <Tooltip content={t('tooltip_dept_sub_tagged')} position="top">
-                                            <button
-                                                type="button"
-                                                onClick={() => setDeptAllSubFilter('tagged')}
-                                                className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1.5 border ${
-                                                    deptAllSubFilter === 'tagged'
-                                                        ? 'bg-[#C9AA71] text-[#1C1B0E] font-bold border-[#C9AA71] shadow-sm'
-                                                        : 'bg-[#2A281E] text-muted-foreground border-[#3B3929] hover:text-foreground hover:border-[#C9AA71]/50'
-                                                }`}
-                                            >
-                                                <Megaphone className="w-3 h-3 shrink-0" />
-                                                <span>{t('dept_sub_tagged')}</span>
-                                                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${deptAllSubFilter === 'tagged' ? 'bg-[#1C1B0E]/20 text-[#1C1B0E]' : 'bg-[#1C1B0E] text-muted-foreground'}`}>
-                                                    {deptSubFilterCounts.tagged}
-                                                </span>
-                                            </button>
-                                        </Tooltip>
-                                    </div>
-                                </div>
-                            )}
                         </div>
 
                         <div className={`w-full ${departmentData.length > 6 ? 'h-[335px]' : 'h-[310px]'}`}>
@@ -2412,26 +2073,16 @@ function AnalyticsInner() {
                                                     const baseColor = isStatusMode ? '#F59E0B' : getDepartmentColor(item.name);
                                                     const lightColor = isStatusMode ? '#10B981' : getDepartmentLightColor(item.name);
                                                     const isSelected = selectedDepartmentFilters.some(d => d.toLowerCase() === item.name.toLowerCase());
-                                                    const isAllMode = deptFilterMode === 'all';
                                                     return (
                                                         <div 
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
                                                                 handleDepartmentBarClick({ name: item.name });
                                                             }}
-                                                            className={`bg-[#2A281E] border ${isSelected ? 'border-[#C9AA71] ring-2 ring-[#C9AA71]/40' : 'border-[#3B3929]'} rounded-xl p-3.5 shadow-2xl text-xs space-y-2.5 min-w-[260px] cursor-pointer hover:border-[#C9AA71] transition-all select-none`}
+                                                            className={`bg-[#2A281E] border ${isSelected ? 'border-[#C9AA71] ring-2 ring-[#C9AA71]/40' : 'border-[#3B3929]'} rounded-xl p-3.5 shadow-2xl text-xs space-y-2.5 min-w-[245px] cursor-pointer hover:border-[#C9AA71] transition-all select-none`}
                                                         >
                                                             <div className="flex items-center justify-between gap-2 border-b border-[#3B3929] pb-2">
-                                                                <div className="flex items-center gap-1.5 flex-wrap">
-                                                                    <span className="font-bold text-[#C9AA71] text-sm">{item.name}</span>
-                                                                    {isAllMode && deptAllSubFilter !== 'all' && (
-                                                                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#C9AA71]/15 text-[#C9AA71] border border-[#C9AA71]/30">
-                                                                            {deptAllSubFilter === 'incoming' ? t('dept_sub_incoming') :
-                                                                             deptAllSubFilter === 'outgoing' ? t('dept_sub_outgoing') :
-                                                                             deptAllSubFilter === 'internal' ? t('dept_sub_internal') : t('dept_sub_tagged')}
-                                                                        </span>
-                                                                    )}
-                                                                </div>
+                                                                <span className="font-bold text-[#C9AA71] text-sm">{item.name}</span>
                                                                 <span className="text-[10px] text-muted-foreground font-mono bg-[#1C1B0E] px-1.5 py-0.5 rounded border border-[#3B3929]">
                                                                     #{item.shortName}
                                                                 </span>
@@ -2444,43 +2095,14 @@ function AnalyticsInner() {
 
                                                                 {/* Batang 1: Belum Diambil */}
                                                                 <div 
-                                                                    className="flex flex-col gap-0.5 px-2 py-1 rounded-md border" 
+                                                                    className="flex items-center justify-between font-semibold px-2 py-1 rounded-md border" 
                                                                     style={{ backgroundColor: `${veryDarkColor}50`, borderColor: `${veryDarkColor}90`, color: '#FAFAFA' }}
                                                                 >
-                                                                    <div className="flex items-center justify-between font-semibold">
-                                                                        <span className="flex items-center gap-1.5">
-                                                                            <span className="w-2.5 h-2.5 rounded-xs inline-block shadow-sm border border-white/20" style={{ backgroundColor: veryDarkColor }}></span>
-                                                                            <span>{lang === 'id' ? '1. Belum Diambil' : '1. Unclaimed'}:</span>
-                                                                        </span>
-                                                                        <span className="font-mono">{item.unclaimed} <span className="text-[10px] opacity-75">({item.total > 0 ? Math.round((item.unclaimed / item.total) * 100) : 0}%)</span></span>
-                                                                    </div>
-                                                                    {isAllMode && deptAllSubFilter === 'all' && item.roles && item.unclaimed > 0 && (
-                                                                        <div className="text-[9.5px] font-mono flex items-center gap-2 pl-4 pt-0.5 border-t border-white/10 flex-wrap">
-                                                                            <span className="flex items-center gap-0.5 text-emerald-400 font-semibold" title={lang === 'id' ? 'Tugas Masuk' : 'Incoming'}>
-                                                                                <span className="font-bold">↓</span>
-                                                                                <span>{item.roles.incoming?.unclaimed || 0}</span>
-                                                                            </span>
-                                                                            <span className="text-[#3B3929]">•</span>
-                                                                            <span className="flex items-center gap-0.5 text-rose-400 font-semibold" title={lang === 'id' ? 'Laporan Keluar' : 'Outgoing'}>
-                                                                                <span className="font-bold">↑</span>
-                                                                                <span>{item.roles.outgoing?.unclaimed || 0}</span>
-                                                                            </span>
-                                                                            <span className="text-[#3B3929]">•</span>
-                                                                            <span className="flex items-center gap-0.5 text-amber-300 font-semibold" title={lang === 'id' ? 'Internal Dept' : 'Internal'}>
-                                                                                <span>🏠</span>
-                                                                                <span>{item.roles.internal?.unclaimed || 0}</span>
-                                                                            </span>
-                                                                            {(item.roles.tagged?.unclaimed || 0) > 0 && (
-                                                                                <>
-                                                                                    <span className="text-[#3B3929]">•</span>
-                                                                                    <span className="flex items-center gap-0.5 text-slate-300 font-semibold" title={lang === 'id' ? 'Ditandai / CC' : 'Tagged / CC'}>
-                                                                                        <span>📢</span>
-                                                                                        <span>{item.roles.tagged?.unclaimed || 0}</span>
-                                                                                    </span>
-                                                                                </>
-                                                                            )}
-                                                                        </div>
-                                                                    )}
+                                                                    <span className="flex items-center gap-1.5">
+                                                                        <span className="w-2.5 h-2.5 rounded-xs inline-block shadow-sm border border-white/20" style={{ backgroundColor: veryDarkColor }}></span>
+                                                                        <span>{lang === 'id' ? '1. Belum Diambil' : '1. Unclaimed'}:</span>
+                                                                    </span>
+                                                                    <span className="font-mono">{item.unclaimed} <span className="text-[10px] opacity-75">({item.total > 0 ? Math.round((item.unclaimed / item.total) * 100) : 0}%)</span></span>
                                                                 </div>
 
                                                                 {/* Batang 2: Sudah Diambil (Stacked: Sedang Dikerjakan + Selesai) */}
@@ -2492,121 +2114,28 @@ function AnalyticsInner() {
                                                                     
                                                                     {/* Sedang Dikerjakan */}
                                                                     <div 
-                                                                        className="flex flex-col gap-0.5 px-1.5 py-0.5 rounded text-[11px]" 
+                                                                        className="flex items-center justify-between font-semibold px-1.5 py-0.5 rounded text-[11px]" 
                                                                         style={{ backgroundColor: `${baseColor}20`, color: '#FAFAFA' }}
                                                                     >
-                                                                        <div className="flex items-center justify-between font-semibold">
-                                                                            <span className="flex items-center gap-1.5">
-                                                                                <span className="w-2 h-2 rounded-xs inline-block shadow-sm" style={{ backgroundColor: baseColor }}></span>
-                                                                                <span>{lang === 'id' ? 'Sedang Dikerjakan' : 'In Progress'}:</span>
-                                                                            </span>
-                                                                            <span className="font-mono">{item.inProgress} <span className="text-[10px] opacity-75">({item.handled > 0 ? Math.round((item.inProgress / item.handled) * 100) : 0}%)</span></span>
-                                                                        </div>
-                                                                        {isAllMode && deptAllSubFilter === 'all' && item.roles && item.inProgress > 0 && (
-                                                                            <div className="text-[9.5px] font-mono flex items-center gap-2 pl-3.5 pt-0.5 border-t border-white/10 flex-wrap">
-                                                                                <span className="flex items-center gap-0.5 text-emerald-400 font-semibold" title={lang === 'id' ? 'Tugas Masuk' : 'Incoming'}>
-                                                                                    <span className="font-bold">↓</span>
-                                                                                    <span>{item.roles.incoming?.inProgress || 0}</span>
-                                                                                </span>
-                                                                                <span className="text-[#3B3929]">•</span>
-                                                                                <span className="flex items-center gap-0.5 text-rose-400 font-semibold" title={lang === 'id' ? 'Laporan Keluar' : 'Outgoing'}>
-                                                                                    <span className="font-bold">↑</span>
-                                                                                    <span>{item.roles.outgoing?.inProgress || 0}</span>
-                                                                                </span>
-                                                                                <span className="text-[#3B3929]">•</span>
-                                                                                <span className="flex items-center gap-0.5 text-amber-300 font-semibold" title={lang === 'id' ? 'Internal Dept' : 'Internal'}>
-                                                                                    <span>🏠</span>
-                                                                                    <span>{item.roles.internal?.inProgress || 0}</span>
-                                                                                </span>
-                                                                                {(item.roles.tagged?.inProgress || 0) > 0 && (
-                                                                                    <>
-                                                                                        <span className="text-[#3B3929]">•</span>
-                                                                                        <span className="flex items-center gap-0.5 text-slate-300 font-semibold" title={lang === 'id' ? 'Ditandai / CC' : 'Tagged / CC'}>
-                                                                                            <span>📢</span>
-                                                                                            <span>{item.roles.tagged?.inProgress || 0}</span>
-                                                                                        </span>
-                                                                                    </>
-                                                                                )}
-                                                                            </div>
-                                                                        )}
+                                                                        <span className="flex items-center gap-1.5">
+                                                                            <span className="w-2 h-2 rounded-xs inline-block shadow-sm" style={{ backgroundColor: baseColor }}></span>
+                                                                            <span>{lang === 'id' ? 'Sedang Dikerjakan' : 'In Progress'}:</span>
+                                                                        </span>
+                                                                        <span className="font-mono">{item.inProgress} <span className="text-[10px] opacity-75">({item.handled > 0 ? Math.round((item.inProgress / item.handled) * 100) : 0}%)</span></span>
                                                                     </div>
 
                                                                     {/* Sudah Selesai */}
                                                                     <div 
-                                                                        className="flex flex-col gap-0.5 px-1.5 py-0.5 rounded text-[11px]" 
+                                                                        className="flex items-center justify-between font-semibold px-1.5 py-0.5 rounded text-[11px]" 
                                                                         style={{ backgroundColor: `${lightColor}20`, color: '#FAFAFA' }}
                                                                     >
-                                                                        <div className="flex items-center justify-between font-semibold">
-                                                                            <span className="flex items-center gap-1.5">
-                                                                                <span className="w-2 h-2 rounded-xs inline-block shadow-sm" style={{ backgroundColor: lightColor }}></span>
-                                                                                <span>{lang === 'id' ? 'Sudah Selesai' : 'Solved'}:</span>
-                                                                            </span>
-                                                                            <span className="font-mono">{item.solved} <span className="text-[10px] opacity-75">({item.handled > 0 ? Math.round((item.solved / item.handled) * 100) : 0}%)</span></span>
-                                                                        </div>
-                                                                        {isAllMode && deptAllSubFilter === 'all' && item.roles && item.solved > 0 && (
-                                                                            <div className="text-[9.5px] font-mono flex items-center gap-2 pl-3.5 pt-0.5 border-t border-white/10 flex-wrap">
-                                                                                <span className="flex items-center gap-0.5 text-emerald-400 font-semibold" title={lang === 'id' ? 'Tugas Masuk' : 'Incoming'}>
-                                                                                    <span className="font-bold">↓</span>
-                                                                                    <span>{item.roles.incoming?.solved || 0}</span>
-                                                                                </span>
-                                                                                <span className="text-[#3B3929]">•</span>
-                                                                                <span className="flex items-center gap-0.5 text-rose-400 font-semibold" title={lang === 'id' ? 'Laporan Keluar' : 'Outgoing'}>
-                                                                                    <span className="font-bold">↑</span>
-                                                                                    <span>{item.roles.outgoing?.solved || 0}</span>
-                                                                                </span>
-                                                                                <span className="text-[#3B3929]">•</span>
-                                                                                <span className="flex items-center gap-0.5 text-amber-300 font-semibold" title={lang === 'id' ? 'Internal Dept' : 'Internal'}>
-                                                                                    <span>🏠</span>
-                                                                                    <span>{item.roles.internal?.solved || 0}</span>
-                                                                                </span>
-                                                                                {(item.roles.tagged?.solved || 0) > 0 && (
-                                                                                    <>
-                                                                                        <span className="text-[#3B3929]">•</span>
-                                                                                        <span className="flex items-center gap-0.5 text-slate-300 font-semibold" title={lang === 'id' ? 'Ditandai / CC' : 'Tagged / CC'}>
-                                                                                            <span>📢</span>
-                                                                                            <span>{item.roles.tagged?.solved || 0}</span>
-                                                                                        </span>
-                                                                                    </>
-                                                                                )}
-                                                                            </div>
-                                                                        )}
+                                                                        <span className="flex items-center gap-1.5">
+                                                                            <span className="w-2 h-2 rounded-xs inline-block shadow-sm" style={{ backgroundColor: lightColor }}></span>
+                                                                            <span>{lang === 'id' ? 'Sudah Selesai' : 'Solved'}:</span>
+                                                                        </span>
+                                                                        <span className="font-mono">{item.solved} <span className="text-[10px] opacity-75">({item.handled > 0 ? Math.round((item.solved / item.handled) * 100) : 0}%)</span></span>
                                                                     </div>
                                                                 </div>
-
-                                                                {/* Role Summary Grid for All Mode */}
-                                                                {isAllMode && item.roles && (
-                                                                    <div className="pt-2 border-t border-[#3B3929]/70 space-y-1">
-                                                                        <div className="text-[9.5px] font-bold text-[#A19F8D] uppercase tracking-wider">
-                                                                            {lang === 'id' ? 'Distribusi Aliran & Peran:' : 'Flow & Role Distribution:'}
-                                                                        </div>
-                                                                        <div className="grid grid-cols-2 gap-1 text-[10px]">
-                                                                            <div className="flex items-center justify-between bg-[#1C1B0E] px-1.5 py-0.5 rounded border border-emerald-500/20">
-                                                                                <span className="text-emerald-400 flex items-center gap-1 font-semibold">
-                                                                                    <span className="font-bold text-xs">↓</span> {lang === 'id' ? 'Masuk (In)' : 'In'}:
-                                                                                </span>
-                                                                                <span className="font-bold text-emerald-400 font-mono">{item.roles.incoming?.total || 0}</span>
-                                                                            </div>
-                                                                            <div className="flex items-center justify-between bg-[#1C1B0E] px-1.5 py-0.5 rounded border border-rose-500/20">
-                                                                                <span className="text-rose-400 flex items-center gap-1 font-semibold">
-                                                                                    <span className="font-bold text-xs">↑</span> {lang === 'id' ? 'Keluar (Out)' : 'Out'}:
-                                                                                </span>
-                                                                                <span className="font-bold text-rose-400 font-mono">{item.roles.outgoing?.total || 0}</span>
-                                                                            </div>
-                                                                            <div className="flex items-center justify-between bg-[#1C1B0E] px-1.5 py-0.5 rounded border border-amber-500/20">
-                                                                                <span className="text-amber-400 flex items-center gap-1 font-medium">
-                                                                                    <span>🏠</span> {lang === 'id' ? 'Internal' : 'Self'}:
-                                                                                </span>
-                                                                                <span className="font-bold text-amber-400 font-mono">{item.roles.internal?.total || 0}</span>
-                                                                            </div>
-                                                                            <div className="flex items-center justify-between bg-[#1C1B0E] px-1.5 py-0.5 rounded border border-[#3B3929]/40">
-                                                                                <span className="text-slate-400 flex items-center gap-1 font-medium">
-                                                                                    <span>📢</span> {lang === 'id' ? 'Ditandai' : 'Tagged'}:
-                                                                                </span>
-                                                                                <span className="font-bold text-slate-400 font-mono">{item.roles.tagged?.total || 0}</span>
-                                                                            </div>
-                                                                        </div>
-                                                                    </div>
-                                                                )}
                                                             </div>
                                                             {/* Click to filter hint */}
                                                             <div className="pt-1.5 border-t border-[#3B3929]/70 flex items-center justify-center gap-1 text-[10px] text-[#C9AA71] font-semibold">
@@ -2623,7 +2152,6 @@ function AnalyticsInner() {
                                                 name={lang === 'id' ? 'Belum Diambil' : 'Unclaimed'} 
                                                 stackId="unclaimed"
                                                 radius={[4, 4, 0, 0]}
-                                                shape={renderSegmentedUnclaimedBar}
                                                 onClick={(data) => handleDepartmentBarClick(data)}
                                                 cursor="pointer"
                                             >
@@ -2648,7 +2176,6 @@ function AnalyticsInner() {
                                                 name={lang === 'id' ? 'Sedang Dikerjakan' : 'In Progress'} 
                                                 stackId="handled"
                                                 radius={entry => entry?.solved > 0 ? [0, 0, 0, 0] : [4, 4, 0, 0]}
-                                                shape={renderSegmentedInProgressBar}
                                                 onClick={(data) => handleDepartmentBarClick(data)}
                                                 cursor="pointer"
                                             >
@@ -2673,7 +2200,6 @@ function AnalyticsInner() {
                                                 name={lang === 'id' ? 'Sudah Selesai' : 'Solved'} 
                                                 stackId="handled"
                                                 radius={[4, 4, 0, 0]}
-                                                shape={renderSegmentedSolvedBar}
                                                 onClick={(data) => handleDepartmentBarClick(data)}
                                                 cursor="pointer"
                                             >
@@ -3602,97 +3128,6 @@ function AnalyticsInner() {
                     issue={cardModalTarget} 
                     onClose={() => setCardModalTarget(null)} 
                 />
-            )}
-            {/* Modal Panduan Filter Peran */}
-            {roleGuideModalOpen && (
-                <div 
-                    className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs animate-in fade-in duration-150"
-                    onClick={() => setRoleGuideModalOpen(false)}
-                >
-                    <div 
-                        className="bg-[#2A281E] border border-[#3B3929] rounded-2xl max-w-lg w-full p-5 shadow-2xl text-[#FAFAFA] space-y-4"
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        <div className="flex items-start justify-between gap-3 border-b border-[#3B3929] pb-3">
-                            <div className="flex items-center gap-2.5">
-                                <div className="p-2 rounded-xl bg-[#C9AA71]/15 text-[#C9AA71] border border-[#C9AA71]/30">
-                                    <SlidersHorizontal className="w-5 h-5" />
-                                </div>
-                                <div>
-                                    <h3 className="font-bold text-[#FAFAFA] text-base leading-tight">
-                                        {t('role_guide_title')}
-                                    </h3>
-                                    <p className="text-xs text-[#A19F8D] mt-0.5">
-                                        {t('role_guide_desc')}
-                                    </p>
-                                </div>
-                            </div>
-                            <button
-                                type="button"
-                                onClick={() => setRoleGuideModalOpen(false)}
-                                className="p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-[#3B3929] transition-colors cursor-pointer"
-                            >
-                                <X className="w-4 h-4" />
-                            </button>
-                        </div>
-
-                        <div className="space-y-2.5 text-xs">
-                            {/* 1. Tugas Masuk */}
-                            <div className="p-3 rounded-xl bg-[#1C1B0E] border border-emerald-500/25 space-y-1">
-                                <div className="flex items-center gap-2 font-bold text-emerald-400">
-                                    <span className="font-black text-sm">↓</span>
-                                    <span>{t('role_guide_incoming_title')}</span>
-                                </div>
-                                <p className="text-[#A19F8D] text-[11.5px] leading-relaxed pl-5">
-                                    {t('role_guide_incoming_desc')}
-                                </p>
-                            </div>
-
-                            {/* 2. Laporan Keluar */}
-                            <div className="p-3 rounded-xl bg-[#1C1B0E] border border-rose-500/25 space-y-1">
-                                <div className="flex items-center gap-2 font-bold text-rose-400">
-                                    <span className="font-black text-sm">↑</span>
-                                    <span>{t('role_guide_outgoing_title')}</span>
-                                </div>
-                                <p className="text-[#A19F8D] text-[11.5px] leading-relaxed pl-5">
-                                    {t('role_guide_outgoing_desc')}
-                                </p>
-                            </div>
-
-                            {/* 3. Internal Dept */}
-                            <div className="p-3 rounded-xl bg-[#1C1B0E] border border-[#3B3929] space-y-1">
-                                <div className="flex items-center gap-2 font-bold text-emerald-400">
-                                    <Building2 className="w-4 h-4 text-emerald-400" />
-                                    <span>{t('role_guide_internal_title')}</span>
-                                </div>
-                                <p className="text-[#A19F8D] text-[11.5px] leading-relaxed pl-6">
-                                    {t('role_guide_internal_desc')}
-                                </p>
-                            </div>
-
-                            {/* 4. Ditandai */}
-                            <div className="p-3 rounded-xl bg-[#1C1B0E] border border-[#3B3929] space-y-1">
-                                <div className="flex items-center gap-2 font-bold text-slate-300">
-                                    <Megaphone className="w-4 h-4 text-slate-300" />
-                                    <span>{t('role_guide_tagged_title')}</span>
-                                </div>
-                                <p className="text-[#A19F8D] text-[11.5px] leading-relaxed pl-6">
-                                    {t('role_guide_tagged_desc')}
-                                </p>
-                            </div>
-                        </div>
-
-                        <div className="pt-2 border-t border-[#3B3929] flex justify-end">
-                            <button
-                                type="button"
-                                onClick={() => setRoleGuideModalOpen(false)}
-                                className="px-4 py-2 rounded-xl bg-[#C9AA71] hover:bg-[#B3935B] text-[#1C1B0E] font-bold text-xs transition-colors cursor-pointer"
-                            >
-                                {lang === 'id' ? 'Mengerti' : 'Got It'}
-                            </button>
-                        </div>
-                    </div>
-                </div>
             )}
             <MobileBottomNav currentTab="analytics" />
             </div>
