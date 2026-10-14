@@ -428,15 +428,18 @@ function AnalyticsInner() {
     const [allRelatedSearch, setAllRelatedSearch] = useState('');
     const [deptColorMode, setDeptColorMode] = useState(() => {
         if (typeof window !== 'undefined') {
-            return localStorage.getItem('telunas_dept_chart_color_mode') || 'dept';
+            const saved = localStorage.getItem('telunas_dept_chart_color_mode_v2');
+            if (saved === 'status' || saved === 'dept') {
+                return saved;
+            }
         }
-        return 'dept';
+        return 'status';
     });
 
     const handleSetDeptColorMode = (mode) => {
         setDeptColorMode(mode);
         if (typeof window !== 'undefined') {
-            localStorage.setItem('telunas_dept_chart_color_mode', mode);
+            localStorage.setItem('telunas_dept_chart_color_mode_v2', mode);
         }
     };
     const [selectedCategoryFilters, setSelectedCategoryFilters] = useState([]);
@@ -2452,22 +2455,22 @@ function AnalyticsInner() {
                                 {/* Tri-Tone Status Legend */}
                                 <div className="flex flex-wrap items-center gap-3 bg-[#2A281E] px-3 py-1.5 rounded-xl border border-[#3B3929] text-[11px] shadow-xs">
                                     {/* Batang 1: Belum Diambil */}
-                                    <div className="flex items-center gap-1.5 font-semibold text-[#FAFAFA]" title={lang === 'id' ? 'Batang 1: Belum diambil sama sekali' : 'Bar 1: Not taken / unclaimed'}>
-                                        <span className={`w-3 h-2.5 rounded-[3px] ${deptColorMode === 'status' ? 'bg-[#475569] border border-[#64748B]' : 'bg-[#2C2B22] border border-[#5A5540]'} inline-block shadow-xs`}></span>
+                                    <div className="flex items-center gap-1.5 font-semibold text-[#FAFAFA]" title={deptColorMode === 'status' ? (lang === 'id' ? 'Batang 1 (Abu-abu): Belum diambil sama sekali' : 'Bar 1 (Slate): Unclaimed') : (lang === 'id' ? 'Batang 1: Warna Gelap (Belum diambil)' : 'Bar 1: Dark shade (Unclaimed)')}>
+                                        <span className={`w-3 h-2.5 rounded-[3px] ${deptColorMode === 'status' ? 'bg-[#475569] border border-[#64748B]' : 'bg-slate-800 border border-slate-600'} inline-block shadow-xs`}></span>
                                         <span className="text-muted-foreground">{lang === 'id' ? 'Belum Diambil' : 'Unclaimed'}:</span>
                                         <span className="font-bold text-[#C9AA71] font-mono">{deptSummaryStats.unclaimed}</span>
                                     </div>
                                     <div className="h-3 w-px bg-[#3B3929]"></div>
                                     {/* Batang 2 Segmen 1: Sedang Dikerjakan */}
-                                    <div className="flex items-center gap-1.5 font-semibold text-[#FAFAFA]" title={lang === 'id' ? 'Batang 2: Sedang dikerjakan' : 'Bar 2: In progress'}>
-                                        <span className={`w-3 h-2.5 rounded-[3px] ${deptColorMode === 'status' ? 'bg-[#F59E0B] border border-amber-300/40' : 'bg-[#E58C36] border border-white/20'} inline-block shadow-xs`}></span>
+                                    <div className="flex items-center gap-1.5 font-semibold text-[#FAFAFA]" title={deptColorMode === 'status' ? (lang === 'id' ? 'Batang 2 Bawah (Oranye): Sedang dikerjakan' : 'Bar 2 Bottom (Amber): In progress') : (lang === 'id' ? 'Batang 2 Bawah: Warna Asli (Sedang dikerjakan)' : 'Bar 2 Bottom: Base color (In progress)')}>
+                                        <span className={`w-3 h-2.5 rounded-[3px] ${deptColorMode === 'status' ? 'bg-[#F59E0B] border border-amber-300/40' : 'bg-[#E58C36] border border-amber-400'} inline-block shadow-xs`}></span>
                                         <span className="text-muted-foreground">{lang === 'id' ? 'Sedang Dikerjakan' : 'In Progress'}:</span>
                                         <span className="font-bold text-amber-400 font-mono">{deptSummaryStats.inProgress}</span>
                                     </div>
                                     <div className="h-3 w-px bg-[#3B3929]"></div>
                                     {/* Batang 2 Segmen 2: Sudah Selesai */}
-                                    <div className="flex items-center gap-1.5 font-semibold text-[#FAFAFA]" title={lang === 'id' ? 'Batang 2: Sudah selesai' : 'Bar 2: Finished / solved'}>
-                                        <span className={`w-3 h-2.5 rounded-[3px] ${deptColorMode === 'status' ? 'bg-[#10B981] border border-emerald-300/40' : 'bg-[#B0BEC5] border border-white/30'} inline-block shadow-xs`}></span>
+                                    <div className="flex items-center gap-1.5 font-semibold text-[#FAFAFA]" title={deptColorMode === 'status' ? (lang === 'id' ? 'Batang 2 Atas (Hijau): Sudah selesai' : 'Bar 2 Top (Emerald): Finished / solved') : (lang === 'id' ? 'Batang 2 Atas: Warna Terang (Sudah selesai)' : 'Bar 2 Top: Light shade (Finished / solved)')}>
+                                        <span className={`w-3 h-2.5 rounded-[3px] ${deptColorMode === 'status' ? 'bg-[#10B981] border border-emerald-300/40' : 'bg-emerald-300 border border-emerald-200'} inline-block shadow-xs`}></span>
                                         <span className="text-muted-foreground">{lang === 'id' ? 'Selesai' : 'Solved'}:</span>
                                         <span className="font-bold text-emerald-400 font-mono">{deptSummaryStats.solved}</span>
                                     </div>
@@ -2477,7 +2480,7 @@ function AnalyticsInner() {
                                 <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
                                     {/* Color Mode Selector (Warna Dept vs Warna Statis) */}
                                     <div className="flex items-center rounded-lg bg-[#2A281E] p-0.5 border border-[#3B3929] text-xs shadow-xs">
-                                        <Tooltip content={lang === 'id' ? 'Gunakan warna identitas tiap departemen' : 'Use individual department theme colors'} position="top">
+                                        <Tooltip content={lang === 'id' ? 'Gunakan gradasi kecerahan warna asli departemen (Gelap = Belum, Normal = Proses, Terang = Selesai)' : 'Use department brightness shades: Dark (Unclaimed), Normal (Progress), Light (Solved)'} position="top">
                                             <button
                                                 type="button"
                                                 onClick={() => handleSetDeptColorMode('dept')}
@@ -2491,7 +2494,7 @@ function AnalyticsInner() {
                                                 <span>{lang === 'id' ? 'Warna Dept' : 'Dept Colors'}</span>
                                             </button>
                                         </Tooltip>
-                                        <Tooltip content={lang === 'id' ? 'Gunakan warna status statis (Belum, Sedang, Selesai)' : 'Use static status colors (Unclaimed, Progress, Solved)'} position="top">
+                                        <Tooltip content={lang === 'id' ? 'Gunakan warna status standar universal (Abu-abu = Belum, Oranye = Proses, Hijau = Selesai)' : 'Use universal status colors: Slate (Unclaimed), Orange (Progress), Green (Solved)'} position="top">
                                             <button
                                                 type="button"
                                                 onClick={() => handleSetDeptColorMode('status')}
@@ -2587,8 +2590,14 @@ function AnalyticsInner() {
                                                             className={`bg-[#2A281E] border ${isSelected ? 'border-[#C9AA71] ring-2 ring-[#C9AA71]/40' : 'border-[#3B3929]'} rounded-xl p-3.5 shadow-2xl text-xs space-y-2.5 min-w-[245px] cursor-pointer hover:border-[#C9AA71] transition-all select-none`}
                                                         >
                                                             <div className="flex items-center justify-between gap-2 border-b border-[#3B3929] pb-2">
-                                                                <span className="font-bold text-[#C9AA71] text-sm">{item.name}</span>
-                                                                <span className="text-[10px] text-muted-foreground font-mono bg-[#1C1B0E] px-1.5 py-0.5 rounded border border-[#3B3929]">
+                                                                <div className="flex items-center gap-2 min-w-0">
+                                                                    <span 
+                                                                        className="w-3 h-3 rounded-full shrink-0 shadow-xs" 
+                                                                        style={{ backgroundColor: getDepartmentColor(item.name) }} 
+                                                                    />
+                                                                    <span className="font-bold text-[#FAFAFA] text-sm truncate">{item.name}</span>
+                                                                </div>
+                                                                <span className="text-[10px] text-muted-foreground font-mono bg-[#1C1B0E] px-1.5 py-0.5 rounded border border-[#3B3929] shrink-0">
                                                                     #{item.shortName}
                                                                 </span>
                                                             </div>
