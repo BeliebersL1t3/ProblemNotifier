@@ -870,8 +870,9 @@ function AnalyticsInner() {
     // Bar 2 Lower (Sedang Dikerjakan) Label Renderer: inside number & top total if solved == 0
     const renderInProgressBarLabels = (props) => {
         const { x, y, width, height, value, index } = props;
-        if (!value || value <= 0) return null;
         const entry = departmentData[index];
+        const inProgressVal = entry ? entry.inProgress : value;
+        if (!inProgressVal || inProgressVal <= 0) return null;
         const isTopSegment = !entry || (entry.solved || 0) === 0;
 
         return (
@@ -887,7 +888,7 @@ function AnalyticsInner() {
                         fontWeight="bold"
                         style={{ textShadow: '0 1px 3px rgba(0,0,0,0.9)' }}
                     >
-                        {value}
+                        {inProgressVal}
                     </text>
                 )}
                 {isTopSegment && (
@@ -901,7 +902,7 @@ function AnalyticsInner() {
                         fontWeight="bold"
                         style={{ textShadow: '0 1px 2px rgba(0,0,0,0.95)' }}
                     >
-                        {value}
+                        {inProgressVal}
                     </text>
                 )}
             </g>
@@ -911,8 +912,9 @@ function AnalyticsInner() {
     // Bar 2 Upper (Sudah Selesai) Label Renderer: inside number & top total handled
     const renderSolvedBarLabels = (props) => {
         const { x, y, width, height, value, index } = props;
-        if (!value || value <= 0) return null;
         const entry = departmentData[index];
+        const solvedVal = entry ? entry.solved : value;
+        if (!solvedVal || solvedVal <= 0) return null;
         const handledTotal = entry ? (entry.inProgress || 0) + (entry.solved || 0) : value;
 
         return (
@@ -928,7 +930,7 @@ function AnalyticsInner() {
                         fontWeight="bold"
                         style={{ textShadow: '0 1px 3px rgba(0,0,0,0.9)' }}
                     >
-                        {value}
+                        {solvedVal}
                     </text>
                 )}
                 <text
