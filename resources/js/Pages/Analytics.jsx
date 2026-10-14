@@ -1035,8 +1035,9 @@ function AnalyticsInner() {
     // Bar 2 Upper (Sudah Selesai) Label Renderer: inside number & top total handled
     const renderSolvedBarLabels = (props) => {
         const { x, y, width, height, value, index } = props;
-        if (!value || value <= 0) return null;
         const entry = departmentData[index];
+        const solvedVal = entry?.solved ?? value;
+        if (!solvedVal || solvedVal <= 0) return null;
         const handledTotal = entry ? (entry.inProgress || 0) + (entry.solved || 0) : value;
 
         return (
@@ -1052,7 +1053,7 @@ function AnalyticsInner() {
                         fontWeight="bold"
                         style={{ textShadow: '0 1px 3px rgba(0,0,0,0.9)' }}
                     >
-                        {value}
+                        {solvedVal}
                     </text>
                 )}
                 <text
@@ -1071,77 +1072,14 @@ function AnalyticsInner() {
         );
     };
 
-    // Custom Bar Shapes for Multi-Segment Visualization (Opsi C)
+    // Clean Bar Shapes for Department Visualization (Removed confusing multi-segment brown/striped slices)
     const renderSegmentedUnclaimedBar = (props) => {
         const { x, y, width, height, payload, fill } = props;
         if (!payload || height <= 0 || width <= 0) return null;
         const isSelected = selectedDepartmentFilters.some(d => d.toLowerCase() === (payload.name || '').toLowerCase());
         const isStatusMode = deptColorMode === 'status';
+        const barFill = isStatusMode ? '#475569' : getDepartmentVeryDarkColor(payload.name);
 
-        // When in 'all' mode with 'all' subfilter, show proportional multi-segment role breakdown
-        if (deptFilterMode === 'all' && deptAllSubFilter === 'all' && payload.roles) {
-            const inc = payload.roles.incoming?.unclaimed || 0;
-            const intr = payload.roles.internal?.unclaimed || 0;
-            const out = payload.roles.outgoing?.unclaimed || 0;
-            const tag = payload.roles.tagged?.unclaimed || 0;
-            const total = inc + intr + out + tag;
-
-            if (total > 0) {
-                const deptBase = getDepartmentVeryDarkColor(payload.name);
-                const segments = isStatusMode ? [
-                    { val: inc, fill: '#475569', opacity: 1 }, // Incoming: Slate solid
-                    { val: intr, fill: '#334155', opacity: 1 }, // Internal: Dark slate-teal
-                    { val: out, fill: '#64748B', opacity: 1 },  // Outgoing: Lighter slate
-                    { val: tag, fill: '#1E293B', opacity: 1 },  // Tagged: Dark slate
-                ].filter(s => s.val > 0) : [
-                    { val: inc, fill: deptBase, opacity: 1 },     // Incoming: Full department shade
-                    { val: intr, fill: deptBase, opacity: 0.78 }, // Internal: 78% opacity
-                    { val: out, fill: deptBase, opacity: 0.58 },  // Outgoing: 58% opacity
-                    { val: tag, fill: deptBase, opacity: 0.38 },  // Tagged: 38% opacity
-                ].filter(s => s.val > 0);
-
-                let currentY = y + height;
-                return (
-                    <g pointerEvents="none">
-                        {segments.map((seg, idx) => {
-                            const segH = (seg.val / total) * height;
-                            currentY -= segH;
-                            const isTop = (idx === segments.length - 1);
-                            return (
-                                <rect
-                                    key={`unclaimed-seg-${idx}`}
-                                    x={x}
-                                    y={currentY}
-                                    width={width}
-                                    height={segH}
-                                    rx={isTop ? 4 : 0}
-                                    ry={isTop ? 4 : 0}
-                                    fill={seg.fill}
-                                    fillOpacity={seg.opacity ?? 1}
-                                    stroke="#1C1B0E"
-                                    strokeWidth={segments.length > 1 ? 0.75 : 0}
-                                />
-                            );
-                        })}
-                        {isSelected && (
-                            <rect
-                                x={x}
-                                y={y}
-                                width={width}
-                                height={height}
-                                rx={4}
-                                ry={4}
-                                fill="none"
-                                stroke="#F59E0B"
-                                strokeWidth={1.5}
-                            />
-                        )}
-                    </g>
-                );
-            }
-        }
-
-        const fallbackFill = isStatusMode ? '#475569' : getDepartmentVeryDarkColor(payload.name);
         return (
             <rect
                 x={x}
@@ -1150,7 +1088,7 @@ function AnalyticsInner() {
                 height={height}
                 rx={4}
                 ry={4}
-                fill={fallbackFill || fill}
+                fill={barFill || fill}
                 stroke={isSelected ? '#F59E0B' : 'transparent'}
                 strokeWidth={isSelected ? 1.5 : 0}
                 opacity={selectedDepartmentFilters.length > 0 ? (isSelected ? 1 : 0.35) : 1}
@@ -1164,70 +1102,8 @@ function AnalyticsInner() {
         const isSelected = selectedDepartmentFilters.some(d => d.toLowerCase() === (payload.name || '').toLowerCase());
         const isTopSegment = (payload.solved || 0) === 0;
         const isStatusMode = deptColorMode === 'status';
+        const barFill = isStatusMode ? '#F59E0B' : getDepartmentColor(payload.name);
 
-        if (deptFilterMode === 'all' && deptAllSubFilter === 'all' && payload.roles) {
-            const inc = payload.roles.incoming?.inProgress || 0;
-            const intr = payload.roles.internal?.inProgress || 0;
-            const out = payload.roles.outgoing?.inProgress || 0;
-            const tag = payload.roles.tagged?.inProgress || 0;
-            const total = inc + intr + out + tag;
-
-            if (total > 0) {
-                const deptBase = getDepartmentColor(payload.name);
-                const segments = isStatusMode ? [
-                    { val: inc, fill: '#F59E0B', opacity: 1 }, // Incoming: Amber
-                    { val: intr, fill: '#D97706', opacity: 1 }, // Internal: Deep amber
-                    { val: out, fill: '#FBBF24', opacity: 1 },  // Outgoing: Warm amber
-                    { val: tag, fill: '#92400E', opacity: 1 },  // Tagged: Muted amber
-                ].filter(s => s.val > 0) : [
-                    { val: inc, fill: deptBase, opacity: 1 },     // Incoming: Full department theme
-                    { val: intr, fill: deptBase, opacity: 0.78 }, // Internal: 78% opacity
-                    { val: out, fill: deptBase, opacity: 0.58 },  // Outgoing: 58% opacity
-                    { val: tag, fill: deptBase, opacity: 0.38 },  // Tagged: 38% opacity
-                ].filter(s => s.val > 0);
-
-                let currentY = y + height;
-                return (
-                    <g pointerEvents="none">
-                        {segments.map((seg, idx) => {
-                            const segH = (seg.val / total) * height;
-                            currentY -= segH;
-                            const isTop = isTopSegment && (idx === segments.length - 1);
-                            return (
-                                <rect
-                                    key={`inprogress-seg-${idx}`}
-                                    x={x}
-                                    y={currentY}
-                                    width={width}
-                                    height={segH}
-                                    rx={isTop ? 4 : 0}
-                                    ry={isTop ? 4 : 0}
-                                    fill={seg.fill}
-                                    fillOpacity={seg.opacity ?? 1}
-                                    stroke="#1C1B0E"
-                                    strokeWidth={segments.length > 1 ? 0.75 : 0}
-                                />
-                            );
-                        })}
-                        {isSelected && (
-                            <rect
-                                x={x}
-                                y={y}
-                                width={width}
-                                height={height}
-                                rx={isTopSegment ? 4 : 0}
-                                ry={isTopSegment ? 4 : 0}
-                                fill="none"
-                                stroke="#F59E0B"
-                                strokeWidth={1.5}
-                            />
-                        )}
-                    </g>
-                );
-            }
-        }
-
-        const fallbackFill = isStatusMode ? '#F59E0B' : getDepartmentColor(payload.name);
         return (
             <rect
                 x={x}
@@ -1236,7 +1112,7 @@ function AnalyticsInner() {
                 height={height}
                 rx={isTopSegment ? 4 : 0}
                 ry={isTopSegment ? 4 : 0}
-                fill={fallbackFill || fill}
+                fill={barFill || fill}
                 stroke={isSelected ? '#F59E0B' : 'transparent'}
                 strokeWidth={isSelected ? 1.5 : 0}
                 opacity={selectedDepartmentFilters.length > 0 ? (isSelected ? 1 : 0.35) : 1}
@@ -1249,70 +1125,8 @@ function AnalyticsInner() {
         if (!payload || height <= 0 || width <= 0) return null;
         const isSelected = selectedDepartmentFilters.some(d => d.toLowerCase() === (payload.name || '').toLowerCase());
         const isStatusMode = deptColorMode === 'status';
+        const barFill = isStatusMode ? '#10B981' : getDepartmentLightColor(payload.name);
 
-        if (deptFilterMode === 'all' && deptAllSubFilter === 'all' && payload.roles) {
-            const inc = payload.roles.incoming?.solved || 0;
-            const intr = payload.roles.internal?.solved || 0;
-            const out = payload.roles.outgoing?.solved || 0;
-            const tag = payload.roles.tagged?.solved || 0;
-            const total = inc + intr + out + tag;
-
-            if (total > 0) {
-                const deptBase = getDepartmentLightColor(payload.name);
-                const segments = isStatusMode ? [
-                    { val: inc, fill: '#10B981', opacity: 1 }, // Incoming: Emerald
-                    { val: intr, fill: '#059669', opacity: 1 }, // Internal: Deep emerald
-                    { val: out, fill: '#34D399', opacity: 1 },  // Outgoing: Bright emerald
-                    { val: tag, fill: '#047857', opacity: 1 },  // Tagged: Forest emerald
-                ].filter(s => s.val > 0) : [
-                    { val: inc, fill: deptBase, opacity: 1 },     // Incoming: Light department theme
-                    { val: intr, fill: deptBase, opacity: 0.78 }, // Internal: 78% opacity
-                    { val: out, fill: deptBase, opacity: 0.58 },  // Outgoing: 58% opacity
-                    { val: tag, fill: deptBase, opacity: 0.38 },  // Tagged: 38% opacity
-                ].filter(s => s.val > 0);
-
-                let currentY = y + height;
-                return (
-                    <g pointerEvents="none">
-                        {segments.map((seg, idx) => {
-                            const segH = (seg.val / total) * height;
-                            currentY -= segH;
-                            const isTop = (idx === segments.length - 1);
-                            return (
-                                <rect
-                                    key={`solved-seg-${idx}`}
-                                    x={x}
-                                    y={currentY}
-                                    width={width}
-                                    height={segH}
-                                    rx={isTop ? 4 : 0}
-                                    ry={isTop ? 4 : 0}
-                                    fill={seg.fill}
-                                    fillOpacity={seg.opacity ?? 1}
-                                    stroke="#1C1B0E"
-                                    strokeWidth={segments.length > 1 ? 0.75 : 0}
-                                />
-                            );
-                        })}
-                        {isSelected && (
-                            <rect
-                                x={x}
-                                y={y}
-                                width={width}
-                                height={height}
-                                rx={4}
-                                ry={4}
-                                fill="none"
-                                stroke="#F59E0B"
-                                strokeWidth={1.5}
-                            />
-                        )}
-                    </g>
-                );
-            }
-        }
-
-        const fallbackFill = isStatusMode ? '#10B981' : getDepartmentLightColor(payload.name);
         return (
             <rect
                 x={x}
@@ -1321,7 +1135,7 @@ function AnalyticsInner() {
                 height={height}
                 rx={4}
                 ry={4}
-                fill={fallbackFill || fill}
+                fill={barFill || fill}
                 stroke={isSelected ? '#F59E0B' : 'transparent'}
                 strokeWidth={isSelected ? 1.5 : 0}
                 opacity={selectedDepartmentFilters.length > 0 ? (isSelected ? 1 : 0.35) : 1}
@@ -2477,13 +2291,13 @@ function AnalyticsInner() {
                                                 onClick={() => setDeptAllSubFilter('incoming')}
                                                 className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1.5 border ${
                                                     deptAllSubFilter === 'incoming'
-                                                        ? 'bg-[#C9AA71] text-[#1C1B0E] font-bold border-[#C9AA71] shadow-sm'
-                                                        : 'bg-[#2A281E] text-muted-foreground border-[#3B3929] hover:text-foreground hover:border-[#C9AA71]/50'
+                                                        ? 'bg-emerald-500 text-white font-bold border-emerald-400 shadow-sm'
+                                                        : 'bg-[#2A281E] text-muted-foreground border-[#3B3929] hover:text-emerald-400 hover:border-emerald-500/50'
                                                 }`}
                                             >
-                                                <Inbox className="w-3 h-3 shrink-0" />
+                                                <span className={`font-black text-xs ${deptAllSubFilter === 'incoming' ? 'text-white' : 'text-emerald-400'}`}>↓</span>
                                                 <span>{t('dept_sub_incoming')}</span>
-                                                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${deptAllSubFilter === 'incoming' ? 'bg-[#1C1B0E]/20 text-[#1C1B0E]' : 'bg-[#1C1B0E] text-muted-foreground'}`}>
+                                                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${deptAllSubFilter === 'incoming' ? 'bg-black/25 text-white' : 'bg-[#1C1B0E] text-muted-foreground'}`}>
                                                     {deptSubFilterCounts.incoming}
                                                 </span>
                                             </button>
@@ -2496,13 +2310,13 @@ function AnalyticsInner() {
                                                 onClick={() => setDeptAllSubFilter('outgoing')}
                                                 className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1.5 border ${
                                                     deptAllSubFilter === 'outgoing'
-                                                        ? 'bg-[#C9AA71] text-[#1C1B0E] font-bold border-[#C9AA71] shadow-sm'
-                                                        : 'bg-[#2A281E] text-muted-foreground border-[#3B3929] hover:text-foreground hover:border-[#C9AA71]/50'
+                                                        ? 'bg-rose-500 text-white font-bold border-rose-400 shadow-sm'
+                                                        : 'bg-[#2A281E] text-muted-foreground border-[#3B3929] hover:text-rose-400 hover:border-rose-500/50'
                                                 }`}
                                             >
-                                                <Send className="w-3 h-3 shrink-0" />
+                                                <span className={`font-black text-xs ${deptAllSubFilter === 'outgoing' ? 'text-white' : 'text-rose-400'}`}>↑</span>
                                                 <span>{t('dept_sub_outgoing')}</span>
-                                                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${deptAllSubFilter === 'outgoing' ? 'bg-[#1C1B0E]/20 text-[#1C1B0E]' : 'bg-[#1C1B0E] text-muted-foreground'}`}>
+                                                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${deptAllSubFilter === 'outgoing' ? 'bg-black/25 text-white' : 'bg-[#1C1B0E] text-muted-foreground'}`}>
                                                     {deptSubFilterCounts.outgoing}
                                                 </span>
                                             </button>
@@ -2546,30 +2360,6 @@ function AnalyticsInner() {
                                             </button>
                                         </Tooltip>
                                     </div>
-
-                                    {/* Multi-segment Indicator / Explainer (Opsi C) */}
-                                    {deptAllSubFilter === 'all' && (
-                                        <div className="flex items-center gap-2 text-[10px] text-muted-foreground bg-[#1C1B0E] px-2.5 py-1 rounded-md border border-[#3B3929]/50">
-                                            <span className="font-semibold text-[#C9AA71]">{lang === 'id' ? 'Multi-Segmen:' : 'Multi-Segment:'}</span>
-                                            {deptColorMode === 'status' ? (
-                                                <>
-                                                    <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-[2px] bg-[#475569] inline-block"></span> {lang === 'id' ? 'Masuk' : 'In'}</span>
-                                                    <span>•</span>
-                                                    <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-[2px] bg-[#64748B] inline-block"></span> {lang === 'id' ? 'Keluar' : 'Out'}</span>
-                                                    <span>•</span>
-                                                    <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-[2px] bg-[#334155] inline-block"></span> {lang === 'id' ? 'Internal' : 'Self'}</span>
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-[2px] bg-[#C9AA71] inline-block"></span> {lang === 'id' ? 'Masuk (100%)' : 'In (100%)'}</span>
-                                                    <span>•</span>
-                                                    <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-[2px] bg-[#C9AA71]/75 inline-block"></span> {lang === 'id' ? 'Internal (78%)' : 'Self (78%)'}</span>
-                                                    <span>•</span>
-                                                    <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-[2px] bg-[#C9AA71]/55 inline-block"></span> {lang === 'id' ? 'Keluar (58%)' : 'Out (58%)'}</span>
-                                                </>
-                                            )}
-                                        </div>
-                                    )}
                                 </div>
                             )}
                         </div>
@@ -2665,12 +2455,30 @@ function AnalyticsInner() {
                                                                         <span className="font-mono">{item.unclaimed} <span className="text-[10px] opacity-75">({item.total > 0 ? Math.round((item.unclaimed / item.total) * 100) : 0}%)</span></span>
                                                                     </div>
                                                                     {isAllMode && deptAllSubFilter === 'all' && item.roles && item.unclaimed > 0 && (
-                                                                        <div className="text-[9.5px] text-[#A19F8D] font-mono flex items-center gap-1.5 pl-4 pt-0.5 border-t border-white/10 flex-wrap">
-                                                                            <span>📥 {item.roles.incoming?.unclaimed || 0}</span>
-                                                                            <span>•</span>
-                                                                            <span>📤 {item.roles.outgoing?.unclaimed || 0}</span>
-                                                                            <span>•</span>
-                                                                            <span>🏠 {item.roles.internal?.unclaimed || 0}</span>
+                                                                        <div className="text-[9.5px] font-mono flex items-center gap-2 pl-4 pt-0.5 border-t border-white/10 flex-wrap">
+                                                                            <span className="flex items-center gap-0.5 text-emerald-400 font-semibold" title={lang === 'id' ? 'Tugas Masuk' : 'Incoming'}>
+                                                                                <span className="font-bold">↓</span>
+                                                                                <span>{item.roles.incoming?.unclaimed || 0}</span>
+                                                                            </span>
+                                                                            <span className="text-[#3B3929]">•</span>
+                                                                            <span className="flex items-center gap-0.5 text-rose-400 font-semibold" title={lang === 'id' ? 'Laporan Keluar' : 'Outgoing'}>
+                                                                                <span className="font-bold">↑</span>
+                                                                                <span>{item.roles.outgoing?.unclaimed || 0}</span>
+                                                                            </span>
+                                                                            <span className="text-[#3B3929]">•</span>
+                                                                            <span className="flex items-center gap-0.5 text-amber-300 font-semibold" title={lang === 'id' ? 'Internal Dept' : 'Internal'}>
+                                                                                <span>🏠</span>
+                                                                                <span>{item.roles.internal?.unclaimed || 0}</span>
+                                                                            </span>
+                                                                            {(item.roles.tagged?.unclaimed || 0) > 0 && (
+                                                                                <>
+                                                                                    <span className="text-[#3B3929]">•</span>
+                                                                                    <span className="flex items-center gap-0.5 text-slate-300 font-semibold" title={lang === 'id' ? 'Ditandai / CC' : 'Tagged / CC'}>
+                                                                                        <span>📢</span>
+                                                                                        <span>{item.roles.tagged?.unclaimed || 0}</span>
+                                                                                    </span>
+                                                                                </>
+                                                                            )}
                                                                         </div>
                                                                     )}
                                                                 </div>
@@ -2695,12 +2503,30 @@ function AnalyticsInner() {
                                                                             <span className="font-mono">{item.inProgress} <span className="text-[10px] opacity-75">({item.handled > 0 ? Math.round((item.inProgress / item.handled) * 100) : 0}%)</span></span>
                                                                         </div>
                                                                         {isAllMode && deptAllSubFilter === 'all' && item.roles && item.inProgress > 0 && (
-                                                                            <div className="text-[9.5px] text-[#A19F8D] font-mono flex items-center gap-1.5 pl-3.5 pt-0.5 border-t border-white/10 flex-wrap">
-                                                                                <span>📥 {item.roles.incoming?.inProgress || 0}</span>
-                                                                                <span>•</span>
-                                                                                <span>📤 {item.roles.outgoing?.inProgress || 0}</span>
-                                                                                <span>•</span>
-                                                                                <span>🏠 {item.roles.internal?.inProgress || 0}</span>
+                                                                            <div className="text-[9.5px] font-mono flex items-center gap-2 pl-3.5 pt-0.5 border-t border-white/10 flex-wrap">
+                                                                                <span className="flex items-center gap-0.5 text-emerald-400 font-semibold" title={lang === 'id' ? 'Tugas Masuk' : 'Incoming'}>
+                                                                                    <span className="font-bold">↓</span>
+                                                                                    <span>{item.roles.incoming?.inProgress || 0}</span>
+                                                                                </span>
+                                                                                <span className="text-[#3B3929]">•</span>
+                                                                                <span className="flex items-center gap-0.5 text-rose-400 font-semibold" title={lang === 'id' ? 'Laporan Keluar' : 'Outgoing'}>
+                                                                                    <span className="font-bold">↑</span>
+                                                                                    <span>{item.roles.outgoing?.inProgress || 0}</span>
+                                                                                </span>
+                                                                                <span className="text-[#3B3929]">•</span>
+                                                                                <span className="flex items-center gap-0.5 text-amber-300 font-semibold" title={lang === 'id' ? 'Internal Dept' : 'Internal'}>
+                                                                                    <span>🏠</span>
+                                                                                    <span>{item.roles.internal?.inProgress || 0}</span>
+                                                                                </span>
+                                                                                {(item.roles.tagged?.inProgress || 0) > 0 && (
+                                                                                    <>
+                                                                                        <span className="text-[#3B3929]">•</span>
+                                                                                        <span className="flex items-center gap-0.5 text-slate-300 font-semibold" title={lang === 'id' ? 'Ditandai / CC' : 'Tagged / CC'}>
+                                                                                            <span>📢</span>
+                                                                                            <span>{item.roles.tagged?.inProgress || 0}</span>
+                                                                                        </span>
+                                                                                    </>
+                                                                                )}
                                                                             </div>
                                                                         )}
                                                                     </div>
@@ -2718,44 +2544,62 @@ function AnalyticsInner() {
                                                                             <span className="font-mono">{item.solved} <span className="text-[10px] opacity-75">({item.handled > 0 ? Math.round((item.solved / item.handled) * 100) : 0}%)</span></span>
                                                                         </div>
                                                                         {isAllMode && deptAllSubFilter === 'all' && item.roles && item.solved > 0 && (
-                                                                            <div className="text-[9.5px] text-[#A19F8D] font-mono flex items-center gap-1.5 pl-3.5 pt-0.5 border-t border-white/10 flex-wrap">
-                                                                                <span>📥 {item.roles.incoming?.solved || 0}</span>
-                                                                                <span>•</span>
-                                                                                <span>📤 {item.roles.outgoing?.solved || 0}</span>
-                                                                                <span>•</span>
-                                                                                <span>🏠 {item.roles.internal?.solved || 0}</span>
+                                                                            <div className="text-[9.5px] font-mono flex items-center gap-2 pl-3.5 pt-0.5 border-t border-white/10 flex-wrap">
+                                                                                <span className="flex items-center gap-0.5 text-emerald-400 font-semibold" title={lang === 'id' ? 'Tugas Masuk' : 'Incoming'}>
+                                                                                    <span className="font-bold">↓</span>
+                                                                                    <span>{item.roles.incoming?.solved || 0}</span>
+                                                                                </span>
+                                                                                <span className="text-[#3B3929]">•</span>
+                                                                                <span className="flex items-center gap-0.5 text-rose-400 font-semibold" title={lang === 'id' ? 'Laporan Keluar' : 'Outgoing'}>
+                                                                                    <span className="font-bold">↑</span>
+                                                                                    <span>{item.roles.outgoing?.solved || 0}</span>
+                                                                                </span>
+                                                                                <span className="text-[#3B3929]">•</span>
+                                                                                <span className="flex items-center gap-0.5 text-amber-300 font-semibold" title={lang === 'id' ? 'Internal Dept' : 'Internal'}>
+                                                                                    <span>🏠</span>
+                                                                                    <span>{item.roles.internal?.solved || 0}</span>
+                                                                                </span>
+                                                                                {(item.roles.tagged?.solved || 0) > 0 && (
+                                                                                    <>
+                                                                                        <span className="text-[#3B3929]">•</span>
+                                                                                        <span className="flex items-center gap-0.5 text-slate-300 font-semibold" title={lang === 'id' ? 'Ditandai / CC' : 'Tagged / CC'}>
+                                                                                            <span>📢</span>
+                                                                                            <span>{item.roles.tagged?.solved || 0}</span>
+                                                                                        </span>
+                                                                                    </>
+                                                                                )}
                                                                             </div>
                                                                         )}
                                                                     </div>
                                                                 </div>
 
-                                                                {/* Role Summary Grid for All Mode (Opsi C) */}
+                                                                {/* Role Summary Grid for All Mode */}
                                                                 {isAllMode && item.roles && (
                                                                     <div className="pt-2 border-t border-[#3B3929]/70 space-y-1">
                                                                         <div className="text-[9.5px] font-bold text-[#A19F8D] uppercase tracking-wider">
-                                                                            {lang === 'id' ? 'Distribusi Peran Keterlibatan:' : 'Role Distribution:'}
+                                                                            {lang === 'id' ? 'Distribusi Aliran & Peran:' : 'Flow & Role Distribution:'}
                                                                         </div>
                                                                         <div className="grid grid-cols-2 gap-1 text-[10px]">
-                                                                            <div className="flex items-center justify-between bg-[#1C1B0E] px-1.5 py-0.5 rounded border border-[#3B3929]/40">
-                                                                                <span className="text-muted-foreground flex items-center gap-1">
-                                                                                    <span>📥</span> {lang === 'id' ? 'Masuk' : 'In'}:
+                                                                            <div className="flex items-center justify-between bg-[#1C1B0E] px-1.5 py-0.5 rounded border border-emerald-500/20">
+                                                                                <span className="text-emerald-400 flex items-center gap-1 font-semibold">
+                                                                                    <span className="font-bold text-xs">↓</span> {lang === 'id' ? 'Masuk (In)' : 'In'}:
                                                                                 </span>
-                                                                                <span className="font-bold text-[#C9AA71] font-mono">{item.roles.incoming?.total || 0}</span>
+                                                                                <span className="font-bold text-emerald-400 font-mono">{item.roles.incoming?.total || 0}</span>
                                                                             </div>
-                                                                            <div className="flex items-center justify-between bg-[#1C1B0E] px-1.5 py-0.5 rounded border border-[#3B3929]/40">
-                                                                                <span className="text-muted-foreground flex items-center gap-1">
-                                                                                    <span>📤</span> {lang === 'id' ? 'Keluar' : 'Out'}:
+                                                                            <div className="flex items-center justify-between bg-[#1C1B0E] px-1.5 py-0.5 rounded border border-rose-500/20">
+                                                                                <span className="text-rose-400 flex items-center gap-1 font-semibold">
+                                                                                    <span className="font-bold text-xs">↑</span> {lang === 'id' ? 'Keluar (Out)' : 'Out'}:
                                                                                 </span>
-                                                                                <span className="font-bold text-amber-400 font-mono">{item.roles.outgoing?.total || 0}</span>
+                                                                                <span className="font-bold text-rose-400 font-mono">{item.roles.outgoing?.total || 0}</span>
                                                                             </div>
-                                                                            <div className="flex items-center justify-between bg-[#1C1B0E] px-1.5 py-0.5 rounded border border-[#3B3929]/40">
-                                                                                <span className="text-muted-foreground flex items-center gap-1">
+                                                                            <div className="flex items-center justify-between bg-[#1C1B0E] px-1.5 py-0.5 rounded border border-amber-500/20">
+                                                                                <span className="text-amber-400 flex items-center gap-1 font-medium">
                                                                                     <span>🏠</span> {lang === 'id' ? 'Internal' : 'Self'}:
                                                                                 </span>
-                                                                                <span className="font-bold text-emerald-400 font-mono">{item.roles.internal?.total || 0}</span>
+                                                                                <span className="font-bold text-amber-400 font-mono">{item.roles.internal?.total || 0}</span>
                                                                             </div>
                                                                             <div className="flex items-center justify-between bg-[#1C1B0E] px-1.5 py-0.5 rounded border border-[#3B3929]/40">
-                                                                                <span className="text-muted-foreground flex items-center gap-1">
+                                                                                <span className="text-slate-400 flex items-center gap-1 font-medium">
                                                                                     <span>📢</span> {lang === 'id' ? 'Ditandai' : 'Tagged'}:
                                                                                 </span>
                                                                                 <span className="font-bold text-slate-400 font-mono">{item.roles.tagged?.total || 0}</span>
@@ -3794,23 +3638,23 @@ function AnalyticsInner() {
 
                         <div className="space-y-2.5 text-xs">
                             {/* 1. Tugas Masuk */}
-                            <div className="p-3 rounded-xl bg-[#1C1B0E] border border-[#3B3929] space-y-1">
-                                <div className="flex items-center gap-2 font-bold text-[#C9AA71]">
-                                    <Inbox className="w-4 h-4 text-[#C9AA71]" />
+                            <div className="p-3 rounded-xl bg-[#1C1B0E] border border-emerald-500/25 space-y-1">
+                                <div className="flex items-center gap-2 font-bold text-emerald-400">
+                                    <span className="font-black text-sm">↓</span>
                                     <span>{t('role_guide_incoming_title')}</span>
                                 </div>
-                                <p className="text-[#A19F8D] text-[11.5px] leading-relaxed pl-6">
+                                <p className="text-[#A19F8D] text-[11.5px] leading-relaxed pl-5">
                                     {t('role_guide_incoming_desc')}
                                 </p>
                             </div>
 
                             {/* 2. Laporan Keluar */}
-                            <div className="p-3 rounded-xl bg-[#1C1B0E] border border-[#3B3929] space-y-1">
-                                <div className="flex items-center gap-2 font-bold text-amber-400">
-                                    <Send className="w-4 h-4 text-amber-400" />
+                            <div className="p-3 rounded-xl bg-[#1C1B0E] border border-rose-500/25 space-y-1">
+                                <div className="flex items-center gap-2 font-bold text-rose-400">
+                                    <span className="font-black text-sm">↑</span>
                                     <span>{t('role_guide_outgoing_title')}</span>
                                 </div>
-                                <p className="text-[#A19F8D] text-[11.5px] leading-relaxed pl-6">
+                                <p className="text-[#A19F8D] text-[11.5px] leading-relaxed pl-5">
                                     {t('role_guide_outgoing_desc')}
                                 </p>
                             </div>
