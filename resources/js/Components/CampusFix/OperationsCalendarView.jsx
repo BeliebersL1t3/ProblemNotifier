@@ -38,7 +38,9 @@ function parseDateStr(str) {
 export function formatDateShort(str, lang = 'id') {
     if (!str) return '';
     try {
-        return new Intl.DateTimeFormat(lang === 'id' ? 'id-ID' : 'en-US', { day: 'numeric', month: 'short' }).format(new Date(str));
+        const d = parseDateStr(str);
+        if (!d) return str;
+        return new Intl.DateTimeFormat(lang === 'id' ? 'id-ID' : 'en-US', { day: 'numeric', month: 'short' }).format(d);
     } catch { return str; }
 }
 
@@ -157,6 +159,12 @@ export function getTaskAllDates(task) {
     });
     if (set.size === 0 && (task.startDate || task.endDate)) {
         getAllDatesInRange(task.startDate || task.endDate, task.endDate || task.startDate).forEach(d => set.add(d));
+    }
+    if (set.size === 0 && task.createdAt) {
+        const cDate = parseDateStr(task.createdAt);
+        if (cDate) {
+            set.add(toDateString(cDate));
+        }
     }
     return Array.from(set);
 }
@@ -536,7 +544,7 @@ function MonthDropdown({ selectedMonth, onChange, year, className = '', lang = '
 
     const months = useMemo(() => {
         return Array.from({ length: 12 }, (_, i) => {
-            const d = new Date(year || 2026, i, 1);
+            const d = new Date(year || 2026, i, 1, 12, 0, 0);
             const longName = new Intl.DateTimeFormat(lang === 'id' ? 'id-ID' : 'en-US', { month: 'long' }).format(d);
             const shortName = new Intl.DateTimeFormat(lang === 'id' ? 'id-ID' : 'en-US', { month: 'short' }).format(d);
             return { index: i, longName, shortName };
@@ -550,7 +558,7 @@ function MonthDropdown({ selectedMonth, onChange, year, className = '', lang = '
             <button
                 type="button"
                 onClick={() => setOpen(!open)}
-                className={`inline-flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1 rounded-xl text-base sm:text-lg font-black border transition-all cursor-pointer shadow-xs select-none capitalize ${
+                className={`inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 rounded-xl text-sm sm:text-lg font-black border transition-all cursor-pointer shadow-xs select-none capitalize ${
                     open
                         ? 'bg-[#353326] border-[#C9AA71] text-[#FAFAFA]'
                         : 'bg-[#1C1B0E] border-[#3B3929] text-[#FAFAFA] hover:border-[#C9AA71]/60 hover:text-[#E3D1AA]'
@@ -562,7 +570,7 @@ function MonthDropdown({ selectedMonth, onChange, year, className = '', lang = '
             </button>
 
             {open && (
-                <div className="absolute left-0 top-full mt-1.5 z-[130] w-56 sm:w-64 max-h-64 overflow-y-auto rounded-xl border border-[#3B3929] bg-[#2A281E] p-1.5 shadow-2xl backdrop-blur-2xl animate-in fade-in zoom-in-95">
+                <div className="absolute left-0 top-full mt-1.5 z-[130] w-56 sm:w-64 max-w-[calc(100vw-2.5rem)] max-h-64 overflow-y-auto rounded-xl border border-[#3B3929] bg-[#2A281E] p-1.5 shadow-2xl backdrop-blur-2xl animate-in fade-in zoom-in-95">
                     <div className="text-[10px] font-black uppercase tracking-wider text-[#A19F8D] px-2 py-0.5 mb-1 border-b border-[#3B3929] flex items-center justify-between">
                         <span>{lang === 'id' ? 'Pilih Bulan' : 'Select Month'}</span>
                         <span className="text-[#C9AA71]">{year}</span>
@@ -917,12 +925,29 @@ export function OperationsCalendarView({
         ? ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min']
         : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
+    const changeCalendarMonth = useCallback((newMonthDate) => {
+        const newYear = newMonthDate.getFullYear();
+        const newMonth = newMonthDate.getMonth();
+        setCurrentMonth(new Date(newYear, newMonth, 1));
+
+        // Synchronize selectedDateStr if outside new month
+        const curSelected = parseDateStr(selectedDateStr);
+        const now = new Date();
+        const isTargetRealCurrentMonth = newYear === now.getFullYear() && newMonth === now.getMonth();
+
+        if (isTargetRealCurrentMonth) {
+            setSelectedDateStr(todayStr);
+        } else if (!curSelected || curSelected.getFullYear() !== newYear || curSelected.getMonth() !== newMonth) {
+            setSelectedDateStr(toDateString(new Date(newYear, newMonth, 1)));
+        }
+    }, [selectedDateStr, todayStr]);
+
     const handlePrevMonth = () => {
-        setCurrentMonth(new Date(year, month - 1, 1));
+        changeCalendarMonth(new Date(year, month - 1, 1));
     };
 
     const handleNextMonth = () => {
-        setCurrentMonth(new Date(year, month + 1, 1));
+        changeCalendarMonth(new Date(year, month + 1, 1));
     };
 
     const handleGoToday = () => {
@@ -947,15 +972,15 @@ export function OperationsCalendarView({
             }
 
             if (e.key === 'ArrowLeft' && !e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
-                setCurrentMonth(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
+                changeCalendarMonth(new Date(year, month - 1, 1));
             } else if (e.key === 'ArrowRight' && !e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
-                setCurrentMonth(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
+                changeCalendarMonth(new Date(year, month + 1, 1));
             }
         };
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, []);
+    }, [changeCalendarMonth, year, month]);
 
     // Touch swipe support for mobile month navigation
     const touchStartXRef = useRef(null);
@@ -1197,7 +1222,7 @@ export function OperationsCalendarView({
                 const { startStr, endStr } = allTasksRangeInfo;
                 list = allTasks.filter(item => {
                     const dates = getTaskAllDates(item);
-                    if (dates.length === 0) return true;
+                    if (dates.length === 0) return false;
                     return dates.some(d => d >= startStr && d <= endStr);
                 });
             }
@@ -1229,14 +1254,14 @@ export function OperationsCalendarView({
                                 selectedMonth={month}
                                 year={year}
                                 onChange={(newMonth) => {
-                                    setCurrentMonth(new Date(year, newMonth, 1));
+                                    changeCalendarMonth(new Date(year, newMonth, 1));
                                 }}
                                 lang={lang}
                             />
                             <YearDropdown
                                 selectedYear={year}
                                 onChange={(newYear) => {
-                                    setCurrentMonth(new Date(newYear, month, 1));
+                                    changeCalendarMonth(new Date(newYear, month, 1));
                                 }}
                                 years={availableYears}
                                 lang={lang}
@@ -1355,7 +1380,7 @@ export function OperationsCalendarView({
                                     <CalendarIcon className="h-5 w-5 text-[#C9AA71]" />
                                 </div>
                                 <div className="min-w-0">
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex flex-wrap sm:flex-nowrap items-center gap-1.5 sm:gap-2">
                                         {/* Mobile Month Prev Button */}
                                         <button
                                             type="button"
@@ -1370,7 +1395,7 @@ export function OperationsCalendarView({
                                             selectedMonth={month}
                                             year={year}
                                             onChange={(newMonth) => {
-                                                setCurrentMonth(new Date(year, newMonth, 1));
+                                                changeCalendarMonth(new Date(year, newMonth, 1));
                                             }}
                                             lang={lang}
                                         />
@@ -1378,7 +1403,7 @@ export function OperationsCalendarView({
                                         <YearDropdown
                                             selectedYear={year}
                                             onChange={(newYear) => {
-                                                setCurrentMonth(new Date(newYear, month, 1));
+                                                changeCalendarMonth(new Date(newYear, month, 1));
                                             }}
                                             years={availableYears}
                                             lang={lang}
@@ -2001,21 +2026,30 @@ export function OperationsCalendarView({
                                     { id: 1, label: lang === 'id' ? '1 Bln' : '1 Mo' },
                                     { id: 3, label: lang === 'id' ? '3 Bln' : '3 Mo' },
                                     { id: 6, label: lang === 'id' ? '6 Bln' : '6 Mo' },
-                                    { id: 'year', label: lang === 'id' ? 'Thn Ini' : 'This Yr' },
-                                ].map((r) => (
-                                    <button
-                                        key={r.id}
-                                        type="button"
-                                        onClick={() => setAllTasksRange(r.id)}
-                                        className={`py-1.5 px-1 rounded-lg text-center text-xs font-bold transition-all cursor-pointer ${
-                                            allTasksRange === r.id
-                                                ? 'bg-[#C9AA71] text-[#1C1B0E] font-black shadow-sm'
-                                                : 'text-[#A19F8D] hover:text-[#FAFAFA]'
-                                        }`}
-                                    >
-                                        {r.label}
-                                    </button>
-                                ))}
+                                    {
+                                        id: 'year',
+                                        label: year === new Date().getFullYear()
+                                            ? (lang === 'id' ? 'Thn Ini' : 'This Yr')
+                                            : (lang === 'id' ? `Thn ${year}` : `Yr ${year}`),
+                                        isActive: allTasksRange === 'year' || allTasksRange === year,
+                                    },
+                                ].map((r) => {
+                                    const active = r.isActive !== undefined ? r.isActive : allTasksRange === r.id;
+                                    return (
+                                        <button
+                                            key={r.id}
+                                            type="button"
+                                            onClick={() => setAllTasksRange(r.id)}
+                                            className={`py-1.5 px-1 rounded-lg text-center text-xs font-bold transition-all cursor-pointer ${
+                                                active
+                                                    ? 'bg-[#C9AA71] text-[#1C1B0E] font-black shadow-sm'
+                                                    : 'text-[#A19F8D] hover:text-[#FAFAFA]'
+                                            }`}
+                                        >
+                                            {r.label}
+                                        </button>
+                                    );
+                                })}
                             </div>
 
                             {/* Baris 2: Pemilih Tahun Full Width (Lega & Mudah Ditekan di HP) */}
@@ -2024,7 +2058,7 @@ export function OperationsCalendarView({
                                     type="button"
                                     onClick={() => setAgendaYearDropdownOpen(!agendaYearDropdownOpen)}
                                     className={`w-full py-1.5 px-3 rounded-xl text-xs font-bold border transition-all flex items-center justify-between cursor-pointer ${
-                                        (typeof allTasksRange === 'number' && allTasksRange >= 2000) || allTasksRange === 'all'
+                                        (typeof allTasksRange === 'number' && allTasksRange >= 2000) || allTasksRange === 'all' || allTasksRange === 'year'
                                             ? 'bg-[#C9AA71]/25 border-[#C9AA71] text-[#E3D1AA] font-black shadow-sm'
                                             : 'bg-[#14140B] border-[#3B3929] text-[#A19F8D] hover:border-[#C9AA71]/50 hover:text-[#FAFAFA]'
                                     }`}
@@ -2034,13 +2068,15 @@ export function OperationsCalendarView({
                                         <span>
                                             {typeof allTasksRange === 'number' && allTasksRange >= 2000
                                                 ? `${lang === 'id' ? 'Filter Tahun' : 'Year Filter'}: ${allTasksRange}`
-                                                : allTasksRange === 'all'
-                                                    ? `${lang === 'id' ? 'Filter' : 'Filter'}: ${lang === 'id' ? 'Semua Waktu' : 'All Time'}`
-                                                    : (lang === 'id' ? 'Saring per Tahun / Semua Waktu' : 'Filter by Year / All Time')}
+                                                : allTasksRange === 'year'
+                                                    ? `${lang === 'id' ? 'Filter Tahun' : 'Year Filter'}: ${year}`
+                                                    : allTasksRange === 'all'
+                                                        ? `${lang === 'id' ? 'Filter' : 'Filter'}: ${lang === 'id' ? 'Semua Waktu' : 'All Time'}`
+                                                        : (lang === 'id' ? 'Saring per Tahun / Semua Waktu' : 'Filter by Year / All Time')}
                                         </span>
                                     </div>
                                     <div className="flex items-center gap-1.5">
-                                        {((typeof allTasksRange === 'number' && allTasksRange >= 2000) || allTasksRange === 'all') && (
+                                        {((typeof allTasksRange === 'number' && allTasksRange >= 2000) || allTasksRange === 'all' || allTasksRange === 'year') && (
                                             <span className="text-[10px] px-1.5 py-0.2 rounded font-extrabold uppercase bg-[#C9AA71] text-[#1C1B0E]">
                                                 Aktif
                                             </span>
@@ -2053,7 +2089,7 @@ export function OperationsCalendarView({
                                     <div className="absolute left-0 right-0 top-full mt-1.5 z-[130] w-full max-h-56 overflow-y-auto rounded-xl border border-[#3B3929] bg-[#2A281E] p-1.5 shadow-2xl backdrop-blur-2xl animate-in fade-in zoom-in-95">
                                         <div className="text-[10px] font-black uppercase tracking-wider text-[#A19F8D] px-2.5 py-1 mb-1 border-b border-[#3B3929] flex items-center justify-between">
                                             <span>{lang === 'id' ? 'Pilih Tahun / Rentang' : 'Select Year / Range'}</span>
-                                            {(allTasksRange === 'all' || (typeof allTasksRange === 'number' && allTasksRange >= 2000)) && (
+                                            {(allTasksRange === 'all' || allTasksRange === 'year' || (typeof allTasksRange === 'number' && allTasksRange >= 2000)) && (
                                                 <button
                                                     type="button"
                                                     onClick={(e) => {
@@ -2084,7 +2120,7 @@ export function OperationsCalendarView({
                                         </button>
                                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-1">
                                             {availableYears.map(y => {
-                                                const isSelected = allTasksRange === y;
+                                                const isSelected = allTasksRange === y || (allTasksRange === 'year' && y === year);
                                                 return (
                                                     <button
                                                         key={y}
