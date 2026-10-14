@@ -1,6 +1,6 @@
 import { Head } from '@inertiajs/react';
 import { useMemo, useState, useEffect, useLayoutEffect, useRef } from 'react';
-import { Loader2, RefreshCw, SearchX, LayoutGrid, Grid3X3, Layers, List, Rows3, Search, MapPin, Trash2, AlertTriangle, CalendarPlus, Globe, Target, FileText, Megaphone, Lock, ArrowRightLeft, ChevronLeft, ChevronRight, Volume2, VolumeX, ExternalLink, CheckCheck, Clock, Flame, Settings, X } from 'lucide-react';
+import { Loader2, RefreshCw, SearchX, LayoutGrid, Grid3X3, Layers, List, Rows3, Search, MapPin, Trash2, AlertTriangle, CalendarPlus, Globe, Target, FileText, Megaphone, Lock, History, ArrowRightLeft, ChevronLeft, ChevronRight, Volume2, VolumeX, ExternalLink, CheckCheck, Clock, Flame, Settings, X } from 'lucide-react';
 import { getDepartmentTheme } from '@/constants/departments';
 
 const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect;
@@ -739,7 +739,8 @@ function DashboardInner() {
             if (issue.isConfidential && !isAdmin) {
                 const isUserInvolved = Boolean(
                     (normUserDept && (assigned.includes(normUserDept) || tagged.includes(normUserDept) || originDept === normUserDept)) ||
-                    isReportedByCurrentMe
+                    isReportedByCurrentMe ||
+                    isPastContrib
                 );
                 if (!isUserInvolved) {
                     return acc;
@@ -1598,6 +1599,31 @@ function DashboardInner() {
                                                 {deptViewMode === 'tagged' && <span className="sm:hidden">Mention</span>}
                                                 <span className="hidden sm:inline">{lang === 'id' ? 'Mention Departemen' : 'Mentions'}</span>
                                             </button>
+                                            {pastContribCount > 0 && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setDeptViewMode('past_contributions')}
+                                                    className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center justify-center gap-1 sm:gap-1.5 py-2.5 px-2 sm:py-2 sm:px-3.5 flex-1 sm:flex-initial shrink-0 ${
+                                                        deptViewMode === 'past_contributions'
+                                                            ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-md font-extrabold'
+                                                            : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
+                                                    }`}
+                                                    title={lang === 'id' 
+                                                        ? `Riwayat Kontribusi (${pastContribCount} isu)` 
+                                                        : `Past Contributions (${pastContribCount} issues)`}
+                                                >
+                                                    <History className="w-4 h-4 shrink-0" />
+                                                    {deptViewMode === 'past_contributions' && <span className="sm:hidden">{lang === 'id' ? 'Riwayat' : 'Past'}</span>}
+                                                    <span className="hidden sm:inline">{lang === 'id' ? 'Riwayat Kontribusi' : 'Past Contributions'}</span>
+                                                    <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                                                        deptViewMode === 'past_contributions'
+                                                            ? 'bg-[#1C1B0E] text-[#C9AA71]'
+                                                            : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                                                    }`}>
+                                                        {pastContribCount}
+                                                    </span>
+                                                </button>
+                                            )}
                                         </>
                                     ) : (
                                         /* Regular Staff Operational Scope Tabs */
@@ -1690,9 +1716,9 @@ function DashboardInner() {
                                                         ? `Riwayat Kontribusi (${pastContribCount} isu)` 
                                                         : `Past Contributions (${pastContribCount} issues)`}
                                                 >
-                                                    <Lock className="w-4 h-4 shrink-0" />
+                                                    <History className="w-4 h-4 shrink-0" />
                                                     {deptViewMode === 'past_contributions' && <span className="sm:hidden">{lang === 'id' ? 'Riwayat' : 'Past'}</span>}
-                                                    <span className="hidden sm:inline">{lang === 'id' ? 'Riwayat' : 'Past Contributions'}</span>
+                                                    <span className="hidden sm:inline">{lang === 'id' ? 'Riwayat Kontribusi' : 'Past Contributions'}</span>
                                                     <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
                                                         deptViewMode === 'past_contributions'
                                                             ? 'bg-[#1C1B0E] text-[#C9AA71]'

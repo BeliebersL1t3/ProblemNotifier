@@ -533,6 +533,71 @@ class IssueController extends Controller
         ];
     }
 
+    /**
+     * Check if a given user was a participant/contributor to an issue
+     * (reporter, claimant/taker, solver, pending actor, or log editor).
+     */
+    private function isUserIssueParticipant(?\App\Models\User $user, array $row, array $editLogs = []): bool
+    {
+        if (!$user) {
+            return false;
+        }
+
+        $names = array_filter([
+            strtolower(trim($user->name ?? '')),
+            strtolower(trim($user->staff_name ?? '')),
+        ]);
+
+        if (empty($names)) {
+            return false;
+        }
+
+        $matchesUser = function (?string $target) use ($names): bool {
+            if (empty($target)) {
+                return false;
+            }
+            $target = strtolower(trim(preg_replace('/\s*via\s+WhatsApp/i', '', $target)));
+            $targetBase = trim(preg_replace('/\s*\([^)]*\)/', '', $target));
+
+            foreach ($names as $name) {
+                if (
+                    strcasecmp($target, $name) === 0 ||
+                    strcasecmp($targetBase, $name) === 0 ||
+                    str_contains($target, $name) ||
+                    str_contains($name, $targetBase)
+                ) {
+                    return true;
+                }
+            }
+            return false;
+        };
+
+        // Check direct fields: Reporter (6), Taker (9), Solver (11), PendingBy (19)
+        if ($matchesUser($row[6] ?? null)) return true;
+        if ($matchesUser($row[9] ?? null)) return true;
+        if ($matchesUser($row[11] ?? null)) return true;
+        if ($matchesUser($row[19] ?? null)) return true;
+
+        // Check editLogs
+        foreach ($editLogs as $log) {
+            if ($matchesUser($log['by'] ?? null)) {
+                return true;
+            }
+        }
+
+        // Check raw note (24)
+        $rawNote = $row[24] ?? '';
+        if (!empty($rawNote)) {
+            foreach ($names as $name) {
+                if (stripos($rawNote, $name) !== false) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
     public function index(Request $request)
     {
         try {
@@ -775,8 +840,8 @@ class IssueController extends Controller
                     $isConfidential = IssueSheetRepository::isConfidential($latestRow);
 
                     // Confidential Issue Security Scope Protection:
-                    // Only Admin, Bot, Origin Dept, Assigned Depts, Tagged Depts, or Reporter can view confidential issues.
-                    // Other departments (even with can_view_all_departments) are strictly barred.
+                    // Only Admin, Bot, Origin Dept, Assigned Depts, Tagged Depts, Reporter, or past participants can view confidential issues.
+                    // Other departments (even with can_view_all_departments) are strictly barred unless personally involved.
                     if ($isConfidential && !$isAdmin && !$isBot) {
                         $userDeptKey = !empty($user?->department) ? IssueSheetRepository::normalizeDeptKey($user->department) : '';
                         $originDeptKey = IssueSheetRepository::normalizeDeptKey($safeDept);
@@ -788,17 +853,9 @@ class IssueController extends Controller
                         $assignedKeys = array_map([IssueSheetRepository::class, 'normalizeDeptKey'], $assignedList);
                         $taggedKeys = array_map([IssueSheetRepository::class, 'normalizeDeptKey'], $taggedList);
 
-                        $isReporter = false;
-                        if ($user) {
-                            $userName = strtolower(trim($user->name ?? ''));
-                            $userStaff = strtolower(trim($user->staff_name ?? ''));
-                            $rep = strtolower(trim($latestRow[6] ?? ''));
-                            if (!empty($rep) && (($userName && (strcasecmp($rep, $userName) === 0 || str_contains($rep, $userName))) || ($userStaff && (strcasecmp($rep, $userStaff) === 0 || str_contains($rep, $userStaff))))) {
-                                $isReporter = true;
-                            }
-                        }
+                        $isParticipant = $this->isUserIssueParticipant($user, $latestRow, $editLogs);
 
-                        $isAuthorized = ($userDeptKey && ($userDeptKey === $originDeptKey || in_array($userDeptKey, $assignedKeys) || in_array($userDeptKey, $taggedKeys))) || $isReporter;
+                        $isAuthorized = ($userDeptKey && ($userDeptKey === $originDeptKey || in_array($userDeptKey, $assignedKeys) || in_array($userDeptKey, $taggedKeys))) || $isParticipant;
 
                         if (!$isAuthorized) {
                             continue;
@@ -916,17 +973,9 @@ class IssueController extends Controller
                 $assignedKeys = array_map([IssueSheetRepository::class, 'normalizeDeptKey'], $assignedList);
                 $taggedKeys = array_map([IssueSheetRepository::class, 'normalizeDeptKey'], $taggedList);
 
-                $isReporter = false;
-                if ($user) {
-                    $userName = strtolower(trim($user->name ?? ''));
-                    $userStaff = strtolower(trim($user->staff_name ?? ''));
-                    $rep = strtolower(trim($currentRow[6] ?? ''));
-                    if (!empty($rep) && (($userName && (strcasecmp($rep, $userName) === 0 || str_contains($rep, $userName))) || ($userStaff && (strcasecmp($rep, $userStaff) === 0 || str_contains($rep, $userStaff))))) {
-                        $isReporter = true;
-                    }
-                }
+                $isParticipant = $this->isUserIssueParticipant($user, $currentRow);
 
-                $isAuthorized = ($userDeptKey && ($userDeptKey === $originDeptKey || in_array($userDeptKey, $assignedKeys) || in_array($userDeptKey, $taggedKeys))) || $isReporter;
+                $isAuthorized = ($userDeptKey && ($userDeptKey === $originDeptKey || in_array($userDeptKey, $assignedKeys) || in_array($userDeptKey, $taggedKeys))) || $isParticipant;
 
                 if (!$isAuthorized) {
                     return response()->json([
