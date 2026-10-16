@@ -69,6 +69,7 @@ class TicketSheetService
             'whatsapp_unlink'      => 'Unlink Nomor WhatsApp',
             'password_reset'       => 'Reset Password Akun',
             'department_transfer'  => 'Mutasi Departemen',
+            'name_change'          => 'Perubahan Nama Akun',
             default                => (string)$type,
         };
     }

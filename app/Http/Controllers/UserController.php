@@ -473,6 +473,16 @@ class UserController extends Controller
             $this->notifyHodOfTransferredStaffActiveIssues($user, $oldDepartment, $newDepartment);
         }
 
+        // If name was changed by Admin, update all occurrences across Google Sheets (Option A)
+        $oldName = $before['name'] ?? null;
+        if (!empty($oldName) && strcasecmp($oldName, $user->name) !== 0) {
+            try {
+                app(\App\Services\GoogleService::class)->updateStaffNameInSheets($oldName, $user->name);
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::error("Failed to sync admin name change to Google Sheets: " . $e->getMessage());
+            }
+        }
+
         // Notify WhatsApp bot to sync staff memory in real-time
         try {
             \Illuminate\Support\Facades\Http::timeout(1)->post('http://127.0.0.1:3000/sync-staff');

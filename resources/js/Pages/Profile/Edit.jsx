@@ -37,7 +37,7 @@ export default function ProfilePage(props) {
     );
 }
 
-function ProfileInner({ pendingTicket, pendingTransferTicket, notifyWhatsAppTickets, status }) {
+function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket, notifyWhatsAppTickets, status }) {
     const { t, lang } = useLanguage();
     const { 
         user, isAdmin, isHOD, isDeptUser, department, subdivision, staffName, whatsappNumber, avatarUrl, activeStaffRoster,
@@ -264,6 +264,31 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, notifyWhatsAppTick
             onSuccess: () => {
                 resetTransfer();
                 setIsTransferModalOpen(false);
+            },
+        });
+    };
+
+    // Name Change Ticket Form
+    const [isNameModalOpen, setIsNameModalOpen] = useState(false);
+    const {
+        data: nameData,
+        setData: setNameData,
+        errors: nameErrors,
+        post: postNameTicket,
+        processing: nameProcessing,
+        reset: resetName,
+    } = useForm({
+        new_name: '',
+        reason: '',
+    });
+
+    const handleNameSubmit = (e) => {
+        e.preventDefault();
+        postNameTicket(route('tickets.nameChange'), {
+            preserveScroll: true,
+            onSuccess: () => {
+                resetName();
+                setIsNameModalOpen(false);
             },
         });
     };
@@ -557,8 +582,46 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, notifyWhatsAppTick
                                     </div>
 
                                     <div>
-                                        <p className="text-[#A19F8D] font-medium">{t('staff_name_label') || 'Nama Tampilan'}</p>
+                                        <div className="flex items-center justify-between gap-2 mb-1">
+                                            <p className="text-[#A19F8D] font-medium">{t('staff_name_label') || 'Nama Tampilan'}</p>
+                                            {!pendingNameTicket && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setNameData('new_name', '');
+                                                        setNameData('reason', '');
+                                                        setIsNameModalOpen(true);
+                                                    }}
+                                                    className="inline-flex items-center gap-1 text-[11px] font-bold text-[#C9AA71] hover:text-[#E3D1AA] transition-colors cursor-pointer"
+                                                    title={lang === 'id' ? 'Ajukan perubahan nama akun resmi' : 'Request official name change'}
+                                                >
+                                                    <User className="w-3 h-3" />
+                                                    <span>{lang === 'id' ? 'Ubah Nama' : 'Change Name'}</span>
+                                                </button>
+                                            )}
+                                        </div>
                                         <p className="text-sm font-semibold text-[#FAFAFA]">{staffName || user?.name || '-'}</p>
+
+                                        {/* Pending Name Change Ticket Alert */}
+                                        {pendingNameTicket && (
+                                            <div className="mt-2.5 p-2.5 rounded-xl bg-indigo-500/10 border border-indigo-500/30 text-xs text-indigo-200 space-y-1">
+                                                <div className="flex items-center gap-1.5 font-bold text-indigo-300">
+                                                    <Clock className="w-3.5 h-3.5 text-indigo-400" />
+                                                    <span>Permohonan Nama (#{pendingNameTicket.ticket_number})</span>
+                                                </div>
+                                                <p className="text-[11px] text-indigo-200/80">
+                                                    Nama Baru: <strong>{pendingNameTicket.requested_value}</strong>
+                                                </p>
+                                                <div className="text-[10px] text-indigo-300/70 flex items-center gap-1 pt-0.5">
+                                                    <span>⏳</span>
+                                                    <span>
+                                                        {pendingNameTicket.status === 'pending_hod' 
+                                                            ? (lang === 'id' ? 'Menunggu persetujuan HOD' : 'Pending HOD review')
+                                                            : (lang === 'id' ? 'Menunggu persetujuan ACC Admin' : 'Pending Admin final approval')}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
 
                                     <div>
@@ -1630,6 +1693,117 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, notifyWhatsAppTick
                                     <>
                                         <ArrowRightLeft className="h-3.5 w-3.5" />
                                         <span>Kirim Permohonan ke HOD</span>
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </form>
+                </DialogContent>
+            </Dialog>
+
+            {/* Name Change Request Modal */}
+            <Dialog open={isNameModalOpen} onOpenChange={setIsNameModalOpen}>
+                <DialogContent className="sm:max-w-md bg-[#2A281E] border border-[#3B3929] text-[#FAFAFA] p-6 shadow-2xl rounded-2xl">
+                    <DialogHeader>
+                        <div className="flex items-center gap-3">
+                            <div className="p-2.5 rounded-xl bg-[#C9AA71]/20 text-[#C9AA71] border border-[#C9AA71]/40">
+                                <User className="w-5 h-5 text-[#C9AA71]" />
+                            </div>
+                            <div>
+                                <DialogTitle className="text-base sm:text-lg font-extrabold text-[#FAFAFA]">
+                                    {lang === 'id' ? 'Permohonan Perubahan Nama Akun' : 'Name Change Request'}
+                                </DialogTitle>
+                                <p className="text-xs text-[#A19F8D] mt-0.5">
+                                    {lang === 'id' ? 'Ajukan pembaruan nama resmi untuk identitas tugas & profil.' : 'Submit official name update for work identity.'}
+                                </p>
+                            </div>
+                        </div>
+                    </DialogHeader>
+
+                    <form onSubmit={handleNameSubmit} className="space-y-4 pt-2 text-xs">
+                        {/* Current Name Summary */}
+                        <div className="p-3 rounded-xl bg-[#1C1B0E] border border-[#3B3929] flex items-center justify-between text-xs">
+                            <span className="text-[#A19F8D]">Nama Saat Ini:</span>
+                            <span className="font-bold text-[#FAFAFA]">{user?.name}</span>
+                        </div>
+
+                        {/* New Name Input */}
+                        <div className="space-y-1.5">
+                            <label className="text-xs font-bold text-[#E3D1AA]">
+                                Nama Baru Resmi <span className="text-red-400">*</span>
+                            </label>
+                            <input
+                                type="text"
+                                value={nameData.new_name}
+                                onChange={(e) => setNameData('new_name', e.target.value)}
+                                placeholder="Masukkan nama lengkap / resmi baru..."
+                                required
+                                minLength={2}
+                                maxLength={100}
+                                className="w-full bg-[#1C1B0E] border border-[#3B3929] text-[#FAFAFA] rounded-xl px-3.5 py-2.5 text-xs focus:border-[#C9AA71] focus:ring-1 focus:ring-[#C9AA71] placeholder-[#A19F8D]/60"
+                            />
+                            {nameErrors.new_name && (
+                                <p className="text-[11px] text-red-400">{nameErrors.new_name}</p>
+                            )}
+                        </div>
+
+                        {/* Reason Textarea */}
+                        <div className="space-y-1.5">
+                            <label className="text-xs font-bold text-[#E3D1AA]">
+                                Alasan Perubahan Nama <span className="text-red-400">*</span>
+                            </label>
+                            <textarea
+                                rows={3}
+                                value={nameData.reason}
+                                onChange={(e) => setNameData('reason', e.target.value)}
+                                placeholder="Jelaskan alasan pengajuan nama baru (misal: koreksi ejaan resmi HR, penyesuaian nama panggilan dinas, dll)..."
+                                required
+                                minLength={3}
+                                maxLength={500}
+                                className="w-full bg-[#1C1B0E] border border-[#3B3929] text-[#FAFAFA] rounded-xl p-3 text-xs focus:border-[#C9AA71] focus:ring-1 focus:ring-[#C9AA71] placeholder-[#A19F8D]/60 leading-relaxed"
+                            />
+                            {nameErrors.reason && (
+                                <p className="text-[11px] text-red-400">{nameErrors.reason}</p>
+                            )}
+                        </div>
+
+                        {/* Workflow info */}
+                        <div className="p-3 rounded-xl bg-[#1C1B0E]/80 border border-[#3B3929] text-[11px] text-[#A19F8D] space-y-1 leading-relaxed">
+                            <p className="font-bold text-[#C9AA71] flex items-center gap-1.5">
+                                <ShieldCheck className="w-3.5 h-3.5 text-[#C9AA71]" />
+                                {lang === 'id' ? 'Alur Verifikasi & Sinkronisasi Data:' : 'Verification & Synchronization:'}
+                            </p>
+                            <p>1. Permohonan nama baru akan diverifikasi oleh <strong>{isHOD ? 'Admin Resort' : `HOD Departemen ${department || ''} & Admin Resort`}</strong>.</p>
+                            <p>2. Begitu disetujui, nama pada <strong>Excel / Google Sheets</strong> (termasuk riwayat pekerjaan & tiket yang pernah Anda tangani) otomatis diperbarui.</p>
+                        </div>
+
+                        {/* Footer Buttons */}
+                        <div className="pt-2 flex items-center justify-end gap-3">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setIsNameModalOpen(false);
+                                    resetName();
+                                }}
+                                className="px-4 py-2 rounded-xl text-xs font-semibold text-[#A19F8D] hover:text-[#FAFAFA] hover:bg-[#1C1B0E] transition-all cursor-pointer"
+                            >
+                                Batal
+                            </button>
+
+                            <button
+                                type="submit"
+                                disabled={nameProcessing || !nameData.new_name.trim() || !nameData.reason.trim()}
+                                className="flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-bold bg-[#C9AA71] text-[#1C1B0E] hover:bg-[#D8BE8A] active:scale-95 transition-all shadow-lg cursor-pointer disabled:opacity-50"
+                            >
+                                {nameProcessing ? (
+                                    <>
+                                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                        <span>Mengajukan...</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Check className="h-3.5 w-3.5" />
+                                        <span>Kirim Permohonan</span>
                                     </>
                                 )}
                             </button>

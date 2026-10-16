@@ -233,6 +233,12 @@ function TicketsInner({
                         <Building2 className="w-3 h-3" /> {t('ticket_type_dept_transfer')}
                     </span>
                 );
+            case 'name_change':
+                return (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">
+                        <User className="w-3 h-3" /> {lang === 'id' ? 'Ubah Nama' : 'Name Change'}
+                    </span>
+                );
             default:
                 return (
                     <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-white/10 text-white/80 border border-white/10">
@@ -554,6 +560,7 @@ function TicketsInner({
                                         <option value="whatsapp_unlink">{t('ticket_type_wa_unlink')}</option>
                                         <option value="password_reset">{t('ticket_type_pwd_reset')}</option>
                                         <option value="department_transfer">{t('ticket_type_dept_transfer')}</option>
+                                        <option value="name_change">{lang === 'id' ? 'Perubahan Nama Akun' : 'Name Change'}</option>
                                     </select>
                                 </div>
                             </div>
@@ -862,6 +869,21 @@ function TicketsInner({
                                                             <span className="text-[#A19F8D]">{t('ticket_target_dept')}:</span>
                                                             <span className="font-bold text-teal-300">
                                                                 {ticket.requested_value ? ticket.requested_value.replace('::', ' — ') : '-'}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {ticket.type === 'name_change' && (
+                                                    <div className="space-y-1.5">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-[#A19F8D]">{lang === 'id' ? 'Nama Saat Ini:' : 'Current Name:'}</span>
+                                                            <span className="font-semibold text-[#FAFAFA]">{ticket.current_value || ticket.staff_name}</span>
+                                                        </div>
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-[#A19F8D]">{lang === 'id' ? 'Nama Baru Diminta:' : 'Requested Name:'}</span>
+                                                            <span className="font-bold text-indigo-300">
+                                                                {ticket.requested_value || '-'}
                                                             </span>
                                                         </div>
                                                     </div>

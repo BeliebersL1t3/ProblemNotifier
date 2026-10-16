@@ -69,6 +69,7 @@ class ApprovalTicket extends Model
             'whatsapp_change', 'whatsapp_unlink' => 'WA',
             'password_reset' => 'PWD',
             'department_transfer' => 'TRF',
+            'name_change' => 'NAME',
             default => 'TCK',
         };
 

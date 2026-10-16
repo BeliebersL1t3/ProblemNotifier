@@ -304,6 +304,63 @@ class ApprovalTicketController extends Controller
     }
 
     /**
+     * Submit a name change ticket from Profile
+     */
+    public function storeNameChangeTicket(Request $request): RedirectResponse
+    {
+        $user = Auth::user();
+
+        $request->validate([
+            'new_name' => 'required|string|min:2|max:100',
+            'reason'   => 'required|string|min:3|max:500',
+        ]);
+
+        $newName = trim($request->input('new_name'));
+
+        if (strcasecmp($newName, $user->name) === 0) {
+            return back()->withErrors([
+                'new_name' => 'Nama baru harus berbeda dengan nama Anda saat ini.'
+            ]);
+        }
+
+        // Check for existing pending name change ticket
+        $existing = ApprovalTicket::where('user_id', $user->id)
+            ->whereIn('status', ['pending_hod', 'pending_admin'])
+            ->where('type', 'name_change')
+            ->first();
+
+        if ($existing) {
+            return back()->withErrors([
+                'new_name' => "Anda sudah memiliki permohonan perubahan nama ({$existing->ticket_number}) yang sedang dalam proses verifikasi."
+            ]);
+        }
+
+        $isApplicantHod = $user->isHOD();
+
+        $ticket = ApprovalTicket::create([
+            'ticket_number'   => ApprovalTicket::generateTicketNumber('name_change'),
+            'type'            => 'name_change',
+            'user_id'         => $user->id,
+            'department'      => $user->department ?: 'General',
+            'subdivision'     => $user->subdivision,
+            'staff_name'      => $user->staff_name ?: $user->name,
+            'email'           => $user->email,
+            'current_value'   => $user->name,
+            'requested_value' => $newName,
+            'reason'          => $request->input('reason'),
+            'status'          => $isApplicantHod ? 'pending_admin' : 'pending_hod',
+        ]);
+
+        if ($isApplicantHod) {
+            TicketNotificationService::notifyAdmins($ticket, 'Permohonan Perubahan Nama Akun (HOD)');
+        } else {
+            TicketNotificationService::notifyHods($ticket, 'Permohonan Perubahan Nama Akun');
+        }
+
+        return back()->with('status', 'name-ticket-submitted');
+    }
+
+    /**
      * HOD Review action (Approve to Admin or Reject with reason)
      */
     public function hodAction(Request $request, $id): RedirectResponse
@@ -494,6 +551,36 @@ class ApprovalTicketController extends Controller
                         }
                     }
                     break;
+
+                case 'name_change':
+                    if ($ticket->user && $ticket->requested_value) {
+                        $oldName = $ticket->user->name;
+                        $newName = trim($ticket->requested_value);
+
+                        $ticket->user->name = $newName;
+                        $ticket->user->staff_name = $newName;
+                        $ticket->user->save();
+
+                        \App\Models\UserAuditLog::record(
+                            $user,
+                            $ticket->user,
+                            'NAME_CHANGED',
+                            [
+                                'ticket_number' => $ticket->ticket_number,
+                                'old_name'      => $oldName,
+                                'new_name'      => $newName,
+                                'notes'         => $request->input('notes'),
+                            ]
+                        );
+
+                        // Option A: Update all occurrences across Google Sheets (active & past issues)
+                        try {
+                            app(\App\Services\GoogleService::class)->updateStaffNameInSheets($oldName, $newName);
+                        } catch (\Throwable $e) {
+                            \Illuminate\Support\Facades\Log::error("Failed to sync name change to Google Sheets: " . $e->getMessage());
+                        }
+                    }
+                    break;
             }
 
             // Sync WhatsApp bot memory in real-time
@@ -559,6 +646,7 @@ class ApprovalTicketController extends Controller
             'whatsapp_unlink' => 'Pelepasan Nomor WhatsApp',
             'password_reset' => 'Reset Password',
             'department_transfer' => 'Mutasi / Pindah Departemen',
+            'name_change' => 'Perubahan Nama Akun',
             default => 'Permohonan Tiket',
         };
     }

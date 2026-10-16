@@ -2863,6 +2863,116 @@ class GoogleService
             ];
         }
     }
+
+    /**
+     * Updates all occurrences of a staff member's name across Google Sheets issues.
+     * Replaces old name with new name in Reporter, Taker, Solver, and Pending By columns.
+     * Option A: Updates both active and past (solved) issues so history is preserved under the new name.
+     */
+    public function updateStaffNameInSheets(string $oldName, string $newName): int
+    {
+        $oldName = trim($oldName);
+        $newName = trim($newName);
+
+        if ($oldName === '' || $newName === '' || strcasecmp($oldName, $newName) === 0) {
+            return 0;
+        }
+
+        $totalUpdated = 0;
+
+        try {
+            $sheetTabs = $this->listSheets(true);
+
+            foreach ($sheetTabs as $sheetName) {
+                try {
+                    $response = $this->sheets->spreadsheets_values->get(
+                        $this->spreadsheetId,
+                        "{$sheetName}!A:Z"
+                    );
+
+                    $rows = $response->getValues();
+                    if (empty($rows) || count($rows) < 2) {
+                        continue;
+                    }
+
+                    // Map headers to column indices
+                    $headers = array_map(fn($h) => strtolower(trim((string)$h)), $rows[0]);
+                    $reporterIdx = array_search('reporter', $headers);
+                    $takerIdx    = array_search('taker', $headers);
+                    $solverIdx   = array_search('solver', $headers);
+                    $pendingIdx  = array_search('pending by', $headers);
+
+                    // Fallbacks to standard columns if headers were slightly different
+                    if ($reporterIdx === false) $reporterIdx = 6;  // Col G
+                    if ($takerIdx === false)    $takerIdx    = 9;  // Col J
+                    if ($solverIdx === false)   $solverIdx   = 11; // Col L
+                    if ($pendingIdx === false)  $pendingIdx  = 19; // Col T
+
+                    $targetIndices = array_filter(
+                        [$reporterIdx, $takerIdx, $solverIdx, $pendingIdx],
+                        fn($idx) => is_int($idx) && $idx >= 0
+                    );
+
+                    $batchUpdates = [];
+
+                    for ($r = 1; $r < count($rows); $r++) {
+                        $row = $rows[$r];
+                        $rowNumber = $r + 1;
+
+                        foreach ($targetIndices as $colIdx) {
+                            $currentVal = isset($row[$colIdx]) ? trim((string)$row[$colIdx]) : '';
+                            if ($currentVal === '') {
+                                continue;
+                            }
+
+                            // Check exact match or match with '(via WhatsApp)' suffix
+                            $matched = false;
+                            $replacedVal = $currentVal;
+
+                            if (strcasecmp($currentVal, $oldName) === 0) {
+                                $replacedVal = $newName;
+                                $matched = true;
+                            } elseif (stripos($currentVal, $oldName) !== false) {
+                                // Handles formats like "Anto (via WhatsApp)"
+                                $replacedVal = preg_replace('/\b' . preg_quote($oldName, '/') . '\b/i', $newName, $currentVal);
+                                if ($replacedVal !== null && $replacedVal !== $currentVal) {
+                                    $matched = true;
+                                }
+                            }
+
+                            if ($matched) {
+                                $colLetter = self::indexToColumnLetter($colIdx);
+                                $batchUpdates[] = new ValueRange([
+                                    'range'  => "{$sheetName}!{$colLetter}{$rowNumber}",
+                                    'values' => [[$replacedVal]],
+                                ]);
+                            }
+                        }
+                    }
+
+                    if (!empty($batchUpdates)) {
+                        $body = new BatchUpdateValuesRequest([
+                            'valueInputOption' => 'RAW',
+                            'data'             => $batchUpdates,
+                        ]);
+
+                        $this->sheets->spreadsheets_values->batchUpdate($this->spreadsheetId, $body);
+                        $sheetCount = count($batchUpdates);
+                        $totalUpdated += $sheetCount;
+                        Log::info("updateStaffNameInSheets: Updated {$sheetCount} occurrences from '{$oldName}' to '{$newName}' in sheet '{$sheetName}'.");
+                    }
+
+                    $this->clearCache($sheetName);
+                } catch (\Throwable $sheetError) {
+                    Log::warning("updateStaffNameInSheets failed on sheet {$sheetName}: " . $sheetError->getMessage());
+                }
+            }
+        } catch (\Throwable $e) {
+            Log::error("updateStaffNameInSheets encountered error: " . $e->getMessage());
+        }
+
+        return $totalUpdated;
+    }
 }
 
 

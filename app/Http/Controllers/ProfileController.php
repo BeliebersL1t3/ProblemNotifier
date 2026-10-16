@@ -25,6 +25,7 @@ class ProfileController extends Controller
             ->get();
 
         $pendingTransferTicket = $pendingTickets->firstWhere('type', 'department_transfer');
+        $pendingNameTicket = $pendingTickets->firstWhere('type', 'name_change');
         $pendingWaOrPwdTicket = $pendingTickets->whereIn('type', ['whatsapp_change', 'whatsapp_unlink', 'password_reset'])->first();
 
         return Inertia::render('Profile/Edit', [
@@ -32,6 +33,7 @@ class ProfileController extends Controller
             'status' => session('status'),
             'pendingTicket' => $pendingWaOrPwdTicket,
             'pendingTransferTicket' => $pendingTransferTicket,
+            'pendingNameTicket' => $pendingNameTicket,
             'notifyWhatsAppTickets' => (bool) $user->notify_whatsapp_tickets,
         ]);
     }

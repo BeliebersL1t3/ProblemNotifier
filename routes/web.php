@@ -68,6 +68,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/tickets/whatsapp', [ApprovalTicketController::class, 'storeWhatsappTicket'])->name('tickets.whatsapp');
     Route::post('/tickets/password', [ApprovalTicketController::class, 'storePasswordResetTicket'])->name('tickets.password');
     Route::post('/tickets/department-transfer', [ApprovalTicketController::class, 'storeDepartmentTransferTicket'])->name('tickets.departmentTransfer');
+    Route::post('/tickets/name-change', [ApprovalTicketController::class, 'storeNameChangeTicket'])->name('tickets.nameChange');
     Route::post('/tickets/{id}/hod-action', [ApprovalTicketController::class, 'hodAction'])->name('tickets.hodAction');
     Route::post('/tickets/{id}/admin-action', [ApprovalTicketController::class, 'adminAction'])->name('tickets.adminAction');
     Route::post('/tickets/check-whatsapp', [ApprovalTicketController::class, 'checkWhatsAppNumber'])->name('tickets.checkWhatsApp');
