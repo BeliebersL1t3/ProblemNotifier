@@ -643,7 +643,7 @@ export function ReportIssueModal({ open, onOpenChange }) {
                                 <div className="flex items-center gap-2 font-semibold text-xs text-foreground">
                                     <Lock className={`w-3.5 h-3.5 ${isConfidential ? 'text-rose-500' : 'text-muted-foreground'}`} />
                                     <span className={isConfidential ? 'text-rose-400 font-bold' : ''}>
-                                        {lang === 'id' ? 'Isu Rahasia (Confidential)' : 'Confidential Issue'}
+                                        {lang === 'id' ? 'Isu Privasi (Confidential)' : 'Confidential Issue'}
                                     </span>
                                     {isConfidential && (
                                         <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-rose-500/20 text-rose-300 border border-rose-500/30 ml-auto">

@@ -298,9 +298,9 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
                             </span>
                         )}
                         {issue.isConfidential && (
-                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-rose-500/15 text-rose-300 border border-rose-500/30" title={lang === 'id' ? 'Isu Rahasia (Confidential)' : 'Confidential Issue'}>
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-rose-500/15 text-rose-300 border border-rose-500/30" title={lang === 'id' ? 'Isu Privasi (Confidential)' : 'Confidential Issue'}>
                                 <Lock className="w-2.5 h-2.5" />
-                                {lang === 'id' ? 'Rahasia' : 'Confidential'}
+                                {lang === 'id' ? 'Privasi' : 'Confidential'}
                             </span>
                         )}
                         {needsReassignment && (
@@ -804,7 +804,7 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
                             </span>
                         )}
                         {issue.isConfidential && (
-                            <span className="text-[9px] text-rose-400 shrink-0 cursor-help" title={lang === 'id' ? 'Rahasia' : 'Confidential'}>
+                            <span className="text-[9px] text-rose-400 shrink-0 cursor-help" title={lang === 'id' ? 'Privasi' : 'Confidential'}>
                                 🔒
                             </span>
                         )}
@@ -986,7 +986,7 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
                         </span>
                     )}
                     {issue.isConfidential && (
-                        <span className="text-[9px] font-bold text-rose-400 shrink-0 cursor-help" title={lang === 'id' ? 'Isu Rahasia (Confidential)' : 'Confidential Issue'}>
+                        <span className="text-[9px] font-bold text-rose-400 shrink-0 cursor-help" title={lang === 'id' ? 'Isu Privasi (Confidential)' : 'Confidential Issue'}>
                             🔒
                         </span>
                     )}
@@ -1175,10 +1175,10 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
                                 {issue.isConfidential && (
                                     <span 
                                         className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-rose-500/15 text-rose-300 border border-rose-500/30 shrink-0" 
-                                        title={lang === 'id' ? 'Isu Rahasia (Confidential)' : 'Confidential Issue'}
+                                        title={lang === 'id' ? 'Isu Privasi (Confidential)' : 'Confidential Issue'}
                                     >
                                         <Lock className="w-2.5 h-2.5 text-rose-400 shrink-0" />
-                                        <span>{lang === 'id' ? 'Rahasia' : 'Confidential'}</span>
+                                        <span>{lang === 'id' ? 'Privasi' : 'Confidential'}</span>
                                     </span>
                                 )}
                             </div>
@@ -1515,10 +1515,10 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
                         {issue.isConfidential && (
                             <span 
                                 className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-500/15 text-rose-300 border border-rose-500/30 shrink-0 shadow-xs mt-0.5" 
-                                title={lang === 'id' ? 'Isu Rahasia: Hanya departemen terkait dan Admin yang dapat melihat' : 'Confidential: Only involved departments and Admin can see'}
+                                title={lang === 'id' ? 'Isu Privasi: Hanya departemen terkait dan Admin yang dapat melihat' : 'Confidential: Only involved departments and Admin can see'}
                             >
                                 <Lock className="w-3 h-3 text-rose-400 shrink-0" />
-                                <span>{lang === 'id' ? 'Rahasia' : 'Confidential'}</span>
+                                <span>{lang === 'id' ? 'Privasi' : 'Confidential'}</span>
                             </span>
                         )}
                     </div>

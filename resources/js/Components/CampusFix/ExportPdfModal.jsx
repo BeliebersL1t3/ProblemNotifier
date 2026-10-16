@@ -580,7 +580,7 @@ export function ExportPdfModal({ open, onOpenChange }) {
                 takenCell,
                 solvedCell,
                 cleanDuration(i.durationLabel),
-                sanitizePdfText((i.isConfidential ? '[RAHASIA] ' : '') + (i.title || '')),
+                sanitizePdfText((i.isConfidential ? '[PRIVASI] ' : '') + (i.title || '')),
                 sanitizePdfText(i.location),
                 combinedDeptTags,
                 sanitizePdfText(categories.find(c => c.id === i.category)?.label || i.category),

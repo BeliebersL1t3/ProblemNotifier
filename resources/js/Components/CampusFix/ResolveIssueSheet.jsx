@@ -309,7 +309,7 @@ export function ResolveIssueSheet({ issue, onClose, onEdit }) {
                                         {issue.isConfidential && (
                                             <span className="inline-flex items-center gap-1 rounded bg-rose-500/20 text-rose-300 px-1.5 py-0.5 font-mono text-[10px] font-bold border border-rose-500/30">
                                                 <Lock className="w-2.5 h-2.5 text-rose-400" />
-                                                <span>{lang === 'id' ? 'Rahasia' : 'Confidential'}</span>
+                                                <span>{lang === 'id' ? 'Privasi' : 'Confidential'}</span>
                                             </span>
                                         )}
                                     </div>

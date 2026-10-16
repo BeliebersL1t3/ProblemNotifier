@@ -614,7 +614,7 @@ export function ActivityDetailModal({ issue, onClose, onOpenCardModal, onEdit, o
                                     {issue.isConfidential && (
                                         <span className="inline-flex items-center gap-1.5 rounded-md bg-rose-500/20 px-2.5 py-0.5 text-xs font-bold text-rose-300 border border-rose-500/40 shadow-xs">
                                             <Lock className="w-3.5 h-3.5 text-rose-400" />
-                                            <span>{lang === 'id' ? 'ISU RAHASIA (CONFIDENTIAL)' : 'CONFIDENTIAL ISSUE'}</span>
+                                            <span>{lang === 'id' ? 'ISU PRIVASI (CONFIDENTIAL)' : 'CONFIDENTIAL ISSUE'}</span>
                                         </span>
                                     )}
                                 </div>

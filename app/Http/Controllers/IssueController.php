@@ -980,7 +980,7 @@ class IssueController extends Controller
                 if (!$isAuthorized) {
                     return response()->json([
                         'success' => false,
-                        'message' => 'Akses Ditolak: Isu ini bersifat rahasia (Confidential) dan hanya dapat diakses oleh pihak/departemen terkait.',
+                        'message' => 'Akses Ditolak: Isu ini bersifat privasi (Confidential) dan hanya dapat diakses oleh pihak/departemen terkait.',
                     ], 403);
                 }
             }
@@ -1318,7 +1318,7 @@ class IssueController extends Controller
                     : "";
 
                 $catName = ucwords(str_replace('-', ' ', $request->category ?? 'General'));
-                $confidentialPrefix = $isConfidential ? "🔒 *[ISU RAHASIA / CONFIDENTIAL]*\n" : "";
+                $confidentialPrefix = $isConfidential ? "🔒 *[ISU PRIVASI / CONFIDENTIAL]*\n" : "";
 
                 $message = "{$confidentialPrefix}📋 *New Issue Submitted!*{$priorityStr}\n\n"
                     . "*Title:* {$request->title}\n"
