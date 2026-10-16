@@ -14,6 +14,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Tooltip } from '@/Components/UI/Tooltip';
 import { getDepartmentTheme, getShortDepartmentName } from '@/constants/departments';
 import NotificationDropdown from '@/Components/CampusFix/NotificationDropdown';
+import NotificationToast from '@/Components/CampusFix/NotificationToast';
 import { BotControlModal } from '@/Components/CampusFix/BotControlModal';
 
 export function CampusFixHeader({ mode = 'dashboard', query, onQueryChange, onReport, onEmergency, onNewPeriod, searchDropdown }) {
@@ -138,6 +139,9 @@ export function CampusFixHeader({ mode = 'dashboard', query, onQueryChange, onRe
                     aria-label="Close search overlay"
                 />
             )}
+
+            {/* Global In-App Floating Notification Banner */}
+            <NotificationToast />
 
             <header className={`sticky top-0 z-50 border-b transition-all duration-200 ${
                 isScrolled 

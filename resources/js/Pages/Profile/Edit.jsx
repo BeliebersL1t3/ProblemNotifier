@@ -7,7 +7,7 @@ import {
     Phone, MessageSquare, Check, Smartphone, Unlink, Trash2,
     Users as UsersIcon, ChevronRight, ShieldAlert, Camera, UploadCloud,
     Image as ImageIcon, X, Ticket, Clock, ArrowRightLeft, Globe, Crown,
-    ExternalLink, Bell, BellRing
+    ExternalLink, Bell, BellRing, Volume2, VolumeX
 } from 'lucide-react';
 import {
     isPushNotificationSupported,
@@ -16,6 +16,11 @@ import {
     unsubscribeFromPushNotifications,
     sendTestPushNotification
 } from '@/services/webPushService';
+import {
+    isSoundEnabled,
+    setSoundEnabled,
+    playNotificationChime
+} from '@/services/soundService';
 
 import { IssuesProvider } from '@/context/IssuesContext';
 import { useLanguage } from '@/context/LanguageContext';
@@ -300,6 +305,24 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
     const [pushTestLoading, setPushTestLoading] = useState(false);
     const [pushSuccessMsg, setPushSuccessMsg] = useState(null);
     const [pushErrorMsg, setPushErrorMsg] = useState(null);
+    const [soundAlertEnabled, setSoundAlertEnabled] = useState(isSoundEnabled());
+
+    useEffect(() => {
+        const handleSoundPref = (e) => {
+            setSoundAlertEnabled(e.detail?.enabled ?? isSoundEnabled());
+        };
+        window.addEventListener('campusfix-sound-pref-changed', handleSoundPref);
+        return () => window.removeEventListener('campusfix-sound-pref-changed', handleSoundPref);
+    }, []);
+
+    const handleToggleSound = () => {
+        const next = !soundAlertEnabled;
+        setSoundAlertEnabled(next);
+        setSoundEnabled(next);
+        if (next) {
+            playNotificationChime('normal');
+        }
+    };
 
     useEffect(() => {
         const checkPush = async () => {
@@ -1146,6 +1169,68 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
                                                 ? 'Buka website Telunas Fix di browser Safari, ketuk tombol Bagikan (Share ⎋) di bawah, lalu pilih "Tambahkan ke Layar Utama" (Add to Home Screen). Buka aplikasi dari layar utama Anda untuk mengaktifkan notifikasi pop-up sistem Apple.'
                                                 : 'Open Telunas Fix in Safari, tap Share (⎋), then choose "Add to Home Screen". Launch from your home screen to enable Apple web push notifications.'}
                                         </p>
+                                    </div>
+
+                                    {!pushSupported && (
+                                        <div className="p-3.5 rounded-xl bg-amber-950/30 border border-amber-500/30 text-xs text-amber-200/90 space-y-1.5">
+                                            <p className="font-bold flex items-center gap-1.5 text-amber-300">
+                                                <span>🌐 {lang === 'id' ? 'Status Akses: HTTP / Jaringan Wi-Fi Lokal' : 'Access Status: Local HTTP / Wi-Fi'}</span>
+                                            </p>
+                                            <p className="text-[11px] leading-relaxed text-[#D4D2C5]">
+                                                {lang === 'id'
+                                                    ? 'Browser membatasi banner pop-up sistem saat web diakses melalui HTTP IP lokal. Namun, notifikasi suara denting & banner pop-up di dalam web ini TETAP AKTIF setiap kali ada tiket baru untuk departemen Anda.'
+                                                    : 'Browsers restrict native system push on local HTTP IP. However, in-app chime audio and visual alerts remain fully active whenever new tickets are reported.'}
+                                            </p>
+                                        </div>
+                                    )}
+
+                                    {/* In-App Sound Alert Toggle (Works on HTTP & HTTPS) */}
+                                    <div className="p-4 rounded-xl bg-[#1C1B0E] border border-[#3B3929] flex items-center justify-between gap-4 flex-wrap">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-8 h-8 rounded-lg bg-[#C9AA71]/20 text-[#C9AA71] flex items-center justify-center border border-[#C9AA71]/30 shrink-0">
+                                                {soundAlertEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4 text-[#A19F8D]" />}
+                                            </div>
+                                            <div>
+                                                <h3 className="text-xs sm:text-sm font-bold text-[#FAFAFA]">
+                                                    {lang === 'id' ? 'Suara Peringatan & Getar di Web (HTTP / Wi-Fi)' : 'In-App Chime & Vibration (HTTP / Wi-Fi)'}
+                                                </h3>
+                                                <p className="text-[11px] text-[#A19F8D]">
+                                                    {lang === 'id'
+                                                        ? 'Memutar audio denting lonceng saat tiket/isu baru masuk (100% aktif di jaringan lokal).'
+                                                        : 'Plays audio chime when new issues arrive (works on local network).'}
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => playNotificationChime('normal')}
+                                                className="px-3 py-1.5 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-xs font-semibold text-[#FAFAFA] transition-colors cursor-pointer"
+                                                title={lang === 'id' ? 'Putar tes bunyi lonceng' : 'Play test chime'}
+                                            >
+                                                🔔 {lang === 'id' ? 'Tes Suara' : 'Test Sound'}
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                onClick={handleToggleSound}
+                                                className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm ${
+                                                    soundAlertEnabled
+                                                        ? 'bg-emerald-950/60 border border-emerald-500/50 text-emerald-300 hover:bg-emerald-900/60'
+                                                        : 'bg-white/5 border border-white/10 text-[#A19F8D] hover:text-[#FAFAFA]'
+                                                }`}
+                                            >
+                                                {soundAlertEnabled ? (
+                                                    <>
+                                                        <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                                                        <span>{lang === 'id' ? 'Suara Aktif' : 'Enabled'}</span>
+                                                    </>
+                                                ) : (
+                                                    <span>{lang === 'id' ? 'Hening (Mute)' : 'Muted'}</span>
+                                                )}
+                                            </button>
+                                        </div>
                                     </div>
 
                                     <div className="pt-2 flex items-center justify-between gap-3 flex-wrap">

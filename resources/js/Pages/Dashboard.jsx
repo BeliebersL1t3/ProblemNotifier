@@ -34,7 +34,7 @@ import {
 import { useAuth } from '@/hooks/useAuth';
 import { ErrorBoundary } from '@/Components/CampusFix/ErrorBoundary';
 import { parseDeadlineToMs } from '@/lib/utils';
-
+import { isSoundEnabled } from '@/services/soundService';
 
 let sharedAudioContext = null;
 
@@ -59,6 +59,7 @@ let lastChimePlayedAt = 0;
 
 function playHarmonicChime(type = 'milestone') {
     try {
+        if (!isSoundEnabled()) return false;
         const now = Date.now();
         // Debounce: prevent overlapping audio blasts (min 2.5s between chimes)
         if (now - lastChimePlayedAt < 2500) return false;

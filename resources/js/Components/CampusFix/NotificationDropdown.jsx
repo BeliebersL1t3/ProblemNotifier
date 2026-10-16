@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { Bell, Check, Clock, Ticket, AlertCircle, ExternalLink, CheckCheck, Crown, X, BellRing } from 'lucide-react';
+import { Bell, Check, Clock, Ticket, AlertCircle, ExternalLink, CheckCheck, Crown, X, BellRing, Volume2, VolumeX } from 'lucide-react';
 import { Link } from '@inertiajs/react';
 import { useLanguage } from '@/context/LanguageContext';
 import {
@@ -8,6 +8,12 @@ import {
     getCurrentPushSubscription,
     subscribeToPushNotifications
 } from '@/services/webPushService';
+import {
+    isSoundEnabled,
+    setSoundEnabled,
+    playNotificationChime,
+    triggerNotificationAlert
+} from '@/services/soundService';
 
 export default function NotificationDropdown({ isMobile = false }) {
     const { t } = useLanguage();
@@ -18,7 +24,27 @@ export default function NotificationDropdown({ isMobile = false }) {
     const [pushSupported, setPushSupported] = useState(false);
     const [pushSubscribed, setPushSubscribed] = useState(false);
     const [pushLoading, setPushLoading] = useState(false);
+    const [soundActive, setSoundActive] = useState(isSoundEnabled());
     const dropdownRef = useRef(null);
+    const knownIdsRef = useRef(null);
+
+    useEffect(() => {
+        const handleSoundPref = (e) => {
+            setSoundActive(e.detail?.enabled ?? isSoundEnabled());
+        };
+        window.addEventListener('campusfix-sound-pref-changed', handleSoundPref);
+        return () => window.removeEventListener('campusfix-sound-pref-changed', handleSoundPref);
+    }, []);
+
+    const toggleSound = (e) => {
+        e.stopPropagation();
+        const next = !soundActive;
+        setSoundActive(next);
+        setSoundEnabled(next);
+        if (next) {
+            playNotificationChime('normal');
+        }
+    };
 
     useEffect(() => {
         const checkPush = async () => {
@@ -49,6 +75,20 @@ export default function NotificationDropdown({ isMobile = false }) {
             const res = await axios.get('/notifications');
             if (res.data) {
                 setData(res.data);
+                const allItems = [...(res.data.tickets || []), ...(res.data.issues || [])];
+                const currentIds = new Set(allItems.map((item) => item.id));
+
+                if (knownIdsRef.current === null) {
+                    knownIdsRef.current = currentIds;
+                } else {
+                    const newUnreadItems = allItems.filter(
+                        (item) => !item.is_read && !knownIdsRef.current.has(item.id)
+                    );
+                    if (newUnreadItems.length > 0) {
+                        triggerNotificationAlert(newUnreadItems[0]);
+                    }
+                    knownIdsRef.current = currentIds;
+                }
             }
         } catch (e) {
             // Ignore offline/background polling errors
@@ -202,6 +242,22 @@ export default function NotificationDropdown({ isMobile = false }) {
                             </div>
 
                             <div className="flex items-center gap-2">
+                                {/* Sound alert toggle */}
+                                <button
+                                    type="button"
+                                    onClick={toggleSound}
+                                    className={`p-1.5 rounded-lg border text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${
+                                        soundActive
+                                            ? 'bg-[#C9AA71]/20 border-[#C9AA71]/40 text-[#E3D1AA] hover:bg-[#C9AA71]/30'
+                                            : 'bg-white/5 border-white/10 text-[#A19F8D] hover:text-[#FAFAFA]'
+                                    }`}
+                                    title={soundActive ? 'Suara Notifikasi: Aktif (Klik untuk heningkan)' : 'Suara Notifikasi: Hening (Klik untuk bunyikan)'}
+                                    aria-label="Toggle Sound"
+                                >
+                                    {soundActive ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
+                                    <span className="hidden sm:inline text-[10px]">{soundActive ? 'Suara' : 'Hening'}</span>
+                                </button>
+
                                 {data.unread_count > 0 && (
                                     <button
                                         onClick={markAllAsRead}
