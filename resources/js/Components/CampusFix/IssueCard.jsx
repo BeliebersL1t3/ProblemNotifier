@@ -486,7 +486,7 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
                 {/* Right Action Section: Contextual Quick Actions */}
                 <div className="flex sm:flex-row md:flex-col items-center md:items-end justify-between md:justify-center gap-2 shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-border/40 relative z-10">
                     <div className="flex items-center gap-2">
-                        {isOpen ? (
+                        {!isPastContribution && isOpen ? (
                             <button
                                 type="button"
                                 onClick={(e) => {
@@ -498,7 +498,7 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
                                 <ArrowRightLeft className="w-3.5 h-3.5" />
                                 <span>{lang === 'id' ? 'Ambil Tugas' : 'Take Job'}</span>
                             </button>
-                        ) : isProgress || isPending ? (
+                        ) : !isPastContribution && (isProgress || isPending) ? (
                             <button
                                 type="button"
                                 onClick={(e) => {
@@ -818,7 +818,7 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
 
                 {/* Right Actions: Compact Quick Action + Chevron */}
                 <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 relative z-10">
-                    {isOpen ? (
+                    {!isPastContribution && isOpen ? (
                         <button
                             type="button"
                             onClick={(e) => {
@@ -830,7 +830,7 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
                             <ArrowRightLeft className="w-3 h-3" />
                             <span>{lang === 'id' ? 'Ambil' : 'Take'}</span>
                         </button>
-                    ) : isProgress || isPending ? (
+                    ) : !isPastContribution && (isProgress || isPending) ? (
                         <button
                             type="button"
                             onClick={(e) => {
