@@ -1513,7 +1513,7 @@ function CalendarInner() {
                     searchDropdown={renderSearchDropdown}
                 />
 
-                <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 pb-28 md:pb-6">
+                <div className="mx-auto max-w-[1600px] 2xl:max-w-[1760px] px-4 py-6 sm:px-6 lg:px-8 pb-28 md:pb-6">
                     {/* Sync Message Alert Banner */}
                     {syncMsg && (
                         <div className={`mb-4 px-4 py-3 rounded-xl border flex items-center justify-between text-xs font-bold transition-all shadow-lg animate-in fade-in slide-in-from-top-2 ${

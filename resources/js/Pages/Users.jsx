@@ -339,7 +339,7 @@ function UsersInner({ initialUsers, initialStats }) {
             <div className="relative z-10">
                 <CampusFixHeader mode="users" />
 
-                <main className="mx-auto max-w-7xl space-y-6 px-4 py-8 sm:px-6 sm:py-10 pb-28 md:pb-10">
+                <main className="mx-auto max-w-[1600px] 2xl:max-w-[1760px] space-y-6 px-4 py-8 sm:px-6 lg:px-8 sm:py-10 pb-28 md:pb-10">
                     
                     {/* Header Banner & Breadcrumbs */}
                     <div className="rounded-2xl p-6 sm:p-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xl border border-white/10 bg-gradient-to-br from-[#2A281E] to-[#1C1B0E]">

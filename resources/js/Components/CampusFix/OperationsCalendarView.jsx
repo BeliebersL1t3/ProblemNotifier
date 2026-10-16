@@ -1533,13 +1533,13 @@ export function OperationsCalendarView({
             </div>
 
             {/* ─── Main Content Split: Calendar Grid + Day Agenda Inspector ─── */}
-            <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 xl:grid-cols-[1fr_390px] 2xl:grid-cols-[1fr_420px] gap-6">
 
-                {/* ─── Calendar Month Grid (8 Cols on Desktop) ─── */}
+                {/* ─── Calendar Month Grid (Takes All Available Space on XL/2XL) ─── */}
                 <div 
                     onTouchStart={handleTouchStart}
                     onTouchEnd={handleTouchEnd}
-                    className="lg:col-span-8 bg-[#2A281E]/95 border border-[#3B3929] rounded-2xl p-3 sm:p-5 shadow-2xl backdrop-blur-xl relative group/cal"
+                    className="lg:col-span-8 xl:col-auto bg-[#2A281E]/95 border border-[#3B3929] rounded-2xl p-3 sm:p-5 shadow-2xl backdrop-blur-xl relative group/cal"
                 >
                     {/* Floating Month Navigation Chevrons (Desktop Only) */}
                     <div className="hidden sm:flex absolute -left-3.5 sm:-left-5 top-1/2 -translate-y-1/2 z-30 pointer-events-auto">
@@ -1987,8 +1987,8 @@ export function OperationsCalendarView({
                     </div>
                 </div>
 
-                {/* ─── Day Agenda / All Tasks Inspector (4 Cols on Desktop) ─── */}
-                <div id="day-agenda-inspector" className="lg:col-span-4 bg-[#2A281E]/95 border border-[#3B3929] rounded-2xl p-4 sm:p-5 shadow-2xl backdrop-blur-xl flex flex-col h-auto lg:h-full lg:sticky lg:top-24">
+                {/* ─── Day Agenda / All Tasks Inspector (Ergonomic Fixed Width on XL/2XL) ─── */}
+                <div id="day-agenda-inspector" className="lg:col-span-4 xl:col-auto bg-[#2A281E]/95 border border-[#3B3929] rounded-2xl p-4 sm:p-5 shadow-2xl backdrop-blur-xl flex flex-col h-auto lg:h-full lg:sticky lg:top-24">
                     {/* Mode Switcher: Date vs All Tasks */}
                     <div className="flex items-center gap-1 p-1 bg-[#14140B] rounded-xl border border-[#3B3929] mb-3">
                         <button

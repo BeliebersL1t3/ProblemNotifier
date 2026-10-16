@@ -154,7 +154,7 @@ export function CampusFixHeader({ mode = 'dashboard', query, onQueryChange, onRe
                 }} 
             />
 
-            <div className="relative z-10 mx-auto flex max-w-7xl items-center justify-between px-3.5 py-2 sm:px-6 sm:py-3 md:gap-6">
+            <div className="relative z-10 mx-auto flex max-w-[1600px] 2xl:max-w-[1760px] items-center justify-between px-3.5 py-2 sm:px-6 sm:py-3 md:gap-6">
                 {/* Mobile Expanded Search Bar (Takes over row when active) */}
                 {(mobileSearchOpen || !!query) && onQueryChange ? (
                     <div className="flex md:hidden items-center w-full animate-in fade-in zoom-in-95 duration-150">

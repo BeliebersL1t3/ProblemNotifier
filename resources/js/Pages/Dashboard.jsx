@@ -1177,7 +1177,7 @@ function DashboardInner() {
                                 ? 'bg-gradient-to-r from-amber-950 via-[#2A2315] to-amber-900/90 border-amber-600/40 text-amber-100'
                                 : 'bg-gradient-to-r from-red-600 via-rose-600 to-red-700 border-red-500'
                     }`}>
-                        <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-2 sm:gap-3">
+                        <div className="max-w-[1600px] 2xl:max-w-[1760px] mx-auto flex flex-col md:flex-row md:items-center justify-between gap-2 sm:gap-3">
                             {/* Left Column: Info & Metadata */}
                             <div className="flex flex-col gap-1.5 min-w-0 w-full md:w-auto">
                                 {/* Baris 1: Ikon + Judul + Status Badge + Slider Pagination */}
@@ -1298,7 +1298,7 @@ function DashboardInner() {
                 );
             })()}
 
-            <main className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6 sm:py-8 pb-36 md:pb-8">
+            <main className="mx-auto max-w-[1600px] 2xl:max-w-[1760px] space-y-6 px-4 py-6 sm:px-6 lg:px-8 sm:py-8 pb-36 md:pb-8">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div className="space-y-1">
                         <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">

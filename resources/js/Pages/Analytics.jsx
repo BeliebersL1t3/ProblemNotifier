@@ -1936,7 +1936,7 @@ function AnalyticsInner() {
                 onQueryChange={setSearchQuery} 
             />
 
-            <main className="mx-auto max-w-7xl p-4 sm:p-6 lg:p-8 flex flex-col gap-8 pb-28 md:pb-8">
+            <main className="mx-auto max-w-[1600px] 2xl:max-w-[1760px] p-4 sm:p-6 lg:p-8 flex flex-col gap-8 pb-28 md:pb-8">
                 
                 {error && (
                     <div className="flex items-center justify-between rounded-xl border border-destructive/20 bg-destructive/10 p-4 text-sm text-destructive shadow-sm">

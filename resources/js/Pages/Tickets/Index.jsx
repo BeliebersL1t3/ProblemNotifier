@@ -290,7 +290,7 @@ function TicketsInner({
             <div className="relative z-10">
                 <CampusFixHeader mode="tickets" />
 
-                <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-28 md:pb-12 space-y-6">
+                <main className="max-w-[1600px] 2xl:max-w-[1760px] mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-28 md:pb-12 space-y-6">
                     
                     {/* Header Banner with Role-Differentiated Scope */}
                     <div className="rounded-2xl p-6 sm:p-8 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 shadow-2xl border border-white/10 bg-gradient-to-br from-[#2A281E] to-[#1C1B0E]">
