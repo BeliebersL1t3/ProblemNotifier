@@ -641,7 +641,8 @@ export function ResolveIssueSheet({ issue, onClose, onEdit }) {
                                     {isPendingMode ? t('cancel_pending_btn') : t('mark_pending_btn')}
                                 </Button>
 
-                                {/* Quick Actions for Pending & Progress */}
+                                {/* Quick Actions for Pending & Progress (Temporarily disabled: pending dedicated backend endpoint) */}
+                                {/*
                                 {issue?.status === 'pending' && (
                                     <div className="pt-2 border-t border-border/40 space-y-2">
                                         <Button
@@ -678,6 +679,7 @@ export function ResolveIssueSheet({ issue, onClose, onEdit }) {
                                         </Button>
                                     </div>
                                 )}
+                                */}
                             </div>
                         </>
                     )}
