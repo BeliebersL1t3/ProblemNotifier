@@ -72,6 +72,13 @@ axios.interceptors.response.use(
             }
         }
 
+        // Access forbidden / Telunas Wi-Fi restriction
+        if (error.response && error.response.status === 403 && error.response.data?.error === 'Akses Ditolak') {
+            if (window.location.pathname !== '/telunas-wifi-required') {
+                window.location.href = '/telunas-wifi-required';
+            }
+        }
+
         return Promise.reject(error);
     }
 );

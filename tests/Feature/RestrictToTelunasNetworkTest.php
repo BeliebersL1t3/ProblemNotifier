@@ -84,4 +84,69 @@ class RestrictToTelunasNetworkTest extends TestCase
 
         $response->assertStatus(200);
     }
+
+    public function test_external_ip_with_inertia_header_gets_409_hard_redirect(): void
+    {
+        $response = $this->withHeaders([
+            'X-Forwarded-For' => '114.124.50.60',
+            'X-Inertia'       => 'true',
+        ])->get('/dashboard');
+
+        $response->assertStatus(409);
+        $this->assertEquals(url('/telunas-wifi-required'), $response->headers->get('X-Inertia-Location'));
+    }
+
+    public function test_leader_bypass_with_wrong_passcode_fails(): void
+    {
+        Config::set('telunas.bypass_passcode', 'SuperSecretPasscode123');
+
+        $response = $this->withHeaders(['X-Forwarded-For' => '114.124.50.60'])
+            ->from('/telunas-wifi-required')
+            ->post('/telunas-wifi-bypass', [
+                'passcode' => 'WrongPasscode',
+            ]);
+
+        $response->assertRedirect('/telunas-wifi-required');
+        $response->assertSessionHasErrors('passcode');
+    }
+
+    public function test_leader_bypass_with_correct_passcode_grants_access(): void
+    {
+        Config::set('telunas.bypass_passcode', 'SuperSecretPasscode123');
+        Config::set('telunas.bypass_hours', 24);
+
+        $response = $this->withHeaders(['X-Forwarded-For' => '114.124.50.60'])
+            ->from('/telunas-wifi-required')
+            ->post('/telunas-wifi-bypass', [
+                'passcode' => 'SuperSecretPasscode123',
+            ]);
+
+        $response->assertRedirect('/');
+        $response->assertCookie('telunas_bypass_token');
+        $response->assertSessionHas('telunas_wifi_bypass_until');
+
+        // Subsequent requests from the same external IP with the session should now be allowed
+        $followUp = $this->withHeaders(['X-Forwarded-For' => '114.124.50.60'])
+            ->get('/login');
+
+        $this->assertNotEquals(403, $followUp->getStatusCode());
+    }
+
+    public function test_bypass_endpoint_is_rate_limited(): void
+    {
+        Config::set('telunas.bypass_passcode', 'SuperSecretPasscode123');
+
+        for ($i = 0; $i < 5; $i++) {
+            $this->withHeaders(['X-Forwarded-For' => '114.124.50.77'])
+                ->from('/telunas-wifi-required')
+                ->post('/telunas-wifi-bypass', ['passcode' => 'WrongPasscode']);
+        }
+
+        $blocked = $this->withHeaders(['X-Forwarded-For' => '114.124.50.77'])
+            ->from('/telunas-wifi-required')
+            ->post('/telunas-wifi-bypass', ['passcode' => 'WrongPasscode']);
+
+        $blocked->assertStatus(429);
+    }
 }
+

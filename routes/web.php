@@ -177,9 +177,13 @@ Route::prefix('api')->group(function () {
         Route::post('/push-subscriptions', [PushSubscriptionController::class, 'subscribe']);
         Route::post('/push-subscriptions/delete', [PushSubscriptionController::class, 'unsubscribe']);
         Route::post('/push-subscriptions/test', [PushSubscriptionController::class, 'sendTest']);
-        Route::get('/push-subscriptions/status', [PushSubscriptionController::class, 'status']);
     });
 });
 
+// Telunas Wi-Fi Restriction & Leader Bypass Routes
+Route::get('/telunas-wifi-required', [\App\Http\Controllers\TelunasWifiBypassController::class, 'show'])->name('telunas.wifi.required');
+Route::post('/telunas-wifi-bypass', [\App\Http\Controllers\TelunasWifiBypassController::class, 'verify'])->middleware('throttle:5,1')->name('telunas.wifi.bypass');
+
 require __DIR__.'/auth.php';
+
 

@@ -35,40 +35,19 @@ class RestrictToTelunasNetwork
      */
     public function handle(Request $request, Closure $next): Response
     {
-        // 1. If restriction is disabled in config/env, allow all traffic
-        if (!config('telunas.restrict_wifi', true)) {
+        // 1. Always allow bypass verification and restriction routes
+        if ($request->is('telunas-wifi-required') || $request->is('telunas-wifi-bypass')) {
             return $next($request);
         }
 
-        // 2. Allow application health check
-        if ($request->is('up')) {
-            return $next($request);
-        }
-
-        // 3. Allow requests with valid WhatsApp Bot API Key
-        $botApiKey = (string) config('services.bot.api_key');
-        $requestApiKey = (string) $request->header('X-Bot-Api-Key');
-        if (!empty($botApiKey) && !empty($requestApiKey) && hash_equals($botApiKey, $requestApiKey)) {
+        // 2. If client meets any authorization criteria, allow traffic
+        if ($this->isAllowed($request)) {
             return $next($request);
         }
 
         $clientIp = $request->ip();
 
-        // 4. Always allow local loopback and private LAN addresses
-        // (Direct access from within Telunas local network without tunnel)
-        if ($this->isLocalOrPrivateIp($clientIp)) {
-            return $next($request);
-        }
-
-        // 5. Build list of allowed public IPs / CIDRs
-        $allowedIps = $this->resolveAllowedIps();
-
-        // 6. Check if incoming client public IP matches Telunas public network
-        if (!empty($allowedIps) && IpUtils::checkIp($clientIp, $allowedIps)) {
-            return $next($request);
-        }
-
-        // 7. Access denied: Device is not on Telunas Wi-Fi
+        // 3. Access denied: Handle API / JSON requests
         if ($request->expectsJson() || $request->is('api/*')) {
             return response()->json([
                 'error'       => 'Akses Ditolak',
@@ -77,12 +56,116 @@ class RestrictToTelunasNetwork
             ], 403);
         }
 
+        // 4. Access denied: For Inertia SPA navigations, force a full top-level browser redirect
+        // to prevent Inertia from rendering the error inside a dismissable modal dialog.
+        if ($request->header('X-Inertia')) {
+            return response('', 409)->header('X-Inertia-Location', url('/telunas-wifi-required'));
+        }
+
+        // 5. Access denied: Standard browser request
+        $allowedIps = $this->resolveAllowedIps();
         $displayAllowedHint = !empty($allowedIps) ? implode(', ', array_slice($allowedIps, 0, 2)) : null;
 
         return response()->view('errors.telunas-wifi-required', [
             'clientIp'    => $clientIp,
             'allowedHint' => $displayAllowedHint,
         ], 403);
+    }
+
+    /**
+     * Determine if the incoming request is permitted to access the application.
+     */
+    public function isAllowed(Request $request): bool
+    {
+        // If restriction is disabled in config/env, allow all traffic
+        if (!config('telunas.restrict_wifi', true)) {
+            return true;
+        }
+
+        // Allow application health check
+        if ($request->is('up')) {
+            return true;
+        }
+
+        // Allow requests with valid WhatsApp Bot API Key
+        $botApiKey = (string) config('services.bot.api_key');
+        $requestApiKey = (string) $request->header('X-Bot-Api-Key');
+        if (!empty($botApiKey) && !empty($requestApiKey) && hash_equals($botApiKey, $requestApiKey)) {
+            return true;
+        }
+
+        // Check if device holds an authorized leader bypass session or cookie
+        if ($this->hasValidBypassSession($request)) {
+            return true;
+        }
+
+        $clientIp = $request->ip();
+
+        // Always allow local loopback and private LAN addresses
+        if ($this->isLocalOrPrivateIp($clientIp)) {
+            return true;
+        }
+
+        // Check if client IP matches allowed public IPs / CIDRs
+        $allowedIps = $this->resolveAllowedIps();
+        if (!empty($allowedIps) && IpUtils::checkIp($clientIp, $allowedIps)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Check if request has a valid, non-expired leader bypass session or cookie.
+     */
+    public function hasValidBypassSession(Request $request): bool
+    {
+        $appKey = (string) config('app.key');
+        if (empty($appKey)) {
+            return false;
+        }
+
+        // 1. Check Laravel Session
+        if ($request->hasSession()) {
+            $sessionUntil = $request->session()->get('telunas_wifi_bypass_until');
+            $sessionSignature = $request->session()->get('telunas_wifi_bypass_signature');
+
+            if ($sessionUntil && $sessionSignature && (int) $sessionUntil > time()) {
+                $expectedSignature = $sessionUntil . '|' . hash_hmac('sha256', (string) $sessionUntil, $appKey);
+                if (hash_equals($expectedSignature, (string) $sessionSignature)) {
+                    return true;
+                }
+            }
+        }
+
+        // 2. Check Encrypted Cookie
+        $cookieToken = $request->cookie('telunas_bypass_token');
+        if (!empty($cookieToken) && is_string($cookieToken) && str_contains($cookieToken, '|')) {
+            [$cookieUntil, $cookieHmac] = explode('|', $cookieToken, 2);
+            if ((int) $cookieUntil > time()) {
+                $expectedHmac = hash_hmac('sha256', (string) $cookieUntil, $appKey);
+                if (hash_equals($expectedHmac, (string) $cookieHmac)) {
+                    // Re-populate session if available
+                    if ($request->hasSession()) {
+                        $request->session()->put('telunas_wifi_bypass_until', (int) $cookieUntil);
+                        $request->session()->put('telunas_wifi_bypass_signature', $cookieToken);
+                    }
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Public accessor to resolve allowed IPs.
+     *
+     * @return array<int, string>
+     */
+    public function getAllowedIps(): array
+    {
+        return $this->resolveAllowedIps();
     }
 
     /**

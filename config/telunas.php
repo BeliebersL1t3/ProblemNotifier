@@ -29,4 +29,15 @@ return [
     */
     'auto_ip_cache_seconds' => (int) env('TELUNAS_AUTO_IP_CACHE_SECONDS', 1800),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Leader Wi-Fi Bypass Passcode & Validity
+    |--------------------------------------------------------------------------
+    | Allows authorized personnel (leaders/supervisors) outside the resort Wi-Fi
+    | to enter a master passcode on the restriction page to gain access.
+    */
+    'bypass_passcode' => env('TELUNAS_WIFI_BYPASS_PASSCODE', 'TelunasLeader2026!'),
+
+    'bypass_hours' => (int) env('TELUNAS_WIFI_BYPASS_HOURS', 24),
+
 ];

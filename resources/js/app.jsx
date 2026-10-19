@@ -1,11 +1,21 @@
 import '../css/app.css';
 import './bootstrap';
 
-import { createInertiaApp } from '@inertiajs/react';
+import { createInertiaApp, router } from '@inertiajs/react';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { createRoot } from 'react-dom/client';
 
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
+
+// Intercept non-Inertia or 403 responses and force a full hard redirect
+// to prevent Inertia from displaying the restriction page inside a dismissable dialog
+router.on('invalid', (event) => {
+    const status = event.detail.response?.status;
+    if (status === 403) {
+        event.preventDefault();
+        window.location.href = '/telunas-wifi-required';
+    }
+});
 
 import { SlashProvider } from '@/Components/CampusFix/SlashTransition';
 import { LanguageProvider } from '@/context/LanguageContext';
