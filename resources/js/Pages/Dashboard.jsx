@@ -689,6 +689,13 @@ function DashboardInner() {
         }
     }, [reassignNeededCount, deptViewMode]);
 
+    // Auto-fallback: Admin does not use 'origin' (Reported By Me) tab
+    useEffect(() => {
+        if (isAdmin && deptViewMode === 'origin') {
+            setDeptViewMode('all');
+        }
+    }, [isAdmin, deptViewMode]);
+
     const visible = useMemo(() => {
         const q = query.trim().toLowerCase();
         const sourceIssues = issues;
@@ -1459,20 +1466,6 @@ function DashboardInner() {
                                                     </span>
                                                 </button>
                                             )}
-                                            <button
-                                                type="button"
-                                                onClick={() => setDeptViewMode('origin')}
-                                                title={lang === 'id' ? 'Dibuat Oleh Saya' : 'Reported By Me'}
-                                                className={`rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center justify-center gap-1 sm:gap-1.5 py-2.5 px-2 sm:py-2 sm:px-3.5 flex-1 sm:flex-initial shrink-0 ${
-                                                    deptViewMode === 'origin'
-                                                        ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-md font-extrabold'
-                                                        : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
-                                                }`}
-                                            >
-                                                <FileText className="w-4 h-4 shrink-0" />
-                                                {deptViewMode === 'origin' && <span className="sm:hidden">{lang === 'id' ? 'Saya' : 'Mine'}</span>}
-                                                <span className="hidden sm:inline">{lang === 'id' ? 'Dibuat Oleh Saya' : 'Reported By Me'}</span>
-                                            </button>
                                         </>
                                     ) : isHOD ? (
                                         /* HOD Leadership Scope Tabs */
