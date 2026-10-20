@@ -412,6 +412,12 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
         }
         setIsLoggingOut(true);
         router.post(route('logout'), {}, {
+            onSuccess: () => {
+                window.location.href = '/login';
+            },
+            onError: () => {
+                window.location.href = '/login';
+            },
             onFinish: () => setIsLoggingOut(false),
         });
     };

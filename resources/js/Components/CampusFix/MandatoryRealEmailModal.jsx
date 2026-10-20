@@ -33,7 +33,15 @@ export function MandatoryRealEmailModal({ user }) {
     const handleLogout = () => {
         setIsLoggingOut(true);
         const logoutUrl = typeof route === 'function' ? route('logout') : '/logout';
-        router.post(logoutUrl);
+        router.post(logoutUrl, {}, {
+            onSuccess: () => {
+                window.location.href = '/login';
+            },
+            onError: () => {
+                window.location.href = '/login';
+            },
+            onFinish: () => setIsLoggingOut(false),
+        });
     };
 
     const handleSubmit = async (e) => {
