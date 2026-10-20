@@ -38,14 +38,15 @@ goto INVALID
 
 :START_TAILSCALE
 echo.
-echo Launching Tailscale Funnel in a new window...
+echo Activating Tailscale Funnel in the background...
 if exist "%TAILSCALE_BIN%" (
-    start "CampusFix - Tailscale Funnel" /D "%~dp0" cmd /k ""%TAILSCALE_BIN%" funnel 80"
+    "%TAILSCALE_BIN%" funnel --bg 80
+    echo.
+    echo [OK] Tailscale Funnel is active at https://msi.taile8cc1e.ts.net
 ) else (
     echo [ERROR] Tailscale not found at %TAILSCALE_BIN%
 )
-echo Done.
-timeout /t 2 >nul
+timeout /t 3 >nul
 goto MENU
 
 :STOP_TAILSCALE
@@ -95,9 +96,9 @@ goto MENU
 
 :START_ALL_TAILSCALE
 echo.
-echo Launching Tailscale Funnel...
+echo Activating Tailscale Funnel in the background...
 if exist "%TAILSCALE_BIN%" (
-    start "CampusFix - Tailscale Funnel" /D "%~dp0" cmd /k ""%TAILSCALE_BIN%" funnel 80"
+    "%TAILSCALE_BIN%" funnel --bg 80
 ) else (
     echo [ERROR] Tailscale not found at %TAILSCALE_BIN%
 )
