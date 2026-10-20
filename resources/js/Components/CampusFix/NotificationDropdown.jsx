@@ -14,19 +14,18 @@ import {
     playNotificationChime,
     triggerNotificationAlert
 } from '@/services/soundService';
+import { useNotificationFeed } from '@/hooks/useNotificationFeed';
 
 export default function NotificationDropdown({ isMobile = false }) {
     const { t } = useLanguage();
     const [isOpen, setIsOpen] = useState(false);
     const [activeTab, setActiveTab] = useState('tickets'); // 'tickets' | 'issues'
-    const [data, setData] = useState({ tickets: [], issues: [], unread_count: 0 });
-    const [loading, setLoading] = useState(false);
+    const { data, markAsRead, markAllAsRead } = useNotificationFeed();
     const [pushSupported, setPushSupported] = useState(false);
     const [pushSubscribed, setPushSubscribed] = useState(false);
     const [pushLoading, setPushLoading] = useState(false);
     const [soundActive, setSoundActive] = useState(isSoundEnabled());
     const dropdownRef = useRef(null);
-    const knownIdsRef = useRef(null);
 
     useEffect(() => {
         const handleSoundPref = (e) => {
@@ -70,37 +69,6 @@ export default function NotificationDropdown({ isMobile = false }) {
         }
     };
 
-    const fetchNotifications = async () => {
-        try {
-            const res = await axios.get('/notifications');
-            if (res.data) {
-                setData(res.data);
-                const allItems = [...(res.data.tickets || []), ...(res.data.issues || [])];
-                const currentIds = new Set(allItems.map((item) => item.id));
-
-                if (knownIdsRef.current === null) {
-                    knownIdsRef.current = currentIds;
-                } else {
-                    const newUnreadItems = allItems.filter(
-                        (item) => !item.is_read && !knownIdsRef.current.has(item.id)
-                    );
-                    if (newUnreadItems.length > 0) {
-                        triggerNotificationAlert(newUnreadItems[0]);
-                    }
-                    knownIdsRef.current = currentIds;
-                }
-            }
-        } catch (e) {
-            // Ignore offline/background polling errors
-        }
-    };
-
-    useEffect(() => {
-        fetchNotifications();
-        const interval = setInterval(fetchNotifications, 20000); // 20s poll
-        return () => clearInterval(interval);
-    }, []);
-
     // Close on outside click or touch
     useEffect(() => {
         const handleClickOutside = (e) => {
@@ -115,45 +83,6 @@ export default function NotificationDropdown({ isMobile = false }) {
             document.removeEventListener('touchstart', handleClickOutside);
         };
     }, []);
-
-    const markAsRead = async (id) => {
-        // Optimistic UI update
-        setData((prev) => {
-            const wasUnread = [...prev.tickets, ...prev.issues].some((item) => item.id === id && !item.is_read);
-            if (!wasUnread) return prev;
-            return {
-                ...prev,
-                unread_count: Math.max(0, (prev.unread_count || 1) - 1),
-                tickets: prev.tickets.map((item) => item.id === id ? { ...item, is_read: true } : item),
-                issues: prev.issues.map((item) => item.id === id ? { ...item, is_read: true } : item),
-            };
-        });
-
-        try {
-            await axios.post(`/notifications/${id}/read`);
-        } catch (e) {
-            console.error('Failed to mark notification as read:', e);
-            // Re-sync with server state on failure
-            fetchNotifications();
-        }
-    };
-
-    const markAllAsRead = async () => {
-        setData((prev) => ({
-            ...prev,
-            unread_count: 0,
-            tickets: prev.tickets.map((item) => ({ ...item, is_read: true })),
-            issues: prev.issues.map((item) => ({ ...item, is_read: true })),
-        }));
-
-        try {
-            await axios.post('/notifications/read-all');
-        } catch (e) {
-            console.error('Failed to mark all notifications as read:', e);
-            // Re-sync with server state on failure
-            fetchNotifications();
-        }
-    };
 
     const extractIssueDetails = (url) => {
         if (!url) return null;

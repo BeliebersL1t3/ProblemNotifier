@@ -915,11 +915,25 @@ class IssueController extends Controller
                 }
             }
 
-            return response()->json([
+            $payload = [
                 'success' => true,
                 'data'    => $issues,
                 'sheet'   => $sheetParam === 'all' ? 'all' : $sheetsToFetch[0],
-            ]);
+            ];
+
+            // Bandwidth Optimization: If data is identical to client's last poll, return 304 Not Modified
+            $etag = md5(json_encode($payload));
+            $clientEtag = trim((string)$request->header('If-None-Match'), '"');
+
+            if (!empty($clientEtag) && $clientEtag === $etag) {
+                return response('', 304)
+                    ->header('ETag', '"' . $etag . '"')
+                    ->header('Cache-Control', 'private, no-cache');
+            }
+
+            return response()->json($payload)
+                ->header('ETag', '"' . $etag . '"')
+                ->header('Cache-Control', 'private, no-cache');
         } catch (\Throwable $e) {
             $msg = $e->getMessage();
             $isQuota = str_contains($msg, '429') || str_contains($msg, 'Quota exceeded') || str_contains($msg, 'RESOURCE_EXHAUSTED');

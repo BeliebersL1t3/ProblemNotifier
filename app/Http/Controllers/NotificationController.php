@@ -12,7 +12,7 @@ class NotificationController extends Controller
     /**
      * Get recent notifications for the logged in user split by tab
      */
-    public function getNotifications(Request $request): JsonResponse
+    public function getNotifications(Request $request): \Symfony\Component\HttpFoundation\Response
     {
         $user = Auth::user();
         if (!$user) {
@@ -24,6 +24,18 @@ class NotificationController extends Controller
             ->take(40)
             ->get();
 
+        $unreadCount = $allNotifications->where('is_read', false)->count();
+
+        // Bandwidth Optimization: Return 304 Not Modified if notification data hasn't changed
+        $etag = md5($allNotifications->map(fn($n) => $n->id . ':' . ($n->is_read ? '1' : '0') . ':' . $n->updated_at?->timestamp)->join(';') . '_' . $unreadCount);
+        $clientEtag = trim((string)$request->header('If-None-Match'), '"');
+
+        if (!empty($clientEtag) && $clientEtag === $etag) {
+            return response('', 304)
+                ->header('ETag', '"' . $etag . '"')
+                ->header('Cache-Control', 'private, no-cache');
+        }
+
         $issues = $allNotifications->filter(function ($n) {
             return $n->type === 'issue_progress';
         })->values();
@@ -32,13 +44,12 @@ class NotificationController extends Controller
             return $n->type !== 'issue_progress';
         })->values();
 
-        $unreadCount = $allNotifications->where('is_read', false)->count();
-
         return response()->json([
             'tickets' => $tickets,
             'issues' => $issues,
             'unread_count' => $unreadCount,
-        ]);
+        ])->header('ETag', '"' . $etag . '"')
+          ->header('Cache-Control', 'private, no-cache');
     }
 
     /**

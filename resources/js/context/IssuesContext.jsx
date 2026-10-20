@@ -114,13 +114,13 @@ export function IssuesProvider({ children }) {
         fetchIssues(false);
     }, [fetchIssues, currentSheet]);
 
-    // Live Auto-Sync: Poll every 8 seconds and re-fetch immediately on window focus / tab wake-up
+    // Live Auto-Sync: Poll every 45 seconds (relax from 8s) and re-fetch immediately on window focus / tab wake-up
     useEffect(() => {
         const interval = setInterval(() => {
             // If screen locked or tab in background, skip polling to preserve phone battery and network
             if (typeof document !== 'undefined' && document.hidden) return;
             fetchIssues(true);
-        }, 8000);
+        }, 45000);
 
         const handleResume = () => {
             if (typeof document === 'undefined' || !document.hidden) {

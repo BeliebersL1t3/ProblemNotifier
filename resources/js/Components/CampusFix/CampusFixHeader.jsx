@@ -45,6 +45,7 @@ export function CampusFixHeader({ mode = 'dashboard', query, onQueryChange, onRe
     }, []);
 
     const checkBotStatus = useCallback(async () => {
+        if (typeof document !== 'undefined' && document.hidden) return;
         try {
             let res;
             try {
@@ -60,8 +61,17 @@ export function CampusFixHeader({ mode = 'dashboard', query, onQueryChange, onRe
 
     useEffect(() => {
         checkBotStatus();
-        const interval = setInterval(checkBotStatus, 30000);
-        return () => clearInterval(interval);
+        const interval = setInterval(checkBotStatus, 90000);
+        const handleFocus = () => {
+            if (typeof document !== 'undefined' && !document.hidden) {
+                checkBotStatus();
+            }
+        };
+        window.addEventListener('focus', handleFocus);
+        return () => {
+            clearInterval(interval);
+            window.removeEventListener('focus', handleFocus);
+        };
     }, [checkBotStatus]);
 
     const openMobileSearch = () => {
