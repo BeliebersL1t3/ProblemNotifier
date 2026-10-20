@@ -7,6 +7,12 @@ export default function NotificationToast() {
 
     useEffect(() => {
         const handleToastEvent = (e) => {
+            // Respect user preference for browser pop-up toasts
+            try {
+                const isPopupEnabled = localStorage.getItem('campusfix_browser_popup_enabled') !== 'false';
+                if (!isPopupEnabled) return;
+            } catch (err) {}
+
             const { notification, isEmergency } = e.detail || {};
             if (!notification) return;
 

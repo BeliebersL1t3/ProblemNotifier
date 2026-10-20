@@ -21,9 +21,10 @@ import {
 import { ImageDropzone } from './ImageDropzone';
 import { useIssues } from '@/context/IssuesContext';
 import { useLanguage } from '@/context/LanguageContext';
+import axios from 'axios';
 import { 
     Loader2, AlertTriangle, Flame, HeartPulse, Zap, 
-    Droplets, Anchor, ShieldAlert, Camera, FileText
+    Droplets, Anchor, ShieldAlert, Camera, FileText, Clock
 } from 'lucide-react';
 import { ALL_DEPARTMENTS, getStaffForDepartment } from '@/constants/staff';
 import { getDepartmentTheme } from '@/constants/departments';
@@ -44,6 +45,21 @@ export function EmergencyIssueModal({ open, onOpenChange }) {
     const [imageUrl, setImageUrl] = useState(undefined);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [errorMsg, setErrorMsg] = useState('');
+    const [slaMinutes, setSlaMinutes] = useState(15);
+    const [allowCustomSla, setAllowCustomSla] = useState(true);
+
+    useEffect(() => {
+        if (!open) return;
+        // Fetch Admin configured default SLA
+        axios.get('/api/settings/emergency').then(res => {
+            if (res.data?.settings) {
+                const s = res.data.settings;
+                const adminSla = typeof s.sla_minutes === 'number' ? s.sla_minutes : 15;
+                setSlaMinutes(adminSla);
+                setAllowCustomSla(s.allow_reporter_custom_sla !== false);
+            }
+        }).catch(() => {});
+    }, [open]);
 
     useEffect(() => {
         if (open) {
@@ -173,6 +189,8 @@ export function EmergencyIssueModal({ open, onOpenChange }) {
         try {
             const finalDesc = description.trim();
 
+            const deadlineMs = slaMinutes === 0 ? Date.now() : Date.now() + (slaMinutes * 60 * 1000);
+
             const res = await addIssue({
                 reporter: reporter.trim(),
                 title: title.trim(),
@@ -184,7 +202,7 @@ export function EmergencyIssueModal({ open, onOpenChange }) {
                 description: finalDesc,
                 imageFile: imageFile || null,
                 priority: 'critical',
-                deadline: Date.now().toString(),
+                deadline: deadlineMs.toString(),
             });
 
             if (res?.queuedOffline) {
@@ -479,7 +497,48 @@ export function EmergencyIssueModal({ open, onOpenChange }) {
                         />
                     </div>
 
-                    {/* Step 7: Emergency Photo (Optional) */}
+                    {/* Step 7: Target Response Time (SLA) */}
+                    <div className="grid gap-2 p-3 rounded-xl border border-red-900/40 bg-black/40">
+                        <div className="flex items-center justify-between">
+                            <Label className="text-red-300 font-bold flex items-center gap-1.5 text-xs sm:text-sm">
+                                <Clock className="h-4 w-4 text-red-400" />
+                                <span>{lang === 'id' ? 'Target Waktu Tanggap (SLA)' : 'Target Response Time (SLA)'}</span>
+                            </Label>
+                            <span className="text-[11px] font-mono text-red-400 font-bold">
+                                {slaMinutes === 0 ? (lang === 'id' ? 'Segera (0m)' : 'Immediate (0m)') : `${slaMinutes} ${lang === 'id' ? 'Menit' : 'Mins'}`}
+                            </span>
+                        </div>
+                        {allowCustomSla ? (
+                            <div className="flex flex-wrap gap-1.5 pt-1">
+                                {[
+                                    { val: 0, label: lang === 'id' ? 'Segera (0m)' : 'Immediate (0m)' },
+                                    { val: 10, label: '10m' },
+                                    { val: 15, label: '15m' },
+                                    { val: 30, label: '30m' },
+                                    { val: 60, label: '1 Jam' },
+                                ].map((opt) => (
+                                    <button
+                                        key={opt.val}
+                                        type="button"
+                                        onClick={() => setSlaMinutes(opt.val)}
+                                        className={`px-2.5 py-1 text-xs rounded-lg font-bold border transition-all cursor-pointer ${
+                                            slaMinutes === opt.val
+                                                ? 'bg-red-600 border-red-400 text-white shadow-sm'
+                                                : 'bg-black/50 border-white/10 text-white/70 hover:bg-white/10'
+                                        }`}
+                                    >
+                                        {opt.label}
+                                    </button>
+                                ))}
+                            </div>
+                        ) : (
+                            <p className="text-[11px] text-red-300/60 italic">
+                                {lang === 'id' ? 'Sesuai standar operasional yang ditetapkan Administrator.' : 'As determined by Administrator standard policy.'}
+                            </p>
+                        )}
+                    </div>
+
+                    {/* Step 8: Emergency Photo (Optional) */}
                     <div className="grid gap-2 p-3 rounded-xl border border-red-900/40 bg-black/40">
                         <div className="flex items-center justify-between flex-wrap gap-2">
                             <Label className="text-red-300 font-semibold flex items-center gap-1.5 text-xs sm:text-sm">

@@ -16,7 +16,9 @@ import { TakeJobModal } from '@/Components/CampusFix/TakeJobModal';
 import { ResolveIssueSheet } from '@/Components/CampusFix/ResolveIssueSheet';
 import { SolvedDetailModal } from '@/Components/CampusFix/SolvedDetailModal';
 import { ActivityDetailModal } from '@/Components/CampusFix/ActivityDetailModal';
+import axios from 'axios';
 import { EmergencyIssueModal } from '@/Components/CampusFix/EmergencyIssueModal';
+import { EmergencySettingsModal } from '@/Components/CampusFix/EmergencySettingsModal';
 import { NewPeriodModal } from '@/Components/CampusFix/NewPeriodModal';
 import { ScrollToTop } from '@/Components/CampusFix/ScrollToTop';
 import { MobileBottomNav } from '@/Components/CampusFix/MobileBottomNav';
@@ -282,6 +284,16 @@ function DashboardInner() {
 
     const [reportOpen, setReportOpen] = useState(false);
     const [emergencyOpen, setEmergencyOpen] = useState(false);
+    const [emergencySettingsOpen, setEmergencySettingsOpen] = useState(false);
+    const [emergencyConfig, setEmergencyConfig] = useState(null);
+
+    useEffect(() => {
+        axios.get('/api/settings/emergency').then(res => {
+            if (res.data?.settings) {
+                setEmergencyConfig(res.data.settings);
+            }
+        }).catch(() => {});
+    }, []);
     const [newPeriodOpen, setNewPeriodOpen] = useState(false);
     const [takeTarget, setTakeTarget] = useState(null);
     const [resolveTarget, setResolveTarget] = useState(null);
@@ -489,10 +501,18 @@ function DashboardInner() {
 
     const totalOverdueCount = scopedOverdueIssues.length;
 
-    // Milestone constants:
-    // OPEN: 1, 2, 3, 4, 5, 10, 15, 20, 25, 30 mins, 1, 2, 3, 4, 5, 6 hours
-    // PROGRESS: hourly only (1, 2, 3, 4, 5, 6 hours)
-    const OPEN_MILESTONES = useMemo(() => [1, 2, 3, 4, 5, 10, 15, 20, 25, 30, 60, 120, 180, 240, 300, 360], []);
+    // Milestone calculation (supports Admin custom interval or progressive standard)
+    const OPEN_MILESTONES = useMemo(() => {
+        if (emergencyConfig?.reminder_mode === 'interval' && emergencyConfig?.interval_minutes > 0) {
+            const step = emergencyConfig.interval_minutes;
+            const list = [];
+            for (let m = step; m <= 360; m += step) {
+                list.push(m);
+            }
+            return list.length > 0 ? list : [5, 10, 15, 20, 25, 30, 60, 120, 180, 240, 300, 360];
+        }
+        return [1, 2, 3, 4, 5, 10, 15, 20, 25, 30, 60, 120, 180, 240, 300, 360];
+    }, [emergencyConfig]);
     const PROGRESS_MILESTONES = useMemo(() => [60, 120, 180, 240, 300, 360], []);
 
     // Reference to track sounded milestones per issue
@@ -1300,6 +1320,16 @@ function DashboardInner() {
                                     <span className="hidden sm:inline">{isMuted ? t('unmute_alarm') : t('sound_active')}</span>
                                     <span className="sm:hidden">{isMuted ? 'Unmute' : 'Mute'}</span>
                                 </button>
+
+                                <button
+                                    type="button"
+                                    onClick={() => setEmergencySettingsOpen(true)}
+                                    className="shrink-0 px-2.5 py-1.5 text-xs font-bold rounded-lg bg-black/40 hover:bg-black/60 border border-white/30 transition-all cursor-pointer flex items-center gap-1.5 shadow-xs"
+                                    title={lang === 'id' ? 'Penyesuaian Emergency & Notifikasi' : 'Emergency & Notification Settings'}
+                                >
+                                    <Settings className="h-3.5 w-3.5 text-red-200" />
+                                    <span className="hidden sm:inline">{lang === 'id' ? 'Atur' : 'Settings'}</span>
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -1355,6 +1385,19 @@ function DashboardInner() {
                             >
                                 <span className="text-xs leading-none">🚨</span>
                                 <span className="hidden sm:inline">{t('emergency')}</span>
+                            </Button>
+                        </Tooltip>
+
+                        <Tooltip content={lang === 'id' ? 'Penyesuaian Emergency & Notifikasi' : 'Emergency & Notification Settings'} position="bottom">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setEmergencySettingsOpen(true)}
+                                className="w-fit shrink-0 gap-1.5 border-red-500/40 text-red-300 hover:bg-red-950/30 transition-all shadow-xs cursor-pointer px-2.5 sm:px-3"
+                                title={lang === 'id' ? 'Pengaturan Darurat' : 'Emergency Settings'}
+                            >
+                                <Settings className="h-4 w-4 text-red-400" />
+                                <span className="hidden xl:inline">{lang === 'id' ? 'Atur Darurat' : 'Settings'}</span>
                             </Button>
                         </Tooltip>
                     </div>
@@ -1974,6 +2017,12 @@ function DashboardInner() {
 
             <ReportIssueModal open={reportOpen} onOpenChange={setReportOpen} />
             <EmergencyIssueModal open={emergencyOpen} onOpenChange={setEmergencyOpen} />
+            <EmergencySettingsModal 
+                open={emergencySettingsOpen} 
+                onOpenChange={setEmergencySettingsOpen} 
+                isAdmin={isAdmin} 
+                onSettingsUpdated={setEmergencyConfig} 
+            />
             <NewPeriodModal open={newPeriodOpen} onOpenChange={setNewPeriodOpen} />
             <TakeJobModal 
                 issue={takeTarget} 

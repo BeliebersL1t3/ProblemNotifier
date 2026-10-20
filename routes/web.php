@@ -156,6 +156,10 @@ Route::prefix('api')->group(function () {
         Route::post('/operations/format-sheets', [OperationsController::class, 'formatSheets']);
         Route::match(['patch', 'post'], '/operations/{rowIndex}', [OperationsController::class, 'update']);
         Route::delete('/operations/{rowIndex}', [OperationsController::class, 'destroy']);
+
+        // Emergency Global Settings (SLA & Calculation Interval)
+        Route::get('/settings/emergency', [\App\Http\Controllers\EmergencySettingController::class, 'getSettings']);
+        Route::post('/settings/emergency', [\App\Http\Controllers\EmergencySettingController::class, 'updateSettings']);
     });
     // Admin User Management & Audit Logs
     Route::middleware('auth')->group(function () {
