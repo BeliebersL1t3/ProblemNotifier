@@ -10,12 +10,14 @@ import {
 import { StatusBadge } from './StatusBadge';
 import { cn } from '@/lib/utils';
 import { useIssues } from '@/context/IssuesContext';
+import { useLanguage } from '@/context/LanguageContext';
 import DelayDetailModal from './DelayDetailModal';
 import { ImageLightboxModal } from './ImageLightboxModal';
 import { ProgressiveImage } from '@/Components/UI/ProgressiveImage';
 import { getDepartmentTheme } from '@/constants/departments';
 
 export function SolvedDetailModal({ issue, onClose }) {
+    const { t, lang } = useLanguage();
     const { categories } = useIssues();
     const [errorMsg, setErrorMsg] = useState('');
     const [selectedDelay, setSelectedDelay] = useState(null);
@@ -23,9 +25,12 @@ export function SolvedDetailModal({ issue, onClose }) {
 
     const categoryLabel = useMemo(() => {
         if (!issue?.category) return '-';
+        const catKey = 'cat_' + issue.category.toLowerCase().replace(/[^a-z0-9_]/g, '_');
+        const translated = t(catKey);
+        if (translated && translated !== catKey) return translated;
         const found = (categories || []).find(c => c.id === issue.category || c.id?.toLowerCase() === issue.category?.toLowerCase());
         return found ? found.label : (issue.category.charAt(0).toUpperCase() + issue.category.slice(1));
-    }, [issue?.category, categories]);
+    }, [issue?.category, categories, t]);
 
     return (
         <Dialog open={!!issue} onOpenChange={(o) => !o && onClose()}>
@@ -34,8 +39,8 @@ export function SolvedDetailModal({ issue, onClose }) {
                     <DialogTitle>{issue?.title ?? 'Issue'}</DialogTitle>
                     <DialogDescription>
                         {issue?.status === 'pending'
-                            ? 'This issue is currently pending.'
-                            : 'This issue has already been resolved.'}
+                            ? t('issue_pending_notice')
+                            : t('issue_resolved_notice')}
                     </DialogDescription>
                 </DialogHeader>
 
@@ -58,7 +63,7 @@ export function SolvedDetailModal({ issue, onClose }) {
                                 onClick={() => setPreviewImage({
                                     src: issue.imageUrl || '/barrier-placeholder.svg',
                                     title: issue.title,
-                                    subtitle: 'Foto Sebelum Perbaikan (Before Fix)'
+                                    subtitle: t('photo_before_fix')
                                 })}
                             >
                                 <div className="relative overflow-hidden rounded-lg border border-border bg-black/30">
@@ -76,7 +81,7 @@ export function SolvedDetailModal({ issue, onClose }) {
                                     </div>
                                 </div>
                                 <figcaption className="text-center text-xs font-medium text-status-open flex items-center justify-center gap-1">
-                                    <ZoomIn className="w-3.5 h-3.5" /> Before fix (Klik Full)
+                                    <ZoomIn className="w-3.5 h-3.5" /> {t('before_fix')}
                                 </figcaption>
                                 <span className="block text-center font-mono text-[10px] text-muted-foreground">
                                     ID: {issue.id}-problem
@@ -88,7 +93,7 @@ export function SolvedDetailModal({ issue, onClose }) {
                                 onClick={() => setPreviewImage({
                                     src: (issue.status === 'pending' ? issue.pendingImageUrl : (issue.proofImageUrl ?? issue.imageUrl)) || '/barrier-placeholder.svg',
                                     title: issue.title,
-                                    subtitle: issue.status === 'pending' ? 'Foto Alasan Penundaan (Delay Reason)' : 'Foto Setelah Perbaikan (After Fix)'
+                                    subtitle: issue.status === 'pending' ? t('photo_delay_reason') : t('photo_after_fix')
                                 })}
                             >
                                 <div className="relative overflow-hidden rounded-lg border border-border bg-black/30">
@@ -106,7 +111,7 @@ export function SolvedDetailModal({ issue, onClose }) {
                                     </div>
                                 </div>
                                 <figcaption className={cn("text-center text-xs font-medium flex items-center justify-center gap-1", issue.status === 'pending' ? 'text-orange-500' : 'text-status-solved')}>
-                                    <ZoomIn className="w-3.5 h-3.5" /> {issue.status === 'pending' ? 'Reason for delay (Klik Full)' : 'After fix (Klik Full)'}
+                                    <ZoomIn className="w-3.5 h-3.5" /> {issue.status === 'pending' ? t('reason_for_delay') : t('after_fix')}
                                 </figcaption>
                                 <span className="block text-center font-mono text-[10px] text-muted-foreground">
                                     ID: {issue.id}-{issue.status === 'pending' ? 'pending' : 'proof'}
@@ -161,7 +166,7 @@ export function SolvedDetailModal({ issue, onClose }) {
                                             color: theme.bg === '#212121' ? '#FFFFFF' : (theme.text === '#14130B' ? '#FBBF24' : theme.bg)
                                         }}
                                         className="shrink-0 rounded px-1.5 py-0.5 font-mono text-[10px] font-medium border flex items-center gap-1" 
-                                        title="Tagged Department"
+                                        title={t('tagged_department_desc') || "Tagged Department"}
                                     >
                                         <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: theme.bg }} />
                                         <Megaphone className="w-3 h-3 shrink-0" /> @{tag}
@@ -170,7 +175,7 @@ export function SolvedDetailModal({ issue, onClose }) {
                             })}
 
                             <div className="flex items-center gap-1.5 shrink-0 ml-auto">
-                                <span className="text-[10px] text-muted-foreground font-medium">Category:</span>
+                                <span className="text-[10px] text-muted-foreground font-medium">{t('category')}:</span>
                                 <span className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${
                                     (issue.category || '').toLowerCase() === 'emergency'
                                         ? 'bg-rose-500/15 text-rose-300 border-rose-500/30 font-bold'
@@ -184,17 +189,17 @@ export function SolvedDetailModal({ issue, onClose }) {
                         <div className="grid gap-2 text-sm text-muted-foreground">
                             <p className="flex items-center gap-2">
                                 <MapPin className="h-4 w-4" aria-hidden />
-                                {issue.location}
+                                {issue.location || t('location_not_specified')}
                             </p>
                             <p className="flex items-center gap-2">
                                 <User className="h-4 w-4" aria-hidden />
-                                Reported by {issue.reporter}
+                                {t('reported_by')} {issue.reporter || t('staff')}
                             </p>
                             {issue.status === 'solved' ? (
                                 <>
                                     <p className="flex items-center gap-2">
                                         <CheckCircle2 className="h-4 w-4" aria-hidden />
-                                        Fixed by {issue.solver}
+                                        {t('fixed_by')} {issue.solver}
                                     </p>
                                     {issue.solvedAt && (
                                         <p className="flex items-center gap-2">
@@ -206,18 +211,18 @@ export function SolvedDetailModal({ issue, onClose }) {
                             ) : (
                                 <p className="flex items-center gap-2 text-orange-500">
                                     <User className="h-4 w-4" aria-hidden />
-                                    Pending by {issue.pendingBy}
+                                    {t('pending_by')} {issue.pendingBy}
                                 </p>
                             )}
                         </div>
 
                         <div className="rounded-lg border border-border bg-muted/40 p-3 text-sm min-w-0">
-                            <p className="font-semibold text-foreground">Problem</p>
+                            <p className="font-semibold text-foreground">{t('problem_title')}</p>
                             <p className="mt-1 text-muted-foreground whitespace-pre-wrap break-words min-w-0">{issue.description}</p>
                             
                             {issue.status === 'solved' && issue.fixDescription && (
                                 <>
-                                    <p className="mt-3 font-semibold text-foreground">How it was fixed</p>
+                                    <p className="mt-3 font-semibold text-foreground">{t('how_it_was_fixed')}</p>
                                     <p className="mt-1 text-muted-foreground whitespace-pre-wrap break-words min-w-0">{issue.fixDescription}</p>
                                 </>
                             )}
@@ -225,7 +230,7 @@ export function SolvedDetailModal({ issue, onClose }) {
                             {issue.pendingTimeline && issue.pendingTimeline.length > 0 && (
                                 <div className="mt-4 pt-3 border-t border-border/60 min-w-0">
                                     <p className="font-semibold text-orange-500 text-xs mb-2">
-                                        Delay History ({issue.pendingTimeline.length} delay{issue.pendingTimeline.length > 1 ? 's' : ''}):
+                                        {t('pending_delay_history')} ({issue.pendingTimeline.length}):
                                     </p>
                                     <div className="flex flex-col gap-2.5 pl-2 border-l-2 border-orange-500/50 min-w-0">
                                         {issue.pendingTimeline.map((item, idx) => (
@@ -240,8 +245,8 @@ export function SolvedDetailModal({ issue, onClose }) {
                                                                 e.stopPropagation();
                                                                 setPreviewImage({
                                                                     src: item.image,
-                                                                    title: 'Bukti Penundaan / Delay Proof',
-                                                                    subtitle: item.by ? `Oleh: ${item.by} (${item.date || ''})` : 'Delay Proof'
+                                                                    title: t('delay_proof_title'),
+                                                                    subtitle: item.by ? (lang === 'id' ? `Oleh: ${item.by} (${item.date || ''})` : `By: ${item.by} (${item.date || ''})`) : t('delay_proof_title')
                                                                 });
                                                             }}
                                                         />
@@ -263,7 +268,7 @@ export function SolvedDetailModal({ issue, onClose }) {
 
                             {issue.status === 'pending' && issue.pendingReason && (!issue.pendingTimeline || issue.pendingTimeline.length === 0) && (
                                 <>
-                                    <p className="mt-3 font-semibold text-orange-500">Reason for Delay</p>
+                                    <p className="mt-3 font-semibold text-orange-500">{t('photo_delay_reason')}</p>
                                     <p className="mt-1 text-muted-foreground whitespace-pre-wrap break-words min-w-0">{issue.pendingReason}</p>
                                 </>
                             )}

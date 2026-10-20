@@ -200,9 +200,12 @@ export function ResolveIssueSheet({ issue, onClose, onEdit }) {
 
     const categoryLabel = useMemo(() => {
         if (!issue?.category) return '-';
+        const catKey = 'cat_' + issue.category.toLowerCase().replace(/[^a-z0-9_]/g, '_');
+        const translated = t(catKey);
+        if (translated && translated !== catKey) return translated;
         const found = (categories || []).find(c => c.id === issue.category || c.id?.toLowerCase() === issue.category?.toLowerCase());
         return found ? found.label : (issue.category.charAt(0).toUpperCase() + issue.category.slice(1));
-    }, [issue?.category, categories]);
+    }, [issue?.category, categories, t]);
 
     const valid = Boolean(
         selectedStaff && 
@@ -216,7 +219,7 @@ export function ResolveIssueSheet({ issue, onClose, onEdit }) {
     const submit = async () => {
         if (!issue || !valid || isSubmitting) return;
         if (!selectedStaff || !selectedStaff.trim()) {
-            setErrorMsg('Please select your name.');
+            setErrorMsg(t('select_name_first'));
             return;
         }
         setIsSubmitting(true);
@@ -239,7 +242,7 @@ export function ResolveIssueSheet({ issue, onClose, onEdit }) {
             onClose();
         } catch (err) {
             console.error(err);
-            setErrorMsg(err.response?.data?.message || err.message || 'Display Error: Upload Failed');
+            setErrorMsg(err.response?.data?.message || err.message || (lang === 'id' ? 'Kesalahan Tampilan: Gagal Mengunggah' : 'Display Error: Upload Failed'));
         } finally {
             setIsSubmitting(false);
         }
@@ -249,11 +252,11 @@ export function ResolveIssueSheet({ issue, onClose, onEdit }) {
         <Sheet open={!!issue} onOpenChange={(o) => { if (!o && !isSubmitting) onClose(); }}>
             <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-md">
                 <SheetHeader>
-                    <SheetTitle>{isPendingMode ? 'Mark Issue as Pending' : 'Resolve Issue'}</SheetTitle>
+                    <SheetTitle>{isPendingMode ? t('mark_as_pending_title') : t('resolve_issue_title')}</SheetTitle>
                     <SheetDescription>
                         {isPendingMode 
-                            ? 'Document the reason for the delay so the report reflects the status.'
-                            : 'Document the fix so the report can be closed out.'}
+                            ? t('mark_as_pending_desc')
+                            : t('resolve_issue_desc')}
                     </SheetDescription>
                 </SheetHeader>
 
@@ -271,7 +274,7 @@ export function ResolveIssueSheet({ issue, onClose, onEdit }) {
                                 onClick={() => setPreviewImage({
                                     src: issue.imageUrl || '/barrier-placeholder.svg',
                                     title: issue.title,
-                                    subtitle: 'Foto Kerusakan / Masalah Awal (Full Preview)'
+                                    subtitle: t('photo_initial_problem')
                                 })}
                             >
                                 <img
@@ -283,7 +286,7 @@ export function ResolveIssueSheet({ issue, onClose, onEdit }) {
                                 <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
                                     <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/80 text-white font-medium text-xs border border-white/20 shadow-lg backdrop-blur-sm">
                                         <ZoomIn className="w-4 h-4 text-[#C9AA71]" />
-                                        Klik untuk Full Preview
+                                        {t('click_for_full_preview')}
                                     </span>
                                 </div>
                                 <CriticalTimer
@@ -321,23 +324,23 @@ export function ResolveIssueSheet({ issue, onClose, onEdit }) {
                                 </div>
                                 <div className="mt-1 flex flex-wrap items-center gap-1.5">
                                     {assignedList.length > 0 && assignedList.map((dept, idx) => (
-                                        <span key={'assign-' + idx} className="shrink-0 rounded bg-amber-500/15 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 font-mono text-[10px] font-semibold border border-amber-500/30 flex items-center gap-1" title="Assigned Department (Responsible to fix)">
+                                        <span key={'assign-' + idx} className="shrink-0 rounded bg-amber-500/15 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 font-mono text-[10px] font-semibold border border-amber-500/30 flex items-center gap-1" title={t('assigned_department_desc') || "Assigned Department (Responsible to fix)"}>
                                             <Target className="w-2.5 h-2.5 shrink-0" /> {dept}
                                         </span>
                                     ))}
                                     {issue.department && (
-                                        <span className="shrink-0 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 font-mono text-[10px] font-medium border border-blue-500/20 flex items-center gap-1" title="Origin Department">
+                                        <span className="shrink-0 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 font-mono text-[10px] font-medium border border-blue-500/20 flex items-center gap-1" title={t('origin_department_desc') || "Origin Department"}>
                                             <FileText className="w-2.5 h-2.5 shrink-0" /> {issue.department}
                                         </span>
                                     )}
                                     {taggedList.length > 0 && taggedList.map((tag, idx) => (
-                                        <span key={'tag-' + idx} className="shrink-0 rounded bg-purple-500/10 text-purple-600 dark:text-purple-400 px-1.5 py-0.5 font-mono text-[10px] font-medium border border-purple-500/20 flex items-center gap-1" title="Tagged Department">
+                                        <span key={'tag-' + idx} className="shrink-0 rounded bg-purple-500/10 text-purple-600 dark:text-purple-400 px-1.5 py-0.5 font-mono text-[10px] font-medium border border-purple-500/20 flex items-center gap-1" title={t('tagged_department_desc') || "Tagged Department"}>
                                             <Megaphone className="w-2.5 h-2.5 shrink-0" /> @{tag}
                                         </span>
                                     ))}
                                     
                                     <div className="flex items-center gap-1.5 shrink-0 ml-auto">
-                                        <span className="text-[10px] text-muted-foreground font-medium">Category:</span>
+                                        <span className="text-[10px] text-muted-foreground font-medium">{t('category')}:</span>
                                         <span className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${
                                             (issue.category || '').toLowerCase() === 'emergency'
                                                 ? 'bg-rose-500/15 text-rose-300 border-rose-500/30 font-bold'
@@ -349,7 +352,7 @@ export function ResolveIssueSheet({ issue, onClose, onEdit }) {
                                 </div>
                                 <p className="mt-1.5 flex items-center gap-1.5 text-xs text-muted-foreground">
                                     <MapPin className="h-3.5 w-3.5" aria-hidden />
-                                    {issue.location}
+                                    {issue.location || t('location_not_specified')}
                                 </p>
                                 {issue.description && (() => {
                                     const cleanDesc = issue.description.replace(/\[EMERGENCY FAST-TRACK\]/gi, '').trim();
@@ -357,8 +360,8 @@ export function ResolveIssueSheet({ issue, onClose, onEdit }) {
                                     return <p className="mt-2 text-xs text-muted-foreground">{cleanDesc}</p>;
                                 })()}
                                 <p className="mt-2 text-xs font-medium text-muted-foreground">
-                                    Reported by {issue.reporter}
-                                    {issue.taker ? ` • Claimed by ${issue.taker}` : ''}
+                                    {t('reported_by')} {issue.reporter || t('staff')}
+                                    {issue.taker ? ` • ${(lang === 'id' ? 'Diambil oleh ' : 'Claimed by ')}${issue.taker}` : ''}
                                 </p>
                             </div>
                         </div>
@@ -366,7 +369,7 @@ export function ResolveIssueSheet({ issue, onClose, onEdit }) {
 
                     {issue && issue.status === 'pending' && pendingTimelineList.length > 0 && (
                         <div className="overflow-hidden rounded-lg border border-orange-500/30 bg-orange-500/5 p-3 flex flex-col gap-3">
-                            <p className="text-sm font-semibold text-orange-600">Pending Delay History</p>
+                            <p className="text-sm font-semibold text-orange-600">{t('pending_delay_history')}</p>
                             {pendingTimelineList.map((item, idx) => (
                                 <div key={idx} className="flex flex-col gap-2 pb-3 border-b border-orange-500/20 last:border-0 last:pb-0">
                                     <div className="flex items-start gap-3">
@@ -378,8 +381,8 @@ export function ResolveIssueSheet({ issue, onClose, onEdit }) {
                                                 className="w-12 h-12 object-cover rounded shadow-sm shrink-0 cursor-pointer hover:opacity-80 transition-opacity" 
                                                 onClick={() => setPreviewImage({
                                                     src: item.image,
-                                                    title: 'Bukti Penundaan / Delay Proof',
-                                                    subtitle: item.by ? `Oleh: ${item.by} (${item.date || ''})` : 'Delay Proof'
+                                                    title: t('delay_proof_title'),
+                                                    subtitle: item.by ? (lang === 'id' ? `Oleh: ${item.by} (${item.date || ''})` : `By: ${item.by} (${item.date || ''})`) : t('delay_proof_title')
                                                 })}
                                             />
                                         )}
@@ -466,7 +469,7 @@ export function ResolveIssueSheet({ issue, onClose, onEdit }) {
                                             {isPendingMode ? t('step_dept_delay') : t('step_dept_resolve')}
                                             {hasAuthorizedDepts && (
                                                 <span className="ml-1.5 text-xs font-normal text-muted-foreground">
-                                                    (only authorized departments shown)
+                                                    ({t('only_authorized_depts_shown')})
                                                 </span>
                                             )}
                                         </Label>
@@ -490,7 +493,7 @@ export function ResolveIssueSheet({ issue, onClose, onEdit }) {
                                             </div>
                                         ) : (
                                             <p className="text-xs text-muted-foreground italic">
-                                                No assigned/tagged departments set on this issue. Contact the reporter to update it.
+                                                {t('no_authorized_depts_msg')}
                                             </p>
                                         )}
                                     </div>
@@ -500,7 +503,7 @@ export function ResolveIssueSheet({ issue, onClose, onEdit }) {
                                         <div className="grid gap-2">
                                             <Label>
                                                 Step 2 — {isPendingMode ? t('step_worker_delay') : t('step_worker_resolve')}
-                                                <span className="ml-1.5 text-xs font-normal text-muted-foreground">({selectedDept} staff)</span>
+                                                <span className="ml-1.5 text-xs font-normal text-muted-foreground">({selectedDept} {t('staff')})</span>
                                             </Label>
                                             {staffForSelectedDept.length > 0 ? (
                                                 <div className="flex flex-wrap gap-2">
@@ -526,10 +529,10 @@ export function ResolveIssueSheet({ issue, onClose, onEdit }) {
                                                         <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
                                                         <div className="space-y-1">
                                                             <p className="text-xs font-semibold text-amber-500">
-                                                                Departemen {selectedDept} Tidak Memiliki Staf Aktif
+                                                                {t('dept_no_staff_title').replace('{dept}', selectedDept)}
                                                             </p>
                                                             <p className="text-[11px] text-muted-foreground leading-relaxed">
-                                                                Tidak ada staf aktif yang dapat ditugaskan pada departemen ini. Anda dapat memberitahu pembuat isu &amp; HoD untuk meminta tindakan, atau mengalihkan departemen secara langsung.
+                                                                {t('dept_no_staff_desc')}
                                                             </p>
                                                         </div>
                                                     </div>
@@ -537,7 +540,7 @@ export function ResolveIssueSheet({ issue, onClose, onEdit }) {
                                                     {notifiedEmptySuccess && (
                                                         <div className="flex items-center gap-2 p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-xs font-medium">
                                                             <CheckCircle2 className="w-4 h-4 shrink-0" />
-                                                            <span>{notifyMessage || 'Pemberitahuan berhasil dikirim ke pembuat isu & HoD.'}</span>
+                                                            <span>{notifyMessage || (lang === 'id' ? 'Pemberitahuan berhasil dikirim ke pembuat isu & HoD.' : 'Notification successfully sent to issue creator & HoD.')}</span>
                                                         </div>
                                                     )}
 
@@ -555,7 +558,7 @@ export function ResolveIssueSheet({ issue, onClose, onEdit }) {
                                                             ) : (
                                                                 <Bell className="w-3.5 h-3.5" />
                                                             )}
-                                                            {notifiedEmptySuccess ? 'Pemberitahuan Terkirim' : 'Beri Tahu Pembuat Isu & HoD'}
+                                                            {notifiedEmptySuccess ? t('notification_sent') : t('notify_creator_hod')}
                                                         </Button>
 
                                                         {(issue?.status === 'progress' || issue?.status === 'pending') && (
@@ -586,7 +589,7 @@ export function ResolveIssueSheet({ issue, onClose, onEdit }) {
                                                                 className="h-8 text-xs border-border hover:bg-surface text-foreground gap-1.5 flex-1 min-w-[140px]"
                                                             >
                                                                 <Edit className="w-3.5 h-3.5 text-primary" />
-                                                                Alihkan Isu (Edit)
+                                                                {t('reassign_issue_edit')}
                                                             </Button>
                                                         )}
                                                     </div>
@@ -598,13 +601,13 @@ export function ResolveIssueSheet({ issue, onClose, onEdit }) {
                             )}
 
                             <div className="grid gap-2">
-                                <Label htmlFor="fix">{isPendingMode ? t('proof_of_delay') : 'Fix description'}</Label>
+                                <Label htmlFor="fix">{isPendingMode ? t('proof_of_delay') : t('fix_description_label')}</Label>
                                 <Textarea
                                     id="fix"
                                     rows={4}
                                     value={fixDescription}
                                     onChange={(e) => setFixDescription(e.target.value)}
-                                    placeholder={isPendingMode ? "Why can't this job be finished right now?" : "What did you do to fix the problem?"}
+                                    placeholder={isPendingMode ? t('pending_reason_placeholder') : t('fix_description_placeholder')}
                                     disabled={isSubmitting}
                                 />
                             </div>

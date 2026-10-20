@@ -144,20 +144,23 @@ export function TakeJobModal({ issue, onClose, onEdit }) {
 
     const categoryLabel = useMemo(() => {
         if (!issue?.category) return '-';
+        const catKey = 'cat_' + issue.category.toLowerCase().replace(/[^a-z0-9_]/g, '_');
+        const translated = t(catKey);
+        if (translated && translated !== catKey) return translated;
         const found = (categories || []).find(c => c.id === issue.category || c.id?.toLowerCase() === issue.category?.toLowerCase());
         return found ? found.label : (issue.category.charAt(0).toUpperCase() + issue.category.slice(1));
-    }, [issue?.category, categories]);
+    }, [issue?.category, categories, t]);
 
     if (!issue) return null;
 
     const confirm = async () => {
         if (!issue) return;
         if (!selectedDept) {
-            setErrorMsg('Please select your department first.');
+            setErrorMsg(t('select_department_first'));
             return;
         }
         if (!selectedStaff) {
-            setErrorMsg('Please select your name.');
+            setErrorMsg(t('select_name_first'));
             return;
         }
 
@@ -169,7 +172,7 @@ export function TakeJobModal({ issue, onClose, onEdit }) {
             onClose();
         } catch (err) {
             console.error(err);
-            setErrorMsg(err.response?.data?.message || err.message || 'Display Error: Job Already Taken');
+            setErrorMsg(err.response?.data?.message || err.message || t('job_already_taken_err'));
         } finally {
             setIsSubmitting(false);
         }
@@ -188,12 +191,12 @@ export function TakeJobModal({ issue, onClose, onEdit }) {
                     <div className="flex items-start justify-between px-6 pt-6 pb-2">
                         <div>
                             <h2 className="text-lg font-bold text-foreground">
-                                {canClaim ? 'Take this job' : 'Issue Details'}
+                                {canClaim ? t('take_this_job') : t('issue_details_title')}
                             </h2>
                             <p className="text-xs text-muted-foreground mt-0.5">
                                 {canClaim 
-                                    ? 'Select your department and name. The issue moves to In Progress.'
-                                    : 'You are monitoring this issue. Only the assigned department can claim it.'}
+                                    ? t('take_job_desc')
+                                    : t('take_job_monitor_desc')}
                             </p>
                         </div>
                         <button
@@ -202,7 +205,7 @@ export function TakeJobModal({ issue, onClose, onEdit }) {
                             className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground bg-muted/40 hover:bg-muted transition-colors cursor-pointer"
                         >
                             <X className="h-4 w-4" />
-                            <span className="sr-only">Close</span>
+                            <span className="sr-only">{t('close')}</span>
                         </button>
                     </div>
 
@@ -228,7 +231,7 @@ export function TakeJobModal({ issue, onClose, onEdit }) {
                                         type="button"
                                         onClick={() => setPreviewImage(issue.imageUrl)}
                                         className="absolute bottom-2 right-2 p-1.5 rounded-lg bg-black/70 hover:bg-black text-white transition-colors border border-white/20 shadow-md cursor-pointer"
-                                        title="Lihat Foto Ukuran Penuh"
+                                        title={t('view_full_photo')}
                                     >
                                         <ZoomIn className="w-4 h-4 text-[#C9AA71]" />
                                     </button>
@@ -259,23 +262,23 @@ export function TakeJobModal({ issue, onClose, onEdit }) {
                                 </div>
                                 <div className="flex flex-wrap items-center gap-1.5">
                                     {assignedList.length > 0 && assignedList.map((dept, idx) => (
-                                        <span key={'assign-' + idx} className="shrink-0 rounded bg-amber-500/15 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 font-mono text-[10px] font-semibold border border-amber-500/30 flex items-center gap-1" title="Assigned Department (Responsible to fix)">
+                                        <span key={'assign-' + idx} className="shrink-0 rounded bg-amber-500/15 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 font-mono text-[10px] font-semibold border border-amber-500/30 flex items-center gap-1" title={t('assigned_department_desc') || "Assigned Department (Responsible to fix)"}>
                                             <Target className="w-2.5 h-2.5 shrink-0" /> {dept}
                                         </span>
                                     ))}
                                     {issue.department && (
-                                        <span className="shrink-0 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 font-mono text-[10px] font-medium border border-blue-500/20 flex items-center gap-1" title="Origin Department">
+                                        <span className="shrink-0 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 font-mono text-[10px] font-medium border border-blue-500/20 flex items-center gap-1" title={t('origin_department_desc') || "Origin Department"}>
                                             <FileText className="w-2.5 h-2.5 shrink-0" /> {issue.department}
                                         </span>
                                     )}
                                     {taggedList.length > 0 && taggedList.map((tag, idx) => (
-                                        <span key={'tag-' + idx} className="shrink-0 rounded bg-purple-500/10 text-purple-600 dark:text-purple-400 px-1.5 py-0.5 font-mono text-[10px] font-medium border border-purple-500/20 flex items-center gap-1" title="Tagged Department">
+                                        <span key={'tag-' + idx} className="shrink-0 rounded bg-purple-500/10 text-purple-600 dark:text-purple-400 px-1.5 py-0.5 font-mono text-[10px] font-medium border border-purple-500/20 flex items-center gap-1" title={t('tagged_department_desc') || "Tagged Department"}>
                                             <Megaphone className="w-2.5 h-2.5 shrink-0" /> @{tag}
                                         </span>
                                     ))}
                                     
                                     <div className="flex items-center gap-1.5 shrink-0 ml-auto">
-                                        <span className="text-[10px] text-muted-foreground font-medium">Category:</span>
+                                        <span className="text-[10px] text-muted-foreground font-medium">{t('category')}:</span>
                                         <span className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${
                                             (issue.category || '').toLowerCase() === 'emergency'
                                                 ? 'bg-rose-500/15 text-rose-300 border-rose-500/30 font-bold'
@@ -287,13 +290,13 @@ export function TakeJobModal({ issue, onClose, onEdit }) {
                                 </div>
                                 <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
                                     <MapPin className="h-3.5 w-3.5" aria-hidden />
-                                    {issue.location || 'Location not specified'}
+                                    {issue.location || t('location_not_specified')}
                                 </p>
                                 <p className="text-xs leading-relaxed text-muted-foreground whitespace-pre-wrap">
-                                    {(issue.description || '').replace(/\[EMERGENCY FAST-TRACK\]/gi, '').trim() || 'No description provided.'}
+                                    {(issue.description || '').replace(/\[EMERGENCY FAST-TRACK\]/gi, '').trim() || t('no_description_provided')}
                                 </p>
                                 <p className="text-xs font-medium text-muted-foreground pt-1">
-                                    Reported by {issue.reporter || 'Staff'}
+                                    {t('reported_by')} {issue.reporter || t('staff')}
                                 </p>
                             </div>
                         </div>
@@ -338,10 +341,10 @@ export function TakeJobModal({ issue, onClose, onEdit }) {
                             <div className="space-y-4 pt-1">
                                 <div className="grid gap-2">
                                     <Label>
-                                        Step 1 — Your Department
+                                        Step 1 — {t('your_department')}
                                         {hasAuthorizedDepts && (
                                             <span className="ml-1.5 text-xs font-normal text-muted-foreground">
-                                                (only authorized departments shown)
+                                                ({t('only_authorized_depts_shown')})
                                             </span>
                                         )}
                                     </Label>
@@ -365,7 +368,7 @@ export function TakeJobModal({ issue, onClose, onEdit }) {
                                         </div>
                                     ) : (
                                         <p className="text-xs text-muted-foreground italic">
-                                            No assigned/tagged departments set on this issue. Contact the reporter to update it.
+                                            {t('no_authorized_depts_msg')}
                                         </p>
                                     )}
                                 </div>
@@ -373,8 +376,8 @@ export function TakeJobModal({ issue, onClose, onEdit }) {
                                 {selectedDept && (
                                     <div className="grid gap-2">
                                         <Label>
-                                            Step 2 — Your Name
-                                            <span className="ml-1.5 text-xs font-normal text-muted-foreground">({selectedDept} staff)</span>
+                                            Step 2 — {t('your_name')}
+                                            <span className="ml-1.5 text-xs font-normal text-muted-foreground">({selectedDept} {t('staff')})</span>
                                         </Label>
                                         {staffForSelectedDept.length > 0 ? (
                                             <div className="flex flex-wrap gap-2">
@@ -400,10 +403,10 @@ export function TakeJobModal({ issue, onClose, onEdit }) {
                                                     <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
                                                     <div className="space-y-1">
                                                         <p className="text-xs font-semibold text-amber-500">
-                                                            Departemen {selectedDept} Tidak Memiliki Staf Aktif
+                                                            {t('dept_no_staff_title').replace('{dept}', selectedDept)}
                                                         </p>
                                                         <p className="text-[11px] text-muted-foreground leading-relaxed">
-                                                            Tidak ada staf aktif yang dapat ditugaskan pada departemen ini. Anda dapat memberitahu pembuat isu &amp; HoD untuk meminta tindakan, atau mengalihkan departemen secara langsung.
+                                                            {t('dept_no_staff_desc')}
                                                         </p>
                                                     </div>
                                                 </div>
@@ -411,7 +414,7 @@ export function TakeJobModal({ issue, onClose, onEdit }) {
                                                 {notifiedEmptySuccess && (
                                                     <div className="flex items-center gap-2 p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-xs font-medium">
                                                         <CheckCircle2 className="w-4 h-4 shrink-0" />
-                                                        <span>{notifyMessage || 'Pemberitahuan berhasil dikirim ke pembuat isu & HoD.'}</span>
+                                                        <span>{notifyMessage || (lang === 'id' ? 'Pemberitahuan berhasil dikirim ke pembuat isu & HoD.' : 'Notification successfully sent to issue creator & HoD.')}</span>
                                                     </div>
                                                 )}
 
@@ -429,7 +432,7 @@ export function TakeJobModal({ issue, onClose, onEdit }) {
                                                         ) : (
                                                             <Bell className="w-3.5 h-3.5" />
                                                         )}
-                                                        {notifiedEmptySuccess ? 'Pemberitahuan Terkirim' : 'Beri Tahu Pembuat Isu & HoD'}
+                                                        {notifiedEmptySuccess ? t('notification_sent') : t('notify_creator_hod')}
                                                     </Button>
 
                                                     {onEdit && (
@@ -444,7 +447,7 @@ export function TakeJobModal({ issue, onClose, onEdit }) {
                                                             className="h-8 text-xs border-border hover:bg-surface text-foreground gap-1.5 flex-1"
                                                         >
                                                             <Edit className="w-3.5 h-3.5 text-primary" />
-                                                            Alihkan Isu (Edit)
+                                                            {t('reassign_issue_edit')}
                                                         </Button>
                                                     )}
                                                 </div>
@@ -459,7 +462,7 @@ export function TakeJobModal({ issue, onClose, onEdit }) {
                     {/* Footer */}
                     <div className="flex items-center justify-end gap-2.5 px-6 py-4 border-t border-border bg-muted/20">
                         <Button variant="outline" onClick={onClose} disabled={isSubmitting}>
-                            {canClaim ? 'Cancel' : 'Close'}
+                            {canClaim ? t('cancel') : t('close')}
                         </Button>
                         {canClaim && (
                             <Button
@@ -469,10 +472,10 @@ export function TakeJobModal({ issue, onClose, onEdit }) {
                                 {isSubmitting ? (
                                     <>
                                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                        Claiming...
+                                        {t('claiming')}
                                     </>
                                 ) : (
-                                    'Confirm'
+                                    t('confirm')
                                 )}
                             </Button>
                         )}
@@ -485,7 +488,7 @@ export function TakeJobModal({ issue, onClose, onEdit }) {
                 onClose={() => setPreviewImage(null)} 
                 src={typeof previewImage === 'string' ? previewImage : previewImage?.src} 
                 title={previewImage?.title || issue?.title} 
-                subtitle="Foto Laporan Kerusakan (Full Size)" 
+                subtitle={t('photo_report_fullsize')} 
             />
         </>,
         document.body

@@ -30,8 +30,17 @@ export function FilterChips({ categoryFilter, onCategoryChange, deptFilter, onDe
     const [catSheetOpen, setCatSheetOpen] = useState(false);
     const [deptSheetOpen, setDeptSheetOpen] = useState(false);
 
-    const activeCategory = CATEGORY_FILTERS.find(f => f.id === categoryFilter);
-    const activeCategoryLabel = categoryFilter !== 'all' ? activeCategory?.label : null;
+    const getCategoryLabel = (catId) => {
+        if (!catId || catId === 'all') return t('all_categories');
+        const slug = catId.replace(/^category:/, '');
+        const key = `cat_${slug.replace(/[^a-z0-9_]/g, '_')}`;
+        const translated = t(key);
+        if (translated && translated !== key) return translated;
+        const found = CATEGORY_FILTERS.find(f => f.id === catId);
+        return found ? found.label : slug;
+    };
+
+    const activeCategoryLabel = categoryFilter !== 'all' ? getCategoryLabel(categoryFilter) : null;
 
     const handleCategorySelect = (id) => {
         onCategoryChange(id);
@@ -193,9 +202,9 @@ export function FilterChips({ categoryFilter, onCategoryChange, deptFilter, onDe
             <Sheet open={catSheetOpen} onOpenChange={setCatSheetOpen}>
                 <SheetContent side="bottom" className="max-h-[75vh] overflow-y-auto rounded-t-2xl pb-8">
                     <SheetHeader className="mb-5">
-                        <SheetTitle>Filter by Category</SheetTitle>
+                        <SheetTitle>{t('filter_by_category')}</SheetTitle>
                         <SheetDescription>
-                            Select a category to narrow down issues. Status filters still apply on top of this.
+                            {t('filter_by_category_desc')}
                         </SheetDescription>
                     </SheetHeader>
 
@@ -203,6 +212,7 @@ export function FilterChips({ categoryFilter, onCategoryChange, deptFilter, onDe
                         {CATEGORY_FILTERS.map((cat, idx) => {
                             const Icon = cat.icon;
                             const isActive = categoryFilter === cat.id;
+                            const label = getCategoryLabel(cat.id);
                             return (
                                 <button
                                     key={cat.id}
@@ -219,11 +229,11 @@ export function FilterChips({ categoryFilter, onCategoryChange, deptFilter, onDe
                                 >
                                     <Icon className={cn('h-5 w-5', cat.color)} />
                                     <span className={cn('text-sm font-semibold leading-tight', cat.color)}>
-                                        {cat.label}
+                                        {label}
                                     </span>
                                     {isActive && (
                                         <span className="mt-auto text-[10px] font-bold uppercase tracking-wider text-primary">
-                                            Active ✓
+                                            {t('active_badge')}
                                         </span>
                                     )}
                                 </button>
@@ -238,7 +248,7 @@ export function FilterChips({ categoryFilter, onCategoryChange, deptFilter, onDe
                 <SheetContent side="bottom" className="max-h-[75vh] overflow-y-auto rounded-t-2xl pb-8">
                     <SheetHeader className="mb-5">
                         <SheetTitle>
-                            {lang === 'id' ? 'Filter Berdasarkan Departemen' : 'Filter by Department'}
+                            {t('filter_by_dept')}
                         </SheetTitle>
                         <SheetDescription>
                             {!isAdmin && canViewAllDepartments
@@ -266,11 +276,11 @@ export function FilterChips({ categoryFilter, onCategoryChange, deptFilter, onDe
                         >
                             <LayoutGrid className="h-5 w-5 text-foreground" />
                             <span className="text-sm font-semibold leading-tight text-foreground">
-                                All Departments
+                                {t('all_departments')}
                             </span>
                             {deptFilter === 'all' && (
                                 <span className="mt-auto text-[10px] font-bold uppercase tracking-wider text-primary">
-                                    Active ✓
+                                    {t('active_badge')}
                                 </span>
                             )}
                         </button>

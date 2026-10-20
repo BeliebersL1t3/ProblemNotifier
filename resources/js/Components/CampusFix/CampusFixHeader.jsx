@@ -452,7 +452,7 @@ export function CampusFixHeader({ mode = 'dashboard', query, onQueryChange, onRe
                     ) : (
                         <div 
                             className="flex items-center justify-center px-2.5 py-1.5 rounded-md text-sm font-medium text-[#1C1B0E]/40 cursor-not-allowed select-none gap-1 bg-[#1C1B0E]/5"
-                            title="Akses Analytics dibatasi oleh Administrator (Barrier Aktif)"
+                            title={lang === 'id' ? 'Akses Analytics dibatasi oleh Administrator (Barrier Aktif)' : 'Analytics access restricted by Administrator (Active Barrier)'}
                         >
                             <BarChart3 className="h-4 w-4 shrink-0 opacity-40" />
                             <span className="text-[10px] font-bold text-amber-600">🚧</span>
@@ -482,7 +482,7 @@ export function CampusFixHeader({ mode = 'dashboard', query, onQueryChange, onRe
                     ) : (
                         <div 
                             className="flex items-center justify-center px-2.5 py-1.5 rounded-md text-sm font-medium text-[#1C1B0E]/40 cursor-not-allowed select-none gap-1 bg-[#1C1B0E]/5"
-                            title="Akses Kalender dibatasi oleh Administrator (Barrier Aktif)"
+                            title={lang === 'id' ? 'Akses Kalender dibatasi oleh Administrator (Barrier Aktif)' : 'Calendar access restricted by Administrator (Active Barrier)'}
                         >
                             <Calendar className="h-4 w-4 shrink-0 opacity-40" />
                             <span className="text-[10px] font-bold text-amber-600">🚧</span>
@@ -621,7 +621,7 @@ export function CampusFixHeader({ mode = 'dashboard', query, onQueryChange, onRe
                     {botStatus === null ? (
                         <div 
                             className="flex items-center gap-1.5 p-2 sm:px-2.5 sm:py-1 rounded-xl text-[10px] font-bold border border-border/40 bg-muted/20 animate-pulse select-none shrink-0"
-                            title="Memeriksa status WhatsApp Bot..."
+                            title={lang === 'id' ? 'Memeriksa status WhatsApp Bot...' : 'Checking WhatsApp Bot status...'}
                         >
                             <span className="w-2 h-2 rounded-full bg-muted-foreground/30" />
                             <MessageSquare className="w-3.5 h-3.5 text-muted-foreground/40" />

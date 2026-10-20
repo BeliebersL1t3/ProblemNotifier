@@ -1018,7 +1018,7 @@ export function EditIssueModal({ issue, open, onOpenChange, onSuccess }) {
                                             id="edit-pending-by"
                                             value={pendingBy}
                                             onChange={(e) => setPendingBy(e.target.value)}
-                                            placeholder="Nama staff yang menunda"
+                                            placeholder={lang === 'id' ? 'Nama staf yang menunda' : 'Pending staff name'}
                                             disabled={isSubmitting}
                                             className="bg-[#2A281E] border-orange-500/30 text-xs h-9"
                                         />
@@ -1163,7 +1163,7 @@ export function EditIssueModal({ issue, open, onOpenChange, onSuccess }) {
                                             id="edit-solver"
                                             value={solver}
                                             onChange={(e) => setSolver(e.target.value)}
-                                            placeholder="Nama teknisi penyelesai"
+                                            placeholder={lang === 'id' ? 'Nama teknisi penyelesai' : 'Solver technician name'}
                                             disabled={isSubmitting}
                                             className="bg-[#2A281E] border-green-500/30 text-xs h-9"
                                         />

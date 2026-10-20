@@ -1,50 +1,73 @@
 /**
- * Formats a duration string or calculated duration to use days and hours if >= 24h.
- * Example:
- * - "Solved in 41 hours" -> "Solved in 1 day 17 hours"
- * - "Solved in 24 hours" -> "Solved in 1 day"
- * - "Solved in 48 hours" -> "Solved in 2 days"
- * - "Solved in 49 hours" -> "Solved in 2 days 1 hour"
- * - "Solved in 5 hours" -> "Solved in 5 hours"
- * - "Solved in 45 minutes" -> "Solved in 45 minutes"
+ * Formats a duration string or calculated duration to use days and hours if >= 24h,
+ * and dynamically localizes between English and Indonesian.
+ * Examples:
+ * - "Solved in 41 hours", "id" -> "Selesai dalam 1 hari 17 jam"
+ * - "Solved in 3 minutes", "id" -> "Selesai dalam 3 menit"
+ * - "Solved in 24 hours", "en" -> "Solved in 1 day"
+ * - "Selesai dalam 45 menit", "en" -> "Solved in 45 minutes"
  */
-export function formatDurationLabel(label) {
+export function formatDurationLabel(label, lang = 'en') {
     if (!label || typeof label !== 'string') return label;
 
-    // Pattern for English: "Solved in X hours" or "X hours" or "X hour"
-    const hoursMatch = label.match(/^(?:(Solved in)\s+)?(\d+(?:\.\d+)?)\s*hours?$/i);
-    if (hoursMatch) {
-        const prefix = hoursMatch[1] ? `${hoursMatch[1]} ` : '';
-        const totalHours = Math.round(parseFloat(hoursMatch[2]));
-        if (totalHours >= 24) {
-            const days = Math.floor(totalHours / 24);
-            const remHours = totalHours % 24;
-            const dayStr = `${days} day${days === 1 ? '' : 's'}`;
-            if (remHours === 0) {
-                return `${prefix}${dayStr}`;
-            }
-            const hourStr = `${remHours} hour${remHours === 1 ? '' : 's'}`;
-            return `${prefix}${dayStr} ${hourStr}`;
-        }
-        return `${prefix}${totalHours} hour${totalHours === 1 ? '' : 's'}`;
+    const trimmed = label.trim();
+    if (trimmed.toLowerCase() === 'solved') {
+        return lang === 'id' ? 'Selesai' : 'Solved';
+    }
+    if (trimmed.toLowerCase() === 'selesai') {
+        return lang === 'en' ? 'Solved' : 'Selesai';
     }
 
-    // Pattern for Indonesian: "Selesai dalam X jam" or "X jam"
-    const idHoursMatch = label.match(/^(?:(Selesai dalam)\s+)?(\d+(?:\.\d+)?)\s*jam$/i);
-    if (idHoursMatch) {
-        const prefix = idHoursMatch[1] ? `${idHoursMatch[1]} ` : '';
-        const totalHours = Math.round(parseFloat(idHoursMatch[2]));
+    // 1. Minute match (e.g. "Solved in 3 minutes", "Solved in 1 minute", "Selesai dalam 3 menit", "3 minutes", "3 menit")
+    const minMatch = trimmed.match(/^(?:(?:Solved in|Selesai dalam)\s+)?(\d+)\s*(?:minutes?|mins?|menit)$/i);
+    if (minMatch) {
+        const mins = parseInt(minMatch[1], 10);
+        if (lang === 'id') {
+            return `Selesai dalam ${mins} menit`;
+        }
+        return `Solved in ${mins} minute${mins === 1 ? '' : 's'}`;
+    }
+
+    // 2. Days and hours match (e.g. "Solved in 2 days 3 hours", "Selesai dalam 2 hari 3 jam")
+    const dayHourMatch = trimmed.match(/^(?:(?:Solved in|Selesai dalam)\s+)?(\d+)\s*(?:days?|hari)\s+(\d+)\s*(?:hours?|hrs?|jam)$/i);
+    if (dayHourMatch) {
+        const days = parseInt(dayHourMatch[1], 10);
+        const hours = parseInt(dayHourMatch[2], 10);
+        if (lang === 'id') {
+            return `Selesai dalam ${days} hari ${hours} jam`;
+        }
+        return `Solved in ${days} day${days === 1 ? '' : 's'} ${hours} hour${hours === 1 ? '' : 's'}`;
+    }
+
+    // 3. Days only match (e.g. "Solved in 2 days", "Selesai dalam 2 hari")
+    const dayOnlyMatch = trimmed.match(/^(?:(?:Solved in|Selesai dalam)\s+)?(\d+)\s*(?:days?|hari)$/i);
+    if (dayOnlyMatch) {
+        const days = parseInt(dayOnlyMatch[1], 10);
+        if (lang === 'id') {
+            return `Selesai dalam ${days} hari`;
+        }
+        return `Solved in ${days} day${days === 1 ? '' : 's'}`;
+    }
+
+    // 4. Hours match (e.g. "Solved in 41 hours", "41 hours", "Selesai dalam 41 jam", "41 jam")
+    const hoursMatch = trimmed.match(/^(?:(?:Solved in|Selesai dalam)\s+)?(\d+(?:\.\d+)?)\s*(?:hours?|hrs?|jam)$/i);
+    if (hoursMatch) {
+        const totalHours = Math.round(parseFloat(hoursMatch[1]));
         if (totalHours >= 24) {
             const days = Math.floor(totalHours / 24);
             const remHours = totalHours % 24;
-            const dayStr = `${days} hari`;
             if (remHours === 0) {
-                return `${prefix}${dayStr}`;
+                return lang === 'id'
+                    ? `Selesai dalam ${days} hari`
+                    : `Solved in ${days} day${days === 1 ? '' : 's'}`;
             }
-            const hourStr = `${remHours} jam`;
-            return `${prefix}${dayStr} ${hourStr}`;
+            return lang === 'id'
+                ? `Selesai dalam ${days} hari ${remHours} jam`
+                : `Solved in ${days} day${days === 1 ? '' : 's'} ${remHours} hour${remHours === 1 ? '' : 's'}`;
         }
-        return `${prefix}${totalHours} jam`;
+        return lang === 'id'
+            ? `Selesai dalam ${totalHours} jam`
+            : `Solved in ${totalHours} hour${totalHours === 1 ? '' : 's'}`;
     }
 
     return label;
@@ -53,14 +76,31 @@ export function formatDurationLabel(label) {
 /**
  * Computes duration label between two timestamps (in ms) using days and hours.
  */
-export function computeDurationFromTimestamps(createdTime, solveTime) {
-    if (!createdTime || !solveTime || solveTime <= createdTime) return 'Solved';
+export function computeDurationFromTimestamps(createdTime, solveTime, lang = 'en') {
+    if (!createdTime || !solveTime || solveTime <= createdTime) {
+        return lang === 'id' ? 'Selesai' : 'Solved';
+    }
     const diffMinutes = Math.max(1, Math.round((solveTime - createdTime) / 60000));
-    if (diffMinutes < 60) return `Solved in ${diffMinutes} minute${diffMinutes === 1 ? '' : 's'}`;
+    if (diffMinutes < 60) {
+        return lang === 'id'
+            ? `Selesai dalam ${diffMinutes} menit`
+            : `Solved in ${diffMinutes} minute${diffMinutes === 1 ? '' : 's'}`;
+    }
     const diffHours = Math.floor(diffMinutes / 60);
-    if (diffHours < 24) return `Solved in ${diffHours} hour${diffHours === 1 ? '' : 's'}`;
+    if (diffHours < 24) {
+        return lang === 'id'
+            ? `Selesai dalam ${diffHours} jam`
+            : `Solved in ${diffHours} hour${diffHours === 1 ? '' : 's'}`;
+    }
     const diffDays = Math.floor(diffHours / 24);
     const remHours = diffHours % 24;
-    if (remHours === 0) return `Solved in ${diffDays} day${diffDays === 1 ? '' : 's'}`;
-    return `Solved in ${diffDays} day${diffDays === 1 ? '' : 's'} ${remHours} hour${remHours === 1 ? '' : 's'}`;
+    if (remHours === 0) {
+        return lang === 'id'
+            ? `Selesai dalam ${diffDays} hari`
+            : `Solved in ${diffDays} day${diffDays === 1 ? '' : 's'}`;
+    }
+    return lang === 'id'
+        ? `Selesai dalam ${diffDays} hari ${remHours} jam`
+        : `Solved in ${diffDays} day${diffDays === 1 ? '' : 's'} ${remHours} hour${remHours === 1 ? '' : 's'}`;
 }
+

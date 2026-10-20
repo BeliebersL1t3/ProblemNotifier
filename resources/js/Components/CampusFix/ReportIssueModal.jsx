@@ -310,9 +310,9 @@ export function ReportIssueModal({ open, onOpenChange }) {
         <Dialog open={open} onOpenChange={(o) => { if (!isSubmitting) onOpenChange(o); }}>
             <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
                 <DialogHeader>
-                    <DialogTitle>Report an issue</DialogTitle>
+                    <DialogTitle>{t('report_issue_modal_title')}</DialogTitle>
                     <DialogDescription>
-                        Tell the community what is broken so someone nearby can pick it up.
+                        {t('report_issue_modal_desc')}
                     </DialogDescription>
                 </DialogHeader>
 
@@ -341,13 +341,13 @@ export function ReportIssueModal({ open, onOpenChange }) {
                         <div className="flex flex-col gap-0.5">
                             <Label htmlFor="originDept" className="text-blue-600 dark:text-blue-400 font-semibold flex items-center gap-1.5">
                                 <FileText className="w-4 h-4 shrink-0 text-blue-500" />
-                                <span>1. Origin Department (Discovered By)</span>
+                                <span>{t('step_origin_dept')}</span>
                                 <span className="text-xs text-destructive">*</span>
                             </Label>
                             <span className="text-xs text-muted-foreground">
                                 {isDeptUser 
-                                    ? 'Locked to your department account.' 
-                                    : 'Select department discovering the issue.'}
+                                    ? (lang === 'id' ? 'Terkunci ke akun departemen Anda.' : 'Locked to your department account.')
+                                    : t('step_origin_dept_desc')}
                             </span>
                         </div>
 
@@ -367,7 +367,7 @@ export function ReportIssueModal({ open, onOpenChange }) {
                         ) : (
                             <Select value={originDept} onValueChange={handleOriginDeptChange} disabled={isSubmitting}>
                                 <SelectTrigger id="originDept" className="bg-surface">
-                                    <SelectValue placeholder="-- Select Your Department --" />
+                                    <SelectValue placeholder={t('select_your_dept_placeholder')} />
                                 </SelectTrigger>
                                 <SelectContent>
                                     {ALL_DEPARTMENTS.map((dept) => (
@@ -382,7 +382,7 @@ export function ReportIssueModal({ open, onOpenChange }) {
                     <div className="grid gap-2 p-3 rounded-lg border border-border bg-muted/30">
                         <div className="flex items-center justify-between">
                             <Label className="font-semibold flex items-center gap-1.5">
-                                👤 2. Submitter Name (Pelapor) <span className="text-xs text-destructive">*</span>
+                                <span>{t('step_submitter_name')}</span> <span className="text-xs text-destructive">*</span>
                             </Label>
                             {originDept && (
                                 <span className="text-xs text-blue-600 dark:text-blue-400 font-medium">
@@ -397,7 +397,7 @@ export function ReportIssueModal({ open, onOpenChange }) {
                                     <span>🔒</span> {staffName || reporter}
                                 </span>
                                 <span className="text-[11px] text-[#A19F8D] font-medium">
-                                    {t('locked_to_your_account') || (lang === 'id' ? 'Terkunci ke akun Anda' : 'Locked to your account')}
+                                    {t('locked_to_your_account')}
                                 </span>
                             </div>
                         ) : originDept ? (
@@ -424,30 +424,30 @@ export function ReportIssueModal({ open, onOpenChange }) {
                                     id="reporter"
                                     value={reporter}
                                     onChange={(e) => setReporter(e.target.value)}
-                                    placeholder="Enter your name..."
+                                    placeholder={t('enter_your_name')}
                                     disabled={isSubmitting}
                                 />
                             )
                         ) : (
                             <p className="text-xs text-muted-foreground italic py-1">
-                                👆 {t('select_origin_dept_first') || (lang === 'id' ? 'Pilih Departemen Asal di atas untuk memilih nama.' : 'Please select an Origin Department above to choose your name.')}
+                                👆 {t('select_origin_dept_first')}
                             </p>
                         )}
                     </div>
 
                     <div className="grid gap-2">
-                        <Label htmlFor="title">Issue title <span className="text-destructive">*</span></Label>
+                        <Label htmlFor="title">{t('issue_title_label')} <span className="text-destructive">*</span></Label>
                         <Input
                             id="title"
                             value={title}
                             onChange={(e) => setTitle(e.target.value)}
-                            placeholder="e.g. Broken lab door handle"
+                            placeholder={t('issue_title_placeholder')}
                             disabled={isSubmitting}
                         />
                     </div>
                     <div className="grid gap-4 sm:grid-cols-2">
                         <div className="grid gap-2">
-                            <Label>Location <span className="text-destructive">*</span></Label>
+                            <Label>{t('location_label')} <span className="text-destructive">*</span></Label>
                             {/* Main location quick-select */}
                             <div className="flex gap-2">
                                 {MAIN_LOCATIONS.map(loc => {
@@ -474,12 +474,12 @@ export function ReportIssueModal({ open, onOpenChange }) {
                                 id="location"
                                 value={locDetail}
                                 onChange={(e) => setLocDetail(e.target.value)}
-                                placeholder={locMains.length > 0 ? `More specific in ${locMains.join(', ')}… (optional)` : 'Or just type a location…'}
+                                placeholder={locMains.length > 0 ? (lang === 'id' ? `Lebih spesifik di ${locMains.join(', ')}… (opsional)` : `More specific in ${locMains.join(', ')}… (optional)`) : t('location_placeholder')}
                                 disabled={isSubmitting}
                             />
                         </div>
                         <div className="grid gap-2">
-                            <Label htmlFor="category">Category</Label>
+                            <Label htmlFor="category">{t('category_label')}</Label>
                             <Select
                                 value={category}
                                 disabled={isSubmitting}
@@ -489,16 +489,16 @@ export function ReportIssueModal({ open, onOpenChange }) {
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="broken">Broken Equipment</SelectItem>
-                                    <SelectItem value="plumbing">Plumbing</SelectItem>
-                                    <SelectItem value="electrical">Electrical</SelectItem>
-                                    <SelectItem value="structural">Structural / Building</SelectItem>
-                                    <SelectItem value="pest-hygiene">Pest &amp; Hygiene</SelectItem>
-                                    <SelectItem value="it-technology">IT &amp; Technology</SelectItem>
-                                    <SelectItem value="marine-outdoor">Marine &amp; Outdoor</SelectItem>
-                                    <SelectItem value="safety-hazard">Safety Hazard</SelectItem>
-                                    <SelectItem value="guest-issues">Guest Issues</SelectItem>
-                                    <SelectItem value="other">Other</SelectItem>
+                                    <SelectItem value="broken">{t('cat_broken')}</SelectItem>
+                                    <SelectItem value="plumbing">{t('cat_plumbing')}</SelectItem>
+                                    <SelectItem value="electrical">{t('cat_electrical')}</SelectItem>
+                                    <SelectItem value="structural">{t('cat_structural')}</SelectItem>
+                                    <SelectItem value="pest-hygiene">{t('cat_pest_hygiene')}</SelectItem>
+                                    <SelectItem value="it-technology">{t('cat_it_technology')}</SelectItem>
+                                    <SelectItem value="marine-outdoor">{t('cat_marine_outdoor')}</SelectItem>
+                                    <SelectItem value="safety-hazard">{t('cat_safety_hazard')}</SelectItem>
+                                    <SelectItem value="guest-issues">{t('cat_guest_issues')}</SelectItem>
+                                    <SelectItem value="other">{t('cat_other')}</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
@@ -547,11 +547,11 @@ export function ReportIssueModal({ open, onOpenChange }) {
                         <div className="flex flex-col gap-0.5">
                             <Label className="text-amber-600 dark:text-amber-400 font-semibold flex items-center gap-1.5">
                                 <Target className="w-4 h-4 shrink-0 text-amber-500" />
-                                <span>Assigned Department(s)</span>
+                                <span>{t('assigned_depts_label')}</span>
                                 <span className="text-xs text-destructive">*</span>
                             </Label>
                             <span className="text-xs text-muted-foreground">
-                                Select department(s) <strong>responsible for fixing / acting</strong> on this issue.
+                                {t('assigned_depts_desc')}
                             </span>
                         </div>
                         <div className="flex flex-wrap gap-2 pt-1">
@@ -585,11 +585,11 @@ export function ReportIssueModal({ open, onOpenChange }) {
                         <div className="flex flex-col gap-0.5">
                             <Label className="text-indigo-600 dark:text-indigo-400 font-semibold flex items-center gap-1.5">
                                 <Megaphone className="w-4 h-4 shrink-0 text-indigo-500" />
-                                <span>Tagged Department(s)</span>
-                                <span className="text-xs font-normal text-muted-foreground">(Info / Awareness only - Optional)</span>
+                                <span>{t('tagged_depts_label')}</span>
+                                <span className="text-xs font-normal text-muted-foreground">{t('tagged_depts_optional')}</span>
                             </Label>
                             <span className="text-xs text-muted-foreground">
-                                Notify other departments for situational awareness (e.g. tag GR if villa is under repair).
+                                {t('tagged_depts_desc')}
                             </span>
                             <div className="flex flex-wrap gap-2 pt-1">
                             {ALL_DEPARTMENTS
@@ -643,18 +643,16 @@ export function ReportIssueModal({ open, onOpenChange }) {
                                 <div className="flex items-center gap-2 font-semibold text-xs text-foreground">
                                     <Lock className={`w-3.5 h-3.5 ${isConfidential ? 'text-rose-500' : 'text-muted-foreground'}`} />
                                     <span className={isConfidential ? 'text-rose-400 font-bold' : ''}>
-                                        {lang === 'id' ? 'Isu Privasi (Confidential)' : 'Confidential Issue'}
+                                        {t('confidential_issue')}
                                     </span>
                                     {isConfidential && (
                                         <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-rose-500/20 text-rose-300 border border-rose-500/30 ml-auto">
-                                            {lang === 'id' ? '🔒 Khusus Pihak Terkait' : '🔒 Restricted Access'}
+                                            {t('confidential_restricted')}
                                         </span>
                                     )}
                                 </div>
                                 <p className="text-[11px] text-muted-foreground leading-relaxed">
-                                    {lang === 'id'
-                                        ? 'Hanya departemen yang ditugaskan (assigned), ditandai (tagged), asal pelapor, dan Administrator yang dapat melihat isu ini. Departemen lain tidak dapat melihatnya.'
-                                        : 'Only assigned, tagged departments, origin team, and Administrators can see this issue. Hidden from other departments.'}
+                                    {t('confidential_desc')}
                                 </p>
                             </div>
                         </label>
@@ -687,18 +685,18 @@ export function ReportIssueModal({ open, onOpenChange }) {
                     )}
 
                     <div className="grid gap-2">
-                        <Label htmlFor="description">Problem description</Label>
+                        <Label htmlFor="description">{t('problem_description_label')}</Label>
                         <Textarea
                             id="description"
                             rows={4}
                             value={description}
                             onChange={(e) => setDescription(e.target.value)}
-                            placeholder="Describe what happened and how it affects people."
+                            placeholder={t('problem_description_placeholder')}
                             disabled={isSubmitting}
                         />
                     </div>
                     <div className="grid gap-2">
-                        <Label>Photo of the problem <span className="text-destructive">*</span></Label>
+                        <Label>{t('photo_problem_label')} <span className="text-destructive">*</span></Label>
                         <ImageDropzone
                             previewUrl={imageUrl}
                             onChange={(file, preview) => {
@@ -744,7 +742,7 @@ export function ReportIssueModal({ open, onOpenChange }) {
                                     {isSubmitting ? (
                                         <>
                                             <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                                            Uploading...
+                                            {t('uploading')}
                                         </>
                                     ) : (
                                         t('assign_anyway_btn')
@@ -763,10 +761,10 @@ export function ReportIssueModal({ open, onOpenChange }) {
                         {isSubmitting ? (
                             <>
                                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                Uploading to Drive...
+                                {t('uploading_to_drive')}
                             </>
                         ) : (
-                            t('submit') || 'Submit report'
+                            t('submit_report_btn')
                         )}
                     </Button>
                 </DialogFooter>

@@ -61,7 +61,15 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
     const [selectedDelay, setSelectedDelay] = useState(null);
     const [previewImage, setPreviewImage] = useState(null);
     const { isAdmin, isDeptUser, department, activeStaffRoster, staffName, user } = useAuth();
-    const { lang } = useLanguage();
+    const { lang, t } = useLanguage();
+
+    const categoryLabel = useMemo(() => {
+        if (!issue?.category) return '';
+        const catKey = 'cat_' + issue.category.toLowerCase().replace(/[^a-z0-9_]/g, '_');
+        const translated = t(catKey);
+        if (translated && translated !== catKey) return translated;
+        return issue.category;
+    }, [issue?.category, t]);
 
     const isArchived = Boolean(issue?.isArchived || issue?.statusDisplay === '0' || issue?.displayStatus === '0');
     const archiveLog = (issue?.editLogs || []).slice().reverse().find(l => l && (l.type === 'archive' || String(l.changes).toLowerCase().includes('arsip') || String(l.changes).toLowerCase().includes('archive')));
@@ -294,7 +302,7 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
                         )}
                         {issue.category && (
                             <span className="px-2 py-0.5 rounded-md text-[10px] font-medium bg-[#2A281E] text-stone-300 border border-[#3B3929]">
-                                {issue.category}
+                                {categoryLabel}
                             </span>
                         )}
                         {issue.isConfidential && (
@@ -743,7 +751,7 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
                         )}
                         {issue.category && (
                             <span className="hidden xs:inline-block px-1.5 py-0.2 rounded text-[9px] font-medium bg-[#2A281E] text-stone-300 border border-[#3B3929] shrink-0">
-                                {issue.category}
+                                {categoryLabel}
                             </span>
                         )}
                         {/* Reporter & Date */}

@@ -253,7 +253,7 @@ export function EmergencyIssueModal({ open, onOpenChange }) {
                     <div className="grid gap-2 p-3 rounded-xl border border-red-500/40 bg-red-950/30">
                         <Label htmlFor="sos-originDept" className="text-red-300 font-semibold flex items-center gap-1.5 text-xs sm:text-sm">
                             <FileText className="w-4 h-4 shrink-0 text-red-400" />
-                            <span>1. Origin Department (Your Dept)</span>
+                            <span>{t('sos_origin_dept')}</span>
                             <span className="text-xs text-red-400">*</span>
                         </Label>
                         {isDeptUser && originDept ? (
@@ -272,7 +272,7 @@ export function EmergencyIssueModal({ open, onOpenChange }) {
                         ) : (
                             <Select value={originDept} onValueChange={handleOriginDeptChange} disabled={isSubmitting}>
                                 <SelectTrigger id="sos-originDept" className="border-red-900/50 bg-black/60 text-white focus-visible:ring-red-500">
-                                    <SelectValue placeholder="-- Select Your Department --" />
+                                    <SelectValue placeholder={t('select_your_dept_placeholder')} />
                                 </SelectTrigger>
                                 <SelectContent className="bg-zinc-900 text-white border-zinc-800">
                                     {ALL_DEPARTMENTS.map((dept) => (
@@ -287,7 +287,7 @@ export function EmergencyIssueModal({ open, onOpenChange }) {
                     <div className="grid gap-2 p-3 rounded-xl border border-red-900/40 bg-black/40">
                         <div className="flex items-center justify-between">
                             <Label className="text-red-300 font-semibold flex items-center gap-1.5 text-xs sm:text-sm">
-                                👤 2. Submitter Name (Pelapor) <span className="text-xs text-red-400">*</span>
+                                <span>{t('sos_submitter_name')}</span> <span className="text-xs text-red-400">*</span>
                             </Label>
                             {originDept && (
                                 <span className="text-xs text-red-400 font-medium">
@@ -329,14 +329,14 @@ export function EmergencyIssueModal({ open, onOpenChange }) {
                                     id="sos-reporter"
                                     value={reporter}
                                     onChange={(e) => setReporter(e.target.value)}
-                                    placeholder="Enter your name..."
+                                    placeholder={t('enter_your_name')}
                                     disabled={isSubmitting}
                                     className="border-red-900/50 bg-black/50 text-white placeholder:text-red-800 focus-visible:ring-red-500"
                                 />
                             )
                         ) : (
                             <p className="text-xs text-red-400/80 italic py-1">
-                                👆 {lang === 'id' ? 'Pilih Departemen Asal terlebih dahulu untuk memilih nama.' : 'Please select an Origin Department above to choose your name.'}
+                                👆 {t('select_origin_dept_first')}
                             </p>
                         )}
                     </div>
@@ -344,7 +344,7 @@ export function EmergencyIssueModal({ open, onOpenChange }) {
                     {/* Step 3: Quick Emergency Presets */}
                     <div className="grid gap-2 p-3 rounded-xl border border-red-900/40 bg-black/40">
                         <Label className="text-red-300 font-semibold flex items-center justify-between text-xs sm:text-sm">
-                            <span>⚡ Quick Emergency Scenario (Tap to prefill)</span>
+                            <span>{t('sos_quick_scenario')}</span>
                             <span className="text-[11px] text-red-400/80 font-normal">{lang === 'id' ? 'Opsional' : 'Optional'}</span>
                         </Label>
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-0.5">
@@ -375,14 +375,14 @@ export function EmergencyIssueModal({ open, onOpenChange }) {
                     {/* Step 4: Emergency Title */}
                     <div className="grid gap-2">
                         <Label htmlFor="sos-title" className="text-red-300 font-semibold text-xs sm:text-sm flex items-center gap-1">
-                            <span>Emergency Title / Subject</span>
+                            <span>{t('sos_title_label')}</span>
                             <span className="text-xs text-red-400">*</span>
                         </Label>
                         <Input
                             id="sos-title"
                             value={title}
                             onChange={(e) => setTitle(e.target.value)}
-                            placeholder={lang === 'id' ? 'Contoh: Kebakaran di dapur utama / Genset meledak' : 'e.g. Fire in main kitchen / Generator failure'}
+                            placeholder={t('sos_title_placeholder')}
                             disabled={isSubmitting}
                             className="border-red-900/50 bg-black/50 text-white placeholder:text-red-800 focus-visible:ring-red-500 font-bold"
                         />
@@ -391,7 +391,7 @@ export function EmergencyIssueModal({ open, onOpenChange }) {
                     {/* Step 5: Location */}
                     <div className="grid gap-2">
                         <Label className="text-red-300 font-semibold text-xs sm:text-sm flex items-center gap-1">
-                            <span>Location</span>
+                            <span>{t('sos_location_label')}</span>
                             <span className="text-xs text-red-400">*</span>
                         </Label>
                         <div className="flex gap-2">
@@ -418,7 +418,7 @@ export function EmergencyIssueModal({ open, onOpenChange }) {
                             id="sos-location"
                             value={locDetail}
                             onChange={(e) => setLocDetail(e.target.value)}
-                            placeholder={locMains.length > 0 ? `More specific in ${locMains.join(', ')}… (optional)` : (lang === 'id' ? 'Ketik lokasi spesifik...' : 'Or type specific location…')}
+                            placeholder={locMains.length > 0 ? (lang === 'id' ? `Lebih spesifik di ${locMains.join(', ')}… (opsional)` : `More specific in ${locMains.join(', ')}… (optional)`) : t('sos_location_placeholder')}
                             disabled={isSubmitting}
                             className="border-red-900/50 bg-black/50 text-white placeholder:text-red-800 focus-visible:ring-red-500"
                         />
@@ -465,7 +465,7 @@ export function EmergencyIssueModal({ open, onOpenChange }) {
                     {/* Step 6: Description */}
                     <div className="grid gap-2">
                         <Label htmlFor="sos-desc" className="text-red-300 text-xs sm:text-sm flex items-center justify-between">
-                            <span>Details &amp; Current Situation</span>
+                            <span>{t('sos_details_label')}</span>
                             <span className="text-[11px] text-red-400/80 font-normal">{lang === 'id' ? 'Opsional' : 'Optional'}</span>
                         </Label>
                         <Textarea
@@ -473,7 +473,7 @@ export function EmergencyIssueModal({ open, onOpenChange }) {
                             rows={3}
                             value={description}
                             onChange={(e) => setDescription(e.target.value)}
-                            placeholder={lang === 'id' ? 'Jelaskan kondisi bahaya, ada korban atau tidak, dan evakuasi yang sudah dilakukan...' : 'Describe what is happening, if people are evacuated, or urgent equipment needed.'}
+                            placeholder={t('sos_details_placeholder')}
                             disabled={isSubmitting}
                             className="border-red-900/50 bg-black/50 text-white placeholder:text-red-800 focus-visible:ring-red-500 text-xs"
                         />
