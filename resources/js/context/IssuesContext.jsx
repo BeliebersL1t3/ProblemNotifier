@@ -114,13 +114,13 @@ export function IssuesProvider({ children }) {
         fetchIssues(false);
     }, [fetchIssues, currentSheet]);
 
-    // Live Auto-Sync: Poll every 45 seconds (relax from 8s) and re-fetch immediately on window focus / tab wake-up
+    // Live Auto-Sync: Poll every 15 seconds when active (pause when tab hidden to save battery)
     useEffect(() => {
         const interval = setInterval(() => {
             // If screen locked or tab in background, skip polling to preserve phone battery and network
             if (typeof document !== 'undefined' && document.hidden) return;
             fetchIssues(true);
-        }, 45000);
+        }, 15000);
 
         const handleResume = () => {
             if (typeof document === 'undefined' || !document.hidden) {
@@ -327,7 +327,11 @@ export function IssuesProvider({ children }) {
             });
 
             if (response.data?.success) {
-                await fetchIssues();
+                if (response.data.data) {
+                    setRawIssues((prev) => [response.data.data, ...(prev || [])]);
+                }
+                // Background silent sync to ensure consistency with Google Sheets without locking UI
+                fetchIssues(true);
                 return { success: true, reportedAt: submissionTime };
             } else {
                 throw new Error(response.data?.message || 'Upload failed');
@@ -352,20 +356,61 @@ export function IssuesProvider({ children }) {
 
     const claimIssue = useCallback(async (issue, taker, department) => {
         const target = issue.id || issue.rowIndex;
-        const response = await axios.post(`/api/issues/${target}/claim`, {
-            taker,
-            ...(department ? { department } : {}),
-        });
+        const previousIssues = rawIssues;
 
-        if (response.data?.success) {
-            await fetchIssues();
-        } else {
-            throw new Error(response.data?.message || 'Job already taken');
+        // Optimistically update UI immediately (<1ms)
+        setRawIssues((prev) =>
+            (prev || []).map((item) => {
+                if ((item.id && item.id === target) || item.rowIndex === target) {
+                    return {
+                        ...item,
+                        status: 'progress',
+                        taker,
+                        takenAt: Date.now(),
+                    };
+                }
+                return item;
+            })
+        );
+
+        try {
+            const response = await axios.post(`/api/issues/${target}/claim`, {
+                taker,
+                ...(department ? { department } : {}),
+            });
+
+            if (response.data?.success) {
+                fetchIssues(true);
+            } else {
+                setRawIssues(previousIssues);
+                throw new Error(response.data?.message || 'Job already taken');
+            }
+        } catch (err) {
+            setRawIssues(previousIssues);
+            throw err;
         }
-    }, [fetchIssues]);
+    }, [fetchIssues, rawIssues]);
 
     const resolveIssue = useCallback(async (issue, input) => {
         const target = issue.id || issue.rowIndex;
+        const previousIssues = rawIssues;
+
+        // Optimistically mark as solved immediately (<1ms)
+        setRawIssues((prev) =>
+            (prev || []).map((item) => {
+                if ((item.id && item.id === target) || item.rowIndex === target) {
+                    return {
+                        ...item,
+                        status: 'solved',
+                        solver: input.solver,
+                        fixDescription: input.fixDescription,
+                        solvedAt: new Date().toISOString(),
+                    };
+                }
+                return item;
+            })
+        );
+
         const formData = new FormData();
         formData.append('solver', input.solver);
         formData.append('fixDescription', input.fixDescription);
@@ -373,16 +418,22 @@ export function IssuesProvider({ children }) {
             formData.append('proofImage', input.proofImageFile);
         }
 
-        const response = await axios.post(`/api/issues/${target}/resolve`, formData, {
-            headers: { 'Content-Type': 'multipart/form-data' },
-        });
+        try {
+            const response = await axios.post(`/api/issues/${target}/resolve`, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' },
+            });
 
-        if (response.data?.success) {
-            await fetchIssues();
-        } else {
-            throw new Error(response.data?.message || 'Failed to resolve issue');
+            if (response.data?.success) {
+                fetchIssues(true);
+            } else {
+                setRawIssues(previousIssues);
+                throw new Error(response.data?.message || 'Failed to resolve issue');
+            }
+        } catch (err) {
+            setRawIssues(previousIssues);
+            throw err;
         }
-    }, [fetchIssues]);
+    }, [fetchIssues, rawIssues]);
 
     const updateIssueCategory = useCallback(async (issue, newCategory) => {
         const target = issue.id || issue.rowIndex;
@@ -390,7 +441,7 @@ export function IssuesProvider({ children }) {
             category: newCategory
         });
         if (response.data?.success) {
-            await fetchIssues();
+            fetchIssues(true);
         } else {
             throw new Error(response.data?.message || 'Failed to update category');
         }
@@ -398,6 +449,23 @@ export function IssuesProvider({ children }) {
 
     const pendingIssue = useCallback(async (issue, input) => {
         const target = issue.id || issue.rowIndex;
+        const previousIssues = rawIssues;
+
+        // Optimistically mark as pending immediately (<1ms)
+        setRawIssues((prev) =>
+            (prev || []).map((item) => {
+                if ((item.id && item.id === target) || item.rowIndex === target) {
+                    return {
+                        ...item,
+                        status: 'pending',
+                        pendingBy: input.pendingBy,
+                        pendingReason: input.pendingReason,
+                    };
+                }
+                return item;
+            })
+        );
+
         const formData = new FormData();
         formData.append('pendingBy', input.pendingBy);
         formData.append('pendingReason', input.pendingReason);
@@ -405,16 +473,22 @@ export function IssuesProvider({ children }) {
             formData.append('pendingImage', input.pendingImageFile);
         }
 
-        const response = await axios.post(`/api/issues/${target}/pending`, formData, {
-            headers: { 'Content-Type': 'multipart/form-data' },
-        });
+        try {
+            const response = await axios.post(`/api/issues/${target}/pending`, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' },
+            });
 
-        if (response.data?.success) {
-            await fetchIssues();
-        } else {
-            throw new Error(response.data?.message || 'Failed to mark issue as pending');
+            if (response.data?.success) {
+                fetchIssues(true);
+            } else {
+                setRawIssues(previousIssues);
+                throw new Error(response.data?.message || 'Failed to mark issue as pending');
+            }
+        } catch (err) {
+            setRawIssues(previousIssues);
+            throw err;
         }
-    }, [fetchIssues]);
+    }, [fetchIssues, rawIssues]);
 
     // Create a new year sheet and switch to it
     const createNewPeriod = useCallback(async (name) => {
@@ -512,15 +586,26 @@ export function IssuesProvider({ children }) {
 
     const deleteIssue = useCallback(async (issue) => {
         const target = issue.id || issue.rowIndex;
-        const response = await axios.delete(`/api/issues/${target}`);
+        const previousIssues = rawIssues;
 
-        if (response.data?.success) {
-            await fetchIssues(true);
-            return response.data;
-        } else {
-            throw new Error(response.data?.message || 'Failed to delete issue');
+        // Optimistically remove from state immediately (<1ms)
+        setRawIssues((prev) => (prev || []).filter((item) => (item.id !== target && item.rowIndex !== target)));
+
+        try {
+            const response = await axios.delete(`/api/issues/${target}`);
+
+            if (response.data?.success) {
+                fetchIssues(true);
+                return response.data;
+            } else {
+                setRawIssues(previousIssues);
+                throw new Error(response.data?.message || 'Failed to delete issue');
+            }
+        } catch (err) {
+            setRawIssues(previousIssues);
+            throw err;
         }
-    }, [fetchIssues]);
+    }, [fetchIssues, rawIssues]);
 
     const restoreIssue = useCallback(async (issue) => {
         const target = issue.id || issue.rowIndex;

@@ -41,6 +41,7 @@ class WebPushService
 
         return new WebPush($auth, [
             'TTL' => 86400, // 24 hours queue retention
+            'timeout' => 4, // 4-second request timeout to prevent blocking worker
         ]);
     }
 

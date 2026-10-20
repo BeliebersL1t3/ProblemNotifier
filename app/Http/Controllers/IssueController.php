@@ -1119,7 +1119,7 @@ class IssueController extends Controller
 
         try {
             // Always write new issues to the NEWEST sheet
-            $this->resolveSheet(null);
+            $sheetName = $this->resolveSheet(null);
 
             // Get total rows to determine sequential index
             $rows = $this->googleService->getRows();
@@ -1374,20 +1374,58 @@ class IssueController extends Controller
                 Log::warning("WebPushService new issue notification failed: {$pe->getMessage()}");
             }
 
+            $assignedDeptsArray = !empty($assignedDeptsStr) ? array_map('trim', explode(',', $assignedDeptsStr)) : [];
+            $taggedDeptsArray   = !empty($taggedDeptsStr) ? array_map('trim', explode(',', $taggedDeptsStr)) : [];
+
             return response()->json([
                 'success' => true,
                 'message' => 'Issue reported successfully!',
                 'data'    => [
-                    'id'          => $id,
-                    'title'       => $request->title,
-                    'description' => $request->description,
-                    'location'    => $request->location,
-                    'category'    => $request->category,
-                    'status'      => 'open',
-                    'reporter'    => $request->reporter,
-                    'reportedAt'  => strtotime($submittedAt) * 1000,
-                    'imageUrl'    => $resolvedImageUrl,
-                    'isConfidential' => $isConfidential,
+                    'id'                  => $id,
+                    'rowIndex'            => $rowIndex,
+                    'sheet'               => $sheetName,
+                    'title'               => $request->title,
+                    'description'         => $request->description,
+                    'location'            => $request->location,
+                    'category'            => $request->category,
+                    'department'          => $originName,
+                    'assignedDepartments' => $assignedDeptsArray,
+                    'taggedDepartments'   => $taggedDeptsArray,
+                    'status'              => 'open',
+                    'reporter'            => $request->reporter,
+                    'reportedAt'          => strtotime($submittedAt) * 1000,
+                    'reportedAtIso'       => $submittedAt,
+                    'imageUrl'            => $resolvedImageUrl,
+                    'taker'               => null,
+                    'takerCurrentDept'    => null,
+                    'takerHasTransferred' => false,
+                    'takenAt'             => null,
+                    'solver'              => '',
+                    'solvedAt'            => '',
+                    'fixDescription'      => '',
+                    'proofImageUrl'       => '',
+                    'durationLabel'       => '',
+                    'priority'            => $request->priority ?? 'low',
+                    'deadline'            => $this->formatDeadlineToReadable($request->deadline ?? ''),
+                    'pendingReason'       => '',
+                    'pendingTimeline'     => [],
+                    'pendingBy'           => '',
+                    'pendingImageUrl'     => '',
+                    'editLogs'            => !empty($initialLog) ? [['date' => $now->format('M d, Y H:i:s'), 'by' => 'Sistem', 'type' => 'late_upload', 'changes' => $initialLog]] : [],
+                    'isLateUpload'        => $isLateUpload,
+                    'lateDuration'        => $lateDurationText ?: null,
+                    'uploadedAt'          => $isLateUpload ? ($now->timestamp * 1000) : null,
+                    'uploadedAtStr'       => $isLateUpload ? $now->toIso8601String() : null,
+                    'isArchived'          => false,
+                    'isConfidential'      => $isConfidential,
+                    'canEditDescription'  => false,
+                    'descriptionHistory'  => [[
+                        'version'     => 1,
+                        'description' => $request->description,
+                        'editedAt'    => null,
+                        'by'          => $request->reporter,
+                        'isOriginal'  => true,
+                    ]],
                 ],
             ]);
         } catch (\Throwable $e) {

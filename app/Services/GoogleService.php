@@ -428,21 +428,56 @@ class GoogleService
      */
     public function findIssueAcrossSheets(string $issueId): ?array
     {
-        $allSheets = $this->listSheets();
-        foreach ($allSheets as $sheetName) {
-            $response = $this->sheets->spreadsheets_values->get(
-                $this->spreadsheetId,
-                "{$sheetName}!A2:A"
-            );
-            $values = $response->getValues() ?? [];
-            $lastMatch = null;
-            foreach ($values as $idx => $row) {
+        // 1. Fast path: check current active sheet rows in cache first (<1ms)
+        $currentSheetRows = Cache::get("google_sheet_rows_{$this->sheetName}");
+        if (is_array($currentSheetRows)) {
+            foreach ($currentSheetRows as $idx => $row) {
                 if (($row[0] ?? '') === $issueId) {
-                    $lastMatch = ['sheet' => $sheetName, 'rowIndex' => $idx + 2]; // 1-based, skip header
+                    return ['sheet' => $this->sheetName, 'rowIndex' => $idx + 2];
                 }
             }
-            if ($lastMatch !== null) {
-                return $lastMatch;
+        }
+
+        $allSheets = $this->listSheets();
+        if (in_array($this->sheetName, $allSheets)) {
+            $allSheets = array_unique(array_merge([$this->sheetName], $allSheets));
+        }
+
+        // 2. Check cached rows across all other sheets
+        foreach ($allSheets as $sheetName) {
+            $sheetRows = Cache::get("google_sheet_rows_{$sheetName}");
+            if (is_array($sheetRows)) {
+                $lastMatch = null;
+                foreach ($sheetRows as $idx => $row) {
+                    if (($row[0] ?? '') === $issueId) {
+                        $lastMatch = ['sheet' => $sheetName, 'rowIndex' => $idx + 2];
+                    }
+                }
+                if ($lastMatch !== null) {
+                    return $lastMatch;
+                }
+            }
+        }
+
+        // 3. Fallback to Google Sheets API column A lookup
+        foreach ($allSheets as $sheetName) {
+            try {
+                $response = $this->sheets->spreadsheets_values->get(
+                    $this->spreadsheetId,
+                    "{$sheetName}!A2:A"
+                );
+                $values = $response->getValues() ?? [];
+                $lastMatch = null;
+                foreach ($values as $idx => $row) {
+                    if (($row[0] ?? '') === $issueId) {
+                        $lastMatch = ['sheet' => $sheetName, 'rowIndex' => $idx + 2]; // 1-based, skip header
+                    }
+                }
+                if ($lastMatch !== null) {
+                    return $lastMatch;
+                }
+            } catch (\Throwable $e) {
+                Log::warning("findIssueAcrossSheets API failed for {$sheetName}: " . $e->getMessage());
             }
         }
         return null;
@@ -655,19 +690,33 @@ class GoogleService
         return $insertRowIndex;
     }
 
+    /** Resolves the numeric Sheet ID for a given sheet title, with 24-hour cache */
+    public function getSheetId(string $sheetTitle): int
+    {
+        $cacheKey = "google_sheet_id_" . md5($sheetTitle);
+        return (int) Cache::remember($cacheKey, 86400, function () use ($sheetTitle) {
+            try {
+                $spreadsheet = $this->sheets->spreadsheets->get($this->spreadsheetId);
+                foreach ($spreadsheet->getSheets() as $sheet) {
+                    $title = $sheet->getProperties()->getTitle();
+                    $id = (int)$sheet->getProperties()->getSheetId();
+                    Cache::put("google_sheet_id_" . md5($title), $id, 86400);
+                    if ($title === $sheetTitle) {
+                        return $id;
+                    }
+                }
+            } catch (\Throwable $e) {
+                Log::warning("getSheetId failed for {$sheetTitle}: " . $e->getMessage());
+            }
+            return 0;
+        });
+    }
+
     /** Colors a specific row with a consistent pastel color based on the category string */
     public function colorRowByCategory(int $rowIndex, string $category, ?string $sheetName = null): void
     {
         $targetSheet = $sheetName ?: $this->sheetName;
-        // Get Sheet ID
-        $spreadsheet = $this->sheets->spreadsheets->get($this->spreadsheetId);
-        $sheetId = 0;
-        foreach ($spreadsheet->getSheets() as $sheet) {
-            if ($sheet->getProperties()->getTitle() === $targetSheet) {
-                $sheetId = $sheet->getProperties()->getSheetId();
-                break;
-            }
-        }
+        $sheetId = $this->getSheetId($targetSheet);
 
         $categoryColors = [
             'broken'         => ['red' => 0.99, 'green' => 0.88, 'blue' => 0.88], // Pastel Red
