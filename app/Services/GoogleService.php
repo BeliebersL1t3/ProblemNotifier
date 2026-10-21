@@ -86,7 +86,7 @@ class GoogleService
         }
 
         try {
-            return Cache::remember('google_sheets_list', 60, function () {
+            return Cache::remember('google_sheets_list', 300, function () {
                 $spreadsheet = $this->sheets->spreadsheets->get($this->spreadsheetId);
                 $names = [];
                 foreach ($spreadsheet->getSheets() as $sheet) {
@@ -121,7 +121,7 @@ class GoogleService
         }
 
         try {
-            return Cache::remember('google_ops_sheets_list', 60, function () {
+            return Cache::remember('google_ops_sheets_list', 300, function () {
                 $spreadsheet = $this->sheets->spreadsheets->get($this->opsSpreadsheetId);
                 $names = [];
                 foreach ($spreadsheet->getSheets() as $sheet) {
@@ -493,7 +493,7 @@ class GoogleService
         }
 
         try {
-            return Cache::remember($cacheKey, 20, function () use ($backupCacheKey) {
+            return Cache::remember($cacheKey, 120, function () use ($backupCacheKey) {
                 $response = $this->sheets->spreadsheets_values->get(
                     $this->spreadsheetId,
                     "{$this->sheetName}!A2:AA"
@@ -1372,7 +1372,7 @@ class GoogleService
             Cache::forget($cacheKey);
         }
 
-        return Cache::remember($cacheKey, 15, function () use ($sheetName) {
+        return Cache::remember($cacheKey, 120, function () use ($sheetName) {
             try {
                 $response = $this->sheets->spreadsheets_values->get(
                     $this->opsSpreadsheetId,
@@ -1423,7 +1423,7 @@ class GoogleService
             Cache::forget($cacheKey);
         }
 
-        return Cache::remember($cacheKey, 30, function () {
+        return Cache::remember($cacheKey, 120, function () {
             try {
                 $opsSheets = $this->listOpsSheets(false);
                 $deptSheets = array_values(array_filter($opsSheets, fn($s) => str_starts_with($s, 'Ops_') && $s !== 'Ops_Sheet1'));
