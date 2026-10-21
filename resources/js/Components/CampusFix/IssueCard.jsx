@@ -83,6 +83,7 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
     const solverDept = normalizeDepartment(getDepartmentForStaff(issue?.solver, issue));
     const assignedList = safeArray(issue?.assignedDepartments);
     const assignedDeptsNormalized = assignedList.map(normalizeDepartment);
+    const isAllAssigned = assignedList.length === 0 || assignedList.some(d => String(d).trim().toUpperCase() === 'ALL');
     const isIssueEmergency = String(issue?.id || '').toUpperCase().startsWith('SOS');
 
     // Robust claimant check including WhatsApp formats:
