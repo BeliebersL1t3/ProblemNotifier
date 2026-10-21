@@ -23,14 +23,7 @@ export function SolvedDetailModal({ issue, onClose }) {
     const [selectedDelay, setSelectedDelay] = useState(null);
     const [previewImage, setPreviewImage] = useState(null);
 
-    const categoryLabel = useMemo(() => {
-        if (!issue?.category) return '-';
-        const catKey = 'cat_' + issue.category.toLowerCase().replace(/[^a-z0-9_]/g, '_');
-        const translated = t(catKey);
-        if (translated && translated !== catKey) return translated;
-        const found = (categories || []).find(c => c.id === issue.category || c.id?.toLowerCase() === issue.category?.toLowerCase());
-        return found ? found.label : (issue.category.charAt(0).toUpperCase() + issue.category.slice(1));
-    }, [issue?.category, categories, t]);
+    const isEmergency = String(issue?.id || '').toUpperCase().startsWith('SOS') || (issue?.category || '').toLowerCase() === 'emergency';
 
     return (
         <Dialog open={!!issue} onOpenChange={(o) => !o && onClose()}>
@@ -174,16 +167,13 @@ export function SolvedDetailModal({ issue, onClose }) {
                                 );
                             })}
 
-                            <div className="flex items-center gap-1.5 shrink-0 ml-auto">
-                                <span className="text-[10px] text-muted-foreground font-medium">{t('category')}:</span>
-                                <span className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${
-                                    (issue.category || '').toLowerCase() === 'emergency'
-                                        ? 'bg-rose-500/15 text-rose-300 border-rose-500/30 font-bold'
-                                        : 'bg-muted/60 text-foreground border-border'
-                                }`}>
-                                    {categoryLabel}
-                                </span>
-                            </div>
+                            {isEmergency && (
+                                <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+                                    <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider border bg-red-500/15 text-red-400 border-red-500/30">
+                                        🚨 {lang === 'id' ? 'DARURAT (SOS)' : 'SOS EMERGENCY'}
+                                    </span>
+                                </div>
+                            )}
                         </div>
 
                         <div className="grid gap-2 text-sm text-muted-foreground">

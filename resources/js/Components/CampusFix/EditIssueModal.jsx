@@ -312,16 +312,12 @@ export function EditIssueModal({ issue, open, onOpenChange, onSuccess }) {
 
             // Include Initial Report fields
             if (canEditReport) {
-                let finalDeadline = '';
-                if (priority === 'critical') {
-                    finalDeadline = String(customDeadlineMs || (Date.now() + 15 * 60 * 1000));
-                }
                 payload.title = title.trim();
                 payload.description = description.trim();
                 payload.location = location.trim();
-                payload.category = category;
-                payload.priority = priority;
-                payload.deadline = finalDeadline;
+                payload.category = '';
+                payload.priority = '';
+                payload.deadline = '';
                 payload.assignedDepartments = assignedDepts.join(',');
                 payload.taggedDepartments = taggedDepts.join(',');
                 payload.isConfidential = isConfidential;
@@ -330,8 +326,8 @@ export function EditIssueModal({ issue, open, onOpenChange, onSuccess }) {
                 payload.title = issue?.title || '';
                 payload.description = issue?.description || '';
                 payload.location = issue?.location || '';
-                payload.category = issue?.category || 'broken';
-                payload.priority = issue?.priority || 'low';
+                payload.category = issue?.category || '';
+                payload.priority = issue?.priority || '';
                 payload.deadline = issue?.deadline || '';
                 payload.isConfidential = issue?.isConfidential ? '1' : '0';
                 payload.assignedDepartments = Array.isArray(issue?.assignedDepartments) 
@@ -630,55 +626,7 @@ export function EditIssueModal({ issue, open, onOpenChange, onSuccess }) {
                                     />
                                 </div>
 
-                                {/* Category & Priority */}
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                    <div className="space-y-1.5">
-                                        <Label htmlFor="edit-category" className="text-xs font-bold text-foreground">
-                                            {lang === 'id' ? 'Kategori' : 'Category'}
-                                        </Label>
-                                        <Select value={category} onValueChange={setCategory} disabled={isSubmitting}>
-                                            <SelectTrigger id="edit-category" className="bg-[#2A281E] border-[#3B3929] text-xs h-9">
-                                                <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent className="bg-[#2A281E] border-[#3B3929] text-foreground">
-                                                {categories.map((c) => (
-                                                    <SelectItem key={c.id} value={c.id} className="text-xs">
-                                                        {c.label}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
 
-                                    <div className="space-y-1.5">
-                                        <Label htmlFor="edit-priority" className="text-xs font-bold text-foreground">
-                                            {lang === 'id' ? 'Prioritas' : 'Priority'}
-                                        </Label>
-                                        <Select value={priority} onValueChange={setPriority} disabled={isSubmitting}>
-                                            <SelectTrigger id="edit-priority" className="bg-[#2A281E] border-[#3B3929] text-xs h-9">
-                                                <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent className="bg-[#2A281E] border-[#3B3929] text-foreground">
-                                                <SelectItem value="low" className="text-xs">🟢 {lang === 'id' ? 'Prioritas' : 'Priority'}</SelectItem>
-                                                <SelectItem value="high" className="text-xs">🟠 {lang === 'id' ? 'Prioritas Tinggi' : 'High Priority'}</SelectItem>
-                                                <SelectItem value="critical" className="text-xs text-red-400 font-bold">🔴 {lang === 'id' ? 'Kritis' : 'Critical'}</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                </div>
-
-                                {/* Critical SLA Setting - Immediate Inline Analog Clock */}
-                                {priority === 'critical' && (
-                                    <div className="animate-in fade-in slide-in-from-top-2 duration-200">
-                                        <InlineAnalogClockPicker
-                                            valueMs={customDeadlineMs || (Date.now() + 15 * 60000)}
-                                            onChange={(ms) => {
-                                                setCustomDeadlineMs(ms);
-                                            }}
-                                            lang={lang}
-                                        />
-                                    </div>
-                                )}
 
                                 {/* Location */}
                                 <div className="space-y-1.5">

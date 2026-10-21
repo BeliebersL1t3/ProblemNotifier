@@ -83,8 +83,7 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
     const solverDept = normalizeDepartment(getDepartmentForStaff(issue?.solver, issue));
     const assignedList = safeArray(issue?.assignedDepartments);
     const assignedDeptsNormalized = assignedList.map(normalizeDepartment);
-    const isAllAssigned = assignedList.length === 0 || assignedList.some(d => String(d).trim().toUpperCase() === 'ALL');
-    const isIssueEmergency = (issue?.category || '').toLowerCase() === 'emergency' || String(issue?.id || '').startsWith('SOS');
+    const isIssueEmergency = String(issue?.id || '').toUpperCase().startsWith('SOS');
 
     // Robust claimant check including WhatsApp formats:
     const isClaimant = Boolean(
@@ -170,8 +169,8 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
     // DENSITY LIST — DETAILED OPERATIONAL FEED ROW
     // =========================================================================
     if (density === 'list') {
-        const isEmergency = !isArchived && ((issue.category || '').toLowerCase() === 'emergency' || String(issue.id || '').startsWith('SOS'));
-        const isCritical = !isArchived && !isEmergency && issue.priority === 'critical';
+        const isEmergency = !isArchived && String(issue.id || '').toUpperCase().startsWith('SOS');
+        const isCritical = false;
         const isSolved = issue.status === 'solved';
         const isPending = issue.status === 'pending';
         const isProgress = issue.status === 'progress';
@@ -290,21 +289,7 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
                                 {lang === 'id' ? 'KRITIS' : 'CRITICAL'}
                             </span>
                         )}
-                        {isCritical && issue.deadline && !isSolved && (
-                            <div onClick={(e) => e.stopPropagation()}>
-                                <CriticalTimer deadline={issue.deadline} reportedAt={issue.reportedAt} />
-                            </div>
-                        )}
-                        {!isEmergency && !isCritical && issue.priority === 'high' && (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-orange-500/15 text-orange-400 border border-orange-500/30">
-                                {lang === 'id' ? 'TINGGI' : 'HIGH'}
-                            </span>
-                        )}
-                        {issue.category && (
-                            <span className="px-2 py-0.5 rounded-md text-[10px] font-medium bg-[#2A281E] text-stone-300 border border-[#3B3929]">
-                                {categoryLabel}
-                            </span>
-                        )}
+
                         {issue.isConfidential && (
                             <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-rose-500/15 text-rose-300 border border-rose-500/30" title={lang === 'id' ? 'Isu Privasi (Confidential)' : 'Confidential Issue'}>
                                 <Lock className="w-2.5 h-2.5" />
@@ -572,8 +557,8 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
     // DENSITY COMPACT — 2-LINE DENSE ROW VIEW WITH PHOTO
     // =========================================================================
     if (density === 'compact') {
-        const isEmergency = !isArchived && ((issue.category || '').toLowerCase() === 'emergency' || String(issue.id || '').startsWith('SOS'));
-        const isCritical = !isArchived && !isEmergency && issue.priority === 'critical';
+        const isEmergency = !isArchived && String(issue.id || '').toUpperCase().startsWith('SOS');
+        const isCritical = false;
         const isSolved = issue.status === 'solved';
         const isPending = issue.status === 'pending';
         const isProgress = issue.status === 'progress';
@@ -716,11 +701,6 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
                                 <CriticalTimer deadline={issue.deadline} reportedAt={issue.reportedAt} />
                             </div>
                         )}
-                        {!isEmergency && !isCritical && issue.priority === 'high' && (
-                            <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-bold uppercase tracking-wider bg-orange-500/15 text-orange-400 border border-orange-500/30 shrink-0">
-                                {lang === 'id' ? 'TINGGI' : 'HIGH'}
-                            </span>
-                        )}
                         <h4 className="text-xs sm:text-sm font-bold text-foreground group-hover:text-primary transition-colors truncate min-w-0 flex-1">
                             {issue.title}
                         </h4>
@@ -747,11 +727,6 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
                             >
                                 <Target className="w-2 h-2 shrink-0" />
                                 <span>{primaryDept}</span>
-                            </span>
-                        )}
-                        {issue.category && (
-                            <span className="hidden xs:inline-block px-1.5 py-0.2 rounded text-[9px] font-medium bg-[#2A281E] text-stone-300 border border-[#3B3929] shrink-0">
-                                {categoryLabel}
                             </span>
                         )}
                         {/* Reporter & Date */}
@@ -901,8 +876,8 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
     // DENSITY 10 — MICRO MATRIX VIEW
     // =========================================================================
     if (density === '10' || density === 'grid') {
-        const isEmergency = !isArchived && ((issue.category || '').toLowerCase() === 'emergency' || String(issue.id || '').startsWith('SOS'));
-        const isCritical = !isArchived && !isEmergency && issue.priority === 'critical';
+        const isEmergency = !isArchived && String(issue.id || '').toUpperCase().startsWith('SOS');
+        const isCritical = false;
         const isSolved = issue.status === 'solved';
         const isPending = issue.status === 'pending';
         const isProgress = issue.status === 'progress';
@@ -1017,8 +992,8 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
     // DENSITY 5 — COMPACT VIEW
     // =========================================================================
     if (density === '5') {
-        const isEmergency = !isArchived && ((issue.category || '').toLowerCase() === 'emergency' || String(issue.id || '').startsWith('SOS'));
-        const isCritical = !isArchived && !isEmergency && issue.priority === 'critical';
+        const isEmergency = !isArchived && String(issue.id || '').toUpperCase().startsWith('SOS');
+        const isCritical = false;
         const isSolved = issue.status === 'solved';
         const isPending = issue.status === 'pending';
 
@@ -1368,8 +1343,8 @@ export function IssueCard({ issue, onSelect, onEdit, onDelete, onRestore, densit
     // =========================================================================
     // DENSITY 3 — STANDARD DETAILED VIEW (DEFAULT)
     // =========================================================================
-    const isEmergency = !isArchived && ((issue.category || '').toLowerCase() === 'emergency' || String(issue.id || '').startsWith('SOS'));
-    const isCritical = !isArchived && !isEmergency && issue.priority === 'critical';
+    const isEmergency = !isArchived && String(issue.id || '').toUpperCase().startsWith('SOS');
+    const isCritical = false;
 
     return (
         <button

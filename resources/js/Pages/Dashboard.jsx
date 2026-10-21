@@ -176,7 +176,6 @@ function DashboardInner() {
         return false;
     };
     const [query, setQuery] = useState('');
-    const [categoryFilter, setCategoryFilter] = useState('all');
     const [statusFilter, setStatusFilter] = useState('all');
     // For department users without full-view permission, lock the dept filter to their department
     const [deptFilter, setDeptFilter] = useState(() => isDeptUser && department && !canViewAllDepartments ? department : 'all');
@@ -889,10 +888,6 @@ function DashboardInner() {
                 issue.location.toLowerCase().includes(q) ||
                 issue.description.toLowerCase().includes(q);
 
-            const matchesCategory = categoryFilter === 'all'
-                ? true
-                : issue.category === categoryFilter.slice('category:'.length);
-
             const matchesStatus = statusFilter === 'all'
                 ? true
                 : issue.status === statusFilter;
@@ -907,8 +902,8 @@ function DashboardInner() {
                 : (issue.taggedDepartments ? String(issue.taggedDepartments).split(',') : [])
             ).map(d => normalizeDepartment(d.trim()));
 
-            const issueIsEmergency = (issue.category || '').toLowerCase() === 'emergency' 
-                || String(issue.id || '').startsWith('SOS')
+            const issueIsEmergency = String(issue.id || '').toUpperCase().startsWith('SOS') 
+                || (issue.category || '').toLowerCase() === 'emergency'
                 || issueAssigned.some(d => String(d).trim().toUpperCase() === 'ALL')
                 || issueTagged.some(d => String(d).trim().toUpperCase() === 'ALL');
 
@@ -919,22 +914,22 @@ function DashboardInner() {
                 issueTagged.some(d => String(d).trim().toUpperCase() === 'ALL') ||
                 normalizeDepartment(issue.department) === normDeptFilter
             );
-            return matchesQuery && matchesCategory && matchesStatus && matchesDept;
+            return matchesQuery && matchesStatus && matchesDept;
         });
 
-        // Sort active critical issues to the top
+        // Sort active emergency (SOS) issues to the top
         return filtered.sort((a, b) => {
-            const aIsCriticalActive = a.priority === 'critical' && a.status !== 'solved';
-            const bIsCriticalActive = b.priority === 'critical' && b.status !== 'solved';
-            if (aIsCriticalActive && !bIsCriticalActive) return -1;
-            if (bIsCriticalActive && !aIsCriticalActive) return 1;
-            if (aIsCriticalActive && bIsCriticalActive) {
+            const aIsEmergencyActive = String(a.id || '').toUpperCase().startsWith('SOS') && a.status !== 'solved';
+            const bIsEmergencyActive = String(b.id || '').toUpperCase().startsWith('SOS') && b.status !== 'solved';
+            if (aIsEmergencyActive && !bIsEmergencyActive) return -1;
+            if (bIsEmergencyActive && !aIsEmergencyActive) return 1;
+            if (aIsEmergencyActive && bIsEmergencyActive) {
                 if (a.status === 'open' && b.status === 'progress') return -1;
                 if (a.status === 'progress' && b.status === 'open') return 1;
             }
             return (b.reportedAt || 0) - (a.reportedAt || 0);
         });
-    }, [issues, query, categoryFilter, statusFilter, deptFilter, isDeptUser, department, deptViewMode, staffName, user, isAdmin, now]);
+    }, [issues, query, statusFilter, deptFilter, isDeptUser, department, deptViewMode, staffName, user, isAdmin, now]);
 
     const handleSelect = (issue) => {
         if (!issue) return;
@@ -970,7 +965,6 @@ function DashboardInner() {
             if (canViewAllDepartments || isAdmin) {
                 setDeptFilter('all');
             }
-            setCategoryFilter('all');
             setStatusFilter('all');
             setDeptViewMode('all');
             setQuery('');
@@ -1870,8 +1864,6 @@ function DashboardInner() {
                     <div className="hidden sm:flex items-center justify-start pt-0.5 w-full">
                         <div className="min-w-0 shrink">
                             <FilterChips
-                                categoryFilter={categoryFilter}
-                                onCategoryChange={setCategoryFilter}
                                 deptFilter={deptFilter}
                                 onDeptChange={setDeptFilter}
                             />
@@ -2129,7 +2121,7 @@ function DashboardInner() {
                     ) : (
                         <Settings className="h-5 w-5 stroke-[2.2] group-hover:rotate-45 transition-transform duration-300" />
                     )}
-                    {!isMobileDockOpen && ((categoryFilter && categoryFilter !== 'all') || (deptFilter && deptFilter !== 'all')) && (
+                    {!isMobileDockOpen && deptFilter && deptFilter !== 'all' && (
                         <span className="absolute top-2 right-2 w-2.5 h-2.5 rounded-full bg-amber-400 ring-2 ring-[#2A281E] shadow-xs animate-pulse" />
                     )}
                 </button>
@@ -2230,24 +2222,22 @@ function DashboardInner() {
                             </button>
                         </div>
 
-                        {/* Section 2: Filter Cepat (Kategori & Departemen) */}
+                        {/* Section 2: Filter Cepat (Departemen) */}
                         <div className="mt-2.5 pt-2 border-t border-[#3B3929]/80 space-y-1">
                             <div className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[#A19F8D] flex items-center justify-between">
-                                <span>{lang === 'id' ? 'Filter Isu' : 'Filter Issues'}</span>
-                                {((categoryFilter && categoryFilter !== 'all') || (deptFilter && deptFilter !== 'all')) && (
+                                <span>{lang === 'id' ? 'Filter Dept' : 'Filter Dept'}</span>
+                                {deptFilter && deptFilter !== 'all' && (
                                     <span className="text-[10px] font-bold text-amber-400">Aktif</span>
                                 )}
                             </div>
                             <div className="p-1 rounded-xl bg-black/25 flex items-center justify-between">
                                 <FilterChips
-                                    categoryFilter={categoryFilter}
-                                    onCategoryChange={setCategoryFilter}
                                     deptFilter={deptFilter}
                                     onDeptChange={setDeptFilter}
                                     isMobileToolbar={true}
                                 />
                                 <div className="text-[11px] text-[#A19F8D] font-medium pr-2 truncate max-w-[120px]">
-                                    {categoryFilter !== 'all' ? categoryFilter : (deptFilter !== 'all' ? deptFilter : (lang === 'id' ? 'Kategori & Dept' : 'Category & Dept'))}
+                                    {deptFilter !== 'all' ? deptFilter : (lang === 'id' ? 'Semua Dept' : 'All Dept')}
                                 </div>
                             </div>
                         </div>

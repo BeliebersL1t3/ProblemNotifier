@@ -1098,7 +1098,9 @@ class IssueController extends Controller
                 'title'       => 'required|string|max:255',
                 'description' => 'required|string',
                 'location'    => 'required|string|max:255',
-                'category'    => 'required|string',
+                'category'    => 'nullable|string',
+                'priority'    => 'nullable|string',
+                'deadline'    => 'nullable|string',
                 'department'  => 'required|string',
                 'assignedDepartments' => 'nullable|string',
                 'taggedDepartments'   => 'nullable|string',
@@ -1240,7 +1242,7 @@ class IssueController extends Controller
                 $request->title,
                 $formattedDesc,
                 $request->location,
-                $request->category,
+                $request->category ?? '',
                 'open',
                 $request->reporter,
                 $submittedAt,
@@ -1252,7 +1254,7 @@ class IssueController extends Controller
                 '', // fixDescription
                 '', // proofImageUrl
                 '', // durationLabel
-                $request->priority ?? 'low',
+                $request->priority ?? '',
                 $this->formatDeadlineToReadable($request->deadline ?? ''),
                 '', // 18 pendingReason
                 '', // 19 pendingBy
@@ -1267,7 +1269,7 @@ class IssueController extends Controller
 
             $rowIndex = $this->googleService->appendRow($newRow);
             if ($rowIndex) {
-                $this->googleService->colorRowByCategory($rowIndex, $request->category);
+                $this->googleService->colorRowByCategory($rowIndex, $request->category ?? 'other');
             }
 
             $resolvedImageUrl = $this->resolveImageUrl($imageUrl);
@@ -1331,13 +1333,13 @@ class IssueController extends Controller
                     ? "\n⏳ *Catatan:* Laporan susulan / terlambat terkirim (+{$lateDurationText} tertunda di antrean offline karena kehilangan sinyal Wi-Fi)" 
                     : "";
 
-                $catName = ucwords(str_replace('-', ' ', $request->category ?? 'General'));
+                $catLine = !empty($request->category) ? "*Category:* " . ucwords(str_replace('-', ' ', $request->category)) . "\n" : "";
                 $confidentialPrefix = $isConfidential ? "🔒 *[ISU PRIVASI / CONFIDENTIAL]*\n" : "";
 
                 $message = "{$confidentialPrefix}📋 *New Issue Submitted!*{$priorityStr}\n\n"
                     . "*Title:* {$request->title}\n"
                     . "*Location:* {$request->location}\n"
-                    . "*Category:* {$catName}\n"
+                    . "{$catLine}"
                     . "*Origin:* {$originName}"
                     . "{$assignedStr}"
                     . "{$taggedStr}\n"
@@ -2036,7 +2038,6 @@ class IssueController extends Controller
                 . "📌 *ID:* {$issueId}\n"
                 . "📋 *Judul:* {$issueTitle}\n"
                 . "📍 *Lokasi:* {$issueLocation}\n"
-                . "🏷️ *Kategori:* {$issueCategory}\n"
                 . "👤 *Admin Pengedit:* {$editorName}\n"
                 . "🔢 *Riwayat Editan:* Ke-{$nextEditNum} dari 2\n"
                 . "━━━━━━━━━━━━━━━━━━━━\n"

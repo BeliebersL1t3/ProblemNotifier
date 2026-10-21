@@ -27,7 +27,6 @@ import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/context/LanguageContext';
 import { useDepartmentScheduleConflicts } from '@/hooks/useDepartmentScheduleConflicts';
 import { DepartmentScheduleWarning } from './DepartmentScheduleWarning';
-import { InlineAnalogClockPicker } from './CircularTimePickerModal';
 
 export function ReportIssueModal({ open, onOpenChange }) {
     const { t, lang } = useLanguage();
@@ -38,12 +37,7 @@ export function ReportIssueModal({ open, onOpenChange }) {
     const [title, setTitle] = useState('');
     const [locMains, setLocMains] = useState([]);    // ['TPI', 'TBR', 'Kantor']
     const [locDetail, setLocDetail] = useState('');  // Optional specifics
-    const [category, setCategory] = useState('broken');
     const [description, setDescription] = useState('');
-    const [priority, setPriority] = useState('low');
-    const [deadline, setDeadline] = useState('15');
-    const [customDeadlineMs, setCustomDeadlineMs] = useState(null);
-    const [showTimePicker, setShowTimePicker] = useState(false);
     const [assignedDepts, setAssignedDepts] = useState([]);
     const [taggedDepts, setTaggedDepts] = useState([]);
     const [isConfidential, setIsConfidential] = useState(false);
@@ -107,9 +101,6 @@ export function ReportIssueModal({ open, onOpenChange }) {
                         setLocMains([d.locMain]);
                     }
                     if (d.locDetail) setLocDetail(d.locDetail);
-                    if (d.category) setCategory(d.category);
-                    if (d.priority) setPriority(d.priority);
-                    if (d.deadline) setDeadline(d.deadline);
                     if (d.originDept && !isDeptUser) setOriginDept(d.originDept);
                     if (d.reporter && !isDeptUser) setReporter(d.reporter);
                     if (Array.isArray(d.assignedDepts) && d.assignedDepts.length > 0) {
@@ -141,10 +132,7 @@ export function ReportIssueModal({ open, onOpenChange }) {
                 title,
                 locMains,
                 locDetail,
-                category,
                 description,
-                priority,
-                deadline,
                 assignedDepts,
                 taggedDepts,
                 isConfidential,
@@ -153,7 +141,7 @@ export function ReportIssueModal({ open, onOpenChange }) {
                 localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
             }
         } catch (e) {}
-    }, [open, originDept, reporter, title, locMains, locDetail, category, description, priority, deadline, assignedDepts, taggedDepts, isConfidential]);
+    }, [open, originDept, reporter, title, locMains, locDetail, description, assignedDepts, taggedDepts, isConfidential]);
 
     const clearDraft = () => {
         try {
@@ -194,12 +182,7 @@ export function ReportIssueModal({ open, onOpenChange }) {
         setTitle('');
         setLocMains([]);
         setLocDetail('');
-        setCategory('broken');
         setDescription('');
-        setPriority('low');
-        setDeadline('15');
-        setCustomDeadlineMs(null);
-        setShowTimePicker(false);
         setAssignedDepts([]);
         setTaggedDepts([]);
         setIsConfidential(false);
@@ -269,23 +252,18 @@ export function ReportIssueModal({ open, onOpenChange }) {
         setErrorMsg('');
 
         try {
-            let finalDeadline = '';
-            if (priority === 'critical') {
-                finalDeadline = (customDeadlineMs || (Date.now() + 15 * 60000)).toString();
-            }
-
             const res = await addIssue({
                 reporter: reporter.trim(),
                 title: title.trim(),
                 location: location.trim(),
-                category,
+                category: '',
                 department: originDept,
                 assignedDepartments: assignedDepts.join(', '),
                 taggedDepartments: taggedDepts.join(', '),
                 description: description.trim(),
                 imageFile,
-                priority,
-                deadline: finalDeadline,
+                priority: '',
+                deadline: '',
                 isConfidential,
             });
 
@@ -445,63 +423,37 @@ export function ReportIssueModal({ open, onOpenChange }) {
                             disabled={isSubmitting}
                         />
                     </div>
-                    <div className="grid gap-4 sm:grid-cols-2">
-                        <div className="grid gap-2">
-                            <Label>{t('location_label')} <span className="text-destructive">*</span></Label>
-                            {/* Main location quick-select */}
-                            <div className="flex gap-2">
-                                {MAIN_LOCATIONS.map(loc => {
-                                    const isSelected = locMains.includes(loc);
-                                    return (
-                                        <button
-                                            key={loc}
-                                            type="button"
-                                            disabled={isSubmitting}
-                                            onClick={() => setLocMains(prev => prev.includes(loc) ? prev.filter(l => l !== loc) : [...prev, loc])}
-                                            className={`flex-1 py-2 text-sm font-semibold rounded-lg border transition-colors cursor-pointer ${
-                                                isSelected
-                                                    ? 'bg-primary text-primary-foreground border-primary shadow-sm'
-                                                    : 'bg-surface text-muted-foreground border-border hover:border-primary/50'
-                                            }`}
-                                        >
-                                            {isSelected ? `✓ ${loc}` : loc}
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                            {/* Optional detail/specific location */}
-                            <Input
-                                id="location"
-                                value={locDetail}
-                                onChange={(e) => setLocDetail(e.target.value)}
-                                placeholder={locMains.length > 0 ? (lang === 'id' ? `Lebih spesifik di ${locMains.join(', ')}… (opsional)` : `More specific in ${locMains.join(', ')}… (optional)`) : t('location_placeholder')}
-                                disabled={isSubmitting}
-                            />
+                    <div className="grid gap-2">
+                        <Label>{t('location_label')} <span className="text-destructive">*</span></Label>
+                        {/* Main location quick-select */}
+                        <div className="flex gap-2">
+                            {MAIN_LOCATIONS.map(loc => {
+                                const isSelected = locMains.includes(loc);
+                                return (
+                                    <button
+                                        key={loc}
+                                        type="button"
+                                        disabled={isSubmitting}
+                                        onClick={() => setLocMains(prev => prev.includes(loc) ? prev.filter(l => l !== loc) : [...prev, loc])}
+                                        className={`flex-1 py-2 text-sm font-semibold rounded-lg border transition-colors cursor-pointer ${
+                                            isSelected
+                                                ? 'bg-primary text-primary-foreground border-primary shadow-sm'
+                                                : 'bg-surface text-muted-foreground border-border hover:border-primary/50'
+                                        }`}
+                                    >
+                                        {isSelected ? `✓ ${loc}` : loc}
+                                    </button>
+                                );
+                            })}
                         </div>
-                        <div className="grid gap-2">
-                            <Label htmlFor="category">{t('category_label')}</Label>
-                            <Select
-                                value={category}
-                                disabled={isSubmitting}
-                                onValueChange={setCategory}
-                            >
-                                <SelectTrigger id="category">
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="broken">{t('cat_broken')}</SelectItem>
-                                    <SelectItem value="plumbing">{t('cat_plumbing')}</SelectItem>
-                                    <SelectItem value="electrical">{t('cat_electrical')}</SelectItem>
-                                    <SelectItem value="structural">{t('cat_structural')}</SelectItem>
-                                    <SelectItem value="pest-hygiene">{t('cat_pest_hygiene')}</SelectItem>
-                                    <SelectItem value="it-technology">{t('cat_it_technology')}</SelectItem>
-                                    <SelectItem value="marine-outdoor">{t('cat_marine_outdoor')}</SelectItem>
-                                    <SelectItem value="safety-hazard">{t('cat_safety_hazard')}</SelectItem>
-                                    <SelectItem value="guest-issues">{t('cat_guest_issues')}</SelectItem>
-                                    <SelectItem value="other">{t('cat_other')}</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
+                        {/* Optional detail/specific location */}
+                        <Input
+                            id="location"
+                            value={locDetail}
+                            onChange={(e) => setLocDetail(e.target.value)}
+                            placeholder={locMains.length > 0 ? (lang === 'id' ? `Lebih spesifik di ${locMains.join(', ')}… (opsional)` : `More specific in ${locMains.join(', ')}… (optional)`) : t('location_placeholder')}
+                            disabled={isSubmitting}
+                        />
                     </div>
 
                     {/* Potential Duplicate Early Warning */}
@@ -658,31 +610,7 @@ export function ReportIssueModal({ open, onOpenChange }) {
                         </label>
                     </div>
 
-                    <div className="grid gap-2">
-                        <Label htmlFor="priority">{lang === 'id' ? 'Tingkat Prioritas' : 'Priority Level'}</Label>
-                        <Select value={priority} onValueChange={setPriority} disabled={isSubmitting}>
-                            <SelectTrigger id="priority">
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="low">{lang === 'id' ? 'Prioritas' : 'Priority'}</SelectItem>
-                                <SelectItem value="high">{lang === 'id' ? 'Prioritas Tinggi' : 'High Priority'}</SelectItem>
-                                <SelectItem value="critical">{lang === 'id' ? '🚨 Kritis' : '🚨 Critical'}</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
 
-                    {priority === 'critical' && (
-                        <div className="animate-in fade-in slide-in-from-top-2 duration-200">
-                            <InlineAnalogClockPicker
-                                valueMs={customDeadlineMs || (Date.now() + 15 * 60000)}
-                                onChange={(ms) => {
-                                    setCustomDeadlineMs(ms);
-                                }}
-                                lang={lang}
-                            />
-                        </div>
-                    )}
 
                     <div className="grid gap-2">
                         <Label htmlFor="description">{t('problem_description_label')}</Label>

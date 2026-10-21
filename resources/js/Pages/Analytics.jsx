@@ -132,77 +132,6 @@ const COLORS = [
     '#7c3aed', '#0891b2', '#dc2626', '#db2777', '#94a3b8'
 ];
 
-const CATEGORY_COLORS = {
-    'emergency': '#EF4444',      // Vivid Crimson Red — Emergency
-    'broken': '#F97316',         // Warm Orange — Broken Equipment
-    'plumbing': '#3B82F6',       // Blue — Plumbing
-    'electrical': '#F59E0B',     // Amber/Gold — Electrical
-    'structural': '#D97706',     // Warm Bronze/Orange — Structural / Building
-    'pest-hygiene': '#10B981',   // Emerald Green — Pest & Hygiene
-    'it-technology': '#8B5CF6',  // Violet — IT & Technology
-    'marine-outdoor': '#06B6D4', // Ocean Cyan — Marine & Outdoor
-    'safety-hazard': '#DC2626',  // Deep Crimson — Safety Hazard
-    'guest-issues': '#EC4899',   // Rose Pink — Guest Issues
-    'other': '#6B7280',          // Slate Gray — Other
-};
-
-const CATEGORY_ICONS = {
-    'emergency': AlertTriangle,
-    'broken': Wrench,
-    'plumbing': Droplets,
-    'electrical': Zap,
-    'structural': Building2,
-    'pest-hygiene': Bug,
-    'it-technology': Laptop,
-    'marine-outdoor': Anchor,
-    'safety-hazard': ShieldAlert,
-    'guest-issues': User,
-    'other': HelpCircle,
-};
-
-const getCategoryColor = (catId, index) => {
-    const key = (catId || '').toLowerCase().trim();
-    if (key === 'emergency' || key.includes('emergency')) {
-        return '#EF4444'; // Red for Emergency
-    }
-    if (CATEGORY_COLORS[key]) {
-        return CATEGORY_COLORS[key];
-    }
-    if (CATEGORY_COLORS[catId]) {
-        return CATEGORY_COLORS[catId];
-    }
-    return COLORS[index % COLORS.length];
-};
-
-const CustomCategoryPieLabel = (props) => {
-    const { cx, cy, midAngle, innerRadius, outerRadius, percent, payload } = props;
-    if (!percent || percent < 0.03) return null;
-
-    const RADIAN = Math.PI / 180;
-    const radius = innerRadius + (outerRadius - innerRadius) * 0.55;
-    const x = cx + radius * Math.cos(-midAngle * RADIAN);
-    const y = cy + radius * Math.sin(-midAngle * RADIAN);
-
-    const catId = (payload?.id || 'other').toLowerCase().trim();
-    const IconComponent = CATEGORY_ICONS[catId] || HelpCircle;
-    const iconSize = Math.min(Math.max((outerRadius - innerRadius) * 0.55, 14), 22);
-
-    return (
-        <g 
-            transform={`translate(${x}, ${y}) rotate(-30)`}
-            style={{ pointerEvents: 'none' }}
-        >
-            <g transform={`translate(${-iconSize / 2}, ${-iconSize / 2})`}>
-                <IconComponent 
-                    size={iconSize} 
-                    color="#FFFFFF" 
-                    opacity={0.45} 
-                    strokeWidth={2.2} 
-                />
-            </g>
-        </g>
-    );
-};
 
 const CustomDepartmentBar = (props) => {
     const { x, y, width, height, payload, index, selectedDepartmentFilters = [] } = props;
@@ -418,7 +347,6 @@ function AnalyticsInner() {
         setCardModalTarget(issue);
     };
     const [selectedStatusFilters, setSelectedStatusFilters] = useState([]);
-    const [selectedPriorityFilters, setSelectedPriorityFilters] = useState([]);
     const [showArchivedInTimeline, setShowArchivedInTimeline] = useState(false);
     // Department filter: empty by default so it shows all issues within the user's scope
     const [selectedDepartmentFilters, setSelectedDepartmentFilters] = useState([]);
@@ -442,7 +370,6 @@ function AnalyticsInner() {
             localStorage.setItem('telunas_dept_chart_color_mode_v2', mode);
         }
     };
-    const [selectedCategoryFilters, setSelectedCategoryFilters] = useState([]);
     const [showDetailedFilters, setShowDetailedFilters] = useState(false);
     const timelineRef = useRef(null);
     const chartsContainerRef = useRef(null);
@@ -450,19 +377,7 @@ function AnalyticsInner() {
     const [chartsVisible, setChartsVisible] = useState(true);
     const prevTimelineHash = useRef('');
 
-    const activeDetailedFilterCount = selectedDepartmentFilters.length + selectedCategoryFilters.length + selectedPriorityFilters.length;
-
-    // Interactive Chart Click Handlers
-    const handleCategoryPieClick = (entry) => {
-        const catId = entry?.id || entry?.payload?.id;
-        if (!catId) return;
-        setSelectedCategoryFilters(prev => {
-            const lower = catId.toLowerCase();
-            const exists = prev.some(c => c.toLowerCase() !== lower);
-            return exists ? prev.filter(c => c.toLowerCase() !== lower) : [...prev, catId];
-        });
-        recentActivityRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    };
+    const activeDetailedFilterCount = selectedDepartmentFilters.length;
 
     const handleDepartmentBarClick = (entry) => {
         const deptName = entry?.name || entry?.payload?.name;
@@ -480,15 +395,8 @@ function AnalyticsInner() {
         const list = timeFilteredIssues || [];
         const currentDisplayList = list;
 
-        const isEmergency = (i) => (i.category || '').toLowerCase() === 'emergency' || String(i.id || '').startsWith('SOS');
-        const isCritical = (i) => i.priority === 'critical' && !isEmergency(i);
-        const isHigh = (i) => i.priority === 'high' && !isEmergency(i);
-        const isStandard = (i) => !isEmergency(i) && !isCritical(i) && !isHigh(i);
-
+        const isEmergency = (i) => String(i.id || '').toUpperCase().startsWith('SOS') || (i.category || '').toLowerCase() === 'emergency';
         const emergencyList = currentDisplayList.filter(isEmergency);
-        const criticalList = currentDisplayList.filter(isCritical);
-        const highList = currentDisplayList.filter(isHigh);
-        const standardList = currentDisplayList.filter(isStandard);
 
         return {
             total: currentDisplayList.length,
@@ -497,10 +405,6 @@ function AnalyticsInner() {
             pending: currentDisplayList.filter(i => i.status === 'pending').length,
             solved: currentDisplayList.filter(i => i.status === 'solved').length,
             archived: 0,
-            criticalCount: criticalList.length,
-            criticalActive: criticalList.filter(i => i.status !== 'solved').length,
-            highCount: highList.length,
-            standardCount: standardList.length,
             emergencyTotal: emergencyList.length,
             emergencyActive: emergencyList.filter(i => i.status !== 'solved').length,
             emergencySolved: emergencyList.filter(i => i.status === 'solved').length,
@@ -561,19 +465,6 @@ function AnalyticsInner() {
             activeAccent: 'bg-status-solved/30 text-status-solved',
         },
         {
-            key: 'critical',
-            status: 'critical',
-            label: lang === 'id' ? 'Prioritas Kritis' : 'Critical Priority',
-            value: analyticsStats.criticalCount,
-            badge: analyticsStats.criticalActive > 0 
-                ? (lang === 'id' ? `${analyticsStats.criticalActive} aktif` : `${analyticsStats.criticalActive} active`)
-                : null,
-            Icon: AlertTriangle,
-            accent: 'bg-amber-500/15 text-amber-400',
-            activeRing: 'ring-amber-500 border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.35)]',
-            activeAccent: 'bg-amber-500/30 text-amber-400',
-        },
-        {
             key: 'emergency',
             status: 'emergency',
             label: lang === 'id' ? 'Insiden Darurat' : 'Emergency SOS',
@@ -619,26 +510,6 @@ function AnalyticsInner() {
         return () => observer.disconnect();
     }, []);
 
-    // Chart Data Precomputation
-    const categoryData = useMemo(() => {
-        if (!timeFilteredIssues || timeFilteredIssues.length === 0) return [];
-        const counts = {};
-        timeFilteredIssues.filter(i => !i.isArchived).forEach(issue => {
-            const cat = (issue.category || 'other').toLowerCase().trim();
-            counts[cat] = (counts[cat] || 0) + 1;
-        });
-
-        return Object.keys(counts)
-            .map(catKey => {
-                const def = DEFAULT_CATEGORIES.find(c => c.id.toLowerCase() === catKey);
-                let name = def ? def.label : (catKey.charAt(0).toUpperCase() + catKey.slice(1));
-                if (catKey === 'emergency') {
-                    name = 'Emergency';
-                }
-                return { id: catKey, name, value: counts[catKey] };
-            })
-            .sort((a, b) => b.value - a.value);
-    }, [timeFilteredIssues]);
 
     const departmentData = useMemo(() => {
         if (!timeFilteredIssues || timeFilteredIssues.length === 0) return [];
@@ -1479,10 +1350,9 @@ function AnalyticsInner() {
             'edit': 'edit'
         };
         
-        // Setup deduplication tracking when critical or emergency urgency filters are applied
-        const isCriticalFilterActive = selectedStatusFilters.includes('critical') || selectedPriorityFilters.includes('critical');
+        // Setup deduplication tracking when emergency urgency filter is applied
         const isEmergencyFilterActive = selectedStatusFilters.includes('emergency');
-        const shouldDeduplicateByIssue = isCriticalFilterActive || isEmergencyFilterActive;
+        const shouldDeduplicateByIssue = isEmergencyFilterActive;
         const seenIssueIds = new Set();
 
         const filtered = events.filter(ev => {
@@ -1501,8 +1371,7 @@ function AnalyticsInner() {
             }
 
             const currentStatus = (ev.originalIssue?.status || 'open').toLowerCase();
-            const isEmergencyIssue = (ev.originalIssue?.category || '').toLowerCase() === 'emergency' || String(ev.issueId || '').startsWith('SOS');
-            const isCriticalIssue = !isEmergencyIssue && ev.originalIssue?.priority === 'critical';
+            const isEmergencyIssue = String(ev.issueId || '').toUpperCase().startsWith('SOS') || (ev.originalIssue?.category || '').toLowerCase() === 'emergency';
 
             const statusToAllowedEventTypes = {
                 solved: ['solve'],
@@ -1516,43 +1385,23 @@ function AnalyticsInner() {
             const isCurrentStatusEvent = allowedTypes.includes(ev.type) || 
                 (ev.type === 'revert' && String(ev.statusChange || '').toLowerCase().includes(currentStatus));
 
-            // 1. Combinable Status & Priority Filters (matches current status of the issue)
+            // 1. Status Filter (matches current status of the issue)
             if (selectedStatusFilters.length > 0) {
-                const isCriticalSelected = selectedStatusFilters.includes('critical');
                 const isEmergencySelected = selectedStatusFilters.includes('emergency');
-                const selectedStatuses = selectedStatusFilters.filter(f => f !== 'critical' && f !== 'emergency');
+                const selectedStatuses = selectedStatusFilters.filter(f => f !== 'emergency');
 
-                if (isCriticalSelected || isEmergencySelected) {
-                    const isTargetUrgencyIssue = (isCriticalSelected && isCriticalIssue) || (isEmergencySelected && isEmergencyIssue);
-                    if (!isTargetUrgencyIssue) return false;
+                if (isEmergencySelected) {
+                    if (!isEmergencyIssue) return false;
 
                     // Strictly show only the current status event (hide past edits, old created logs, etc.)
                     if (!isCurrentStatusEvent) return false;
 
-                    // If combined with other status filters (e.g. Critical + Solved), must also match that status
+                    // If combined with other status filters (e.g. SOS + Solved), must also match that status
                     if (selectedStatuses.length > 0 && !selectedStatuses.includes(currentStatus)) return false;
                 } else if (selectedStatuses.length > 0) {
                     // Regular status filters (open, progress, pending, solved)
                     const isStatusMatch = selectedStatuses.includes(currentStatus);
                     if (!isStatusMatch || !isCurrentStatusEvent) return false;
-                }
-            }
-
-            // 1b. Combinable Priority Filters (standard | high | critical)
-            if (selectedPriorityFilters.length > 0) {
-                const rawPriority = (ev.originalIssue?.priority || '').toLowerCase();
-                let issuePriorityKey = 'standard';
-                if (!isEmergencyIssue && rawPriority === 'critical') issuePriorityKey = 'critical';
-                else if (!isEmergencyIssue && rawPriority === 'high') issuePriorityKey = 'high';
-                else issuePriorityKey = 'standard';
-
-                if (!selectedPriorityFilters.includes(issuePriorityKey)) {
-                    return false;
-                }
-
-                // If user filtered by critical in priority dropdown, also strictly show only current status event
-                if (selectedPriorityFilters.includes('critical') && isCriticalIssue && !isCurrentStatusEvent) {
-                    return false;
                 }
             }
 
@@ -1583,18 +1432,8 @@ function AnalyticsInner() {
                 if (!matchesDept) return false;
             }
 
-            // 3. Combinable Category Filters
-            if (selectedCategoryFilters.length > 0) {
-                const issueCat = (ev.originalIssue?.category || 'other').toLowerCase().trim();
-                const matchesCat = selectedCategoryFilters.some(selCat => {
-                    return issueCat === selCat.toLowerCase().trim();
-                });
-
-                if (!matchesCat) return false;
-            }
-
-            // If critical or emergency filter is active, guarantee exactly 1 entry per issue showing its latest status event
-            if (shouldDeduplicateByIssue && (isCriticalIssue || isEmergencyIssue)) {
+            // If emergency filter is active, guarantee exactly 1 entry per issue showing its latest status event
+            if (shouldDeduplicateByIssue && isEmergencyIssue) {
                 if (seenIssueIds.has(ev.issueId)) {
                     return false;
                 }
@@ -1605,7 +1444,7 @@ function AnalyticsInner() {
         });
 
         return timelineLimit === 'all' ? filtered : filtered.slice(0, timelineLimit);
-    }, [timeFilteredIssues, timelineLimit, searchQuery, selectedStatusFilters, selectedPriorityFilters, selectedDepartmentFilters, deptFilterMode, selectedCategoryFilters, showArchivedInTimeline]);
+    }, [timeFilteredIssues, timelineLimit, searchQuery, selectedStatusFilters, selectedDepartmentFilters, deptFilterMode, showArchivedInTimeline]);
 
     // Scroll-Linked Animation for Timeline Items
     useEffect(() => {
@@ -2177,140 +2016,8 @@ function AnalyticsInner() {
                     </div>
                 </div>
 
-                {/* Charts Section: Vertical Stack (Category Chart Top, Department Chart Bottom) */}
+                {/* Charts Section: Department Distribution Chart */}
                 <div ref={chartsContainerRef} className="flex flex-col gap-6">
-                    {/* Category Chart (Full-width with Split Donut + Interactive Legend) */}
-                    <div className="chart-card bg-surface p-5 sm:p-6 rounded-2xl shadow-sm border border-border/50 flex flex-col">
-                        <div className="flex items-center justify-between w-full mb-1 flex-wrap gap-2">
-                            <div>
-                                <h2 className="text-lg font-bold text-foreground">{t('issues_by_category')}</h2>
-                                <p className="text-xs text-muted-foreground mt-0.5">
-                                    {lang === 'id' 
-                                        ? 'Klik bagian lingkaran atau daftar kategori di samping untuk menyaring aktivitas laporan' 
-                                        : 'Click pie slice or category card to filter activity log'}
-                                </p>
-                            </div>
-                            {selectedCategoryFilters.length > 0 && (
-                                <button
-                                    type="button"
-                                    onClick={() => setSelectedCategoryFilters([])}
-                                    className="text-xs font-semibold text-[#C9AA71] hover:underline cursor-pointer bg-[#2A281E] px-2.5 py-1 rounded-lg border border-[#3B3929] transition-all"
-                                >
-                                    ✕ {lang === 'id' ? 'Reset Kategori' : 'Reset Category'}
-                                </button>
-                            )}
-                        </div>
-
-                        {categoryData.length > 0 ? (
-                            <div className="flex flex-col lg:flex-row items-center justify-between gap-6 lg:gap-10 pt-3">
-                                {/* Left: Donut Chart */}
-                                <div className="relative w-full lg:w-[320px] h-[260px] sm:h-[280px] shrink-0 flex items-center justify-center">
-                                    {chartsVisible && (
-                                        <>
-                                            <ResponsiveContainer width="100%" height="100%">
-                                                <PieChart>
-                                                    <Pie
-                                                        data={categoryData}
-                                                        cx="50%"
-                                                        cy="50%"
-                                                        innerRadius={65}
-                                                        outerRadius={108}
-                                                        paddingAngle={3}
-                                                        dataKey="value"
-                                                        labelLine={false}
-                                                        label={<CustomCategoryPieLabel />}
-                                                        isAnimationActive={true}
-                                                        onClick={(entry) => handleCategoryPieClick(entry)}
-                                                        cursor="pointer"
-                                                    >
-                                                        {categoryData.map((entry, index) => {
-                                                            const isSelected = selectedCategoryFilters.some(c => c.toLowerCase() === entry.id.toLowerCase());
-                                                            return (
-                                                                <Cell 
-                                                                    key={`cell-${index}`} 
-                                                                    fill={getCategoryColor(entry.id, index)}
-                                                                    stroke={isSelected ? '#F59E0B' : '#1C1B0E'}
-                                                                    strokeWidth={isSelected ? 3.5 : 1}
-                                                                    opacity={selectedCategoryFilters.length > 0 ? (isSelected ? 1 : 0.35) : 1}
-                                                                    style={{ cursor: 'pointer', transition: 'all 0.2s ease' }}
-                                                                />
-                                                            );
-                                                        })}
-                                                    </Pie>
-                                                    <RechartsTooltip 
-                                                        contentStyle={{ 
-                                                            backgroundColor: '#2A281E', 
-                                                            borderColor: '#3B3929', 
-                                                            borderRadius: '10px', 
-                                                            color: '#FAFAFA',
-                                                            boxShadow: '0 6px 20px rgba(0, 0, 0, 0.45)',
-                                                            padding: '8px 12px' 
-                                                        }}
-                                                        itemStyle={{ color: '#FAFAFA', fontWeight: 'bold' }}
-                                                        labelStyle={{ color: '#C9AA71', fontWeight: 'bold' }}
-                                                        formatter={(value, name) => [`${value} issue${value !== 1 ? 's' : ''}`, name]}
-                                                    />
-                                                </PieChart>
-                                            </ResponsiveContainer>
-
-                                            {/* Center Hole Summary */}
-                                            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                                                <span className="text-3xl font-black text-foreground tracking-tight">
-                                                    {categoryData.reduce((acc, curr) => acc + curr.value, 0)}
-                                                </span>
-                                                <span className="text-[10px] font-extrabold text-muted-foreground uppercase tracking-widest mt-0.5">
-                                                    {t('total_issues')}
-                                                </span>
-                                            </div>
-                                        </>
-                                    )}
-                                </div>
-
-                                {/* Right: Interactive Category Breakdown Grid */}
-                                <div className="w-full flex-1 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2.5">
-                                    {categoryData.map((cat, idx) => {
-                                        const totalCatIssues = categoryData.reduce((acc, curr) => acc + curr.value, 0);
-                                        const pct = totalCatIssues > 0 ? Math.round((cat.value / totalCatIssues) * 100) : 0;
-                                        const isSelected = selectedCategoryFilters.some(c => c.toLowerCase() === cat.id.toLowerCase());
-                                        const catColor = getCategoryColor(cat.id, idx);
-
-                                        return (
-                                            <button
-                                                key={cat.id}
-                                                type="button"
-                                                onClick={() => handleCategoryPieClick(cat)}
-                                                className={`flex items-center justify-between p-2.5 rounded-xl border transition-all text-left cursor-pointer select-none ${
-                                                    isSelected
-                                                        ? 'bg-[#2A281E] border-[#C9AA71] ring-2 ring-[#C9AA71]/40 shadow-md'
-                                                        : 'bg-[#232118] border-[#3B3929] hover:border-[#5A5540] hover:bg-[#28261C]'
-                                                } ${selectedCategoryFilters.length > 0 && !isSelected ? 'opacity-40' : 'opacity-100'}`}
-                                            >
-                                                <div className="flex items-center gap-2.5 min-w-0 pr-2">
-                                                    <span 
-                                                        className="w-3 h-3 rounded-full shrink-0 shadow-xs" 
-                                                        style={{ backgroundColor: catColor }} 
-                                                    />
-                                                    <span className="font-semibold text-xs text-foreground truncate" title={cat.name}>
-                                                        {cat.name}
-                                                    </span>
-                                                </div>
-                                                <div className="flex items-center gap-1.5 shrink-0">
-                                                    <span className="font-mono font-bold text-xs text-[#FAFAFA] bg-[#1C1B0E] px-2 py-0.5 rounded border border-[#3B3929]">
-                                                        {cat.value}
-                                                    </span>
-                                                    <span className="text-[10.5px] text-muted-foreground font-mono w-9 text-right">
-                                                        {pct}%
-                                                    </span>
-                                                </div>
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                        ) : (
-                            <div className="flex h-48 items-center justify-center text-muted-foreground">{t('no_data')}</div>
-                        )}
-                    </div>
 
                     {/* Department Chart (Full Width at Bottom) */}
                     <div className="chart-card bg-surface p-5 sm:p-6 rounded-2xl shadow-sm border border-border/50 flex flex-col">
@@ -2803,7 +2510,7 @@ function AnalyticsInner() {
                                 }`}
                             >
                                 <SlidersHorizontal className="h-3.5 w-3.5" />
-                                <span>{lang === 'id' ? 'Filter Dept & Kategori' : 'Dept & Category Filters'}</span>
+                                <span>{lang === 'id' ? 'Filter Departemen' : 'Department Filter'}</span>
                                 {activeDetailedFilterCount > 0 && (
                                     <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono font-black bg-[#1C1B0E] text-[#C9AA71]">
                                         {activeDetailedFilterCount}
@@ -2833,8 +2540,8 @@ function AnalyticsInner() {
                         </div>
                     </div>
 
-                    {/* Mini 7-Card Status & Priority Filter Bar (Separating Critical & Emergency) */}
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-2.5 w-full">
+                    {/* Mini 6-Card Status Filter Bar */}
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2.5 w-full">
                         {analyticsCards.map(({ key, status, label, value, badge, Icon, accent, activeRing, activeAccent }) => {
                             const isActive = (status === 'all' && selectedStatusFilters.length === 0) || 
                                              (status !== 'all' && selectedStatusFilters.includes(status));
@@ -2884,30 +2591,13 @@ function AnalyticsInner() {
                         })}
                     </div>
 
-                    {/* Active Filters Bar (Category / Department / Priority / Status / Search / Archive) */}
-                    {(selectedCategoryFilters.length > 0 || selectedDepartmentFilters.length > 0 || selectedPriorityFilters.length > 0 || selectedStatusFilters.length > 0 || showArchivedInTimeline || searchQuery.trim()) && (
+                    {/* Active Filters Bar (Department / Status / Search / Archive) */}
+                    {(selectedDepartmentFilters.length > 0 || selectedStatusFilters.length > 0 || showArchivedInTimeline || searchQuery.trim()) && (
                         <div className="flex items-center gap-2 flex-wrap bg-[#1E1D16] p-2.5 rounded-xl border border-[#3B3929]/70 text-xs">
                             <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
                                 <Tag className="w-3.5 h-3.5 text-[#C9AA71]" />
                                 {lang === 'id' ? 'Filter Aktif:' : 'Active Filters:'}
                             </span>
-
-                            {selectedCategoryFilters.map(cat => {
-                                const catDef = DEFAULT_CATEGORIES.find(c => c.id.toLowerCase() === cat.toLowerCase());
-                                const catLabel = catDef ? (t(catDef.id) || catDef.label) : (cat.toLowerCase() === 'emergency' ? (lang === 'id' ? 'DARURAT' : 'EMERGENCY') : cat);
-                                return (
-                                    <span key={cat} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                                        <span>🏷️ {catLabel}</span>
-                                        <button 
-                                            type="button" 
-                                            onClick={() => setSelectedCategoryFilters(prev => prev.filter(c => c !== cat))}
-                                            className="hover:text-white cursor-pointer ml-0.5"
-                                        >
-                                            ✕
-                                        </button>
-                                    </span>
-                                );
-                            })}
 
                             {selectedDepartmentFilters.map(dept => {
                                 let modePrefix = lang === 'id' ? 'Ditugaskan' : 'Assigned';
@@ -2951,112 +2641,10 @@ function AnalyticsInner() {
                                 );
                             })}
 
-                            {selectedPriorityFilters.map(pId => {
-                                const priorityLabels = {
-                                    standard: lang === 'id' ? 'Prioritas Normal' : 'Standard Priority',
-                                    high: lang === 'id' ? 'Prioritas Tinggi' : 'High Priority',
-                                    critical: lang === 'id' ? 'Prioritas Kritis' : 'Critical Priority',
-                                };
-                                const pColors = {
-                                    standard: { bg: 'bg-emerald-500/20', text: 'text-emerald-300', border: 'border-emerald-500/30', dot: '#10B981' },
-                                    high: { bg: 'bg-amber-500/20', text: 'text-amber-300', border: 'border-amber-500/30', dot: '#F59E0B' },
-                                    critical: { bg: 'bg-red-500/25', text: 'text-red-300', border: 'border-red-500/40 ring-1 ring-red-500/30', dot: '#EF4444' },
-                                };
-                                const pTheme = pColors[pId] || { bg: 'bg-zinc-500/20', text: 'text-zinc-300', border: 'border-zinc-500/30', dot: '#9CA3AF' };
-                                const pLabel = priorityLabels[pId] || pId;
-
-                                return (
-                                    <span 
-                                        key={pId} 
-                                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold border ${pTheme.bg} ${pTheme.text} ${pTheme.border}`}
-                                    >
-                                        <span 
-                                            className="h-2 w-2 rounded-full shrink-0" 
-                                            style={{ backgroundColor: pTheme.dot }} 
-                                        />
-                                        <span>⚡ {pLabel}</span>
-                                        <button 
-                                            type="button" 
-                                            onClick={() => setSelectedPriorityFilters(prev => prev.filter(x => x !== pId))}
-                                            className="hover:text-white cursor-pointer ml-0.5"
-                                            title={lang === 'id' ? 'Hapus filter prioritas' : 'Remove priority filter'}
-                                        >
-                                            ✕
-                                        </button>
-                                    </span>
-                                );
-                            })}
-
-                            {selectedStatusFilters.map(st => {
-                                const statusLabels = {
-                                    open: t('needs_fixing') || (lang === 'id' ? 'Perlu Perbaikan' : 'Needs Fixing'),
-                                    progress: t('in_progress') || (lang === 'id' ? 'Dalam Proses' : 'In Progress'),
-                                    pending: t('pending') || (lang === 'id' ? 'Tertunda' : 'Pending'),
-                                    solved: t('resolved') || (lang === 'id' ? 'Terselesaikan' : 'Resolved'),
-                                    critical: lang === 'id' ? 'Prioritas Kritis' : 'Critical Priority',
-                                    emergency: lang === 'id' ? 'Insiden Darurat' : 'Emergency SOS',
-                                    archived: lang === 'id' ? 'Diarsipkan' : 'Archived',
-                                };
-                                const stLabel = statusLabels[st] || st;
-
-                                return (
-                                    <span 
-                                        key={st} 
-                                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold border ${
-                                            st === 'emergency'
-                                                ? 'bg-red-500/25 text-red-300 border-red-500/40 ring-1 ring-red-500/30'
-                                                : st === 'critical'
-                                                    ? 'bg-amber-500/25 text-amber-300 border-amber-500/40 ring-1 ring-amber-500/30'
-                                                    : st === 'archived'
-                                                        ? 'bg-rose-500/25 text-rose-300 border-rose-500/40 ring-1 ring-rose-500/30'
-                                                        : 'bg-green-500/20 text-green-300 border-green-500/30'
-                                        }`}
-                                    >
-                                        <span>{st === 'archived' ? '📦' : st === 'emergency' ? '🚨' : st === 'critical' ? '⚡' : '✓'} {stLabel}</span>
-                                        <button 
-                                            type="button" 
-                                            onClick={() => setSelectedStatusFilters(prev => prev.filter(s => s !== st))}
-                                            className="hover:text-white cursor-pointer ml-0.5"
-                                        >
-                                            ✕
-                                        </button>
-                                    </span>
-                                );
-                            })}
-
-                            {showArchivedInTimeline && (
-                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold bg-rose-500/25 text-rose-300 border border-rose-500/40 ring-1 ring-rose-500/30">
-                                    <span>📦 {lang === 'id' ? `Termasuk Arsip (${analyticsStats.archived})` : `Includes Archived (${analyticsStats.archived})`}</span>
-                                    <button 
-                                        type="button" 
-                                        onClick={() => setShowArchivedInTimeline(false)}
-                                        className="hover:text-white cursor-pointer ml-0.5"
-                                        title={lang === 'id' ? 'Sembunyikan arsip' : 'Hide archived'}
-                                    >
-                                        ✕
-                                    </button>
-                                </span>
-                            )}
-
-                            {searchQuery.trim() && (
-                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30">
-                                    <span>🔍 "{searchQuery}"</span>
-                                    <button 
-                                        type="button" 
-                                        onClick={() => setSearchQuery('')}
-                                        className="hover:text-white cursor-pointer"
-                                    >
-                                        ✕
-                                    </button>
-                                </span>
-                            )}
-
                             <button
                                 type="button"
                                 onClick={() => {
-                                    setSelectedCategoryFilters([]);
                                     setSelectedDepartmentFilters([]);
-                                    setSelectedPriorityFilters([]);
                                     setSelectedStatusFilters([]);
                                     setShowArchivedInTimeline(false);
                                     setSearchQuery('');
@@ -3068,14 +2656,14 @@ function AnalyticsInner() {
                         </div>
                     )}
 
-                    {/* Collapsible Dropdown Drawer for Detailed Department & Category Filters */}
+                    {/* Collapsible Dropdown Drawer for Detailed Department Filters */}
                     {showDetailedFilters && (
                         <div className="flex flex-col gap-3 p-3.5 sm:p-4.5 rounded-2xl bg-[#14130B]/95 border border-[#3B3929] shadow-lg animate-in fade-in slide-in-from-top-2 duration-200">
                             {/* Drawer Header */}
                             <div className="flex items-center justify-between pb-2 border-b border-[#3B3929]/50 text-xs">
                                 <span className="font-bold text-[#E3D1AA] flex items-center gap-2">
                                     <Filter className="w-3.5 h-3.5 text-[#C9AA71]" />
-                                    {lang === 'id' ? 'Pilihan Filter Lanjutan (Departemen & Kategori)' : 'Advanced Filters (Department & Category)'}
+                                    {lang === 'id' ? 'Pilihan Filter Lanjutan (Departemen)' : 'Advanced Filters (Department)'}
                                 </span>
                                 <button
                                     type="button"
@@ -3208,120 +2796,6 @@ function AnalyticsInner() {
                                     )}
                                 </div>
                             </div>
-
-                            {/* Combinable Category Filter Pills for Timeline Activity */}
-                            <div className="flex items-center gap-1.5 text-xs flex-wrap bg-[#1E1D16] p-2 rounded-xl border border-[#3B3929]/80 shadow-inner">
-                                <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider px-2 shrink-0 flex items-center gap-1.5">
-                                    <Tag className="h-3.5 w-3.5 text-[#C9AA71]" />
-                                    {t('category')}:
-                                </span>
-
-                                <button
-                                    type="button"
-                                    onClick={() => setSelectedCategoryFilters([])}
-                                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all duration-200 cursor-pointer border ${
-                                        selectedCategoryFilters.length === 0
-                                            ? 'bg-[#C9AA71] text-[#1C1B0E] border-[#C9AA71] font-extrabold shadow-sm'
-                                            : 'bg-[#2A281E]/60 text-muted-foreground border-transparent hover:border-[#3B3929] hover:text-foreground opacity-70 hover:opacity-100'
-                                    }`}
-                                >
-                                    {t('all_categories')}
-                                </button>
-
-                                {DEFAULT_CATEGORIES.map(cat => {
-                                    const isSelected = selectedCategoryFilters.includes(cat.id);
-                                    const catColor = CATEGORY_COLORS[cat.id] || '#6B7280';
-                                    return (
-                                        <button
-                                            key={cat.id}
-                                            type="button"
-                                            onClick={() => {
-                                                setSelectedCategoryFilters(prev => 
-                                                    prev.includes(cat.id) ? prev.filter(c => c !== cat.id) : [...prev, cat.id]
-                                                );
-                                            }}
-                                            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all duration-200 cursor-pointer border ${
-                                                isSelected
-                                                    ? 'bg-primary/25 text-[#C9AA71] border-[#C9AA71]/80 shadow-sm font-bold ring-1 ring-[#C9AA71]/40'
-                                                    : 'bg-[#2A281E]/60 text-muted-foreground border-transparent hover:border-[#3B3929] hover:text-foreground opacity-60 hover:opacity-100'
-                                            }`}
-                                        >
-                                            <span 
-                                                className="h-2 w-2 rounded-full shrink-0" 
-                                                style={{ backgroundColor: catColor }}
-                                            />
-                                            <span>{t(cat.id) || cat.label}</span>
-                                        </button>
-                                    );
-                                })}
-
-                                {selectedCategoryFilters.length > 0 && (
-                                    <button
-                                        type="button"
-                                        onClick={() => setSelectedCategoryFilters([])}
-                                        className="text-[11px] font-semibold text-[#C9AA71] hover:text-[#FAFAFA] px-2 py-1 rounded hover:bg-[#2A281E] transition-colors ml-1 cursor-pointer"
-                                    >
-                                        ✕ {t('reset_category')}
-                                    </button>
-                                )}
-                            </div>
-
-                            {/* Combinable Priority Filter Pills for Timeline Activity */}
-                            <div className="flex items-center gap-1.5 text-xs flex-wrap bg-[#1E1D16] p-2 rounded-xl border border-[#3B3929]/80 shadow-inner">
-                                <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider px-2 shrink-0 flex items-center gap-1.5">
-                                    <AlertTriangle className="h-3.5 w-3.5 text-[#C9AA71]" />
-                                    {lang === 'id' ? 'Prioritas:' : 'Priority:'}
-                                </span>
-
-                                <button
-                                    type="button"
-                                    onClick={() => setSelectedPriorityFilters([])}
-                                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all duration-200 cursor-pointer border ${
-                                        selectedPriorityFilters.length === 0
-                                            ? 'bg-[#C9AA71] text-[#1C1B0E] border-[#C9AA71] font-extrabold shadow-sm'
-                                            : 'bg-[#2A281E]/60 text-muted-foreground border-transparent hover:border-[#3B3929] hover:text-foreground opacity-70 hover:opacity-100'
-                                    }`}
-                                >
-                                    {lang === 'id' ? 'Semua Prioritas' : 'All Priorities'}
-                                </button>
-
-                                {[
-                                    { id: 'standard', label: lang === 'id' ? 'Prioritas' : 'Priority', color: '#10B981', count: analyticsStats.standardCount },
-                                    { id: 'high', label: lang === 'id' ? 'Prioritas Tinggi' : 'High Priority', color: '#F59E0B', count: analyticsStats.highCount },
-                                    { id: 'critical', label: lang === 'id' ? 'Kritis' : 'Critical', color: '#EF4444', count: analyticsStats.criticalCount },
-                                ].map(p => {
-                                    const isSelected = selectedPriorityFilters.includes(p.id);
-                                    return (
-                                        <button
-                                            key={p.id}
-                                            type="button"
-                                            onClick={() => {
-                                                setSelectedPriorityFilters(prev =>
-                                                    prev.includes(p.id) ? prev.filter(x => x !== p.id) : [...prev, p.id]
-                                                );
-                                            }}
-                                            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all duration-200 cursor-pointer border ${
-                                                isSelected
-                                                    ? 'bg-primary/25 text-[#C9AA71] border-[#C9AA71]/80 shadow-sm font-bold ring-1 ring-[#C9AA71]/40'
-                                                    : 'bg-[#2A281E]/60 text-muted-foreground border-transparent hover:border-[#3B3929] hover:text-foreground opacity-70 hover:opacity-100'
-                                            }`}
-                                        >
-                                            <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: p.color }} />
-                                            <span>{p.label} ({p.count})</span>
-                                        </button>
-                                    );
-                                })}
-
-                                {selectedPriorityFilters.length > 0 && (
-                                    <button
-                                        type="button"
-                                        onClick={() => setSelectedPriorityFilters([])}
-                                        className="text-[11px] font-semibold text-[#C9AA71] hover:text-[#FAFAFA] px-2 py-1 rounded hover:bg-[#2A281E] transition-colors ml-1 cursor-pointer"
-                                    >
-                                        ✕ {lang === 'id' ? 'Reset Prioritas' : 'Reset Priority'}
-                                    </button>
-                                )}
-                            </div>
                         </div>
                     )}
 
@@ -3338,10 +2812,8 @@ function AnalyticsInner() {
                                         timeStr = dateObj.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
                                     }
                                     
-                                    const isEmergency = (ev.originalIssue?.category || '').toLowerCase() === 'emergency' || 
-                                                        String(ev.issueId || '').startsWith('SOS');
-                                    const isCritical = !isEmergency && (ev.originalIssue?.priority === 'critical');
-                                    const isHigh = !isEmergency && (ev.originalIssue?.priority === 'high');
+                                    const isEmergency = String(ev.issueId || '').toUpperCase().startsWith('SOS') || 
+                                                        (ev.originalIssue?.category || '').toLowerCase() === 'emergency';
                                     const isArchived = ev.type === 'archive' || ev.originalIssue?.isArchived;
 
                                     let actionBadge = null;
@@ -3357,21 +2829,19 @@ function AnalyticsInner() {
                                             );
                                             break;
                                         case 'create':
-                                            dotColor = isEmergency ? 'bg-red-500' : isCritical ? 'bg-amber-500' : 'bg-blue-500';
+                                            dotColor = isEmergency ? 'bg-red-500' : 'bg-blue-500';
                                             actionBadge = (
                                                 <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold border ${
                                                     isEmergency 
                                                         ? 'bg-red-500/15 text-red-400 border-red-500/30' 
-                                                        : isCritical
-                                                            ? 'bg-amber-500/15 text-amber-400 border-amber-500/30'
-                                                            : 'bg-blue-500/15 text-blue-400 border-blue-500/30'
+                                                        : 'bg-blue-500/15 text-blue-400 border-blue-500/30'
                                                 }`}>
                                                     {lang === 'id' ? 'Laporan Dibuat' : 'Report Created'}
                                                 </span>
                                             );
                                             break;
                                         case 'claim':
-                                            dotColor = isEmergency ? 'bg-red-500' : isCritical ? 'bg-amber-500' : 'bg-amber-500';
+                                            dotColor = isEmergency ? 'bg-red-500' : 'bg-amber-500';
                                             actionBadge = (
                                                 <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-500/15 text-amber-400 border border-amber-500/30">
                                                     {lang === 'id' ? 'Diambil (Claim)' : 'Claimed'}
@@ -3434,11 +2904,9 @@ function AnalyticsInner() {
                                                 className={`group flex flex-col gap-2 p-4 rounded-xl cursor-pointer transition-all duration-200 ${
                                                     isEmergency
                                                         ? 'border border-red-500/30 border-l-[4px] border-l-red-500 bg-gradient-to-r from-red-950/25 via-[#1E1D16] to-[#1E1D16] shadow-[0_0_18px_rgba(239,68,68,0.12)] hover:border-red-500/60 hover:shadow-[0_0_24px_rgba(239,68,68,0.22)] hover:bg-[#231E17]'
-                                                        : isCritical
-                                                            ? 'border border-amber-500/30 border-l-[4px] border-l-amber-500 bg-gradient-to-r from-amber-950/20 via-[#1E1D16] to-[#1E1D16] shadow-[0_0_14px_rgba(245,158,11,0.08)] hover:border-amber-500/60 hover:shadow-[0_0_20px_rgba(245,158,11,0.18)] hover:bg-[#232017]'
-                                                            : isArchived
-                                                                ? 'border border-rose-500/30 border-l-[4px] border-l-rose-500/80 bg-gradient-to-r from-rose-950/20 via-[#1E1D16] to-[#1E1D16] shadow-sm hover:border-rose-500/50 hover:bg-[#241E1C]'
-                                                                : 'border border-border/80 bg-[#1E1D16] shadow-sm hover:border-primary/60 hover:bg-[#25241B]'
+                                                        : isArchived
+                                                            ? 'border border-rose-500/30 border-l-[4px] border-l-rose-500/80 bg-gradient-to-r from-rose-950/20 via-[#1E1D16] to-[#1E1D16] shadow-sm hover:border-rose-500/50 hover:bg-[#241E1C]'
+                                                            : 'border border-border/80 bg-[#1E1D16] shadow-sm hover:border-primary/60 hover:bg-[#25241B]'
                                                 }`}
                                             >
                                                 {/* Header Row: Title + Department + ID + Click Indicator */}
@@ -3447,11 +2915,9 @@ function AnalyticsInner() {
                                                         <span className={`text-base font-bold transition-colors truncate max-w-md ${
                                                             isEmergency 
                                                                 ? 'text-white group-hover:text-red-300' 
-                                                                : isCritical 
-                                                                    ? 'text-white group-hover:text-amber-300' 
-                                                                    : isArchived
-                                                                        ? 'text-white group-hover:text-rose-300'
-                                                                        : 'text-foreground group-hover:text-primary'
+                                                                : isArchived
+                                                                    ? 'text-white group-hover:text-rose-300'
+                                                                    : 'text-foreground group-hover:text-primary'
                                                         }`}>
                                                             {ev.title}
                                                         </span>
@@ -3459,17 +2925,6 @@ function AnalyticsInner() {
                                                             <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-red-500/15 text-red-400 border border-red-500/40 shadow-[0_0_8px_rgba(239,68,68,0.25)]">
                                                                 <span className="h-1.5 w-1.5 rounded-full bg-red-400 animate-pulse inline-block" />
                                                                 {lang === 'id' ? 'DARURAT (SOS)' : 'SOS EMERGENCY'}
-                                                            </span>
-                                                        )}
-                                                        {isCritical && (
-                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-[0_0_8px_rgba(245,158,11,0.2)]">
-                                                                <AlertTriangle className="w-3 h-3 text-amber-400" />
-                                                                {lang === 'id' ? 'KRITIS' : 'CRITICAL'}
-                                                            </span>
-                                                        )}
-                                                        {isHigh && (
-                                                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-orange-500/15 text-orange-400 border border-orange-500/30">
-                                                                {lang === 'id' ? 'TINGGI' : 'HIGH'}
                                                             </span>
                                                         )}
                                                         {isArchived && (
@@ -3487,11 +2942,9 @@ function AnalyticsInner() {
                                                         <span className={`text-xs font-mono font-bold px-2.5 py-1 rounded-md border shadow-inner ${
                                                             isEmergency
                                                                 ? 'text-red-400 bg-red-950/50 border-red-500/40 shadow-[0_0_8px_rgba(239,68,68,0.25)]'
-                                                                : isCritical
-                                                                    ? 'text-amber-400 bg-amber-950/40 border-amber-500/40'
-                                                                    : isArchived
-                                                                        ? 'text-rose-400 bg-rose-950/40 border-rose-500/40'
-                                                                        : 'text-[#C9AA71] bg-[#2A281E] border-[#3B3929]'
+                                                                : isArchived
+                                                                    ? 'text-rose-400 bg-rose-950/40 border-rose-500/40'
+                                                                    : 'text-[#C9AA71] bg-[#2A281E] border-[#3B3929]'
                                                         }`}>
                                                             {ev.issueId}
                                                         </span>
@@ -3508,11 +2961,9 @@ function AnalyticsInner() {
                                                             className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold transition-all shadow-sm cursor-pointer z-10 ${
                                                                 isEmergency
                                                                     ? 'bg-red-950/40 hover:bg-red-900/60 text-red-300 hover:text-red-100 border border-red-700/50'
-                                                                    : isCritical
-                                                                        ? 'bg-amber-950/40 hover:bg-amber-900/50 text-amber-300 hover:text-amber-100 border border-amber-700/50'
-                                                                        : isArchived
-                                                                            ? 'bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 hover:text-rose-100 border border-rose-700/50'
-                                                                            : 'bg-[#2A281E] hover:bg-[#3B3929] text-[#C9AA71] hover:text-[#FAFAFA] border border-[#3B3929]'
+                                                                    : isArchived
+                                                                        ? 'bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 hover:text-rose-100 border border-rose-700/50'
+                                                                        : 'bg-[#2A281E] hover:bg-[#3B3929] text-[#C9AA71] hover:text-[#FAFAFA] border border-[#3B3929]'
                                                             }`}
                                                             title={isArchived ? (lang === 'id' ? 'Lihat Riwayat Isu' : 'View Issue History') : (lang === 'id' ? 'Buka Kartu Isu (Foto & Detail)' : 'Open Issue Card')}
                                                         >
@@ -3522,11 +2973,9 @@ function AnalyticsInner() {
                                                         <ChevronRight className={`w-4 h-4 transition-all ${
                                                             isEmergency
                                                                 ? 'text-red-400/60 group-hover:text-red-400 group-hover:translate-x-0.5'
-                                                                : isCritical
-                                                                    ? 'text-amber-400/60 group-hover:text-amber-400 group-hover:translate-x-0.5'
-                                                                    : isArchived
-                                                                        ? 'text-rose-400/60 group-hover:text-rose-400 group-hover:translate-x-0.5'
-                                                                        : 'text-muted-foreground group-hover:text-primary group-hover:translate-x-0.5'
+                                                                : isArchived
+                                                                    ? 'text-rose-400/60 group-hover:text-rose-400 group-hover:translate-x-0.5'
+                                                                    : 'text-muted-foreground group-hover:text-primary group-hover:translate-x-0.5'
                                                         }`} />
                                                     </div>
                                                 </div>
@@ -3535,32 +2984,28 @@ function AnalyticsInner() {
                                                 <div className={`flex flex-wrap items-center justify-between gap-2 pt-1 border-t text-xs ${
                                                     isEmergency 
                                                         ? 'border-red-900/40 text-red-300/80' 
-                                                        : isCritical
-                                                            ? 'border-amber-900/30 text-amber-300/80'
-                                                            : isArchived
-                                                                ? 'border-rose-900/30 text-rose-300/80'
-                                                                : 'border-border/30 text-muted-foreground'
+                                                        : isArchived
+                                                            ? 'border-rose-900/30 text-rose-300/80'
+                                                            : 'border-border/30 text-muted-foreground'
                                                 }`}>
                                                     <div className="flex items-center gap-2 flex-wrap">
                                                         {actionBadge}
-                                                        <span className={isEmergency ? 'text-red-300/70' : isCritical ? 'text-amber-300/70' : isArchived ? 'text-rose-300/70' : 'text-muted-foreground'}>
+                                                        <span className={isEmergency ? 'text-red-300/70' : isArchived ? 'text-rose-300/70' : 'text-muted-foreground'}>
                                                             {isArchived ? (lang === 'id' ? 'Oleh:' : 'By:') : t('by_reporter')}
                                                         </span>
                                                         <span className={`font-bold px-2 py-0.5 rounded border ${
                                                             isEmergency
                                                                 ? 'text-red-200 bg-red-950/40 border-red-800/40'
-                                                                : isCritical
-                                                                    ? 'text-amber-200 bg-amber-950/40 border-amber-800/40'
-                                                                    : isArchived
-                                                                        ? 'text-rose-200 bg-rose-950/40 border-rose-800/40'
-                                                                        : 'text-foreground bg-surface border-border/50'
+                                                                : isArchived
+                                                                    ? 'text-rose-200 bg-rose-950/40 border-rose-800/40'
+                                                                    : 'text-foreground bg-surface border-border/50'
                                                         }`}>
                                                             {ev.person}
                                                         </span>
                                                     </div>
 
                                                     <div className={`font-medium flex items-center gap-1.5 ml-auto ${
-                                                        isEmergency ? 'text-red-300/75' : isCritical ? 'text-amber-300/75' : isArchived ? 'text-rose-300/75' : 'text-muted-foreground'
+                                                        isEmergency ? 'text-red-300/75' : isArchived ? 'text-rose-300/75' : 'text-muted-foreground'
                                                     }`}>
                                                         <span>📅 {dateStr}</span>
                                                         <span>•</span>

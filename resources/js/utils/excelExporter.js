@@ -116,13 +116,6 @@ const STATUS_STYLES = {
     },
 };
 
-const PRIORITY_STYLES = {
-    HIGH: { font: { name: 'Segoe UI', size: 9.5, bold: true, color: { argb: 'FFDC2626' } } },
-    CRITICAL: { font: { name: 'Segoe UI', size: 9.5, bold: true, color: { argb: 'FFDC2626' } } },
-    SOS: { font: { name: 'Segoe UI', size: 9.5, bold: true, color: { argb: 'FFDC2626' } } },
-    MEDIUM: { font: { name: 'Segoe UI', size: 9.5, color: { argb: 'FFD97706' } } },
-    LOW: { font: { name: 'Segoe UI', size: 9.5, color: { argb: 'FF4B5563' } } },
-};
 
 /**
  * Generate and download an Excel (.xlsx) file with KPI Summary and Raw Tickets sheets.
@@ -333,14 +326,12 @@ export async function generateExcelReport(issues = [], options = {}) {
 
         // Kelompok 2: Detail Masalah & Departemen
         { header: 'Judul Masalah', key: 'title', width: 42, align: 'left' },
-        { header: 'Kategori', key: 'category', width: 22, align: 'left' },
         { header: 'Departemen Pembuat (Asal)', key: 'originDept', width: 26, align: 'left' },
         { header: 'Ditugaskan Ke (To Fix)', key: 'assignedDept', width: 26, align: 'left' },
         { header: 'Departemen Terkait (Tags)', key: 'tags', width: 26, align: 'left', isGroupEnd: true },
 
         // Kelompok 3: Status & Penanggung Jawab
         { header: 'Status', key: 'status', width: 16, align: 'center' },
-        { header: 'Prioritas', key: 'priority', width: 15, align: 'center' },
         { header: 'Pelapor', key: 'reporter', width: 22, align: 'left', isGroupEnd: true },
 
         // Kelompok 4: Penanganan & Timeline Waktu
@@ -429,12 +420,10 @@ export async function generateExcelReport(issues = [], options = {}) {
             reportedAt: formatDateTime(issue.reportedAt),
             location: issue.location || '-',
             title: (issue.isConfidential ? '[PRIVASI] ' : '') + (issue.title || issue.description || '-'),
-            category: catLabel,
             originDept: originDept,
             assignedDept: assignedDeptText,
             tags: taggedDeptText,
             status: statusKey,
-            priority: (issue.priority || 'LOW').toUpperCase(),
             reporter: issue.reporter || '-',
             taker: issue.taker || '-',
             takenAt: formatDateTime(issue.takenAt),
@@ -481,12 +470,6 @@ export async function generateExcelReport(issues = [], options = {}) {
                 const style = STATUS_STYLES[statusKey] || STATUS_STYLES.OPEN;
                 cell.fill = style.fill;
                 cell.font = style.font;
-            }
-
-            // Custom styling for Priority column
-            if (config?.key === 'priority') {
-                const pStyle = PRIORITY_STYLES[rowData.priority] || PRIORITY_STYLES.LOW;
-                cell.font = pStyle.font;
             }
         });
     });

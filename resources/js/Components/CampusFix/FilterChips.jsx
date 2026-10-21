@@ -1,75 +1,26 @@
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/Components/UI/Sheet';
-import { SlidersHorizontal, Wrench, Droplets, Zap, Building2, Bug, Monitor, Anchor, ShieldAlert, UserRound, HelpCircle, LayoutGrid, Building, Lock, Globe, ChevronDown, RotateCcw } from 'lucide-react';
+import { LayoutGrid, Building, Lock, Globe, ChevronDown, RotateCcw } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
 import { ALL_DEPARTMENTS } from '@/constants/staff';
 import { getDepartmentTheme } from '@/constants/departments';
 import { useAuth } from '@/hooks/useAuth';
 
-const CATEGORY_FILTERS = [
-    { id: 'all',                     label: 'All Categories',        icon: LayoutGrid,   color: 'text-foreground',       bg: 'bg-muted/60' },
-    { id: 'category:broken',         label: 'Broken Equipment',      icon: Wrench,       color: 'text-amber-600',        bg: 'bg-amber-500/10 border-amber-500/20' },
-    { id: 'category:plumbing',       label: 'Plumbing',              icon: Droplets,     color: 'text-blue-600',         bg: 'bg-blue-500/10 border-blue-500/20' },
-    { id: 'category:electrical',     label: 'Electrical',            icon: Zap,          color: 'text-yellow-600',       bg: 'bg-yellow-500/10 border-yellow-500/20' },
-    { id: 'category:structural',     label: 'Structural / Building', icon: Building2,    color: 'text-stone-600',        bg: 'bg-stone-500/10 border-stone-500/20' },
-    { id: 'category:pest-hygiene',   label: 'Pest & Hygiene',        icon: Bug,          color: 'text-green-700',        bg: 'bg-green-500/10 border-green-500/20' },
-    { id: 'category:it-technology',  label: 'IT & Technology',       icon: Monitor,      color: 'text-violet-600',       bg: 'bg-violet-500/10 border-violet-500/20' },
-    { id: 'category:marine-outdoor', label: 'Marine & Outdoor',      icon: Anchor,       color: 'text-cyan-600',         bg: 'bg-cyan-500/10 border-cyan-500/20' },
-    { id: 'category:safety-hazard',  label: 'Safety Hazard',         icon: ShieldAlert,  color: 'text-red-600',          bg: 'bg-red-500/10 border-red-500/20' },
-    { id: 'category:guest-issues',   label: 'Guest Issues',          icon: UserRound,    color: 'text-pink-600',         bg: 'bg-pink-500/10 border-pink-500/20' },
-    { id: 'category:other',          label: 'Other',                 icon: HelpCircle,   color: 'text-muted-foreground', bg: 'bg-muted/60' },
-];
-
 const DEPARTMENT_FILTERS = ALL_DEPARTMENTS;
 
-export function FilterChips({ categoryFilter, onCategoryChange, deptFilter, onDeptChange, isMobileToolbar = false }) {
+export function FilterChips({ deptFilter = 'all', onDeptChange, isMobileToolbar = false }) {
     const { t, lang } = useLanguage();
     const { isAdmin, department: userDept, canViewAllDepartments } = useAuth();
     const canSelectDept = isAdmin || canViewAllDepartments;
-    const [catSheetOpen, setCatSheetOpen] = useState(false);
     const [deptSheetOpen, setDeptSheetOpen] = useState(false);
 
-    const getCategoryLabel = (catId) => {
-        if (!catId || catId === 'all') return t('all_categories');
-        const slug = catId.replace(/^category:/, '');
-        const key = `cat_${slug.replace(/[^a-z0-9_]/g, '_')}`;
-        const translated = t(key);
-        if (translated && translated !== key) return translated;
-        const found = CATEGORY_FILTERS.find(f => f.id === catId);
-        return found ? found.label : slug;
-    };
-
-    const activeCategoryLabel = categoryFilter !== 'all' ? getCategoryLabel(categoryFilter) : null;
-
-    const handleCategorySelect = (id) => {
-        onCategoryChange(id);
-        setCatSheetOpen(false);
-    };
-
-    const hasActiveCategory = categoryFilter && categoryFilter !== 'all';
     const hasActiveDept = canSelectDept && deptFilter && deptFilter !== 'all';
-    const hasActiveFilters = hasActiveCategory || hasActiveDept;
 
     return (
         <>
             {isMobileToolbar ? (
                 <div className="flex items-center gap-1 shrink-0">
-                    {/* Category trigger icon */}
-                    <button
-                        type="button"
-                        onClick={() => setCatSheetOpen(true)}
-                        title={activeCategoryLabel ?? (t('category') || 'Kategori')}
-                        className={cn(
-                            'p-2.5 rounded-xl transition-all flex items-center justify-center cursor-pointer',
-                            hasActiveCategory
-                                ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-sm font-extrabold'
-                                : 'text-muted-foreground hover:text-foreground hover:bg-white/5',
-                        )}
-                    >
-                        <SlidersHorizontal className="h-5 w-5" />
-                    </button>
-
                     {/* Department trigger icon */}
                     {canSelectDept ? (
                         <button
@@ -98,11 +49,10 @@ export function FilterChips({ categoryFilter, onCategoryChange, deptFilter, onDe
                         </div>
                     )}
 
-                    {hasActiveFilters && (
+                    {hasActiveDept && (
                         <button
                             type="button"
                             onClick={() => {
-                                onCategoryChange('all');
                                 if (canSelectDept) onDeptChange('all');
                             }}
                             className="p-2.5 rounded-xl text-amber-400 hover:text-amber-300 hover:bg-white/5 transition-all cursor-pointer"
@@ -114,23 +64,6 @@ export function FilterChips({ categoryFilter, onCategoryChange, deptFilter, onDe
                 </div>
             ) : (
                 <div className="flex items-center gap-2.5 flex-nowrap shrink min-w-0">
-                    {/* Category trigger chip */}
-                    <button
-                        type="button"
-                        onClick={() => setCatSheetOpen(true)}
-                        title={activeCategoryLabel ?? (t('category') || 'Kategori')}
-                        className={cn(
-                            'flex items-center justify-center gap-2.5 rounded-xl border px-3.5 py-2 text-xs font-bold transition-all duration-200 cursor-pointer shadow-xs shrink-0',
-                            hasActiveCategory
-                                ? 'border-[#C9AA71] bg-[#C9AA71] text-[#1C1B0E] shadow-sm font-extrabold'
-                                : 'border-[#3B3929] bg-[#2A281E] text-[#E3D1AA] hover:border-[#C9AA71]/60 hover:bg-[#343226]',
-                        )}
-                    >
-                        <SlidersHorizontal className={cn("h-4 w-4 shrink-0", hasActiveCategory ? "text-[#1C1B0E]" : "text-[#C9AA71]")} />
-                        <span className="truncate max-w-[120px]">{activeCategoryLabel ?? (t('category') || 'Kategori')}</span>
-                        <ChevronDown className={cn("h-3.5 w-3.5 shrink-0 transition-transform", hasActiveCategory ? "text-[#1C1B0E]" : "text-[#A19F8D]")} />
-                    </button>
-
                     {/* Department trigger chip — Interactive for Admin or users with canViewAllDepartments, Locked badge for Dept user */}
                     {canSelectDept ? (
                         <button
@@ -180,16 +113,15 @@ export function FilterChips({ categoryFilter, onCategoryChange, deptFilter, onDe
                         </div>
                     )}
 
-                    {/* Reset button if category or admin dept filter active */}
-                    {hasActiveFilters && (
+                    {/* Reset button if dept filter active */}
+                    {hasActiveDept && (
                         <button
                             type="button"
                             onClick={() => {
-                                onCategoryChange('all');
                                 if (canSelectDept) onDeptChange('all');
                             }}
                             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-white/5 border border-transparent hover:border-[#3B3929] transition-all cursor-pointer"
-                            title={lang === 'id' ? 'Reset semua filter' : 'Reset all filters'}
+                            title={lang === 'id' ? 'Reset filter departemen' : 'Reset department filter'}
                         >
                             <RotateCcw className="h-3 w-3 text-[#C9AA71]" />
                             <span>{lang === 'id' ? 'Reset Filter' : 'Reset Filters'}</span>
@@ -198,75 +130,30 @@ export function FilterChips({ categoryFilter, onCategoryChange, deptFilter, onDe
                 </div>
             )}
 
-            {/* Category picker sheet */}
-            <Sheet open={catSheetOpen} onOpenChange={setCatSheetOpen}>
-                <SheetContent side="bottom" className="max-h-[75vh] overflow-y-auto rounded-t-2xl pb-8">
-                    <SheetHeader className="mb-5">
-                        <SheetTitle>{t('filter_by_category')}</SheetTitle>
-                        <SheetDescription>
-                            {t('filter_by_category_desc')}
-                        </SheetDescription>
-                    </SheetHeader>
-
-                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                        {CATEGORY_FILTERS.map((cat, idx) => {
-                            const Icon = cat.icon;
-                            const isActive = categoryFilter === cat.id;
-                            const label = getCategoryLabel(cat.id);
-                            return (
-                                <button
-                                    key={cat.id}
-                                    type="button"
-                                    onClick={() => handleCategorySelect(cat.id)}
-                                    style={{ animationDelay: `${idx * 45}ms` }}
-                                    className={cn(
-                                        'animate-sheet-item flex flex-col items-start gap-2 rounded-xl border p-4 text-left transition-all duration-200 cursor-pointer',
-                                        cat.bg,
-                                        isActive
-                                            ? 'ring-2 ring-primary border-primary scale-[0.98]'
-                                            : 'hover:scale-[0.98] active:scale-[0.95]',
-                                    )}
-                                >
-                                    <Icon className={cn('h-5 w-5', cat.color)} />
-                                    <span className={cn('text-sm font-semibold leading-tight', cat.color)}>
-                                        {label}
-                                    </span>
-                                    {isActive && (
-                                        <span className="mt-auto text-[10px] font-bold uppercase tracking-wider text-primary">
-                                            {t('active_badge')}
-                                        </span>
-                                    )}
-                                </button>
-                            );
-                        })}
-                    </div>
-                </SheetContent>
-            </Sheet>
-
             {/* Department picker sheet */}
             <Sheet open={deptSheetOpen} onOpenChange={setDeptSheetOpen}>
                 <SheetContent side="bottom" className="max-h-[75vh] overflow-y-auto rounded-t-2xl pb-8">
                     <SheetHeader className="mb-5">
-                        <SheetTitle>
-                            {t('filter_by_dept')}
+                        <SheetTitle className="flex items-center gap-2">
+                            <span>{t('filter_by_department')}</span>
+                            {!isAdmin && canViewAllDepartments && (
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-300 border border-sky-500/30">
+                                    {lang === 'id' ? 'Izin Khusus' : 'Special Access'}
+                                </span>
+                            )}
                         </SheetTitle>
                         <SheetDescription>
-                            {!isAdmin && canViewAllDepartments
-                                ? (lang === 'id'
-                                    ? 'Akun Anda memiliki izin Lintas Departemen untuk memantau isu seluruh departemen resort Telunas.'
-                                    : 'Your account has Cross-Department permission to monitor issues resort-wide across Telunas.')
-                                : (lang === 'id'
-                                    ? 'Pilih departemen untuk menyaring laporan.'
-                                    : 'Select a department to narrow down issues.')
-                            }
+                            {!isAdmin && canViewAllDepartments 
+                                ? (lang === 'id' ? 'Anda memiliki izin khusus untuk memfilter dan memantau tiket di semua departemen.' : 'You have special permission to filter and monitor tickets in all departments.')
+                                : t('filter_by_department_desc')}
                         </SheetDescription>
                     </SheetHeader>
 
-                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                    <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-4">
+                        {/* All departments option */}
                         <button
                             type="button"
                             onClick={() => { onDeptChange('all'); setDeptSheetOpen(false); }}
-                            style={{ animationDelay: '0ms' }}
                             className={cn(
                                 'animate-sheet-item flex flex-col items-start gap-2 rounded-xl border p-4 text-left transition-all duration-200 bg-muted/60 cursor-pointer',
                                 deptFilter === 'all'
@@ -347,4 +234,3 @@ export function FilterChips({ categoryFilter, onCategoryChange, deptFilter, onDe
         </>
     );
 }
-

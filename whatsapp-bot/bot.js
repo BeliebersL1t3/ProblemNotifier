@@ -1882,15 +1882,11 @@ async function startSock() {
 
                 if (availableTagDepts.length === 0) {
                     state.data.taggedDepartments = '';
-                    let categoryMenu = getMsg(
-                        'All departments are assigned! Now, please select a category by replying with the number:\n\n',
-                        'Semua departemen telah ditugaskan! Sekarang, pilih kategori dengan membalas nomornya:\n\n'
-                    );
-                    for (const [key, val] of Object.entries(CORE_DISPLAY)) {
-                        categoryMenu += `${key}. ${val}\n`;
-                    }
-                    await reply(categoryMenu.trim());
-                    state.step = STEPS.AWAITING_CAT;
+                    await reply(getMsg(
+                        'Great. Finally, please upload a photo of the problem as proof. (Send an image here)',
+                        'Bagus. Terakhir, harap unggah foto bukti masalah. (Kirim gambar di sini)'
+                    ));
+                    state.step = STEPS.AWAITING_PHOTO;
                     continue;
                 }
 
@@ -1927,155 +1923,17 @@ async function startSock() {
                     state.data.taggedDepartments = selectedTags.join(', ');
                 }
                 
-                let categoryMenu = getMsg(
-                    'Almost done! Please select a category by replying with the number:\n\n',
-                    'Hampir selesai! Pilih kategori dengan membalas nomornya:\n\n'
-                );
-                for (const [key, val] of Object.entries(CORE_DISPLAY)) {
-                    categoryMenu += `${key}. ${val}\n`;
-                }
-                
-                await reply(categoryMenu.trim());
-                state.step = STEPS.AWAITING_CAT;
-                continue;
-            }
-
-            if (state.step === STEPS.AWAITING_CAT) {
-                if (!CORE_DISPLAY[text]) {
-                    await reply(getMsg(
-                        'Invalid selection. Please reply with a valid number (1-10).',
-                        'Pilihan tidak valid. Harap balas dengan nomor valid (1-10).'
-                    ));
-                    continue;
-                }
-                
-                state.data.category = text === '10' ? 'other' : CORE_DISPLAY[text].toLowerCase();
                 await reply(getMsg(
-                    'Got it. What is the priority of this issue? Reply with the number:\n1. Priority (Standard)\n2. High Priority\n3. 🚨 Critical',
-                    'Paham. Apa prioritas masalah ini? Balas dengan nomor:\n1. Prioritas (Standar)\n2. Prioritas Tinggi\n3. 🚨 Kritis'
-                ));
-                state.step = STEPS.AWAITING_PRIORITY;
-                continue;
-            }
-
-            if (state.step === STEPS.AWAITING_PRIORITY) {
-                const priorityMap = {
-                    '1': 'low',
-                    '2': 'high',
-                    '3': 'critical',
-                    '4': 'critical',
-                };
-                const lowerText = text.toLowerCase().trim();
-                let selectedPriority = priorityMap[text];
-                if (!selectedPriority) {
-                    if (lowerText.includes('kritis') || lowerText.includes('critical')) selectedPriority = 'critical';
-                    else if (lowerText.includes('tinggi') || lowerText.includes('high')) selectedPriority = 'high';
-                    else if (lowerText.includes('standar') || lowerText.includes('prioritas') || lowerText.includes('priority') || lowerText.includes('rendah') || lowerText.includes('low')) selectedPriority = 'low';
-                }
-
-                if (!selectedPriority) {
-                    await reply(getMsg(
-                        'Invalid selection. Please reply with a valid number (1-3):\n1. Priority\n2. High Priority\n3. 🚨 Critical',
-                        'Pilihan tidak valid. Harap balas dengan nomor (1-3):\n1. Prioritas (Standar)\n2. Prioritas Tinggi\n3. 🚨 Kritis'
-                    ));
-                    continue;
-                }
-                
-                state.data.priority = selectedPriority;
-                if (state.data.priority === 'critical') {
-                    await reply(getMsg(
-                        '🚨 *Critical Priority selected.* What is the time limit? (Max 24 Hours)\n\nReply with a number or type directly (e.g. 4h, 30m, 16:30):\n1. 15 Minutes\n2. 30 Minutes\n3. 1 Hour\n4. 2 Hours\n5. 4 Hours\n6. 8 Hours\n7. 12 Hours\n8. 24 Hours (Max)',
-                        '🚨 *Prioritas Kritis dipilih.* Berapa batas waktu penanganan? (Maksimal 24 Jam)\n\nBalas dengan nomor preset atau ketik langsung (contoh: 4h, 30m, 16:30):\n1. 15 Menit\n2. 30 Menit\n3. 1 Jam\n4. 2 Jam\n5. 4 Jam\n6. 8 Jam\n7. 12 Jam\n8. 24 Jam (Maksimal)'
-                    ));
-                    state.step = STEPS.AWAITING_CRITICAL_TIME;
-                } else {
-                    await reply(getMsg(
-                        'Great. Finally, please upload a photo of the problem as proof. (Send an image here)',
-                        'Bagus. Terakhir, harap unggah foto bukti masalah. (Kirim gambar di sini)'
-                    ));
-                    state.step = STEPS.AWAITING_PHOTO;
-                }
-                continue;
-            }
-
-            if (state.step === STEPS.AWAITING_CRITICAL_TIME) {
-                const presetMap = {
-                    '1': 15,
-                    '2': 30,
-                    '3': 60,
-                    '4': 120,
-                    '5': 240,
-                    '6': 480,
-                    '7': 720,
-                    '8': 1440,
-                };
-
-                let targetDeadlineMs = null;
-                const cleanInput = text.trim().toLowerCase();
-
-                // 1. Check numeric preset (1-8)
-                if (presetMap[cleanInput] !== undefined) {
-                    targetDeadlineMs = Date.now() + presetMap[cleanInput] * 60000;
-                }
-                // 2. Check duration format like '4h', '4 jam', '4 hours', '30m', '30 menit', '90 mins'
-                else if (/^(\d+(?:\.\d+)?)\s*(h|hr|hrs|hour|hours|jam)$/i.test(cleanInput)) {
-                    const match = cleanInput.match(/^(\d+(?:\.\d+)?)\s*(h|hr|hrs|hour|hours|jam)$/i);
-                    const hours = parseFloat(match[1]);
-                    targetDeadlineMs = Date.now() + Math.round(hours * 60) * 60000;
-                } else if (/^(\d+)\s*(m|min|mins|menit|mnt)$/i.test(cleanInput)) {
-                    const match = cleanInput.match(/^(\d+)\s*(m|min|mins|menit|mnt)$/i);
-                    const mins = parseInt(match[1], 10);
-                    targetDeadlineMs = Date.now() + mins * 60000;
-                }
-                // 3. Check clock time format like '16:30', '4:30 pm', '09.15'
-                else if (/^(\d{1,2})[:.](\d{2})(?:\s*(am|pm))?$/i.test(cleanInput)) {
-                    const match = cleanInput.match(/^(\d{1,2})[:.](\d{2})(?:\s*(am|pm))?$/i);
-                    let h = parseInt(match[1], 10);
-                    const m = parseInt(match[2], 10);
-                    const meridiem = (match[3] || '').toLowerCase();
-
-                    if (meridiem === 'pm' && h < 12) h += 12;
-                    if (meridiem === 'am' && h === 12) h = 0;
-
-                    const target = new Date();
-                    target.setHours(h, m, 0, 0);
-                    if (target.getTime() <= Date.now() + 60000) {
-                        target.setDate(target.getDate() + 1);
-                    }
-                    targetDeadlineMs = target.getTime();
-                }
-
-                if (!targetDeadlineMs) {
-                    await reply(getMsg(
-                        'Invalid time format. Please reply with a number (1-8) or type a duration (e.g. 4h, 30m, 16:30):',
-                        'Format waktu tidak valid. Harap balas dengan nomor (1-8) atau ketik durasi (contoh: 4h, 30m, 16:30):'
-                    ));
-                    continue;
-                }
-
-                // Strict Cap: Max 24 hours
-                const maxDeadlineMs = Date.now() + 24 * 60 * 60 * 1000;
-                if (targetDeadlineMs > maxDeadlineMs) {
-                    targetDeadlineMs = maxDeadlineMs;
-                }
-
-                state.data.deadline = targetDeadlineMs.toString();
-
-                const diffMins = Math.max(1, Math.round((targetDeadlineMs - Date.now()) / 60000));
-                const diffHours = Math.floor(diffMins / 60);
-                const remMins = diffMins % 60;
-                const timeStr = diffHours > 0 
-                    ? (remMins > 0 ? `${diffHours}h ${remMins}m` : `${diffHours} hour${diffHours > 1 ? 's' : ''}`)
-                    : `${remMins}m`;
-                const targetTimeClock = new Date(targetDeadlineMs).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-                await reply(getMsg(
-                    `✅ Time limit set: *${timeStr} from now* (${targetTimeClock}).\n\nFinally, please upload a photo of the problem as proof. (Send an image here)`,
-                    `✅ Batas waktu diatur: *${diffHours > 0 ? (remMins > 0 ? `${diffHours} jam ${remMins} mnt` : `${diffHours} jam`) : `${remMins} mnt`} lagi* (${targetTimeClock}).\n\nTerakhir, harap unggah foto bukti masalah. (Kirim gambar di sini)`
+                    'Great. Finally, please upload a photo of the problem as proof. (Send an image here)',
+                    'Bagus. Terakhir, harap unggah foto bukti masalah. (Kirim gambar di sini)'
                 ));
                 state.step = STEPS.AWAITING_PHOTO;
                 continue;
             }
+
+
+
+
 
             if (state.step === STEPS.AWAITING_PHOTO) {
                 if (!msg.message?.imageMessage) {
@@ -2100,13 +1958,11 @@ async function startSock() {
                     formData.append('title', state.data.title);
                     formData.append('description', state.data.description);
                     formData.append('location', state.data.location);
-                    formData.append('category', state.data.category);
+                    formData.append('category', '');
                     formData.append('department', state.data.department);
                     if (state.data.assignedDepartments) formData.append('assignedDepartments', state.data.assignedDepartments);
                     if (state.data.taggedDepartments) formData.append('taggedDepartments', state.data.taggedDepartments);
                     formData.append('reporter', state.data.reporter);
-                    if (state.data.priority) formData.append('priority', state.data.priority);
-                    if (state.data.deadline) formData.append('deadline', state.data.deadline);
                     formData.append('image', buffer, { filename: 'upload.jpg', contentType: 'image/jpeg' });
 
                     const res = await axios.post(`${BASE_URL}/api/issues`, formData, {
@@ -2121,7 +1977,6 @@ async function startSock() {
                             `✅ *Issue Reported Successfully!*${idStr}\n\n` +
                             `📋 *Title:* ${state.data.title}\n` +
                             `📍 *Location:* ${state.data.location}\n` +
-                            `🏷️ *Category:* ${state.data.category}\n` +
                             `🏠 *Origin:* ${state.data.department}\n` +
                             `🎯 *Assigned:* ${state.data.assignedDepartments || 'None'}\n` +
                             `📢 *Tagged (Info):* ${state.data.taggedDepartments || 'None'}\n\n` +
@@ -2531,33 +2386,6 @@ Reply *yes* to claim + pending, or *no* to cancel.`
                     state.data.status = statuses[idx];
                 }
                 
-                let catMsg = getMsg("Finally, what category?\n", "Terakhir, kategori apa yang ingin dilihat?\n");
-                ALL_CATEGORIES.forEach((c, idx) => {
-                    catMsg += `${idx + 1}. ${c.charAt(0).toUpperCase() + c.slice(1)}\n`;
-                });
-                catMsg += getMsg("\nReply with a number (1-10) or type 'all':", "\nBalas dengan nomor (1-10) atau ketik 'all':");
-                await reply(catMsg);
-                
-                state.step = STEPS.STATUS_AWAITING_CAT;
-                userStates.set(stateKey, state);
-                continue;
-            }
-
-            if (state.step === STEPS.STATUS_AWAITING_CAT) {
-                const lowerText = text.toLowerCase();
-                if (lowerText === 'all' || lowerText === 'semua') {
-                    state.data.category = 'all';
-                } else {
-                    if (CORE_DISPLAY[text]) {
-                        state.data.category = CORE_DISPLAY[text].toLowerCase();
-                    } else if (ALL_CATEGORIES.includes(lowerText)) {
-                        state.data.category = lowerText;
-                    } else {
-                        await reply('Invalid selection. Please reply with a number (1-10) or \'all\'.');
-                        continue;
-                    }
-                }
-                
                 try {
                     await reply('Fetching active issues... Please wait.');
                     const res = await axios.get(`${BASE_URL}/api/issues`);
@@ -2572,33 +2400,19 @@ Reply *yes* to claim + pending, or *no* to cancel.`
                                               (i.taggedDepartments && String(i.taggedDepartments).toLowerCase().includes(state.data.department.toLowerCase()));
                             
                             const matchStatus = state.data.status === 'all' || i.status === state.data.status;
-                            const matchCat = state.data.category === 'all' || (i.category && i.category.toLowerCase() === state.data.category.toLowerCase());
                             
-                            return matchDept && matchStatus && matchCat;
+                            return matchDept && matchStatus;
                         });
 
                         if (filtered.length === 0) {
                             await reply('No active issues found matching your filters.');
                         } else {
-                            // Group by category
-                            const grouped = {};
+                            let msgText = `📋 *Active Issues* (Dept: ${state.data.department} | Status: ${state.data.status})\n\n`;
                             filtered.forEach(i => {
-                                const cat = i.category || 'other';
-                                if (!grouped[cat]) grouped[cat] = [];
-                                grouped[cat].push(i);
+                                const extra = i.status === 'progress' ? ` - Taken by: ${i.taker}` : 
+                                              (i.status === 'pending' ? ` - Pending by: ${i.pendingBy}` : ` - Reporter: ${i.reporter}`);
+                                msgText += `• [${i.status}] ${i.title} (ID: ${i.id})${extra}\n`;
                             });
-
-                            let msgText = `📋 *Active Issues* (Dept: ${state.data.department} | Status: ${state.data.status} | Cat: ${state.data.category})\n\n`;
-                            
-                            for (const cat in grouped) {
-                                msgText += `*${cat.toUpperCase()}*\n`;
-                                grouped[cat].forEach(i => {
-                                    const extra = i.status === 'progress' ? ` - Taken by: ${i.taker}` : 
-                                                  (i.status === 'pending' ? ` - Pending by: ${i.pendingBy}` : ` - Reporter: ${i.reporter}`);
-                                    msgText += `• [${i.status}] ${i.title} (ID: ${i.id})${extra}\n`;
-                                });
-                                msgText += '\n';
-                            }
                             
                             await reply(msgText.trim());
                         }

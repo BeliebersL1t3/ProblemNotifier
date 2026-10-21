@@ -17,7 +17,6 @@ import { ImageDropzone } from './ImageDropzone';
 import { useIssues } from '@/context/IssuesContext';
 import DelayDetailModal from './DelayDetailModal';
 import { ImageLightboxModal } from './ImageLightboxModal';
-import { CriticalTimer } from './CriticalTimer';
 import { getStaffForDepartment, normalizeDepartment } from '@/constants/staff';
 import { ALL_DEPARTMENTS, getDepartmentTheme } from '@/constants/departments';
 import { useAuth } from '@/hooks/useAuth';
@@ -198,14 +197,6 @@ export function ResolveIssueSheet({ issue, onClose, onEdit }) {
         }
     };
 
-    const categoryLabel = useMemo(() => {
-        if (!issue?.category) return '-';
-        const catKey = 'cat_' + issue.category.toLowerCase().replace(/[^a-z0-9_]/g, '_');
-        const translated = t(catKey);
-        if (translated && translated !== catKey) return translated;
-        const found = (categories || []).find(c => c.id === issue.category || c.id?.toLowerCase() === issue.category?.toLowerCase());
-        return found ? found.label : (issue.category.charAt(0).toUpperCase() + issue.category.slice(1));
-    }, [issue?.category, categories, t]);
 
     const valid = Boolean(
         selectedStaff && 
@@ -289,23 +280,8 @@ export function ResolveIssueSheet({ issue, onClose, onEdit }) {
                                         {t('click_for_full_preview')}
                                     </span>
                                 </div>
-                                <CriticalTimer
-                                    deadline={issue.deadline}
-                                    status={issue.status}
-                                    isArchived={Boolean(issue.isArchived || issue.statusDisplay === '0' || issue.displayStatus === '0')}
-                                    className="absolute right-3 top-3"
-                                />
                             </div>
                             <div className="p-3">
-                                {issue.priority === 'critical' && issue.deadline && issue.status !== 'solved' && !issue.isArchived && (
-                                    <CriticalTimer
-                                        deadline={issue.deadline}
-                                        status={issue.status}
-                                        isArchived={Boolean(issue.isArchived || issue.statusDisplay === '0' || issue.displayStatus === '0')}
-                                        variant="banner"
-                                        className="mb-2"
-                                    />
-                                )}
                                 <div className="flex items-center justify-between gap-2">
                                     <div className="flex items-center gap-2 flex-wrap">
                                         <p className="text-sm font-semibold text-foreground">{issue.title}</p>
@@ -338,17 +314,13 @@ export function ResolveIssueSheet({ issue, onClose, onEdit }) {
                                             <Megaphone className="w-2.5 h-2.5 shrink-0" /> @{tag}
                                         </span>
                                     ))}
-                                    
-                                    <div className="flex items-center gap-1.5 shrink-0 ml-auto">
-                                        <span className="text-[10px] text-muted-foreground font-medium">{t('category')}:</span>
-                                        <span className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${
-                                            (issue.category || '').toLowerCase() === 'emergency'
-                                                ? 'bg-rose-500/15 text-rose-300 border-rose-500/30 font-bold'
-                                                : 'bg-muted/60 text-foreground border-border'
-                                        }`}>
-                                            {categoryLabel}
-                                        </span>
-                                    </div>
+                                    {isEmergency && (
+                                        <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+                                            <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider border bg-red-500/15 text-red-400 border-red-500/30">
+                                                🚨 {lang === 'id' ? 'DARURAT (SOS)' : 'SOS EMERGENCY'}
+                                            </span>
+                                        </div>
+                                    )}
                                 </div>
                                 <p className="mt-1.5 flex items-center gap-1.5 text-xs text-muted-foreground">
                                     <MapPin className="h-3.5 w-3.5" aria-hidden />

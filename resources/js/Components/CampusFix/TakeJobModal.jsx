@@ -5,7 +5,6 @@ import { Loader2, MapPin, X, ZoomIn, Target, FileText, Megaphone, User, AlertTri
 import { Button } from '@/Components/UI/Button';
 import { Label } from '@/Components/UI/Label';
 import { useIssues } from '@/context/IssuesContext';
-import { CriticalTimer } from './CriticalTimer';
 import { ImageLightboxModal } from './ImageLightboxModal';
 import { ProgressiveImage } from '@/Components/UI/ProgressiveImage';
 import { ALL_DEPARTMENTS, getStaffForDepartment, normalizeDepartment } from '@/constants/staff';
@@ -142,15 +141,6 @@ export function TakeJobModal({ issue, onClose, onEdit }) {
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [issue, isSubmitting, onClose]);
 
-    const categoryLabel = useMemo(() => {
-        if (!issue?.category) return '-';
-        const catKey = 'cat_' + issue.category.toLowerCase().replace(/[^a-z0-9_]/g, '_');
-        const translated = t(catKey);
-        if (translated && translated !== catKey) return translated;
-        const found = (categories || []).find(c => c.id === issue.category || c.id?.toLowerCase() === issue.category?.toLowerCase());
-        return found ? found.label : (issue.category.charAt(0).toUpperCase() + issue.category.slice(1));
-    }, [issue?.category, categories, t]);
-
     if (!issue) return null;
 
     const confirm = async () => {
@@ -236,24 +226,8 @@ export function TakeJobModal({ issue, onClose, onEdit }) {
                                         <ZoomIn className="w-4 h-4 text-[#C9AA71]" />
                                     </button>
                                 )}
-                                <CriticalTimer
-                                    deadline={issue.deadline}
-                                    status={issue.status}
-                                    isArchived={Boolean(issue.isArchived || issue.statusDisplay === '0' || issue.displayStatus === '0')}
-                                    className="absolute right-2 top-2"
-                                />
                             </div>
                             <div className="p-3.5 space-y-2">
-                                {issue.priority === 'critical' && issue.deadline && !issue.isArchived && (
-                                    <div className="mb-2">
-                                        <CriticalTimer
-                                            deadline={issue.deadline}
-                                            status={issue.status}
-                                            isArchived={Boolean(issue.isArchived || issue.statusDisplay === '0' || issue.displayStatus === '0')}
-                                            variant="banner"
-                                        />
-                                    </div>
-                                )}
                                 <div className="flex items-center justify-between gap-2">
                                     <p className="text-sm font-semibold text-foreground">{issue.title || 'Untitled Issue'}</p>
                                     <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
@@ -277,16 +251,13 @@ export function TakeJobModal({ issue, onClose, onEdit }) {
                                         </span>
                                     ))}
                                     
-                                    <div className="flex items-center gap-1.5 shrink-0 ml-auto">
-                                        <span className="text-[10px] text-muted-foreground font-medium">{t('category')}:</span>
-                                        <span className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${
-                                            (issue.category || '').toLowerCase() === 'emergency'
-                                                ? 'bg-rose-500/15 text-rose-300 border-rose-500/30 font-bold'
-                                                : 'bg-muted/60 text-foreground border-border'
-                                        }`}>
-                                            {categoryLabel}
-                                        </span>
-                                    </div>
+                                    {isEmergency && (
+                                        <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+                                            <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider border bg-red-500/15 text-red-400 border-red-500/30">
+                                                🚨 {lang === 'id' ? 'DARURAT (SOS)' : 'SOS EMERGENCY'}
+                                            </span>
+                                        </div>
+                                    )}
                                 </div>
                                 <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
                                     <MapPin className="h-3.5 w-3.5" aria-hidden />
