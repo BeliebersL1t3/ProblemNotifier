@@ -131,6 +131,14 @@ Route::prefix('api')->group(function () {
         Route::post('/issues/{rowIndex}/category', [IssueController::class, 'updateCategory']);
         Route::post('/issues/{rowIndex}/notify-empty-department', [IssueController::class, 'notifyEmptyDepartment']);
         Route::post('/issues/{rowIndex}/mark-duplicate', [IssueController::class, 'markDuplicate']);
+
+        // Issue Discussion & Multi-Department Progressive Coordination
+        Route::get('/issues/{rowIndex}/discussion', [\App\Http\Controllers\IssueDiscussionController::class, 'getDiscussion']);
+        Route::post('/issues/{rowIndex}/discussion', [\App\Http\Controllers\IssueDiscussionController::class, 'postMessage'])->middleware('throttle:60,1');
+        Route::post('/issues/{rowIndex}/dept-ready', [\App\Http\Controllers\IssueDiscussionController::class, 'deptReady']);
+        Route::post('/issues/{rowIndex}/dept-solve', [\App\Http\Controllers\IssueDiscussionController::class, 'deptSolve']);
+        Route::post('/issues/{rowIndex}/dept-pending', [\App\Http\Controllers\IssueDiscussionController::class, 'deptPending']);
+
         Route::get('/bot/status', [IssueController::class, 'getBotStatus']);
 
         // Sheet (period/year) management

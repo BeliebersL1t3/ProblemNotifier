@@ -33,7 +33,9 @@ import {
     Check,
     Lock,
     History,
+    MessageSquare,
 } from 'lucide-react';
+import { IssueDiscussionThread } from './IssueDiscussionThread';
 import { Button } from '@/Components/UI/Button';
 import { Input } from '@/Components/UI/Input';
 import { Label } from '@/Components/UI/Label';
@@ -55,6 +57,7 @@ export function ActivityDetailModal({ issue, onClose, onOpenCardModal, onEdit, o
     const [isSubmittingDup, setIsSubmittingDup] = useState(false);
     const [dupError, setDupError] = useState('');
     const [showDescHistory, setShowDescHistory] = useState(false);
+    const [activeTab, setActiveTab] = useState('details'); // 'details' | 'discussion'
 
     // Zero-typing smart duplicate recommendations
     const suggestedDuplicates = useMemo(() => {
@@ -623,9 +626,47 @@ export function ActivityDetailModal({ issue, onClose, onOpenCardModal, onEdit, o
                     })()}
                 </DialogHeader>
 
-                {/* ========================================================================= */}
-                {/* UNIFIED CHRONOLOGICAL LIFECYCLE & AUDIT TIMELINE                          */}
-                {/* ========================================================================= */}
+                {/* Mode Switcher Tabs */}
+                <div className="flex items-center gap-2 border-b border-[#3B3929] pt-3 pb-3 mb-2">
+                    <button
+                        type="button"
+                        onClick={() => setActiveTab('details')}
+                        className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                            activeTab === 'details'
+                                ? 'bg-[#C9AA71] text-black shadow-sm'
+                                : 'text-stone-400 hover:text-white hover:bg-stone-800/60'
+                        }`}
+                    >
+                        <FileText className="w-3.5 h-3.5" />
+                        <span>{lang === 'id' ? 'Rincian & Riwayat Tiket' : 'Details & Audit Timeline'}</span>
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setActiveTab('discussion')}
+                        className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                            activeTab === 'discussion'
+                                ? 'bg-[#C9AA71] text-black shadow-sm'
+                                : 'text-stone-400 hover:text-white hover:bg-stone-800/60'
+                        }`}
+                    >
+                        <MessageSquare className="w-3.5 h-3.5" />
+                        <span>{lang === 'id' ? 'Diskusi & Koordinasi Dept' : 'Discussion & Coordination'}</span>
+                    </button>
+                </div>
+
+                {activeTab === 'discussion' ? (
+                    <div className="my-2">
+                        <IssueDiscussionThread
+                            issueId={issue.id || issue.rowIndex}
+                            issueTitle={issue.title}
+                            issueLocation={issue.location}
+                        />
+                    </div>
+                ) : (
+                    <>
+                    {/* ========================================================================= */}
+                    {/* UNIFIED CHRONOLOGICAL LIFECYCLE & AUDIT TIMELINE                          */}
+                    {/* ========================================================================= */}
                 <div className="space-y-4 my-4">
                     {timelineItems.map((step, idx) => {
                         const stepNumber = idx + 1;
@@ -1217,6 +1258,8 @@ export function ActivityDetailModal({ issue, onClose, onOpenCardModal, onEdit, o
                         {lang === 'id' ? 'Tutup' : 'Close'}
                     </button>
                 </div>
+                </>
+                )}
             </DialogContent>
         </Dialog>
 
