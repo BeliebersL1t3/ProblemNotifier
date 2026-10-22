@@ -22,23 +22,16 @@ import {
     AlertCircle
 } from 'lucide-react';
 
-export default function LeanIndex({ issues = [], departments = [], locations = [], currentUser = null }) {
-    // --- Local Profile State (Stored in localStorage for quick field access) ---
-    const [myDept, setMyDept] = useState(() => {
-        if (currentUser?.department) return currentUser.department;
-        return localStorage.getItem('lean_staff_dept') || 'Engineer';
-    });
-    const [myName, setMyName] = useState(() => {
-        if (currentUser?.name) return currentUser.name;
-        return localStorage.getItem('lean_staff_name') || 'Staf Lapangan';
-    });
-    const [showProfileModal, setShowProfileModal] = useState(false);
+export default function LeanIndex({ issues = [], departments = [], locations = ['TBR', 'TPI', 'Kantor'], currentUser = null }) {
+    // --- Fixed Profile State (Locked to authenticated user or saved profile) ---
+    const myDept = currentUser?.department || localStorage.getItem('lean_staff_dept') || 'Reservasi';
+    const myName = currentUser?.name || localStorage.getItem('lean_staff_name') || 'Bray';
 
-    // Save profile to localStorage
+    // Save profile to localStorage for persistence
     useEffect(() => {
-        localStorage.setItem('lean_staff_dept', myDept);
-        localStorage.setItem('lean_staff_name', myName);
-    }, [myDept, myName]);
+        if (currentUser?.department) localStorage.setItem('lean_staff_dept', currentUser.department);
+        if (currentUser?.name) localStorage.setItem('lean_staff_name', currentUser.name);
+    }, [currentUser]);
 
     // --- UI Filters & View Modes ---
     // Tab: 'assigned_to_me' (Tugas Tim Saya) | 'reported_by_me' (Laporan Kami) | 'all' (Semua Isu)
@@ -53,7 +46,8 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
     const [lightboxImage, setLightboxImage] = useState(null);
 
     // --- Report Form State ---
-    const [formLocation, setFormLocation] = useState('');
+    const [formMainLoc, setFormMainLoc] = useState('TBR');
+    const [formDetailLoc, setFormDetailLoc] = useState('');
     const [formTitle, setFormTitle] = useState('');
     const [formDescription, setFormDescription] = useState('');
     const [formTargetDepts, setFormTargetDepts] = useState(['Engineer']);
@@ -98,15 +92,19 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
     // Submit Report
     const handleReportSubmit = (e) => {
         e.preventDefault();
-        if (!formLocation || !formTitle || formTargetDepts.length === 0) {
-            alert('Mohon isi lokasi, judul masalah, dan departemen tujuan.');
+        if (!formTitle.trim() || formTargetDepts.length === 0) {
+            alert('Mohon isi judul masalah dan departemen tujuan.');
             return;
         }
 
+        const fullLocation = formDetailLoc.trim()
+            ? `${formMainLoc} - ${formDetailLoc.trim()}`
+            : formMainLoc;
+
         setIsSubmitting(true);
         const data = new FormData();
-        data.append('location', formLocation);
-        data.append('title', formTitle);
+        data.append('location', fullLocation);
+        data.append('title', formTitle.trim());
         data.append('description', formDescription);
         formTargetDepts.forEach((d) => data.append('target_departments[]', d));
         data.append('reporter_name', myName);
@@ -118,7 +116,7 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
         router.post('/lapangan/issues', data, {
             onSuccess: () => {
                 setShowReportModal(false);
-                setFormLocation('');
+                setFormDetailLoc('');
                 setFormTitle('');
                 setFormDescription('');
                 setFormImage(null);
@@ -243,18 +241,17 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
 
                     {/* Profile & Navigation Switcher */}
                     <div className="flex items-center gap-2">
-                        {/* Profile Chip */}
-                        <button
-                            onClick={() => setShowProfileModal(true)}
-                            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700/80 border border-slate-700 text-xs transition-colors"
-                            title="Ubah identitas staf lapangan"
+                        {/* Profile Chip (Fixed) */}
+                        <div
+                            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-xs select-none"
+                            title="Identitas pelapor terverifikasi"
                         >
-                            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                            <span className="font-semibold text-slate-200 truncate max-w-[90px]">{myName}</span>
-                            <span className="text-[10px] text-emerald-400 font-medium bg-emerald-950/80 px-1 rounded">
+                            <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                            <span className="font-semibold text-slate-200 truncate max-w-[110px]">{myName}</span>
+                            <span className="text-[10px] text-emerald-400 font-medium bg-emerald-950/80 px-1.5 py-0.2 rounded border border-emerald-800/60">
                                 {myDept}
                             </span>
-                        </button>
+                        </div>
 
                         {/* Back to Full Dashboard / Login */}
                         <Link
@@ -639,22 +636,22 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
 
                         {/* Form Body */}
                         <form onSubmit={handleReportSubmit} className="p-4 overflow-y-auto space-y-4 flex-1">
-                            {/* 1. LOKASI */}
+                            {/* 1. LOKASI (TBR, TPI, Kantor + Detail) */}
                             <div>
                                 <label className="block text-xs font-bold text-slate-300 mb-1.5 flex items-center gap-1">
                                     <MapPin className="w-3.5 h-3.5 text-emerald-400" />
                                     1. Lokasi Masalah *
                                 </label>
-                                <div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5 mb-2">
-                                    {['Villa 01', 'Villa 02', 'Villa 03', 'Villa 04', 'Villa 05', 'Main Lodge', 'Dining Room', 'Jetty'].map((loc) => (
+                                <div className="grid grid-cols-3 gap-2 mb-2">
+                                    {['TBR', 'TPI', 'Kantor'].map((loc) => (
                                         <button
                                             type="button"
                                             key={loc}
-                                            onClick={() => setFormLocation(loc)}
-                                            className={`py-1.5 px-2 rounded-lg text-xs font-medium border text-center transition-all truncate ${
-                                                formLocation === loc
-                                                    ? 'bg-emerald-600 text-white border-emerald-500 font-bold shadow-sm'
-                                                    : 'bg-slate-800/80 text-slate-300 border-slate-700 hover:border-slate-600'
+                                            onClick={() => setFormMainLoc(loc)}
+                                            className={`py-2 px-3 rounded-lg text-xs font-bold border text-center transition-all ${
+                                                formMainLoc === loc
+                                                    ? 'bg-emerald-600 text-white border-emerald-500 shadow-md ring-2 ring-emerald-500/30'
+                                                    : 'bg-slate-800 text-slate-300 border-slate-700 hover:border-slate-600'
                                             }`}
                                         >
                                             {loc}
@@ -663,11 +660,10 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                                 </div>
                                 <input
                                     type="text"
-                                    value={formLocation}
-                                    onChange={(e) => setFormLocation(e.target.value)}
-                                    placeholder="Atau ketik lokasi lain (contoh: Staff Village, Dapur)"
+                                    value={formDetailLoc}
+                                    onChange={(e) => setFormDetailLoc(e.target.value)}
+                                    placeholder="Detail spesifik (contoh: Villa 05 / Jetty / Kamar 12)"
                                     className="w-full text-xs bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
-                                    required
                                 />
                             </div>
 
@@ -701,13 +697,13 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                                 />
                             </div>
 
-                            {/* 4. DITUJUKAN KE DEPARTEMEN (MULTI-SELECT) */}
+                            {/* 4. DITUJUKAN KE DEPARTEMEN (11 DEPARTEMEN RESMI) */}
                             <div>
                                 <label className="block text-xs font-bold text-slate-300 mb-1.5 flex items-center gap-1">
                                     <Building2 className="w-3.5 h-3.5 text-indigo-400" />
-                                    4. Ditujukan ke Departemen (Bisa pilih lebih dari satu) *
+                                    4. Ditujukan ke Departemen (11 Departemen) *
                                 </label>
-                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                                <div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5">
                                     {departments.map((dept) => {
                                         const isSelected = formTargetDepts.includes(dept);
                                         return (
@@ -715,14 +711,14 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                                                 type="button"
                                                 key={dept}
                                                 onClick={() => toggleTargetDept(dept)}
-                                                className={`py-2 px-2.5 rounded-lg text-xs font-semibold border flex items-center justify-between transition-all ${
+                                                className={`py-2 px-2 rounded-lg text-xs font-semibold border flex items-center justify-between transition-all ${
                                                     isSelected
                                                         ? 'bg-indigo-600 text-white border-indigo-500 shadow-sm'
                                                         : 'bg-slate-800/80 text-slate-400 border-slate-700 hover:text-slate-200'
                                                 }`}
                                             >
-                                                <span>{dept}</span>
-                                                {isSelected && <Check className="w-3.5 h-3.5 text-white" />}
+                                                <span className="truncate">{dept}</span>
+                                                {isSelected && <Check className="w-3.5 h-3.5 text-white shrink-0 ml-1" />}
                                             </button>
                                         );
                                     })}
@@ -765,19 +761,15 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                                 )}
                             </div>
 
-                            {/* 6. PELAPOR */}
+                            {/* 6. PELAPOR (FIXED / TERKUNCI KE AKUN) */}
                             <div className="p-2.5 rounded-lg bg-slate-800/60 border border-slate-700 text-xs flex items-center justify-between">
                                 <div>
                                     <span className="text-[11px] text-slate-400">6. Pelapor:</span>
                                     <p className="font-bold text-slate-200">{myName} ({myDept})</p>
                                 </div>
-                                <button
-                                    type="button"
-                                    onClick={() => setShowProfileModal(true)}
-                                    className="text-[11px] text-emerald-400 hover:underline"
-                                >
-                                    Ganti Nama
-                                </button>
+                                <span className="text-[10px] text-emerald-400 bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-800/60 font-semibold select-none">
+                                    Terkunci
+                                </span>
                             </div>
 
                             {/* Submit Button */}
@@ -890,64 +882,6 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                 </div>
             )}
 
-            {/* MODAL 3: GANTI PROFIL STAF (LOCAL STORAGE) */}
-            {showProfileModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-                    <div className="w-full max-w-sm bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-5 space-y-4">
-                        <div className="flex items-start justify-between">
-                            <div>
-                                <h3 className="font-bold text-base text-white">Identitas Staf Lapangan</h3>
-                                <p className="text-xs text-slate-400">Atur nama & departemen Anda di HP ini</p>
-                            </div>
-                            <button
-                                onClick={() => setShowProfileModal(false)}
-                                className="text-slate-400 hover:text-white"
-                            >
-                                <X className="w-4 h-4" />
-                            </button>
-                        </div>
-
-                        <div className="space-y-3">
-                            <div>
-                                <label className="block text-xs font-bold text-slate-300 mb-1">
-                                    Nama Staf
-                                </label>
-                                <input
-                                    type="text"
-                                    value={myName}
-                                    onChange={(e) => setMyName(e.target.value)}
-                                    className="w-full text-xs bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-emerald-500"
-                                    placeholder="Contoh: Budi Santoso"
-                                />
-                            </div>
-
-                            <div>
-                                <label className="block text-xs font-bold text-slate-300 mb-1">
-                                    Departemen Anda
-                                </label>
-                                <select
-                                    value={myDept}
-                                    onChange={(e) => setMyDept(e.target.value)}
-                                    className="w-full text-xs bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-emerald-500"
-                                >
-                                    {departments.map((d) => (
-                                        <option key={d} value={d}>
-                                            {d}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            <button
-                                onClick={() => setShowProfileModal(false)}
-                                className="w-full py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md transition-all mt-2"
-                            >
-                                Simpan Identitas
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
 
             {/* MODAL 4: RESET CONFIRMATION */}
             {showResetConfirm && (

@@ -13,39 +13,21 @@ class LeanController extends Controller
     public const DEPARTMENTS = [
         'Engineer',
         'HK',
-        'IT',
         'Fasilitas',
         'Kitchen',
         'GR',
+        'IT',
+        'OE',
+        'Procurement',
+        'Finance',
+        'Reservasi',
         'HR',
-        'Lainnya',
     ];
 
-    public const LOCATIONS = [
-        'Villa 01',
-        'Villa 02',
-        'Villa 03',
-        'Villa 04',
-        'Villa 05',
-        'Villa 06',
-        'Villa 07',
-        'Villa 08',
-        'Villa 09',
-        'Villa 10',
-        'Villa 11',
-        'Villa 12',
-        'Villa 13',
-        'Villa 14',
-        'Villa 15',
-        'Main Lodge',
-        'Dining Room',
-        'Pool Area',
-        'Jetty',
-        'Staff Village',
-        'Kitchen',
-        'Bar',
-        'Spa',
-        'Lainnya',
+    public const MAIN_LOCATIONS = [
+        'TPI',
+        'TBR',
+        'Kantor',
     ];
 
     /**
@@ -87,7 +69,7 @@ class LeanController extends Controller
         return Inertia::render('Lean/Index', [
             'issues'      => $issues,
             'departments' => self::DEPARTMENTS,
-            'locations'   => self::LOCATIONS,
+            'locations'   => self::MAIN_LOCATIONS,
             'currentUser' => $currentUser,
         ]);
     }
