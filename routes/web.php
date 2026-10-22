@@ -205,6 +205,14 @@ Route::post('/lapangan/issues/{issue}/claim', [\App\Http\Controllers\LeanControl
 Route::post('/lapangan/issues/{issue}/resolve', [\App\Http\Controllers\LeanController::class, 'resolve'])->name('lean.resolve');
 Route::post('/lapangan/reset', [\App\Http\Controllers\LeanController::class, 'reset'])->name('lean.reset');
 
+// Dedicated Lean API endpoints for WhatsApp Bot V2 testing
+Route::get('/api/lean/issues', [\App\Http\Controllers\LeanController::class, 'apiIndex'])->name('lean.api.index');
+Route::post('/api/lean/issues', [\App\Http\Controllers\LeanController::class, 'apiStore'])->name('lean.api.store');
+Route::post('/api/lean/issues/{id}/claim', [\App\Http\Controllers\LeanController::class, 'apiClaim'])->name('lean.api.claim');
+Route::post('/api/lean/issues/{id}/resolve', [\App\Http\Controllers\LeanController::class, 'apiResolve'])->name('lean.api.resolve');
+Route::post('/api/lean/issues/{id}/transfer', [\App\Http\Controllers\LeanController::class, 'apiTransfer'])->name('lean.api.transfer');
+Route::post('/api/lean/issues/{id}/pending', [\App\Http\Controllers\LeanController::class, 'apiPending'])->name('lean.api.pending');
+
 require __DIR__.'/auth.php';
 
 

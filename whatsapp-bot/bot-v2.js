@@ -369,7 +369,7 @@ async function startBot() {
 
                     // Fetch issues from Laravel
                     try {
-                        const issuesRes = await axios.get(`${BASE_URL}/api/issues`);
+                        const issuesRes = await axios.get(`${BASE_URL}/api/lean/issues`);
                         let issues = issuesRes.data?.data || [];
 
                         // Filter by user's department & status
@@ -420,7 +420,7 @@ async function startBot() {
                     }
 
                     try {
-                        const claimRes = await axios.post(`${BASE_URL}/api/issues/${targetId}/claim`, {
+                        const claimRes = await axios.post(`${BASE_URL}/api/lean/issues/${targetId}/claim`, {
                             taker: registeredUser.name,
                             department: registeredUser.department || ''
                         });
@@ -454,7 +454,7 @@ async function startBot() {
                     }
 
                     try {
-                        const solveRes = await axios.post(`${BASE_URL}/api/issues/${targetId}/resolve`, {
+                        const solveRes = await axios.post(`${BASE_URL}/api/lean/issues/${targetId}/resolve`, {
                             solver: registeredUser.name,
                             fixDescription: 'Diselesaikan via WhatsApp Grup Telunas V2'
                         });
@@ -507,7 +507,7 @@ async function startBot() {
                     }
 
                     try {
-                        const transferRes = await axios.post(`${BASE_URL}/api/issues/${targetId}/transfer`, {
+                        const transferRes = await axios.post(`${BASE_URL}/api/lean/issues/${targetId}/transfer`, {
                             to_department: validDept.name,
                             reason: transferReason,
                             transferred_by: registeredUser.name,
@@ -632,7 +632,7 @@ async function startBot() {
                 const userDept = registeredUser.department || '';
 
                 try {
-                    const issuesRes = await axios.get(`${BASE_URL}/api/issues`);
+                    const issuesRes = await axios.get(`${BASE_URL}/api/lean/issues`);
                     let issues = issuesRes.data?.data || [];
 
                     const filtered = issues.filter(iss => {
@@ -819,7 +819,7 @@ async function startBot() {
                         formData.append('image', state.data.photoBuffer, { filename: 'issue.jpg', contentType: 'image/jpeg' });
                     }
 
-                    const res = await axios.post(`${BASE_URL}/api/issues`, formData, {
+                    const res = await axios.post(`${BASE_URL}/api/lean/issues`, formData, {
                         headers: formData.getHeaders()
                     });
 

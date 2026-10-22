@@ -18,9 +18,12 @@ import {
     Check,
     ArrowLeft,
     Image as ImageIcon,
-    ExternalLink,
-    AlertCircle
+    AlertCircle,
+    Power,
+    MessageSquare
 } from 'lucide-react';
+import axios from 'axios';
+import { BotControlModal } from '@/Components/CampusFix/BotControlModal';
 
 const PRESET_ACCOUNTS = [
     { name: 'Budi (Engineer)', dept: 'Engineer', icon: '🔧' },
@@ -69,9 +72,30 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
 
     // --- UI Filters & View Modes ---
     // Tab: 'assigned_to_me' (Tugas Tim Saya) | 'reported_by_me' (Laporan Kami) | 'all' (Semua Isu)
-    const [activeTab, setActiveTab] = useState('assigned_to_me');
-    // Status Filter: 'all' | 'open' | 'in_progress' | 'resolved'
+    const [activeTab, setActiveTab] = useState('all');
+    // Status Filter: 'all' | 'open' | 'in_progress' | 'pending' | 'resolved'
     const [statusFilter, setStatusFilter] = useState('all');
+    // Department Filter: 'all' | specific department
+    const [selectedDeptFilter, setSelectedDeptFilter] = useState('all');
+
+    // --- WhatsApp Bot V2 Control State ---
+    const [botControlModalOpen, setBotControlModalOpen] = useState(false);
+    const [botStatus, setBotStatus] = useState(null);
+
+    const fetchBotStatus = async () => {
+        try {
+            const res = await axios.get('/api/bot/status');
+            if (res.data) {
+                setBotStatus(res.data);
+            }
+        } catch (e) {}
+    };
+
+    useEffect(() => {
+        fetchBotStatus();
+        const timer = setInterval(fetchBotStatus, 5000);
+        return () => clearInterval(timer);
+    }, []);
 
     // --- Modal States ---
     const [showReportModal, setShowReportModal] = useState(false);
@@ -210,10 +234,17 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
         });
     };
 
-    // --- Filter Issues based on Active Tab & Status ---
+    // --- Filter Issues based on Active Tab, Status & Department ---
     const filteredIssues = useMemo(() => {
         return issues.filter((item) => {
-            // 1. Tab filtering
+            // 1. Department filter (all vs 1 dept)
+            if (selectedDeptFilter !== 'all') {
+                const targets = item.target_departments || [];
+                const matches = targets.some((d) => d.toLowerCase() === selectedDeptFilter.toLowerCase());
+                if (!matches) return false;
+            }
+
+            // 2. Tab filtering
             if (activeTab === 'assigned_to_me') {
                 const targets = item.target_departments || [];
                 const isTarget = targets.some((d) => d.toLowerCase() === myDept.toLowerCase());
@@ -222,16 +253,18 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                 const isMyOrigin = (item.reporter_dept || '').toLowerCase() === myDept.toLowerCase();
                 if (!isMyOrigin) return false;
             }
-            // activeTab === 'all' includes all issues
 
-            // 2. Status filtering
-            if (statusFilter !== 'all' && item.status !== statusFilter) {
-                return false;
+            // 3. Status filtering
+            if (statusFilter !== 'all') {
+                if (statusFilter === 'open' && item.status !== 'open') return false;
+                if (statusFilter === 'in_progress' && item.status !== 'in_progress') return false;
+                if (statusFilter === 'pending' && item.status !== 'pending') return false;
+                if (statusFilter === 'resolved' && item.status !== 'resolved') return false;
             }
 
             return true;
         });
-    }, [issues, activeTab, statusFilter, myDept]);
+    }, [issues, activeTab, statusFilter, selectedDeptFilter, myDept]);
 
     // Counters for tabs
     const counts = useMemo(() => {
@@ -245,9 +278,10 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
 
         const open = filteredIssues.filter((i) => i.status === 'open').length;
         const inProgress = filteredIssues.filter((i) => i.status === 'in_progress').length;
+        const pending = filteredIssues.filter((i) => i.status === 'pending').length;
         const resolved = filteredIssues.filter((i) => i.status === 'resolved').length;
 
-        return { assigned, reported, total, open, inProgress, resolved };
+        return { assigned, reported, total, open, inProgress, pending, resolved };
     }, [issues, filteredIssues, myDept]);
 
     return (
@@ -273,8 +307,25 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                         </div>
                     </div>
 
-                    {/* Profile & Navigation Switcher */}
+                    {/* Profile & Navigation Switcher & Bot Controls */}
                     <div className="flex items-center gap-2">
+                        {/* WhatsApp Bot V2 Status & Control Button */}
+                        <button
+                            type="button"
+                            onClick={() => setBotControlModalOpen(true)}
+                            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-bold transition-all shadow-sm cursor-pointer ${
+                                botStatus?.connected
+                                    ? 'bg-emerald-950/80 border-emerald-500/60 text-emerald-300 hover:bg-emerald-900/80 shadow-[0_0_10px_rgba(16,185,129,0.2)]'
+                                    : 'bg-rose-950/80 border-rose-500/60 text-rose-300 hover:bg-rose-900/80'
+                            }`}
+                            title="Klik untuk Kontrol Bot (Matikan / Nyalakan / Lihat Status)"
+                        >
+                            <span className={`w-2 h-2 rounded-full ${botStatus?.connected ? 'bg-emerald-400 animate-pulse' : 'bg-rose-500'}`} />
+                            <span className="hidden sm:inline">Bot WA V2:</span>
+                            <span>{botStatus?.connected ? 'Online' : 'Offline'}</span>
+                            <Power className="w-3 h-3 text-slate-400 ml-0.5" />
+                        </button>
+
                         {/* Quick Account Switcher Button (Click to test as another dept) */}
                         <button
                             type="button"
@@ -383,12 +434,12 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                     </button>
                 </div>
 
-                {/* STATUS FILTER PILLS & ACTION BAR */}
-                <div className="flex items-center justify-between gap-2 mb-4 overflow-x-auto pb-1">
-                    <div className="flex items-center gap-1.5 text-xs">
+                {/* STATUS FILTER PILLS & DEPARTMENT SELECTOR */}
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5 mb-4 pb-1">
+                    <div className="flex items-center gap-1.5 text-xs overflow-x-auto pb-1 max-w-full">
                         <button
                             onClick={() => setStatusFilter('all')}
-                            className={`px-2.5 py-1 rounded-lg font-medium transition-colors ${
+                            className={`px-2.5 py-1 rounded-lg font-medium transition-colors shrink-0 ${
                                 statusFilter === 'all'
                                     ? 'bg-slate-200 text-slate-900 font-bold'
                                     : 'bg-slate-800 text-slate-400 hover:text-white border border-slate-700'
@@ -398,29 +449,40 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                         </button>
                         <button
                             onClick={() => setStatusFilter('open')}
-                            className={`px-2.5 py-1 rounded-lg font-medium transition-colors flex items-center gap-1.5 ${
+                            className={`px-2.5 py-1 rounded-lg font-medium transition-colors flex items-center gap-1.5 shrink-0 ${
                                 statusFilter === 'open'
                                     ? 'bg-rose-500 text-white font-bold'
                                     : 'bg-slate-800 text-rose-400 hover:bg-slate-700 border border-slate-700'
                             }`}
                         >
                             <span className="w-2 h-2 rounded-full bg-rose-400" />
-                            Baru ({counts.open})
+                            Open ({counts.open})
                         </button>
                         <button
                             onClick={() => setStatusFilter('in_progress')}
-                            className={`px-2.5 py-1 rounded-lg font-medium transition-colors flex items-center gap-1.5 ${
+                            className={`px-2.5 py-1 rounded-lg font-medium transition-colors flex items-center gap-1.5 shrink-0 ${
                                 statusFilter === 'in_progress'
                                     ? 'bg-amber-500 text-white font-bold'
                                     : 'bg-slate-800 text-amber-400 hover:bg-slate-700 border border-slate-700'
                             }`}
                         >
                             <span className="w-2 h-2 rounded-full bg-amber-400" />
-                            Dikerjakan ({counts.inProgress})
+                            Progress ({counts.inProgress})
+                        </button>
+                        <button
+                            onClick={() => setStatusFilter('pending')}
+                            className={`px-2.5 py-1 rounded-lg font-medium transition-colors flex items-center gap-1.5 shrink-0 ${
+                                statusFilter === 'pending'
+                                    ? 'bg-orange-500 text-white font-bold'
+                                    : 'bg-slate-800 text-orange-400 hover:bg-slate-700 border border-slate-700'
+                            }`}
+                        >
+                            <span className="w-2 h-2 rounded-full bg-orange-400" />
+                            Tertunda ({counts.pending})
                         </button>
                         <button
                             onClick={() => setStatusFilter('resolved')}
-                            className={`px-2.5 py-1 rounded-lg font-medium transition-colors flex items-center gap-1.5 ${
+                            className={`px-2.5 py-1 rounded-lg font-medium transition-colors flex items-center gap-1.5 shrink-0 ${
                                 statusFilter === 'resolved'
                                     ? 'bg-emerald-500 text-white font-bold'
                                     : 'bg-slate-800 text-emerald-400 hover:bg-slate-700 border border-slate-700'
@@ -429,6 +491,24 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                             <span className="w-2 h-2 rounded-full bg-emerald-400" />
                             Selesai ({counts.resolved})
                         </button>
+                    </div>
+
+                    {/* Department Dropdown Filter (1 Dept vs All) */}
+                    <div className="flex items-center gap-2 shrink-0">
+                        <label className="text-xs text-slate-400 font-semibold flex items-center gap-1">
+                            <Building2 className="w-3.5 h-3.5 text-emerald-400" />
+                            Dept:
+                        </label>
+                        <select
+                            value={selectedDeptFilter}
+                            onChange={(e) => setSelectedDeptFilter(e.target.value)}
+                            className="bg-slate-800 border border-slate-700 text-slate-200 text-xs font-semibold rounded-lg px-2.5 py-1 focus:ring-1 focus:ring-emerald-500 cursor-pointer shadow-sm"
+                        >
+                            <option value="all">Semua Departemen (All)</option>
+                            {departments.map((dept) => (
+                                <option key={dept} value={dept}>{dept}</option>
+                            ))}
+                        </select>
                     </div>
 
                     {/* Quick Report Trigger on desktop */}
@@ -486,11 +566,17 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                                     key={issue.id}
                                     className="p-4 rounded-xl bg-slate-800/90 border border-slate-700/80 hover:border-slate-600 transition-all shadow-sm space-y-3"
                                 >
-                                    {/* Card Header: Location + Status */}
-                                    <div className="flex items-start justify-between gap-2">
+                                    {/* Card Header: Issue Code + Location + Status + Time */}
+                                    <div className="flex items-start justify-between gap-2 flex-wrap">
                                         <div className="flex items-center gap-2 flex-wrap">
-                                            <span className="px-2.5 py-1 rounded-md bg-emerald-950 text-emerald-300 border border-emerald-800/80 font-bold text-xs flex items-center gap-1">
-                                                <MapPin className="w-3.5 h-3.5" />
+                                            {/* ID Isu */}
+                                            <span className="px-2 py-0.5 rounded-md bg-slate-900 border border-slate-700 text-amber-300 font-mono font-bold text-xs">
+                                                #{issue.issue_code || ('LEAN-' + issue.id)}
+                                            </span>
+
+                                            {/* Lokasi */}
+                                            <span className="px-2.5 py-0.5 rounded-md bg-emerald-950 text-emerald-300 border border-emerald-800/80 font-bold text-xs flex items-center gap-1">
+                                                <MapPin className="w-3.5 h-3.5 text-emerald-400" />
                                                 {issue.location}
                                             </span>
 
@@ -498,13 +584,19 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                                             {issue.status === 'open' && (
                                                 <span className="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40 text-[11px] font-semibold flex items-center gap-1">
                                                     <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
-                                                    Baru
+                                                    Open
                                                 </span>
                                             )}
                                             {issue.status === 'in_progress' && (
                                                 <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[11px] font-semibold flex items-center gap-1">
                                                     <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-                                                    Sedang Dikerjakan
+                                                    Progress
+                                                </span>
+                                            )}
+                                            {issue.status === 'pending' && (
+                                                <span className="px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-300 border border-orange-500/40 text-[11px] font-semibold flex items-center gap-1">
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-orange-400" />
+                                                    Tertunda
                                                 </span>
                                             )}
                                             {issue.status === 'resolved' && (
@@ -515,9 +607,17 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                                             )}
                                         </div>
 
-                                        <span className="text-[11px] text-slate-400 shrink-0">
+                                        {/* Waktu Pelaporan */}
+                                        <span className="text-[11px] text-slate-400 shrink-0 font-medium flex items-center gap-1">
+                                            <Clock className="w-3 h-3" />
                                             {issue.created_at_human}
                                         </span>
+                                    </div>
+
+                                    {/* Pelapor Info */}
+                                    <div className="flex items-center gap-1.5 text-xs text-slate-300">
+                                        <User className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                                        <span>Pelapor: <strong className="text-white">{issue.reporter_name}</strong> <span className="text-slate-400">({issue.reporter_dept || 'Staf'})</span></span>
                                     </div>
 
                                     {/* Title & Description */}
@@ -1124,6 +1224,14 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                     </div>
                 </div>
             )}
+
+            {/* BOT CONTROL MODAL */}
+            <BotControlModal
+                open={botControlModalOpen}
+                onOpenChange={setBotControlModalOpen}
+                botStatus={botStatus}
+                onRefreshStatus={fetchBotStatus}
+            />
         </div>
     );
 }
