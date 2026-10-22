@@ -161,6 +161,20 @@ class LeanController extends Controller
         $dept = $request->input('dept');
         $staffName = $request->input('staff_name');
 
+        // Rule Check: Pelapor tidak boleh mengerjakan tugasnya sendiri
+        if (
+            strcasecmp($issue->reporter_name, $staffName) === 0 ||
+            strcasecmp($issue->reporter_dept ?? '', $dept) === 0
+        ) {
+            return redirect()->back()->with('error', 'Pelapor tidak dapat mengambil atau mengerjakan tugasnya sendiri.');
+        }
+
+        // Rule Check: Hanya departemen tujuan yang berhak mengambil tugas
+        $targetDepts = array_map('strtolower', $issue->target_departments ?? []);
+        if (!empty($targetDepts) && !in_array(strtolower($dept), $targetDepts)) {
+            return redirect()->back()->with('error', 'Hanya staf dari departemen tujuan yang dapat mengambil tugas ini.');
+        }
+
         // Automatically set ACC for this department if it was a target
         $accs = $issue->department_accs ?? [];
         if (isset($accs[$dept])) {

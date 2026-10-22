@@ -469,6 +469,14 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                             const isAssignedToMyDept = (issue.target_departments || []).some(
                                 (d) => d.toLowerCase() === myDept.toLowerCase()
                             );
+                            const isReporter = (issue.reporter_name || '').toLowerCase() === myName.toLowerCase() ||
+                                               (issue.reporter_dept || '').toLowerCase() === myDept.toLowerCase();
+                            const canClaim = !isReporter && isAssignedToMyDept;
+                            const canResolve = !isReporter && (
+                                (issue.claimed_by_name || '').toLowerCase() === myName.toLowerCase() ||
+                                (issue.claimed_by_dept || '').toLowerCase() === myDept.toLowerCase() ||
+                                isAssignedToMyDept
+                            );
                             const accs = issue.department_accs || {};
                             const myDeptAcc = accs[myDept];
                             const isMyDeptReady = myDeptAcc?.is_acc;
@@ -570,8 +578,8 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                                                         <>
                                                             <Clock className="w-3 h-3 text-amber-400" />
                                                             <span>{dept}: Menunggu ACC</span>
-                                                            {/* If current user belongs to this dept and hasn't ACCed yet */}
-                                                            {isMyDeptThis && issue.status !== 'resolved' && (
+                                                            {/* If current user belongs to this dept, hasn't ACCed yet, and is NOT the reporter */}
+                                                            {isMyDeptThis && issue.status !== 'resolved' && !isReporter && (
                                                                 <button
                                                                     onClick={() => handleAcc(issue.id, dept)}
                                                                     className="ml-1 text-[10px] bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-1.5 py-0.2 rounded shadow-sm"
@@ -609,28 +617,44 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                                         {/* Action Buttons */}
                                         <div className="flex items-center gap-2 self-end sm:self-auto">
                                             {issue.status === 'open' && (
-                                                <button
-                                                    onClick={() => handleClaim(issue.id)}
-                                                    className="px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-md transition-all flex items-center gap-1.5"
-                                                >
-                                                    <span>Kerjakan Tugas</span>
-                                                    <ChevronRight className="w-3.5 h-3.5" />
-                                                </button>
+                                                canClaim ? (
+                                                    <button
+                                                        onClick={() => handleClaim(issue.id)}
+                                                        className="px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-md transition-all flex items-center gap-1.5"
+                                                    >
+                                                        <span>Kerjakan Tugas</span>
+                                                        <ChevronRight className="w-3.5 h-3.5" />
+                                                    </button>
+                                                ) : isReporter ? (
+                                                    <span className="text-[11px] text-slate-400 italic bg-slate-900/60 px-2.5 py-1 rounded-md border border-slate-700/50">
+                                                        ⏳ Menunggu respon tim {issue.target_departments?.join(', ')}
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-[11px] text-slate-500 italic bg-slate-900/40 px-2.5 py-1 rounded-md border border-slate-800">
+                                                        Tugas untuk {issue.target_departments?.join(', ')}
+                                                    </span>
+                                                )
                                             )}
 
                                             {issue.status === 'in_progress' && (
-                                                <button
-                                                    onClick={() => {
-                                                        setShowResolveModal(issue);
-                                                        setResolveNote('');
-                                                        setResolveImage(null);
-                                                        setResolveImagePreview(null);
-                                                    }}
-                                                    className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md transition-all flex items-center gap-1.5"
-                                                >
-                                                    <CheckCircle2 className="w-3.5 h-3.5" />
-                                                    <span>Tandai Selesai</span>
-                                                </button>
+                                                canResolve ? (
+                                                    <button
+                                                        onClick={() => {
+                                                            setShowResolveModal(issue);
+                                                            setResolveNote('');
+                                                            setResolveImage(null);
+                                                            setResolveImagePreview(null);
+                                                        }}
+                                                        className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md transition-all flex items-center gap-1.5"
+                                                    >
+                                                        <CheckCircle2 className="w-3.5 h-3.5" />
+                                                        <span>Tandai Selesai</span>
+                                                    </button>
+                                                ) : (
+                                                    <span className="text-[11px] text-amber-300/80 italic bg-amber-950/30 px-2.5 py-1 rounded-md border border-amber-800/30">
+                                                        Sedang dikerjakan oleh {issue.claimed_by_name} ({issue.claimed_by_dept})
+                                                    </span>
+                                                )
                                             )}
 
                                             {issue.status === 'resolved' && (
