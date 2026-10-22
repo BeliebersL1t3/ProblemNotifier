@@ -21,9 +21,10 @@ echo   [6] Start Vite Dev Server (React HMR)
 echo   [7] Start All Core Services (Tailscale Funnel + Queue + Bot)
 echo   [8] Start All Core Services (ngrok Tunnel + Queue + Bot)
 echo   [9] Exit
+echo   [10] Start WhatsApp Bot V2 (New - bot-v2.js)
 echo.
 echo ========================================================
-set /p "CHOICE=Enter your choice [1-9]: "
+set /p "CHOICE=Enter your choice [1-10]: "
 
 if "%CHOICE%"=="1" goto START_TAILSCALE
 if "%CHOICE%"=="2" goto STOP_TAILSCALE
@@ -34,6 +35,7 @@ if "%CHOICE%"=="6" goto START_VITE
 if "%CHOICE%"=="7" goto START_ALL_TAILSCALE
 if "%CHOICE%"=="8" goto START_ALL_NGROK
 if "%CHOICE%"=="9" goto EXIT
+if "%CHOICE%"=="10" goto START_BOT_V2
 goto INVALID
 
 :START_TAILSCALE
@@ -82,6 +84,14 @@ goto MENU
 echo.
 echo Launching WhatsApp Bot in a new window...
 start "CampusFix - WhatsApp Bot" /D "%~dp0\whatsapp-bot" cmd /k "npm start"
+echo Done.
+timeout /t 2 >nul
+goto MENU
+
+:START_BOT_V2
+echo.
+echo Launching WhatsApp Bot V2 in a new window...
+start "CampusFix - WhatsApp Bot V2" /D "%~dp0\whatsapp-bot" cmd /k "npm run start:v2"
 echo Done.
 timeout /t 2 >nul
 goto MENU
