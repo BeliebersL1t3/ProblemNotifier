@@ -895,8 +895,17 @@ async function startBot() {
     // ─── Express HTTP Server for Webhook Notifications ───────────────────────
     const PORT = process.env.BOT_PORT || 3000;
 
-    app.get('/status', (req, res) => {
-        res.json({ success: true, bot: 'Telunas CampusFix V2', status: globalSock ? 'active' : 'inactive' });
+    app.get(['/status', '/health', '/api/status'], (req, res) => {
+        const isConnected = Boolean(globalSock && globalSock.user);
+        const phone = globalSock?.user?.id ? globalSock.user.id.split(':')[0] : (botConfig.lastKnownBotPhone || '628117700554');
+        res.json({
+            success: true,
+            bot: 'Telunas CampusFix V2',
+            connected: isConnected,
+            status: isConnected ? 'connected' : 'connecting',
+            phone: phone,
+            uptime: Math.floor(process.uptime())
+        });
     });
 
     app.post('/shutdown', (req, res) => {
