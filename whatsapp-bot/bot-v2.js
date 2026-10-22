@@ -147,6 +147,83 @@ function loadStaffPhones() {
 }
 loadStaffPhones();
 
+// Persistent Device LID <-> Phone Mapping
+let deviceMappings = {};
+function loadDeviceMappings() {
+    try {
+        if (fs.existsSync('device_mappings.json')) {
+            deviceMappings = JSON.parse(fs.readFileSync('device_mappings.json', 'utf8'));
+        }
+    } catch (e) {
+        deviceMappings = {};
+    }
+}
+function saveDeviceMappings() {
+    try {
+        fs.writeFileSync('device_mappings.json', JSON.stringify(deviceMappings, null, 2), 'utf8');
+    } catch (e) {}
+}
+loadDeviceMappings();
+
+const lidToPhoneCache = new Map();
+
+async function resolveSenderPhone(sock, from, msg) {
+    const rawParticipant = msg.key.participant || from;
+    const cleanRaw = String(rawParticipant).replace(/[^0-9]/g, '');
+
+    // 1. Direct match in persistent deviceMappings
+    if (deviceMappings[cleanRaw]) {
+        return deviceMappings[cleanRaw];
+    }
+
+    // 2. Direct match in staffPhones
+    if (staffPhones[cleanRaw]) {
+        return cleanRaw;
+    }
+
+    // 3. Cached LID -> Phone mapping
+    if (lidToPhoneCache.has(cleanRaw)) {
+        const cached = lidToPhoneCache.get(cleanRaw);
+        deviceMappings[cleanRaw] = cached;
+        saveDeviceMappings();
+        return cached;
+    }
+
+    // 4. Auto-pair if single active admin registered in DB
+    const activeDbPhones = Object.keys(staffPhones).filter(k => k.length <= 13 && staffPhones[k].role === 'admin');
+    if (activeDbPhones.length === 1 && cleanRaw.length >= 13) {
+        const targetPhone = activeDbPhones[0];
+        deviceMappings[cleanRaw] = targetPhone;
+        saveDeviceMappings();
+        return targetPhone;
+    }
+
+    // 5. Scan all participating groups to find this participant's real phone
+    if (sock) {
+        try {
+            const allGroups = await sock.groupFetchAllParticipating();
+            for (const group of Object.values(allGroups)) {
+                if (Array.isArray(group.participants)) {
+                    for (const p of group.participants) {
+                        const pPhone = String(p.id).replace(/[^0-9]/g, '');
+                        const pLid = p.lid ? String(p.lid).replace(/[^0-9]/g, '') : null;
+                        if (pLid && pPhone) {
+                            lidToPhoneCache.set(pLid, pPhone);
+                            deviceMappings[pLid] = pPhone;
+                            saveDeviceMappings();
+                        }
+                        if (pLid === cleanRaw || pPhone === cleanRaw || p.id === rawParticipant) {
+                            return pPhone;
+                        }
+                    }
+                }
+            }
+        } catch (e) {}
+    }
+
+    return cleanRaw;
+}
+
 async function syncStaffDirectory() {
     try {
         const res = await axios.get(`${BASE_URL}/api/staff-directory`, { timeout: 5000 });
@@ -169,6 +246,21 @@ async function syncStaffDirectory() {
                     newStaff[user.whatsapp_number] = staffRecord;
                 }
             });
+
+            // Preserve known device LIDs
+            for (const [lid, phone] of Object.entries(deviceMappings)) {
+                const normMapped = normalizePhoneNumber(phone);
+                const localMapped = normMapped.startsWith('62') ? ('0' + normMapped.substring(2)) : normMapped;
+                const user = newStaff[normMapped] || newStaff[phone] || newStaff[localMapped];
+                if (user) {
+                    newStaff[lid] = {
+                        ...user,
+                        source: 'whatsapp_lid',
+                        realPhone: normMapped
+                    };
+                }
+            }
+
             staffPhones = newStaff;
             fs.writeFileSync('staff_phones.json', JSON.stringify(staffPhones, null, 2), 'utf8');
             console.log(`[Staff Sync] Loaded ${res.data.data.length} staff records from Telunas DB.`);
@@ -183,9 +275,22 @@ async function syncStaffDirectory() {
 function getStaffByPhone(phone) {
     if (!phone) return null;
     const clean = String(phone).replace(/[^0-9]/g, '');
+    if (staffPhones[clean]) return staffPhones[clean];
+
     const norm = normalizePhoneNumber(clean);
+    if (staffPhones[norm]) return staffPhones[norm];
+
     const local = norm.startsWith('62') ? ('0' + norm.substring(2)) : norm;
-    return staffPhones[norm] || staffPhones[clean] || staffPhones[local] || null;
+    if (staffPhones[local]) return staffPhones[local];
+
+    if (deviceMappings[clean]) {
+        const mapped = deviceMappings[clean];
+        const mappedNorm = normalizePhoneNumber(mapped);
+        const mappedLocal = mappedNorm.startsWith('62') ? ('0' + mappedNorm.substring(2)) : mappedNorm;
+        return staffPhones[mapped] || staffPhones[mappedNorm] || staffPhones[mappedLocal] || null;
+    }
+
+    return null;
 }
 
 // ─── Conversation State Machine (DM Reporting) ────────────────────────────────
@@ -270,7 +375,8 @@ async function startBot() {
             const from = msg.key.remoteJid;
             const isGroup = from.endsWith('@g.us');
             const senderJid = isGroup ? (msg.key.participant || from) : from;
-            const senderPhone = normalizePhoneNumber(senderJid.split('@')[0].split(':')[0]);
+            const rawSenderPhone = senderJid.split('@')[0].split(':')[0];
+            const senderPhone = await resolveSenderPhone(sock, from, msg);
 
             // Extract message text
             let text = '';
@@ -305,10 +411,10 @@ async function startBot() {
             };
 
             // Staff Verification
-            let registeredUser = getStaffByPhone(senderPhone);
+            let registeredUser = getStaffByPhone(senderPhone) || getStaffByPhone(rawSenderPhone);
             if (!registeredUser) {
                 await syncStaffDirectory();
-                registeredUser = getStaffByPhone(senderPhone);
+                registeredUser = getStaffByPhone(senderPhone) || getStaffByPhone(rawSenderPhone);
             }
 
             // Unregistered user check
