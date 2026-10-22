@@ -654,15 +654,6 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                                 <span className="hidden sm:inline">Kartu</span>
                             </button>
                         </div>
-
-                        {/* Quick Report Trigger on desktop */}
-                        <button
-                            onClick={() => setShowReportModal(true)}
-                            className="hidden md:flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md transition-all shrink-0"
-                        >
-                            <Plus className="w-4 h-4" />
-                            <span>Lapor Isu</span>
-                        </button>
                     </div>
                 </div>
 
@@ -801,21 +792,18 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                                 : 'Belum ada masalah di dalam daftar.'}
                         </p>
                         <div className="mt-4 flex items-center justify-center gap-2">
-                            {searchQuery && (
+                            {searchQuery ? (
                                 <button
                                     onClick={() => setSearchQuery('')}
                                     className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold"
                                 >
                                     Reset Pencarian
                                 </button>
+                            ) : (
+                                <p className="text-[11px] text-slate-500 italic">
+                                    Pelaporan isu baru dilakukan secara terpusat melalui WhatsApp Bot.
+                                </p>
                             )}
-                            <button
-                                onClick={() => setShowReportModal(true)}
-                                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md transition-all"
-                            >
-                                <Plus className="w-4 h-4" />
-                                Buat Laporan Baru
-                            </button>
                         </div>
                     </div>
                 ) : viewMode === 'table' ? (
@@ -834,22 +822,10 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                                         {visibleColumns.desc && <th className="py-3 px-3.5 min-w-[200px]">Deskripsi</th>}
                                         {visibleColumns.status && <th className="py-3 px-3.5 whitespace-nowrap">Status</th>}
                                         {visibleColumns.time && <th className="py-3 px-3.5 whitespace-nowrap">Waktu</th>}
-                                        <th className="py-3 px-3.5 text-right whitespace-nowrap sticky right-0 bg-slate-900/95 shadow-sm">Aksi</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-700/60 font-medium">
                                     {filteredIssues.map((issue) => {
-                                        const isAssignedToMyDept = (issue.target_departments || []).some(
-                                            (d) => d.toLowerCase() === myDept.toLowerCase()
-                                        );
-                                        const isReporter = (issue.reporter_name || '').toLowerCase() === myName.toLowerCase() ||
-                                                           (issue.reporter_dept || '').toLowerCase() === myDept.toLowerCase();
-                                        const canClaim = !isReporter && isAssignedToMyDept;
-                                        const canResolve = !isReporter && (
-                                            (issue.claimed_by_name || '').toLowerCase() === myName.toLowerCase() ||
-                                            (issue.claimed_by_dept || '').toLowerCase() === myDept.toLowerCase() ||
-                                            isAssignedToMyDept
-                                        );
                                         const accs = issue.department_accs || {};
 
                                         return (
@@ -970,46 +946,6 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                                                         {issue.created_at_human}
                                                     </td>
                                                 )}
-
-                                                {/* AKSI CEPAT */}
-                                                <td className="py-2.5 px-3.5 text-right whitespace-nowrap sticky right-0 bg-slate-800/95">
-                                                    {issue.status === 'open' && (
-                                                        canClaim ? (
-                                                            <button
-                                                                onClick={() => handleClaim(issue.id)}
-                                                                className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[11px] shadow-sm transition-all"
-                                                            >
-                                                                Kerjakan
-                                                            </button>
-                                                        ) : (
-                                                            <span className="text-[10px] text-slate-500 italic">Menunggu respon</span>
-                                                        )
-                                                    )}
-                                                    {issue.status === 'in_progress' && (
-                                                        canResolve ? (
-                                                            <button
-                                                                onClick={() => {
-                                                                    setShowResolveModal(issue);
-                                                                    setResolveNote('');
-                                                                    setResolveImage(null);
-                                                                    setResolveImagePreview(null);
-                                                                }}
-                                                                className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] shadow-sm transition-all inline-flex items-center gap-1"
-                                                            >
-                                                                <CheckCircle2 className="w-3 h-3" />
-                                                                Selesai
-                                                            </button>
-                                                        ) : (
-                                                            <span className="text-[10px] text-amber-300/80 italic">{issue.claimed_by_name || 'Progress'}</span>
-                                                        )
-                                                    )}
-                                                    {issue.status === 'resolved' && (
-                                                        <span className="text-[10px] text-emerald-400 font-semibold inline-flex items-center gap-1">
-                                                            <CheckCircle2 className="w-3 h-3" />
-                                                            Beres
-                                                        </span>
-                                                    )}
-                                                </td>
                                             </tr>
                                         );
                                     })}
@@ -1166,14 +1102,6 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                                                             <>
                                                                 <Clock className="w-3 h-3 text-amber-400" />
                                                                 <span>{dept}: Menunggu ACC</span>
-                                                                {isMyDeptThis && issue.status !== 'resolved' && !isReporter && (
-                                                                    <button
-                                                                        onClick={() => handleAcc(issue.id, dept)}
-                                                                        className="ml-1 text-[10px] bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-1.5 py-0.2 rounded shadow-sm"
-                                                                    >
-                                                                        ACC
-                                                                    </button>
-                                                                )}
                                                             </>
                                                         )}
                                                     </div>
@@ -1182,7 +1110,7 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                                         </div>
                                     )}
 
-                                    {/* FOOTER: REPORTER & ACTION BUTTON */}
+                                    {/* FOOTER: REPORTER & PROGRESS ASSIGNEE INFO */}
                                     <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
                                         <div className="text-[11px] text-slate-400 space-y-0.5">
                                             {issue.claimed_by_name && (
@@ -1198,51 +1126,25 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                                             )}
                                         </div>
 
-                                        {/* Action Buttons */}
-                                        <div className="flex items-center gap-2 self-end sm:self-auto">
+                                        {/* Read-Only Status Indicator */}
+                                        <div className="self-end sm:self-auto">
                                             {issue.status === 'open' && (
-                                                canClaim ? (
-                                                    <button
-                                                        onClick={() => handleClaim(issue.id)}
-                                                        className="px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-md transition-all flex items-center gap-1.5"
-                                                    >
-                                                        <span>Kerjakan Tugas</span>
-                                                        <ChevronRight className="w-3.5 h-3.5" />
-                                                    </button>
-                                                ) : isReporter ? (
-                                                    <span className="text-[11px] text-slate-400 italic bg-slate-900/60 px-2.5 py-1 rounded-md border border-slate-700/50">
-                                                        ⏳ Menunggu respon tim {issue.target_departments?.join(', ')}
-                                                    </span>
-                                                ) : (
-                                                    <span className="text-[11px] text-slate-500 italic bg-slate-900/40 px-2.5 py-1 rounded-md border border-slate-800">
-                                                        Tugas untuk {issue.target_departments?.join(', ')}
-                                                    </span>
-                                                )
+                                                <span className="text-[10px] text-slate-500 italic">
+                                                    Menunggu respon tim via WhatsApp
+                                                </span>
                                             )}
-
                                             {issue.status === 'in_progress' && (
-                                                canResolve ? (
-                                                    <button
-                                                        onClick={() => {
-                                                            setShowResolveModal(issue);
-                                                            setResolveNote('');
-                                                            setResolveImage(null);
-                                                            setResolveImagePreview(null);
-                                                        }}
-                                                        className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md transition-all flex items-center gap-1.5"
-                                                    >
-                                                        <CheckCircle2 className="w-3.5 h-3.5" />
-                                                        <span>Tandai Selesai</span>
-                                                    </button>
-                                                ) : (
-                                                    <span className="text-[11px] text-amber-300/80 italic bg-amber-950/30 px-2.5 py-1 rounded-md border border-amber-800/30">
-                                                        Sedang dikerjakan oleh {issue.claimed_by_name} ({issue.claimed_by_dept})
-                                                    </span>
-                                                )
+                                                <span className="text-[11px] text-amber-300 font-medium bg-amber-950/40 px-2 py-0.5 rounded border border-amber-800/40">
+                                                    Dalam Pengerjaan
+                                                </span>
                                             )}
-
+                                            {issue.status === 'pending' && (
+                                                <span className="text-[11px] text-orange-300 font-medium bg-orange-950/40 px-2 py-0.5 rounded border border-orange-800/40">
+                                                    Tertunda
+                                                </span>
+                                            )}
                                             {issue.status === 'resolved' && (
-                                                <span className="text-[11px] text-emerald-400 font-semibold flex items-center gap-1 bg-emerald-950/60 px-2 py-1 rounded-md border border-emerald-800/40">
+                                                <span className="text-[11px] text-emerald-400 font-semibold flex items-center gap-1 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800/40">
                                                     <CheckCircle2 className="w-3.5 h-3.5" />
                                                     Telah Beres
                                                 </span>
@@ -1255,17 +1157,6 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                     </div>
                 )}
             </main>
-
-            {/* FLOATING ACTION BUTTON (MOBILE-FIRST) */}
-            <div className="fixed bottom-4 right-4 z-20 md:hidden">
-                <button
-                    onClick={() => setShowReportModal(true)}
-                    className="w-14 h-14 rounded-full bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white flex items-center justify-center shadow-2xl border-2 border-emerald-400/50 transition-all"
-                    title="Lapor Masalah Baru"
-                >
-                    <Plus className="w-7 h-7" />
-                </button>
-            </div>
 
             {/* MODAL 1: REPORT ISSUE MODAL (ULTRA-LEAN 6 ELEMENTS) */}
             {showReportModal && (
