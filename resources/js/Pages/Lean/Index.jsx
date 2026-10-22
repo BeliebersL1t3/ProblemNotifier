@@ -21,7 +21,14 @@ import {
     AlertCircle,
     ExternalLink,
     Power,
-    MessageSquare
+    MessageSquare,
+    Table,
+    LayoutGrid,
+    SlidersHorizontal,
+    Search,
+    Eye,
+    EyeOff,
+    RotateCcw
 } from 'lucide-react';
 import axios from 'axios';
 import { BotControlModal } from '@/Components/CampusFix/BotControlModal';
@@ -39,6 +46,30 @@ const PRESET_ACCOUNTS = [
     { name: 'Bray (Reservasi)', dept: 'Reservasi', icon: '📋' },
     { name: 'Ibu Maya (HR)', dept: 'HR', icon: '👥' },
 ];
+
+const COLUMN_DEFS = [
+    { id: 'id', label: 'ID Isu', icon: '#' },
+    { id: 'photo', label: 'Foto Bukti', icon: '📷' },
+    { id: 'title', label: 'Judul Masalah', icon: '📝' },
+    { id: 'location', label: 'Lokasi', icon: '📍' },
+    { id: 'dept', label: 'Departemen Tujuan', icon: '🏢' },
+    { id: 'reporter', label: 'Nama Pelapor', icon: '👤' },
+    { id: 'desc', label: 'Deskripsi Detail', icon: '📄' },
+    { id: 'status', label: 'Status', icon: '🏷️' },
+    { id: 'time', label: 'Waktu Pelaporan', icon: '🕒' },
+];
+
+const DEFAULT_COLUMNS = {
+    id: true,
+    photo: true,
+    title: true,
+    location: true,
+    dept: true,
+    reporter: true,
+    desc: true,
+    status: true,
+    time: true,
+};
 
 export default function LeanIndex({ issues = [], departments = [], locations = ['TBR', 'TPI', 'Kantor'], currentUser = null }) {
     // --- Testing Persona State (Quick Account Switcher for Instant Testing) ---
@@ -74,10 +105,81 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
     // --- UI Filters & View Modes ---
     // Tab: 'assigned_to_me' (Tugas Tim Saya) | 'reported_by_me' (Laporan Kami) | 'all' (Semua Isu)
     const [activeTab, setActiveTab] = useState('all');
-    // Status Filter: 'all' | 'open' | 'in_progress' | 'pending' | 'resolved'
-    const [statusFilter, setStatusFilter] = useState('all');
     // Department Filter: 'all' | specific department
     const [selectedDeptFilter, setSelectedDeptFilter] = useState('all');
+
+    // --- ERP Customization States ---
+    const [visibleColumns, setVisibleColumns] = useState(() => {
+        try {
+            const saved = localStorage.getItem('lean_erp_columns');
+            if (saved) return { ...DEFAULT_COLUMNS, ...JSON.parse(saved) };
+        } catch (e) {}
+        return DEFAULT_COLUMNS;
+    });
+
+    const [viewMode, setViewMode] = useState(() => {
+        return localStorage.getItem('lean_erp_view_mode') || 'table';
+    });
+
+    // Multi-select status checklist
+    const [selectedStatuses, setSelectedStatuses] = useState({
+        open: true,
+        in_progress: true,
+        pending: true,
+        resolved: true,
+    });
+
+    const [searchQuery, setSearchQuery] = useState('');
+    const [showColumnModal, setShowColumnModal] = useState(false);
+
+    // Save preferences to localStorage
+    useEffect(() => {
+        try {
+            localStorage.setItem('lean_erp_columns', JSON.stringify(visibleColumns));
+        } catch (e) {}
+    }, [visibleColumns]);
+
+    useEffect(() => {
+        try {
+            localStorage.setItem('lean_erp_view_mode', viewMode);
+        } catch (e) {}
+    }, [viewMode]);
+
+    const toggleColumn = (colId) => {
+        setVisibleColumns((prev) => ({ ...prev, [colId]: !prev[colId] }));
+    };
+
+    const setAllColumns = (val) => {
+        const next = {};
+        COLUMN_DEFS.forEach((c) => { next[c.id] = val; });
+        setVisibleColumns(next);
+    };
+
+    const resetColumns = () => {
+        setVisibleColumns(DEFAULT_COLUMNS);
+    };
+
+    const toggleStatus = (statusKey) => {
+        setSelectedStatuses((prev) => {
+            const next = { ...prev, [statusKey]: !prev[statusKey] };
+            const hasAny = Object.values(next).some(Boolean);
+            return hasAny ? next : prev;
+        });
+    };
+
+    const setStatusPreset = (preset) => {
+        if (preset === 'all') {
+            setSelectedStatuses({ open: true, in_progress: true, pending: true, resolved: true });
+        } else if (preset === 'active') {
+            setSelectedStatuses({ open: true, in_progress: true, pending: true, resolved: false });
+        } else if (preset === 'resolved') {
+            setSelectedStatuses({ open: false, in_progress: false, pending: false, resolved: true });
+        }
+    };
+
+    const activeColumnCount = useMemo(() => {
+        return Object.values(visibleColumns).filter(Boolean).length;
+    }, [visibleColumns]);
 
     // --- WhatsApp Bot V2 Control State ---
     const [botControlModalOpen, setBotControlModalOpen] = useState(false);
@@ -235,8 +337,9 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
         });
     };
 
-    // --- Filter Issues based on Active Tab, Status & Department ---
+    // --- Filter Issues based on Active Tab, Status Checklist, Department & Live Search ---
     const filteredIssues = useMemo(() => {
+        const q = searchQuery.trim().toLowerCase();
         return issues.filter((item) => {
             // 1. Department filter (all vs 1 dept)
             if (selectedDeptFilter !== 'all') {
@@ -255,19 +358,38 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                 if (!isMyOrigin) return false;
             }
 
-            // 3. Status filtering
-            if (statusFilter !== 'all') {
-                if (statusFilter === 'open' && item.status !== 'open') return false;
-                if (statusFilter === 'in_progress' && item.status !== 'in_progress') return false;
-                if (statusFilter === 'pending' && item.status !== 'pending') return false;
-                if (statusFilter === 'resolved' && item.status !== 'resolved') return false;
+            // 3. Status checklist filtering
+            if (!selectedStatuses[item.status]) {
+                return false;
+            }
+
+            // 4. Live Search
+            if (q) {
+                const code = (item.issue_code || ('LEAN-' + item.id)).toLowerCase();
+                const title = (item.title || '').toLowerCase();
+                const desc = (item.description || '').toLowerCase();
+                const loc = (item.location || '').toLowerCase();
+                const rep = (item.reporter_name || '').toLowerCase();
+                const dept = (item.reporter_dept || '').toLowerCase();
+                const targetsStr = (item.target_departments || []).join(' ').toLowerCase();
+                if (
+                    !code.includes(q) &&
+                    !title.includes(q) &&
+                    !desc.includes(q) &&
+                    !loc.includes(q) &&
+                    !rep.includes(q) &&
+                    !dept.includes(q) &&
+                    !targetsStr.includes(q)
+                ) {
+                    return false;
+                }
             }
 
             return true;
         });
-    }, [issues, activeTab, statusFilter, selectedDeptFilter, myDept]);
+    }, [issues, activeTab, selectedStatuses, selectedDeptFilter, myDept, searchQuery]);
 
-    // Counters for tabs
+    // Counters for tabs and status filters
     const counts = useMemo(() => {
         const assigned = issues.filter((i) =>
             (i.target_departments || []).some((d) => d.toLowerCase() === myDept.toLowerCase())
@@ -277,13 +399,28 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
         ).length;
         const total = issues.length;
 
-        const open = filteredIssues.filter((i) => i.status === 'open').length;
-        const inProgress = filteredIssues.filter((i) => i.status === 'in_progress').length;
-        const pending = filteredIssues.filter((i) => i.status === 'pending').length;
-        const resolved = filteredIssues.filter((i) => i.status === 'resolved').length;
+        // Base items for accurate status breakdown
+        const baseItems = issues.filter((item) => {
+            if (selectedDeptFilter !== 'all') {
+                const targets = item.target_departments || [];
+                if (!targets.some((d) => d.toLowerCase() === selectedDeptFilter.toLowerCase())) return false;
+            }
+            if (activeTab === 'assigned_to_me') {
+                const targets = item.target_departments || [];
+                if (!targets.some((d) => d.toLowerCase() === myDept.toLowerCase())) return false;
+            } else if (activeTab === 'reported_by_me') {
+                if ((item.reporter_dept || '').toLowerCase() !== myDept.toLowerCase()) return false;
+            }
+            return true;
+        });
+
+        const open = baseItems.filter((i) => i.status === 'open').length;
+        const inProgress = baseItems.filter((i) => i.status === 'in_progress').length;
+        const pending = baseItems.filter((i) => i.status === 'pending').length;
+        const resolved = baseItems.filter((i) => i.status === 'resolved').length;
 
         return { assigned, reported, total, open, inProgress, pending, resolved };
-    }, [issues, filteredIssues, myDept]);
+    }, [issues, selectedDeptFilter, activeTab, myDept]);
 
     return (
         <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col font-sans pb-24 md:pb-12">
@@ -291,7 +428,7 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
 
             {/* TOP HEADER */}
             <header className="sticky top-0 z-30 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 px-4 py-3 shadow-md">
-                <div className="max-w-4xl mx-auto flex items-center justify-between gap-2">
+                <div className="max-w-7xl mx-auto flex items-center justify-between gap-2">
                     {/* Brand & Sandbox Pill */}
                     <div className="flex items-center gap-2">
                         <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center justify-center font-bold text-sm shadow-sm">
@@ -361,7 +498,7 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
             </header>
 
             {/* MAIN CONTENT CONTAINER */}
-            <main className="max-w-4xl mx-auto w-full px-4 pt-4 flex-1">
+            <main className="max-w-7xl mx-auto w-full px-4 pt-4 flex-1">
                 {/* NOTICE BANNER: ISOLATED TESTING */}
                 <div className="mb-4 p-3 rounded-xl bg-gradient-to-r from-amber-950/40 via-amber-900/20 to-slate-800/40 border border-amber-500/30 flex items-start justify-between gap-3 text-xs">
                     <div className="flex items-start gap-2 text-amber-200">
@@ -435,94 +572,219 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                     </button>
                 </div>
 
-                {/* STATUS FILTER PILLS & DEPARTMENT SELECTOR */}
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5 mb-4 pb-1">
-                    <div className="flex items-center gap-1.5 text-xs overflow-x-auto pb-1 max-w-full">
-                        <button
-                            onClick={() => setStatusFilter('all')}
-                            className={`px-2.5 py-1 rounded-lg font-medium transition-colors shrink-0 ${
-                                statusFilter === 'all'
-                                    ? 'bg-slate-200 text-slate-900 font-bold'
-                                    : 'bg-slate-800 text-slate-400 hover:text-white border border-slate-700'
-                            }`}
-                        >
-                            Semua ({filteredIssues.length})
-                        </button>
-                        <button
-                            onClick={() => setStatusFilter('open')}
-                            className={`px-2.5 py-1 rounded-lg font-medium transition-colors flex items-center gap-1.5 shrink-0 ${
-                                statusFilter === 'open'
-                                    ? 'bg-rose-500 text-white font-bold'
-                                    : 'bg-slate-800 text-rose-400 hover:bg-slate-700 border border-slate-700'
-                            }`}
-                        >
-                            <span className="w-2 h-2 rounded-full bg-rose-400" />
-                            Open ({counts.open})
-                        </button>
-                        <button
-                            onClick={() => setStatusFilter('in_progress')}
-                            className={`px-2.5 py-1 rounded-lg font-medium transition-colors flex items-center gap-1.5 shrink-0 ${
-                                statusFilter === 'in_progress'
-                                    ? 'bg-amber-500 text-white font-bold'
-                                    : 'bg-slate-800 text-amber-400 hover:bg-slate-700 border border-slate-700'
-                            }`}
-                        >
-                            <span className="w-2 h-2 rounded-full bg-amber-400" />
-                            Progress ({counts.inProgress})
-                        </button>
-                        <button
-                            onClick={() => setStatusFilter('pending')}
-                            className={`px-2.5 py-1 rounded-lg font-medium transition-colors flex items-center gap-1.5 shrink-0 ${
-                                statusFilter === 'pending'
-                                    ? 'bg-orange-500 text-white font-bold'
-                                    : 'bg-slate-800 text-orange-400 hover:bg-slate-700 border border-slate-700'
-                            }`}
-                        >
-                            <span className="w-2 h-2 rounded-full bg-orange-400" />
-                            Tertunda ({counts.pending})
-                        </button>
-                        <button
-                            onClick={() => setStatusFilter('resolved')}
-                            className={`px-2.5 py-1 rounded-lg font-medium transition-colors flex items-center gap-1.5 shrink-0 ${
-                                statusFilter === 'resolved'
-                                    ? 'bg-emerald-500 text-white font-bold'
-                                    : 'bg-slate-800 text-emerald-400 hover:bg-slate-700 border border-slate-700'
-                            }`}
-                        >
-                            <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                            Selesai ({counts.resolved})
-                        </button>
+                {/* ERP CONTROLS BAR: SEARCH, DEPT, COLUMN CUSTOMIZER, VIEW MODE */}
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 mb-3">
+                    {/* Live Search */}
+                    <div className="relative flex-1 min-w-[200px]">
+                        <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                        <input
+                            type="text"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            placeholder="Cari ID, judul, pelapor, lokasi..."
+                            className="w-full bg-slate-800/90 border border-slate-700 text-slate-200 placeholder-slate-500 text-xs rounded-xl pl-8 pr-7 py-2 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 shadow-sm transition-all"
+                        />
+                        {searchQuery && (
+                            <button
+                                type="button"
+                                onClick={() => setSearchQuery('')}
+                                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                                title="Hapus pencarian"
+                            >
+                                <X className="w-3.5 h-3.5" />
+                            </button>
+                        )}
                     </div>
 
-                    {/* Department Dropdown Filter (1 Dept vs All) */}
-                    <div className="flex items-center gap-2 shrink-0">
-                        <label className="text-xs text-slate-400 font-semibold flex items-center gap-1">
-                            <Building2 className="w-3.5 h-3.5 text-emerald-400" />
-                            Dept:
-                        </label>
-                        <select
-                            value={selectedDeptFilter}
-                            onChange={(e) => setSelectedDeptFilter(e.target.value)}
-                            className="bg-slate-800 border border-slate-700 text-slate-200 text-xs font-semibold rounded-lg px-2.5 py-1 focus:ring-1 focus:ring-emerald-500 cursor-pointer shadow-sm"
-                        >
-                            <option value="all">Semua Departemen (All)</option>
-                            {departments.map((dept) => (
-                                <option key={dept} value={dept}>{dept}</option>
-                            ))}
-                        </select>
-                    </div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                        {/* Department Filter (1 Dept vs All) */}
+                        <div className="flex items-center gap-1.5 shrink-0">
+                            <select
+                                value={selectedDeptFilter}
+                                onChange={(e) => setSelectedDeptFilter(e.target.value)}
+                                className="bg-slate-800/90 border border-slate-700 text-slate-200 text-xs font-semibold rounded-xl px-3 py-2 focus:ring-1 focus:ring-emerald-500 cursor-pointer shadow-sm"
+                            >
+                                <option value="all">Semua Dept (All)</option>
+                                {departments.map((dept) => (
+                                    <option key={dept} value={dept}>{dept}</option>
+                                ))}
+                            </select>
+                        </div>
 
-                    {/* Quick Report Trigger on desktop */}
-                    <button
-                        onClick={() => setShowReportModal(true)}
-                        className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md transition-all shrink-0"
-                    >
-                        <Plus className="w-4 h-4" />
-                        Lapor Isu
-                    </button>
+                        {/* Column Customizer Button */}
+                        <button
+                            type="button"
+                            onClick={() => setShowColumnModal(true)}
+                            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800/90 hover:bg-slate-700 border border-slate-700 hover:border-emerald-500/50 text-xs font-semibold text-slate-200 transition-all shadow-sm shrink-0"
+                            title="Pilih data/kolom apa saja yang ingin ditampilkan"
+                        >
+                            <SlidersHorizontal className="w-3.5 h-3.5 text-emerald-400" />
+                            <span>Kolom</span>
+                            <span className="text-[10px] bg-emerald-950 text-emerald-300 font-bold px-1.5 py-0.2 rounded border border-emerald-800/60">
+                                {activeColumnCount}/{COLUMN_DEFS.length}
+                            </span>
+                        </button>
+
+                        {/* View Mode Switcher (Table ERP vs Cards) */}
+                        <div className="flex items-center bg-slate-800/90 border border-slate-700 p-0.5 rounded-xl shrink-0">
+                            <button
+                                type="button"
+                                onClick={() => setViewMode('table')}
+                                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                                    viewMode === 'table'
+                                        ? 'bg-emerald-600 text-white shadow-sm'
+                                        : 'text-slate-400 hover:text-slate-200'
+                                }`}
+                                title="Tampilan Tabel Spreadsheet ERP"
+                            >
+                                <Table className="w-3.5 h-3.5" />
+                                <span className="hidden sm:inline">Tabel ERP</span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setViewMode('cards')}
+                                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                                    viewMode === 'cards'
+                                        ? 'bg-emerald-600 text-white shadow-sm'
+                                        : 'text-slate-400 hover:text-slate-200'
+                                }`}
+                                title="Tampilan Kartu Visual"
+                            >
+                                <LayoutGrid className="w-3.5 h-3.5" />
+                                <span className="hidden sm:inline">Kartu</span>
+                            </button>
+                        </div>
+
+                        {/* Quick Report Trigger on desktop */}
+                        <button
+                            onClick={() => setShowReportModal(true)}
+                            className="hidden md:flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md transition-all shrink-0"
+                        >
+                            <Plus className="w-4 h-4" />
+                            <span>Lapor Isu</span>
+                        </button>
+                    </div>
                 </div>
 
-                {/* ISSUE CARDS LIST */}
+                {/* MULTI-SELECT STATUS CHECKLIST PILLS & PRESETS */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4 p-2.5 bg-slate-800/60 border border-slate-800 rounded-xl">
+                    {/* Status Checklist Pills */}
+                    <div className="flex items-center gap-1.5 flex-wrap text-xs">
+                        <span className="text-[11px] text-slate-400 font-semibold mr-1">Filter Status:</span>
+
+                        {/* Open Checkbox Pill */}
+                        <button
+                            type="button"
+                            onClick={() => toggleStatus('open')}
+                            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-semibold text-xs transition-all border ${
+                                selectedStatuses.open
+                                    ? 'bg-rose-950/80 border-rose-500/60 text-rose-300 shadow-sm'
+                                    : 'bg-slate-900/60 border-slate-800 text-slate-500 hover:text-slate-400'
+                            }`}
+                        >
+                            <span className={`w-3.5 h-3.5 rounded flex items-center justify-center text-[10px] border ${
+                                selectedStatuses.open ? 'bg-rose-500 border-rose-400 text-white' : 'border-slate-600'
+                            }`}>
+                                {selectedStatuses.open && '✓'}
+                            </span>
+                            <span>Open</span>
+                            <span className="text-[10px] bg-slate-900/80 px-1.5 py-0.2 rounded-full font-bold">
+                                {counts.open}
+                            </span>
+                        </button>
+
+                        {/* Progress Checkbox Pill */}
+                        <button
+                            type="button"
+                            onClick={() => toggleStatus('in_progress')}
+                            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-semibold text-xs transition-all border ${
+                                selectedStatuses.in_progress
+                                    ? 'bg-amber-950/80 border-amber-500/60 text-amber-300 shadow-sm'
+                                    : 'bg-slate-900/60 border-slate-800 text-slate-500 hover:text-slate-400'
+                            }`}
+                        >
+                            <span className={`w-3.5 h-3.5 rounded flex items-center justify-center text-[10px] border ${
+                                selectedStatuses.in_progress ? 'bg-amber-500 border-amber-400 text-white' : 'border-slate-600'
+                            }`}>
+                                {selectedStatuses.in_progress && '✓'}
+                            </span>
+                            <span>Progress</span>
+                            <span className="text-[10px] bg-slate-900/80 px-1.5 py-0.2 rounded-full font-bold">
+                                {counts.inProgress}
+                            </span>
+                        </button>
+
+                        {/* Pending / Tertunda Checkbox Pill */}
+                        <button
+                            type="button"
+                            onClick={() => toggleStatus('pending')}
+                            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-semibold text-xs transition-all border ${
+                                selectedStatuses.pending
+                                    ? 'bg-orange-950/80 border-orange-500/60 text-orange-300 shadow-sm'
+                                    : 'bg-slate-900/60 border-slate-800 text-slate-500 hover:text-slate-400'
+                            }`}
+                        >
+                            <span className={`w-3.5 h-3.5 rounded flex items-center justify-center text-[10px] border ${
+                                selectedStatuses.pending ? 'bg-orange-500 border-orange-400 text-white' : 'border-slate-600'
+                            }`}>
+                                {selectedStatuses.pending && '✓'}
+                            </span>
+                            <span>Tertunda</span>
+                            <span className="text-[10px] bg-slate-900/80 px-1.5 py-0.2 rounded-full font-bold">
+                                {counts.pending}
+                            </span>
+                        </button>
+
+                        {/* Resolved / Selesai Checkbox Pill */}
+                        <button
+                            type="button"
+                            onClick={() => toggleStatus('resolved')}
+                            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-semibold text-xs transition-all border ${
+                                selectedStatuses.resolved
+                                    ? 'bg-emerald-950/80 border-emerald-500/60 text-emerald-300 shadow-sm'
+                                    : 'bg-slate-900/60 border-slate-800 text-slate-500 hover:text-slate-400'
+                            }`}
+                        >
+                            <span className={`w-3.5 h-3.5 rounded flex items-center justify-center text-[10px] border ${
+                                selectedStatuses.resolved ? 'bg-emerald-500 border-emerald-400 text-white' : 'border-slate-600'
+                            }`}>
+                                {selectedStatuses.resolved && '✓'}
+                            </span>
+                            <span>Selesai</span>
+                            <span className="text-[10px] bg-slate-900/80 px-1.5 py-0.2 rounded-full font-bold">
+                                {counts.resolved}
+                            </span>
+                        </button>
+                    </div>
+
+                    {/* Quick Presets */}
+                    <div className="flex items-center gap-1 text-[11px] self-end sm:self-auto">
+                        <span className="text-slate-500 mr-1 hidden sm:inline">Preset:</span>
+                        <button
+                            type="button"
+                            onClick={() => setStatusPreset('all')}
+                            className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition-colors"
+                        >
+                            Semua
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setStatusPreset('active')}
+                            className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-amber-300 hover:text-amber-200 border border-slate-700 transition-colors"
+                        >
+                            Isu Aktif
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setStatusPreset('resolved')}
+                            className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-emerald-300 hover:text-emerald-200 border border-slate-700 transition-colors"
+                        >
+                            Selesai Saja
+                        </button>
+                    </div>
+                </div>
+
+                {/* DATA PRESENTATION: EMPTY STATE OR ERP TABLE / CARDS */}
                 {filteredIssues.length === 0 ? (
                     <div className="py-16 text-center border-2 border-dashed border-slate-800 rounded-2xl p-6">
                         <div className="w-12 h-12 rounded-full bg-slate-800 text-slate-500 flex items-center justify-center mx-auto mb-3">
@@ -530,21 +792,233 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                         </div>
                         <h3 className="text-sm font-bold text-slate-300">Tidak ada masalah ditemukan</h3>
                         <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
-                            {activeTab === 'assigned_to_me'
+                            {searchQuery
+                                ? `Tidak ditemukan isu yang cocok dengan kata kunci "${searchQuery}".`
+                                : activeTab === 'assigned_to_me'
                                 ? `Belum ada tiket masalah yang ditujukan ke tim ${myDept}.`
                                 : activeTab === 'reported_by_me'
                                 ? `Tim ${myDept} belum melaporkan masalah ke departemen lain.`
                                 : 'Belum ada masalah di dalam daftar.'}
                         </p>
-                        <button
-                            onClick={() => setShowReportModal(true)}
-                            className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md transition-all"
-                        >
-                            <Plus className="w-4 h-4" />
-                            Buat Laporan Baru
-                        </button>
+                        <div className="mt-4 flex items-center justify-center gap-2">
+                            {searchQuery && (
+                                <button
+                                    onClick={() => setSearchQuery('')}
+                                    className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold"
+                                >
+                                    Reset Pencarian
+                                </button>
+                            )}
+                            <button
+                                onClick={() => setShowReportModal(true)}
+                                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md transition-all"
+                            >
+                                <Plus className="w-4 h-4" />
+                                Buat Laporan Baru
+                            </button>
+                        </div>
+                    </div>
+                ) : viewMode === 'table' ? (
+                    /* --- VIEW 1: ERP SPREADSHEET TABLE --- */
+                    <div className="bg-slate-800/90 border border-slate-700/80 rounded-2xl overflow-hidden shadow-xl">
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left text-xs border-collapse">
+                                <thead>
+                                    <tr className="bg-slate-900/90 text-slate-300 font-bold border-b border-slate-700/80 uppercase tracking-wider text-[11px]">
+                                        {visibleColumns.id && <th className="py-3 px-3.5 whitespace-nowrap">ID Isu</th>}
+                                        {visibleColumns.photo && <th className="py-3 px-3.5 text-center whitespace-nowrap">Foto</th>}
+                                        {visibleColumns.title && <th className="py-3 px-3.5 min-w-[180px]">Judul Masalah</th>}
+                                        {visibleColumns.location && <th className="py-3 px-3.5 whitespace-nowrap">Lokasi</th>}
+                                        {visibleColumns.dept && <th className="py-3 px-3.5 whitespace-nowrap">Departemen</th>}
+                                        {visibleColumns.reporter && <th className="py-3 px-3.5 whitespace-nowrap">Pelapor</th>}
+                                        {visibleColumns.desc && <th className="py-3 px-3.5 min-w-[200px]">Deskripsi</th>}
+                                        {visibleColumns.status && <th className="py-3 px-3.5 whitespace-nowrap">Status</th>}
+                                        {visibleColumns.time && <th className="py-3 px-3.5 whitespace-nowrap">Waktu</th>}
+                                        <th className="py-3 px-3.5 text-right whitespace-nowrap sticky right-0 bg-slate-900/95 shadow-sm">Aksi</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-700/60 font-medium">
+                                    {filteredIssues.map((issue) => {
+                                        const isAssignedToMyDept = (issue.target_departments || []).some(
+                                            (d) => d.toLowerCase() === myDept.toLowerCase()
+                                        );
+                                        const isReporter = (issue.reporter_name || '').toLowerCase() === myName.toLowerCase() ||
+                                                           (issue.reporter_dept || '').toLowerCase() === myDept.toLowerCase();
+                                        const canClaim = !isReporter && isAssignedToMyDept;
+                                        const canResolve = !isReporter && (
+                                            (issue.claimed_by_name || '').toLowerCase() === myName.toLowerCase() ||
+                                            (issue.claimed_by_dept || '').toLowerCase() === myDept.toLowerCase() ||
+                                            isAssignedToMyDept
+                                        );
+                                        const accs = issue.department_accs || {};
+
+                                        return (
+                                            <tr key={issue.id} className="hover:bg-slate-700/40 transition-colors">
+                                                {/* ID ISU */}
+                                                {visibleColumns.id && (
+                                                    <td className="py-2.5 px-3.5 font-mono font-bold text-amber-300 whitespace-nowrap">
+                                                        #{issue.issue_code || ('LEAN-' + issue.id)}
+                                                    </td>
+                                                )}
+
+                                                {/* FOTO BUKTI */}
+                                                {visibleColumns.photo && (
+                                                    <td className="py-2.5 px-3.5 text-center">
+                                                        {issue.image_url ? (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setLightboxImage(issue.image_url)}
+                                                                className="w-10 h-10 rounded-lg overflow-hidden border border-slate-700 hover:border-emerald-500 inline-block transition-all hover:scale-105"
+                                                                title="Klik untuk lihat foto"
+                                                            >
+                                                                <img src={issue.image_url} alt="" className="w-full h-full object-cover" />
+                                                            </button>
+                                                        ) : (
+                                                            <span className="text-slate-600 text-xs italic">-</span>
+                                                        )}
+                                                    </td>
+                                                )}
+
+                                                {/* JUDUL MASALAH */}
+                                                {visibleColumns.title && (
+                                                    <td className="py-2.5 px-3.5 text-white font-semibold leading-snug">
+                                                        {issue.title}
+                                                    </td>
+                                                )}
+
+                                                {/* LOKASI */}
+                                                {visibleColumns.location && (
+                                                    <td className="py-2.5 px-3.5 whitespace-nowrap text-slate-300">
+                                                        <span className="inline-flex items-center gap-1 bg-emerald-950/80 text-emerald-300 border border-emerald-800/60 px-2 py-0.5 rounded font-bold text-[11px]">
+                                                            <MapPin className="w-3 h-3 text-emerald-400" />
+                                                            {issue.location}
+                                                        </span>
+                                                    </td>
+                                                )}
+
+                                                {/* DEPARTEMEN TUJUAN */}
+                                                {visibleColumns.dept && (
+                                                    <td className="py-2.5 px-3.5 whitespace-nowrap">
+                                                        <div className="flex flex-wrap gap-1">
+                                                            {(issue.target_departments || []).map((dept) => {
+                                                                const isThisAcc = accs[dept]?.is_acc;
+                                                                return (
+                                                                    <span
+                                                                        key={dept}
+                                                                        className={`px-1.5 py-0.5 rounded text-[10px] font-semibold border ${
+                                                                            isThisAcc
+                                                                                ? 'bg-emerald-950/80 border-emerald-600 text-emerald-300'
+                                                                                : 'bg-slate-900 border-slate-700 text-slate-300'
+                                                                        }`}
+                                                                    >
+                                                                        {dept} {isThisAcc && '✓'}
+                                                                    </span>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    </td>
+                                                )}
+
+                                                {/* NAMA PELAPOR */}
+                                                {visibleColumns.reporter && (
+                                                    <td className="py-2.5 px-3.5 whitespace-nowrap text-slate-300">
+                                                        <div className="font-semibold text-white">{issue.reporter_name}</div>
+                                                        <div className="text-[10px] text-slate-400">{issue.reporter_dept || 'Staf'}</div>
+                                                    </td>
+                                                )}
+
+                                                {/* DESKRIPSI */}
+                                                {visibleColumns.desc && (
+                                                    <td className="py-2.5 px-3.5 text-slate-300 text-xs max-w-xs truncate" title={issue.description}>
+                                                        {issue.description || <span className="text-slate-600 italic">Tidak ada keterangan</span>}
+                                                    </td>
+                                                )}
+
+                                                {/* STATUS BADGE */}
+                                                {visibleColumns.status && (
+                                                    <td className="py-2.5 px-3.5 whitespace-nowrap">
+                                                        {issue.status === 'open' && (
+                                                            <span className="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40 text-[11px] font-semibold inline-flex items-center gap-1">
+                                                                <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
+                                                                Open
+                                                            </span>
+                                                        )}
+                                                        {issue.status === 'in_progress' && (
+                                                            <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[11px] font-semibold inline-flex items-center gap-1">
+                                                                <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                                                                Progress
+                                                            </span>
+                                                        )}
+                                                        {issue.status === 'pending' && (
+                                                            <span className="px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-300 border border-orange-500/40 text-[11px] font-semibold inline-flex items-center gap-1">
+                                                                <span className="w-1.5 h-1.5 rounded-full bg-orange-400" />
+                                                                Tertunda
+                                                            </span>
+                                                        )}
+                                                        {issue.status === 'resolved' && (
+                                                            <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[11px] font-semibold inline-flex items-center gap-1">
+                                                                <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                                                                Selesai
+                                                            </span>
+                                                        )}
+                                                    </td>
+                                                )}
+
+                                                {/* WAKTU PELAPORAN */}
+                                                {visibleColumns.time && (
+                                                    <td className="py-2.5 px-3.5 whitespace-nowrap text-[11px] text-slate-400">
+                                                        {issue.created_at_human}
+                                                    </td>
+                                                )}
+
+                                                {/* AKSI CEPAT */}
+                                                <td className="py-2.5 px-3.5 text-right whitespace-nowrap sticky right-0 bg-slate-800/95">
+                                                    {issue.status === 'open' && (
+                                                        canClaim ? (
+                                                            <button
+                                                                onClick={() => handleClaim(issue.id)}
+                                                                className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[11px] shadow-sm transition-all"
+                                                            >
+                                                                Kerjakan
+                                                            </button>
+                                                        ) : (
+                                                            <span className="text-[10px] text-slate-500 italic">Menunggu respon</span>
+                                                        )
+                                                    )}
+                                                    {issue.status === 'in_progress' && (
+                                                        canResolve ? (
+                                                            <button
+                                                                onClick={() => {
+                                                                    setShowResolveModal(issue);
+                                                                    setResolveNote('');
+                                                                    setResolveImage(null);
+                                                                    setResolveImagePreview(null);
+                                                                }}
+                                                                className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] shadow-sm transition-all inline-flex items-center gap-1"
+                                                            >
+                                                                <CheckCircle2 className="w-3 h-3" />
+                                                                Selesai
+                                                            </button>
+                                                        ) : (
+                                                            <span className="text-[10px] text-amber-300/80 italic">{issue.claimed_by_name || 'Progress'}</span>
+                                                        )
+                                                    )}
+                                                    {issue.status === 'resolved' && (
+                                                        <span className="text-[10px] text-emerald-400 font-semibold inline-flex items-center gap-1">
+                                                            <CheckCircle2 className="w-3 h-3" />
+                                                            Beres
+                                                        </span>
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 ) : (
+                    /* --- VIEW 2: VISUAL CARD VIEW --- */
                     <div className="space-y-3">
                         {filteredIssues.map((issue) => {
                             const isAssignedToMyDept = (issue.target_departments || []).some(
@@ -559,8 +1033,6 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                                 isAssignedToMyDept
                             );
                             const accs = issue.department_accs || {};
-                            const myDeptAcc = accs[myDept];
-                            const isMyDeptReady = myDeptAcc?.is_acc;
 
                             return (
                                 <div
@@ -571,60 +1043,74 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                                     <div className="flex items-start justify-between gap-2 flex-wrap">
                                         <div className="flex items-center gap-2 flex-wrap">
                                             {/* ID Isu */}
-                                            <span className="px-2 py-0.5 rounded-md bg-slate-900 border border-slate-700 text-amber-300 font-mono font-bold text-xs">
-                                                #{issue.issue_code || ('LEAN-' + issue.id)}
-                                            </span>
+                                            {visibleColumns.id && (
+                                                <span className="px-2 py-0.5 rounded-md bg-slate-900 border border-slate-700 text-amber-300 font-mono font-bold text-xs">
+                                                    #{issue.issue_code || ('LEAN-' + issue.id)}
+                                                </span>
+                                            )}
 
                                             {/* Lokasi */}
-                                            <span className="px-2.5 py-0.5 rounded-md bg-emerald-950 text-emerald-300 border border-emerald-800/80 font-bold text-xs flex items-center gap-1">
-                                                <MapPin className="w-3.5 h-3.5 text-emerald-400" />
-                                                {issue.location}
-                                            </span>
+                                            {visibleColumns.location && (
+                                                <span className="px-2.5 py-0.5 rounded-md bg-emerald-950 text-emerald-300 border border-emerald-800/80 font-bold text-xs flex items-center gap-1">
+                                                    <MapPin className="w-3.5 h-3.5 text-emerald-400" />
+                                                    {issue.location}
+                                                </span>
+                                            )}
 
                                             {/* Status Badge */}
-                                            {issue.status === 'open' && (
-                                                <span className="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40 text-[11px] font-semibold flex items-center gap-1">
-                                                    <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
-                                                    Open
-                                                </span>
-                                            )}
-                                            {issue.status === 'in_progress' && (
-                                                <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[11px] font-semibold flex items-center gap-1">
-                                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-                                                    Progress
-                                                </span>
-                                            )}
-                                            {issue.status === 'pending' && (
-                                                <span className="px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-300 border border-orange-500/40 text-[11px] font-semibold flex items-center gap-1">
-                                                    <span className="w-1.5 h-1.5 rounded-full bg-orange-400" />
-                                                    Tertunda
-                                                </span>
-                                            )}
-                                            {issue.status === 'resolved' && (
-                                                <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[11px] font-semibold flex items-center gap-1">
-                                                    <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-                                                    Selesai
-                                                </span>
+                                            {visibleColumns.status && (
+                                                <>
+                                                    {issue.status === 'open' && (
+                                                        <span className="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40 text-[11px] font-semibold flex items-center gap-1">
+                                                            <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
+                                                            Open
+                                                        </span>
+                                                    )}
+                                                    {issue.status === 'in_progress' && (
+                                                        <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[11px] font-semibold flex items-center gap-1">
+                                                            <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                                                            Progress
+                                                        </span>
+                                                    )}
+                                                    {issue.status === 'pending' && (
+                                                        <span className="px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-300 border border-orange-500/40 text-[11px] font-semibold flex items-center gap-1">
+                                                            <span className="w-1.5 h-1.5 rounded-full bg-orange-400" />
+                                                            Tertunda
+                                                        </span>
+                                                    )}
+                                                    {issue.status === 'resolved' && (
+                                                        <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[11px] font-semibold flex items-center gap-1">
+                                                            <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                                                            Selesai
+                                                        </span>
+                                                    )}
+                                                </>
                                             )}
                                         </div>
 
                                         {/* Waktu Pelaporan */}
-                                        <span className="text-[11px] text-slate-400 shrink-0 font-medium flex items-center gap-1">
-                                            <Clock className="w-3 h-3" />
-                                            {issue.created_at_human}
-                                        </span>
+                                        {visibleColumns.time && (
+                                            <span className="text-[11px] text-slate-400 shrink-0 font-medium flex items-center gap-1">
+                                                <Clock className="w-3 h-3" />
+                                                {issue.created_at_human}
+                                            </span>
+                                        )}
                                     </div>
 
                                     {/* Pelapor Info */}
-                                    <div className="flex items-center gap-1.5 text-xs text-slate-300">
-                                        <User className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                                        <span>Pelapor: <strong className="text-white">{issue.reporter_name}</strong> <span className="text-slate-400">({issue.reporter_dept || 'Staf'})</span></span>
-                                    </div>
+                                    {visibleColumns.reporter && (
+                                        <div className="flex items-center gap-1.5 text-xs text-slate-300">
+                                            <User className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                                            <span>Pelapor: <strong className="text-white">{issue.reporter_name}</strong> <span className="text-slate-400">({issue.reporter_dept || 'Staf'})</span></span>
+                                        </div>
+                                    )}
 
                                     {/* Title & Description */}
                                     <div>
-                                        <h4 className="font-bold text-sm text-white leading-snug">{issue.title}</h4>
-                                        {issue.description && (
+                                        {visibleColumns.title && (
+                                            <h4 className="font-bold text-sm text-white leading-snug">{issue.title}</h4>
+                                        )}
+                                        {visibleColumns.desc && issue.description && (
                                             <p className="text-xs text-slate-300 mt-1 leading-relaxed whitespace-pre-line bg-slate-900/40 p-2.5 rounded-lg border border-slate-700/50">
                                                 {issue.description}
                                             </p>
@@ -632,7 +1118,7 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                                     </div>
 
                                     {/* Image Attachment (if any) */}
-                                    {issue.image_url && (
+                                    {visibleColumns.photo && issue.image_url && (
                                         <div className="pt-1">
                                             <button
                                                 type="button"
@@ -654,54 +1140,51 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                                     )}
 
                                     {/* TARGET DEPARTMENTS & ACC CHIPS */}
-                                    <div className="pt-2 border-t border-slate-700/60 flex flex-wrap items-center gap-1.5 text-xs">
-                                        <span className="text-slate-400 text-[11px]">Tujuan:</span>
-                                        {(issue.target_departments || []).map((dept) => {
-                                            const isThisAcc = accs[dept]?.is_acc;
-                                            const accBy = accs[dept]?.acc_by;
-                                            const isMyDeptThis = dept.toLowerCase() === myDept.toLowerCase();
+                                    {visibleColumns.dept && (
+                                        <div className="pt-2 border-t border-slate-700/60 flex flex-wrap items-center gap-1.5 text-xs">
+                                            <span className="text-slate-400 text-[11px]">Tujuan:</span>
+                                            {(issue.target_departments || []).map((dept) => {
+                                                const isThisAcc = accs[dept]?.is_acc;
+                                                const accBy = accs[dept]?.acc_by;
+                                                const isMyDeptThis = dept.toLowerCase() === myDept.toLowerCase();
 
-                                            return (
-                                                <div
-                                                    key={dept}
-                                                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] border transition-colors ${
-                                                        isThisAcc
-                                                            ? 'bg-emerald-950/80 border-emerald-600/70 text-emerald-300 font-semibold'
-                                                            : 'bg-slate-900 border-slate-700 text-slate-400'
-                                                    }`}
-                                                >
-                                                    {isThisAcc ? (
-                                                        <>
-                                                            <Check className="w-3 h-3 text-emerald-400" />
-                                                            <span>{dept}: ACC ({accBy || 'Staf'})</span>
-                                                        </>
-                                                    ) : (
-                                                        <>
-                                                            <Clock className="w-3 h-3 text-amber-400" />
-                                                            <span>{dept}: Menunggu ACC</span>
-                                                            {/* If current user belongs to this dept, hasn't ACCed yet, and is NOT the reporter */}
-                                                            {isMyDeptThis && issue.status !== 'resolved' && !isReporter && (
-                                                                <button
-                                                                    onClick={() => handleAcc(issue.id, dept)}
-                                                                    className="ml-1 text-[10px] bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-1.5 py-0.2 rounded shadow-sm"
-                                                                >
-                                                                    ACC
-                                                                </button>
-                                                            )}
-                                                        </>
-                                                    )}
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
+                                                return (
+                                                    <div
+                                                        key={dept}
+                                                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] border transition-colors ${
+                                                            isThisAcc
+                                                                ? 'bg-emerald-950/80 border-emerald-600/70 text-emerald-300 font-semibold'
+                                                                : 'bg-slate-900 border-slate-700 text-slate-400'
+                                                        }`}
+                                                    >
+                                                        {isThisAcc ? (
+                                                            <>
+                                                                <Check className="w-3 h-3 text-emerald-400" />
+                                                                <span>{dept}: ACC ({accBy || 'Staf'})</span>
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <Clock className="w-3 h-3 text-amber-400" />
+                                                                <span>{dept}: Menunggu ACC</span>
+                                                                {isMyDeptThis && issue.status !== 'resolved' && !isReporter && (
+                                                                    <button
+                                                                        onClick={() => handleAcc(issue.id, dept)}
+                                                                        className="ml-1 text-[10px] bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-1.5 py-0.2 rounded shadow-sm"
+                                                                    >
+                                                                        ACC
+                                                                    </button>
+                                                                )}
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
 
                                     {/* FOOTER: REPORTER & ACTION BUTTON */}
                                     <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
-                                        {/* Reporter / Claimed Info */}
                                         <div className="text-[11px] text-slate-400 space-y-0.5">
-                                            <p>
-                                                Pelapor: <strong className="text-slate-300">{issue.reporter_name}</strong> ({issue.reporter_dept})
-                                            </p>
                                             {issue.claimed_by_name && (
                                                 <p className="text-amber-300">
                                                     Dikerjakan oleh: <strong>{issue.claimed_by_name}</strong> ({issue.claimed_by_dept})
@@ -1222,6 +1705,97 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                         >
                             Tutup [X]
                         </button>
+                    </div>
+                </div>
+            )}
+
+            {/* MODAL 5: ERP COLUMN CUSTOMIZER */}
+            {showColumnModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
+                    <div className="w-full max-w-md bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+                        {/* Header */}
+                        <div className="p-4 border-b border-slate-800 flex items-center justify-between">
+                            <div className="flex items-center gap-2.5">
+                                <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold">
+                                    <SlidersHorizontal className="w-4 h-4" />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-sm text-white">Kustomisasi Kolom Tampilan ERP</h3>
+                                    <p className="text-[11px] text-slate-400">Pilih data yang ingin dimunculkan ({activeColumnCount} dari {COLUMN_DEFS.length} aktif)</p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setShowColumnModal(false)}
+                                className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition-colors"
+                            >
+                                <X className="w-4 h-4" />
+                            </button>
+                        </div>
+
+                        {/* Column Toggles List */}
+                        <div className="p-4 space-y-2 max-h-[60vh] overflow-y-auto">
+                            {COLUMN_DEFS.map((col) => {
+                                const isVisible = !!visibleColumns[col.id];
+                                return (
+                                    <button
+                                        key={col.id}
+                                        type="button"
+                                        onClick={() => toggleColumn(col.id)}
+                                        className={`w-full flex items-center justify-between p-2.5 rounded-xl border text-xs font-semibold transition-all ${
+                                            isVisible
+                                                ? 'bg-slate-800/90 border-emerald-500/50 text-white'
+                                                : 'bg-slate-900/60 border-slate-800 text-slate-500 hover:border-slate-700'
+                                        }`}
+                                    >
+                                        <div className="flex items-center gap-2.5">
+                                            <span className="text-base">{col.icon}</span>
+                                            <span className={isVisible ? 'text-white' : 'text-slate-400'}>{col.label}</span>
+                                        </div>
+                                        <div className="flex items-center gap-1.5">
+                                            {isVisible ? (
+                                                <span className="flex items-center gap-1 text-[11px] text-emerald-400 bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-800/60">
+                                                    <Eye className="w-3 h-3" />
+                                                    Tampil
+                                                </span>
+                                            ) : (
+                                                <span className="flex items-center gap-1 text-[11px] text-slate-500 bg-slate-800/60 px-2 py-0.5 rounded border border-slate-800">
+                                                    <EyeOff className="w-3 h-3" />
+                                                    Disembunyikan
+                                                </span>
+                                            )}
+                                        </div>
+                                    </button>
+                                );
+                            })}
+                        </div>
+
+                        {/* Actions Footer */}
+                        <div className="p-3 border-t border-slate-800 bg-slate-950/60 flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-1">
+                                <button
+                                    type="button"
+                                    onClick={() => setAllColumns(true)}
+                                    className="px-2.5 py-1.5 text-[11px] text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors"
+                                >
+                                    Pilih Semua
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={resetColumns}
+                                    className="px-2.5 py-1.5 text-[11px] text-slate-400 hover:text-slate-200 bg-slate-800/60 hover:bg-slate-800 rounded-lg transition-colors flex items-center gap-1"
+                                >
+                                    <RotateCcw className="w-3 h-3" />
+                                    Reset
+                                </button>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setShowColumnModal(false)}
+                                className="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md transition-all"
+                            >
+                                Selesai
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
