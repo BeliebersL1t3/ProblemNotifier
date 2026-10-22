@@ -2446,8 +2446,12 @@ class IssueController extends Controller
 
     public function startBot(Request $request)
     {
+        $version = $request->input('version', 'v1');
         $user = $request->user();
-        if (!$user || (method_exists($user, 'isAdmin') && !$user->isAdmin() && $user->role !== 'admin')) {
+        $isAdmin = $user && (method_exists($user, 'isAdmin') ? $user->isAdmin() : ($user->role === 'admin'));
+
+        // For V1 (production bot), require admin. For V2 (sandbox testing in /lapangan), allow authenticated or testing users
+        if ($version !== 'v2' && !$isAdmin) {
             return response()->json(['success' => false, 'message' => 'Hanya Admin yang dapat menyalakan bot.'], 403);
         }
 
@@ -2461,28 +2465,34 @@ class IssueController extends Controller
         } catch (\Throwable $e) {}
 
         $botDir = base_path('whatsapp-bot');
-        $logFile = $botDir . DIRECTORY_SEPARATOR . 'bot_runtime.log';
+        $script = ($version === 'v2') ? 'bot-v2.js' : 'bot.js';
+        $logFile = $botDir . DIRECTORY_SEPARATOR . ($version === 'v2' ? 'bot_v2_runtime.log' : 'bot_runtime.log');
 
         if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
             // Windows detached background launch
-            $cmd = "start /B cmd /C \"cd /D " . escapeshellarg($botDir) . " && node bot.js >> " . escapeshellarg($logFile) . " 2>&1\"";
+            $cmd = "start /B cmd /C \"cd /D " . escapeshellarg($botDir) . " && node {$script} >> " . escapeshellarg($logFile) . " 2>&1\"";
             pclose(popen($cmd, "r"));
         } else {
             // Linux/macOS detached background launch
-            $cmd = "cd " . escapeshellarg($botDir) . " && node bot.js >> " . escapeshellarg($logFile) . " 2>&1 &";
+            $cmd = "cd " . escapeshellarg($botDir) . " && node {$script} >> " . escapeshellarg($logFile) . " 2>&1 &";
             exec($cmd);
         }
 
         return response()->json([
             'success' => true,
-            'message' => 'Perintah menyalakan bot berhasil dikirim. Bot sedang booting di background.'
+            'message' => ($version === 'v2')
+                ? 'Perintah menyalakan Bot WA V2 berhasil dikirim. Bot sedang booting di background.'
+                : 'Perintah menyalakan bot berhasil dikirim. Bot sedang booting di background.'
         ]);
     }
 
     public function stopBot(Request $request)
     {
+        $version = $request->input('version', 'v1');
         $user = $request->user();
-        if (!$user || (method_exists($user, 'isAdmin') && !$user->isAdmin() && $user->role !== 'admin')) {
+        $isAdmin = $user && (method_exists($user, 'isAdmin') ? $user->isAdmin() : ($user->role === 'admin'));
+
+        if ($version !== 'v2' && !$isAdmin) {
             return response()->json(['success' => false, 'message' => 'Hanya Admin yang dapat mematikan bot.'], 403);
         }
 
@@ -2528,13 +2538,16 @@ class IssueController extends Controller
 
     public function getBotLogs(Request $request)
     {
+        $version = $request->input('version', 'v1');
         $user = $request->user();
-        if (!$user || (method_exists($user, 'isAdmin') && !$user->isAdmin() && $user->role !== 'admin')) {
+        $isAdmin = $user && (method_exists($user, 'isAdmin') ? $user->isAdmin() : ($user->role === 'admin'));
+
+        if ($version !== 'v2' && !$isAdmin) {
             return response()->json(['success' => false, 'message' => 'Hanya Admin yang dapat melihat log bot.'], 403);
         }
 
         $botDir = base_path('whatsapp-bot');
-        $logFile = $botDir . DIRECTORY_SEPARATOR . 'bot_runtime.log';
+        $logFile = $botDir . DIRECTORY_SEPARATOR . ($version === 'v2' ? 'bot_v2_runtime.log' : 'bot_runtime.log');
 
         if (!file_exists($logFile)) {
             return response()->json(['success' => true, 'logs' => ['Belum ada log runtime yang tercatat.']]);

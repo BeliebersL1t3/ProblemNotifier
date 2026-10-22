@@ -1691,12 +1691,13 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                 </div>
             )}
 
-            {/* BOT CONTROL MODAL */}
+            {/* BOT CONTROL MODAL (CONFIGURED FOR BOT V2) */}
             <BotControlModal
                 open={botControlModalOpen}
                 onOpenChange={setBotControlModalOpen}
                 botStatus={botStatus}
                 onRefreshStatus={fetchBotStatus}
+                botVersion="v2"
             />
         </div>
     );

@@ -18,7 +18,7 @@ import {
     Info, ArrowRight
 } from 'lucide-react';
 
-export function BotControlModal({ open, onOpenChange, botStatus, onRefreshStatus, initialTab = 'status' }) {
+export function BotControlModal({ open, onOpenChange, botStatus, onRefreshStatus, initialTab = 'status', botVersion = 'v1' }) {
     const { lang } = useLanguage();
     const [activeTab, setActiveTab] = useState(initialTab); // 'status' | 'pair' | 'qr'
     const [actionLoading, setActionLoading] = useState(false);
@@ -65,7 +65,7 @@ export function BotControlModal({ open, onOpenChange, botStatus, onRefreshStatus
     const fetchLogs = useCallback(async () => {
         setLoadingLogs(true);
         try {
-            const res = await axios.get('/api/bot/logs');
+            const res = await axios.get('/api/bot/logs', { params: { version: botVersion } });
             if (res.data?.success) {
                 setLogs(res.data.logs || []);
             }
@@ -74,7 +74,7 @@ export function BotControlModal({ open, onOpenChange, botStatus, onRefreshStatus
         } finally {
             setLoadingLogs(false);
         }
-    }, []);
+    }, [botVersion]);
 
     useEffect(() => {
         if (open) {
@@ -105,7 +105,7 @@ export function BotControlModal({ open, onOpenChange, botStatus, onRefreshStatus
         setActionLoading(true);
         setActionMsg(null);
         try {
-            const res = await axios.post('/api/bot/start');
+            const res = await axios.post('/api/bot/start', { version: botVersion });
             setActionMsg({ type: 'success', text: res.data?.message || 'Perintah start terkirim.' });
             setTimeout(async () => {
                 await onRefreshStatus?.();
@@ -123,7 +123,7 @@ export function BotControlModal({ open, onOpenChange, botStatus, onRefreshStatus
         setActionLoading(true);
         setActionMsg(null);
         try {
-            const res = await axios.post('/api/bot/stop');
+            const res = await axios.post('/api/bot/stop', { version: botVersion });
             setActionMsg({ type: 'success', text: res.data?.message || 'Bot berhasil dimatikan.' });
             setTimeout(async () => {
                 await onRefreshStatus?.();
@@ -141,7 +141,7 @@ export function BotControlModal({ open, onOpenChange, botStatus, onRefreshStatus
         setActionLoading(true);
         setActionMsg(null);
         try {
-            const res = await axios.post('/api/bot/restart');
+            const res = await axios.post('/api/bot/restart', { version: botVersion });
             setActionMsg({ type: 'success', text: res.data?.message || 'Bot sedang di-restart...' });
             setTimeout(async () => {
                 await onRefreshStatus?.();
