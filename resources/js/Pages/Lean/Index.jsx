@@ -22,16 +22,50 @@ import {
     AlertCircle
 } from 'lucide-react';
 
-export default function LeanIndex({ issues = [], departments = [], locations = ['TBR', 'TPI', 'Kantor'], currentUser = null }) {
-    // --- Fixed Profile State (Locked to authenticated user or saved profile) ---
-    const myDept = currentUser?.department || localStorage.getItem('lean_staff_dept') || 'Reservasi';
-    const myName = currentUser?.name || localStorage.getItem('lean_staff_name') || 'Bray';
+const PRESET_ACCOUNTS = [
+    { name: 'Budi (Engineer)', dept: 'Engineer', icon: '🔧' },
+    { name: 'Siti (HK)', dept: 'HK', icon: '🧹' },
+    { name: 'Agus (Fasilitas)', dept: 'Fasilitas', icon: '🏢' },
+    { name: 'Chef Doni', dept: 'Kitchen', icon: '🍳' },
+    { name: 'Rani (GR)', dept: 'GR', icon: '🏖️' },
+    { name: 'Eko (IT)', dept: 'IT', icon: '💻' },
+    { name: 'Pak Yanto (OE)', dept: 'OE', icon: '⚙️' },
+    { name: 'Hendri (Procurement)', dept: 'Procurement', icon: '📦' },
+    { name: 'Dewi (Finance)', dept: 'Finance', icon: '💰' },
+    { name: 'Bray (Reservasi)', dept: 'Reservasi', icon: '📋' },
+    { name: 'Ibu Maya (HR)', dept: 'HR', icon: '👥' },
+];
 
-    // Save profile to localStorage for persistence
-    useEffect(() => {
-        if (currentUser?.department) localStorage.setItem('lean_staff_dept', currentUser.department);
-        if (currentUser?.name) localStorage.setItem('lean_staff_name', currentUser.name);
-    }, [currentUser]);
+export default function LeanIndex({ issues = [], departments = [], locations = ['TBR', 'TPI', 'Kantor'], currentUser = null }) {
+    // --- Testing Persona State (Quick Account Switcher for Instant Testing) ---
+    const [myDept, setMyDept] = useState(() => {
+        return localStorage.getItem('lean_test_dept') || currentUser?.department || 'Reservasi';
+    });
+    const [myName, setMyName] = useState(() => {
+        return localStorage.getItem('lean_test_name') || currentUser?.name || 'Bray';
+    });
+
+    const [showSwitchModal, setShowSwitchModal] = useState(false);
+    const [tempDept, setTempDept] = useState(myDept);
+    const [tempName, setTempName] = useState(myName);
+
+    const handleSwitchPersona = (dept, name) => {
+        setMyDept(dept);
+        setMyName(name);
+        localStorage.setItem('lean_test_dept', dept);
+        localStorage.setItem('lean_test_name', name);
+        setShowSwitchModal(false);
+    };
+
+    const handleResetPersona = () => {
+        const defaultDept = currentUser?.department || 'Reservasi';
+        const defaultName = currentUser?.name || 'Bray';
+        setMyDept(defaultDept);
+        setMyName(defaultName);
+        localStorage.removeItem('lean_test_dept');
+        localStorage.removeItem('lean_test_name');
+        setShowSwitchModal(false);
+    };
 
     // --- UI Filters & View Modes ---
     // Tab: 'assigned_to_me' (Tugas Tim Saya) | 'reported_by_me' (Laporan Kami) | 'all' (Semua Isu)
@@ -241,17 +275,26 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
 
                     {/* Profile & Navigation Switcher */}
                     <div className="flex items-center gap-2">
-                        {/* Profile Chip (Fixed) */}
-                        <div
-                            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-xs select-none"
-                            title="Identitas pelapor terverifikasi"
+                        {/* Quick Account Switcher Button (Click to test as another dept) */}
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setTempDept(myDept);
+                                setTempName(myName);
+                                setShowSwitchModal(true);
+                            }}
+                            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700/90 border border-slate-700 hover:border-emerald-500/60 text-xs transition-all shadow-sm cursor-pointer group"
+                            title="Ganti akun / departemen untuk testing"
                         >
-                            <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                            <span className="font-semibold text-slate-200 truncate max-w-[110px]">{myName}</span>
-                            <span className="text-[10px] text-emerald-400 font-medium bg-emerald-950/80 px-1.5 py-0.2 rounded border border-emerald-800/60">
+                            <span className="w-2 h-2 rounded-full bg-emerald-400 group-hover:scale-125 transition-transform" />
+                            <span className="font-bold text-slate-200 truncate max-w-[100px]">{myName}</span>
+                            <span className="text-[10px] text-emerald-400 font-bold bg-emerald-950/80 px-1.5 py-0.2 rounded border border-emerald-800/60">
                                 {myDept}
                             </span>
-                        </div>
+                            <span className="text-[10px] text-slate-400 group-hover:text-emerald-300 font-semibold underline ml-0.5">
+                                Ganti
+                            </span>
+                        </button>
 
                         {/* Back to Full Dashboard / Login */}
                         <Link
@@ -761,15 +804,23 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                                 )}
                             </div>
 
-                            {/* 6. PELAPOR (FIXED / TERKUNCI KE AKUN) */}
+                            {/* 6. PELAPOR (CURRENT ACTIVE TEST PERSONA) */}
                             <div className="p-2.5 rounded-lg bg-slate-800/60 border border-slate-700 text-xs flex items-center justify-between">
                                 <div>
                                     <span className="text-[11px] text-slate-400">6. Pelapor:</span>
                                     <p className="font-bold text-slate-200">{myName} ({myDept})</p>
                                 </div>
-                                <span className="text-[10px] text-emerald-400 bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-800/60 font-semibold select-none">
-                                    Terkunci
-                                </span>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setTempDept(myDept);
+                                        setTempName(myName);
+                                        setShowSwitchModal(true);
+                                    }}
+                                    className="text-[11px] text-emerald-400 hover:text-emerald-300 font-bold underline"
+                                >
+                                    Ganti Akun Tes
+                                </button>
                             </div>
 
                             {/* Submit Button */}
@@ -882,6 +933,122 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                 </div>
             )}
 
+
+            {/* MODAL: QUICK ACCOUNT SWITCHER FOR TESTING */}
+            {showSwitchModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
+                    <div className="w-full max-w-lg bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+                        <div className="p-4 border-b border-slate-800 flex items-center justify-between">
+                            <div>
+                                <div className="flex items-center gap-1.5">
+                                    <h3 className="font-bold text-base text-white">Ganti Akun Tes Cepat</h3>
+                                    <span className="text-[10px] bg-amber-500/20 text-amber-300 font-semibold px-1.5 py-0.2 rounded-full border border-amber-500/30">
+                                        Simulasi
+                                    </span>
+                                </div>
+                                <p className="text-xs text-slate-400 mt-0.5">
+                                    Pilih departemen untuk melihat tampilan dan menguji aksi dari sudut pandang tim tersebut
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => setShowSwitchModal(false)}
+                                className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition-colors"
+                            >
+                                <X className="w-4 h-4" />
+                            </button>
+                        </div>
+
+                        <div className="p-4 overflow-y-auto space-y-4 flex-1">
+                            {/* PRESET CHIPS */}
+                            <div>
+                                <label className="block text-xs font-bold text-slate-300 mb-2">
+                                    Pilih Cepat Departemen (1-Klik):
+                                </label>
+                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                    {PRESET_ACCOUNTS.map((preset) => {
+                                        const isCurrent = myDept.toLowerCase() === preset.dept.toLowerCase();
+                                        return (
+                                            <button
+                                                type="button"
+                                                key={preset.dept}
+                                                onClick={() => handleSwitchPersona(preset.dept, preset.name)}
+                                                className={`p-2.5 rounded-xl border text-left transition-all flex items-center gap-2 ${
+                                                    isCurrent
+                                                        ? 'bg-emerald-600/30 border-emerald-500 text-white shadow-sm ring-1 ring-emerald-500/40'
+                                                        : 'bg-slate-800/80 hover:bg-slate-800 border-slate-700 text-slate-300 hover:border-slate-600'
+                                                }`}
+                                            >
+                                                <span className="text-base shrink-0">{preset.icon}</span>
+                                                <div className="min-w-0">
+                                                    <p className="text-xs font-bold truncate text-white leading-tight">
+                                                        {preset.dept}
+                                                    </p>
+                                                    <p className="text-[11px] text-slate-400 truncate mt-0.5">
+                                                        {preset.name}
+                                                    </p>
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            {/* CUSTOM MANUAL SWITCHER */}
+                            <div className="pt-3 border-t border-slate-800 space-y-3">
+                                <label className="block text-xs font-bold text-slate-300">
+                                    Atau Tentukan Nama & Departemen Kustom:
+                                </label>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    <div>
+                                        <label className="block text-[11px] text-slate-400 mb-1">Nama Staf</label>
+                                        <input
+                                            type="text"
+                                            value={tempName}
+                                            onChange={(e) => setTempName(e.target.value)}
+                                            placeholder="Nama staf"
+                                            className="w-full text-xs bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-emerald-500"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[11px] text-slate-400 mb-1">Departemen</label>
+                                        <select
+                                            value={tempDept}
+                                            onChange={(e) => setTempDept(e.target.value)}
+                                            className="w-full text-xs bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-emerald-500"
+                                        >
+                                            {departments.map((d) => (
+                                                <option key={d} value={d}>
+                                                    {d}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => handleSwitchPersona(tempDept, tempName || 'Staf Tes')}
+                                    className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-md transition-all"
+                                >
+                                    Terapkan Identitas Kustom
+                                </button>
+                            </div>
+
+                            {/* RESET BUTTON */}
+                            {currentUser && (
+                                <div className="pt-2 text-center">
+                                    <button
+                                        type="button"
+                                        onClick={handleResetPersona}
+                                        className="text-[11px] text-slate-400 hover:text-white underline"
+                                    >
+                                        Kembalikan ke Akun Asli Saya ({currentUser.name} - {currentUser.department})
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* MODAL 4: RESET CONFIRMATION */}
             {showResetConfirm && (
