@@ -128,6 +128,7 @@ Route::prefix('api')->group(function () {
         Route::post('/issues/{rowIndex}/pending', [IssueController::class, 'pending']);
         Route::post('/issues/{rowIndex}/resolve', [IssueController::class, 'resolve']);
         Route::post('/issues/{rowIndex}/restore', [IssueController::class, 'restore']);
+        Route::post('/issues/{rowIndex}/transfer', [IssueController::class, 'transfer']);
         Route::post('/issues/{rowIndex}/category', [IssueController::class, 'updateCategory']);
         Route::post('/issues/{rowIndex}/notify-empty-department', [IssueController::class, 'notifyEmptyDepartment']);
         Route::post('/issues/{rowIndex}/mark-duplicate', [IssueController::class, 'markDuplicate']);

@@ -1585,6 +1585,103 @@ class IssueController extends Controller
         }
     }
 
+    public function transfer(Request $request, $idOrRowIndex)
+    {
+        try {
+            $request->validate([
+                'to_department'        => 'required|string|max:100',
+                'reason'               => 'required|string|max:1000',
+                'transferred_by'       => 'required|string|max:255',
+                'transferred_by_phone' => 'nullable|string|max:50',
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $ve) {
+            return response()->json([
+                'success' => false,
+                'message' => collect($ve->errors())->flatten()->first() ?: 'Invalid transfer input.',
+            ], 422);
+        }
+
+        try {
+            $issueData = $this->getLatestIssueRowData((string)$idOrRowIndex);
+            if (!$issueData) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Issue not found.',
+                ], 404);
+            }
+
+            $currentRow = IssueSheetRepository::padRow($issueData['row']);
+            $oldDept = $currentRow[IssueSheetRepository::COL_ASSIGNED_DEPTS] 
+                ?: ($currentRow[IssueSheetRepository::COL_ORIGIN_DEPT] ?: 'General');
+            $newDept = trim($request->input('to_department'));
+            $reason = trim($request->input('reason'));
+            $transferredBy = trim($request->input('transferred_by'));
+            $transferredByPhone = trim($request->input('transferred_by_phone') ?? '');
+
+            // Update row fields: new department, status open, clear taker
+            $currentRow[IssueSheetRepository::COL_ASSIGNED_DEPTS] = $newDept;
+            $currentRow[IssueSheetRepository::COL_STATUS] = 'open';
+            $currentRow[IssueSheetRepository::COL_TAKER] = '';
+            $currentRow[IssueSheetRepository::COL_TAKEN_DATE] = '';
+            $currentRow[IssueSheetRepository::COL_ARCHIVE_STATUS] = '1';
+
+            // Decode existing edit logs and append transfer event
+            $existingLogsRaw = $currentRow[IssueSheetRepository::COL_EDIT_LOGS] ?? '';
+            $existingLogs = [];
+            if (!empty($existingLogsRaw)) {
+                $decoded = json_decode($existingLogsRaw, true);
+                if (is_array($decoded)) {
+                    $existingLogs = $decoded;
+                }
+            }
+
+            $transferLog = [
+                'date' => Carbon::now('Asia/Jakarta')->format('M d, Y H:i:s'),
+                'by' => $transferredBy,
+                'by_phone' => $transferredByPhone,
+                'type' => 'transfer_department',
+                'from_department' => $oldDept,
+                'to_department' => $newDept,
+                'reason' => $reason,
+            ];
+            $existingLogs[] = $transferLog;
+            $currentRow[IssueSheetRepository::COL_EDIT_LOGS] = json_encode($existingLogs);
+
+            // Persist row to Google Sheets
+            $targetSheet = $issueData['foundLocation']['sheet'] ?? null;
+            if ($targetSheet) {
+                $this->googleService->updateRow($issueData['rowIndex'], $currentRow, $targetSheet);
+            } else {
+                $this->googleService->updateRow($issueData['rowIndex'], $currentRow);
+            }
+
+            // Return updated issue data for bot notifications
+            return response()->json([
+                'success' => true,
+                'message' => "Issue successfully transferred from {$oldDept} to {$newDept}.",
+                'data' => [
+                    'id'               => $currentRow[IssueSheetRepository::COL_ID],
+                    'title'            => $currentRow[IssueSheetRepository::COL_TITLE],
+                    'location'         => $currentRow[IssueSheetRepository::COL_LOCATION],
+                    'description'      => $currentRow[IssueSheetRepository::COL_DESCRIPTION],
+                    'imageUrl'         => $currentRow[IssueSheetRepository::COL_IMAGE_URL],
+                    'reporter'         => $currentRow[IssueSheetRepository::COL_REPORTER],
+                    'status'           => 'open',
+                    'from_department'  => $oldDept,
+                    'to_department'    => $newDept,
+                    'reason'           => $reason,
+                    'transferred_by'   => $transferredBy,
+                    'transferred_at'   => Carbon::now('Asia/Jakarta')->toIso8601String(),
+                ]
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to transfer issue: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
     public function resolve(Request $request, $idOrRowIndex)
     {
         if (auth()->check() && !auth()->user()->isAdmin() && !auth()->user()->hasPermission('can_manage_issues')) {
