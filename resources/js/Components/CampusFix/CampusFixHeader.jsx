@@ -508,6 +508,15 @@ export function CampusFixHeader({ mode = 'dashboard', query, onQueryChange, onRe
                             {t('tickets') || 'Tickets'}
                         </span>
                     </Link>
+
+                    {/* Quick Link to Lean Mode (Sandbox Lapangan) */}
+                    <Link
+                        href="/lapangan"
+                        className="group flex items-center justify-center px-2.5 py-1.5 rounded-md text-xs font-bold text-emerald-800 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 transition-colors ml-1 shadow-xs"
+                        title="Buka Mode Lapangan (Uji Coba Sandbox)"
+                    >
+                        <span>📱 Lapangan</span>
+                    </Link>
                 </div>
 
                 {/* Desktop Search Bar (Hidden on mobile, mobile uses expandable top row) */}

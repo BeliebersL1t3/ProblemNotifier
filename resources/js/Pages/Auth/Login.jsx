@@ -154,6 +154,30 @@ export default function Login({ status, canResetPassword }) {
                         </Link>
                     </p>
                 </div>
+
+                {/* Lean Mode Quick Access for Field Staff */}
+                <div className="mt-4 pt-4 border-t border-dashed border-gray-200">
+                    <Link
+                        href="/lapangan"
+                        className="flex items-center justify-between p-3.5 rounded-xl bg-gradient-to-r from-emerald-50 via-teal-50/50 to-emerald-50 border border-emerald-200/80 hover:border-emerald-300 hover:shadow-sm transition-all text-emerald-900 group"
+                    >
+                        <div className="flex items-center gap-3">
+                            <span className="flex items-center justify-center w-9 h-9 rounded-lg bg-emerald-600 text-white shadow-sm text-base">
+                                📱
+                            </span>
+                            <div className="text-left">
+                                <div className="flex items-center gap-1.5">
+                                    <p className="text-xs font-bold text-emerald-950">Mode Lapangan</p>
+                                    <span className="text-[10px] bg-emerald-200/80 text-emerald-800 font-semibold px-1.5 py-0.2 rounded-full">Uji Coba Cepat</span>
+                                </div>
+                                <p className="text-[11px] text-emerald-700 mt-0.5">Lapor & monitor tugas kilat (tanpa password)</p>
+                            </div>
+                        </div>
+                        <span className="text-xs font-bold text-emerald-700 group-hover:translate-x-1 transition-transform">
+                            Buka &rarr;
+                        </span>
+                    </Link>
+                </div>
             </form>
         </GuestLayout>
     );

@@ -196,6 +196,14 @@ Route::prefix('api')->group(function () {
 Route::get('/telunas-wifi-required', [\App\Http\Controllers\TelunasWifiBypassController::class, 'show'])->name('telunas.wifi.required');
 Route::post('/telunas-wifi-bypass', [\App\Http\Controllers\TelunasWifiBypassController::class, 'verify'])->middleware('throttle:5,1')->name('telunas.wifi.bypass');
 
+// Lean Mode (Sandbox Lapangan) Routes
+Route::get('/lapangan', [\App\Http\Controllers\LeanController::class, 'index'])->name('lean.index');
+Route::post('/lapangan/issues', [\App\Http\Controllers\LeanController::class, 'store'])->name('lean.store');
+Route::post('/lapangan/issues/{issue}/acc', [\App\Http\Controllers\LeanController::class, 'acc'])->name('lean.acc');
+Route::post('/lapangan/issues/{issue}/claim', [\App\Http\Controllers\LeanController::class, 'claim'])->name('lean.claim');
+Route::post('/lapangan/issues/{issue}/resolve', [\App\Http\Controllers\LeanController::class, 'resolve'])->name('lean.resolve');
+Route::post('/lapangan/reset', [\App\Http\Controllers\LeanController::class, 'reset'])->name('lean.reset');
+
 require __DIR__.'/auth.php';
 
 
