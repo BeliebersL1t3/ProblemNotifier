@@ -19,6 +19,7 @@ import {
     ArrowLeft,
     Image as ImageIcon,
     AlertCircle,
+    ExternalLink,
     Power,
     MessageSquare
 } from 'lucide-react';
