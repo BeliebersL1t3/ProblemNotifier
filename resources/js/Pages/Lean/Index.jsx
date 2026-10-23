@@ -103,8 +103,6 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
     };
 
     // --- UI Filters & View Modes ---
-    // Tab: 'assigned_to_me' (Tugas Tim Saya) | 'reported_by_me' (Laporan Kami) | 'all' (Semua Isu)
-    const [activeTab, setActiveTab] = useState('all');
     // Department Filter: 'all' | specific department
     const [selectedDeptFilter, setSelectedDeptFilter] = useState('all');
 
@@ -337,7 +335,7 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
         });
     };
 
-    // --- Filter Issues based on Active Tab, Status Checklist, Department & Live Search ---
+    // --- Filter Issues based on Status Checklist, Department & Live Search ---
     const filteredIssues = useMemo(() => {
         const q = searchQuery.trim().toLowerCase();
         return issues.filter((item) => {
@@ -348,22 +346,12 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                 if (!matches) return false;
             }
 
-            // 2. Tab filtering
-            if (activeTab === 'assigned_to_me') {
-                const targets = item.target_departments || [];
-                const isTarget = targets.some((d) => d.toLowerCase() === myDept.toLowerCase());
-                if (!isTarget) return false;
-            } else if (activeTab === 'reported_by_me') {
-                const isMyOrigin = (item.reporter_dept || '').toLowerCase() === myDept.toLowerCase();
-                if (!isMyOrigin) return false;
-            }
-
-            // 3. Status checklist filtering
+            // 2. Status checklist filtering
             if (!selectedStatuses[item.status]) {
                 return false;
             }
 
-            // 4. Live Search
+            // 3. Live Search
             if (q) {
                 const code = (item.issue_code || ('LEAN-' + item.id)).toLowerCase();
                 const title = (item.title || '').toLowerCase();
@@ -387,16 +375,10 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
 
             return true;
         });
-    }, [issues, activeTab, selectedStatuses, selectedDeptFilter, myDept, searchQuery]);
+    }, [issues, selectedStatuses, selectedDeptFilter, searchQuery]);
 
-    // Counters for tabs and status filters
+    // Counters for status filters and totals
     const counts = useMemo(() => {
-        const assigned = issues.filter((i) =>
-            (i.target_departments || []).some((d) => d.toLowerCase() === myDept.toLowerCase())
-        ).length;
-        const reported = issues.filter((i) =>
-            (i.reporter_dept || '').toLowerCase() === myDept.toLowerCase()
-        ).length;
         const total = issues.length;
 
         // Base items for accurate status breakdown
@@ -404,12 +386,6 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
             if (selectedDeptFilter !== 'all') {
                 const targets = item.target_departments || [];
                 if (!targets.some((d) => d.toLowerCase() === selectedDeptFilter.toLowerCase())) return false;
-            }
-            if (activeTab === 'assigned_to_me') {
-                const targets = item.target_departments || [];
-                if (!targets.some((d) => d.toLowerCase() === myDept.toLowerCase())) return false;
-            } else if (activeTab === 'reported_by_me') {
-                if ((item.reporter_dept || '').toLowerCase() !== myDept.toLowerCase()) return false;
             }
             return true;
         });
@@ -419,8 +395,8 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
         const pending = baseItems.filter((i) => i.status === 'pending').length;
         const resolved = baseItems.filter((i) => i.status === 'resolved').length;
 
-        return { assigned, reported, total, open, inProgress, pending, resolved };
-    }, [issues, selectedDeptFilter, activeTab, myDept]);
+        return { total, open, inProgress, pending, resolved };
+    }, [issues, selectedDeptFilter]);
 
     return (
         <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col font-sans pb-24 md:pb-12">
@@ -521,56 +497,6 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                     )}
                 </div>
 
-                {/* 3 VISIBILITY TABS */}
-                <div className="grid grid-cols-3 gap-1.5 p-1 bg-slate-800/80 rounded-xl border border-slate-700/80 mb-4 text-xs font-semibold">
-                    <button
-                        onClick={() => setActiveTab('assigned_to_me')}
-                        className={`py-2 px-1 rounded-lg text-center transition-all flex flex-col sm:flex-row items-center justify-center gap-1 ${
-                            activeTab === 'assigned_to_me'
-                                ? 'bg-emerald-600 text-white shadow-sm font-bold'
-                                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'
-                        }`}
-                    >
-                        <span>Tugas Tim Saya</span>
-                        <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
-                            activeTab === 'assigned_to_me' ? 'bg-emerald-800 text-emerald-100' : 'bg-slate-700 text-slate-300'
-                        }`}>
-                            {counts.assigned}
-                        </span>
-                    </button>
-
-                    <button
-                        onClick={() => setActiveTab('reported_by_me')}
-                        className={`py-2 px-1 rounded-lg text-center transition-all flex flex-col sm:flex-row items-center justify-center gap-1 ${
-                            activeTab === 'reported_by_me'
-                                ? 'bg-emerald-600 text-white shadow-sm font-bold'
-                                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'
-                        }`}
-                    >
-                        <span>Laporan Kami</span>
-                        <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
-                            activeTab === 'reported_by_me' ? 'bg-emerald-800 text-emerald-100' : 'bg-slate-700 text-slate-300'
-                        }`}>
-                            {counts.reported}
-                        </span>
-                    </button>
-
-                    <button
-                        onClick={() => setActiveTab('all')}
-                        className={`py-2 px-1 rounded-lg text-center transition-all flex flex-col sm:flex-row items-center justify-center gap-1 ${
-                            activeTab === 'all'
-                                ? 'bg-emerald-600 text-white shadow-sm font-bold'
-                                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'
-                        }`}
-                    >
-                        <span>Semua Isu Resort</span>
-                        <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
-                            activeTab === 'all' ? 'bg-emerald-800 text-emerald-100' : 'bg-slate-700 text-slate-300'
-                        }`}>
-                            {counts.total}
-                        </span>
-                    </button>
-                </div>
 
                 {/* ERP CONTROLS BAR: SEARCH, DEPT, COLUMN CUSTOMIZER, VIEW MODE */}
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 mb-3">
@@ -785,10 +711,8 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                         <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
                             {searchQuery
                                 ? `Tidak ditemukan isu yang cocok dengan kata kunci "${searchQuery}".`
-                                : activeTab === 'assigned_to_me'
-                                ? `Belum ada tiket masalah yang ditujukan ke tim ${myDept}.`
-                                : activeTab === 'reported_by_me'
-                                ? `Tim ${myDept} belum melaporkan masalah ke departemen lain.`
+                                : selectedDeptFilter !== 'all'
+                                ? `Tidak ada masalah untuk departemen ${selectedDeptFilter}.`
                                 : 'Belum ada masalah di dalam daftar.'}
                         </p>
                         <div className="mt-4 flex items-center justify-center gap-2">
