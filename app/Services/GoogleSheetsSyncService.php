@@ -73,20 +73,6 @@ class GoogleSheetsSyncService
         $rootCause = $aiAnalysis['dugaan_akar_masalah'] ?? '';
         $mitigation = $aiAnalysis['tindakan_mitigasi_pencegahan'] ?? '';
 
-        $imageUrl = '';
-        if ($issue->image_url) {
-            $imageUrl = str_starts_with($issue->image_url, 'http')
-                ? $issue->image_url
-                : url($issue->image_url);
-        }
-
-        $resolutionImageUrl = '';
-        if ($issue->resolution_image_url) {
-            $resolutionImageUrl = str_starts_with($issue->resolution_image_url, 'http')
-                ? $issue->resolution_image_url
-                : url($issue->resolution_image_url);
-        }
-
         return [
             // Standard English Keys (Matches Apps Script Code.gs)
             'issue_code'           => $code,
@@ -101,13 +87,13 @@ class GoogleSheetsSyncService
             'is_active'            => $isActive,
             'deleted_by'           => $deletedBy,
             'deleted_at'           => $deletedAt,
-            'image_url'            => $imageUrl,
+            'image_url'            => '', // Foto ditiadakan di spreadsheet sesuai permintaan
             'claimed_by'           => $issue->claimed_by_name ?: '',
             'claimed_at'           => $issue->claimed_at ? $issue->claimed_at->format('Y-m-d H:i') : '',
             'resolved_by'          => $issue->resolved_by_name ?: '',
             'resolved_at'          => $issue->resolved_at ? $issue->resolved_at->format('Y-m-d H:i') : '',
             'resolution_note'      => $issue->resolution_note ?: '',
-            'proof_image_url'      => $resolutionImageUrl,
+            'proof_image_url'      => '', // Foto ditiadakan di spreadsheet sesuai permintaan
             'ai_category'          => $issue->ai_category ?: '',
             'ai_sub_category'      => $issue->ai_sub_category ?: '',
             'ai_urgency'           => $issue->ai_urgency ?: 'Sedang',
@@ -128,13 +114,13 @@ class GoogleSheetsSyncService
             'aktif_di_dashboard'   => $isActive,
             'dihapus_oleh'         => $deletedBy,
             'waktu_dihapus'        => $deletedAt,
-            'foto_masalah_url'     => $imageUrl,
+            'foto_masalah_url'     => '',
             'diambil_oleh'         => $issue->claimed_by_name ?: '',
             'waktu_ambil'          => $issue->claimed_at ? $issue->claimed_at->format('Y-m-d H:i') : '',
             'diselesaikan_oleh'    => $issue->resolved_by_name ?: '',
             'waktu_selesai'        => $issue->resolved_at ? $issue->resolved_at->format('Y-m-d H:i') : '',
             'catatan_penyelesaian' => $issue->resolution_note ?: '',
-            'foto_selesai_url'     => $resolutionImageUrl,
+            'foto_selesai_url'     => '',
             'ai_kategori'          => $issue->ai_category ?: '',
             'ai_sub_kategori'      => $issue->ai_sub_category ?: '',
             'ai_urgensi'           => $issue->ai_urgency ?: 'Sedang',
