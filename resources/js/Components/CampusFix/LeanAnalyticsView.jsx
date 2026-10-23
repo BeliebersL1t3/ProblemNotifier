@@ -398,7 +398,7 @@ export function LeanAnalyticsView({
 }) {
     const [selectedCategory, setSelectedCategory] = useState('all');
     const [searchFilter, setSearchFilter] = useState('');
-    const [hotspotTab, setHotspotTab] = useState('chart'); // 'chart' (default) | 'tpi' | 'tbr'
+    const [hotspotTab, setHotspotTab] = useState('leaderboard'); // 'leaderboard' (default) | 'tpi' | 'tbr' | 'chart'
 
     // --- 1. Key Performance & Audit Metric Cards ---
     const stats = useMemo(() => {
@@ -479,12 +479,13 @@ export function LeanAnalyticsView({
         }));
     }, [issues]);
 
-    // --- 4. Hotspot Location & Urgency Breakdown (Stacked Bar) ---
-    const hotspotData = useMemo(() => {
+    // --- 4. Hotspot Location Risk Leaderboard & Breakdown ---
+    const { hotspotLeaderboardData, hotspotData } = useMemo(() => {
         const locMap = {};
+        const urgencyWeight = { 'Darurat': 1000, 'Tinggi': 100, 'Sedang': 10, 'Rendah': 1 };
 
         issues.forEach((i) => {
-            const loc = i.location || 'Lainnya';
+            const loc = (i.location || 'Lainnya').trim() || 'Lainnya';
             if (!locMap[loc]) {
                 locMap[loc] = {
                     location: loc,
@@ -493,6 +494,12 @@ export function LeanAnalyticsView({
                     Sedang: 0,
                     Rendah: 0,
                     total: 0,
+                    openCount: 0,
+                    resolvedCount: 0,
+                    highestUrgency: 'Rendah',
+                    latestIssueTitle: i.title || '',
+                    latestIssueCode: i.issue_code || '',
+                    departments: new Set(),
                 };
             }
             const urg = i.ai_urgency || 'Sedang';
@@ -502,11 +509,44 @@ export function LeanAnalyticsView({
                 locMap[loc]['Sedang'] += 1;
             }
             locMap[loc].total += 1;
+
+            if (i.status === 'resolved') {
+                locMap[loc].resolvedCount += 1;
+            } else {
+                locMap[loc].openCount += 1;
+            }
+
+            if ((urgencyWeight[urg] || 0) > (urgencyWeight[locMap[loc].highestUrgency] || 0)) {
+                locMap[loc].highestUrgency = urg;
+            }
+
+            if (Array.isArray(i.target_departments)) {
+                i.target_departments.forEach((d) => d && locMap[loc].departments.add(d));
+            }
         });
 
-        return Object.values(locMap)
+        // Sorted by Severity Weighted Score for Leaderboard
+        const leaderboard = Object.values(locMap)
+            .map((item) => {
+                const score =
+                    item.Darurat * 1000 +
+                    item.Tinggi * 100 +
+                    item.Sedang * 10 +
+                    item.Rendah * 1 +
+                    item.openCount * 5;
+                return {
+                    ...item,
+                    departments: Array.from(item.departments),
+                    score,
+                };
+            })
+            .sort((a, b) => b.score - a.score || b.total - a.total);
+
+        const chartData = Object.values(locMap)
             .sort((a, b) => b.total - a.total)
             .slice(0, 6);
+
+        return { hotspotLeaderboardData: leaderboard, hotspotData: chartData };
     }, [issues]);
 
     // --- 5. Department Workload Breakdown (Laporan per Departemen) ---
@@ -963,19 +1003,19 @@ export function LeanAnalyticsView({
                         </p>
                     </div>
 
-                    {/* View Switcher Tabs (Default: Grafik Balok) */}
-                    <div className="flex items-center gap-1 bg-slate-900/90 p-1 rounded-lg border border-slate-700 self-start md:self-auto">
+                    {/* View Switcher Tabs (Default: Leaderboard Peringkat Risiko) */}
+                    <div className="flex items-center gap-1 bg-slate-900/90 p-1 rounded-lg border border-slate-700 self-start md:self-auto flex-wrap">
                         <button
                             type="button"
-                            onClick={() => setHotspotTab('chart')}
+                            onClick={() => setHotspotTab('leaderboard')}
                             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
-                                hotspotTab === 'chart'
+                                hotspotTab === 'leaderboard'
                                     ? 'bg-rose-500 text-white shadow-sm'
                                     : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
                             }`}
                         >
-                            <BarChart2 className="w-3.5 h-3.5" />
-                            <span>Grafik Balok</span>
+                            <Flame className="w-3.5 h-3.5" />
+                            <span>Peringkat Risiko</span>
                         </button>
                         <button
                             type="button"
@@ -1001,10 +1041,175 @@ export function LeanAnalyticsView({
                             <Map className="w-3.5 h-3.5" />
                             <span>Denah TBR (Beach)</span>
                         </button>
+                        <button
+                            type="button"
+                            onClick={() => setHotspotTab('chart')}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                                hotspotTab === 'chart'
+                                    ? 'bg-slate-700 text-white shadow-sm'
+                                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                            }`}
+                        >
+                            <BarChart2 className="w-3.5 h-3.5" />
+                            <span>Grafik Balok</span>
+                        </button>
                     </div>
                 </div>
 
-                {/* TAB 1: GRAFIK BALOK (DEFAULT) */}
+                {/* TAB 1: PERINGKAT RISIKO LOKASI (LEADERBOARD - DEFAULT) */}
+                {hotspotTab === 'leaderboard' && (
+                    <div className="space-y-3">
+                        {/* Summary Bar */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 rounded-lg bg-slate-900/60 border border-slate-700/60 text-xs">
+                            <span className="text-slate-300 flex items-center gap-1.5">
+                                <Flame className="w-4 h-4 text-rose-400 shrink-0" />
+                                Lokasi diurutkan berdasarkan <strong>Tingkat Keparahan Kritis</strong> (Darurat & Tinggi otomatis di posisi teratas)
+                            </span>
+                            <div className="flex items-center gap-2.5 flex-wrap text-[10px]">
+                                <span className="flex items-center gap-1 text-slate-300">
+                                    <span className="w-2 h-2 rounded bg-rose-500" /> Darurat
+                                </span>
+                                <span className="flex items-center gap-1 text-slate-300">
+                                    <span className="w-2 h-2 rounded bg-orange-400" /> Tinggi
+                                </span>
+                                <span className="flex items-center gap-1 text-slate-300">
+                                    <span className="w-2 h-2 rounded bg-yellow-400" /> Sedang
+                                </span>
+                                <span className="flex items-center gap-1 text-slate-300">
+                                    <span className="w-2 h-2 rounded bg-emerald-500" /> Rendah
+                                </span>
+                            </div>
+                        </div>
+
+                        {hotspotLeaderboardData.length === 0 ? (
+                            <div className="py-12 text-center text-xs text-slate-500">
+                                Belum ada data lokasi untuk dianalisa.
+                            </div>
+                        ) : (
+                            <div className="space-y-2">
+                                {hotspotLeaderboardData.map((item, idx) => {
+                                    const isRank1 = idx === 0;
+                                    const isRank2 = idx === 1;
+                                    const isRank3 = idx === 2;
+
+                                    const urgencyBadge = {
+                                        Darurat: { bg: 'bg-rose-500/20 text-rose-300 border-rose-500/50', dot: 'bg-rose-500' },
+                                        Tinggi:  { bg: 'bg-orange-500/20 text-orange-300 border-orange-500/50', dot: 'bg-orange-400' },
+                                        Sedang:  { bg: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/50', dot: 'bg-yellow-400' },
+                                        Rendah:  { bg: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50', dot: 'bg-emerald-500' },
+                                    }[item.highestUrgency] || { bg: 'bg-slate-700 text-slate-300 border-slate-600', dot: 'bg-slate-400' };
+
+                                    return (
+                                        <div
+                                            key={item.location}
+                                            className={`p-3.5 rounded-xl border transition-all flex flex-col md:flex-row md:items-center justify-between gap-3 ${
+                                                item.highestUrgency === 'Darurat'
+                                                    ? 'bg-rose-950/25 border-rose-500/40 hover:border-rose-500/70 shadow-sm'
+                                                    : 'bg-slate-900/60 border-slate-700/70 hover:border-slate-600'
+                                            }`}
+                                        >
+                                            {/* Left: Rank & Location */}
+                                            <div className="flex items-start gap-3 min-w-[240px]">
+                                                <div
+                                                    className={`w-7 h-7 rounded-lg shrink-0 flex items-center justify-center font-black text-xs border ${
+                                                        isRank1
+                                                            ? 'bg-gradient-to-br from-amber-400 to-rose-500 text-slate-950 border-amber-300 shadow-sm'
+                                                            : isRank2
+                                                            ? 'bg-slate-700 text-slate-100 border-slate-500'
+                                                            : isRank3
+                                                            ? 'bg-orange-950/60 text-orange-200 border-orange-700/60'
+                                                            : 'bg-slate-800 text-slate-400 border-slate-700'
+                                                    }`}
+                                                >
+                                                    #{idx + 1}
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                        <h4 className="text-sm font-bold text-white flex items-center gap-1.5">
+                                                            <MapPin className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                                                            {item.location}
+                                                        </h4>
+                                                        <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border ${urgencyBadge.bg}`}>
+                                                            <span className={`w-1.5 h-1.5 rounded-full ${urgencyBadge.dot}`} />
+                                                            Urgensi: {item.highestUrgency}
+                                                        </span>
+                                                        {item.departments && item.departments.length > 0 && (
+                                                            <span className="text-[10px] text-slate-400 bg-slate-800 px-1.5 py-0.5 rounded border border-slate-700">
+                                                                {item.departments.join(', ')}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    {item.latestIssueTitle && (
+                                                        <p className="text-xs text-slate-400 line-clamp-1">
+                                                            Laporan terbaru: <span className="text-slate-200 font-medium">"{item.latestIssueTitle}"</span>
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* Middle / Right: Breakdown Bar & Stats */}
+                                            <div className="flex flex-col sm:flex-row sm:items-center gap-4 md:gap-6 self-stretch md:self-auto justify-between md:justify-end">
+                                                {/* Visual Urgency Proportion Mini Bar */}
+                                                <div className="min-w-[140px] max-w-[200px] flex-1">
+                                                    <div className="flex justify-between text-[10px] text-slate-400 mb-1">
+                                                        <span>Distribusi Kasus</span>
+                                                        <span className="font-semibold text-white">{item.total} Total</span>
+                                                    </div>
+                                                    <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden flex">
+                                                        {item.Darurat > 0 && (
+                                                            <div
+                                                                style={{ width: `${(item.Darurat / item.total) * 100}%` }}
+                                                                className="bg-rose-500 h-full"
+                                                                title={`Darurat: ${item.Darurat}`}
+                                                            />
+                                                        )}
+                                                        {item.Tinggi > 0 && (
+                                                            <div
+                                                                style={{ width: `${(item.Tinggi / item.total) * 100}%` }}
+                                                                className="bg-orange-400 h-full"
+                                                                title={`Tinggi: ${item.Tinggi}`}
+                                                            />
+                                                        )}
+                                                        {item.Sedang > 0 && (
+                                                            <div
+                                                                style={{ width: `${(item.Sedang / item.total) * 100}%` }}
+                                                                className="bg-yellow-400 h-full"
+                                                                title={`Sedang: ${item.Sedang}`}
+                                                            />
+                                                        )}
+                                                        {item.Rendah > 0 && (
+                                                            <div
+                                                                style={{ width: `${(item.Rendah / item.total) * 100}%` }}
+                                                                className="bg-emerald-500 h-full"
+                                                                title={`Rendah: ${item.Rendah}`}
+                                                            />
+                                                        )}
+                                                    </div>
+                                                </div>
+
+                                                {/* Active vs Resolved Counters */}
+                                                <div className="flex items-center gap-2 shrink-0">
+                                                    <div className="px-2.5 py-1 rounded-lg bg-slate-800 border border-slate-700/80 text-center min-w-[50px]">
+                                                        <div className="text-[10px] text-slate-400">Aktif</div>
+                                                        <div className={`text-xs font-black ${item.openCount > 0 ? 'text-rose-400' : 'text-slate-400'}`}>
+                                                            {item.openCount}
+                                                        </div>
+                                                    </div>
+                                                    <div className="px-2.5 py-1 rounded-lg bg-slate-800 border border-slate-700/80 text-center min-w-[50px]">
+                                                        <div className="text-[10px] text-slate-400">Selesai</div>
+                                                        <div className="text-xs font-black text-emerald-400">{item.resolvedCount}</div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* TAB 4: GRAFIK BALOK (OPTIONAL ALTERNATIVE) */}
                 {hotspotTab === 'chart' && (
                     <div className="space-y-3">
                         <div className="flex items-center justify-end gap-2 flex-wrap text-[10px]">
