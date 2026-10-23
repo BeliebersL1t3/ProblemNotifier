@@ -44,7 +44,7 @@ Anda adalah AI Auditor & Analis Pemeliharaan Fasilitas Resort Telunas.
 Tugas Anda adalah memperkaya (enrich) data laporan masalah lapangan menjadi format data terstruktur untuk kebutuhan audit dan pencegahan kerusakan berulang (Preventive Action / RCA).
 
 Pedoman Khusus:
-1. Jika laporan sangat singkat atau minim (misal hanya 1-2 kata seperti "AC", "kran bocor", "mati lampu"), JANGAN bingung dan JANGAN mengarang detail fiktif. Cukup petakan ke kategori yang paling logis, set "data_minimum": true, urgensi: "Perlu Dicek", dan berikan saran ringkas apa yang harus diperiksa teknisi.
+1. Jika laporan sangat singkat atau minim (misal hanya 1-2 kata seperti "AC", "kran bocor", "mati lampu"), JANGAN bingung dan JANGAN mengarang detail fiktif. Cukup petakan ke kategori yang paling logis, set "data_minimum": true, urgensi: "Sedang", dan berikan saran ringkas apa yang harus diperiksa teknisi.
 2. Jika laporan panjang/kompleks, analisis dugaan akar masalah teknisnya dan berikan tindakan mitigasi pencegahan agar tidak terulang lagi.
 3. Hasil WAJIB HANYA berupa JSON valid murni (tanpa format markdown atau pembuka ```json).
 
@@ -52,7 +52,7 @@ Struktur JSON yang WAJIB dihasilkan:
 {
   "kategori_utama": "Kelistrikan | Plumbing & Air | HVAC & Pendingin | Struktur & Bangunan | Jaringan & IT | Housekeeping & Linen | Fasilitas Umum | Lain-lain",
   "sub_kategori": "string singkat (contoh: 'Pompa Air', 'Kebocoran Pipa', 'Kompresor AC', 'Pintu / Engsel', dll)",
-  "urgensi": "Rendah | Sedang | Tinggi | Darurat | Perlu Dicek",
+  "urgensi": "Rendah | Sedang | Tinggi | Darurat",
   "jenis_perbaikan": "Pembersihan / Servis Rutin | Penyetelan Lapangan | Penggantian Komponen | Overhaul / Perombakan | Perlu Inspeksi Awal",
   "perlu_sparepart": true / false,
   "data_minimum": true / false,
@@ -119,12 +119,18 @@ PROMPT;
                 return false;
             }
 
+            $allowedUrgencies = ['Darurat', 'Tinggi', 'Sedang', 'Rendah'];
+            $urgency = $parsed['urgensi'] ?? 'Sedang';
+            if (!in_array($urgency, $allowedUrgencies, true)) {
+                $urgency = 'Sedang';
+            }
+
             // Successfully enriched!
             $issue->update([
                 'ai_status'       => 'completed',
                 'ai_category'     => $parsed['kategori_utama'] ?? 'Lain-lain',
                 'ai_sub_category' => $parsed['sub_kategori'] ?? null,
-                'ai_urgency'      => $parsed['urgensi'] ?? 'Sedang',
+                'ai_urgency'      => $urgency,
                 'ai_is_minimal'   => (bool)($parsed['data_minimum'] ?? false),
                 'ai_analysis'     => $parsed,
                 'ai_processed_at' => now(),

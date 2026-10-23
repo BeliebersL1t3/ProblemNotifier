@@ -44,7 +44,52 @@ const URGENCY_COLORS = {
     'Tinggi': '#fb923c',    // Orange
     'Sedang': '#facc15',    // Yellow
     'Rendah': '#10b981',    // Emerald
-    'Perlu Dicek': '#a855f7',// Purple
+};
+
+// Custom Tooltip for Pareto: integer counts only, clean layout
+const CustomParetoTooltip = ({ active, payload }) => {
+    if (!active || !payload || !payload.length) return null;
+    const item = payload[0];
+    return (
+        <div className="bg-slate-900 border border-slate-700/80 rounded-lg p-2.5 shadow-xl text-xs">
+            <p className="font-bold text-white mb-1">{item.payload?.name}</p>
+            <div className="flex items-center justify-between gap-4 text-emerald-400">
+                <span className="text-slate-300">Jumlah Kasus:</span>
+                <span className="font-bold text-white">{item.value}</span>
+            </div>
+        </div>
+    );
+};
+
+// Custom Tooltip for Hotspot: filters out urgency levels with 0 count
+const CustomHotspotTooltip = ({ active, payload, label }) => {
+    if (!active || !payload || !payload.length) return null;
+    const activeItems = payload.filter((item) => Number(item.value) > 0);
+    const total = payload[0]?.payload?.total || 0;
+
+    return (
+        <div className="bg-slate-900/95 border border-slate-700/80 rounded-lg p-2.5 shadow-xl text-xs min-w-[150px] backdrop-blur-sm">
+            <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-slate-800">
+                <span className="font-bold text-white">{label}</span>
+                <span className="text-[10px] text-slate-400">Total: {total}</span>
+            </div>
+            {activeItems.length > 0 ? (
+                <div className="space-y-1">
+                    {activeItems.map((item) => (
+                        <div key={item.dataKey} className="flex items-center justify-between gap-4">
+                            <span className="flex items-center gap-1.5 text-slate-300">
+                                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color || item.fill }} />
+                                {item.name || item.dataKey}
+                            </span>
+                            <span className="font-bold text-white">{item.value}</span>
+                        </div>
+                    ))}
+                </div>
+            ) : (
+                <p className="text-[11px] text-slate-400">Tidak ada insiden</p>
+            )}
+        </div>
+    );
 };
 
 export function LeanAnalyticsView({
@@ -148,7 +193,6 @@ export function LeanAnalyticsView({
                     Tinggi: 0,
                     Sedang: 0,
                     Rendah: 0,
-                    'Perlu Dicek': 0,
                     total: 0,
                 };
             }
@@ -325,7 +369,13 @@ export function LeanAnalyticsView({
                                     margin={{ top: 5, right: 30, left: 40, bottom: 5 }}
                                 >
                                     <CartesianGrid strokeDasharray="3 3" stroke="#334155" horizontal={false} />
-                                    <XAxis type="number" stroke="#94a3b8" fontSize={10} />
+                                    <XAxis
+                                        type="number"
+                                        stroke="#94a3b8"
+                                        fontSize={10}
+                                        allowDecimals={false}
+                                        domain={[0, (dataMax) => Math.max(1, dataMax)]}
+                                    />
                                     <YAxis
                                         type="category"
                                         dataKey="name"
@@ -334,10 +384,7 @@ export function LeanAnalyticsView({
                                         width={120}
                                         tickFormatter={(val) => (val.length > 18 ? val.substring(0, 18) + '...' : val)}
                                     />
-                                    <RechartsTooltip
-                                        contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px', fontSize: '11px' }}
-                                        itemStyle={{ color: '#38bdf8' }}
-                                    />
+                                    <RechartsTooltip content={<CustomParetoTooltip />} />
                                     <Bar dataKey="count" name="Jumlah Kasus" fill="#10b981" radius={[0, 4, 4, 0]} />
                                 </BarChart>
                             </ResponsiveContainer>
@@ -440,15 +487,17 @@ export function LeanAnalyticsView({
                             <BarChart data={hotspotData} margin={{ top: 10, right: 20, left: 0, bottom: 20 }}>
                                 <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
                                 <XAxis dataKey="location" stroke="#94a3b8" fontSize={11} />
-                                <YAxis stroke="#94a3b8" fontSize={10} allowDecimals={false} />
-                                <RechartsTooltip
-                                    contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px', fontSize: '11px' }}
+                                <YAxis
+                                    stroke="#94a3b8"
+                                    fontSize={10}
+                                    allowDecimals={false}
+                                    domain={[0, (dataMax) => Math.max(1, dataMax)]}
                                 />
+                                <RechartsTooltip content={<CustomHotspotTooltip />} />
                                 <Bar dataKey="Darurat" stackId="a" fill="#f43f5e" />
                                 <Bar dataKey="Tinggi" stackId="a" fill="#fb923c" />
                                 <Bar dataKey="Sedang" stackId="a" fill="#facc15" />
-                                <Bar dataKey="Rendah" stackId="a" fill="#10b981" />
-                                <Bar dataKey="Perlu Dicek" stackId="a" fill="#a855f7" radius={[4, 4, 0, 0]} />
+                                <Bar dataKey="Rendah" stackId="a" fill="#10b981" radius={[4, 4, 0, 0]} />
                             </BarChart>
                         </ResponsiveContainer>
                     </div>
