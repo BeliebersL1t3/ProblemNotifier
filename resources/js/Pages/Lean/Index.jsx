@@ -880,17 +880,24 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                                                     <td className="py-2.5 px-3.5 whitespace-nowrap">
                                                         <div className="flex flex-wrap gap-1">
                                                             {(issue.target_departments || []).map((dept) => {
-                                                                const isThisAcc = accs[dept]?.is_acc;
+                                                                const isThisDeptClaimed = issue.claimed_by_dept && (
+                                                                    issue.claimed_by_dept.toLowerCase() === dept.toLowerCase()
+                                                                );
+                                                                const isThisAcc = accs[dept]?.is_acc || isThisDeptClaimed;
+                                                                const isWorking = issue.status === 'in_progress' && isThisDeptClaimed;
+
                                                                 return (
                                                                     <span
                                                                         key={dept}
                                                                         className={`px-1.5 py-0.5 rounded text-[10px] font-semibold border ${
-                                                                            isThisAcc
+                                                                            isWorking
+                                                                                ? 'bg-amber-950/80 border-amber-500 text-amber-200'
+                                                                                : isThisAcc
                                                                                 ? 'bg-emerald-950/80 border-emerald-600 text-emerald-300'
                                                                                 : 'bg-slate-900 border-slate-700 text-slate-300'
                                                                         }`}
                                                                     >
-                                                                        {dept} {isThisAcc && '✓'}
+                                                                        {dept} {isWorking ? '🟡 Dikerjakan' : isThisAcc ? '✓' : ''}
                                                                     </span>
                                                                 );
                                                             })}
@@ -1116,27 +1123,37 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                                         <div className="pt-2 border-t border-slate-700/60 flex flex-wrap items-center gap-1.5 text-xs">
                                             <span className="text-slate-400 text-[11px]">Tujuan:</span>
                                             {(issue.target_departments || []).map((dept) => {
-                                                const isThisAcc = accs[dept]?.is_acc;
-                                                const accBy = accs[dept]?.acc_by;
-                                                const isMyDeptThis = dept.toLowerCase() === myDept.toLowerCase();
+                                                const isThisDeptClaimed = issue.claimed_by_dept && (
+                                                    issue.claimed_by_dept.toLowerCase() === dept.toLowerCase()
+                                                );
+                                                const isThisAcc = accs[dept]?.is_acc || isThisDeptClaimed;
+                                                const accBy = accs[dept]?.acc_by || (isThisDeptClaimed ? issue.claimed_by_name : null);
+                                                const isWorking = issue.status === 'in_progress' && isThisDeptClaimed;
 
                                                 return (
                                                     <div
                                                         key={dept}
                                                         className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] border transition-colors ${
-                                                            isThisAcc
+                                                            isWorking
+                                                                ? 'bg-amber-950/80 border-amber-500/70 text-amber-200 font-semibold'
+                                                                : isThisAcc
                                                                 ? 'bg-emerald-950/80 border-emerald-600/70 text-emerald-300 font-semibold'
                                                                 : 'bg-slate-900 border-slate-700 text-slate-400'
                                                         }`}
                                                     >
-                                                        {isThisAcc ? (
+                                                        {isWorking ? (
+                                                            <>
+                                                                <Clock className="w-3 h-3 text-amber-400" />
+                                                                <span>{dept}: Dikerjakan ({issue.claimed_by_name || 'Staf'})</span>
+                                                            </>
+                                                        ) : isThisAcc ? (
                                                             <>
                                                                 <Check className="w-3 h-3 text-emerald-400" />
                                                                 <span>{dept}: ACC ({accBy || 'Staf'})</span>
                                                             </>
                                                         ) : (
                                                             <>
-                                                                <Clock className="w-3 h-3 text-amber-400" />
+                                                                <Clock className="w-3 h-3 text-slate-500" />
                                                                 <span>{dept}: Menunggu ACC</span>
                                                             </>
                                                         )}
@@ -1606,28 +1623,48 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                             {visibleColumns.dept && (
                                 <div className="p-3 rounded-xl bg-slate-800/60 border border-slate-700/80 space-y-1.5">
                                     <span className="text-[10px] text-slate-400 font-semibold block">Departemen Dituju & Respon:</span>
-                                    <div className="flex flex-wrap gap-1.5">
+                                    <div className="flex flex-wrap gap-1.5 items-center">
                                         {(activeDetailIssue.target_departments || []).map((dept) => {
-                                            const isThisAcc = activeDetailIssue.department_accs?.[dept]?.is_acc;
-                                            const accBy = activeDetailIssue.department_accs?.[dept]?.acc_by;
+                                            const isThisDeptClaimed = activeDetailIssue.claimed_by_dept && (
+                                                activeDetailIssue.claimed_by_dept.toLowerCase() === dept.toLowerCase()
+                                            );
+                                            const isThisAcc = activeDetailIssue.department_accs?.[dept]?.is_acc || isThisDeptClaimed;
+                                            const accBy = activeDetailIssue.department_accs?.[dept]?.acc_by || (isThisDeptClaimed ? activeDetailIssue.claimed_by_name : null);
+                                            const isWorking = activeDetailIssue.status === 'in_progress' && isThisDeptClaimed;
+
                                             return (
                                                 <span
                                                     key={dept}
                                                     className={`px-2 py-1 rounded-lg text-xs font-semibold border flex items-center gap-1.5 ${
-                                                        isThisAcc
+                                                        isWorking
+                                                            ? 'bg-amber-950/80 border-amber-500 text-amber-200'
+                                                            : isThisAcc
                                                             ? 'bg-emerald-950/80 border-emerald-600 text-emerald-300'
+                                                            : activeDetailIssue.status === 'in_progress'
+                                                            ? 'bg-slate-900 border-amber-800/40 text-slate-300'
                                                             : 'bg-slate-900 border-slate-700 text-slate-300'
                                                     }`}
                                                 >
                                                     <span>{dept}</span>
-                                                    {isThisAcc ? (
+                                                    {isWorking ? (
+                                                        <span className="text-[10px] text-amber-300 font-bold">🟡 Dikerjakan ({activeDetailIssue.claimed_by_name})</span>
+                                                    ) : isThisAcc ? (
                                                         <span className="text-[10px] text-emerald-400 font-bold">✓ Diterima {accBy && `(${accBy})`}</span>
+                                                    ) : activeDetailIssue.status === 'in_progress' ? (
+                                                        <span className="text-[10px] text-amber-400/80">Diproses ({activeDetailIssue.claimed_by_name || 'Tim'})</span>
                                                     ) : (
                                                         <span className="text-[10px] text-slate-500">Menunggu</span>
                                                     )}
                                                 </span>
                                             );
                                         })}
+                                        {/* Jika diambil oleh staf dari departemen lain (misal cross-department) */}
+                                        {activeDetailIssue.claimed_by_dept && !(activeDetailIssue.target_departments || []).map(d => d.toLowerCase()).includes(activeDetailIssue.claimed_by_dept.toLowerCase()) && (
+                                            <span className="px-2 py-1 rounded-lg text-xs font-semibold border bg-amber-950/80 border-amber-500 text-amber-200 flex items-center gap-1.5">
+                                                <span>{activeDetailIssue.claimed_by_dept}</span>
+                                                <span className="text-[10px] text-amber-300 font-bold">🟡 Dikerjakan ({activeDetailIssue.claimed_by_name})</span>
+                                            </span>
+                                        )}
                                     </div>
                                 </div>
                             )}

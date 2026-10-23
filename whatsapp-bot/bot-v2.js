@@ -940,13 +940,14 @@ async function startBot() {
                     if (res.data.success) {
                         const createdData = res.data.data || {};
                         const issueId = createdData.id || 'TERCATAT';
+                        const accurateLocation = createdData.location || state.data.location;
 
                         // Confirmation to Reporter
                         await reply(
                             `✅ *LAPORAN BERHASIL DIBUAT!* ✅\n\n` +
                             `• *ID Isu:* #${issueId}\n` +
                             `• *Judul:* ${state.data.title}\n` +
-                            `• *Lokasi:* ${state.data.location}\n` +
+                            `• *Lokasi:* ${accurateLocation}\n` +
                             `• *Departemen Dituju:* ${state.data.department}\n` +
                             `• *Pelapor:* ${state.data.reporter}\n\n` +
                             `Laporan telah diteruskan ke grup terkait. Terima kasih!`
@@ -957,13 +958,13 @@ async function startBot() {
                             `📢 *LAPORAN MASALAH BARU* 📢\n\n` +
                             `• *ID Tiket:* #${issueId}\n` +
                             `• *Masalah:* ${state.data.title}\n` +
-                            `• *Lokasi:* ${state.data.location}\n` +
+                            `• *Lokasi:* ${accurateLocation}\n` +
                             `• *Departemen:* ${state.data.department}\n` +
                             `• *Pelapor:* ${state.data.reporter} (${state.data.reporter_dept || 'Staf'})\n` +
                             `• *Deskripsi:* ${state.data.description}\n\n`;
 
                         // 1. Send to Location Group (FYI, Read-only)
-                        const locKey = (state.data.location || '').toLowerCase();
+                        const locKey = (accurateLocation || '').toLowerCase();
                         let targetLocGid = null;
                         if (locKey.includes('tbr')) targetLocGid = botConfig.locationGroups.tbr;
                         else if (locKey.includes('tpc') || locKey.includes('tpi')) targetLocGid = botConfig.locationGroups.tpc;

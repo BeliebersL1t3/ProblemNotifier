@@ -438,6 +438,7 @@ class LeanController extends Controller
         // Failsafe real-time AI enrichment for WhatsApp Bot V2
         try {
             app(\App\Services\GeminiIssueService::class)->analyzeIssue($issue);
+            $issue->refresh();
         } catch (\Throwable $e) {}
 
         $code = self::formatIssueCode($issue);
@@ -471,10 +472,32 @@ class LeanController extends Controller
         $taker = $request->input('taker', 'Staf WhatsApp');
         $dept = $request->input('department', is_array($issue->target_departments) ? ($issue->target_departments[0] ?? '') : '');
 
+        // Automatically set ACC / readiness response for this department
+        $accs = $issue->department_accs ?? [];
+        $found = false;
+        foreach ($accs as $d => $val) {
+            if (strcasecmp($d, $dept) === 0 || empty($dept)) {
+                $accs[$d] = [
+                    'is_acc' => true,
+                    'acc_by' => $taker,
+                    'acc_at' => Carbon::now('Asia/Jakarta')->toIso8601String(),
+                ];
+                $found = true;
+            }
+        }
+        if (!$found && !empty($dept)) {
+            $accs[$dept] = [
+                'is_acc' => true,
+                'acc_by' => $taker,
+                'acc_at' => Carbon::now('Asia/Jakarta')->toIso8601String(),
+            ];
+        }
+
         $issue->status = 'in_progress';
         $issue->claimed_by_name = $taker;
         $issue->claimed_by_dept = $dept;
         $issue->claimed_at = Carbon::now('Asia/Jakarta');
+        $issue->department_accs = $accs;
         $issue->save();
 
         return response()->json([
