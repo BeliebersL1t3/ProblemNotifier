@@ -242,8 +242,14 @@ function getStaffByPhone(phone) {
     if (deviceMappings[cleanPhone]) {
         const mapped = deviceMappings[cleanPhone];
         const mappedNorm = normalizePhoneNumber(mapped);
-        return staffPhones[mapped] || staffPhones[mappedNorm] || null;
+        if (staffPhones[mapped] || staffPhones[mappedNorm]) return staffPhones[mapped] || staffPhones[mappedNorm];
     }
+
+    // Hot-reload staffPhones from disk in case a new staff was added while bot is running
+    loadStaffPhones();
+    if (staffPhones[cleanPhone]) return staffPhones[cleanPhone];
+    if (staffPhones[norm]) return staffPhones[norm];
+    if (staffPhones[local]) return staffPhones[local];
 
     return null;
 }

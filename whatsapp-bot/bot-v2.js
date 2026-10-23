@@ -287,8 +287,16 @@ function getStaffByPhone(phone) {
         const mapped = deviceMappings[clean];
         const mappedNorm = normalizePhoneNumber(mapped);
         const mappedLocal = mappedNorm.startsWith('62') ? ('0' + mappedNorm.substring(2)) : mappedNorm;
-        return staffPhones[mapped] || staffPhones[mappedNorm] || staffPhones[mappedLocal] || null;
+        if (staffPhones[mapped] || staffPhones[mappedNorm] || staffPhones[mappedLocal]) {
+            return staffPhones[mapped] || staffPhones[mappedNorm] || staffPhones[mappedLocal];
+        }
     }
+
+    // Hot-reload staffPhones from disk in case a new staff was added while bot is running
+    loadStaffPhones();
+    if (staffPhones[clean]) return staffPhones[clean];
+    if (staffPhones[norm]) return staffPhones[norm];
+    if (staffPhones[local]) return staffPhones[local];
 
     return null;
 }

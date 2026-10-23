@@ -33,6 +33,15 @@ class DepartmentUsersSeeder extends Seeder
                 'staff_name'  => 'Bambang HR',
             ],
             [
+                'name'            => 'Dedy',
+                'email'           => 'dedy@telunas.com',
+                'role'            => 'department',
+                'department'      => 'HR',
+                'subdivision'     => 'HR',
+                'staff_name'      => 'Dedy HR',
+                'whatsapp_number' => '081372897921',
+            ],
+            [
                 'name'        => 'Hendro Legal',
                 'email'       => 'HendroLegal@telunas.com',
                 'role'        => 'department',
