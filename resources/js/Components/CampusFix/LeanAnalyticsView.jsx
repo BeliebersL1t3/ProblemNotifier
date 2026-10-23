@@ -105,7 +105,7 @@ const CustomDeptTooltip = ({ active, payload, label }) => {
     const total = payload.reduce((sum, item) => sum + (Number(item.value) || 0), 0);
     return (
         <div className="bg-slate-900 border border-slate-700/80 rounded-lg p-2.5 shadow-xl text-xs min-w-[170px]">
-            <p className="font-bold text-white mb-1.5 pb-1 border-b border-slate-800">{label}</p>
+            <p className="font-bold text-white mb-1.5 pb-1 border-b border-slate-800">{label || 'Departemen'}</p>
             <div className="space-y-1">
                 {payload.map((item) => (
                     <div key={item.dataKey} className="flex items-center justify-between gap-4">
@@ -514,16 +514,26 @@ export function LeanAnalyticsView({
         const deptMap = {};
 
         issues.forEach((i) => {
-            const depts = (i.target_departments && i.target_departments.length > 0)
-                ? i.target_departments
-                : ['Umum'];
+            let depts = i.target_departments;
+            if (typeof depts === 'string') {
+                try {
+                    depts = JSON.parse(depts);
+                } catch {
+                    depts = [depts];
+                }
+            }
+            if (!Array.isArray(depts) || depts.length === 0) {
+                depts = ['Umum'];
+            }
 
             const status = i.status || 'open';
             const statusKey = status === 'resolved' ? 'resolved' : (status === 'in_progress' ? 'in_progress' : 'open');
 
-            depts.forEach((dept) => {
+            depts.forEach((rawDept) => {
+                const dept = (rawDept || 'Umum').trim() || 'Umum';
                 if (!deptMap[dept]) {
                     deptMap[dept] = {
+                        department: dept,
                         name: dept,
                         open: 0,
                         in_progress: 0,
@@ -818,7 +828,10 @@ export function LeanAnalyticsView({
                                         width={120}
                                         tickFormatter={(val) => (val.length > 18 ? val.substring(0, 18) + '...' : val)}
                                     />
-                                    <RechartsTooltip content={<CustomParetoTooltip />} />
+                                    <RechartsTooltip
+                                        cursor={{ fill: 'rgba(255, 255, 255, 0.05)' }}
+                                        content={<CustomParetoTooltip />}
+                                    />
                                     <Bar dataKey="count" name="Jumlah Kasus" fill="#10b981" radius={[0, 4, 4, 0]} />
                                 </BarChart>
                             </ResponsiveContainer>
@@ -915,7 +928,7 @@ export function LeanAnalyticsView({
                 ) : (
                     <div className="h-64 w-full">
                         <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={departmentData} margin={{ top: 10, right: 20, left: 0, bottom: 20 }}>
+                            <BarChart data={departmentData} maxBarSize={48} margin={{ top: 10, right: 20, left: 0, bottom: 20 }}>
                                 <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
                                 <XAxis dataKey="department" stroke="#94a3b8" fontSize={11} />
                                 <YAxis
@@ -924,7 +937,10 @@ export function LeanAnalyticsView({
                                     allowDecimals={false}
                                     domain={[0, (dataMax) => Math.max(1, dataMax)]}
                                 />
-                                <RechartsTooltip content={<CustomDeptTooltip />} />
+                                <RechartsTooltip
+                                    cursor={{ fill: 'rgba(255, 255, 255, 0.05)' }}
+                                    content={<CustomDeptTooltip />}
+                                />
                                 <Bar dataKey="open" name="Belum Diambil" stackId="dept" fill="#f59e0b" />
                                 <Bar dataKey="in_progress" name="Sedang Dikerjakan" stackId="dept" fill="#0ea5e9" />
                                 <Bar dataKey="resolved" name="Selesai" stackId="dept" fill="#10b981" radius={[4, 4, 0, 0]} />
@@ -1013,7 +1029,7 @@ export function LeanAnalyticsView({
                         ) : (
                             <div className="h-64 w-full">
                                 <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={hotspotData} margin={{ top: 10, right: 20, left: 0, bottom: 20 }}>
+                                    <BarChart data={hotspotData} maxBarSize={48} margin={{ top: 10, right: 20, left: 0, bottom: 20 }}>
                                         <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
                                         <XAxis dataKey="location" stroke="#94a3b8" fontSize={11} />
                                         <YAxis
@@ -1022,7 +1038,10 @@ export function LeanAnalyticsView({
                                             allowDecimals={false}
                                             domain={[0, (dataMax) => Math.max(1, dataMax)]}
                                         />
-                                        <RechartsTooltip content={<CustomHotspotTooltip />} />
+                                        <RechartsTooltip
+                                            cursor={{ fill: 'rgba(255, 255, 255, 0.05)' }}
+                                            content={<CustomHotspotTooltip />}
+                                        />
                                         <Bar dataKey="Darurat" stackId="a" fill="#f43f5e" />
                                         <Bar dataKey="Tinggi" stackId="a" fill="#fb923c" />
                                         <Bar dataKey="Sedang" stackId="a" fill="#facc15" />
