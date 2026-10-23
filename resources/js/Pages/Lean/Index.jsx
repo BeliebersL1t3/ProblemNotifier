@@ -38,6 +38,13 @@ import { LeanAnalyticsView } from '@/Components/CampusFix/LeanAnalyticsView';
 
 
 
+const URGENCY_COLORS = {
+    'Darurat': '#f43f5e',
+    'Tinggi': '#fb923c',
+    'Sedang': '#facc15',
+    'Rendah': '#10b981',
+};
+
 const COLUMN_DEFS = [
     { id: 'id', label: 'ID Isu', icon: '#' },
     { id: 'photo', label: 'Foto Bukti', icon: '📷' },
@@ -175,11 +182,33 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
         return () => clearInterval(timer);
     }, []);
 
+    // --- Real-time Auto-refresh Polling (Every 4 seconds for fresh issues sync) ---
+    useEffect(() => {
+        const pollTimer = setInterval(() => {
+            if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+                router.reload({
+                    only: ['issues', 'aiPendingCount'],
+                    preserveScroll: true,
+                    preserveState: true,
+                });
+            }
+        }, 4000);
+
+        return () => clearInterval(pollTimer);
+    }, []);
+
     // --- Modal States ---
+    const [selectedDetailIssue, setSelectedDetailIssue] = useState(null);
     const [showReportModal, setShowReportModal] = useState(false);
     const [showResolveModal, setShowResolveModal] = useState(null); // issue object
     const [showResetConfirm, setShowResetConfirm] = useState(false);
     const [lightboxImage, setLightboxImage] = useState(null);
+
+    // Keep activeDetailIssue reactively in sync with fresh issues from polling
+    const activeDetailIssue = useMemo(() => {
+        if (!selectedDetailIssue) return null;
+        return issues.find((i) => i.id === selectedDetailIssue.id) || selectedDetailIssue;
+    }, [issues, selectedDetailIssue]);
 
     // --- Report Form State ---
     const [formMainLoc, setFormMainLoc] = useState('TBR');
@@ -745,7 +774,12 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                                         const accs = issue.department_accs || {};
 
                                         return (
-                                            <tr key={issue.id} className="hover:bg-slate-700/40 transition-colors">
+                                            <tr
+                                                key={issue.id}
+                                                onClick={() => setSelectedDetailIssue(issue)}
+                                                className="hover:bg-slate-700/50 cursor-pointer transition-colors group"
+                                                title="Klik baris untuk melihat rincian lengkap isu"
+                                            >
                                                 {/* ID ISU */}
                                                 {visibleColumns.id && (
                                                     <td className="py-2.5 px-3.5 font-mono font-bold text-amber-300 whitespace-nowrap">
@@ -759,7 +793,10 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                                                         {issue.image_url ? (
                                                             <button
                                                                 type="button"
-                                                                onClick={() => setLightboxImage(issue.image_url)}
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    setLightboxImage(issue.image_url);
+                                                                }}
                                                                 className="w-10 h-10 rounded-lg overflow-hidden border border-slate-700 hover:border-emerald-500 inline-block transition-all hover:scale-105"
                                                                 title="Klik untuk lihat foto"
                                                             >
@@ -844,8 +881,10 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
 
                                                 {/* DESKRIPSI */}
                                                 {visibleColumns.desc && (
-                                                    <td className="py-2.5 px-3.5 text-slate-300 text-xs max-w-xs truncate" title={issue.description}>
-                                                        {issue.description || <span className="text-slate-600 italic">Tidak ada keterangan</span>}
+                                                    <td className="py-2.5 px-3.5 text-slate-300 text-xs min-w-[220px] max-w-md">
+                                                        <p className="line-clamp-2 leading-relaxed" title={issue.description}>
+                                                            {issue.description || <span className="text-slate-600 italic">Tidak ada keterangan</span>}
+                                                        </p>
                                                     </td>
                                                 )}
 
@@ -901,7 +940,9 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                             return (
                                 <div
                                     key={issue.id}
-                                    className="p-4 rounded-xl bg-slate-800/90 border border-slate-700/80 hover:border-slate-600 transition-all shadow-sm space-y-3"
+                                    onClick={() => setSelectedDetailIssue(issue)}
+                                    className="p-4 rounded-xl bg-slate-800/90 border border-slate-700/80 hover:border-emerald-500/50 cursor-pointer transition-all shadow-sm space-y-3 group"
+                                    title="Klik kartu untuk melihat rincian lengkap isu"
                                 >
                                     {/* Card Header: Issue Code + Location + Status + Time */}
                                     <div className="flex items-start justify-between gap-2 flex-wrap">
@@ -994,7 +1035,10 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                                         <div className="pt-1">
                                             <button
                                                 type="button"
-                                                onClick={() => setLightboxImage(issue.image_url)}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setLightboxImage(issue.image_url);
+                                                }}
                                                 className="group relative rounded-lg overflow-hidden border border-slate-700 max-w-[200px] block"
                                             >
                                                 <img
@@ -1382,6 +1426,253 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                                 className="px-3.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-md"
                             >
                                 Ya, Kosongkan Data
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* MODAL: DETAIL ISU LENGKAP (SESUAI PREFERENSI KOLOM ERP) */}
+            {activeDetailIssue && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
+                    <div className="w-full max-w-xl bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col animate-in zoom-in-95">
+                        {/* Header Modal */}
+                        <div className="p-4 border-b border-slate-800 flex items-start justify-between gap-3 bg-slate-950/70">
+                            <div className="space-y-1">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    {visibleColumns.id && (
+                                        <span className="font-mono text-xs font-bold text-amber-300 bg-slate-800 px-2 py-0.5 rounded border border-slate-700">
+                                            #{activeDetailIssue.issue_code || ('LEAN-' + activeDetailIssue.id)}
+                                        </span>
+                                    )}
+                                    {visibleColumns.status && (
+                                        <span className="text-[11px] font-bold">
+                                            {activeDetailIssue.status === 'open' && (
+                                                <span className="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40 inline-flex items-center gap-1">
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-rose-400" /> Open
+                                                </span>
+                                            )}
+                                            {activeDetailIssue.status === 'in_progress' && (
+                                                <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 inline-flex items-center gap-1">
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400" /> Progress
+                                                </span>
+                                            )}
+                                            {activeDetailIssue.status === 'pending' && (
+                                                <span className="px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-300 border border-orange-500/40 inline-flex items-center gap-1">
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-orange-400" /> Tertunda
+                                                </span>
+                                            )}
+                                            {activeDetailIssue.status === 'resolved' && (
+                                                <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 inline-flex items-center gap-1">
+                                                    <CheckCircle2 className="w-3 h-3 text-emerald-400" /> Selesai
+                                                </span>
+                                            )}
+                                        </span>
+                                    )}
+                                    {visibleColumns.category && activeDetailIssue.ai_urgency && (
+                                        <span
+                                            className="text-[10px] font-bold px-2 py-0.5 rounded-full border"
+                                            style={{
+                                                backgroundColor: `${URGENCY_COLORS[activeDetailIssue.ai_urgency] || '#facc15'}20`,
+                                                borderColor: `${URGENCY_COLORS[activeDetailIssue.ai_urgency] || '#facc15'}50`,
+                                                color: URGENCY_COLORS[activeDetailIssue.ai_urgency] || '#facc15',
+                                            }}
+                                        >
+                                            Urgensi: {activeDetailIssue.ai_urgency}
+                                        </span>
+                                    )}
+                                </div>
+                                {visibleColumns.title ? (
+                                    <h3 className="font-bold text-base text-white leading-snug">
+                                        {activeDetailIssue.title}
+                                    </h3>
+                                ) : (
+                                    <h3 className="font-bold text-sm text-slate-400 italic">
+                                        Detail Isu Lapangan
+                                    </h3>
+                                )}
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setSelectedDetailIssue(null)}
+                                className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition-colors shrink-0"
+                            >
+                                <X className="w-4 h-4" />
+                            </button>
+                        </div>
+
+                        {/* Body Modal (Scrollable) */}
+                        <div className="p-4 overflow-y-auto space-y-4 flex-1">
+                            {/* Grid Informasi Utama */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                                {visibleColumns.location && (
+                                    <div className="p-2.5 rounded-xl bg-slate-800/80 border border-slate-700/80">
+                                        <span className="text-[10px] text-slate-400 font-medium block">Lokasi Masalah</span>
+                                        <span className="text-xs font-bold text-emerald-300 flex items-center gap-1 mt-0.5">
+                                            <MapPin className="w-3.5 h-3.5 text-emerald-400" />
+                                            {activeDetailIssue.location}
+                                        </span>
+                                    </div>
+                                )}
+
+                                {visibleColumns.time && (
+                                    <div className="p-2.5 rounded-xl bg-slate-800/80 border border-slate-700/80">
+                                        <span className="text-[10px] text-slate-400 font-medium block">Waktu Pelaporan</span>
+                                        <span className="text-xs font-semibold text-slate-200 flex items-center gap-1 mt-0.5">
+                                            <Clock className="w-3.5 h-3.5 text-slate-400" />
+                                            {activeDetailIssue.created_at_human || activeDetailIssue.created_at}
+                                        </span>
+                                    </div>
+                                )}
+
+                                {visibleColumns.reporter && (
+                                    <div className="p-2.5 rounded-xl bg-slate-800/80 border border-slate-700/80">
+                                        <span className="text-[10px] text-slate-400 font-medium block">Pelapor</span>
+                                        <span className="text-xs font-semibold text-white flex items-center gap-1 mt-0.5">
+                                            <User className="w-3.5 h-3.5 text-emerald-400" />
+                                            {activeDetailIssue.reporter_name} <span className="text-slate-400 text-[11px]">({activeDetailIssue.reporter_dept || 'Staf'})</span>
+                                        </span>
+                                    </div>
+                                )}
+
+                                {visibleColumns.category && (
+                                    <div className="p-2.5 rounded-xl bg-slate-800/80 border border-slate-700/80">
+                                        <span className="text-[10px] text-slate-400 font-medium block">Kategori AI</span>
+                                        <span className="text-xs font-semibold text-sky-300 flex items-center gap-1 mt-0.5">
+                                            <Sparkles className="w-3.5 h-3.5 text-sky-400" />
+                                            {activeDetailIssue.ai_category || '-'} {activeDetailIssue.ai_sub_category && `• ${activeDetailIssue.ai_sub_category}`}
+                                        </span>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Departemen Dituju & ACC */}
+                            {visibleColumns.dept && (
+                                <div className="p-3 rounded-xl bg-slate-800/60 border border-slate-700/80 space-y-1.5">
+                                    <span className="text-[10px] text-slate-400 font-semibold block">Departemen Dituju & Respon:</span>
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {(activeDetailIssue.target_departments || []).map((dept) => {
+                                            const isThisAcc = activeDetailIssue.department_accs?.[dept]?.is_acc;
+                                            const accBy = activeDetailIssue.department_accs?.[dept]?.acc_by;
+                                            return (
+                                                <span
+                                                    key={dept}
+                                                    className={`px-2 py-1 rounded-lg text-xs font-semibold border flex items-center gap-1.5 ${
+                                                        isThisAcc
+                                                            ? 'bg-emerald-950/80 border-emerald-600 text-emerald-300'
+                                                            : 'bg-slate-900 border-slate-700 text-slate-300'
+                                                    }`}
+                                                >
+                                                    <span>{dept}</span>
+                                                    {isThisAcc ? (
+                                                        <span className="text-[10px] text-emerald-400 font-bold">✓ Diterima {accBy && `(${accBy})`}</span>
+                                                    ) : (
+                                                        <span className="text-[10px] text-slate-500">Menunggu</span>
+                                                    )}
+                                                </span>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Deskripsi Lengkap */}
+                            {visibleColumns.desc && (
+                                <div className="space-y-1">
+                                    <span className="text-xs font-bold text-slate-300">Deskripsi Lengkap Masalah:</span>
+                                    <div className="p-3 rounded-xl bg-slate-950/70 border border-slate-800 text-xs text-slate-200 leading-relaxed whitespace-pre-line">
+                                        {activeDetailIssue.description || <span className="italic text-slate-500">Tidak ada deskripsi tambahan yang dilampirkan.</span>}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Foto Bukti */}
+                            {visibleColumns.photo && activeDetailIssue.image_url && (
+                                <div className="space-y-1.5">
+                                    <span className="text-xs font-bold text-slate-300 flex items-center gap-1">
+                                        <Camera className="w-3.5 h-3.5 text-emerald-400" />
+                                        Lampiran Foto Masalah:
+                                    </span>
+                                    <div
+                                        onClick={() => setLightboxImage(activeDetailIssue.image_url)}
+                                        className="relative rounded-xl overflow-hidden border border-slate-700 cursor-pointer group bg-black/40 max-h-56 flex items-center justify-center"
+                                        title="Klik untuk perbesar foto"
+                                    >
+                                        <img
+                                            src={activeDetailIssue.image_url}
+                                            alt="Bukti"
+                                            className="max-h-56 w-full object-cover group-hover:scale-105 transition-transform"
+                                        />
+                                        <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                            <span className="text-xs font-bold text-white bg-black/70 px-3 py-1.5 rounded-lg flex items-center gap-1.5">
+                                                <Eye className="w-4 h-4" /> Klik untuk Perbesar
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Analisa Cerdas AI / RCA & Mitigasi */}
+                            {visibleColumns.category && activeDetailIssue.ai_analysis && (
+                                <div className="p-3.5 rounded-xl bg-slate-950/80 border border-sky-900/50 space-y-2.5">
+                                    <div className="flex items-center gap-1.5 text-sky-400 font-bold text-xs">
+                                        <Sparkles className="w-3.5 h-3.5" />
+                                        Analisis Cerdas & Rekomendasi Audit (RCA)
+                                    </div>
+                                    {activeDetailIssue.ai_analysis.dugaan_akar_masalah && (
+                                        <div>
+                                            <span className="text-[10px] text-slate-400 font-semibold block">Dugaan Akar Masalah Teknis:</span>
+                                            <p className="text-xs text-slate-300 mt-0.5 leading-relaxed">
+                                                {activeDetailIssue.ai_analysis.dugaan_akar_masalah}
+                                            </p>
+                                        </div>
+                                    )}
+                                    {activeDetailIssue.ai_analysis.tindakan_mitigasi_pencegahan && (
+                                        <div className="pt-2 border-t border-slate-800">
+                                            <span className="text-[10px] text-emerald-400 font-semibold block">Rekomendasi Tindakan Pencegahan:</span>
+                                            <p className="text-xs text-emerald-200 mt-0.5 leading-relaxed">
+                                                {activeDetailIssue.ai_analysis.tindakan_mitigasi_pencegahan}
+                                            </p>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Status Penugasan & Penyelesaian */}
+                            {visibleColumns.status && (activeDetailIssue.claimed_by_name || activeDetailIssue.resolved_by_name) && (
+                                <div className="p-3 rounded-xl bg-slate-800/50 border border-slate-700/80 space-y-1 text-xs">
+                                    {activeDetailIssue.claimed_by_name && (
+                                        <p className="text-amber-300">
+                                            Dikerjakan oleh: <strong>{activeDetailIssue.claimed_by_name}</strong> ({activeDetailIssue.claimed_by_dept})
+                                        </p>
+                                    )}
+                                    {activeDetailIssue.resolved_by_name && (
+                                        <p className="text-emerald-300">
+                                            Diselesaikan oleh: <strong>{activeDetailIssue.resolved_by_name}</strong> ({activeDetailIssue.resolved_by_dept})
+                                            {activeDetailIssue.resolution_note && ` — "${activeDetailIssue.resolution_note}"`}
+                                        </p>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Footer Modal */}
+                        <div className="p-3 border-t border-slate-800 bg-slate-950/80 flex items-center justify-between gap-2">
+                            <button
+                                type="button"
+                                onClick={() => setShowColumnModal(true)}
+                                className="text-[11px] text-slate-400 hover:text-emerald-400 flex items-center gap-1.5 transition-colors"
+                                title="Ubah kolom yang ditampilkan di modal & tabel"
+                            >
+                                <SlidersHorizontal className="w-3.5 h-3.5" />
+                                <span>Sesuaikan Kolom ERP ({activeColumnCount}/{COLUMN_DEFS.length})</span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setSelectedDetailIssue(null)}
+                                className="px-4 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition-all"
+                            >
+                                Tutup
                             </button>
                         </div>
                     </div>
