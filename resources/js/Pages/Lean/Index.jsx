@@ -28,10 +28,13 @@ import {
     Search,
     Eye,
     EyeOff,
-    RotateCcw
+    RotateCcw,
+    BarChart3,
+    Sparkles
 } from 'lucide-react';
 import axios from 'axios';
 import { BotControlModal } from '@/Components/CampusFix/BotControlModal';
+import { LeanAnalyticsView } from '@/Components/CampusFix/LeanAnalyticsView';
 
 
 
@@ -39,6 +42,7 @@ const COLUMN_DEFS = [
     { id: 'id', label: 'ID Isu', icon: '#' },
     { id: 'photo', label: 'Foto Bukti', icon: '📷' },
     { id: 'title', label: 'Judul Masalah', icon: '📝' },
+    { id: 'category', label: 'Kategori AI', icon: '🤖' },
     { id: 'location', label: 'Lokasi', icon: '📍' },
     { id: 'dept', label: 'Departemen Tujuan', icon: '🏢' },
     { id: 'reporter', label: 'Nama Pelapor', icon: '👤' },
@@ -51,6 +55,7 @@ const DEFAULT_COLUMNS = {
     id: true,
     photo: true,
     title: true,
+    category: true,
     location: true,
     dept: true,
     reporter: true,
@@ -59,10 +64,20 @@ const DEFAULT_COLUMNS = {
     time: true,
 };
 
-export default function LeanIndex({ issues = [], departments = [], locations = ['TBR', 'TPI', 'Kantor'], currentUser = null }) {
+export default function LeanIndex({ issues = [], departments = [], locations = ['TBR', 'TPI', 'Kantor'], currentUser = null, aiPendingCount = 0 }) {
     // --- Supervisor Account Info (Universal for all supervisors) ---
     const myName = currentUser?.name || 'Supervisor';
     const myDept = 'Supervisor';
+
+    const [isRetryingAi, setIsRetryingAi] = useState(false);
+
+    const handleRetryAi = () => {
+        setIsRetryingAi(true);
+        router.post('/lapangan/ai/retry', {}, {
+            preserveScroll: true,
+            onFinish: () => setIsRetryingAi(false),
+        });
+    };
 
     // --- UI Filters & View Modes ---
     // Department Filter: 'all' | specific department
@@ -532,6 +547,22 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                                 <LayoutGrid className="w-3.5 h-3.5" />
                                 <span className="hidden sm:inline">Kartu</span>
                             </button>
+                            <button
+                                type="button"
+                                onClick={() => setViewMode('analytics')}
+                                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                                    viewMode === 'analytics'
+                                        ? 'bg-emerald-600 text-white shadow-sm'
+                                        : 'text-slate-400 hover:text-slate-200'
+                                }`}
+                                title="Analisa Audit & Mitigasi Kerusakan"
+                            >
+                                <BarChart3 className="w-3.5 h-3.5" />
+                                <span className="hidden sm:inline">Analitik AI</span>
+                                {aiPendingCount > 0 && (
+                                    <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                                )}
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -654,8 +685,15 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                     </div>
                 </div>
 
-                {/* DATA PRESENTATION: EMPTY STATE OR ERP TABLE / CARDS */}
-                {filteredIssues.length === 0 ? (
+                {/* DATA PRESENTATION: ANALYTICS VIEW OR EMPTY STATE OR ERP TABLE / CARDS */}
+                {viewMode === 'analytics' ? (
+                    <LeanAnalyticsView
+                        issues={issues}
+                        aiPendingCount={aiPendingCount}
+                        onRetryAi={handleRetryAi}
+                        isRetrying={isRetryingAi}
+                    />
+                ) : filteredIssues.length === 0 ? (
                     <div className="py-16 text-center border-2 border-dashed border-slate-800 rounded-2xl p-6">
                         <div className="w-12 h-12 rounded-full bg-slate-800 text-slate-500 flex items-center justify-center mx-auto mb-3">
                             <CheckCircle2 className="w-6 h-6" />
@@ -693,6 +731,7 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                                         {visibleColumns.id && <th className="py-3 px-3.5 whitespace-nowrap">ID Isu</th>}
                                         {visibleColumns.photo && <th className="py-3 px-3.5 text-center whitespace-nowrap">Foto</th>}
                                         {visibleColumns.title && <th className="py-3 px-3.5 min-w-[180px]">Judul Masalah</th>}
+                                        {visibleColumns.category && <th className="py-3 px-3.5 whitespace-nowrap">Kategori AI</th>}
                                         {visibleColumns.location && <th className="py-3 px-3.5 whitespace-nowrap">Lokasi</th>}
                                         {visibleColumns.dept && <th className="py-3 px-3.5 whitespace-nowrap">Departemen</th>}
                                         {visibleColumns.reporter && <th className="py-3 px-3.5 whitespace-nowrap">Pelapor</th>}
@@ -736,6 +775,29 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                                                 {visibleColumns.title && (
                                                     <td className="py-2.5 px-3.5 text-white font-semibold leading-snug">
                                                         {issue.title}
+                                                    </td>
+                                                )}
+
+                                                {/* KATEGORI AI */}
+                                                {visibleColumns.category && (
+                                                    <td className="py-2.5 px-3.5 whitespace-nowrap text-xs">
+                                                        {issue.ai_category ? (
+                                                            <div className="flex flex-col">
+                                                                <span className="font-semibold text-sky-300 flex items-center gap-1">
+                                                                    <Sparkles className="w-3 h-3 text-sky-400 shrink-0" />
+                                                                    {issue.ai_category}
+                                                                </span>
+                                                                {issue.ai_sub_category && (
+                                                                    <span className="text-[10px] text-slate-400">
+                                                                        {issue.ai_sub_category}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        ) : (
+                                                            <span className="text-slate-500 text-[11px] italic">
+                                                                {issue.ai_status === 'pending' ? '⏳ Antrean' : '-'}
+                                                            </span>
+                                                        )}
                                                     </td>
                                                 )}
 
@@ -856,6 +918,14 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                                                 <span className="px-2.5 py-0.5 rounded-md bg-emerald-950 text-emerald-300 border border-emerald-800/80 font-bold text-xs flex items-center gap-1">
                                                     <MapPin className="w-3.5 h-3.5 text-emerald-400" />
                                                     {issue.location}
+                                                </span>
+                                            )}
+
+                                            {/* Kategori AI */}
+                                            {issue.ai_category && (
+                                                <span className="px-2.5 py-0.5 rounded-md bg-sky-950/80 text-sky-300 border border-sky-800/80 font-bold text-xs flex items-center gap-1">
+                                                    <Sparkles className="w-3 h-3 text-sky-400" />
+                                                    {issue.ai_category}
                                                 </span>
                                             )}
 

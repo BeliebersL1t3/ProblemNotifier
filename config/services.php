@@ -56,4 +56,8 @@ return [
         'vapid_private_key' => env('VAPID_PRIVATE_KEY'),
         'vapid_subject'     => env('VAPID_SUBJECT', 'mailto:admin@telunasresorts.com'),
     ],
+
+    'gemini' => [
+        'key' => env('GEMINI_API_KEY'),
+    ],
 ];

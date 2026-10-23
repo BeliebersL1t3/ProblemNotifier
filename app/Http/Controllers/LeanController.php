@@ -59,6 +59,12 @@ class LeanController extends Controller
                 'resolution_image_url' => $item->resolution_image_url,
                 'created_at'           => $item->created_at ? $item->created_at->toIso8601String() : null,
                 'created_at_human'     => $item->created_at ? $item->created_at->locale('id')->diffForHumans() : '',
+                'ai_status'            => $item->ai_status ?? 'pending',
+                'ai_category'          => $item->ai_category,
+                'ai_sub_category'      => $item->ai_sub_category,
+                'ai_urgency'           => $item->ai_urgency,
+                'ai_is_minimal'        => (bool)($item->ai_is_minimal ?? false),
+                'ai_analysis'          => $item->ai_analysis,
             ];
         });
 
@@ -68,11 +74,14 @@ class LeanController extends Controller
             'is_admin'   => auth()->user()->role === 'admin',
         ] : null;
 
+        $aiPendingCount = LeanIssue::where('ai_status', 'pending')->count();
+
         return Inertia::render('Lean/Index', [
-            'issues'      => $issues,
-            'departments' => self::DEPARTMENTS,
-            'locations'   => self::MAIN_LOCATIONS,
-            'currentUser' => $currentUser,
+            'issues'         => $issues,
+            'departments'    => self::DEPARTMENTS,
+            'locations'      => self::MAIN_LOCATIONS,
+            'currentUser'    => $currentUser,
+            'aiPendingCount' => $aiPendingCount,
         ]);
     }
 
@@ -109,7 +118,7 @@ class LeanController extends Controller
             ];
         }
 
-        LeanIssue::create([
+        $issue = LeanIssue::create([
             'location'           => $validated['location'],
             'title'              => $validated['title'],
             'description'        => $validated['description'] ?? null,
@@ -119,7 +128,13 @@ class LeanController extends Controller
             'image_url'          => $imageUrl,
             'status'             => 'open',
             'department_accs'    => $accs,
+            'ai_status'          => 'pending',
         ]);
+
+        // Failsafe real-time AI enrichment
+        try {
+            app(\App\Services\GeminiIssueService::class)->analyzeIssue($issue);
+        } catch (\Throwable $e) {}
 
         return redirect()->back()->with('success', 'Laporan berhasil dibuat!');
     }
@@ -240,6 +255,15 @@ class LeanController extends Controller
     }
 
     /**
+     * Retry AI analysis on pending offline queue issues.
+     */
+    public function retryAiQueue(\App\Services\GeminiIssueService $service)
+    {
+        $processed = $service->processPendingQueue(20);
+        return redirect()->back()->with('success', "Sinkronisasi AI selesai: {$processed} tiket berhasil dianalisis.");
+    }
+
+    /**
      * Helper to format human-readable issue codes like ENG-221026-1
      */
     public static function formatIssueCode($issue)
@@ -343,7 +367,13 @@ class LeanController extends Controller
                     'acc_at' => null,
                 ]
             ],
+            'ai_status'          => 'pending',
         ]);
+
+        // Failsafe real-time AI enrichment for WhatsApp Bot V2
+        try {
+            app(\App\Services\GeminiIssueService::class)->analyzeIssue($issue);
+        } catch (\Throwable $e) {}
 
         $code = self::formatIssueCode($issue);
 

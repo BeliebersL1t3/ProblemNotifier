@@ -30,12 +30,22 @@ class LeanIssue extends Model
         'resolved_at',
         'resolution_note',
         'resolution_image_url',
+        'ai_status',
+        'ai_category',
+        'ai_sub_category',
+        'ai_urgency',
+        'ai_is_minimal',
+        'ai_analysis',
+        'ai_processed_at',
     ];
 
     protected $casts = [
         'target_departments' => 'array',
         'department_accs'    => 'array',
+        'ai_analysis'        => 'array',
+        'ai_is_minimal'      => 'boolean',
         'claimed_at'         => 'datetime',
         'resolved_at'        => 'datetime',
+        'ai_processed_at'    => 'datetime',
     ];
 }
