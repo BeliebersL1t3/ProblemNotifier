@@ -31,8 +31,7 @@ class GoogleSheetsSyncService
      */
     public static function formatIssueCode(LeanIssue $issue): string
     {
-        $dt = $issue->created_at ?? now();
-        return sprintf('CFX-%s-%03d', $dt->format('ym'), $issue->id);
+        return \App\Http\Controllers\LeanController::formatIssueCode($issue);
     }
 
     /**
