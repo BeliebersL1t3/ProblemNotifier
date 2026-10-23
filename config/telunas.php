@@ -40,4 +40,17 @@ return [
 
     'bypass_hours' => (int) env('TELUNAS_WIFI_BYPASS_HOURS', 24),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Google Sheets Webhook Integration
+    |--------------------------------------------------------------------------
+    | Webhook endpoints deployed via Google Apps Script for live data synchronization.
+    | - issues_webhook_url: Webhook for Telunas Issues Log (Issues + AI Audit)
+    | - locations_webhook_url: Webhook for Issue Locations (Resort Hotspots)
+    */
+    'google_sheets' => [
+        'issues_webhook_url' => env('GOOGLE_SHEET_ISSUES_WEBHOOK_URL', ''),
+        'locations_webhook_url' => env('GOOGLE_SHEET_LOCATIONS_WEBHOOK_URL', ''),
+    ],
+
 ];

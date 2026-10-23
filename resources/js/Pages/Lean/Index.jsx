@@ -203,6 +203,9 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
     const [showResolveModal, setShowResolveModal] = useState(null); // issue object
     const [showResetConfirm, setShowResetConfirm] = useState(false);
     const [lightboxImage, setLightboxImage] = useState(null);
+    const [issueToDelete, setIssueToDelete] = useState(null);
+    const [deleteSupervisorName, setDeleteSupervisorName] = useState(myName || 'Supervisor');
+    const [isDeleting, setIsDeleting] = useState(false);
 
     // Keep activeDetailIssue reactively in sync with fresh issues from polling
     const activeDetailIssue = useMemo(() => {
@@ -338,6 +341,29 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
     const handleResetSandbox = () => {
         router.post('/lapangan/reset', {}, {
             onSuccess: () => setShowResetConfirm(false),
+        });
+    };
+
+    // Trigger Soft Delete Issue
+    const handleDeleteConfirm = () => {
+        if (!issueToDelete) return;
+        setIsDeleting(true);
+        router.delete(`/lapangan/issues/${issueToDelete.id}`, {
+            data: {
+                deleted_by: deleteSupervisorName.trim() || myName || 'Supervisor',
+            },
+            preserveScroll: true,
+            onSuccess: () => {
+                setIssueToDelete(null);
+                setIsDeleting(false);
+                if (selectedDetailIssue?.id === issueToDelete.id) {
+                    setSelectedDetailIssue(null);
+                }
+            },
+            onError: () => {
+                setIsDeleting(false);
+                alert('Gagal menghapus tiket. Silakan coba lagi.');
+            },
         });
     };
 
@@ -767,6 +793,7 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                                         {visibleColumns.desc && <th className="py-3 px-3.5 min-w-[200px]">Deskripsi</th>}
                                         {visibleColumns.status && <th className="py-3 px-3.5 whitespace-nowrap">Status</th>}
                                         {visibleColumns.time && <th className="py-3 px-3.5 whitespace-nowrap">Waktu</th>}
+                                        <th className="py-3 px-3.5 text-center whitespace-nowrap">Aksi</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-700/60 font-medium">
@@ -924,6 +951,21 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                                                         {issue.created_at_human}
                                                     </td>
                                                 )}
+
+                                                {/* AKSI HAPUS */}
+                                                <td className="py-2.5 px-3.5 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setIssueToDelete(issue);
+                                                            setDeleteSupervisorName(myName || 'Supervisor');
+                                                        }}
+                                                        className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 hover:border-rose-500/60 transition"
+                                                        title="Hapus / Sembunyikan Tiket"
+                                                    >
+                                                        <Trash2 className="w-3.5 h-3.5" />
+                                                    </button>
+                                                </td>
                                             </tr>
                                         );
                                     })}
@@ -1001,13 +1043,27 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                                             )}
                                         </div>
 
-                                        {/* Waktu Pelaporan */}
-                                        {visibleColumns.time && (
-                                            <span className="text-[11px] text-slate-400 shrink-0 font-medium flex items-center gap-1">
-                                                <Clock className="w-3 h-3" />
-                                                {issue.created_at_human}
-                                            </span>
-                                        )}
+                                        {/* Waktu Pelaporan & Aksi Cepat */}
+                                        <div className="flex items-center gap-2">
+                                            {visibleColumns.time && (
+                                                <span className="text-[11px] text-slate-400 shrink-0 font-medium flex items-center gap-1">
+                                                    <Clock className="w-3 h-3" />
+                                                    {issue.created_at_human}
+                                                </span>
+                                            )}
+                                            <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setIssueToDelete(issue);
+                                                    setDeleteSupervisorName(myName || 'Supervisor');
+                                                }}
+                                                className="opacity-0 group-hover:opacity-100 p-1 rounded-md bg-slate-900 hover:bg-rose-950/80 text-slate-500 hover:text-rose-400 border border-slate-700/80 hover:border-rose-800 transition"
+                                                title="Hapus / Sembunyikan Tiket"
+                                            >
+                                                <Trash2 className="w-3 h-3" />
+                                            </button>
+                                        </div>
                                     </div>
 
                                     {/* Pelapor Info */}
@@ -1657,16 +1713,29 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                         </div>
 
                         {/* Footer Modal */}
-                        <div className="p-3 border-t border-slate-800 bg-slate-950/80 flex items-center justify-between gap-2">
-                            <button
-                                type="button"
-                                onClick={() => setShowColumnModal(true)}
-                                className="text-[11px] text-slate-400 hover:text-emerald-400 flex items-center gap-1.5 transition-colors"
-                                title="Ubah kolom yang ditampilkan di modal & tabel"
-                            >
-                                <SlidersHorizontal className="w-3.5 h-3.5" />
-                                <span>Sesuaikan Kolom ERP ({activeColumnCount}/{COLUMN_DEFS.length})</span>
-                            </button>
+                        <div className="p-3 border-t border-slate-800 bg-slate-950/80 flex items-center justify-between gap-2 flex-wrap">
+                            <div className="flex items-center gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowColumnModal(true)}
+                                    className="text-[11px] text-slate-400 hover:text-emerald-400 flex items-center gap-1.5 transition-colors"
+                                    title="Ubah kolom yang ditampilkan di modal & tabel"
+                                >
+                                    <SlidersHorizontal className="w-3.5 h-3.5" />
+                                    <span>Sesuaikan Kolom ERP ({activeColumnCount}/{COLUMN_DEFS.length})</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setIssueToDelete(activeDetailIssue);
+                                        setDeleteSupervisorName(myName || 'Supervisor');
+                                    }}
+                                    className="px-2.5 py-1 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 text-[11px] font-semibold flex items-center gap-1 transition"
+                                >
+                                    <Trash2 className="w-3 h-3 text-rose-400" />
+                                    <span>Hapus Tiket</span>
+                                </button>
+                            </div>
                             <button
                                 type="button"
                                 onClick={() => setSelectedDetailIssue(null)}
@@ -1800,6 +1869,89 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                 onRefreshStatus={fetchBotStatus}
                 botVersion="v2"
             />
+
+            {/* MODAL: DELETE / SOFT DELETE ISSUE */}
+            {issueToDelete && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-in fade-in">
+                    <div className="w-full max-w-md bg-slate-900 border border-rose-500/40 rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+                        <div className="p-4 border-b border-slate-800 bg-rose-950/30 flex items-center justify-between">
+                            <div className="flex items-center gap-2.5">
+                                <div className="w-8 h-8 rounded-lg bg-rose-500/20 text-rose-400 flex items-center justify-center font-bold">
+                                    <Trash2 className="w-4 h-4" />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-sm text-white">Hapus Tiket #{issueToDelete.issue_code || ('LEAN-' + issueToDelete.id)}</h3>
+                                    <p className="text-[11px] text-slate-400">Soft Delete & Sinkronisasi Spreadsheet</p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setIssueToDelete(null)}
+                                disabled={isDeleting}
+                                className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition-colors"
+                            >
+                                <X className="w-4 h-4" />
+                            </button>
+                        </div>
+
+                        <div className="p-5 space-y-4">
+                            <div className="p-3 bg-slate-800/80 border border-slate-700 rounded-xl space-y-1">
+                                <div className="text-xs font-bold text-white line-clamp-2">{issueToDelete.title}</div>
+                                <div className="text-[11px] text-slate-400 flex items-center gap-2">
+                                    <span>Lokasi: <strong className="text-slate-300">{issueToDelete.location}</strong></span>
+                                    <span>•</span>
+                                    <span>Pelapor: <strong className="text-slate-300">{issueToDelete.reporter_name}</strong></span>
+                                </div>
+                            </div>
+
+                            <div className="p-3 bg-amber-950/30 border border-amber-500/30 rounded-xl text-xs space-y-1 text-amber-200/90 leading-relaxed">
+                                <p className="font-semibold text-amber-300 flex items-center gap-1.5">
+                                    <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                                    Kebijakan Integritas Data:
+                                </p>
+                                <ul className="list-disc list-inside space-y-0.5 text-[11px] text-amber-200/80">
+                                    <li>Tiket ini akan <strong>disembunyikan dari dashboard & grafik</strong>.</li>
+                                    <li>Data di <strong>Google Spreadsheet TIDAK DIHAPUS</strong>, melainkan ditandai non-aktif (<strong>Aktif di Dashboard = 0</strong>).</li>
+                                    <li>Nama dan waktu penghapusan akan diaudit secara otomatis.</li>
+                                </ul>
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                                    Nama Supervisor yang Menghapus:
+                                </label>
+                                <input
+                                    type="text"
+                                    value={deleteSupervisorName}
+                                    onChange={(e) => setDeleteSupervisorName(e.target.value)}
+                                    placeholder="Contoh: Pak Budi (Supervisor)"
+                                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-rose-500"
+                                    disabled={isDeleting}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="p-4 border-t border-slate-800 bg-slate-950/80 flex items-center justify-end gap-2.5">
+                            <button
+                                type="button"
+                                onClick={() => setIssueToDelete(null)}
+                                disabled={isDeleting}
+                                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition"
+                            >
+                                Batal
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleDeleteConfirm}
+                                disabled={isDeleting}
+                                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-md shadow-rose-600/30 flex items-center gap-1.5 transition disabled:opacity-50"
+                            >
+                                <Trash2 className={`w-3.5 h-3.5 ${isDeleting ? 'animate-spin' : ''}`} />
+                                <span>{isDeleting ? 'Menghapus...' : 'Hapus Tiket'}</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

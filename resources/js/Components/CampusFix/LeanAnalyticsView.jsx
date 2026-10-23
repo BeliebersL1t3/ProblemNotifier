@@ -33,6 +33,11 @@ import {
     Users,
     Check,
     Briefcase,
+    Calendar,
+    Clock,
+    Filter,
+    FileSpreadsheet,
+    ExternalLink,
 } from 'lucide-react';
 
 const CATEGORY_COLORS = {
@@ -399,18 +404,104 @@ export function LeanAnalyticsView({
     const [selectedCategory, setSelectedCategory] = useState('all');
     const [searchFilter, setSearchFilter] = useState('');
     const [hotspotTab, setHotspotTab] = useState('leaderboard'); // 'leaderboard' (default) | 'tpi' | 'tbr' | 'chart'
+    
+    // Time Range Filter states
+    const [timeRange, setTimeRange] = useState('all'); // 'all' | 'today' | '7d' | '30d' | '6m' | '1y' | 'custom'
+    const [startDate, setStartDate] = useState('');
+    const [endDate, setEndDate] = useState('');
+    
+    // Google Sheets Sync states
+    const [isSyncingSheets, setIsSyncingSheets] = useState(false);
+    const [syncFeedback, setSyncFeedback] = useState(null);
+
+    // Filter issues reactively by selected time range
+    const filteredIssues = useMemo(() => {
+        if (timeRange === 'all') return issues;
+
+        let minDate = null;
+        let maxDate = new Date();
+        maxDate.setHours(23, 59, 59, 999);
+
+        if (timeRange === 'today') {
+            minDate = new Date();
+            minDate.setHours(0, 0, 0, 0);
+        } else if (timeRange === '7d') {
+            minDate = new Date();
+            minDate.setDate(minDate.getDate() - 7);
+            minDate.setHours(0, 0, 0, 0);
+        } else if (timeRange === '30d') {
+            minDate = new Date();
+            minDate.setDate(minDate.getDate() - 30);
+            minDate.setHours(0, 0, 0, 0);
+        } else if (timeRange === '6m') {
+            minDate = new Date();
+            minDate.setMonth(minDate.getMonth() - 6);
+            minDate.setHours(0, 0, 0, 0);
+        } else if (timeRange === '1y') {
+            minDate = new Date();
+            minDate.setFullYear(minDate.getFullYear() - 1);
+            minDate.setHours(0, 0, 0, 0);
+        } else if (timeRange === 'custom') {
+            if (startDate) {
+                minDate = new Date(startDate);
+                minDate.setHours(0, 0, 0, 0);
+            }
+            if (endDate) {
+                maxDate = new Date(endDate);
+                maxDate.setHours(23, 59, 59, 999);
+            }
+        }
+
+        return issues.filter((i) => {
+            if (!i.created_at) return true;
+            const issueDate = new Date(i.created_at);
+            if (isNaN(issueDate.getTime())) return true;
+            if (minDate && issueDate < minDate) return false;
+            if (maxDate && issueDate > maxDate) return false;
+            return true;
+        });
+    }, [issues, timeRange, startDate, endDate]);
+
+    // Handler to trigger full sync to Google Sheets
+    const handleSyncSheets = async () => {
+        setIsSyncingSheets(true);
+        setSyncFeedback(null);
+        try {
+            const res = await fetch('/lapangan/sync-sheets', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                    'Accept': 'application/json',
+                },
+            });
+            const data = await res.json();
+            setSyncFeedback({
+                type: data.success ? 'success' : 'error',
+                message: data.message || (data.success ? 'Sinkronisasi berhasil!' : 'Sinkronisasi gagal.'),
+            });
+        } catch (err) {
+            setSyncFeedback({
+                type: 'error',
+                message: 'Gagal menghubungi server untuk sinkronisasi Google Sheets.',
+            });
+        } finally {
+            setIsSyncingSheets(false);
+            setTimeout(() => setSyncFeedback(null), 6000);
+        }
+    };
 
     // --- 1. Key Performance & Audit Metric Cards ---
     const stats = useMemo(() => {
-        const total = issues.length;
-        const analyzed = issues.filter((i) => i.ai_status === 'completed').length;
-        const resolved = issues.filter((i) => i.status === 'resolved').length;
-        const needParts = issues.filter((i) => i.ai_analysis?.perlu_sparepart).length;
+        const total = filteredIssues.length;
+        const analyzed = filteredIssues.filter((i) => i.ai_status === 'completed').length;
+        const resolved = filteredIssues.filter((i) => i.status === 'resolved').length;
+        const needParts = filteredIssues.filter((i) => i.ai_analysis?.perlu_sparepart).length;
         const sparepartRatio = total > 0 ? Math.round((needParts / total) * 100) : 0;
 
         // Top category
         const catCounts = {};
-        issues.forEach((i) => {
+        filteredIssues.forEach((i) => {
             const cat = i.ai_category || 'Lain-lain';
             catCounts[cat] = (catCounts[cat] || 0) + 1;
         });
@@ -425,7 +516,7 @@ export function LeanAnalyticsView({
 
         // Top hotspot location
         const locCounts = {};
-        issues.forEach((i) => {
+        filteredIssues.forEach((i) => {
             const loc = i.location || 'Resort';
             locCounts[loc] = (locCounts[loc] || 0) + 1;
         });
@@ -448,12 +539,12 @@ export function LeanAnalyticsView({
             topLoc,
             topLocCount,
         };
-    }, [issues]);
+    }, [filteredIssues]);
 
     // --- 2. Pareto Chart Data (Top 7 Sub-Categories) ---
     const paretoData = useMemo(() => {
         const counts = {};
-        issues.forEach((i) => {
+        filteredIssues.forEach((i) => {
             const sub = i.ai_sub_category || i.title || 'Lain-lain';
             counts[sub] = (counts[sub] || 0) + 1;
         });
@@ -462,12 +553,12 @@ export function LeanAnalyticsView({
             .map(([name, count]) => ({ name, count }))
             .sort((a, b) => b.count - a.count)
             .slice(0, 7);
-    }, [issues]);
+    }, [filteredIssues]);
 
     // --- 3. Category Distribution (Donut Chart) ---
     const categoryData = useMemo(() => {
         const counts = {};
-        issues.forEach((i) => {
+        filteredIssues.forEach((i) => {
             const cat = i.ai_category || 'Lain-lain';
             counts[cat] = (counts[cat] || 0) + 1;
         });
@@ -477,14 +568,14 @@ export function LeanAnalyticsView({
             value,
             color: CATEGORY_COLORS[name] || '#94a3b8',
         }));
-    }, [issues]);
+    }, [filteredIssues]);
 
     // --- 4. Hotspot Location Risk Leaderboard & Breakdown ---
     const { hotspotLeaderboardData, hotspotData } = useMemo(() => {
         const locMap = {};
         const urgencyWeight = { 'Darurat': 1000, 'Tinggi': 100, 'Sedang': 10, 'Rendah': 1 };
 
-        issues.forEach((i) => {
+        filteredIssues.forEach((i) => {
             const loc = (i.location || 'Lainnya').trim() || 'Lainnya';
             if (!locMap[loc]) {
                 locMap[loc] = {
@@ -547,13 +638,13 @@ export function LeanAnalyticsView({
             .slice(0, 6);
 
         return { hotspotLeaderboardData: leaderboard, hotspotData: chartData };
-    }, [issues]);
+    }, [filteredIssues]);
 
     // --- 5. Department Workload Breakdown (Laporan per Departemen) ---
     const departmentData = useMemo(() => {
         const deptMap = {};
 
-        issues.forEach((i) => {
+        filteredIssues.forEach((i) => {
             let depts = i.target_departments;
             if (typeof depts === 'string') {
                 try {
@@ -587,7 +678,7 @@ export function LeanAnalyticsView({
         });
 
         return Object.values(deptMap).sort((a, b) => b.total - a.total);
-    }, [issues]);
+    }, [filteredIssues]);
 
     const deptSummary = useMemo(() => {
         let open = 0;
@@ -628,7 +719,7 @@ export function LeanAnalyticsView({
 
         const urgencyWeight = { 'Darurat': 4, 'Tinggi': 3, 'Sedang': 2, 'Rendah': 1 };
 
-        issues.forEach((issue) => {
+        filteredIssues.forEach((issue) => {
             const loc = (issue.location || '').toLowerCase();
             const aiResort = issue.ai_analysis?.resort;
             const aiZone = issue.ai_analysis?.zona_spasial;
@@ -692,13 +783,13 @@ export function LeanAnalyticsView({
         });
 
         return { tpiZones: Object.values(tpiZones), tbrZones: Object.values(tbrZones) };
-    }, [issues]);
+    }, [filteredIssues]);
 
     // --- 7. Actionable Mitigation Feed (Audit Recommendations) ---
     const mitigationFeed = useMemo(() => {
         const q = searchFilter.trim().toLowerCase();
 
-        return issues
+        return filteredIssues
             .filter((i) => {
                 if (selectedCategory !== 'all') {
                     if ((i.ai_category || '').toLowerCase() !== selectedCategory.toLowerCase()) {
@@ -717,7 +808,7 @@ export function LeanAnalyticsView({
                 return true;
             })
             .slice(0, 15);
-    }, [issues, selectedCategory, searchFilter]);
+    }, [filteredIssues, selectedCategory, searchFilter]);
 
     return (
         <div className="space-y-6 animate-in fade-in pb-12">
@@ -748,6 +839,116 @@ export function LeanAnalyticsView({
                     </button>
                 </div>
             )}
+
+            {/* FILTER & GOOGLE SHEETS CONTROL BAR */}
+            <div className="bg-slate-900/95 border border-slate-700/80 rounded-2xl p-4 shadow-xl backdrop-blur space-y-3.5">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                    {/* Time Range Filter Buttons */}
+                    <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="text-xs font-semibold text-slate-400 flex items-center gap-1.5 mr-2">
+                            <Clock className="w-3.5 h-3.5 text-teal-400" />
+                            Periode:
+                        </span>
+                        {[
+                            { id: 'hari_ini', label: 'Hari Ini' },
+                            { id: '7_hari', label: '7 Hari' },
+                            { id: '30_hari', label: '30 Hari' },
+                            { id: '6_bulan', label: '6 Bulan' },
+                            { id: '1_tahun', label: '1 Tahun' },
+                            { id: 'all', label: 'Semua' },
+                            { id: 'custom', label: 'Kustom Tanggal' },
+                        ].map((btn) => (
+                            <button
+                                key={btn.id}
+                                type="button"
+                                onClick={() => setTimeRange(btn.id)}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                                    timeRange === btn.id
+                                        ? 'bg-teal-500 text-slate-950 shadow-md shadow-teal-500/20'
+                                        : 'bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white border border-slate-700'
+                                }`}
+                            >
+                                {btn.label}
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Google Sheets Actions */}
+                    <div className="flex flex-wrap items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={handleSyncSheets}
+                            disabled={isSyncingSheets}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md transition-all disabled:opacity-50"
+                            title="Kirim semua data tiket dan lokasi terkini ke Google Sheets"
+                        >
+                            <FileSpreadsheet className={`w-3.5 h-3.5 ${isSyncingSheets ? 'animate-spin' : ''}`} />
+                            <span>{isSyncingSheets ? 'Menyinkronkan...' : 'Sinkronkan Google Sheets'}</span>
+                        </button>
+
+                        <a
+                            href="https://docs.google.com/spreadsheets/d/1o8SPuryJf__V1DJp6bm1MTRj60pkIsSX1GYr4-iJvhI/edit?usp=sharing"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold border border-slate-700 transition"
+                            title="Buka Spreadsheet Log Tiket Masalah"
+                        >
+                            <span>Sheet Tiket</span>
+                            <ExternalLink className="w-3 h-3 text-slate-400" />
+                        </a>
+
+                        <a
+                            href="https://docs.google.com/spreadsheets/d/1-LiBd1vd8_YA4aTJsf0EiynuayX1_TE800Ylkr4BX5I/edit?usp=sharing"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold border border-slate-700 transition"
+                            title="Buka Spreadsheet Master Lokasi Hotspot"
+                        >
+                            <span>Sheet Lokasi</span>
+                            <ExternalLink className="w-3 h-3 text-slate-400" />
+                        </a>
+                    </div>
+                </div>
+
+                {/* Custom Date Range Pickers & Info row */}
+                <div className="pt-2 border-t border-slate-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                    {timeRange === 'custom' ? (
+                        <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-slate-400">Dari:</span>
+                            <input
+                                type="date"
+                                value={startDate}
+                                onChange={(e) => setStartDate(e.target.value)}
+                                className="bg-slate-800 border border-slate-700 rounded px-2.5 py-1 text-white text-xs focus:outline-none focus:border-teal-500"
+                            />
+                            <span className="text-slate-400">Sampai:</span>
+                            <input
+                                type="date"
+                                value={endDate}
+                                onChange={(e) => setEndDate(e.target.value)}
+                                className="bg-slate-800 border border-slate-700 rounded px-2.5 py-1 text-white text-xs focus:outline-none focus:border-teal-500"
+                            />
+                        </div>
+                    ) : (
+                        <div className="text-slate-400 flex items-center gap-1.5">
+                            <Calendar className="w-3.5 h-3.5 text-slate-500" />
+                            <span>Menampilkan <strong>{filteredIssues.length}</strong> dari <strong>{issues.length}</strong> total tiket</span>
+                        </div>
+                    )}
+
+                    {syncFeedback && (
+                        <div
+                            className={`px-3 py-1 rounded-md text-xs font-medium ${
+                                syncFeedback.type === 'success'
+                                    ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-800/60'
+                                    : 'bg-rose-950/80 text-rose-300 border border-rose-800/60'
+                            }`}
+                        >
+                            {syncFeedback.message}
+                        </div>
+                    )}
+                </div>
+            </div>
 
             {/* TOP KPI CARDS */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">

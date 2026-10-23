@@ -3,9 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Models\LeanIssue;
+use App\Services\GoogleSheetsSyncService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class LeanController extends Controller
@@ -134,9 +136,13 @@ class LeanController extends Controller
             'ai_status'          => 'pending',
         ]);
 
-        // Failsafe real-time AI enrichment
+        // Failsafe real-time AI enrichment & Google Sheets sync
         try {
             app(\App\Services\GeminiIssueService::class)->analyzeIssue($issue);
+        } catch (\Throwable $e) {}
+
+        try {
+            app(GoogleSheetsSyncService::class)->syncIssue($issue);
         } catch (\Throwable $e) {}
 
         return redirect()->back()->with('success', 'Laporan berhasil dibuat!');
@@ -164,6 +170,10 @@ class LeanController extends Controller
 
         $issue->department_accs = $accs;
         $issue->save();
+
+        try {
+            app(GoogleSheetsSyncService::class)->syncIssue($issue);
+        } catch (\Throwable $e) {}
 
         return redirect()->back()->with('success', "Departemen {$dept} berhasil ACC / Siap!");
     }
@@ -212,6 +222,10 @@ class LeanController extends Controller
         $issue->claimed_at = Carbon::now('Asia/Jakarta');
         $issue->save();
 
+        try {
+            app(GoogleSheetsSyncService::class)->syncIssue($issue);
+        } catch (\Throwable $e) {}
+
         return redirect()->back()->with('success', "Tugas berhasil diambil oleh {$staffName} ({$dept}).");
     }
 
@@ -245,7 +259,55 @@ class LeanController extends Controller
         }
         $issue->save();
 
+        try {
+            app(GoogleSheetsSyncService::class)->syncIssue($issue);
+        } catch (\Throwable $e) {}
+
         return redirect()->back()->with('success', 'Masalah berhasil ditandai selesai!');
+    }
+
+    /**
+     * Soft delete an issue (mark as inactive 0 in Google Sheets, hidden from dashboard).
+     */
+    public function destroy(Request $request, LeanIssue $issue, GoogleSheetsSyncService $sheetsService)
+    {
+        $deletedBy = auth()->check() ? auth()->user()->name : ($request->input('deleted_by') ?: 'Supervisor');
+        
+        $issue->deleted_by_name = $deletedBy;
+        $issue->save();
+        $issue->delete();
+
+        try {
+            $sheetsService->syncIssue($issue, true, $deletedBy);
+        } catch (\Throwable $e) {
+            Log::error('Google Sheets sync on destroy failed: ' . $e->getMessage());
+        }
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Tiket berhasil dihapus dari dashboard.',
+            ]);
+        }
+
+        return redirect()->back()->with('success', 'Tiket berhasil dihapus dari dashboard.');
+    }
+
+    /**
+     * Trigger full sync of all issues and locations to Google Sheets.
+     */
+    public function syncGoogleSheets(Request $request, GoogleSheetsSyncService $sheetsService)
+    {
+        $result = $sheetsService->syncAll();
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json($result);
+        }
+
+        return redirect()->back()->with(
+            $result['success'] ? 'success' : 'error',
+            $result['message']
+        );
     }
 
     /**

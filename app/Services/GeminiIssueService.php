@@ -139,6 +139,11 @@ PROMPT;
             ]);
 
             Log::info("GeminiIssueService: Successfully analyzed issue #{$issue->id} -> {$issue->ai_category} ({$issue->ai_sub_category})");
+
+            try {
+                app(\App\Services\GoogleSheetsSyncService::class)->syncIssue($issue->fresh());
+            } catch (\Throwable $e) {}
+
             return true;
 
         } catch (\Throwable $e) {

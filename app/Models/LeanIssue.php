@@ -37,6 +37,7 @@ class LeanIssue extends Model
         'ai_is_minimal',
         'ai_analysis',
         'ai_processed_at',
+        'deleted_by_name',
     ];
 
     protected $casts = [
