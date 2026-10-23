@@ -23,6 +23,9 @@ class AppServiceProvider extends ServiceProvider
 
         Vite::prefetch(concurrency: 3);
 
+        // Real-time automatic Google Sheets synchronization for LeanIssue
+        \App\Models\LeanIssue::observe(\App\Observers\LeanIssueObserver::class);
+
         // Auto-heal stale public/hot: If Vite dev server is not actively reachable, delete hot file
         if (file_exists(public_path('hot'))) {
             $hotContent = trim(@file_get_contents(public_path('hot')));
