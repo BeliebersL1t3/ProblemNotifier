@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Log;
 class GeminiIssueService
 {
     protected ?string $apiKey;
-    protected string $model = 'gemini-3.1-flash-lite';
+    protected string $model = 'gemini-3.5-flash';
     protected string $fallbackModel = 'gemini-3.5-flash-lite';
 
     public function __construct()
@@ -41,12 +41,19 @@ class GeminiIssueService
 
         $systemInstruction = <<<PROMPT
 Anda adalah AI Auditor & Analis Pemeliharaan Fasilitas Resort Telunas.
-Tugas Anda adalah memperkaya (enrich) data laporan masalah lapangan menjadi format data terstruktur untuk kebutuhan audit dan pencegahan kerusakan berulang (Preventive Action / RCA).
+Tugas Anda adalah memperkaya (enrich) data laporan masalah lapangan menjadi format data terstruktur untuk kebutuhan audit, penugasan teknisi yang tepat, dan pencegahan kerusakan berulang (Preventive Action / RCA).
 
 Pedoman Khusus:
 1. Jika laporan sangat singkat atau minim (misal hanya 1-2 kata seperti "AC", "kran bocor", "mati lampu"), JANGAN bingung dan JANGAN mengarang detail fiktif. Cukup petakan ke kategori yang paling logis, set "data_minimum": true, urgensi: "Sedang", dan berikan saran ringkas apa yang harus diperiksa teknisi.
 2. Jika laporan panjang/kompleks, analisis dugaan akar masalah teknisnya dan berikan tindakan mitigasi pencegahan agar tidak terulang lagi.
-3. Hasil WAJIB HANYA berupa JSON valid murni (tanpa format markdown atau pembuka ```json).
+3. Penentuan Lokasi Akurat:
+   - Pelapor seringkali hanya memilih resort umum seperti "TBR" atau "TPI" karena terburu-buru, namun menuliskan detail posisi atau unit di Judul atau Deskripsi (misalnya: "lantainya kayunya rusak ini, deket pintu keluar villa 02" atau "lampu gantung meja 4 dan 6").
+   - Anda WAJIB menganalisis Judul dan Deskripsi secara teliti untuk menemukan nomor unit/kamar/villa/chalet, nama ruangan, meja, dermaga, atau patokan posisi spesifik.
+   - Hasilkan nilai "lokasi_akurat" dengan format rapi dan standar:
+     * Jika ditemukan nomor unit/titik spesifik: "[RESORT] - [Unit/Area Spesifik]" atau "[RESORT] - [Unit/Area Spesifik] ([Patokan Posisi])". Contoh: "TBR - Villa 02 (Dekat Pintu Keluar)", "TPI - Dining Room (Meja 4 & 6)", "TPI - Overwater Villa 15", "TBR - Dermaga Boat TBR".
+     * Jika pelapor sudah menuliskan lokasi yang cukup lengkap (contoh: "TPI - Overwater Villa 8"), rapikan formatnya tanpa mengubah maknanya.
+     * Jika di judul dan deskripsi sama sekali TIDAK ada detail unit/titik spesifik, gabungkan nama resort dengan zona spasial yang paling sesuai (contoh: "TBR - Area Umum", "TBR - Vila Terapung").
+4. Hasil WAJIB HANYA berupa JSON valid murni (tanpa format markdown atau pembuka ```json).
 
 Struktur JSON yang WAJIB dihasilkan:
 {
@@ -58,6 +65,7 @@ Struktur JSON yang WAJIB dihasilkan:
   "data_minimum": true / false,
   "resort": "TPI | TBR | Kantor",
   "zona_spasial": "Vila Terapung | Dermaga Jetty | Clubhouse & Lobby | Dining Room | Kitchen & Dapur | Spa Pavillion | Genset & Utilitas | Mes Staf | Kantor / Lain-lain",
+  "lokasi_akurat": "string representasi lokasi spesifik yang akurat dan rapi sesuai pedoman di atas",
   "dugaan_akar_masalah": "string penjelasan teknis wajar akar penyebab masalah",
   "tindakan_mitigasi_pencegahan": "string rekomendasi konkret audit pencegahan untuk supervisor"
 }
@@ -127,18 +135,55 @@ PROMPT;
                 $urgency = 'Sedang';
             }
 
-            // Successfully enriched!
-            $issue->update([
+            // Location enrichment logic
+            $rawEnrichedLocation = trim($parsed['lokasi_akurat'] ?? '');
+            $originalLocation = $issue->location;
+            $shouldUpdateLocation = false;
+
+            if (!empty($rawEnrichedLocation)) {
+                $trimmedLoc = trim((string)$issue->location);
+                $upperLoc = strtoupper($trimmedLoc);
+
+                // Generic indicators: just the resort or empty
+                $isGeneric = empty($trimmedLoc) || in_array($upperLoc, ['TBR', 'TPI', 'KANTOR', 'RESORT', 'UMUM'], true);
+
+                if ($isGeneric) {
+                    $shouldUpdateLocation = true;
+                } else {
+                    // Check if AI found specific clues (villa, kamar, chalet, meja, pintu, dll) not in current location
+                    $regex = '/(villa|chalet|kamar|meja|pintu|lantai|dermaga|jetty|genset|kitchen|dapur|spa|lodge|clubhouse|room|unit)\b/i';
+                    $aiHasSpecifics = (bool)preg_match($regex, $rawEnrichedLocation);
+                    $currentHasSpecifics = (bool)preg_match($regex, $trimmedLoc);
+
+                    if ($aiHasSpecifics && !$currentHasSpecifics) {
+                        $shouldUpdateLocation = true;
+                    } elseif ($rawEnrichedLocation !== $trimmedLoc && stripos($rawEnrichedLocation, $trimmedLoc) !== false && strlen($rawEnrichedLocation) > strlen($trimmedLoc)) {
+                        $shouldUpdateLocation = true;
+                    }
+                }
+            }
+
+            $updateData = [
                 'ai_status'       => 'completed',
                 'ai_category'     => $parsed['kategori_utama'] ?? 'Lain-lain',
                 'ai_sub_category' => $parsed['sub_kategori'] ?? null,
                 'ai_urgency'      => $urgency,
                 'ai_is_minimal'   => (bool)($parsed['data_minimum'] ?? false),
-                'ai_analysis'     => $parsed,
+                'ai_analysis'     => array_merge($parsed, [
+                    'original_location' => $originalLocation,
+                ]),
                 'ai_processed_at' => now(),
-            ]);
+            ];
 
-            Log::info("GeminiIssueService: Successfully analyzed issue #{$issue->id} -> {$issue->ai_category} ({$issue->ai_sub_category})");
+            if ($shouldUpdateLocation && !empty($rawEnrichedLocation)) {
+                $updateData['location'] = $rawEnrichedLocation;
+                Log::info("GeminiIssueService: Location enriched from '{$originalLocation}' to '{$rawEnrichedLocation}' for issue #{$issue->id}");
+            }
+
+            // Successfully enriched!
+            $issue->update($updateData);
+
+            Log::info("GeminiIssueService: Successfully analyzed issue #{$issue->id} -> {$issue->ai_category} ({$issue->ai_sub_category}), Location: {$issue->location}");
 
             try {
                 app(\App\Services\GoogleSheetsSyncService::class)->syncIssue($issue->fresh());
