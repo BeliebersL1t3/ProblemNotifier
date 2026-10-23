@@ -73,7 +73,49 @@ class GoogleSheetsSyncService
         $rootCause = $aiAnalysis['dugaan_akar_masalah'] ?? '';
         $mitigation = $aiAnalysis['tindakan_mitigasi_pencegahan'] ?? '';
 
+        $imageUrl = '';
+        if ($issue->image_url) {
+            $imageUrl = str_starts_with($issue->image_url, 'http')
+                ? $issue->image_url
+                : url($issue->image_url);
+        }
+
+        $resolutionImageUrl = '';
+        if ($issue->resolution_image_url) {
+            $resolutionImageUrl = str_starts_with($issue->resolution_image_url, 'http')
+                ? $issue->resolution_image_url
+                : url($issue->resolution_image_url);
+        }
+
         return [
+            // Standard English Keys (Matches Apps Script Code.gs)
+            'issue_code'           => $code,
+            'reported_at'          => $issue->created_at ? $issue->created_at->format('Y-m-d H:i') : '',
+            'reporter_name'        => $issue->reporter_name ?: '-',
+            'reporter_dept'        => $issue->reporter_dept ?: '-',
+            'location'             => $issue->location ?: '-',
+            'title'                => $issue->title ?: '-',
+            'description'          => $issue->description ?: '-',
+            'target_departments'   => $targetDeptsStr,
+            'status'               => $statusStr,
+            'is_active'            => $isActive,
+            'deleted_by'           => $deletedBy,
+            'deleted_at'           => $deletedAt,
+            'image_url'            => $imageUrl,
+            'claimed_by'           => $issue->claimed_by_name ?: '',
+            'claimed_at'           => $issue->claimed_at ? $issue->claimed_at->format('Y-m-d H:i') : '',
+            'resolved_by'          => $issue->resolved_by_name ?: '',
+            'resolved_at'          => $issue->resolved_at ? $issue->resolved_at->format('Y-m-d H:i') : '',
+            'resolution_note'      => $issue->resolution_note ?: '',
+            'proof_image_url'      => $resolutionImageUrl,
+            'ai_category'          => $issue->ai_category ?: '',
+            'ai_sub_category'      => $issue->ai_sub_category ?: '',
+            'ai_urgency'           => $issue->ai_urgency ?: 'Sedang',
+            'ai_sparepart_needed'  => $needSparepart,
+            'ai_root_cause'        => $rootCause,
+            'ai_mitigation'        => $mitigation,
+
+            // Indonesian Aliases for Backwards Compatibility
             'kode_tiket'           => $code,
             'waktu_lapor'          => $issue->created_at ? $issue->created_at->format('Y-m-d H:i') : '',
             'pelapor'              => $issue->reporter_name ?: '-',
@@ -86,13 +128,13 @@ class GoogleSheetsSyncService
             'aktif_di_dashboard'   => $isActive,
             'dihapus_oleh'         => $deletedBy,
             'waktu_dihapus'        => $deletedAt,
-            'foto_masalah_url'     => $issue->image_url ?: '',
+            'foto_masalah_url'     => $imageUrl,
             'diambil_oleh'         => $issue->claimed_by_name ?: '',
             'waktu_ambil'          => $issue->claimed_at ? $issue->claimed_at->format('Y-m-d H:i') : '',
             'diselesaikan_oleh'    => $issue->resolved_by_name ?: '',
             'waktu_selesai'        => $issue->resolved_at ? $issue->resolved_at->format('Y-m-d H:i') : '',
             'catatan_penyelesaian' => $issue->resolution_note ?: '',
-            'foto_selesai_url'     => $issue->resolution_image_url ?: '',
+            'foto_selesai_url'     => $resolutionImageUrl,
             'ai_kategori'          => $issue->ai_category ?: '',
             'ai_sub_kategori'      => $issue->ai_sub_category ?: '',
             'ai_urgensi'           => $issue->ai_urgency ?: 'Sedang',
@@ -116,13 +158,19 @@ class GoogleSheetsSyncService
         $payload = $this->formatIssuePayload($issue, $isDeleted, $deletedByName);
 
         try {
-            $response = Http::timeout(10)->post($webhookUrl, [
-                'action' => 'upsert_issue',
-                'data'   => $payload,
-            ]);
+            $response = Http::asJson()
+                ->withoutVerifying()
+                ->withOptions(['allow_redirects' => true])
+                ->timeout(15)
+                ->post($webhookUrl, [
+                    'action' => 'upsert_issue',
+                    'issues' => [$payload],
+                    'items'  => [$payload],
+                    'data'   => $payload,
+                ]);
 
             if ($response->successful()) {
-                Log::info('Google Sheets sync success for issue: ' . $payload['kode_tiket']);
+                Log::info('Google Sheets sync success for issue: ' . ($payload['issue_code'] ?? $payload['kode_tiket']));
                 // Also trigger location summary sync
                 $this->syncLocationsSummary();
                 return true;
@@ -224,8 +272,21 @@ class GoogleSheetsSyncService
             }
 
             $locationsPayload[] = [
-                'nama_lokasi'              => $item['nama_lokasi'],
+                // English Keys (Matches Apps Script Code.gs)
+                'location_name'            => $item['nama_lokasi'],
                 'resort'                   => $item['resort'],
+                'spatial_zone'             => $item['zona_spasial'],
+                'total_issues'             => $item['total_insiden'],
+                'active_issues'            => $item['insiden_aktif'],
+                'resolved_issues'          => $item['insiden_selesai'],
+                'highest_urgency'          => $item['urgensi_tertinggi'],
+                'case_breakdown'           => $rincian,
+                'related_departments'      => implode(', ', $item['departemen_set']),
+                'latest_report_at'         => $item['laporan_terakhir_judul'] ? ($item['laporan_terakhir_judul'] . ' (' . $item['laporan_terakhir_waktu'] . ')') : '-',
+                'risk_status'              => $statusRisiko,
+
+                // Indonesian Aliases
+                'nama_lokasi'              => $item['nama_lokasi'],
                 'zona_spasial'             => $item['zona_spasial'],
                 'total_insiden'            => $item['total_insiden'],
                 'insiden_aktif'            => $item['insiden_aktif'],
@@ -239,10 +300,14 @@ class GoogleSheetsSyncService
         }
 
         try {
-            $response = Http::timeout(12)->post($webhookUrl, [
-                'action'    => 'sync_locations',
-                'locations' => $locationsPayload,
-            ]);
+            $response = Http::asJson()
+                ->withoutVerifying()
+                ->withOptions(['allow_redirects' => true])
+                ->timeout(20)
+                ->post($webhookUrl, [
+                    'action'    => 'sync_locations',
+                    'locations' => $locationsPayload,
+                ]);
 
             return $response->successful();
         } catch (\Throwable $e) {
@@ -275,10 +340,15 @@ class GoogleSheetsSyncService
 
         $issuesSuccess = false;
         try {
-            $response = Http::timeout(25)->post($issuesWebhookUrl, [
-                'action' => 'batch_upsert_issues',
-                'items'  => $items,
-            ]);
+            $response = Http::asJson()
+                ->withoutVerifying()
+                ->withOptions(['allow_redirects' => true])
+                ->timeout(30)
+                ->post($issuesWebhookUrl, [
+                    'action' => 'batch_upsert_issues',
+                    'issues' => $items,
+                    'items'  => $items,
+                ]);
             $issuesSuccess = $response->successful();
         } catch (\Throwable $e) {
             Log::error('Bulk Google Sheets sync exception: ' . $e->getMessage());
