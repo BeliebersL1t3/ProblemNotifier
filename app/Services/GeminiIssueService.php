@@ -56,6 +56,8 @@ Struktur JSON yang WAJIB dihasilkan:
   "jenis_perbaikan": "Pembersihan / Servis Rutin | Penyetelan Lapangan | Penggantian Komponen | Overhaul / Perombakan | Perlu Inspeksi Awal",
   "perlu_sparepart": true / false,
   "data_minimum": true / false,
+  "resort": "TPI | TBR | Kantor",
+  "zona_spasial": "Vila Terapung | Dermaga Jetty | Clubhouse & Lobby | Dining Room | Kitchen & Dapur | Spa Pavillion | Genset & Utilitas | Mes Staf | Kantor / Lain-lain",
   "dugaan_akar_masalah": "string penjelasan teknis wajar akar penyebab masalah",
   "tindakan_mitigasi_pencegahan": "string rekomendasi konkret audit pencegahan untuk supervisor"
 }
