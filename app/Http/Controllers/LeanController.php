@@ -37,6 +37,9 @@ class LeanController extends Controller
     {
         $issues = LeanIssue::orderBy('created_at', 'desc')->get()->map(function ($item) {
             $code = self::formatIssueCode($item);
+            $imageUrl = $item->image_url ? (parse_url($item->image_url, PHP_URL_PATH) ?: $item->image_url) : null;
+            $resImageUrl = $item->resolution_image_url ? (parse_url($item->resolution_image_url, PHP_URL_PATH) ?: $item->resolution_image_url) : null;
+
             return [
                 'id'                   => $item->id,
                 'issue_code'           => $code,
@@ -46,7 +49,7 @@ class LeanController extends Controller
                 'target_departments'   => $item->target_departments ?? [],
                 'reporter_name'        => $item->reporter_name,
                 'reporter_dept'        => $item->reporter_dept,
-                'image_url'            => $item->image_url,
+                'image_url'            => $imageUrl,
                 'status'               => $item->status,
                 'department_accs'      => $item->department_accs ?? [],
                 'claimed_by_name'      => $item->claimed_by_name,
@@ -56,7 +59,7 @@ class LeanController extends Controller
                 'resolved_by_dept'     => $item->resolved_by_dept,
                 'resolved_at'          => $item->resolved_at ? $item->resolved_at->toIso8601String() : null,
                 'resolution_note'      => $item->resolution_note,
-                'resolution_image_url' => $item->resolution_image_url,
+                'resolution_image_url' => $resImageUrl,
                 'created_at'           => $item->created_at ? $item->created_at->toIso8601String() : null,
                 'created_at_human'     => $item->created_at ? $item->created_at->locale('id')->diffForHumans() : '',
                 'ai_status'            => $item->ai_status ?? 'pending',
@@ -106,7 +109,7 @@ class LeanController extends Controller
             $file = $request->file('image');
             $filename = 'lean_' . time() . '_' . Str::random(8) . '.' . $file->getClientOriginalExtension();
             $file->move(public_path('uploads'), $filename);
-            $imageUrl = asset('uploads/' . $filename);
+            $imageUrl = '/uploads/' . $filename;
         }
 
         $accs = [];
@@ -229,7 +232,7 @@ class LeanController extends Controller
             $file = $request->file('proof_image');
             $filename = 'lean_solve_' . time() . '_' . Str::random(8) . '.' . $file->getClientOriginalExtension();
             $file->move(public_path('uploads'), $filename);
-            $resolutionImageUrl = asset('uploads/' . $filename);
+            $resolutionImageUrl = '/uploads/' . $filename;
         }
 
         $issue->status = 'resolved';
@@ -348,7 +351,7 @@ class LeanController extends Controller
             $file = $request->file('image');
             $filename = 'lean_' . time() . '_' . Str::random(8) . '.' . $file->getClientOriginalExtension();
             $file->move(public_path('uploads'), $filename);
-            $imageUrl = asset('uploads/' . $filename);
+            $imageUrl = '/uploads/' . $filename;
         }
 
         $issue = LeanIssue::create([

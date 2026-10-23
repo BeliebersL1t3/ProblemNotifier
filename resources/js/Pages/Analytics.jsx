@@ -2814,6 +2814,7 @@ function AnalyticsInner() {
                                     
                                     const isEmergency = String(ev.issueId || '').toUpperCase().startsWith('SOS') || 
                                                         (ev.originalIssue?.category || '').toLowerCase() === 'emergency';
+                                    const isCritical = !isEmergency && (ev.originalIssue?.priority === 'critical');
                                     const isArchived = ev.type === 'archive' || ev.originalIssue?.isArchived;
 
                                     let actionBadge = null;
