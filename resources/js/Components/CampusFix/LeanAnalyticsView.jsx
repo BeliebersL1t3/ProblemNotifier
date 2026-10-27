@@ -208,7 +208,7 @@ function TpiResortMap({ zones = [], onSelectZone, selectedZoneId }) {
                     >
                         {/* High-Resolution Masterplan Drawing */}
                         <img
-                            src="/images/maps/tpi_masterplan.png"
+                            src="/images/maps/tpi_masterplan_v2.png"
                             alt="Denah Masterplan Telunas Private Island (TPI)"
                             className="w-full h-auto block select-none pointer-events-none"
                             loading="eager"
