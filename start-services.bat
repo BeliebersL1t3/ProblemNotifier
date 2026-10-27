@@ -6,6 +6,11 @@ setlocal EnableDelayedExpansion
 cd /d "%~dp0"
 set "TAILSCALE_BIN=C:\Program Files\Tailscale\tailscale.exe"
 
+:: Auto-optimize Laravel configuration cache on launcher start to prevent Windows file-lock 500 errors
+echo Optimizing Laravel configuration cache...
+php artisan config:cache >nul 2>&1
+echo [OK] Configuration cache is active.
+
 :MENU
 cls
 echo ========================================================
@@ -22,9 +27,10 @@ echo   [7] Start All Core Services (Tailscale Funnel + Queue + Bot)
 echo   [8] Start All Core Services (ngrok Tunnel + Queue + Bot)
 echo   [9] Exit
 echo   [10] Start WhatsApp Bot V2 (New - bot-v2.js)
+echo   [11] Refresh Configuration Cache (Fix 500 error)
 echo.
 echo ========================================================
-set /p "CHOICE=Enter your choice [1-10]: "
+set /p "CHOICE=Enter your choice [1-11]: "
 
 if "%CHOICE%"=="1" goto START_TAILSCALE
 if "%CHOICE%"=="2" goto STOP_TAILSCALE
@@ -36,6 +42,7 @@ if "%CHOICE%"=="7" goto START_ALL_TAILSCALE
 if "%CHOICE%"=="8" goto START_ALL_NGROK
 if "%CHOICE%"=="9" goto EXIT
 if "%CHOICE%"=="10" goto START_BOT_V2
+if "%CHOICE%"=="11" goto REFRESH_CONFIG
 goto INVALID
 
 :START_TAILSCALE
@@ -112,6 +119,8 @@ if exist "%TAILSCALE_BIN%" (
 ) else (
     echo [ERROR] Tailscale not found at %TAILSCALE_BIN%
 )
+echo Optimizing configuration cache...
+php artisan config:cache
 echo Launching Queue Worker...
 start "CampusFix - Queue Worker" /D "%~dp0" cmd /k "php artisan queue:work"
 echo Launching WhatsApp Bot...
@@ -125,6 +134,8 @@ goto MENU
 echo.
 echo Launching ngrok Tunnel...
 start "CampusFix - ngrok Tunnel" /D "%~dp0" cmd /k "ngrok http 80 --url https://granola-outlying-cultivate.ngrok-free.dev"
+echo Optimizing configuration cache...
+php artisan config:cache
 echo Launching Queue Worker...
 start "CampusFix - Queue Worker" /D "%~dp0" cmd /k "php artisan queue:work"
 echo Launching WhatsApp Bot...
@@ -134,9 +145,18 @@ echo All core services (with ngrok Tunnel) have been launched!
 timeout /t 3 >nul
 goto MENU
 
+:REFRESH_CONFIG
+echo.
+echo Re-caching Laravel configuration to lock .env and prevent 500 errors...
+php artisan config:cache
+echo.
+echo [DONE] Configuration cached successfully!
+timeout /t 3 >nul
+goto MENU
+
 :INVALID
 echo.
-echo Invalid option selected. Please choose 1, 2, 3, 4, 5, 6, 7, 8, or 9.
+echo Invalid option selected. Please choose 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, or 11.
 timeout /t 2 >nul
 goto MENU
 
