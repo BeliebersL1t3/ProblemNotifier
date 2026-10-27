@@ -389,6 +389,14 @@ input[type="range"]::-moz-range-thumb {
   position: relative;
   min-height: 100vh;
   transition: background-image 0.3s ease, color 0.2s ease;
+  font-family: 'Montserrat', system-ui, -apple-system, sans-serif !important;
+}
+
+.lean-root input,
+.lean-root button,
+.lean-root select,
+.lean-root textarea {
+  font-family: 'Montserrat', system-ui, -apple-system, sans-serif !important;
 }
 
 .lean-theme-dark {

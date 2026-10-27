@@ -15,6 +15,7 @@ export default {
             fontFamily: {
                 sans: ['Poppins', ...defaultTheme.fontFamily.sans],
                 heading: ['"Plus Jakarta Sans"', ...defaultTheme.fontFamily.sans],
+                montserrat: ['Montserrat', ...defaultTheme.fontFamily.sans],
             },
             colors: {
                 background: 'var(--background)',
