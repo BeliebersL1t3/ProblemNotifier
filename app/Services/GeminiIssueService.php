@@ -64,7 +64,7 @@ Struktur JSON yang WAJIB dihasilkan:
   "perlu_sparepart": true / false,
   "data_minimum": true / false,
   "resort": "TPI | TBR | Kantor",
-  "zona_spasial": "Vila Terapung | Dermaga Jetty | Clubhouse & Lobby | Dining Room | Kitchen & Dapur | Spa Pavillion | Genset & Utilitas | Mes Staf | Kantor / Lain-lain",
+  "zona_spasial": "Vila Terapung | Vila Bukit | Dermaga Jetty | Restoran & Kantor | Dapur & Dining | Kolam Renang | Spa Pavillion | Genset & Utilitas | Bengkel & Maintenance | Mes Staf | Area Konservasi | Fasilitas Umum / Lain-lain",
   "lokasi_akurat": "string representasi lokasi spesifik yang akurat dan rapi sesuai pedoman di atas",
   "dugaan_akar_masalah": "string penjelasan teknis wajar akar penyebab masalah",
   "tindakan_mitigasi_pencegahan": "string rekomendasi konkret audit pencegahan untuk supervisor"

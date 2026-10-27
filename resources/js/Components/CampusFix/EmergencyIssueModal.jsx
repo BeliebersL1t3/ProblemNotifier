@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { ALL_DEPARTMENTS, getStaffForDepartment } from '@/constants/staff';
 import { getDepartmentTheme } from '@/constants/departments';
+import { TPI_PRESET_LOCATIONS, TBR_PRESET_LOCATIONS } from '@/constants/locations';
 import { useAuth } from '@/hooks/useAuth';
 
 export function EmergencyIssueModal({ open, onOpenChange }) {
@@ -432,6 +433,51 @@ export function EmergencyIssueModal({ open, onOpenChange }) {
                                 );
                             })}
                         </div>
+                        {/* Specific Location Preset Chips for Emergency */}
+                        {locMains.includes('TPI') && (
+                            <div className="space-y-1">
+                                <span className="text-[10px] font-bold text-red-400">Pilihan Cepat Titik Denah TPI:</span>
+                                <div className="flex flex-wrap gap-1 max-h-20 overflow-y-auto p-1.5 rounded-lg bg-black/60 border border-red-900/50">
+                                    {TPI_PRESET_LOCATIONS.map(preset => (
+                                        <button
+                                            key={preset}
+                                            type="button"
+                                            disabled={isSubmitting}
+                                            onClick={() => setLocDetail(preset)}
+                                            className={`px-2 py-0.5 text-[10px] font-medium rounded-full border transition-all ${
+                                                locDetail === preset
+                                                    ? 'bg-red-600 text-white border-red-400 shadow-xs'
+                                                    : 'bg-black/60 text-red-300/80 border-red-900/60 hover:text-white hover:border-red-500'
+                                            }`}
+                                        >
+                                            {locDetail === preset ? `✓ ${preset}` : preset}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                        {locMains.includes('TBR') && !locMains.includes('TPI') && (
+                            <div className="space-y-1">
+                                <span className="text-[10px] font-bold text-red-400">Pilihan Cepat Fasilitas TBR:</span>
+                                <div className="flex flex-wrap gap-1 max-h-20 overflow-y-auto p-1.5 rounded-lg bg-black/60 border border-red-900/50">
+                                    {TBR_PRESET_LOCATIONS.map(preset => (
+                                        <button
+                                            key={preset}
+                                            type="button"
+                                            disabled={isSubmitting}
+                                            onClick={() => setLocDetail(preset)}
+                                            className={`px-2 py-0.5 text-[10px] font-medium rounded-full border transition-all ${
+                                                locDetail === preset
+                                                    ? 'bg-red-600 text-white border-red-400 shadow-xs'
+                                                    : 'bg-black/60 text-red-300/80 border-red-900/60 hover:text-white hover:border-red-500'
+                                            }`}
+                                        >
+                                            {locDetail === preset ? `✓ ${preset}` : preset}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                         <Input
                             id="sos-location"
                             value={locDetail}

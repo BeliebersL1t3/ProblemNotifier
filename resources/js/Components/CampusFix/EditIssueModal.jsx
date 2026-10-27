@@ -45,6 +45,7 @@ import {
 } from 'lucide-react';
 import { ALL_DEPARTMENTS, getStaffForDepartment, getDepartmentForStaff, normalizeDepartment } from '@/constants/staff';
 import { getDepartmentTheme } from '@/constants/departments';
+import { TPI_PRESET_LOCATIONS, TBR_PRESET_LOCATIONS } from '@/constants/locations';
 import { useLanguage } from '@/context/LanguageContext';
 import { useAuth } from '@/hooks/useAuth';
 import { InlineAnalogClockPicker } from './CircularTimePickerModal';
@@ -653,6 +654,51 @@ export function EditIssueModal({ issue, open, onOpenChange, onSuccess }) {
                                             );
                                         })}
                                     </div>
+                                    {/* Specific Location Preset Chips */}
+                                    {locMains.includes('TPI') && (
+                                        <div className="space-y-1 mb-1.5">
+                                            <span className="text-[11px] font-medium text-slate-400">Pilihan Cepat Titik Denah TPI:</span>
+                                            <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto p-1.5 rounded-lg bg-slate-900/60 border border-slate-700/60">
+                                                {TPI_PRESET_LOCATIONS.map(preset => (
+                                                    <button
+                                                        key={preset}
+                                                        type="button"
+                                                        disabled={isSubmitting}
+                                                        onClick={() => setLocDetail(preset)}
+                                                        className={`px-2 py-0.5 text-[11px] font-medium rounded-full border transition-all ${
+                                                            locDetail === preset
+                                                                ? 'bg-sky-500 text-white border-sky-400 shadow-xs'
+                                                                : 'bg-slate-950/60 text-slate-400 border-slate-700/60 hover:text-slate-200 hover:border-slate-500'
+                                                        }`}
+                                                    >
+                                                        {locDetail === preset ? `✓ ${preset}` : preset}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                    {locMains.includes('TBR') && !locMains.includes('TPI') && (
+                                        <div className="space-y-1 mb-1.5">
+                                            <span className="text-[11px] font-medium text-slate-400">Pilihan Cepat Fasilitas TBR:</span>
+                                            <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto p-1.5 rounded-lg bg-slate-900/60 border border-slate-700/60">
+                                                {TBR_PRESET_LOCATIONS.map(preset => (
+                                                    <button
+                                                        key={preset}
+                                                        type="button"
+                                                        disabled={isSubmitting}
+                                                        onClick={() => setLocDetail(preset)}
+                                                        className={`px-2 py-0.5 text-[11px] font-medium rounded-full border transition-all ${
+                                                            locDetail === preset
+                                                                ? 'bg-amber-500 text-white border-amber-400 shadow-xs'
+                                                                : 'bg-slate-950/60 text-slate-400 border-slate-700/60 hover:text-slate-200 hover:border-slate-500'
+                                                        }`}
+                                                    >
+                                                        {locDetail === preset ? `✓ ${preset}` : preset}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
                                     <Input
                                         value={locDetail}
                                         onChange={(e) => setLocDetail(e.target.value)}

@@ -38,7 +38,12 @@ import {
     Filter,
     FileSpreadsheet,
     ExternalLink,
+    ZoomIn,
+    ZoomOut,
+    Eye,
+    EyeOff,
 } from 'lucide-react';
+import { TPI_MASTERPLAN_ZONES } from '@/constants/locations';
 
 const CATEGORY_COLORS = {
     'HVAC & Pendingin': '#38bdf8', // Sky
@@ -130,147 +135,189 @@ const CustomDeptTooltip = ({ active, payload, label }) => {
     );
 };
 
-// --- Denah Vektor Arsitektural TPI (Telunas Private Island) ---
-function TpiResortMap({ zones = [] }) {
+// --- Denah Arsitektural Masterplan TPI (Telunas Private Island) ---
+function TpiResortMap({ zones = [], onSelectZone, selectedZoneId }) {
+    const [zoom, setZoom] = useState(1);
+    const [filterMode, setFilterMode] = useState('all'); // 'all' (22 markers) | 'active' (issues only)
+    const [hoveredZone, setHoveredZone] = useState(null);
+
+    const handleZoomIn = () => setZoom((prev) => Math.min(Number((prev + 0.25).toFixed(2)), 2.5));
+    const handleZoomOut = () => setZoom((prev) => Math.max(Number((prev - 0.25).toFixed(2)), 1));
+    const handleResetZoom = () => setZoom(1);
+
+    const displayedZones = filterMode === 'active' ? zones.filter(z => (z.count || 0) > 0) : zones;
+
     return (
-        <div className="relative w-full aspect-[16/9] min-h-[380px] max-h-[520px] rounded-xl overflow-hidden bg-gradient-to-b from-[#02182c] via-[#04243f] to-[#011425] border border-slate-700/80 shadow-inner select-none flex items-center justify-center p-2">
-            <svg viewBox="0 0 800 450" className="w-full h-full object-contain pointer-events-none">
-                <defs>
-                    <radialGradient id="tpi-ocean-ripple" cx="70%" cy="40%" r="60%">
-                        <stop offset="0%" stopColor="#0284c7" stopOpacity="0.18" />
-                        <stop offset="100%" stopColor="#031728" stopOpacity="0" />
-                    </radialGradient>
-                    <linearGradient id="tpi-island-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%" stopColor="#065f46" />
-                        <stop offset="45%" stopColor="#047857" />
-                        <stop offset="100%" stopColor="#064e3b" />
-                    </linearGradient>
-                    <linearGradient id="tpi-beach-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%" stopColor="#ca8a04" stopOpacity="0.6" />
-                        <stop offset="100%" stopColor="#a16207" stopOpacity="0.15" />
-                    </linearGradient>
-                </defs>
-
-                <rect width="800" height="450" fill="url(#tpi-ocean-ripple)" />
-
-                {/* Coral Reef Faint Line */}
-                <path
-                    d="M 120 100 C 220 50, 420 50, 520 110 C 660 190, 720 320, 640 420 C 500 480, 240 460, 140 410 C 60 360, 50 160, 120 100 Z"
-                    fill="none"
-                    stroke="#0284c7"
-                    strokeWidth="1"
-                    strokeDasharray="4 6"
-                    opacity="0.25"
-                />
-
-                {/* TPI Island Body (Curved organic shape matching satellite photo) */}
-                <path
-                    d="M 180 120 C 260 70, 380 80, 430 130 C 470 170, 460 250, 420 330 C 390 395, 300 420, 230 405 C 160 390, 120 330, 130 250 C 135 180, 145 140, 180 120 Z"
-                    fill="url(#tpi-island-grad)"
-                    stroke="#059669"
-                    strokeWidth="2"
-                    filter="drop-shadow(0 6px 16px rgba(0,0,0,0.6))"
-                />
-
-                {/* Sandy Beach Shoreline (East Coast) */}
-                <path
-                    d="M 360 90 C 420 120, 455 180, 445 270 C 435 340, 365 395, 290 415"
-                    fill="none"
-                    stroke="url(#tpi-beach-grad)"
-                    strokeWidth="12"
-                    strokeLinecap="round"
-                />
-
-                {/* TPI Curved Overwater Boardwalk (Pier to 15 Villas) */}
-                <path
-                    d="M 370 100 C 460 90, 580 130, 640 210 C 670 260, 650 310, 580 340"
-                    fill="none"
-                    stroke="#b45309"
-                    strokeWidth="5"
-                    strokeLinecap="round"
-                />
-                <path
-                    d="M 370 100 C 460 90, 580 130, 640 210 C 670 260, 650 310, 580 340"
-                    fill="none"
-                    stroke="#78350f"
-                    strokeWidth="8"
-                    strokeDasharray="3 14"
-                />
-
-                {/* Overwater Villa Silhouettes along the curve */}
-                {[
-                    { x: 420, y: 88, rot: 15 },
-                    { x: 460, y: 98, rot: 25 },
-                    { x: 500, y: 115, rot: 35 },
-                    { x: 540, y: 140, rot: 45 },
-                    { x: 580, y: 175, rot: 60 },
-                    { x: 610, y: 215, rot: 75 },
-                    { x: 625, y: 260, rot: 90 },
-                    { x: 615, y: 300, rot: 110 },
-                    { x: 585, y: 330, rot: 135 },
-                ].map((v, idx) => (
-                    <g key={idx} transform={`translate(${v.x}, ${v.y}) rotate(${v.rot})`}>
-                        <rect x="-8" y="-12" width="16" height="12" rx="1.5" fill="#92400e" stroke="#d97706" strokeWidth="1" />
-                    </g>
-                ))}
-
-                {/* Arrival Boat Jetty (South East) */}
-                <line x1="425" y1="305" x2="690" y2="335" stroke="#b45309" strokeWidth="5" strokeLinecap="round" />
-                <rect x="670" y="320" width="35" height="28" rx="2" fill="#78350f" stroke="#d97706" strokeWidth="1.5" />
-                <circle cx="687" cy="334" r="3" fill="#38bdf8" />
-
-                {/* Compass Rose */}
-                <g transform="translate(60, 60)" opacity="0.6">
-                    <circle cx="0" cy="0" r="22" fill="#0f172a" stroke="#334155" strokeWidth="1" />
-                    <polygon points="0,-18 5,-4 0,0 -5,-4" fill="#f43f5e" />
-                    <polygon points="0,18 5,4 0,0 -5,4" fill="#94a3b8" />
-                    <polygon points="18,0 4,5 0,0 4,-5" fill="#94a3b8" />
-                    <polygon points="-18,0 -4,5 0,0 -4,-5" fill="#94a3b8" />
-                    <text x="0" y="-22" textAnchor="middle" fill="#f43f5e" fontSize="9" fontWeight="bold">U</text>
-                </g>
-
-                {/* Map Scale / Label watermark */}
-                <text x="750" y="430" textAnchor="end" fill="#64748b" fontSize="10" fontWeight="bold" letterSpacing="1">
-                    TELUNAS PRIVATE ISLAND (TPI)
-                </text>
-            </svg>
-
-            {/* Hotspot Zone Badges */}
-            {zones.map((zone) => {
-                const count = zone.count || 0;
-                const urgency = zone.highestUrgency;
-                const color = urgency ? (URGENCY_COLORS[urgency] || '#facc15') : '#10b981';
-
-                return (
-                    <div
-                        key={zone.id}
-                        className="absolute transform -translate-x-1/2 -translate-y-1/2 flex items-center gap-1.5 px-2 py-1 rounded-lg bg-slate-900/90 border border-slate-700/90 shadow-xl text-[10px] font-semibold text-white whitespace-nowrap backdrop-blur-md pointer-events-none"
-                        style={{ left: `${zone.x}%`, top: `${zone.y}%` }}
+        <div className="space-y-3">
+            {/* Map Canvas with Controls HUD */}
+            <div className="relative w-full rounded-2xl overflow-hidden bg-slate-950 border border-slate-700/80 shadow-2xl select-none group">
+                {/* HUD Toolbar */}
+                <div className="absolute top-3 right-3 z-30 flex items-center gap-1.5 p-1.5 rounded-xl bg-slate-900/90 border border-slate-700/80 backdrop-blur-md shadow-lg">
+                    <button
+                        type="button"
+                        onClick={() => setFilterMode(prev => prev === 'all' ? 'active' : 'all')}
+                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all ${
+                            filterMode === 'active'
+                                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                                : 'text-slate-300 hover:text-white hover:bg-slate-800'
+                        }`}
+                        title="Filter hanya lokasi dengan isu aktif"
                     >
-                        {count > 0 ? (
-                            <span className="relative flex h-2 w-2 shrink-0">
-                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75" style={{ backgroundColor: color }} />
-                                <span className="relative inline-flex rounded-full h-2 w-2" style={{ backgroundColor: color }} />
-                            </span>
-                        ) : (
-                            <span className="w-1.5 h-1.5 rounded-full bg-slate-500 shrink-0" />
-                        )}
-                        <span className="truncate max-w-[130px]">{zone.name}</span>
-                        {count > 0 && (
-                            <span
-                                className="px-1.5 py-0.2 rounded font-bold text-[9px] border leading-none"
-                                style={{
-                                    backgroundColor: `${color}25`,
-                                    borderColor: `${color}60`,
-                                    color: color,
-                                }}
-                            >
-                                {count}
-                            </span>
-                        )}
+                        {filterMode === 'active' ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+                        <span>{filterMode === 'active' ? 'Hanya Isu Aktif' : 'Semua 22 Titik'}</span>
+                    </button>
+                    <div className="h-4 w-px bg-slate-700 mx-0.5" />
+                    <button
+                        type="button"
+                        onClick={handleZoomIn}
+                        disabled={zoom >= 2.5}
+                        className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 disabled:opacity-40 transition-colors"
+                        title="Perbesar Denah"
+                    >
+                        <ZoomIn className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                        type="button"
+                        onClick={handleZoomOut}
+                        disabled={zoom <= 1}
+                        className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 disabled:opacity-40 transition-colors"
+                        title="Perkecil Denah"
+                    >
+                        <ZoomOut className="w-3.5 h-3.5" />
+                    </button>
+                    {zoom > 1 && (
+                        <button
+                            type="button"
+                            onClick={handleResetZoom}
+                            className="px-2 py-1 rounded-lg text-[10px] font-semibold text-sky-400 hover:bg-sky-500/10 transition-colors"
+                            title="Reset Zoom ke 100%"
+                        >
+                            Reset ({Math.round(zoom * 100)}%)
+                        </button>
+                    )}
+                </div>
+
+                {/* Blueprint Map Container with Pan/Zoom overflow */}
+                <div className="relative w-full overflow-auto max-h-[640px] bg-[#fbf9f4]">
+                    <div
+                        className="relative w-full origin-top-left transition-transform duration-200"
+                        style={{
+                            transform: `scale(${zoom})`,
+                            width: zoom > 1 ? `${zoom * 100}%` : '100%',
+                        }}
+                    >
+                        {/* High-Resolution Masterplan Drawing */}
+                        <img
+                            src="/images/maps/tpi_masterplan.png"
+                            alt="Denah Masterplan Telunas Private Island (TPI)"
+                            className="w-full h-auto block select-none pointer-events-none"
+                            loading="eager"
+                        />
+
+                        {/* Interactive Specific Location Pins */}
+                        {displayedZones.map((zone) => {
+                            const count = zone.count || 0;
+                            const urgency = zone.highestUrgency;
+                            const color = urgency ? (URGENCY_COLORS[urgency] || '#facc15') : '#10b981';
+                            const isSelected = selectedZoneId === zone.id;
+                            const isHovered = hoveredZone === zone.id;
+
+                            return (
+                                <div
+                                    key={zone.id}
+                                    onClick={() => onSelectZone && onSelectZone(zone)}
+                                    onMouseEnter={() => setHoveredZone(zone.id)}
+                                    onMouseLeave={() => setHoveredZone(null)}
+                                    className={`absolute transform -translate-x-1/2 -translate-y-1/2 cursor-pointer transition-all duration-200 z-10 ${
+                                        isSelected ? 'z-30 scale-125' : isHovered ? 'z-20 scale-115' : ''
+                                    }`}
+                                    style={{ left: `${zone.x}%`, top: `${zone.y}%` }}
+                                >
+                                    {/* Urgency Pulse Ring if issues exist */}
+                                    {count > 0 && (
+                                        <span
+                                            className="absolute -inset-2 rounded-full animate-ping opacity-75 pointer-events-none"
+                                            style={{ backgroundColor: color }}
+                                        />
+                                    )}
+
+                                    {/* Pin Badge Marker */}
+                                    <div
+                                        className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full shadow-xl border text-[10px] font-bold backdrop-blur-md transition-all ${
+                                            count > 0
+                                                ? 'bg-slate-950/95 text-white ring-2'
+                                                : 'bg-slate-900/85 text-slate-200 hover:bg-slate-900 hover:text-white'
+                                        } ${
+                                            isSelected
+                                                ? 'ring-4 ring-sky-400 border-white shadow-sky-500/50'
+                                                : count > 0
+                                                ? 'border-transparent'
+                                                : 'border-slate-600/70'
+                                        }`}
+                                        style={{
+                                            boxShadow: count > 0 ? `0 0 14px ${color}90` : undefined,
+                                            ringColor: count > 0 ? color : undefined,
+                                        }}
+                                    >
+                                        <span
+                                            className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] font-black ${
+                                                count > 0 ? 'text-black' : 'text-white bg-slate-700'
+                                            }`}
+                                            style={{ backgroundColor: count > 0 ? color : undefined }}
+                                        >
+                                            {zone.num}
+                                        </span>
+                                        {count > 0 && (
+                                            <span className="text-[10px] font-black text-white pl-0.5 pr-1">
+                                                {count}
+                                            </span>
+                                        )}
+                                    </div>
+
+                                    {/* Hover / Selected Tooltip Card */}
+                                    {(isHovered || isSelected) && (
+                                        <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2.5 px-3 py-1.5 rounded-xl bg-slate-950/95 border border-slate-700 shadow-2xl text-[11px] whitespace-nowrap z-40 pointer-events-none backdrop-blur-md animate-in fade-in zoom-in-95 duration-150">
+                                            <div className="flex items-center gap-1.5 font-bold text-white">
+                                                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
+                                                <span>#{zone.num} {zone.name}</span>
+                                            </div>
+                                            <div className="text-[10px] text-slate-400 flex items-center justify-between gap-3 pt-0.5">
+                                                <span>{zone.enName || 'Fasilitas TPI'}</span>
+                                                <span className="font-semibold" style={{ color }}>
+                                                    {count > 0 ? `${count} Isu Aktif (${urgency || 'Sedang'})` : 'Tidak Ada Isu'}
+                                                </span>
+                                            </div>
+                                            <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-slate-950" />
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
                     </div>
-                );
-            })}
+                </div>
+
+                {/* Bottom Bar Info Legend */}
+                <div className="px-4 py-2.5 bg-slate-900/95 border-t border-slate-800 flex flex-wrap items-center justify-between text-xs text-slate-400 gap-2">
+                    <div className="flex items-center gap-2">
+                        <span className="font-semibold text-slate-200">Denah Spasial Resmi Pulau Telunas</span>
+                        <span className="text-[11px] text-slate-500">• 22 Titik Fasilitas Terpetakan</span>
+                    </div>
+                    <div className="flex items-center gap-3 text-[11px]">
+                        <span className="flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" /> Kritis (Darurat / Tinggi)
+                        </span>
+                        <span className="flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-amber-400" /> Sedang
+                        </span>
+                        <span className="flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500" /> Normal / Rendah
+                        </span>
+                        <span className="flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-slate-600" /> Tidak Ada Isu
+                        </span>
+                    </div>
+                </div>
+            </div>
         </div>
     );
 }
@@ -404,6 +451,7 @@ export function LeanAnalyticsView({
     const [selectedCategory, setSelectedCategory] = useState('all');
     const [searchFilter, setSearchFilter] = useState('');
     const [hotspotTab, setHotspotTab] = useState('leaderboard'); // 'leaderboard' (default) | 'tpi' | 'tbr' | 'chart'
+    const [selectedTpiZone, setSelectedTpiZone] = useState(null);
     
     // Time Range Filter states
     const [timeRange, setTimeRange] = useState('all'); // 'all' | 'today' | '7d' | '30d' | '6m' | '1y' | 'custom'
@@ -694,33 +742,36 @@ export function LeanAnalyticsView({
 
     // --- 6. Spatial Hotspot Mapping for TPI & TBR ---
     const spatialHotspots = useMemo(() => {
-        const tpiZones = {
-            'villas_north': { id: 'villas_north', name: 'Overwater Villas 1-7', resort: 'TPI', x: 68, y: 26, count: 0, highestUrgency: null },
-            'villas_south': { id: 'villas_south', name: 'Overwater Villas 8-15', resort: 'TPI', x: 78, y: 56, count: 0, highestUrgency: null },
-            'clubhouse':    { id: 'clubhouse', name: 'Main Clubhouse & Lobby', resort: 'TPI', x: 42, y: 38, count: 0, highestUrgency: null },
-            'dining':       { id: 'dining', name: 'Dining Room & Bar', resort: 'TPI', x: 52, y: 48, count: 0, highestUrgency: null },
-            'kitchen':      { id: 'kitchen', name: 'Kitchen & Bakery', resort: 'TPI', x: 38, y: 52, count: 0, highestUrgency: null },
-            'jetty':        { id: 'jetty', name: 'Arrival Jetty Boat Dock', resort: 'TPI', x: 86, y: 74, count: 0, highestUrgency: null },
-            'spa':          { id: 'spa', name: 'Spa Pavillion', resort: 'TPI', x: 25, y: 34, count: 0, highestUrgency: null },
-            'genset':       { id: 'genset', name: 'Genset & Power House', resort: 'TPI', x: 24, y: 64, count: 0, highestUrgency: null },
-            'staff':        { id: 'staff', name: 'Staff Quarters', resort: 'TPI', x: 34, y: 78, count: 0, highestUrgency: null },
-        };
+        // Initialize TPI zones from official 22 masterplan locations
+        const tpiZones = {};
+        TPI_MASTERPLAN_ZONES.forEach(z => {
+            tpiZones[z.id] = {
+                ...z,
+                resort: 'TPI',
+                count: 0,
+                highestUrgency: null,
+                issues: [],
+            };
+        });
 
         const tbrZones = {
-            'pierhead_dining': { id: 'pierhead_dining', name: 'Lodge Overwater Dining', resort: 'TBR', x: 50, y: 88, count: 0, highestUrgency: null },
-            'pier_villas_w':   { id: 'pier_villas_w', name: 'Overwater Chalets (Barat)', resort: 'TBR', x: 36, y: 58, count: 0, highestUrgency: null },
-            'pier_villas_e':   { id: 'pier_villas_e', name: 'Overwater Chalets (Timur)', resort: 'TBR', x: 64, y: 58, count: 0, highestUrgency: null },
-            'beach_front':     { id: 'beach_front', name: 'Beach Reception & Activities', resort: 'TBR', x: 50, y: 28, count: 0, highestUrgency: null },
-            'kitchen':         { id: 'kitchen', name: 'Restoran & Dapur TBR', resort: 'TBR', x: 32, y: 22, count: 0, highestUrgency: null },
-            'jetty':           { id: 'jetty', name: 'Dermaga Boat TBR', resort: 'TBR', x: 80, y: 44, count: 0, highestUrgency: null },
-            'genset':          { id: 'genset', name: 'Genset & Utilitas TBR', resort: 'TBR', x: 68, y: 16, count: 0, highestUrgency: null },
-            'staff':           { id: 'staff', name: 'Mes Staf TBR', resort: 'TBR', x: 22, y: 16, count: 0, highestUrgency: null },
+            'pierhead_dining': { id: 'pierhead_dining', name: 'Lodge Overwater Dining', resort: 'TBR', x: 50, y: 88, count: 0, highestUrgency: null, issues: [] },
+            'pier_villas_w':   { id: 'pier_villas_w', name: 'Overwater Chalets (Barat)', resort: 'TBR', x: 36, y: 58, count: 0, highestUrgency: null, issues: [] },
+            'pier_villas_e':   { id: 'pier_villas_e', name: 'Overwater Chalets (Timur)', resort: 'TBR', x: 64, y: 58, count: 0, highestUrgency: null, issues: [] },
+            'beach_front':     { id: 'beach_front', name: 'Beach Reception & Activities', resort: 'TBR', x: 50, y: 28, count: 0, highestUrgency: null, issues: [] },
+            'kitchen':         { id: 'kitchen', name: 'Restoran & Dapur TBR', resort: 'TBR', x: 32, y: 22, count: 0, highestUrgency: null, issues: [] },
+            'jetty':           { id: 'jetty', name: 'Dermaga Boat TBR', resort: 'TBR', x: 80, y: 44, count: 0, highestUrgency: null, issues: [] },
+            'genset':          { id: 'genset', name: 'Genset & Utilitas TBR', resort: 'TBR', x: 68, y: 16, count: 0, highestUrgency: null, issues: [] },
+            'staff':           { id: 'staff', name: 'Mes Staf TBR', resort: 'TBR', x: 22, y: 16, count: 0, highestUrgency: null, issues: [] },
         };
 
         const urgencyWeight = { 'Darurat': 4, 'Tinggi': 3, 'Sedang': 2, 'Rendah': 1 };
 
         filteredIssues.forEach((issue) => {
             const loc = (issue.location || '').toLowerCase();
+            const title = (issue.title || '').toLowerCase();
+            const desc = (issue.description || '').toLowerCase();
+            const fullText = `${loc} ${title} ${desc}`;
             const aiResort = issue.ai_analysis?.resort;
             const aiZone = issue.ai_analysis?.zona_spasial;
 
@@ -745,36 +796,45 @@ export function LeanAnalyticsView({
                     matchedKey = 'beach_front';
                 }
             } else {
-                // TPI
-                if (loc.includes('villa') || loc.includes('kamar') || aiZone === 'Vila Terapung') {
-                    const matchNum = loc.match(/\b([1-9]|1[0-5])\b/);
-                    if (matchNum && parseInt(matchNum[1], 10) > 7) {
-                        matchedKey = 'villas_south';
-                    } else {
-                        matchedKey = 'villas_north';
+                // TPI matching against 22 official masterplan facilities
+                // 1. Check Hillside / Ridge Villas first
+                if (loc.includes('bukit') || fullText.includes('vila bukit') || fullText.includes('villa bukit') || fullText.includes('ridge')) {
+                    matchedKey = 'villas_ridge';
+                }
+                // 2. Check Overwater Villas 1-15
+                else if (loc.includes('villa') || loc.includes('kamar') || loc.includes('overwater') || aiZone === 'Vila Terapung') {
+                    matchedKey = 'villas_overwater';
+                }
+                // 3. Match against the 20 other specific facilities by registered keywords
+                else {
+                    for (const zone of TPI_MASTERPLAN_ZONES) {
+                        if (zone.id === 'villas_overwater' || zone.id === 'villas_ridge') continue;
+                        const hasKeyword = zone.keywords.some(kw => fullText.includes(kw));
+                        if (hasKeyword) {
+                            matchedKey = zone.id;
+                            break;
+                        }
                     }
-                } else if (loc.includes('jetty') || loc.includes('dock') || loc.includes('boat') || loc.includes('dermaga') || aiZone === 'Dermaga Jetty') {
-                    matchedKey = 'jetty';
-                } else if (loc.includes('clubhouse') || loc.includes('lobby') || loc.includes('reception') || loc.includes('lounge') || aiZone === 'Clubhouse & Lobby') {
-                    matchedKey = 'clubhouse';
-                } else if (loc.includes('dining') || loc.includes('restoran') || loc.includes('meja') || aiZone === 'Dining Room') {
-                    matchedKey = 'dining';
-                } else if (loc.includes('kitchen') || loc.includes('dapur') || loc.includes('bakery') || loc.includes('chiller') || aiZone === 'Kitchen & Dapur') {
-                    matchedKey = 'kitchen';
-                } else if (loc.includes('spa') || loc.includes('massage') || aiZone === 'Spa Pavillion') {
-                    matchedKey = 'spa';
-                } else if (loc.includes('genset') || loc.includes('panel') || loc.includes('listrik') || aiZone === 'Genset & Utilitas') {
-                    matchedKey = 'genset';
-                } else if (loc.includes('staf') || loc.includes('mes') || aiZone === 'Mes Staf') {
-                    matchedKey = 'staff';
-                } else {
-                    matchedKey = 'clubhouse';
+                    // 4. AI zone fallbacks if keywords not directly found in text
+                    if (!matchedKey && aiZone) {
+                        if (aiZone.includes('Jetty') || aiZone.includes('Dermaga')) matchedKey = 'jetty_arrival';
+                        else if (aiZone.includes('Dining') || aiZone.includes('Restoran')) matchedKey = 'restaurant_office';
+                        else if (aiZone.includes('Clubhouse') || aiZone.includes('Lobby')) matchedKey = 'restaurant_office';
+                        else if (aiZone.includes('Spa')) matchedKey = 'spa';
+                        else if (aiZone.includes('Genset') || aiZone.includes('Utilitas')) matchedKey = 'genset_warehouse';
+                        else if (aiZone.includes('Mes') || aiZone.includes('Staf')) matchedKey = 'asrama_staff';
+                    }
+                    // 5. Default fallback to Restaurant & Main Office
+                    if (!matchedKey) {
+                        matchedKey = 'restaurant_office';
+                    }
                 }
             }
 
             if (matchedKey && targetMap[matchedKey]) {
                 const zone = targetMap[matchedKey];
                 zone.count += 1;
+                zone.issues.push(issue);
                 const urg = issue.ai_urgency || 'Sedang';
                 if (!zone.highestUrgency || (urgencyWeight[urg] || 0) > (urgencyWeight[zone.highestUrgency] || 0)) {
                     zone.highestUrgency = urg;
@@ -1471,20 +1531,109 @@ export function LeanAnalyticsView({
                                 Lokasi dipetakan secara otomatis oleh AI berdasarkan isi laporan unit
                             </span>
                         </div>
-                        <TpiResortMap zones={spatialHotspots.tpiZones} />
-                        <div className="flex items-center justify-center gap-4 text-[10px] text-slate-400 pt-1">
-                            <span className="flex items-center gap-1.5">
-                                <span className="w-2.5 h-2.5 rounded-full bg-rose-500 ring-2 ring-rose-400/40" /> Hotspot Kritis (Darurat / Tinggi)
-                            </span>
-                            <span className="flex items-center gap-1.5">
-                                <span className="w-2.5 h-2.5 rounded-full bg-amber-400 ring-2 ring-amber-400/40" /> Hotspot Sedang
-                            </span>
-                            <span className="flex items-center gap-1.5">
-                                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-emerald-400/40" /> Normal / Rendah
-                            </span>
-                            <span className="flex items-center gap-1.5">
-                                <span className="w-2 h-2 rounded-full bg-slate-500" /> Tidak Ada Isu Aktif
-                            </span>
+                        <TpiResortMap
+                            zones={spatialHotspots.tpiZones}
+                            onSelectZone={(zone) => setSelectedTpiZone(prev => prev?.id === zone.id ? null : zone)}
+                            selectedZoneId={selectedTpiZone?.id}
+                        />
+
+                        {/* Zone Detail Inspector if clicked */}
+                        {selectedTpiZone && (
+                            <div className="p-3.5 rounded-xl bg-slate-900 border border-sky-500/40 shadow-lg animate-in fade-in duration-200 space-y-2">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <span className="w-6 h-6 rounded-full bg-sky-500/20 text-sky-400 font-bold text-xs flex items-center justify-center border border-sky-500/40">
+                                            #{selectedTpiZone.num}
+                                        </span>
+                                        <div>
+                                            <h4 className="font-bold text-sm text-white">{selectedTpiZone.name}</h4>
+                                            <p className="text-[11px] text-slate-400">{selectedTpiZone.enName} • Telunas Private Island</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                                            (selectedTpiZone.count || 0) > 0
+                                                ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                                                : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                        }`}>
+                                            {selectedTpiZone.count || 0} Isu Aktif
+                                        </span>
+                                        <button
+                                            type="button"
+                                            onClick={() => setSelectedTpiZone(null)}
+                                            className="text-xs text-slate-400 hover:text-white px-2 py-1 rounded bg-slate-800"
+                                        >
+                                            Tutup
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {selectedTpiZone.issues?.length > 0 ? (
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                                        {selectedTpiZone.issues.map(iss => (
+                                            <div key={iss.id} className="p-2 rounded-lg bg-slate-950/70 border border-slate-800 text-xs space-y-1">
+                                                <div className="flex items-center justify-between gap-1">
+                                                    <span className="font-mono text-sky-400 font-semibold">#{iss.id}</span>
+                                                    <span className={`px-1.5 py-0.2 rounded text-[10px] font-semibold ${
+                                                        iss.urgency === 'Darurat' ? 'bg-rose-500/20 text-rose-300' :
+                                                        iss.urgency === 'Tinggi' ? 'bg-orange-500/20 text-orange-300' :
+                                                        'bg-slate-700 text-slate-300'
+                                                    }`}>
+                                                        {iss.urgency || 'Sedang'}
+                                                    </span>
+                                                </div>
+                                                <p className="font-medium text-slate-200 line-clamp-1">{iss.title}</p>
+                                                <div className="text-[10px] text-slate-400 flex items-center justify-between">
+                                                    <span>📍 {iss.location || '-'}</span>
+                                                    <span>{iss.reported_at || iss.created_at?.slice(0, 10) || ''}</span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <p className="text-xs text-emerald-400/90 italic pt-1">
+                                        ✓ Tidak ada laporan masalah aktif di fasilitas ini. Semua sistem berjalan normal.
+                                    </p>
+                                )}
+                            </div>
+                        )}
+
+                        {/* 22 Masterplan Facilities Quick Directory Grid */}
+                        <div className="rounded-xl bg-slate-900/60 border border-slate-800 p-3 space-y-2">
+                            <div className="flex items-center justify-between">
+                                <span className="text-xs font-semibold text-slate-300">Daftar 22 Fasilitas Resmi TPI</span>
+                                <span className="text-[11px] text-slate-500">Klik nama fasilitas untuk menyorot titik pada denah</span>
+                            </div>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-1.5 pt-1">
+                                {spatialHotspots.tpiZones.map(zone => {
+                                    const count = zone.count || 0;
+                                    const isSelected = selectedTpiZone?.id === zone.id;
+                                    return (
+                                        <button
+                                            key={zone.id}
+                                            type="button"
+                                            onClick={() => setSelectedTpiZone(prev => prev?.id === zone.id ? null : zone)}
+                                            className={`flex items-center justify-between p-1.5 px-2 rounded-lg text-left text-[11px] transition-all border ${
+                                                isSelected
+                                                    ? 'bg-sky-500/20 text-sky-200 border-sky-500/50 shadow-sm'
+                                                    : count > 0
+                                                    ? 'bg-rose-500/10 text-rose-200 border-rose-500/30 hover:bg-rose-500/20'
+                                                    : 'bg-slate-950/40 text-slate-400 border-slate-800/80 hover:bg-slate-800 hover:text-slate-200'
+                                            }`}
+                                        >
+                                            <span className="truncate pr-1">
+                                                <span className="font-mono text-slate-500 text-[10px] mr-1">#{zone.num}</span>
+                                                {zone.name}
+                                            </span>
+                                            {count > 0 && (
+                                                <span className="px-1.5 py-0.2 rounded font-bold text-[9px] bg-rose-500 text-white shrink-0">
+                                                    {count}
+                                                </span>
+                                            )}
+                                        </button>
+                                    );
+                                })}
+                            </div>
                         </div>
                     </div>
                 )}
