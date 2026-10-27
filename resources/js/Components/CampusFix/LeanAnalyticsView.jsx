@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
     ResponsiveContainer,
     BarChart,
@@ -46,6 +46,14 @@ import {
     ZoomOut,
     Eye,
     EyeOff,
+    SlidersHorizontal,
+    Table,
+    LayoutGrid,
+    RotateCcw,
+    ChevronDown,
+    Activity,
+    CheckSquare,
+    Square,
 } from 'lucide-react';
 import { TPI_MASTERPLAN_ZONES, TBR_MASTERPLAN_ZONES } from '@/constants/locations';
 
@@ -163,6 +171,53 @@ const CustomDeptTooltip = ({ active, payload, label }) => {
             <div className="pt-1.5 mt-1.5 border-t border-slate-800 flex justify-between text-slate-400 font-semibold">
                 <span>Total Beban:</span>
                 <span className="text-white font-bold">{total}</span>
+            </div>
+        </div>
+    );
+};
+
+// Custom Tooltip for Category Urgency Matrix
+const CustomUrgencyTooltip = ({ active, payload, label }) => {
+    if (!active || !payload || !payload.length) return null;
+    const total = payload.reduce((sum, item) => sum + (Number(item.value) || 0), 0);
+    return (
+        <div className="bg-slate-900/95 border border-slate-700/80 rounded-lg p-2.5 shadow-xl text-xs min-w-[170px] backdrop-blur-sm z-50">
+            <div className="flex items-center justify-between pb-1 mb-1.5 border-b border-slate-800 font-bold text-white">
+                <span>{label}</span>
+                <span className="text-[10px] text-slate-400">Total: {total}</span>
+            </div>
+            <div className="space-y-1">
+                {payload.map((item) => (
+                    <div key={item.dataKey} className="flex items-center justify-between text-slate-300 gap-3">
+                        <span className="flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color || item.fill }} />
+                            {item.name}:
+                        </span>
+                        <span className="font-bold text-white">{item.value}</span>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+};
+
+// Custom Tooltip for MTTR / Speed Analysis
+const CustomMttrTooltip = ({ active, payload }) => {
+    if (!active || !payload || !payload.length) return null;
+    const data = payload[0]?.payload;
+    if (!data) return null;
+    return (
+        <div className="bg-slate-900/95 border border-slate-700/80 rounded-lg p-2.5 shadow-xl text-xs backdrop-blur-sm z-50">
+            <p className="font-bold text-white mb-1 pb-1 border-b border-slate-800">{data.department}</p>
+            <div className="space-y-1 text-slate-300">
+                <div className="flex items-center justify-between gap-4">
+                    <span>Rata-rata Durasi Selesai:</span>
+                    <span className="font-bold text-amber-300">{data.avgHours} Jam</span>
+                </div>
+                <div className="flex items-center justify-between gap-4 text-slate-400 text-[10px]">
+                    <span>Tiket Diselesaikan:</span>
+                    <span className="font-semibold text-white">{data.solvedCount}</span>
+                </div>
             </div>
         </div>
     );
@@ -559,6 +614,116 @@ export function LeanAnalyticsView({
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
     
+    // --- 3-Tab ERP State & Widget Customization ---
+    const [activeTab, setActiveTab] = useState(() => {
+        try {
+            return localStorage.getItem('lean_erp_analytics_tab') || 'executive';
+        } catch {
+            return 'executive';
+        }
+    });
+
+    const [widgetVisibility, setWidgetVisibility] = useState(() => {
+        const defaultVisibility = {
+            // Tab 1: Executive & Spasial
+            kpi_cards: true,
+            hotspot_matrix: true,
+            // Tab 2: Maintenance
+            pareto_chart: true,
+            category_donut: true,
+            urgency_matrix: true,
+            mitigation_feed: true,
+            // Tab 3: SLA & Operations
+            sla_kpi: true,
+            mttr_analytics: true,
+            dept_workload: true,
+        };
+        try {
+            const saved = localStorage.getItem('lean_erp_analytics_widgets');
+            if (saved) return { ...defaultVisibility, ...JSON.parse(saved) };
+        } catch {}
+        return defaultVisibility;
+    });
+
+    const [widgetViewModes, setWidgetViewModes] = useState(() => {
+        const defaultModes = {
+            pareto_chart: 'chart', // 'chart' | 'table'
+            category_donut: 'chart',
+            urgency_matrix: 'chart',
+            mttr_analytics: 'chart',
+            dept_workload: 'chart',
+        };
+        try {
+            const saved = localStorage.getItem('lean_erp_analytics_viewmodes');
+            if (saved) return { ...defaultModes, ...JSON.parse(saved) };
+        } catch {}
+        return defaultModes;
+    });
+
+    const [showWidgetModal, setShowWidgetModal] = useState(false);
+
+    // Persist activeTab to localStorage
+    useEffect(() => {
+        try {
+            localStorage.setItem('lean_erp_analytics_tab', activeTab);
+        } catch {}
+    }, [activeTab]);
+
+    // Persist widgetVisibility to localStorage
+    useEffect(() => {
+        try {
+            localStorage.setItem('lean_erp_analytics_widgets', JSON.stringify(widgetVisibility));
+        } catch {}
+    }, [widgetVisibility]);
+
+    // Persist widgetViewModes to localStorage
+    useEffect(() => {
+        try {
+            localStorage.setItem('lean_erp_analytics_viewmodes', JSON.stringify(widgetViewModes));
+        } catch {}
+    }, [widgetViewModes]);
+
+    const toggleWidgetVisibility = (widgetKey) => {
+        setWidgetVisibility((prev) => ({
+            ...prev,
+            [widgetKey]: !prev[widgetKey],
+        }));
+    };
+
+    const toggleViewMode = (widgetKey) => {
+        setWidgetViewModes((prev) => ({
+            ...prev,
+            [widgetKey]: prev[widgetKey] === 'table' ? 'chart' : 'table',
+        }));
+    };
+
+    const resetWidgetSettings = () => {
+        const resetVisibility = {
+            kpi_cards: true,
+            hotspot_matrix: true,
+            pareto_chart: true,
+            category_donut: true,
+            urgency_matrix: true,
+            mitigation_feed: true,
+            sla_kpi: true,
+            mttr_analytics: true,
+            dept_workload: true,
+        };
+        const resetModes = {
+            pareto_chart: 'chart',
+            category_donut: 'chart',
+            urgency_matrix: 'chart',
+            mttr_analytics: 'chart',
+            dept_workload: 'chart',
+        };
+        setWidgetVisibility(resetVisibility);
+        setWidgetViewModes(resetModes);
+        try {
+            localStorage.setItem('lean_erp_analytics_widgets', JSON.stringify(resetVisibility));
+            localStorage.setItem('lean_erp_analytics_viewmodes', JSON.stringify(resetModes));
+        } catch {}
+    };
+
     // Google Sheets Sync states
     const [isSyncingSheets, setIsSyncingSheets] = useState(false);
     const [syncFeedback, setSyncFeedback] = useState(null);
@@ -1032,6 +1197,116 @@ export function LeanAnalyticsView({
             .slice(0, 15);
     }, [filteredIssues, selectedCategory, searchFilter]);
 
+    // --- 8. MTTR & Response Time Analytics (Lifecycle & SLA) ---
+    const mttrData = useMemo(() => {
+        let totalTurnaroundHours = 0;
+        let resolvedWithTimeCount = 0;
+        let totalResponseHours = 0;
+        let claimedCount = 0;
+
+        let slaUnder2h = 0;
+        let slaUnder24h = 0;
+        let slaOver24h = 0;
+
+        const deptTimeMap = {};
+
+        filteredIssues.forEach((issue) => {
+            const created = issue.created_at ? new Date(issue.created_at).getTime() : null;
+            const claimed = issue.claimed_at ? new Date(issue.claimed_at).getTime() : null;
+            const resolved = issue.resolved_at ? new Date(issue.resolved_at).getTime() : null;
+
+            if (created && claimed && claimed >= created) {
+                const resHours = (claimed - created) / (1000 * 60 * 60);
+                totalResponseHours += resHours;
+                claimedCount++;
+            }
+
+            if (created && resolved && resolved >= created) {
+                const turnHours = (resolved - created) / (1000 * 60 * 60);
+                totalTurnaroundHours += turnHours;
+                resolvedWithTimeCount++;
+
+                if (turnHours <= 2) slaUnder2h++;
+                else if (turnHours <= 24) slaUnder24h++;
+                else slaOver24h++;
+
+                let depts = issue.target_departments;
+                if (typeof depts === 'string') {
+                    try { depts = JSON.parse(depts); } catch { depts = [depts]; }
+                }
+                if (!Array.isArray(depts) || depts.length === 0) depts = ['Umum'];
+
+                depts.forEach((d) => {
+                    const deptName = (d || 'Umum').trim() || 'Umum';
+                    if (!deptTimeMap[deptName]) {
+                        deptTimeMap[deptName] = { department: deptName, totalHours: 0, count: 0 };
+                    }
+                    deptTimeMap[deptName].totalHours += turnHours;
+                    deptTimeMap[deptName].count++;
+                });
+            }
+        });
+
+        const avgTurnaroundHours = resolvedWithTimeCount > 0 
+            ? parseFloat((totalTurnaroundHours / resolvedWithTimeCount).toFixed(1)) 
+            : 0;
+
+        const avgResponseHours = claimedCount > 0 
+            ? parseFloat((totalResponseHours / claimedCount).toFixed(1)) 
+            : 0;
+
+        const deptMttrList = Object.values(deptTimeMap)
+            .map((d) => ({
+                department: d.department,
+                avgHours: parseFloat((d.totalHours / d.count).toFixed(1)),
+                solvedCount: d.count,
+            }))
+            .sort((a, b) => a.avgHours - b.avgHours);
+
+        const slaRate24h = resolvedWithTimeCount > 0
+            ? Math.round(((slaUnder2h + slaUnder24h) / resolvedWithTimeCount) * 100)
+            : 0;
+
+        return {
+            avgTurnaroundHours,
+            avgResponseHours,
+            resolvedWithTimeCount,
+            claimedCount,
+            slaUnder2h,
+            slaUnder24h,
+            slaOver24h,
+            slaRate24h,
+            deptMttrList,
+        };
+    }, [filteredIssues]);
+
+    // --- 9. Category Urgency Matrix ---
+    const urgencyMatrixData = useMemo(() => {
+        const catMap = {};
+        filteredIssues.forEach((i) => {
+            const cat = i.ai_category || 'Lain-lain';
+            if (!catMap[cat]) {
+                catMap[cat] = {
+                    category: cat,
+                    Darurat: 0,
+                    Tinggi: 0,
+                    Sedang: 0,
+                    Rendah: 0,
+                    total: 0,
+                };
+            }
+            const urg = i.ai_urgency || 'Sedang';
+            if (catMap[cat][urg] !== undefined) {
+                catMap[cat][urg]++;
+            } else {
+                catMap[cat]['Sedang']++;
+            }
+            catMap[cat].total++;
+        });
+
+        return Object.values(catMap).sort((a, b) => b.total - a.total);
+    }, [filteredIssues]);
+
     return (
         <div className="space-y-6 animate-in fade-in pb-12">
             {/* FAILSAFE BANNER (When offline queue has pending issues) */}
@@ -1172,398 +1447,357 @@ export function LeanAnalyticsView({
                 </div>
             </div>
 
-            {/* TOP KPI CARDS */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                {/* Total & AI Coverage */}
-                <div className="p-4 rounded-xl bg-slate-800/90 border border-slate-700/80 shadow-sm relative overflow-hidden">
-                    <div className="flex items-center justify-between">
-                        <span className="text-xs font-semibold text-slate-400">Total Tiket Terekam</span>
-                        <div className="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
-                            <Layers className="w-4 h-4" />
-                        </div>
-                    </div>
-                    <div className="mt-2 flex items-baseline gap-2">
-                        <span className="text-2xl font-black text-white">{stats.total}</span>
-                        <span className="text-[10px] text-emerald-400 font-semibold bg-emerald-950/80 px-1.5 py-0.5 rounded border border-emerald-800/50">
-                            {stats.analyzed} Dianalisis AI
-                        </span>
-                    </div>
-                    <p className="text-[11px] text-slate-500 mt-1">
-                        {stats.resolved} tiket telah diselesaikan tim
-                    </p>
+            {/* TAB NAVIGATION & ERP WIDGET CONTROLS */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-700/80">
+                <div className="flex items-center gap-1.5 p-1 bg-slate-900/90 rounded-xl border border-slate-700/80 flex-wrap">
+                    <button
+                        type="button"
+                        onClick={() => setActiveTab('executive')}
+                        className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                            activeTab === 'executive'
+                                ? 'bg-teal-500 text-slate-950 shadow-md shadow-teal-500/20'
+                                : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                        }`}
+                    >
+                        <Compass className="w-3.5 h-3.5" />
+                        <span>1. Ringkasan Eksekutif & Spasial</span>
+                    </button>
+
+                    <button
+                        type="button"
+                        onClick={() => setActiveTab('maintenance')}
+                        className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                            activeTab === 'maintenance'
+                                ? 'bg-teal-500 text-slate-950 shadow-md shadow-teal-500/20'
+                                : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                        }`}
+                    >
+                        <Wrench className="w-3.5 h-3.5" />
+                        <span>2. Maintenance & Akar Masalah</span>
+                    </button>
+
+                    <button
+                        type="button"
+                        onClick={() => setActiveTab('sla_performance')}
+                        className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                            activeTab === 'sla_performance'
+                                ? 'bg-teal-500 text-slate-950 shadow-md shadow-teal-500/20'
+                                : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                        }`}
+                    >
+                        <Clock className="w-3.5 h-3.5" />
+                        <span>3. Performa Waktu & Departemen</span>
+                    </button>
                 </div>
 
-                {/* Top Category */}
-                <div className="p-4 rounded-xl bg-slate-800/90 border border-slate-700/80 shadow-sm relative overflow-hidden">
-                    <div className="flex items-center justify-between">
-                        <span className="text-xs font-semibold text-slate-400">Kategori Dominan</span>
-                        <div className="w-7 h-7 rounded-lg bg-sky-500/20 text-sky-400 flex items-center justify-center">
-                            <Sparkles className="w-4 h-4" />
-                        </div>
-                    </div>
-                    <div className="mt-2">
-                        <span className="text-base font-bold text-sky-300 truncate block">
-                            {stats.topCat}
-                        </span>
-                    </div>
-                    <p className="text-[11px] text-slate-400 mt-1">
-                        Menyumbang {stats.topCatCount} laporan ({stats.total > 0 ? Math.round((stats.topCatCount / stats.total) * 100) : 0}%)
-                    </p>
-                </div>
+                {/* ERP Widget Customization Controls */}
+                <div className="relative">
+                    <button
+                        type="button"
+                        onClick={() => setShowWidgetModal(!showWidgetModal)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-medium border border-slate-700 transition shadow-sm"
+                    >
+                        <SlidersHorizontal className="w-3.5 h-3.5 text-teal-400" />
+                        <span>Atur Tampilan Widget</span>
+                        <ChevronDown className={`w-3 h-3 transition-transform ${showWidgetModal ? 'rotate-180' : ''}`} />
+                    </button>
 
-                {/* Hotspot Location */}
-                <div className="p-4 rounded-xl bg-slate-800/90 border border-slate-700/80 shadow-sm relative overflow-hidden">
-                    <div className="flex items-center justify-between">
-                        <span className="text-xs font-semibold text-slate-400">Titik Hotspot Masalah</span>
-                        <div className="w-7 h-7 rounded-lg bg-rose-500/20 text-rose-400 flex items-center justify-center">
-                            <Flame className="w-4 h-4" />
-                        </div>
-                    </div>
-                    <div className="mt-2">
-                        <span className="text-base font-bold text-rose-300 truncate block">
-                            {stats.topLoc}
-                        </span>
-                    </div>
-                    <p className="text-[11px] text-slate-400 mt-1">
-                        {stats.topLocCount} insiden tercatat di lokasi ini
-                    </p>
-                </div>
+                    {showWidgetModal && (
+                        <div className="absolute right-0 top-full mt-2 w-72 bg-slate-900 border border-slate-700 rounded-xl p-3 shadow-2xl z-50 text-xs backdrop-blur-md">
+                            <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-800">
+                                <span className="font-bold text-white flex items-center gap-1.5">
+                                    <SlidersHorizontal className="w-3.5 h-3.5 text-teal-400" />
+                                    Kustomisasi Widget
+                                </span>
+                                <button
+                                    type="button"
+                                    onClick={resetWidgetSettings}
+                                    className="text-[10px] text-teal-400 hover:underline flex items-center gap-1"
+                                >
+                                    <RotateCcw className="w-3 h-3" />
+                                    Reset
+                                </button>
+                            </div>
 
-                {/* Sparepart Dependency */}
-                <div className="p-4 rounded-xl bg-slate-800/90 border border-slate-700/80 shadow-sm relative overflow-hidden">
-                    <div className="flex items-center justify-between">
-                        <span className="text-xs font-semibold text-slate-400">Ketergantungan Suku Cadang</span>
-                        <div className="w-7 h-7 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center">
-                            <Package className="w-4 h-4" />
+                            <p className="text-[10px] text-slate-400 mb-2">
+                                Atur visibilitas widget untuk tab aktif:
+                            </p>
+
+                            <div className="space-y-1.5 max-h-60 overflow-y-auto pr-1">
+                                {activeTab === 'executive' && (
+                                    <>
+                                        <label className="flex items-center justify-between p-1.5 rounded hover:bg-slate-800/80 cursor-pointer">
+                                            <span className="text-slate-200">Kartu KPI Ringkasan</span>
+                                            <input
+                                                type="checkbox"
+                                                checked={widgetVisibility.kpi_cards !== false}
+                                                onChange={() => toggleWidgetVisibility('kpi_cards')}
+                                                className="rounded bg-slate-800 border-slate-700 text-teal-500 focus:ring-0"
+                                            />
+                                        </label>
+                                        <label className="flex items-center justify-between p-1.5 rounded hover:bg-slate-800/80 cursor-pointer">
+                                            <span className="text-slate-200">Matriks Hotspot & Denah</span>
+                                            <input
+                                                type="checkbox"
+                                                checked={widgetVisibility.hotspot_matrix !== false}
+                                                onChange={() => toggleWidgetVisibility('hotspot_matrix')}
+                                                className="rounded bg-slate-800 border-slate-700 text-teal-500 focus:ring-0"
+                                            />
+                                        </label>
+                                    </>
+                                )}
+
+                                {activeTab === 'maintenance' && (
+                                    <>
+                                        <label className="flex items-center justify-between p-1.5 rounded hover:bg-slate-800/80 cursor-pointer">
+                                            <span className="text-slate-200">Diagram Pareto (80/20)</span>
+                                            <input
+                                                type="checkbox"
+                                                checked={widgetVisibility.pareto_chart !== false}
+                                                onChange={() => toggleWidgetVisibility('pareto_chart')}
+                                                className="rounded bg-slate-800 border-slate-700 text-teal-500 focus:ring-0"
+                                            />
+                                        </label>
+                                        <label className="flex items-center justify-between p-1.5 rounded hover:bg-slate-800/80 cursor-pointer">
+                                            <span className="text-slate-200">Distribusi Kategori Fasilitas</span>
+                                            <input
+                                                type="checkbox"
+                                                checked={widgetVisibility.category_donut !== false}
+                                                onChange={() => toggleWidgetVisibility('category_donut')}
+                                                className="rounded bg-slate-800 border-slate-700 text-teal-500 focus:ring-0"
+                                            />
+                                        </label>
+                                        <label className="flex items-center justify-between p-1.5 rounded hover:bg-slate-800/80 cursor-pointer">
+                                            <span className="text-slate-200">Matriks Urgensi per Kategori</span>
+                                            <input
+                                                type="checkbox"
+                                                checked={widgetVisibility.urgency_matrix !== false}
+                                                onChange={() => toggleWidgetVisibility('urgency_matrix')}
+                                                className="rounded bg-slate-800 border-slate-700 text-teal-500 focus:ring-0"
+                                            />
+                                        </label>
+                                        <label className="flex items-center justify-between p-1.5 rounded hover:bg-slate-800/80 cursor-pointer">
+                                            <span className="text-slate-200">Feed Mitigasi AI</span>
+                                            <input
+                                                type="checkbox"
+                                                checked={widgetVisibility.mitigation_feed !== false}
+                                                onChange={() => toggleWidgetVisibility('mitigation_feed')}
+                                                className="rounded bg-slate-800 border-slate-700 text-teal-500 focus:ring-0"
+                                            />
+                                        </label>
+                                    </>
+                                )}
+
+                                {activeTab === 'sla_performance' && (
+                                    <>
+                                        <label className="flex items-center justify-between p-1.5 rounded hover:bg-slate-800/80 cursor-pointer">
+                                            <span className="text-slate-200">Metrik Kecepatan & SLA</span>
+                                            <input
+                                                type="checkbox"
+                                                checked={widgetVisibility.sla_kpi !== false}
+                                                onChange={() => toggleWidgetVisibility('sla_kpi')}
+                                                className="rounded bg-slate-800 border-slate-700 text-teal-500 focus:ring-0"
+                                            />
+                                        </label>
+                                        <label className="flex items-center justify-between p-1.5 rounded hover:bg-slate-800/80 cursor-pointer">
+                                            <span className="text-slate-200">Kecepatan MTTR per Dept</span>
+                                            <input
+                                                type="checkbox"
+                                                checked={widgetVisibility.mttr_analytics !== false}
+                                                onChange={() => toggleWidgetVisibility('mttr_analytics')}
+                                                className="rounded bg-slate-800 border-slate-700 text-teal-500 focus:ring-0"
+                                            />
+                                        </label>
+                                        <label className="flex items-center justify-between p-1.5 rounded hover:bg-slate-800/80 cursor-pointer">
+                                            <span className="text-slate-200">Laporan Beban per Dept</span>
+                                            <input
+                                                type="checkbox"
+                                                checked={widgetVisibility.dept_workload !== false}
+                                                onChange={() => toggleWidgetVisibility('dept_workload')}
+                                                className="rounded bg-slate-800 border-slate-700 text-teal-500 focus:ring-0"
+                                            />
+                                        </label>
+                                    </>
+                                )}
+                            </div>
+
+                            <div className="pt-2 mt-2 border-t border-slate-800 text-[10px] text-slate-500 text-center">
+                                Preferensi tersimpan di browser
+                            </div>
                         </div>
-                    </div>
-                    <div className="mt-2 flex items-baseline gap-1.5">
-                        <span className="text-2xl font-black text-amber-300">{stats.sparepartRatio}%</span>
-                        <span className="text-[11px] text-slate-400">kasus butuh part</span>
-                    </div>
-                    <p className="text-[11px] text-slate-500 mt-1">
-                        Audit kesiapan stok logistik pulau
-                    </p>
+                    )}
                 </div>
             </div>
 
-            {/* CHARTS ROW 1: PARETO (TOP SUB-CATEGORIES) & CATEGORY DONUT */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                {/* 1. PARETO DUAL-AXIS COMPOSED CHART */}
-                <div className="lg:col-span-2 p-4 rounded-xl bg-slate-800/90 border border-slate-700/80 shadow-sm flex flex-col justify-between">
-                    <div>
-                        <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-                            <div>
-                                <h3 className="text-xs font-bold text-white flex items-center gap-1.5">
-                                    <TrendingUp className="w-4 h-4 text-emerald-400" />
-                                    Analisa Pareto: Top Masalah Berulang (80/20 Rule)
-                                </h3>
-                                <p className="text-[11px] text-slate-400 mt-0.5">
-                                    Identifikasi 20% akar masalah yang menyumbang 80% insiden resort
+            {/* ========================================================= */}
+            {/* TAB 1: RINGKASAN EKSEKUTIF & SPASIAL                      */}
+            {/* ========================================================= */}
+            {activeTab === 'executive' && (
+                <div className="space-y-6">
+                    {/* TOP KPI CARDS */}
+                    {widgetVisibility.kpi_cards !== false && (
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                            {/* Total & AI Coverage */}
+                            <div className="p-4 rounded-xl bg-slate-800/90 border border-slate-700/80 shadow-sm relative overflow-hidden group">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-xs font-semibold text-slate-400">Total Tiket Terekam</span>
+                                    <div className="flex items-center gap-1.5">
+                                        <button
+                                            type="button"
+                                            onClick={() => toggleWidgetVisibility('kpi_cards')}
+                                            className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-slate-500 hover:text-rose-400"
+                                            title="Sembunyikan Kartu KPI"
+                                        >
+                                            <EyeOff className="w-3 h-3" />
+                                        </button>
+                                        <div className="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                                            <Layers className="w-4 h-4" />
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="mt-2 flex items-baseline gap-2">
+                                    <span className="text-2xl font-black text-white">{stats.total}</span>
+                                    <span className="text-[10px] text-emerald-400 font-semibold bg-emerald-950/80 px-1.5 py-0.5 rounded border border-emerald-800/50">
+                                        {stats.analyzed} Dianalisis AI
+                                    </span>
+                                </div>
+                                <p className="text-[11px] text-slate-500 mt-1">
+                                    {stats.resolved} tiket telah diselesaikan tim
                                 </p>
                             </div>
 
-                            {paretoSummary && paretoSummary.vitalCount > 0 && (
-                                <div className="px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-[11px] font-medium text-emerald-300 flex items-center gap-1.5 shadow-sm">
-                                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
-                                    <span>
-                                        Top <strong>{paretoSummary.vitalCount}</strong> masalah menyumbang{' '}
-                                        <strong className="text-emerald-200">{paretoSummary.vitalTopPercentage}%</strong> komplain
+                            {/* Top Category */}
+                            <div className="p-4 rounded-xl bg-slate-800/90 border border-slate-700/80 shadow-sm relative overflow-hidden">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-xs font-semibold text-slate-400">Kategori Dominan</span>
+                                    <div className="w-7 h-7 rounded-lg bg-sky-500/20 text-sky-400 flex items-center justify-center">
+                                        <Sparkles className="w-4 h-4" />
+                                    </div>
+                                </div>
+                                <div className="mt-2">
+                                    <span className="text-base font-bold text-sky-300 truncate block">
+                                        {stats.topCat}
                                     </span>
                                 </div>
-                            )}
-                        </div>
-
-                        {/* Visual Legend Bar */}
-                        <div className="flex flex-wrap items-center gap-3 sm:gap-4 px-1 py-1 mb-2 text-[10px] text-slate-400 border-y border-slate-750/50">
-                            <div className="flex items-center gap-1.5">
-                                <span className="w-2.5 h-2.5 rounded-sm bg-emerald-500 shrink-0" />
-                                <span className="text-slate-200 font-medium">Vital Few (Prioritas 80%)</span>
+                                <p className="text-[11px] text-slate-400 mt-1">
+                                    Menyumbang {stats.topCatCount} laporan ({stats.total > 0 ? Math.round((stats.topCatCount / stats.total) * 100) : 0}%)
+                                </p>
                             </div>
-                            <div className="flex items-center gap-1.5">
-                                <span className="w-2.5 h-2.5 rounded-sm bg-slate-500 shrink-0" />
-                                <span>Masalah Sekunder (&gt;80%)</span>
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                                <span className="w-3.5 h-0.5 bg-amber-400 shrink-0 inline-block" />
-                                <span className="text-amber-400 font-medium">Garis Akumulasi (%)</span>
-                            </div>
-                            <div className="flex items-center gap-1.5 ml-auto">
-                                <span className="w-3.5 h-0.5 border-b border-rose-500 border-dashed shrink-0 inline-block" />
-                                <span className="text-rose-400 font-medium">Batas 80% Target</span>
-                            </div>
-                        </div>
-                    </div>
 
-                    {paretoData.length === 0 ? (
-                        <div className="py-16 text-center text-xs text-slate-500">
-                            Belum ada data sub-kategori untuk ditampilkan.
-                        </div>
-                    ) : (
-                        <div className="h-72 w-full mt-1">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <ComposedChart
-                                    data={paretoData}
-                                    margin={{ top: 15, right: 25, left: -10, bottom: 40 }}
-                                >
-                                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
-                                    <XAxis
-                                        dataKey="name"
-                                        stroke="#cbd5e1"
-                                        fontSize={10}
-                                        interval={0}
-                                        angle={-22}
-                                        textAnchor="end"
-                                        height={45}
-                                        tickFormatter={(val) => (val && val.length > 15 ? val.substring(0, 14) + '…' : val)}
-                                    />
-                                    {/* Sumbu Kiri: Jumlah Kasus */}
-                                    <YAxis
-                                        yAxisId="left"
-                                        type="number"
-                                        stroke="#94a3b8"
-                                        fontSize={10}
-                                        allowDecimals={false}
-                                        domain={[0, (dataMax) => Math.max(2, Math.ceil(dataMax * 1.25))]}
-                                    />
-                                    {/* Sumbu Kanan: Persentase Kumulatif (0 - 100%) */}
-                                    <YAxis
-                                        yAxisId="right"
-                                        orientation="right"
-                                        type="number"
-                                        stroke="#f59e0b"
-                                        fontSize={10}
-                                        domain={[0, 100]}
-                                        unit="%"
-                                        tickFormatter={(val) => `${val}%`}
-                                    />
-                                    <RechartsTooltip
-                                        cursor={{ fill: 'rgba(255, 255, 255, 0.05)' }}
-                                        content={<CustomParetoTooltip />}
-                                    />
-                                    {/* Garis Batas 80% Pareto */}
-                                    <ReferenceLine
-                                        yAxisId="right"
-                                        y={80}
-                                        stroke="#f43f5e"
-                                        strokeDasharray="4 4"
-                                        strokeWidth={1.5}
-                                    />
-                                    {/* Bar Jumlah Kasus */}
-                                    <Bar
-                                        yAxisId="left"
-                                        dataKey="count"
-                                        name="Jumlah Kasus"
-                                        radius={[4, 4, 0, 0]}
-                                    >
-                                        {paretoData.map((entry, index) => (
-                                            <Cell
-                                                key={`cell-${index}`}
-                                                fill={entry.isVital ? '#10b981' : '#64748b'}
-                                            />
-                                        ))}
-                                        <LabelList
-                                            dataKey="count"
-                                            position="top"
-                                            fill="#ffffff"
-                                            fontSize={10}
-                                            fontWeight={700}
-                                            offset={5}
-                                        />
-                                    </Bar>
-                                    {/* Garis Kurva Akumulasi (%) */}
-                                    <Line
-                                        yAxisId="right"
-                                        type="monotone"
-                                        dataKey="cumulativePercentage"
-                                        name="Akumulasi %"
-                                        stroke="#f59e0b"
-                                        strokeWidth={2.5}
-                                        dot={{ r: 4, fill: '#f59e0b', stroke: '#0f172a', strokeWidth: 1.5 }}
-                                        activeDot={{ r: 6, fill: '#fbbf24' }}
-                                    />
-                                </ComposedChart>
-                            </ResponsiveContainer>
-                        </div>
-                    )}
-                </div>
+                            {/* Hotspot Location */}
+                            <div className="p-4 rounded-xl bg-slate-800/90 border border-slate-700/80 shadow-sm relative overflow-hidden">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-xs font-semibold text-slate-400">Titik Hotspot Masalah</span>
+                                    <div className="w-7 h-7 rounded-lg bg-rose-500/20 text-rose-400 flex items-center justify-center">
+                                        <Flame className="w-4 h-4" />
+                                    </div>
+                                </div>
+                                <div className="mt-2">
+                                    <span className="text-base font-bold text-rose-300 truncate block">
+                                        {stats.topLoc}
+                                    </span>
+                                </div>
+                                <p className="text-[11px] text-slate-400 mt-1">
+                                    {stats.topLocCount} insiden tercatat di lokasi ini
+                                </p>
+                            </div>
 
-                {/* 2. CATEGORY DONUT */}
-                <div className="p-4 rounded-xl bg-slate-800/90 border border-slate-700/80 shadow-sm flex flex-col">
-                    <div className="mb-2">
-                        <h3 className="text-xs font-bold text-white flex items-center gap-1.5">
-                            <Sparkles className="w-4 h-4 text-sky-400" />
-                            Distribusi Kategori Fasilitas
-                        </h3>
-                        <p className="text-[11px] text-slate-400 mt-0.5">
-                            Proporsi beban pemeliharaan resort
-                        </p>
-                    </div>
-
-                    {categoryData.length === 0 ? (
-                        <div className="py-12 text-center text-xs text-slate-500 flex-1 flex items-center justify-center">
-                            Belum ada kategori yang terdata.
-                        </div>
-                    ) : (
-                        <div className="h-56 w-full relative flex-1">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <PieChart>
-                                    <Pie
-                                        data={categoryData}
-                                        cx="50%"
-                                        cy="50%"
-                                        innerRadius={45}
-                                        outerRadius={75}
-                                        paddingAngle={3}
-                                        dataKey="value"
-                                    >
-                                        {categoryData.map((entry, index) => (
-                                            <Cell key={`cell-${index}`} fill={entry.color} />
-                                        ))}
-                                    </Pie>
-                                    <RechartsTooltip
-                                        contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px', fontSize: '11px' }}
-                                    />
-                                </PieChart>
-                            </ResponsiveContainer>
+                            {/* Sparepart Dependency */}
+                            <div className="p-4 rounded-xl bg-slate-800/90 border border-slate-700/80 shadow-sm relative overflow-hidden">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-xs font-semibold text-slate-400">Ketergantungan Suku Cadang</span>
+                                    <div className="w-7 h-7 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center">
+                                        <Package className="w-4 h-4" />
+                                    </div>
+                                </div>
+                                <div className="mt-2 flex items-baseline gap-1.5">
+                                    <span className="text-2xl font-black text-amber-300">{stats.sparepartRatio}%</span>
+                                    <span className="text-[11px] text-slate-400">kasus butuh part</span>
+                                </div>
+                                <p className="text-[11px] text-slate-500 mt-1">
+                                    Audit kesiapan stok logistik pulau
+                                </p>
+                            </div>
                         </div>
                     )}
 
-                    {/* Compact Legend */}
-                    <div className="mt-2 flex flex-wrap gap-1.5 justify-center">
-                        {categoryData.map((item) => (
-                            <span
-                                key={item.name}
-                                className="inline-flex items-center gap-1 text-[10px] text-slate-300 bg-slate-900/80 px-2 py-0.5 rounded border border-slate-700/60"
-                            >
-                                <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
-                                {item.name}: <strong>{item.value}</strong>
-                            </span>
-                        ))}
-                    </div>
-                </div>
-            </div>
+                    {/* CHARTS ROW 3: HOTSPOT LOKASI & DENAH RESORT (TABBED) */}
+                    {widgetVisibility.hotspot_matrix !== false && (
+                        <div className="p-4 rounded-xl bg-slate-800/90 border border-slate-700/80 shadow-sm space-y-4">
+                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-2 border-b border-slate-700/60">
+                                <div>
+                                    <h3 className="text-xs font-bold text-white flex items-center gap-1.5">
+                                        <MapPin className="w-4 h-4 text-rose-400" />
+                                        Matriks Hotspot Lokasi & Peta Denah Resort
+                                    </h3>
+                                    <p className="text-[11px] text-slate-400 mt-0.5">
+                                        Visualisasi sebaran masalah pada unit/villa Telunas (Grafik analitik & denah spasial TPI/TBR)
+                                    </p>
+                                </div>
 
-            {/* CHARTS ROW 2: LAPORAN BEBAN PER DEPARTEMEN */}
-            <div className="p-4 rounded-xl bg-slate-800/90 border border-slate-700/80 shadow-sm">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
-                    <div>
-                        <h3 className="text-xs font-bold text-white flex items-center gap-1.5">
-                            <Briefcase className="w-4 h-4 text-sky-400" />
-                            Laporan Beban per Departemen
-                        </h3>
-                        <p className="text-[11px] text-slate-400 mt-0.5">
-                            Monitoring volume tiket penanganan departemen berdasarkan status pengerjaan (Open, On Progress, Selesai)
-                        </p>
-                    </div>
-                    {/* Status Legend & Quick Summary */}
-                    <div className="flex items-center gap-3 flex-wrap text-[10px]">
-                        <span className="flex items-center gap-1 text-slate-300">
-                            <span className="w-2 h-2 rounded bg-amber-500" /> Belum Diambil ({deptSummary.open})
-                        </span>
-                        <span className="flex items-center gap-1 text-slate-300">
-                            <span className="w-2 h-2 rounded bg-sky-500" /> Sedang Dikerjakan ({deptSummary.in_progress})
-                        </span>
-                        <span className="flex items-center gap-1 text-slate-300">
-                            <span className="w-2 h-2 rounded bg-emerald-500" /> Selesai ({deptSummary.resolved})
-                        </span>
-                    </div>
-                </div>
+                                <div className="flex items-center gap-2 self-start md:self-auto flex-wrap">
+                                    {/* View Switcher Tabs (Default: Leaderboard Peringkat Risiko) */}
+                                    <div className="flex items-center gap-1 bg-slate-900/90 p-1 rounded-lg border border-slate-700">
+                                        <button
+                                            type="button"
+                                            onClick={() => setHotspotTab('leaderboard')}
+                                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                                                hotspotTab === 'leaderboard'
+                                                    ? 'bg-rose-500 text-white shadow-sm'
+                                                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                                            }`}
+                                        >
+                                            <Flame className="w-3.5 h-3.5" />
+                                            <span>Peringkat Risiko</span>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setHotspotTab('tpi')}
+                                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                                                hotspotTab === 'tpi'
+                                                    ? 'bg-emerald-600 text-white shadow-sm'
+                                                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                                            }`}
+                                        >
+                                            <Compass className="w-3.5 h-3.5" />
+                                            <span>Denah TPI (Island)</span>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setHotspotTab('tbr')}
+                                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                                                hotspotTab === 'tbr'
+                                                    ? 'bg-amber-600 text-white shadow-sm'
+                                                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                                            }`}
+                                        >
+                                            <Map className="w-3.5 h-3.5" />
+                                            <span>Denah TBR (Beach)</span>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setHotspotTab('chart')}
+                                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                                                hotspotTab === 'chart'
+                                                    ? 'bg-slate-700 text-white shadow-sm'
+                                                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                                            }`}
+                                        >
+                                            <BarChart2 className="w-3.5 h-3.5" />
+                                            <span>Grafik Balok</span>
+                                        </button>
+                                    </div>
 
-                {departmentData.length === 0 ? (
-                    <div className="py-12 text-center text-xs text-slate-500">
-                        Belum ada data departemen untuk dianalisa.
-                    </div>
-                ) : (
-                    <div className="h-64 w-full">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={departmentData} maxBarSize={48} margin={{ top: 10, right: 20, left: 0, bottom: 20 }}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
-                                <XAxis dataKey="department" stroke="#94a3b8" fontSize={11} />
-                                <YAxis
-                                    stroke="#94a3b8"
-                                    fontSize={10}
-                                    allowDecimals={false}
-                                    domain={[0, (dataMax) => Math.max(1, dataMax)]}
-                                />
-                                <RechartsTooltip
-                                    cursor={{ fill: 'rgba(255, 255, 255, 0.05)' }}
-                                    content={<CustomDeptTooltip />}
-                                />
-                                <Bar dataKey="open" name="Belum Diambil" stackId="dept" fill="#f59e0b" />
-                                <Bar dataKey="in_progress" name="Sedang Dikerjakan" stackId="dept" fill="#0ea5e9" />
-                                <Bar dataKey="resolved" name="Selesai" stackId="dept" fill="#10b981" radius={[4, 4, 0, 0]} />
-                            </BarChart>
-                        </ResponsiveContainer>
-                    </div>
-                )}
-            </div>
-
-            {/* CHARTS ROW 3: HOTSPOT LOKASI & DENAH RESORT (TABBED) */}
-            <div className="p-4 rounded-xl bg-slate-800/90 border border-slate-700/80 shadow-sm space-y-4">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-2 border-b border-slate-700/60">
-                    <div>
-                        <h3 className="text-xs font-bold text-white flex items-center gap-1.5">
-                            <MapPin className="w-4 h-4 text-rose-400" />
-                            Matriks Hotspot Lokasi & Peta Denah Resort
-                        </h3>
-                        <p className="text-[11px] text-slate-400 mt-0.5">
-                            Visualisasi sebaran masalah pada unit/villa Telunas (Grafik analitik & denah spasial TPI/TBR)
-                        </p>
-                    </div>
-
-                    {/* View Switcher Tabs (Default: Leaderboard Peringkat Risiko) */}
-                    <div className="flex items-center gap-1 bg-slate-900/90 p-1 rounded-lg border border-slate-700 self-start md:self-auto flex-wrap">
-                        <button
-                            type="button"
-                            onClick={() => setHotspotTab('leaderboard')}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
-                                hotspotTab === 'leaderboard'
-                                    ? 'bg-rose-500 text-white shadow-sm'
-                                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
-                            }`}
-                        >
-                            <Flame className="w-3.5 h-3.5" />
-                            <span>Peringkat Risiko</span>
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setHotspotTab('tpi')}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
-                                hotspotTab === 'tpi'
-                                    ? 'bg-emerald-600 text-white shadow-sm'
-                                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
-                            }`}
-                        >
-                            <Compass className="w-3.5 h-3.5" />
-                            <span>Denah TPI (Island)</span>
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setHotspotTab('tbr')}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
-                                hotspotTab === 'tbr'
-                                    ? 'bg-amber-600 text-white shadow-sm'
-                                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
-                            }`}
-                        >
-                            <Map className="w-3.5 h-3.5" />
-                            <span>Denah TBR (Beach)</span>
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setHotspotTab('chart')}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
-                                hotspotTab === 'chart'
-                                    ? 'bg-slate-700 text-white shadow-sm'
-                                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
-                            }`}
-                        >
-                            <BarChart2 className="w-3.5 h-3.5" />
-                            <span>Grafik Balok</span>
-                        </button>
-                    </div>
-                </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => toggleWidgetVisibility('hotspot_matrix')}
+                                        className="p-1.5 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-slate-700/50 transition-colors"
+                                        title="Sembunyikan Matriks Hotspot"
+                                    >
+                                        <EyeOff className="w-3.5 h-3.5" />
+                                    </button>
+                                </div>
+                            </div>
 
                 {/* TAB 1: PERINGKAT RISIKO LOKASI (LEADERBOARD - DEFAULT) */}
                 {hotspotTab === 'leaderboard' && (
@@ -2004,49 +2238,486 @@ export function LeanAnalyticsView({
                         </div>
                     </div>
                 )}
-            </div>
-
-            {/* SECTION 3: ACTIONABLE AUDIT & MITIGATION FEED */}
-            <div className="p-4 rounded-xl bg-slate-800/90 border border-slate-700/80 shadow-sm space-y-4">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-700/80">
-                    <div>
-                        <h3 className="text-xs font-bold text-white flex items-center gap-1.5">
-                            <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                            Feed Audit Akar Masalah & Rekomendasi Mitigasi Pencegahan
-                        </h3>
-                        <p className="text-[11px] text-slate-400 mt-0.5">
-                            Rekomendasi teknis yang dihasilkan AI untuk supervisor agar masalah tidak terulang kembali
-                        </p>
-                    </div>
-
-                    <div className="flex items-center gap-2 flex-wrap">
-                        {/* Search Filter */}
-                        <div className="relative min-w-[180px]">
-                            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
-                            <input
-                                type="text"
-                                value={searchFilter}
-                                onChange={(e) => setSearchFilter(e.target.value)}
-                                placeholder="Cari mitigasi / lokasi..."
-                                className="w-full bg-slate-900 border border-slate-700 text-xs rounded-lg pl-8 pr-3 py-1.5 text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500"
-                            />
                         </div>
-
-                        {/* Category Dropdown */}
-                        <select
-                            value={selectedCategory}
-                            onChange={(e) => setSelectedCategory(e.target.value)}
-                            className="bg-slate-900 border border-slate-700 text-xs rounded-lg px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-emerald-500"
-                        >
-                            <option value="all">Semua Kategori</option>
-                            {Object.keys(CATEGORY_COLORS).map((cat) => (
-                                <option key={cat} value={cat}>
-                                    {cat}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
+                    )}
                 </div>
+            )}
+
+            {/* ========================================================= */}
+            {/* TAB 2: AKAR MASALAH & ANALISA PARETO (MAINTENANCE)        */}
+            {/* ========================================================= */}
+            {activeTab === 'maintenance' && (
+                <div className="space-y-6">
+                    {/* CHARTS ROW 1: PARETO (TOP SUB-CATEGORIES) & CATEGORY DONUT */}
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                        {/* 1. PARETO DUAL-AXIS COMPOSED CHART */}
+                        {widgetVisibility.pareto_chart !== false && (
+                            <div className={`${widgetVisibility.category_donut === false ? 'lg:col-span-3' : 'lg:col-span-2'} p-4 rounded-xl bg-slate-800/90 border border-slate-700/80 shadow-sm flex flex-col justify-between`}>
+                                <div>
+                                    <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                                        <div>
+                                            <h3 className="text-xs font-bold text-white flex items-center gap-1.5">
+                                                <TrendingUp className="w-4 h-4 text-emerald-400" />
+                                                Analisa Pareto: Top Masalah Berulang (80/20 Rule)
+                                            </h3>
+                                            <p className="text-[11px] text-slate-400 mt-0.5">
+                                                Identifikasi 20% akar masalah yang menyumbang 80% insiden resort
+                                            </p>
+                                        </div>
+
+                                        <div className="flex items-center gap-2">
+                                            {paretoSummary && paretoSummary.vitalCount > 0 && (
+                                                <div className="px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-[11px] font-medium text-emerald-300 flex items-center gap-1.5 shadow-sm">
+                                                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+                                                    <span>
+                                                        Top <strong>{paretoSummary.vitalCount}</strong> masalah menyumbang{' '}
+                                                        <strong className="text-emerald-200">{paretoSummary.vitalTopPercentage}%</strong> komplain
+                                                    </span>
+                                                </div>
+                                            )}
+
+                                            {/* Toggle View Mode & Hide */}
+                                            <div className="flex items-center gap-1">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => toggleViewMode('pareto_chart')}
+                                                    className="flex items-center gap-1 px-2.5 py-1 rounded bg-slate-900 border border-slate-700 text-[11px] text-slate-300 hover:text-white transition-colors"
+                                                    title={widgetViewModes.pareto_chart === 'table' ? 'Tampilkan Mode Grafik' : 'Tampilkan Mode ERP Tabel'}
+                                                >
+                                                    {widgetViewModes.pareto_chart === 'table' ? (
+                                                        <>
+                                                            <LayoutGrid className="w-3.5 h-3.5 text-teal-400" />
+                                                            <span className="hidden sm:inline">Grafik</span>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <Table className="w-3.5 h-3.5 text-amber-400" />
+                                                            <span className="hidden sm:inline">Tabel ERP</span>
+                                                        </>
+                                                    )}
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => toggleWidgetVisibility('pareto_chart')}
+                                                    className="p-1.5 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-slate-700/50 transition-colors"
+                                                    title="Sembunyikan Diagram Pareto"
+                                                >
+                                                    <EyeOff className="w-3.5 h-3.5" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {widgetViewModes.pareto_chart !== 'table' && (
+                                        /* Visual Legend Bar */
+                                        <div className="flex flex-wrap items-center gap-3 sm:gap-4 px-1 py-1 mb-2 text-[10px] text-slate-400 border-y border-slate-750/50">
+                                            <div className="flex items-center gap-1.5">
+                                                <span className="w-2.5 h-2.5 rounded-sm bg-emerald-500 shrink-0" />
+                                                <span className="text-slate-200 font-medium">Vital Few (Prioritas 80%)</span>
+                                            </div>
+                                            <div className="flex items-center gap-1.5">
+                                                <span className="w-2.5 h-2.5 rounded-sm bg-slate-500 shrink-0" />
+                                                <span>Masalah Sekunder (&gt;80%)</span>
+                                            </div>
+                                            <div className="flex items-center gap-1.5">
+                                                <span className="w-3.5 h-0.5 bg-amber-400 shrink-0 inline-block" />
+                                                <span className="text-amber-400 font-medium">Garis Akumulasi (%)</span>
+                                            </div>
+                                            <div className="flex items-center gap-1.5 ml-auto">
+                                                <span className="w-3.5 h-0.5 border-b border-rose-500 border-dashed shrink-0 inline-block" />
+                                                <span className="text-rose-400 font-medium">Batas 80% Target</span>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {paretoData.length === 0 ? (
+                                    <div className="py-16 text-center text-xs text-slate-500">
+                                        Belum ada data sub-kategori untuk ditampilkan.
+                                    </div>
+                                ) : widgetViewModes.pareto_chart === 'table' ? (
+                                    <div className="overflow-x-auto mt-2">
+                                        <table className="w-full text-left text-xs text-slate-300">
+                                            <thead className="bg-slate-900/80 text-[11px] text-slate-400 uppercase tracking-wider border-b border-slate-700">
+                                                <tr>
+                                                    <th className="py-2.5 px-3">#</th>
+                                                    <th className="py-2.5 px-3">Sub-Kategori Masalah</th>
+                                                    <th className="py-2.5 px-3 text-right">Kasus</th>
+                                                    <th className="py-2.5 px-3 text-right">Porsi</th>
+                                                    <th className="py-2.5 px-3 text-right">Akumulasi</th>
+                                                    <th className="py-2.5 px-3 text-center">Klasifikasi</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-800">
+                                                {paretoData.map((item, idx) => (
+                                                    <tr key={item.name} className="hover:bg-slate-750/40">
+                                                        <td className="py-2 px-3 font-mono text-slate-500">{idx + 1}</td>
+                                                        <td className="py-2 px-3 font-medium text-white">{item.name}</td>
+                                                        <td className="py-2 px-3 text-right font-bold text-slate-100">{item.count}</td>
+                                                        <td className="py-2 px-3 text-right text-emerald-400 font-semibold">{item.percentage}%</td>
+                                                        <td className="py-2 px-3 text-right text-amber-400 font-bold">{item.cumulativePercentage}%</td>
+                                                        <td className="py-2 px-3 text-center">
+                                                            {item.isVital ? (
+                                                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                                                                    Vital Few (80%)
+                                                                </span>
+                                                            ) : (
+                                                                <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-slate-800 text-slate-400 border border-slate-700">
+                                                                    Sekunder
+                                                                </span>
+                                                            )}
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                ) : (
+                                    <div className="h-72 w-full mt-1">
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <ComposedChart
+                                                data={paretoData}
+                                                margin={{ top: 15, right: 25, left: -10, bottom: 40 }}
+                                            >
+                                                <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
+                                                <XAxis
+                                                    dataKey="name"
+                                                    stroke="#cbd5e1"
+                                                    fontSize={10}
+                                                    interval={0}
+                                                    angle={-22}
+                                                    textAnchor="end"
+                                                    height={45}
+                                                    tickFormatter={(val) => (val && val.length > 15 ? val.substring(0, 14) + '…' : val)}
+                                                />
+                                                <YAxis
+                                                    yAxisId="left"
+                                                    type="number"
+                                                    stroke="#94a3b8"
+                                                    fontSize={10}
+                                                    allowDecimals={false}
+                                                    domain={[0, (dataMax) => Math.max(2, Math.ceil(dataMax * 1.25))]}
+                                                />
+                                                <YAxis
+                                                    yAxisId="right"
+                                                    orientation="right"
+                                                    type="number"
+                                                    stroke="#f59e0b"
+                                                    fontSize={10}
+                                                    domain={[0, 100]}
+                                                    unit="%"
+                                                    tickFormatter={(val) => `${val}%`}
+                                                />
+                                                <RechartsTooltip
+                                                    cursor={{ fill: 'rgba(255, 255, 255, 0.05)' }}
+                                                    content={<CustomParetoTooltip />}
+                                                />
+                                                <ReferenceLine
+                                                    yAxisId="right"
+                                                    y={80}
+                                                    stroke="#f43f5e"
+                                                    strokeDasharray="4 4"
+                                                    strokeWidth={1.5}
+                                                />
+                                                <Bar
+                                                    yAxisId="left"
+                                                    dataKey="count"
+                                                    name="Jumlah Kasus"
+                                                    radius={[4, 4, 0, 0]}
+                                                >
+                                                    {paretoData.map((entry, index) => (
+                                                        <Cell
+                                                            key={`cell-${index}`}
+                                                            fill={entry.isVital ? '#10b981' : '#64748b'}
+                                                        />
+                                                    ))}
+                                                    <LabelList
+                                                        dataKey="count"
+                                                        position="top"
+                                                        fill="#ffffff"
+                                                        fontSize={10}
+                                                        fontWeight={700}
+                                                        offset={5}
+                                                    />
+                                                </Bar>
+                                                <Line
+                                                    yAxisId="right"
+                                                    type="monotone"
+                                                    dataKey="cumulativePercentage"
+                                                    name="Akumulasi %"
+                                                    stroke="#f59e0b"
+                                                    strokeWidth={2.5}
+                                                    dot={{ r: 4, fill: '#f59e0b', stroke: '#0f172a', strokeWidth: 1.5 }}
+                                                    activeDot={{ r: 6, fill: '#fbbf24' }}
+                                                />
+                                            </ComposedChart>
+                                        </ResponsiveContainer>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* 2. CATEGORY DISTRIBUTION (DONUT / TABLE) */}
+                        {widgetVisibility.category_donut !== false && (
+                            <div className={`${widgetVisibility.pareto_chart === false ? 'lg:col-span-3' : 'lg:col-span-1'} p-4 rounded-xl bg-slate-800/90 border border-slate-700/80 shadow-sm flex flex-col justify-between`}>
+                                <div className="flex items-center justify-between pb-2 border-b border-slate-700/60">
+                                    <div>
+                                        <h3 className="text-xs font-bold text-white flex items-center gap-1.5">
+                                            <Sparkles className="w-4 h-4 text-sky-400" />
+                                            Distribusi Kategori Fasilitas
+                                        </h3>
+                                        <p className="text-[11px] text-slate-400 mt-0.5">
+                                            Proporsi beban pemeliharaan resort
+                                        </p>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                        <button
+                                            type="button"
+                                            onClick={() => toggleViewMode('category_donut')}
+                                            className="p-1.5 text-slate-400 hover:text-white rounded bg-slate-900 border border-slate-700"
+                                            title={widgetViewModes.category_donut === 'table' ? 'Tampilkan Mode Grafik' : 'Tampilkan Mode ERP Tabel'}
+                                        >
+                                            {widgetViewModes.category_donut === 'table' ? (
+                                                <LayoutGrid className="w-3.5 h-3.5 text-teal-400" />
+                                            ) : (
+                                                <Table className="w-3.5 h-3.5 text-amber-400" />
+                                            )}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => toggleWidgetVisibility('category_donut')}
+                                            className="p-1.5 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-slate-700/50 transition-colors"
+                                            title="Sembunyikan Distribusi Kategori"
+                                        >
+                                            <EyeOff className="w-3.5 h-3.5" />
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {categoryData.length === 0 ? (
+                                    <div className="py-16 text-center text-xs text-slate-500">
+                                        Belum ada data kategori untuk ditampilkan.
+                                    </div>
+                                ) : widgetViewModes.category_donut === 'table' ? (
+                                    <div className="overflow-x-auto mt-2">
+                                        <table className="w-full text-left text-xs text-slate-300">
+                                            <thead className="bg-slate-900/80 text-[11px] text-slate-400 uppercase tracking-wider border-b border-slate-700">
+                                                <tr>
+                                                    <th className="py-2.5 px-3">Kategori</th>
+                                                    <th className="py-2.5 px-3 text-right">Kasus</th>
+                                                    <th className="py-2.5 px-3 text-right">Porsi</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-800">
+                                                {categoryData.map((item) => (
+                                                    <tr key={item.name} className="hover:bg-slate-750/40">
+                                                        <td className="py-2 px-3 flex items-center gap-1.5 font-medium text-white">
+                                                            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
+                                                            {item.name}
+                                                        </td>
+                                                        <td className="py-2 px-3 text-right font-bold text-slate-100">{item.value}</td>
+                                                        <td className="py-2 px-3 text-right text-sky-400 font-semibold">
+                                                            {stats.total > 0 ? Math.round((item.value / stats.total) * 100) : 0}%
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                ) : (
+                                    <div className="h-64 w-full mt-2">
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <PieChart>
+                                                <Pie
+                                                    data={categoryData}
+                                                    cx="50%"
+                                                    cy="50%"
+                                                    innerRadius={48}
+                                                    outerRadius={75}
+                                                    paddingAngle={3}
+                                                    dataKey="value"
+                                                >
+                                                    {categoryData.map((entry, index) => (
+                                                        <Cell key={`cell-${index}`} fill={entry.color} />
+                                                    ))}
+                                                </Pie>
+                                                <RechartsTooltip
+                                                    contentStyle={{
+                                                        backgroundColor: '#0f172a',
+                                                        borderColor: '#334155',
+                                                        borderRadius: '8px',
+                                                        fontSize: '11px',
+                                                    }}
+                                                />
+                                                <Legend
+                                                    layout="horizontal"
+                                                    verticalAlign="bottom"
+                                                    align="center"
+                                                    wrapperStyle={{ fontSize: '10px', paddingTop: '8px' }}
+                                                />
+                                            </PieChart>
+                                        </ResponsiveContainer>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* CHARTS ROW 2: CATEGORY URGENCY MATRIX */}
+                    {widgetVisibility.urgency_matrix !== false && (
+                        <div className="p-4 rounded-xl bg-slate-800/90 border border-slate-700/80 shadow-sm space-y-4">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-700/60">
+                                <div>
+                                    <h3 className="text-xs font-bold text-white flex items-center gap-1.5">
+                                        <Activity className="w-4 h-4 text-amber-400" />
+                                        Matriks Urgensi per Kategori Fasilitas
+                                    </h3>
+                                    <p className="text-[11px] text-slate-400 mt-0.5">
+                                        Tingkat keparahan (Darurat / Tinggi / Sedang / Rendah) pada tiap kelompok fasilitas resort
+                                    </p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => toggleViewMode('urgency_matrix')}
+                                        className="flex items-center gap-1 px-2.5 py-1 rounded bg-slate-900 border border-slate-700 text-[11px] text-slate-300 hover:text-white transition-colors"
+                                    >
+                                        {widgetViewModes.urgency_matrix === 'table' ? (
+                                            <>
+                                                <LayoutGrid className="w-3.5 h-3.5 text-teal-400" />
+                                                <span>Mode Grafik</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Table className="w-3.5 h-3.5 text-amber-400" />
+                                                <span>Mode ERP Tabel</span>
+                                            </>
+                                        )}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => toggleWidgetVisibility('urgency_matrix')}
+                                        className="p-1.5 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-slate-700/50 transition-colors"
+                                        title="Sembunyikan Matriks Urgensi"
+                                    >
+                                        <EyeOff className="w-3.5 h-3.5" />
+                                    </button>
+                                </div>
+                            </div>
+
+                            {urgencyMatrixData.length === 0 ? (
+                                <div className="py-12 text-center text-xs text-slate-500">
+                                    Tidak ada data urgensi kategori pada periode ini.
+                                </div>
+                            ) : widgetViewModes.urgency_matrix === 'table' ? (
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left text-xs text-slate-300">
+                                        <thead className="bg-slate-900/80 text-[11px] text-slate-400 uppercase tracking-wider border-b border-slate-700">
+                                            <tr>
+                                                <th className="py-2.5 px-3">Kategori</th>
+                                                <th className="py-2.5 px-3 text-center text-rose-400 font-bold">Darurat</th>
+                                                <th className="py-2.5 px-3 text-center text-orange-400 font-bold">Tinggi</th>
+                                                <th className="py-2.5 px-3 text-center text-yellow-400 font-bold">Sedang</th>
+                                                <th className="py-2.5 px-3 text-center text-emerald-400 font-bold">Rendah</th>
+                                                <th className="py-2.5 px-3 text-right">Total Insiden</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-800">
+                                            {urgencyMatrixData.map((item) => (
+                                                <tr key={item.category} className="hover:bg-slate-750/40">
+                                                    <td className="py-2.5 px-3 font-semibold text-white">{item.category}</td>
+                                                    <td className="py-2.5 px-3 text-center font-bold text-rose-400">{item.Darurat}</td>
+                                                    <td className="py-2.5 px-3 text-center font-bold text-orange-400">{item.Tinggi}</td>
+                                                    <td className="py-2.5 px-3 text-center font-bold text-yellow-400">{item.Sedang}</td>
+                                                    <td className="py-2.5 px-3 text-center font-bold text-emerald-400">{item.Rendah}</td>
+                                                    <td className="py-2.5 px-3 text-right font-bold text-slate-100">{item.total}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            ) : (
+                                <div className="h-72 w-full">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <BarChart
+                                            data={urgencyMatrixData}
+                                            margin={{ top: 10, right: 20, left: -10, bottom: 25 }}
+                                        >
+                                            <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
+                                            <XAxis
+                                                dataKey="category"
+                                                stroke="#cbd5e1"
+                                                fontSize={10}
+                                                interval={0}
+                                                angle={-15}
+                                                textAnchor="end"
+                                                height={40}
+                                            />
+                                            <YAxis stroke="#94a3b8" fontSize={10} allowDecimals={false} />
+                                            <RechartsTooltip content={<CustomUrgencyTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.05)' }} />
+                                            <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '6px' }} />
+                                            <Bar dataKey="Darurat" name="Darurat" stackId="a" fill="#f43f5e" />
+                                            <Bar dataKey="Tinggi" name="Tinggi" stackId="a" fill="#fb923c" />
+                                            <Bar dataKey="Sedang" name="Sedang" stackId="a" fill="#facc15" />
+                                            <Bar dataKey="Rendah" name="Rendah" stackId="a" fill="#10b981" radius={[4, 4, 0, 0]} />
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* CHARTS ROW 3: ACTIONABLE AUDIT & MITIGATION FEED */}
+                    {widgetVisibility.mitigation_feed !== false && (
+                        <div className="p-4 rounded-xl bg-slate-800/90 border border-slate-700/80 shadow-sm space-y-4">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-700/80">
+                                <div>
+                                    <h3 className="text-xs font-bold text-white flex items-center gap-1.5">
+                                        <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                                        Feed Audit Akar Masalah & Rekomendasi Mitigasi Pencegahan
+                                    </h3>
+                                    <p className="text-[11px] text-slate-400 mt-0.5">
+                                        Rekomendasi teknis yang dihasilkan AI untuk supervisor agar masalah tidak terulang kembali
+                                    </p>
+                                </div>
+
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    {/* Search Filter */}
+                                    <div className="relative min-w-[180px]">
+                                        <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                                        <input
+                                            type="text"
+                                            value={searchFilter}
+                                            onChange={(e) => setSearchFilter(e.target.value)}
+                                            placeholder="Cari mitigasi / lokasi..."
+                                            className="w-full bg-slate-900 border border-slate-700 text-xs rounded-lg pl-8 pr-3 py-1.5 text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                                        />
+                                    </div>
+
+                                    {/* Category Dropdown */}
+                                    <select
+                                        value={selectedCategory}
+                                        onChange={(e) => setSelectedCategory(e.target.value)}
+                                        className="bg-slate-900 border border-slate-700 text-xs rounded-lg px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-emerald-500"
+                                    >
+                                        <option value="all">Semua Kategori</option>
+                                        {Object.keys(CATEGORY_COLORS).map((cat) => (
+                                            <option key={cat} value={cat}>
+                                                {cat}
+                                            </option>
+                                        ))}
+                                    </select>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => toggleWidgetVisibility('mitigation_feed')}
+                                        className="p-1.5 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-slate-700/50 transition-colors"
+                                        title="Sembunyikan Feed Mitigasi"
+                                    >
+                                        <EyeOff className="w-3.5 h-3.5" />
+                                    </button>
+                                </div>
+                            </div>
 
                 {/* Audit Cards Grid */}
                 {mitigationFeed.length === 0 ? (
@@ -2151,6 +2822,302 @@ export function LeanAnalyticsView({
                     </div>
                 )}
             </div>
+        )}
+    </div>
+)}
+
+            {/* ========================================================= */}
+            {/* TAB 3: KINERJA OPERASIONAL & SLA (OPERATIONS)             */}
+            {/* ========================================================= */}
+            {activeTab === 'sla_performance' && (
+                <div className="space-y-6">
+                    {/* ROW 1: SLA & MTTR KPI METRICS */}
+                    {widgetVisibility.sla_kpi !== false && (
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                            {/* 1. MTTR Avg Hours */}
+                            <div className="p-4 rounded-xl bg-slate-800/90 border border-slate-700/80 shadow-sm relative overflow-hidden group">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-xs font-semibold text-slate-400">Rata-rata Resolusi (MTTR)</span>
+                                    <div className="flex items-center gap-1.5">
+                                        <button
+                                            type="button"
+                                            onClick={() => toggleWidgetVisibility('sla_kpi')}
+                                            className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-slate-500 hover:text-rose-400"
+                                            title="Sembunyikan Kartu SLA"
+                                        >
+                                            <EyeOff className="w-3 h-3" />
+                                        </button>
+                                        <div className="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                                            <Clock className="w-4 h-4" />
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="mt-2 flex items-baseline gap-1.5">
+                                    <span className="text-2xl font-black text-emerald-300">{mttrData.avgTurnaroundHours}</span>
+                                    <span className="text-xs text-slate-400">Jam</span>
+                                </div>
+                                <p className="text-[11px] text-slate-500 mt-1">
+                                    {mttrData.resolvedWithTimeCount} tiket terselesaikan tercatat
+                                </p>
+                            </div>
+
+                            {/* 2. First Response Speed */}
+                            <div className="p-4 rounded-xl bg-slate-800/90 border border-slate-700/80 shadow-sm relative overflow-hidden">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-xs font-semibold text-slate-400">Respon Pertama (Awal)</span>
+                                    <div className="w-7 h-7 rounded-lg bg-sky-500/20 text-sky-400 flex items-center justify-center">
+                                        <Activity className="w-4 h-4" />
+                                    </div>
+                                </div>
+                                <div className="mt-2 flex items-baseline gap-1.5">
+                                    <span className="text-2xl font-black text-sky-300">{mttrData.avgResponseHours}</span>
+                                    <span className="text-xs text-slate-400">Jam</span>
+                                </div>
+                                <p className="text-[11px] text-slate-500 mt-1">
+                                    Kecepatan tiket mulai diproses staf
+                                </p>
+                            </div>
+
+                            {/* 3. SLA Under 24h Rate */}
+                            <div className="p-4 rounded-xl bg-slate-800/90 border border-slate-700/80 shadow-sm relative overflow-hidden">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-xs font-semibold text-slate-400">Kepatuhan SLA (&lt; 24 Jam)</span>
+                                    <div className="w-7 h-7 rounded-lg bg-teal-500/20 text-teal-400 flex items-center justify-center">
+                                        <ShieldCheck className="w-4 h-4" />
+                                    </div>
+                                </div>
+                                <div className="mt-2 flex items-baseline gap-1.5">
+                                    <span className="text-2xl font-black text-teal-300">{mttrData.slaRate24h}%</span>
+                                    <span className="text-xs text-slate-400">tuntas cepat</span>
+                                </div>
+                                <p className="text-[11px] text-slate-500 mt-1">
+                                    {mttrData.slaUnder2h + mttrData.slaUnder24h} tiket tuntas tanpa tertunda
+                                </p>
+                            </div>
+
+                            {/* 4. Complex / Delayed > 24h */}
+                            <div className="p-4 rounded-xl bg-slate-800/90 border border-slate-700/80 shadow-sm relative overflow-hidden">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-xs font-semibold text-slate-400">Isu Tertunda (&gt; 24 Jam)</span>
+                                    <div className="w-7 h-7 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center">
+                                        <AlertTriangle className="w-4 h-4" />
+                                    </div>
+                                </div>
+                                <div className="mt-2 flex items-baseline gap-1.5">
+                                    <span className="text-2xl font-black text-amber-300">{mttrData.slaOver24h}</span>
+                                    <span className="text-xs text-slate-400">kasus kompleks</span>
+                                </div>
+                                <p className="text-[11px] text-slate-500 mt-1">
+                                    Membutuhkan sparepart / logistik pulau
+                                </p>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ROW 2: MTTR PER DEPARTMENT & DEPARTMENT WORKLOAD */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        {/* MTTR SPEED PER DEPT */}
+                        {widgetVisibility.mttr_analytics !== false && (
+                            <div className="p-4 rounded-xl bg-slate-800/90 border border-slate-700/80 shadow-sm flex flex-col justify-between">
+                                <div className="flex items-center justify-between pb-2 border-b border-slate-700/60">
+                                    <div>
+                                        <h3 className="text-xs font-bold text-white flex items-center gap-1.5">
+                                            <Clock className="w-4 h-4 text-sky-400" />
+                                            Kecepatan MTTR per Departemen
+                                        </h3>
+                                        <p className="text-[11px] text-slate-400 mt-0.5">
+                                            Rata-rata waktu penyelesaian tiket (jam) tiap divisi
+                                        </p>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                        <button
+                                            type="button"
+                                            onClick={() => toggleViewMode('mttr_analytics')}
+                                            className="flex items-center gap-1 px-2.5 py-1 rounded bg-slate-900 border border-slate-700 text-[11px] text-slate-300 hover:text-white transition-colors"
+                                            title={widgetViewModes.mttr_analytics === 'table' ? 'Tampilkan Mode Grafik' : 'Tampilkan Mode ERP Tabel'}
+                                        >
+                                            {widgetViewModes.mttr_analytics === 'table' ? (
+                                                <>
+                                                    <LayoutGrid className="w-3.5 h-3.5 text-teal-400" />
+                                                    <span className="hidden sm:inline">Grafik</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Table className="w-3.5 h-3.5 text-amber-400" />
+                                                    <span className="hidden sm:inline">Tabel ERP</span>
+                                                </>
+                                            )}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => toggleWidgetVisibility('mttr_analytics')}
+                                            className="p-1.5 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-slate-700/50 transition-colors"
+                                            title="Sembunyikan Analisa MTTR"
+                                        >
+                                            <EyeOff className="w-3.5 h-3.5" />
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {mttrData.deptMttrList.length === 0 ? (
+                                    <div className="py-16 text-center text-xs text-slate-500">
+                                        Belum ada tiket terselesaikan dengan data waktu yang valid.
+                                    </div>
+                                ) : widgetViewModes.mttr_analytics === 'table' ? (
+                                    <div className="overflow-x-auto mt-2">
+                                        <table className="w-full text-left text-xs text-slate-300">
+                                            <thead className="bg-slate-900/80 text-[11px] text-slate-400 uppercase tracking-wider border-b border-slate-700">
+                                                <tr>
+                                                    <th className="py-2.5 px-3">Departemen</th>
+                                                    <th className="py-2.5 px-3 text-right">Tiket Selesai</th>
+                                                    <th className="py-2.5 px-3 text-right">Rata-rata MTTR</th>
+                                                    <th className="py-2.5 px-3 text-center">Status Kecepatan</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-800">
+                                                {mttrData.deptMttrList.map((d) => (
+                                                    <tr key={d.department} className="hover:bg-slate-750/40">
+                                                        <td className="py-2 px-3 font-semibold text-white">{d.department}</td>
+                                                        <td className="py-2 px-3 text-right font-medium text-slate-200">{d.solvedCount}</td>
+                                                        <td className="py-2 px-3 text-right font-bold text-sky-400">{d.avgHours} Jam</td>
+                                                        <td className="py-2 px-3 text-center">
+                                                            {d.avgHours <= 6 ? (
+                                                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                                                                    Sangat Cepat
+                                                                </span>
+                                                            ) : d.avgHours <= 24 ? (
+                                                                <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-sky-500/20 text-sky-300 border border-sky-500/40">
+                                                                    Standar
+                                                                </span>
+                                                            ) : (
+                                                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                                                                    Perlu Evaluasi
+                                                                </span>
+                                                            )}
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                ) : (
+                                    <div className="h-64 w-full mt-2">
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <BarChart
+                                                data={mttrData.deptMttrList}
+                                                layout="vertical"
+                                                margin={{ top: 10, right: 25, left: 20, bottom: 5 }}
+                                            >
+                                                <CartesianGrid strokeDasharray="3 3" stroke="#334155" horizontal={false} />
+                                                <XAxis type="number" stroke="#94a3b8" fontSize={10} unit="h" />
+                                                <YAxis type="category" dataKey="department" stroke="#cbd5e1" fontSize={11} width={80} />
+                                                <RechartsTooltip content={<CustomMttrTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.05)' }} />
+                                                <Bar dataKey="avgHours" name="Rata-rata Durasi (Jam)" fill="#38bdf8" radius={[0, 4, 4, 0]}>
+                                                    <LabelList dataKey="avgHours" position="right" fill="#93c5fd" fontSize={10} fontWeight={600} formatter={(val) => `${val}h`} />
+                                                </Bar>
+                                            </BarChart>
+                                        </ResponsiveContainer>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* DEPARTMENT WORKLOAD */}
+                        {widgetVisibility.dept_workload !== false && (
+                            <div className="p-4 rounded-xl bg-slate-800/90 border border-slate-700/80 shadow-sm flex flex-col justify-between">
+                                <div className="flex items-center justify-between pb-2 border-b border-slate-700/60">
+                                    <div>
+                                        <h3 className="text-xs font-bold text-white flex items-center gap-1.5">
+                                            <Briefcase className="w-4 h-4 text-emerald-400" />
+                                            Laporan Beban per Departemen
+                                        </h3>
+                                        <p className="text-[11px] text-slate-400 mt-0.5">
+                                            Distribusi tiket aktif vs terselesaikan tiap divisi
+                                        </p>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                        <button
+                                            type="button"
+                                            onClick={() => toggleViewMode('dept_workload')}
+                                            className="flex items-center gap-1 px-2.5 py-1 rounded bg-slate-900 border border-slate-700 text-[11px] text-slate-300 hover:text-white transition-colors"
+                                            title={widgetViewModes.dept_workload === 'table' ? 'Tampilkan Mode Grafik' : 'Tampilkan Mode ERP Tabel'}
+                                        >
+                                            {widgetViewModes.dept_workload === 'table' ? (
+                                                <>
+                                                    <LayoutGrid className="w-3.5 h-3.5 text-teal-400" />
+                                                    <span className="hidden sm:inline">Grafik</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Table className="w-3.5 h-3.5 text-amber-400" />
+                                                    <span className="hidden sm:inline">Tabel ERP</span>
+                                                </>
+                                            )}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => toggleWidgetVisibility('dept_workload')}
+                                            className="p-1.5 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-slate-700/50 transition-colors"
+                                            title="Sembunyikan Beban Departemen"
+                                        >
+                                            <EyeOff className="w-3.5 h-3.5" />
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {departmentData.length === 0 ? (
+                                    <div className="py-16 text-center text-xs text-slate-500">
+                                        Belum ada data tiket departemen pada periode ini.
+                                    </div>
+                                ) : widgetViewModes.dept_workload === 'table' ? (
+                                    <div className="overflow-x-auto mt-2">
+                                        <table className="w-full text-left text-xs text-slate-300">
+                                            <thead className="bg-slate-900/80 text-[11px] text-slate-400 uppercase tracking-wider border-b border-slate-700">
+                                                <tr>
+                                                    <th className="py-2.5 px-3">Departemen</th>
+                                                    <th className="py-2.5 px-3 text-center text-rose-400 font-bold">Open</th>
+                                                    <th className="py-2.5 px-3 text-center text-sky-400 font-bold">Diproses</th>
+                                                    <th className="py-2.5 px-3 text-center text-emerald-400 font-bold">Selesai</th>
+                                                    <th className="py-2.5 px-3 text-right">Total Beban</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-800">
+                                                {departmentData.map((d) => (
+                                                    <tr key={d.department} className="hover:bg-slate-750/40">
+                                                        <td className="py-2 px-3 font-semibold text-white">{d.department}</td>
+                                                        <td className="py-2 px-3 text-center font-bold text-rose-400">{d.open}</td>
+                                                        <td className="py-2 px-3 text-center font-bold text-sky-400">{d.in_progress}</td>
+                                                        <td className="py-2 px-3 text-center font-bold text-emerald-400">{d.resolved}</td>
+                                                        <td className="py-2 px-3 text-right font-bold text-slate-100">{d.total}</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                ) : (
+                                    <div className="h-64 w-full mt-2">
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <BarChart
+                                                data={departmentData}
+                                                margin={{ top: 10, right: 10, left: -10, bottom: 20 }}
+                                            >
+                                                <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
+                                                <XAxis dataKey="department" stroke="#cbd5e1" fontSize={11} interval={0} angle={-15} textAnchor="end" height={35} />
+                                                <YAxis stroke="#94a3b8" fontSize={10} allowDecimals={false} />
+                                                <RechartsTooltip content={<CustomDeptTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.05)' }} />
+                                                <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '4px' }} />
+                                                <Bar dataKey="open" name="Belum Selesai" stackId="a" fill="#f43f5e" />
+                                                <Bar dataKey="in_progress" name="Sedang Diproses" stackId="a" fill="#38bdf8" />
+                                                <Bar dataKey="resolved" name="Selesai" stackId="a" fill="#10b981" radius={[4, 4, 0, 0]} />
+                                            </BarChart>
+                                        </ResponsiveContainer>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
