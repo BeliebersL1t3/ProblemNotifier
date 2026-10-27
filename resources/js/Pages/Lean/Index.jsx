@@ -870,6 +870,7 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                 {viewMode === 'analytics' ? (
                     <LeanAnalyticsView
                         issues={issues}
+                        departments={departments}
                         aiPendingCount={aiPendingCount}
                         onRetryAi={handleRetryAi}
                         isRetrying={isRetryingAi}

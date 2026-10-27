@@ -645,6 +645,7 @@ function TbrResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
 
 export function LeanAnalyticsView({
     issues = [],
+    departments = [],
     aiPendingCount = 0,
     onRetryAi,
     isRetrying = false,
@@ -657,6 +658,7 @@ export function LeanAnalyticsView({
     const [selectedTpiZone, setSelectedTpiZone] = useState(null);
     const [selectedTbrZone, setSelectedTbrZone] = useState(null);
     const [expandedDescriptions, setExpandedDescriptions] = useState({});
+    const [showAllMasterDepts, setShowAllMasterDepts] = useState(false);
     
     // Time Range Filter states
     const [timeRange, setTimeRange] = useState('all'); // 'all' | 'today' | '7d' | '30d' | '6m' | '1y' | 'custom'
@@ -1048,6 +1050,23 @@ export function LeanAnalyticsView({
     const departmentData = useMemo(() => {
         const deptMap = {};
 
+        // If showAllMasterDepts is active, initialize all master resort departments with 0 counts
+        if (showAllMasterDepts && Array.isArray(departments)) {
+            departments.forEach((rawDept) => {
+                const dept = (rawDept || '').trim();
+                if (dept && !deptMap[dept]) {
+                    deptMap[dept] = {
+                        department: dept,
+                        name: dept,
+                        open: 0,
+                        in_progress: 0,
+                        resolved: 0,
+                        total: 0,
+                    };
+                }
+            });
+        }
+
         filteredIssues.forEach((i) => {
             let depts = i.target_departments;
             if (typeof depts === 'string') {
@@ -1082,7 +1101,7 @@ export function LeanAnalyticsView({
         });
 
         return Object.values(deptMap).sort((a, b) => b.total - a.total);
-    }, [filteredIssues]);
+    }, [filteredIssues, showAllMasterDepts, departments]);
 
     const deptSummary = useMemo(() => {
         let open = 0;
@@ -1259,7 +1278,53 @@ export function LeanAnalyticsView({
 
         const deptTimeMap = {};
 
+        // If showAllMasterDepts is active, initialize all master departments
+        if (showAllMasterDepts && Array.isArray(departments)) {
+            departments.forEach((rawDept) => {
+                const dName = (rawDept || '').trim();
+                if (dName && !deptTimeMap[dName]) {
+                    deptTimeMap[dName] = {
+                        department: dName,
+                        totalHours: 0,
+                        solvedCount: 0,
+                        pendingCount: 0,
+                        totalCount: 0,
+                    };
+                }
+            });
+        }
+
+        // First pass: register all departments appearing in filteredIssues (even if not yet resolved)
         filteredIssues.forEach((issue) => {
+            let depts = issue.target_departments;
+            if (typeof depts === 'string') {
+                try { depts = JSON.parse(depts); } catch { depts = [depts]; }
+            }
+            if (!Array.isArray(depts) || depts.length === 0) depts = ['Umum'];
+
+            const hasPendingDelay = issue.status === 'pending' || 
+                Boolean(issue.pendingReason) || 
+                Boolean(issue.pending_reason) || 
+                Boolean(issue.ai_analysis?.perlu_sparepart);
+
+            depts.forEach((d) => {
+                const deptName = (d || 'Umum').trim() || 'Umum';
+                if (!deptTimeMap[deptName]) {
+                    deptTimeMap[deptName] = { 
+                        department: deptName, 
+                        totalHours: 0, 
+                        solvedCount: 0,
+                        pendingCount: 0,
+                        totalCount: 0,
+                    };
+                }
+                deptTimeMap[deptName].totalCount++;
+                if (hasPendingDelay) {
+                    deptTimeMap[deptName].pendingCount++;
+                }
+            });
+
+            // Calculate lifecycle turnaround and response times
             const created = issue.created_at ? new Date(issue.created_at).getTime() : null;
             const claimed = issue.claimed_at ? new Date(issue.claimed_at).getTime() : null;
             const resolved = issue.resolved_at ? new Date(issue.resolved_at).getTime() : null;
@@ -1279,31 +1344,11 @@ export function LeanAnalyticsView({
                 else if (turnHours <= 24) slaUnder24h++;
                 else slaOver24h++;
 
-                const hasPendingDelay = issue.status === 'pending' || 
-                    Boolean(issue.pendingReason) || 
-                    Boolean(issue.pending_reason) || 
-                    Boolean(issue.ai_analysis?.perlu_sparepart);
-
-                let depts = issue.target_departments;
-                if (typeof depts === 'string') {
-                    try { depts = JSON.parse(depts); } catch { depts = [depts]; }
-                }
-                if (!Array.isArray(depts) || depts.length === 0) depts = ['Umum'];
-
                 depts.forEach((d) => {
                     const deptName = (d || 'Umum').trim() || 'Umum';
-                    if (!deptTimeMap[deptName]) {
-                        deptTimeMap[deptName] = { 
-                            department: deptName, 
-                            totalHours: 0, 
-                            count: 0,
-                            pendingCount: 0,
-                        };
-                    }
-                    deptTimeMap[deptName].totalHours += turnHours;
-                    deptTimeMap[deptName].count++;
-                    if (hasPendingDelay) {
-                        deptTimeMap[deptName].pendingCount++;
+                    if (deptTimeMap[deptName]) {
+                        deptTimeMap[deptName].totalHours += turnHours;
+                        deptTimeMap[deptName].solvedCount++;
                     }
                 });
             }
@@ -1319,7 +1364,18 @@ export function LeanAnalyticsView({
 
         const deptMttrList = Object.values(deptTimeMap)
             .map((d) => {
-                const avgHours = parseFloat((d.totalHours / d.count).toFixed(1));
+                if (d.solvedCount === 0) {
+                    return {
+                        department: d.department,
+                        avgHours: null,
+                        solvedCount: 0,
+                        pendingCount: d.pendingCount,
+                        speedStatus: d.totalCount > 0 ? 'Sedang Berjalan' : 'Belum Ada Isu',
+                        statusType: d.totalCount > 0 ? 'in_progress_only' : 'no_issues',
+                    };
+                }
+
+                const avgHours = parseFloat((d.totalHours / d.solvedCount).toFixed(1));
                 let speedStatus = 'Standar';
                 let statusType = 'normal'; // 'fast' | 'normal' | 'pending_delay' | 'needs_eval'
 
@@ -1342,13 +1398,20 @@ export function LeanAnalyticsView({
                 return {
                     department: d.department,
                     avgHours,
-                    solvedCount: d.count,
+                    solvedCount: d.solvedCount,
                     pendingCount: d.pendingCount,
                     speedStatus,
                     statusType,
                 };
             })
-            .sort((a, b) => a.avgHours - b.avgHours);
+            .sort((a, b) => {
+                if (a.avgHours !== null && b.avgHours !== null) {
+                    return a.avgHours - b.avgHours;
+                }
+                if (a.avgHours !== null) return -1;
+                if (b.avgHours !== null) return 1;
+                return (b.solvedCount || 0) - (a.solvedCount || 0);
+            });
 
         const slaRate24h = resolvedWithTimeCount > 0
             ? Math.round(((slaUnder2h + slaUnder24h) / resolvedWithTimeCount) * 100)
@@ -1365,7 +1428,7 @@ export function LeanAnalyticsView({
             slaRate24h,
             deptMttrList,
         };
-    }, [filteredIssues]);
+    }, [filteredIssues, showAllMasterDepts, departments]);
 
     // --- 9. Category Urgency Matrix ---
     const urgencyMatrixData = useMemo(() => {
@@ -3144,230 +3207,313 @@ export function LeanAnalyticsView({
                     )}
 
                     {/* ROW 2: MTTR PER DEPARTMENT & DEPARTMENT WORKLOAD */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                        {/* MTTR SPEED PER DEPT */}
-                        {widgetVisibility.mttr_analytics !== false && (
-                            <div className="p-4 rounded-xl bg-slate-800/90 border border-slate-700/80 shadow-sm flex flex-col justify-between">
-                                <div className="flex items-center justify-between pb-2 border-b border-slate-700/60">
-                                    <div>
-                                        <h3 className="text-xs font-bold text-white flex items-center gap-1.5">
-                                            <Clock className="w-4 h-4 text-sky-400" />
-                                            Kecepatan MTTR per Departemen
-                                        </h3>
-                                        <p className="text-[11px] text-slate-400 mt-0.5">
-                                            Rata-rata waktu penyelesaian tiket (jam) tiap divisi
-                                        </p>
-                                    </div>
-                                    <div className="flex items-center gap-1">
-                                        <button
-                                            type="button"
-                                            onClick={() => toggleViewMode('mttr_analytics')}
-                                            className="flex items-center gap-1 px-2.5 py-1 rounded bg-slate-900 border border-slate-700 text-[11px] text-slate-300 hover:text-white transition-colors"
-                                            title={widgetViewModes.mttr_analytics === 'table' ? 'Tampilkan Mode Grafik' : 'Tampilkan Mode ERP Tabel'}
-                                        >
-                                            {widgetViewModes.mttr_analytics === 'table' ? (
-                                                <>
-                                                    <LayoutGrid className="w-3.5 h-3.5 text-teal-400" />
-                                                    <span className="hidden sm:inline">Grafik</span>
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <Table className="w-3.5 h-3.5 text-amber-400" />
-                                                    <span className="hidden sm:inline">Tabel ERP</span>
-                                                </>
-                                            )}
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => toggleWidgetVisibility('mttr_analytics')}
-                                            className="p-1.5 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-slate-700/50 transition-colors"
-                                            title="Sembunyikan Analisa MTTR"
-                                        >
-                                            <EyeOff className="w-3.5 h-3.5" />
-                                        </button>
-                                    </div>
-                                </div>
-
-                                {mttrData.deptMttrList.length === 0 ? (
-                                    <div className="py-16 text-center text-xs text-slate-500">
-                                        Belum ada tiket terselesaikan dengan data waktu yang valid.
-                                    </div>
-                                ) : widgetViewModes.mttr_analytics === 'table' ? (
-                                    <div className="overflow-x-auto mt-2">
-                                        <table className="w-full text-left text-xs text-slate-300">
-                                            <thead className="bg-slate-900/80 text-[11px] text-slate-400 uppercase tracking-wider border-b border-slate-700">
-                                                <tr>
-                                                    <th className="py-2.5 px-3">Departemen</th>
-                                                    <th className="py-2.5 px-3 text-right">Tiket Selesai</th>
-                                                    <th className="py-2.5 px-3 text-center">Pending / Sparepart</th>
-                                                    <th className="py-2.5 px-3 text-right">Rata-rata MTTR</th>
-                                                    <th className="py-2.5 px-3 text-center">Status Kecepatan</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="divide-y divide-slate-800">
-                                                {mttrData.deptMttrList.map((d) => (
-                                                    <tr key={d.department} className="hover:bg-slate-750/40">
-                                                        <td className="py-2 px-3 font-semibold text-white">{d.department}</td>
-                                                        <td className="py-2 px-3 text-right font-medium text-slate-200">{d.solvedCount}</td>
-                                                        <td className="py-2 px-3 text-center">
-                                                            {d.pendingCount > 0 ? (
-                                                                <span
-                                                                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm"
-                                                                    title={`${d.pendingCount} dari ${d.solvedCount} tiket mengalami penundaan pending atau butuh suku cadang`}
-                                                                >
-                                                                    ⏸️ {d.pendingCount} Tertunda
-                                                                </span>
-                                                            ) : (
-                                                                <span className="text-slate-500 text-[10px]">
-                                                                    0 Kasus (Lancar)
-                                                                </span>
-                                                            )}
-                                                        </td>
-                                                        <td className="py-2 px-3 text-right font-bold text-sky-400">{d.avgHours} Jam</td>
-                                                        <td className="py-2 px-3 text-center">
-                                                            {d.statusType === 'fast' ? (
-                                                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
-                                                                    Sangat Cepat
-                                                                </span>
-                                                            ) : d.statusType === 'normal' ? (
-                                                                <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-sky-500/20 text-sky-300 border border-sky-500/40">
-                                                                    Standar
-                                                                </span>
-                                                            ) : d.statusType === 'pending_delay' ? (
-                                                                <div className="inline-flex flex-col items-center">
-                                                                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">
-                                                                        Tertunda Pending / Sparepart
-                                                                    </span>
-                                                                    <span className="text-[9px] text-slate-400 mt-0.5 font-normal">
-                                                                        Wajar (Kendala logistik/part)
-                                                                    </span>
-                                                                </div>
-                                                            ) : (
-                                                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/40">
-                                                                    Perlu Evaluasi
-                                                                </span>
-                                                            )}
-                                                        </td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                ) : (
-                                    <div className="h-64 w-full mt-2">
-                                        <ResponsiveContainer width="100%" height="100%">
-                                            <BarChart
-                                                data={mttrData.deptMttrList}
-                                                layout="vertical"
-                                                margin={{ top: 10, right: 25, left: 20, bottom: 5 }}
-                                            >
-                                                <CartesianGrid strokeDasharray="3 3" stroke="#334155" horizontal={false} />
-                                                <XAxis type="number" stroke="#94a3b8" fontSize={10} unit="h" />
-                                                <YAxis type="category" dataKey="department" stroke="#cbd5e1" fontSize={11} width={80} />
-                                                <RechartsTooltip content={<CustomMttrTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.05)' }} />
-                                                <Bar dataKey="avgHours" name="Rata-rata Durasi (Jam)" fill="#38bdf8" radius={[0, 4, 4, 0]}>
-                                                    <LabelList dataKey="avgHours" position="right" fill="#93c5fd" fontSize={10} fontWeight={600} formatter={(val) => `${val}h`} />
-                                                </Bar>
-                                            </BarChart>
-                                        </ResponsiveContainer>
-                                    </div>
-                                )}
+                    <div className="space-y-3">
+                        {/* Scope Toolbar Filter for All Master Departments vs Active Departments */}
+                        <div className="flex items-center justify-between flex-wrap gap-2 px-1">
+                            <div className="flex items-center gap-2">
+                                <span className={`text-xs font-bold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                                    Cakupan Departemen:
+                                </span>
+                                <span className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                    {showAllMasterDepts 
+                                        ? `Menampilkan seluruh ${departments.length || 11} divisi resmi resort`
+                                        : `Menampilkan ${departmentData.length} divisi yang memiliki aktivitas tiket`}
+                                </span>
                             </div>
-                        )}
+                            <button
+                                type="button"
+                                onClick={() => setShowAllMasterDepts(prev => !prev)}
+                                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-[11px] font-semibold border transition-all ${
+                                    showAllMasterDepts
+                                        ? isDark 
+                                            ? 'bg-sky-500/20 text-sky-300 border-sky-500/40 shadow-sm'
+                                            : 'bg-sky-100 text-sky-800 border-sky-300 shadow-sm'
+                                        : isDark
+                                            ? 'bg-slate-800/80 text-slate-400 border-slate-700 hover:text-white'
+                                            : 'bg-white text-slate-600 border-slate-300 hover:text-slate-900 shadow-sm'
+                                }`}
+                                title={showAllMasterDepts ? 'Klik untuk hanya melihat divisi dengan isu aktif' : 'Klik untuk melihat seluruh divisi resort'}
+                            >
+                                <Users className="w-3.5 h-3.5" />
+                                <span>{showAllMasterDepts ? 'Filter: Hanya Divisi Berisu' : 'Tampilkan Seluruh Divisi Resort'}</span>
+                            </button>
+                        </div>
 
-                        {/* DEPARTMENT WORKLOAD */}
-                        {widgetVisibility.dept_workload !== false && (
-                            <div className="p-4 rounded-xl bg-slate-800/90 border border-slate-700/80 shadow-sm flex flex-col justify-between">
-                                <div className="flex items-center justify-between pb-2 border-b border-slate-700/60">
-                                    <div>
-                                        <h3 className="text-xs font-bold text-white flex items-center gap-1.5">
-                                            <Briefcase className="w-4 h-4 text-emerald-400" />
-                                            Laporan Beban per Departemen
-                                        </h3>
-                                        <p className="text-[11px] text-slate-400 mt-0.5">
-                                            Distribusi tiket aktif vs terselesaikan tiap divisi
-                                        </p>
-                                    </div>
-                                    <div className="flex items-center gap-1">
-                                        <button
-                                            type="button"
-                                            onClick={() => toggleViewMode('dept_workload')}
-                                            className="flex items-center gap-1 px-2.5 py-1 rounded bg-slate-900 border border-slate-700 text-[11px] text-slate-300 hover:text-white transition-colors"
-                                            title={widgetViewModes.dept_workload === 'table' ? 'Tampilkan Mode Grafik' : 'Tampilkan Mode ERP Tabel'}
-                                        >
-                                            {widgetViewModes.dept_workload === 'table' ? (
-                                                <>
-                                                    <LayoutGrid className="w-3.5 h-3.5 text-teal-400" />
-                                                    <span className="hidden sm:inline">Grafik</span>
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <Table className="w-3.5 h-3.5 text-amber-400" />
-                                                    <span className="hidden sm:inline">Tabel ERP</span>
-                                                </>
-                                            )}
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => toggleWidgetVisibility('dept_workload')}
-                                            className="p-1.5 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-slate-700/50 transition-colors"
-                                            title="Sembunyikan Beban Departemen"
-                                        >
-                                            <EyeOff className="w-3.5 h-3.5" />
-                                        </button>
-                                    </div>
-                                </div>
-
-                                {departmentData.length === 0 ? (
-                                    <div className="py-16 text-center text-xs text-slate-500">
-                                        Belum ada data tiket departemen pada periode ini.
-                                    </div>
-                                ) : widgetViewModes.dept_workload === 'table' ? (
-                                    <div className="overflow-x-auto mt-2">
-                                        <table className="w-full text-left text-xs text-slate-300">
-                                            <thead className="bg-slate-900/80 text-[11px] text-slate-400 uppercase tracking-wider border-b border-slate-700">
-                                                <tr>
-                                                    <th className="py-2.5 px-3">Departemen</th>
-                                                    <th className="py-2.5 px-3 text-center text-rose-400 font-bold">Open</th>
-                                                    <th className="py-2.5 px-3 text-center text-sky-400 font-bold">Diproses</th>
-                                                    <th className="py-2.5 px-3 text-center text-emerald-400 font-bold">Selesai</th>
-                                                    <th className="py-2.5 px-3 text-right">Total Beban</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="divide-y divide-slate-800">
-                                                {departmentData.map((d) => (
-                                                    <tr key={d.department} className="hover:bg-slate-750/40">
-                                                        <td className="py-2 px-3 font-semibold text-white">{d.department}</td>
-                                                        <td className="py-2 px-3 text-center font-bold text-rose-400">{d.open}</td>
-                                                        <td className="py-2 px-3 text-center font-bold text-sky-400">{d.in_progress}</td>
-                                                        <td className="py-2 px-3 text-center font-bold text-emerald-400">{d.resolved}</td>
-                                                        <td className="py-2 px-3 text-right font-bold text-slate-100">{d.total}</td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                ) : (
-                                    <div className="h-64 w-full mt-2">
-                                        <ResponsiveContainer width="100%" height="100%">
-                                            <BarChart
-                                                data={departmentData}
-                                                margin={{ top: 10, right: 10, left: -10, bottom: 20 }}
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                            {/* MTTR SPEED PER DEPT */}
+                            {widgetVisibility.mttr_analytics !== false && (
+                                <div className={`p-4 rounded-xl border shadow-sm flex flex-col justify-between ${
+                                    isDark ? 'bg-slate-800/90 border-slate-700/80' : 'bg-white border-slate-200'
+                                }`}>
+                                    <div className={`flex items-center justify-between pb-2 border-b ${
+                                        isDark ? 'border-slate-700/60' : 'border-slate-200'
+                                    }`}>
+                                        <div>
+                                            <h3 className={`text-xs font-bold flex items-center gap-1.5 ${
+                                                isDark ? 'text-white' : 'text-slate-900'
+                                            }`}>
+                                                <Clock className="w-4 h-4 text-sky-400" />
+                                                Kecepatan MTTR per Departemen
+                                            </h3>
+                                            <p className={`text-[11px] mt-0.5 ${
+                                                isDark ? 'text-slate-400' : 'text-slate-500'
+                                            }`}>
+                                                Rata-rata waktu penyelesaian tiket (jam) tiap divisi
+                                            </p>
+                                        </div>
+                                        <div className="flex items-center gap-1">
+                                            <button
+                                                type="button"
+                                                onClick={() => toggleViewMode('mttr_analytics')}
+                                                className={`flex items-center gap-1 px-2.5 py-1 rounded border text-[11px] transition-colors ${
+                                                    isDark 
+                                                        ? 'bg-slate-900 border-slate-700 text-slate-300 hover:text-white' 
+                                                        : 'bg-slate-100 border-slate-300 text-slate-700 hover:text-slate-900'
+                                                }`}
+                                                title={widgetViewModes.mttr_analytics === 'table' ? 'Tampilkan Mode Grafik' : 'Tampilkan Mode ERP Tabel'}
                                             >
-                                                <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
-                                                <XAxis dataKey="department" stroke="#cbd5e1" fontSize={11} interval={0} angle={-15} textAnchor="end" height={35} />
-                                                <YAxis stroke="#94a3b8" fontSize={10} allowDecimals={false} />
-                                                <RechartsTooltip content={<CustomDeptTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.05)' }} />
-                                                <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '4px' }} />
-                                                <Bar dataKey="open" name="Belum Selesai" stackId="a" fill="#f43f5e" />
-                                                <Bar dataKey="in_progress" name="Sedang Diproses" stackId="a" fill="#38bdf8" />
-                                                <Bar dataKey="resolved" name="Selesai" stackId="a" fill="#10b981" radius={[4, 4, 0, 0]} />
-                                            </BarChart>
-                                        </ResponsiveContainer>
+                                                {widgetViewModes.mttr_analytics === 'table' ? (
+                                                    <>
+                                                        <LayoutGrid className="w-3.5 h-3.5 text-teal-400" />
+                                                        <span className="hidden sm:inline">Grafik</span>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Table className="w-3.5 h-3.5 text-amber-400" />
+                                                        <span className="hidden sm:inline">Tabel ERP</span>
+                                                    </>
+                                                )}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => toggleWidgetVisibility('mttr_analytics')}
+                                                className={`p-1.5 rounded-lg transition-colors ${
+                                                    isDark ? 'text-slate-400 hover:text-rose-400 hover:bg-slate-700/50' : 'text-slate-500 hover:text-rose-600 hover:bg-slate-100'
+                                                }`}
+                                                title="Sembunyikan Analisa MTTR"
+                                            >
+                                                <EyeOff className="w-3.5 h-3.5" />
+                                            </button>
+                                        </div>
                                     </div>
-                                )}
-                            </div>
-                        )}
+
+                                    {mttrData.deptMttrList.length === 0 ? (
+                                        <div className="py-16 text-center text-xs text-slate-500">
+                                            Belum ada data departemen pada periode ini.
+                                        </div>
+                                    ) : widgetViewModes.mttr_analytics === 'table' ? (
+                                        <div className="overflow-x-auto mt-2">
+                                            <table className="w-full text-left text-xs">
+                                                <thead className={`text-[11px] uppercase tracking-wider border-b ${
+                                                    isDark ? 'bg-slate-900/80 text-slate-400 border-slate-700' : 'bg-slate-100 text-slate-600 border-slate-200'
+                                                }`}>
+                                                    <tr>
+                                                        <th className="py-2.5 px-3">Departemen</th>
+                                                        <th className="py-2.5 px-3 text-right">Tiket Selesai</th>
+                                                        <th className="py-2.5 px-3 text-center">Pending / Sparepart</th>
+                                                        <th className="py-2.5 px-3 text-right">Rata-rata MTTR</th>
+                                                        <th className="py-2.5 px-3 text-center">Status Kecepatan</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className={`divide-y ${isDark ? 'divide-slate-800 text-slate-300' : 'divide-slate-200 text-slate-700'}`}>
+                                                    {mttrData.deptMttrList.map((d) => (
+                                                        <tr key={d.department} className={isDark ? 'hover:bg-slate-750/40' : 'hover:bg-slate-50'}>
+                                                            <td className={`py-2 px-3 font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>{d.department}</td>
+                                                            <td className={`py-2 px-3 text-right font-medium ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>{d.solvedCount}</td>
+                                                            <td className="py-2 px-3 text-center">
+                                                                {d.pendingCount > 0 ? (
+                                                                    <span
+                                                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/40 shadow-sm"
+                                                                        title={`${d.pendingCount} tiket mengalami penundaan pending atau butuh suku cadang`}
+                                                                    >
+                                                                        ⏸️ {d.pendingCount} Tertunda
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className={`text-[10px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                                                                        0 Kasus (Lancar)
+                                                                    </span>
+                                                                )}
+                                                            </td>
+                                                            <td className={`py-2 px-3 text-right font-bold ${
+                                                                d.avgHours !== null 
+                                                                    ? (isDark ? 'text-sky-400' : 'text-sky-600') 
+                                                                    : (isDark ? 'text-slate-500' : 'text-slate-400')
+                                                            }`}>
+                                                                {d.avgHours !== null ? `${d.avgHours} Jam` : '—'}
+                                                            </td>
+                                                            <td className="py-2 px-3 text-center">
+                                                                {d.statusType === 'fast' ? (
+                                                                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">
+                                                                        Sangat Cepat
+                                                                    </span>
+                                                                ) : d.statusType === 'normal' ? (
+                                                                    <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-sky-500/20 text-sky-400 border border-sky-500/40">
+                                                                        Standar
+                                                                    </span>
+                                                                ) : d.statusType === 'pending_delay' ? (
+                                                                    <div className="inline-flex flex-col items-center">
+                                                                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/40">
+                                                                            Tertunda Pending / Sparepart
+                                                                        </span>
+                                                                        <span className={`text-[9px] mt-0.5 font-normal ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                                                            Wajar (Kendala logistik/part)
+                                                                        </span>
+                                                                    </div>
+                                                                ) : d.statusType === 'in_progress_only' ? (
+                                                                    <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
+                                                                        isDark ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/40' : 'bg-indigo-50 text-indigo-700 border border-indigo-200'
+                                                                    }`}>
+                                                                        Sedang Berjalan
+                                                                    </span>
+                                                                ) : d.statusType === 'no_issues' ? (
+                                                                    <span className={`px-2 py-0.5 rounded text-[10px] font-normal ${
+                                                                        isDark ? 'text-slate-400 bg-slate-900/60 border border-slate-700/60' : 'text-slate-500 bg-slate-100 border border-slate-200'
+                                                                    }`}>
+                                                                        Belum Ada Isu
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-400 border border-rose-500/40">
+                                                                        Perlu Evaluasi
+                                                                    </span>
+                                                                )}
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    ) : (
+                                        <div className="h-64 w-full mt-2">
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <BarChart
+                                                    data={mttrData.deptMttrList.filter((d) => d.avgHours !== null)}
+                                                    layout="vertical"
+                                                    margin={{ top: 10, right: 25, left: 20, bottom: 5 }}
+                                                >
+                                                    <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#334155' : '#e2e8f0'} horizontal={false} />
+                                                    <XAxis type="number" stroke={isDark ? '#94a3b8' : '#64748b'} fontSize={10} unit="h" />
+                                                    <YAxis type="category" dataKey="department" stroke={isDark ? '#cbd5e1' : '#334155'} fontSize={11} width={80} />
+                                                    <RechartsTooltip content={<CustomMttrTooltip />} cursor={{ fill: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.03)' }} />
+                                                    <Bar dataKey="avgHours" name="Rata-rata Durasi (Jam)" fill="#38bdf8" radius={[0, 4, 4, 0]}>
+                                                        <LabelList dataKey="avgHours" position="right" fill={isDark ? '#93c5fd' : '#0284c7'} fontSize={10} fontWeight={600} formatter={(val) => `${val}h`} />
+                                                    </Bar>
+                                                </BarChart>
+                                            </ResponsiveContainer>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* DEPARTMENT WORKLOAD */}
+                            {widgetVisibility.dept_workload !== false && (
+                                <div className={`p-4 rounded-xl border shadow-sm flex flex-col justify-between ${
+                                    isDark ? 'bg-slate-800/90 border-slate-700/80' : 'bg-white border-slate-200'
+                                }`}>
+                                    <div className={`flex items-center justify-between pb-2 border-b ${
+                                        isDark ? 'border-slate-700/60' : 'border-slate-200'
+                                    }`}>
+                                        <div>
+                                            <h3 className={`text-xs font-bold flex items-center gap-1.5 ${
+                                                isDark ? 'text-white' : 'text-slate-900'
+                                            }`}>
+                                                <Briefcase className="w-4 h-4 text-emerald-400" />
+                                                Laporan Beban per Departemen
+                                            </h3>
+                                            <p className={`text-[11px] mt-0.5 ${
+                                                isDark ? 'text-slate-400' : 'text-slate-500'
+                                            }`}>
+                                                Distribusi tiket aktif vs terselesaikan tiap divisi
+                                            </p>
+                                        </div>
+                                        <div className="flex items-center gap-1">
+                                            <button
+                                                type="button"
+                                                onClick={() => toggleViewMode('dept_workload')}
+                                                className={`flex items-center gap-1 px-2.5 py-1 rounded border text-[11px] transition-colors ${
+                                                    isDark 
+                                                        ? 'bg-slate-900 border-slate-700 text-slate-300 hover:text-white' 
+                                                        : 'bg-slate-100 border-slate-300 text-slate-700 hover:text-slate-900'
+                                                }`}
+                                                title={widgetViewModes.dept_workload === 'table' ? 'Tampilkan Mode Grafik' : 'Tampilkan Mode ERP Tabel'}
+                                            >
+                                                {widgetViewModes.dept_workload === 'table' ? (
+                                                    <>
+                                                        <LayoutGrid className="w-3.5 h-3.5 text-teal-400" />
+                                                        <span className="hidden sm:inline">Grafik</span>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Table className="w-3.5 h-3.5 text-amber-400" />
+                                                        <span className="hidden sm:inline">Tabel ERP</span>
+                                                    </>
+                                                )}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => toggleWidgetVisibility('dept_workload')}
+                                                className={`p-1.5 rounded-lg transition-colors ${
+                                                    isDark ? 'text-slate-400 hover:text-rose-400 hover:bg-slate-700/50' : 'text-slate-500 hover:text-rose-600 hover:bg-slate-100'
+                                                }`}
+                                                title="Sembunyikan Beban Departemen"
+                                            >
+                                                <EyeOff className="w-3.5 h-3.5" />
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {departmentData.length === 0 ? (
+                                        <div className="py-16 text-center text-xs text-slate-500">
+                                            Belum ada data tiket departemen pada periode ini.
+                                        </div>
+                                    ) : widgetViewModes.dept_workload === 'table' ? (
+                                        <div className="overflow-x-auto mt-2">
+                                            <table className="w-full text-left text-xs">
+                                                <thead className={`text-[11px] uppercase tracking-wider border-b ${
+                                                    isDark ? 'bg-slate-900/80 text-slate-400 border-slate-700' : 'bg-slate-100 text-slate-600 border-slate-200'
+                                                }`}>
+                                                    <tr>
+                                                        <th className="py-2.5 px-3">Departemen</th>
+                                                        <th className="py-2.5 px-3 text-center text-rose-500 font-bold">Open</th>
+                                                        <th className="py-2.5 px-3 text-center text-sky-500 font-bold">Diproses</th>
+                                                        <th className="py-2.5 px-3 text-center text-emerald-500 font-bold">Selesai</th>
+                                                        <th className="py-2.5 px-3 text-right">Total Beban</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className={`divide-y ${isDark ? 'divide-slate-800 text-slate-300' : 'divide-slate-200 text-slate-700'}`}>
+                                                    {departmentData.map((d) => (
+                                                        <tr key={d.department} className={isDark ? 'hover:bg-slate-750/40' : 'hover:bg-slate-50'}>
+                                                            <td className={`py-2 px-3 font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>{d.department}</td>
+                                                            <td className="py-2 px-3 text-center font-bold text-rose-500">{d.open}</td>
+                                                            <td className="py-2 px-3 text-center font-bold text-sky-500">{d.in_progress}</td>
+                                                            <td className="py-2 px-3 text-center font-bold text-emerald-500">{d.resolved}</td>
+                                                            <td className={`py-2 px-3 text-right font-bold ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>{d.total}</td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    ) : (
+                                        <div className="h-64 w-full mt-2">
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <BarChart
+                                                    data={departmentData}
+                                                    margin={{ top: 10, right: 10, left: -10, bottom: 20 }}
+                                                >
+                                                    <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#334155' : '#e2e8f0'} vertical={false} />
+                                                    <XAxis dataKey="department" stroke={isDark ? '#cbd5e1' : '#334155'} fontSize={11} interval={0} angle={-15} textAnchor="end" height={35} />
+                                                    <YAxis stroke={isDark ? '#94a3b8' : '#64748b'} fontSize={10} allowDecimals={false} />
+                                                    <RechartsTooltip content={<CustomDeptTooltip />} cursor={{ fill: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.03)' }} />
+                                                    <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '4px' }} />
+                                                    <Bar dataKey="open" name="Belum Selesai" stackId="a" fill="#f43f5e" />
+                                                    <Bar dataKey="in_progress" name="Sedang Diproses" stackId="a" fill="#38bdf8" />
+                                                    <Bar dataKey="resolved" name="Selesai" stackId="a" fill="#10b981" radius={[4, 4, 0, 0]} />
+                                                </BarChart>
+                                            </ResponsiveContainer>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
             )}
