@@ -384,4 +384,221 @@ input[type="range"]::-moz-range-thumb {
   will-change: transform, opacity, filter;
 }
 
+/* ─── Mode Lapangan (Sandbox) Scoped Themes & Glassmorphism ─────────────────── */
+.lean-root {
+  position: relative;
+  min-height: 100vh;
+  transition: background-image 0.3s ease, color 0.2s ease;
+}
+
+.lean-theme-dark {
+  background-image: url('/images/bg-leaves-dark.png');
+  background-repeat: repeat;
+  background-size: 600px auto;
+  background-attachment: fixed;
+  background-position: top center;
+  background-color: #0b1120;
+  color: #f8fafc;
+}
+
+.lean-theme-dark::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background-color: rgba(11, 17, 32, 0.82);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.lean-theme-light {
+  background-image: url('/images/bg-leaves-light.png');
+  background-repeat: repeat;
+  background-size: 600px auto;
+  background-attachment: fixed;
+  background-position: top center;
+  background-color: #f8fafc;
+  color: #1e293b;
+}
+
+.lean-theme-light::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background-color: rgba(248, 250, 252, 0.82);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Ensure foreground content sits above backdrop overlay */
+.lean-root > header,
+.lean-root > main,
+.lean-root > footer,
+.lean-root > div {
+  position: relative;
+  z-index: 10;
+}
+
+/* ─── Mode Lapangan Light Theme Overrides (Frosted Glass & Contrast) ───────── */
+.lean-theme-light .bg-slate-900\/95,
+.lean-theme-light .bg-slate-900\/90,
+.lean-theme-light .bg-slate-900\/80,
+.lean-theme-light .bg-slate-900\/70,
+.lean-theme-light .bg-slate-800\/95,
+.lean-theme-light .bg-slate-800\/90,
+.lean-theme-light .bg-slate-800\/80,
+.lean-theme-light .bg-slate-800\/70,
+.lean-theme-light .bg-slate-800\/60,
+.lean-theme-light .bg-slate-850 {
+  background-color: rgba(255, 255, 255, 0.88) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+}
+
+.lean-theme-light .bg-slate-900,
+.lean-theme-light .bg-slate-950,
+.lean-theme-light .bg-slate-950\/90,
+.lean-theme-light .bg-slate-950\/80,
+.lean-theme-light .bg-slate-950\/70 {
+  background-color: rgba(248, 250, 252, 0.95) !important;
+}
+
+.lean-theme-light .bg-slate-900\/40,
+.lean-theme-light .bg-slate-900\/60,
+.lean-theme-light .bg-slate-800\/40 {
+  background-color: rgba(241, 245, 249, 0.8) !important;
+}
+
+.lean-theme-light .border-slate-800,
+.lean-theme-light .border-slate-700,
+.lean-theme-light .border-slate-700\/80,
+.lean-theme-light .border-slate-700\/70,
+.lean-theme-light .border-slate-700\/60,
+.lean-theme-light .border-slate-700\/50 {
+  border-color: rgba(226, 232, 240, 0.9) !important;
+}
+
+/* Light text color mappings */
+.lean-theme-light .text-white {
+  color: #0f172a !important;
+}
+
+.lean-theme-light .text-slate-100 {
+  color: #0f172a !important;
+}
+
+.lean-theme-light .text-slate-200 {
+  color: #1e293b !important;
+}
+
+.lean-theme-light .text-slate-300 {
+  color: #334155 !important;
+}
+
+.lean-theme-light .text-slate-400 {
+  color: #64748b !important;
+}
+
+.lean-theme-light .text-slate-500 {
+  color: #64748b !important;
+}
+
+/* Retain high-contrast colored text in buttons/badges */
+.lean-theme-light .text-white.keep-white,
+.lean-theme-light button.bg-emerald-600,
+.lean-theme-light button.bg-teal-500 {
+  color: #ffffff !important;
+}
+
+.lean-theme-light button.bg-teal-500 {
+  color: #042f2e !important;
+  font-weight: 700 !important;
+}
+
+/* Status Badges in Light Mode */
+.lean-theme-light .bg-rose-950\/80,
+.lean-theme-light .bg-rose-950\/60,
+.lean-theme-light .bg-rose-950\/50,
+.lean-theme-light .bg-rose-950 {
+  background-color: #ffe4e6 !important;
+  color: #be123c !important;
+  border-color: #fda4af !important;
+}
+.lean-theme-light .text-rose-300 {
+  color: #be123c !important;
+}
+
+.lean-theme-light .bg-amber-950\/80,
+.lean-theme-light .bg-amber-950\/60,
+.lean-theme-light .bg-amber-950 {
+  background-color: #fef3c7 !important;
+  color: #b45309 !important;
+  border-color: #fcd34d !important;
+}
+.lean-theme-light .text-amber-300 {
+  color: #b45309 !important;
+}
+
+.lean-theme-light .bg-orange-950\/80,
+.lean-theme-light .bg-orange-950\/60,
+.lean-theme-light .bg-orange-950 {
+  background-color: #ffedd5 !important;
+  color: #c2410c !important;
+  border-color: #fdba74 !important;
+}
+.lean-theme-light .text-orange-300 {
+  color: #c2410c !important;
+}
+
+.lean-theme-light .bg-emerald-950\/80,
+.lean-theme-light .bg-emerald-950\/60,
+.lean-theme-light .bg-emerald-950 {
+  background-color: #d1fae5 !important;
+  color: #047857 !important;
+  border-color: #6ee7b7 !important;
+}
+.lean-theme-light .text-emerald-300 {
+  color: #047857 !important;
+}
+
+.lean-theme-light .bg-sky-950\/80,
+.lean-theme-light .bg-sky-950\/60,
+.lean-theme-light .bg-sky-950 {
+  background-color: #e0f2fe !important;
+  color: #0369a1 !important;
+  border-color: #7dd3fc !important;
+}
+.lean-theme-light .text-sky-300 {
+  color: #0369a1 !important;
+}
+
+/* Light Mode Input & Hover Overrides */
+.lean-theme-light input[type="text"],
+.lean-theme-light input[type="date"],
+.lean-theme-light select,
+.lean-theme-light textarea {
+  background-color: rgba(255, 255, 255, 0.95) !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+}
+
+.lean-theme-light input::placeholder,
+.lean-theme-light textarea::placeholder {
+  color: #94a3b8 !important;
+}
+
+.lean-theme-light .hover\:bg-slate-700:hover,
+.lean-theme-light .hover\:bg-slate-700\/50:hover,
+.lean-theme-light .hover\:bg-slate-800:hover {
+  background-color: rgba(241, 245, 249, 0.9) !important;
+}
+
+.lean-theme-light .divide-slate-700\/60 > * + *,
+.lean-theme-light .divide-slate-700\/80 > * + * {
+  border-color: rgba(226, 232, 240, 0.9) !important;
+}
+
 

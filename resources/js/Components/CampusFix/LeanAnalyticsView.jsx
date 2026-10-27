@@ -620,7 +620,9 @@ export function LeanAnalyticsView({
     aiPendingCount = 0,
     onRetryAi,
     isRetrying = false,
+    theme = 'dark',
 }) {
+    const isDark = theme === 'dark';
     const [selectedCategory, setSelectedCategory] = useState('all');
     const [searchFilter, setSearchFilter] = useState('');
     const [hotspotTab, setHotspotTab] = useState('leaderboard'); // 'leaderboard' (default) | 'tpi' | 'tbr' | 'chart'
@@ -2436,10 +2438,10 @@ export function LeanAnalyticsView({
                                                 data={paretoData}
                                                 margin={{ top: 15, right: 25, left: -10, bottom: 40 }}
                                             >
-                                                <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
+                                                <CartesianGrid strokeDasharray="3 3" stroke={isDark ? "#334155" : "#e2e8f0"} vertical={false} />
                                                 <XAxis
                                                     dataKey="name"
-                                                    stroke="#cbd5e1"
+                                                    stroke={isDark ? "#cbd5e1" : "#475569"}
                                                     fontSize={10}
                                                     interval={0}
                                                     angle={-22}
@@ -2450,7 +2452,7 @@ export function LeanAnalyticsView({
                                                 <YAxis
                                                     yAxisId="left"
                                                     type="number"
-                                                    stroke="#94a3b8"
+                                                    stroke={isDark ? "#94a3b8" : "#64748b"}
                                                     fontSize={10}
                                                     allowDecimals={false}
                                                     domain={[0, (dataMax) => Math.max(2, Math.ceil(dataMax * 1.25))]}
@@ -2466,7 +2468,7 @@ export function LeanAnalyticsView({
                                                     tickFormatter={(val) => `${val}%`}
                                                 />
                                                 <RechartsTooltip
-                                                    cursor={{ fill: 'rgba(255, 255, 255, 0.05)' }}
+                                                    cursor={{ fill: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.04)' }}
                                                     content={<CustomParetoTooltip />}
                                                 />
                                                 <ReferenceLine
@@ -2491,7 +2493,7 @@ export function LeanAnalyticsView({
                                                     <LabelList
                                                         dataKey="count"
                                                         position="top"
-                                                        fill="#ffffff"
+                                                        fill={isDark ? "#ffffff" : "#0f172a"}
                                                         fontSize={10}
                                                         fontWeight={700}
                                                         offset={5}
@@ -2600,10 +2602,12 @@ export function LeanAnalyticsView({
                                                 </Pie>
                                                 <RechartsTooltip
                                                     contentStyle={{
-                                                        backgroundColor: '#0f172a',
-                                                        borderColor: '#334155',
+                                                        backgroundColor: isDark ? '#0f172a' : '#ffffff',
+                                                        borderColor: isDark ? '#334155' : '#e2e8f0',
+                                                        color: isDark ? '#f8fafc' : '#0f172a',
                                                         borderRadius: '8px',
                                                         fontSize: '11px',
+                                                        boxShadow: isDark ? '0 10px 15px -3px rgba(0, 0, 0, 0.5)' : '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
                                                     }}
                                                 />
                                                 <Legend
@@ -2700,18 +2704,18 @@ export function LeanAnalyticsView({
                                             data={urgencyMatrixData}
                                             margin={{ top: 10, right: 20, left: -10, bottom: 25 }}
                                         >
-                                            <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
+                                            <CartesianGrid strokeDasharray="3 3" stroke={isDark ? "#334155" : "#e2e8f0"} vertical={false} />
                                             <XAxis
                                                 dataKey="category"
-                                                stroke="#cbd5e1"
+                                                stroke={isDark ? "#cbd5e1" : "#475569"}
                                                 fontSize={10}
                                                 interval={0}
                                                 angle={-15}
                                                 textAnchor="end"
                                                 height={40}
                                             />
-                                            <YAxis stroke="#94a3b8" fontSize={10} allowDecimals={false} />
-                                            <RechartsTooltip content={<CustomUrgencyTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.05)' }} />
+                                            <YAxis stroke={isDark ? "#94a3b8" : "#64748b"} fontSize={10} allowDecimals={false} />
+                                            <RechartsTooltip content={<CustomUrgencyTooltip />} cursor={{ fill: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.04)' }} />
                                             <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '6px' }} />
                                             <Bar dataKey="Darurat" name="Darurat" stackId="a" fill="#f43f5e" />
                                             <Bar dataKey="Tinggi" name="Tinggi" stackId="a" fill="#fb923c" />

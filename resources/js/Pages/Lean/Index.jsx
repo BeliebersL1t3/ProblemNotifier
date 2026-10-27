@@ -31,7 +31,9 @@ import {
     EyeOff,
     RotateCcw,
     BarChart3,
-    Sparkles
+    Sparkles,
+    Sun,
+    Moon
 } from 'lucide-react';
 import axios from 'axios';
 import { BotControlModal } from '@/Components/CampusFix/BotControlModal';
@@ -127,6 +129,23 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
             localStorage.setItem('lean_erp_view_mode', viewMode);
         } catch (e) {}
     }, [viewMode]);
+
+    // Theme preference (dark / light) with LocalStorage persistence
+    const [theme, setTheme] = useState(() => {
+        try {
+            return localStorage.getItem('telunas_field_theme') || 'dark';
+        } catch (e) {
+            return 'dark';
+        }
+    });
+
+    const isDark = theme === 'dark';
+
+    useEffect(() => {
+        try {
+            localStorage.setItem('telunas_field_theme', theme);
+        } catch (e) {}
+    }, [theme]);
 
     const toggleColumn = (colId) => {
         setVisibleColumns((prev) => ({ ...prev, [colId]: !prev[colId] }));
@@ -432,7 +451,7 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
     }, [issues, selectedDeptFilter]);
 
     return (
-        <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col font-sans pb-24 md:pb-12">
+        <div className={`lean-root ${isDark ? 'lean-theme-dark text-slate-100' : 'lean-theme-light text-slate-800'} flex flex-col font-sans pb-24 md:pb-12 transition-colors duration-300`}>
             <Head title="Mode Lapangan (Sandbox) — Telunas Issue Tracker" />
 
             {/* TOP HEADER */}
@@ -456,6 +475,30 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
 
                     {/* Profile & Navigation Switcher & Bot Controls */}
                     <div className="flex items-center gap-2">
+                        {/* Quick Theme Toggle (Sun / Moon) */}
+                        <button
+                            type="button"
+                            onClick={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')}
+                            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-bold transition-all shadow-sm cursor-pointer ${
+                                isDark
+                                    ? 'bg-slate-800/90 border-slate-700 text-amber-300 hover:bg-slate-700 hover:text-amber-200'
+                                    : 'bg-white/95 border-slate-200 text-amber-700 hover:bg-amber-50 hover:text-amber-800 shadow-slate-200/50'
+                            }`}
+                            title={isDark ? 'Beralih ke Mode Terang (Light Mode)' : 'Beralih ke Mode Gelap (Dark Mode)'}
+                        >
+                            {isDark ? (
+                                <>
+                                    <Sun className="w-3.5 h-3.5 text-amber-400" />
+                                    <span className="hidden sm:inline">Terang</span>
+                                </>
+                            ) : (
+                                <>
+                                    <Moon className="w-3.5 h-3.5 text-slate-700" />
+                                    <span className="hidden sm:inline">Gelap</span>
+                                </>
+                            )}
+                        </button>
+
                         {/* WhatsApp Bot V2 Status & Control Button */}
                         <button
                             type="button"
@@ -760,6 +803,7 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                         aiPendingCount={aiPendingCount}
                         onRetryAi={handleRetryAi}
                         isRetrying={isRetryingAi}
+                        theme={theme}
                     />
                 ) : filteredIssues.length === 0 ? (
                     <div className="py-16 text-center border-2 border-dashed border-slate-800 rounded-2xl p-6">
