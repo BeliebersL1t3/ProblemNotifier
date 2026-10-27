@@ -364,6 +364,16 @@ export function CampusFixHeader({ mode = 'dashboard', query, onQueryChange, onRe
                                 );
                             })()}
 
+                            {/* Mobile Quick Link: Mode Lapangan */}
+                            <Link
+                                href="/lapangan"
+                                className="flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-800 font-bold text-[11px] transition-all shadow-xs shrink-0"
+                                title="Buka Mode Lapangan (Sandbox)"
+                            >
+                                <span className="text-xs">📱</span>
+                                <span className="font-semibold">Lapangan</span>
+                            </Link>
+
                             {/* Mobile Notification Bell Dropdown */}
                             <NotificationDropdown isMobile={true} />
 
