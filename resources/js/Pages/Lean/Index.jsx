@@ -780,20 +780,20 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                     /* --- VIEW 1: ERP SPREADSHEET TABLE --- */
                     <div className="bg-slate-800/90 border border-slate-700/80 rounded-2xl overflow-hidden shadow-xl">
                         <div className="overflow-x-auto">
-                            <table className="w-full text-left text-xs border-collapse">
+                            <table className="w-full text-left text-[11px] border-collapse">
                                 <thead>
-                                    <tr className="bg-slate-900/90 text-slate-300 font-bold border-b border-slate-700/80 uppercase tracking-wider text-[11px]">
-                                        {visibleColumns.id && <th className="py-3 px-3.5 whitespace-nowrap">ID Isu</th>}
-                                        {visibleColumns.photo && <th className="py-3 px-3.5 text-center whitespace-nowrap">Foto</th>}
-                                        {visibleColumns.title && <th className="py-3 px-3.5 min-w-[180px]">Judul Masalah</th>}
-                                        {visibleColumns.category && <th className="py-3 px-3.5 whitespace-nowrap">Kategori AI</th>}
-                                        {visibleColumns.location && <th className="py-3 px-3.5 whitespace-nowrap">Lokasi</th>}
-                                        {visibleColumns.dept && <th className="py-3 px-3.5 whitespace-nowrap">Departemen</th>}
-                                        {visibleColumns.reporter && <th className="py-3 px-3.5 whitespace-nowrap">Pelapor</th>}
-                                        {visibleColumns.desc && <th className="py-3 px-3.5 min-w-[200px]">Deskripsi</th>}
-                                        {visibleColumns.status && <th className="py-3 px-3.5 whitespace-nowrap">Status</th>}
-                                        {visibleColumns.time && <th className="py-3 px-3.5 whitespace-nowrap">Waktu</th>}
-                                        <th className="py-3 px-3.5 text-center whitespace-nowrap">Aksi</th>
+                                    <tr className="bg-slate-900/90 text-slate-300 font-bold border-b border-slate-700/80 uppercase tracking-wider text-[10px]">
+                                        {visibleColumns.id && <th className="py-2 px-2 whitespace-nowrap">ID Isu</th>}
+                                        {visibleColumns.photo && <th className="py-2 px-1 text-center whitespace-nowrap">Foto</th>}
+                                        {visibleColumns.title && <th className="py-2 px-2 min-w-[110px] max-w-[160px]">Judul Masalah</th>}
+                                        {visibleColumns.category && <th className="py-2 px-2 whitespace-nowrap">Kategori AI</th>}
+                                        {visibleColumns.location && <th className="py-2 px-2 whitespace-nowrap">Lokasi</th>}
+                                        {visibleColumns.dept && <th className="py-2 px-2 whitespace-nowrap">Departemen</th>}
+                                        {visibleColumns.reporter && <th className="py-2 px-2 whitespace-nowrap">Pelapor</th>}
+                                        {visibleColumns.desc && <th className="py-2 px-2 min-w-[130px] max-w-[180px]">Deskripsi</th>}
+                                        {visibleColumns.status && <th className="py-2 px-2 whitespace-nowrap">Status</th>}
+                                        {visibleColumns.time && <th className="py-2 px-2 whitespace-nowrap">Waktu</th>}
+                                        <th className="py-2 px-1.5 text-center whitespace-nowrap">Aksi</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-700/60 font-medium">
@@ -809,14 +809,14 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                                             >
                                                 {/* ID ISU */}
                                                 {visibleColumns.id && (
-                                                    <td className="py-2.5 px-3.5 font-mono font-bold text-amber-300 whitespace-nowrap">
+                                                    <td className="py-2 px-2 font-mono font-bold text-amber-300 whitespace-nowrap text-[11px]">
                                                         #{issue.issue_code || ('LEAN-' + issue.id)}
                                                     </td>
                                                 )}
 
                                                 {/* FOTO BUKTI */}
                                                 {visibleColumns.photo && (
-                                                    <td className="py-2.5 px-3.5 text-center">
+                                                    <td className="py-2 px-1 text-center">
                                                         {issue.image_url ? (
                                                             <button
                                                                 type="button"
@@ -824,41 +824,41 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                                                                     e.stopPropagation();
                                                                     setLightboxImage(issue.image_url);
                                                                 }}
-                                                                className="w-10 h-10 rounded-lg overflow-hidden border border-slate-700 hover:border-emerald-500 inline-block transition-all hover:scale-105"
+                                                                className="w-8 h-8 rounded-md overflow-hidden border border-slate-700 hover:border-emerald-500 inline-block transition-all hover:scale-105"
                                                                 title="Klik untuk lihat foto"
                                                             >
                                                                 <img src={issue.image_url} alt="" className="w-full h-full object-cover" />
                                                             </button>
                                                         ) : (
-                                                            <span className="text-slate-600 text-xs italic">-</span>
+                                                            <span className="text-slate-600 text-[10px] italic">-</span>
                                                         )}
                                                     </td>
                                                 )}
 
                                                 {/* JUDUL MASALAH */}
                                                 {visibleColumns.title && (
-                                                    <td className="py-2.5 px-3.5 text-white font-semibold leading-snug">
+                                                    <td className="py-2 px-2 text-white font-semibold leading-snug max-w-[160px] truncate" title={issue.title}>
                                                         {issue.title}
                                                     </td>
                                                 )}
 
                                                 {/* KATEGORI AI */}
                                                 {visibleColumns.category && (
-                                                    <td className="py-2.5 px-3.5 whitespace-nowrap text-xs">
+                                                    <td className="py-2 px-2 whitespace-nowrap text-[11px]">
                                                         {issue.ai_category ? (
                                                             <div className="flex flex-col">
                                                                 <span className="font-semibold text-sky-300 flex items-center gap-1">
-                                                                    <Sparkles className="w-3 h-3 text-sky-400 shrink-0" />
+                                                                    <Sparkles className="w-2.5 h-2.5 text-sky-400 shrink-0" />
                                                                     {issue.ai_category}
                                                                 </span>
                                                                 {issue.ai_sub_category && (
-                                                                    <span className="text-[10px] text-slate-400">
+                                                                    <span className="text-[9px] text-slate-400 block truncate max-w-[130px]" title={issue.ai_sub_category}>
                                                                         {issue.ai_sub_category}
                                                                     </span>
                                                                 )}
                                                             </div>
                                                         ) : (
-                                                            <span className="text-slate-500 text-[11px] italic">
+                                                            <span className="text-slate-500 text-[10px] italic">
                                                                 {issue.ai_status === 'pending' ? '⏳ Antrean' : '-'}
                                                             </span>
                                                         )}
@@ -867,17 +867,20 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
 
                                                 {/* LOKASI */}
                                                 {visibleColumns.location && (
-                                                    <td className="py-2.5 px-3.5 whitespace-nowrap text-slate-300">
-                                                        <span className="inline-flex items-center gap-1 bg-emerald-950/80 text-emerald-300 border border-emerald-800/60 px-2 py-0.5 rounded font-bold text-[11px]">
-                                                            <MapPin className="w-3 h-3 text-emerald-400" />
-                                                            {issue.location}
+                                                    <td className="py-2 px-2 whitespace-nowrap text-slate-300">
+                                                        <span
+                                                            className="inline-flex items-center gap-1 bg-emerald-950/80 text-emerald-300 border border-emerald-800/60 px-1.5 py-0.5 rounded font-bold text-[10px] max-w-[170px] truncate"
+                                                            title={issue.location}
+                                                        >
+                                                            <MapPin className="w-2.5 h-2.5 text-emerald-400 shrink-0" />
+                                                            <span className="truncate">{issue.location}</span>
                                                         </span>
                                                     </td>
                                                 )}
 
                                                 {/* DEPARTEMEN TUJUAN */}
                                                 {visibleColumns.dept && (
-                                                    <td className="py-2.5 px-3.5 whitespace-nowrap">
+                                                    <td className="py-2 px-2 whitespace-nowrap">
                                                         <div className="flex flex-wrap gap-1">
                                                             {(issue.target_departments || []).map((dept) => {
                                                                 const isThisDeptClaimed = issue.claimed_by_dept && (
@@ -889,7 +892,7 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                                                                 return (
                                                                     <span
                                                                         key={dept}
-                                                                        className={`px-1.5 py-0.5 rounded text-[10px] font-semibold border ${
+                                                                        className={`px-1.5 py-0.5 rounded text-[9px] font-semibold border ${
                                                                             isWorking
                                                                                 ? 'bg-amber-950/80 border-amber-500 text-amber-200'
                                                                                 : isThisAcc
@@ -907,45 +910,43 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
 
                                                 {/* NAMA PELAPOR */}
                                                 {visibleColumns.reporter && (
-                                                    <td className="py-2.5 px-3.5 whitespace-nowrap text-slate-300">
-                                                        <div className="font-semibold text-white">{issue.reporter_name}</div>
-                                                        <div className="text-[10px] text-slate-400">{issue.reporter_dept || 'Staf'}</div>
+                                                    <td className="py-2 px-2 whitespace-nowrap text-slate-300">
+                                                        <div className="font-semibold text-white leading-tight">{issue.reporter_name}</div>
+                                                        <div className="text-[9px] text-slate-400 leading-tight">{issue.reporter_dept || 'Staf'}</div>
                                                     </td>
                                                 )}
 
                                                 {/* DESKRIPSI */}
                                                 {visibleColumns.desc && (
-                                                    <td className="py-2.5 px-3.5 text-slate-300 text-xs min-w-[220px] max-w-md xl:max-w-xl">
-                                                        <p className="line-clamp-2 leading-relaxed" title={issue.description}>
-                                                            {issue.description || <span className="text-slate-600 italic">Tidak ada keterangan</span>}
-                                                        </p>
+                                                    <td className="py-2 px-2 text-slate-300 text-[11px] max-w-[180px] truncate" title={issue.description}>
+                                                        {issue.description || <span className="text-slate-600 italic">Tidak ada keterangan</span>}
                                                     </td>
                                                 )}
 
                                                 {/* STATUS BADGE */}
                                                 {visibleColumns.status && (
-                                                    <td className="py-2.5 px-3.5 whitespace-nowrap">
+                                                    <td className="py-2 px-2 whitespace-nowrap">
                                                         {issue.status === 'open' && (
-                                                            <span className="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40 text-[11px] font-semibold inline-flex items-center gap-1">
+                                                            <span className="px-1.5 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40 text-[10px] font-semibold inline-flex items-center gap-1">
                                                                 <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
                                                                 Open
                                                             </span>
                                                         )}
                                                         {issue.status === 'in_progress' && (
-                                                            <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[11px] font-semibold inline-flex items-center gap-1">
+                                                            <span className="px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[10px] font-semibold inline-flex items-center gap-1">
                                                                 <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
                                                                 Progress
                                                             </span>
                                                         )}
                                                         {issue.status === 'pending' && (
-                                                            <span className="px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-300 border border-orange-500/40 text-[11px] font-semibold inline-flex items-center gap-1">
+                                                            <span className="px-1.5 py-0.5 rounded-full bg-orange-500/20 text-orange-300 border border-orange-500/40 text-[10px] font-semibold inline-flex items-center gap-1">
                                                                 <span className="w-1.5 h-1.5 rounded-full bg-orange-400" />
                                                                 Tertunda
                                                             </span>
                                                         )}
                                                         {issue.status === 'resolved' && (
-                                                            <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[11px] font-semibold inline-flex items-center gap-1">
-                                                                <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                                                            <span className="px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-semibold inline-flex items-center gap-1">
+                                                                <CheckCircle2 className="w-2.5 h-2.5 text-emerald-400" />
                                                                 Selesai
                                                             </span>
                                                         )}
@@ -954,23 +955,23 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
 
                                                 {/* WAKTU PELAPORAN */}
                                                 {visibleColumns.time && (
-                                                    <td className="py-2.5 px-3.5 whitespace-nowrap text-[11px] text-slate-400">
+                                                    <td className="py-2 px-2 whitespace-nowrap text-[10px] text-slate-400">
                                                         {issue.created_at_human}
                                                     </td>
                                                 )}
 
                                                 {/* AKSI HAPUS */}
-                                                <td className="py-2.5 px-3.5 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                                                <td className="py-2 px-1.5 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                                                     <button
                                                         type="button"
                                                         onClick={() => {
                                                             setIssueToDelete(issue);
                                                             setDeleteSupervisorName(myName || 'Supervisor');
                                                         }}
-                                                        className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 hover:border-rose-500/60 transition"
+                                                        className="p-1 rounded-md bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 hover:border-rose-500/60 transition"
                                                         title="Hapus / Sembunyikan Tiket"
                                                     >
-                                                        <Trash2 className="w-3.5 h-3.5" />
+                                                        <Trash2 className="w-3 h-3" />
                                                     </button>
                                                 </td>
                                             </tr>
