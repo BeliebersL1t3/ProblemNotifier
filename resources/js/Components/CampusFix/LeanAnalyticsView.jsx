@@ -54,6 +54,7 @@ import {
     Activity,
     CheckSquare,
     Square,
+    FileText,
 } from 'lucide-react';
 import { TPI_MASTERPLAN_ZONES, TBR_MASTERPLAN_ZONES } from '@/constants/locations';
 
@@ -608,6 +609,7 @@ export function LeanAnalyticsView({
     const [hotspotTab, setHotspotTab] = useState('leaderboard'); // 'leaderboard' (default) | 'tpi' | 'tbr' | 'chart'
     const [selectedTpiZone, setSelectedTpiZone] = useState(null);
     const [selectedTbrZone, setSelectedTbrZone] = useState(null);
+    const [expandedDescriptions, setExpandedDescriptions] = useState({});
     
     // Time Range Filter states
     const [timeRange, setTimeRange] = useState('all'); // 'all' | 'today' | '7d' | '30d' | '6m' | '1y' | 'custom'
@@ -2768,10 +2770,45 @@ export function LeanAnalyticsView({
                                             </div>
                                         </div>
 
-                                        {/* Issue Title & Department */}
-                                        <h4 className="text-xs font-bold text-white mb-1.5">
+                                        {/* Issue Title */}
+                                        <h4 className="text-xs font-bold text-white mb-2">
                                             {issue.title}
                                         </h4>
+
+                                        {/* Laporan Lapangan Awal (Perbandingan dengan Analisis AI) */}
+                                        <div className="p-2.5 rounded-lg bg-slate-950/70 border border-slate-800/90 mb-2">
+                                            <div className="flex items-center justify-between gap-1 mb-1">
+                                                <span className="text-[10px] font-bold text-sky-400 uppercase tracking-wider flex items-center gap-1.5">
+                                                    <FileText className="w-3 h-3 text-sky-400" />
+                                                    Deskripsi Laporan Awal (Staf / User):
+                                                </span>
+                                                {issue.reporter_name && (
+                                                    <span className="text-[10px] text-slate-400 truncate max-w-[140px]">
+                                                        Pelapor: {issue.reporter_name}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            {issue.description ? (
+                                                <>
+                                                    <p className={`text-[11px] text-slate-300 leading-relaxed whitespace-pre-line ${!expandedDescriptions[issue.id] ? 'line-clamp-3' : ''}`}>
+                                                        {issue.description}
+                                                    </p>
+                                                    {issue.description.length > 130 && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setExpandedDescriptions(prev => ({ ...prev, [issue.id]: !prev[issue.id] }))}
+                                                            className="mt-1 text-[10px] font-semibold text-sky-400 hover:text-sky-300 transition-colors inline-block"
+                                                        >
+                                                            {expandedDescriptions[issue.id] ? 'Tampilkan Lebih Sedikit' : 'Lihat Selengkapnya...'}
+                                                        </button>
+                                                    )}
+                                                </>
+                                            ) : (
+                                                <p className="text-[11px] text-slate-500 italic">
+                                                    (Hanya judul singkat, tidak ada rincian deskripsi tambahan dari pelapor)
+                                                </p>
+                                            )}
+                                        </div>
 
                                         {/* AI Root Cause */}
                                         {ai.dugaan_akar_masalah && (
