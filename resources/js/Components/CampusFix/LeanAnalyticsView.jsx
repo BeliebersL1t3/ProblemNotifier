@@ -1397,12 +1397,14 @@ export function LeanAnalyticsView({
             )}
 
             {/* FILTER & GOOGLE SHEETS CONTROL BAR */}
-            <div className="bg-slate-900/95 border border-slate-700/80 rounded-2xl p-4 shadow-xl backdrop-blur space-y-3.5">
+            <div className={`border rounded-2xl p-4 backdrop-blur space-y-3.5 transition-all ${
+                isDark ? 'bg-slate-900/95 border-slate-700/80 shadow-xl' : 'bg-white/95 border-slate-200/90 shadow-sm'
+            }`}>
                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                     {/* Time Range Filter Buttons */}
                     <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="text-xs font-semibold text-slate-400 flex items-center gap-1.5 mr-2">
-                            <Clock className="w-3.5 h-3.5 text-teal-400" />
+                        <span className={`text-xs font-semibold flex items-center gap-1.5 mr-2 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                            <Clock className="w-3.5 h-3.5 text-teal-500" />
                             Periode:
                         </span>
                         {[
@@ -1477,28 +1479,34 @@ export function LeanAnalyticsView({
                 </div>
 
                 {/* Custom Date Range Pickers & Info row */}
-                <div className="pt-2 border-t border-slate-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                <div className={`pt-2 border-t flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs ${
+                    isDark ? 'border-slate-800/80 text-slate-400' : 'border-slate-200 text-slate-600'
+                }`}>
                     {timeRange === 'custom' && (
                         <div className="flex flex-wrap items-center gap-2">
-                            <span className="text-slate-400">Dari:</span>
+                            <span className={isDark ? 'text-slate-400' : 'text-slate-600'}>Dari:</span>
                             <input
                                 type="date"
                                 value={startDate}
                                 onChange={(e) => setStartDate(e.target.value)}
-                                className="bg-slate-800 border border-slate-700 rounded px-2.5 py-1 text-white text-xs focus:outline-none focus:border-teal-500"
+                                className={`border rounded px-2.5 py-1 text-xs focus:outline-none focus:border-teal-500 ${
+                                    isDark ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-800 shadow-xs'
+                                }`}
                             />
-                            <span className="text-slate-400">Sampai:</span>
+                            <span className={isDark ? 'text-slate-400' : 'text-slate-600'}>Sampai:</span>
                             <input
                                 type="date"
                                 value={endDate}
                                 onChange={(e) => setEndDate(e.target.value)}
-                                className="bg-slate-800 border border-slate-700 rounded px-2.5 py-1 text-white text-xs focus:outline-none focus:border-teal-500"
+                                className={`border rounded px-2.5 py-1 text-xs focus:outline-none focus:border-teal-500 ${
+                                    isDark ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-800 shadow-xs'
+                                }`}
                             />
                         </div>
                     )}
 
-                    <div className="text-slate-400 flex items-center gap-1.5">
-                        <Calendar className="w-3.5 h-3.5 text-slate-500" />
+                    <div className={`flex items-center gap-1.5 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                        <Calendar className={`w-3.5 h-3.5 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
                         <span>Menampilkan <strong>{filteredIssues.length}</strong> dari <strong>{issues.length}</strong> total tiket</span>
                     </div>
 
@@ -1506,8 +1514,8 @@ export function LeanAnalyticsView({
                         <div
                             className={`px-3 py-1 rounded-md text-xs font-medium ${
                                 syncFeedback.type === 'success'
-                                    ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-800/60'
-                                    : 'bg-rose-950/80 text-rose-300 border border-rose-800/60'
+                                    ? isDark ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-800/60' : 'bg-emerald-50 text-emerald-800 border border-emerald-300'
+                                    : isDark ? 'bg-rose-950/80 text-rose-300 border border-rose-800/60' : 'bg-rose-50 text-rose-800 border border-rose-300'
                             }`}
                         >
                             {syncFeedback.message}
@@ -1517,15 +1525,21 @@ export function LeanAnalyticsView({
             </div>
 
             {/* TAB NAVIGATION & ERP WIDGET CONTROLS */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-700/80">
-                <div className="flex items-center gap-1.5 p-1 bg-slate-900/90 rounded-xl border border-slate-700/80 flex-wrap">
+            <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b ${
+                isDark ? 'border-slate-700/80' : 'border-slate-200'
+            }`}>
+                <div className={`flex items-center gap-1.5 p-1 rounded-xl border flex-wrap ${
+                    isDark ? 'bg-slate-900/90 border-slate-700/80' : 'bg-slate-100 border-slate-300 shadow-xs'
+                }`}>
                     <button
                         type="button"
                         onClick={() => setActiveTab('executive')}
                         className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
                             activeTab === 'executive'
                                 ? 'bg-teal-500 text-slate-950 shadow-md shadow-teal-500/20'
-                                : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                                : isDark
+                                ? 'text-slate-400 hover:text-white hover:bg-slate-800'
+                                : 'text-slate-600 hover:text-slate-900 hover:bg-white'
                         }`}
                     >
                         <Compass className="w-3.5 h-3.5" />
@@ -1538,7 +1552,9 @@ export function LeanAnalyticsView({
                         className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
                             activeTab === 'maintenance'
                                 ? 'bg-teal-500 text-slate-950 shadow-md shadow-teal-500/20'
-                                : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                                : isDark
+                                ? 'text-slate-400 hover:text-white hover:bg-slate-800'
+                                : 'text-slate-600 hover:text-slate-900 hover:bg-white'
                         }`}
                     >
                         <Wrench className="w-3.5 h-3.5" />
@@ -1551,7 +1567,9 @@ export function LeanAnalyticsView({
                         className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
                             activeTab === 'sla_performance'
                                 ? 'bg-teal-500 text-slate-950 shadow-md shadow-teal-500/20'
-                                : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                                : isDark
+                                ? 'text-slate-400 hover:text-white hover:bg-slate-800'
+                                : 'text-slate-600 hover:text-slate-900 hover:bg-white'
                         }`}
                     >
                         <Clock className="w-3.5 h-3.5" />
@@ -1711,9 +1729,11 @@ export function LeanAnalyticsView({
                     {widgetVisibility.kpi_cards !== false && (
                         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                             {/* Total & AI Coverage */}
-                            <div className="p-4 rounded-xl bg-slate-800/90 border border-slate-700/80 shadow-sm relative overflow-hidden group">
+                            <div className={`p-4 rounded-xl border shadow-sm relative overflow-hidden group backdrop-blur-md transition-all ${
+                                isDark ? 'bg-slate-800/90 border-slate-700/80' : 'bg-white/95 border-slate-200/90 shadow-xs'
+                            }`}>
                                 <div className="flex items-center justify-between">
-                                    <span className="text-xs font-semibold text-slate-400">Total Tiket Terekam</span>
+                                    <span className={`text-xs font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Total Tiket Terekam</span>
                                     <div className="flex items-center gap-1.5">
                                         <button
                                             type="button"
@@ -1723,71 +1743,81 @@ export function LeanAnalyticsView({
                                         >
                                             <EyeOff className="w-3 h-3" />
                                         </button>
-                                        <div className="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                                        <div className="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-500 flex items-center justify-center">
                                             <Layers className="w-4 h-4" />
                                         </div>
                                     </div>
                                 </div>
                                 <div className="mt-2 flex items-baseline gap-2">
-                                    <span className="text-2xl font-black text-white">{stats.total}</span>
-                                    <span className="text-[10px] text-emerald-400 font-semibold bg-emerald-950/80 px-1.5 py-0.5 rounded border border-emerald-800/50">
+                                    <span className={`text-2xl font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>{stats.total}</span>
+                                    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${
+                                        isDark
+                                            ? 'text-emerald-400 bg-emerald-950/80 border-emerald-800/50'
+                                            : 'text-emerald-800 bg-emerald-100 border-emerald-300'
+                                    }`}>
                                         {stats.analyzed} Dianalisis AI
                                     </span>
                                 </div>
-                                <p className="text-[11px] text-slate-500 mt-1">
+                                <p className={`text-[11px] mt-1 ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
                                     {stats.resolved} tiket telah diselesaikan tim
                                 </p>
                             </div>
 
                             {/* Top Category */}
-                            <div className="p-4 rounded-xl bg-slate-800/90 border border-slate-700/80 shadow-sm relative overflow-hidden">
+                            <div className={`p-4 rounded-xl border shadow-sm relative overflow-hidden backdrop-blur-md transition-all ${
+                                isDark ? 'bg-slate-800/90 border-slate-700/80' : 'bg-white/95 border-slate-200/90 shadow-xs'
+                            }`}>
                                 <div className="flex items-center justify-between">
-                                    <span className="text-xs font-semibold text-slate-400">Kategori Dominan</span>
-                                    <div className="w-7 h-7 rounded-lg bg-sky-500/20 text-sky-400 flex items-center justify-center">
+                                    <span className={`text-xs font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Kategori Dominan</span>
+                                    <div className="w-7 h-7 rounded-lg bg-sky-500/20 text-sky-500 flex items-center justify-center">
                                         <Sparkles className="w-4 h-4" />
                                     </div>
                                 </div>
                                 <div className="mt-2">
-                                    <span className="text-base font-bold text-sky-300 truncate block">
+                                    <span className={`text-base font-bold truncate block ${isDark ? 'text-sky-300' : 'text-sky-700'}`}>
                                         {stats.topCat}
                                     </span>
                                 </div>
-                                <p className="text-[11px] text-slate-400 mt-1">
+                                <p className={`text-[11px] mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                                     Menyumbang {stats.topCatCount} laporan ({stats.total > 0 ? Math.round((stats.topCatCount / stats.total) * 100) : 0}%)
                                 </p>
                             </div>
 
                             {/* Hotspot Location */}
-                            <div className="p-4 rounded-xl bg-slate-800/90 border border-slate-700/80 shadow-sm relative overflow-hidden">
+                            <div className={`p-4 rounded-xl border shadow-sm relative overflow-hidden backdrop-blur-md transition-all ${
+                                isDark ? 'bg-slate-800/90 border-slate-700/80' : 'bg-white/95 border-slate-200/90 shadow-xs'
+                            }`}>
                                 <div className="flex items-center justify-between">
-                                    <span className="text-xs font-semibold text-slate-400">Titik Hotspot Masalah</span>
-                                    <div className="w-7 h-7 rounded-lg bg-rose-500/20 text-rose-400 flex items-center justify-center">
+                                    <span className={`text-xs font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Titik Hotspot Masalah</span>
+                                    <div className="w-7 h-7 rounded-lg bg-rose-500/20 text-rose-500 flex items-center justify-center">
                                         <Flame className="w-4 h-4" />
                                     </div>
                                 </div>
                                 <div className="mt-2">
-                                    <span className="text-base font-bold text-rose-300 truncate block">
+                                    <span className={`text-base font-bold truncate block ${isDark ? 'text-rose-300' : 'text-rose-700'}`}>
                                         {stats.topLoc}
                                     </span>
                                 </div>
-                                <p className="text-[11px] text-slate-400 mt-1">
+                                <p className={`text-[11px] mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                                     {stats.topLocCount} insiden tercatat di lokasi ini
                                 </p>
                             </div>
 
                             {/* Sparepart Dependency */}
-                            <div className="p-4 rounded-xl bg-slate-800/90 border border-slate-700/80 shadow-sm relative overflow-hidden">
+                            <div className={`p-4 rounded-xl border shadow-sm relative overflow-hidden backdrop-blur-md transition-all ${
+                                isDark ? 'bg-slate-800/90 border-slate-700/80' : 'bg-white/95 border-slate-200/90 shadow-xs'
+                            }`}>
                                 <div className="flex items-center justify-between">
-                                    <span className="text-xs font-semibold text-slate-400">Ketergantungan Suku Cadang</span>
-                                    <div className="w-7 h-7 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center">
+                                    <span className={`text-xs font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Ketergantungan Suku Cadang</span>
+                                    <div className="w-7 h-7 rounded-lg bg-amber-500/20 text-amber-500 flex items-center justify-center">
                                         <Package className="w-4 h-4" />
                                     </div>
                                 </div>
                                 <div className="mt-2 flex items-baseline gap-1.5">
-                                    <span className="text-2xl font-black text-amber-300">{stats.sparepartRatio}%</span>
-                                    <span className="text-[11px] text-slate-400">kasus butuh part</span>
+                                    <span className={`text-2xl font-black ${isDark ? 'text-amber-300' : 'text-amber-700'}`}>{stats.sparepartRatio}%</span>
+                                    <span className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>kasus butuh part</span>
                                 </div>
-                                <p className="text-[11px] text-slate-500 mt-1">
+                                <p className={`text-[11px] mt-1 ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
                                     Audit kesiapan stok logistik pulau
                                 </p>
                             </div>
@@ -1796,14 +1826,18 @@ export function LeanAnalyticsView({
 
                     {/* CHARTS ROW 3: HOTSPOT LOKASI & DENAH RESORT (TABBED) */}
                     {widgetVisibility.hotspot_matrix !== false && (
-                        <div className="p-4 rounded-xl bg-slate-800/90 border border-slate-700/80 shadow-sm space-y-4">
-                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-2 border-b border-slate-700/60">
+                        <div className={`p-4 rounded-xl border shadow-sm space-y-4 backdrop-blur-md transition-all ${
+                            isDark ? 'bg-slate-800/90 border-slate-700/80' : 'bg-white/95 border-slate-200/90 shadow-xs'
+                        }`}>
+                            <div className={`flex flex-col md:flex-row md:items-center justify-between gap-3 pb-2 border-b ${
+                                isDark ? 'border-slate-700/60' : 'border-slate-200'
+                            }`}>
                                 <div>
-                                    <h3 className="text-xs font-bold text-white flex items-center gap-1.5">
-                                        <MapPin className="w-4 h-4 text-rose-400" />
+                                    <h3 className={`text-xs font-bold flex items-center gap-1.5 ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                                        <MapPin className="w-4 h-4 text-rose-500" />
                                         Matriks Hotspot Lokasi & Peta Denah Resort
                                     </h3>
-                                    <p className="text-[11px] text-slate-400 mt-0.5">
+                                    <p className={`text-[11px] mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                                         Visualisasi sebaran masalah pada unit/villa Telunas (Grafik analitik & denah spasial TPI/TBR)
                                     </p>
                                 </div>
@@ -1874,7 +1908,9 @@ export function LeanAnalyticsView({
                                     <button
                                         type="button"
                                         onClick={() => toggleWidgetVisibility('hotspot_matrix')}
-                                        className="p-1.5 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-slate-700/50 transition-colors"
+                                        className={`p-1.5 rounded-lg transition-colors ${
+                                            isDark ? 'text-slate-400 hover:text-rose-400 hover:bg-slate-700/50' : 'text-slate-500 hover:text-rose-600 hover:bg-slate-100'
+                                        }`}
                                         title="Sembunyikan Matriks Hotspot"
                                     >
                                         <EyeOff className="w-3.5 h-3.5" />
@@ -1886,22 +1922,24 @@ export function LeanAnalyticsView({
                 {hotspotTab === 'leaderboard' && (
                     <div className="space-y-3">
                         {/* Summary Bar */}
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 rounded-lg bg-slate-900/60 border border-slate-700/60 text-xs">
-                            <span className="text-slate-300 flex items-center gap-1.5">
-                                <Flame className="w-4 h-4 text-rose-400 shrink-0" />
+                        <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 rounded-lg text-xs border ${
+                            isDark ? 'bg-slate-900/60 border-slate-700/60 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-700 shadow-xs'
+                        }`}>
+                            <span className="flex items-center gap-1.5">
+                                <Flame className="w-4 h-4 text-rose-500 shrink-0" />
                                 Lokasi diurutkan berdasarkan <strong>Tingkat Keparahan Kritis</strong> (Darurat & Tinggi otomatis di posisi teratas)
                             </span>
                             <div className="flex items-center gap-2.5 flex-wrap text-[10px]">
-                                <span className="flex items-center gap-1 text-slate-300">
+                                <span className={`flex items-center gap-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
                                     <span className="w-2 h-2 rounded bg-rose-500" /> Darurat
                                 </span>
-                                <span className="flex items-center gap-1 text-slate-300">
+                                <span className={`flex items-center gap-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
                                     <span className="w-2 h-2 rounded bg-orange-400" /> Tinggi
                                 </span>
-                                <span className="flex items-center gap-1 text-slate-300">
+                                <span className={`flex items-center gap-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
                                     <span className="w-2 h-2 rounded bg-yellow-400" /> Sedang
                                 </span>
-                                <span className="flex items-center gap-1 text-slate-300">
+                                <span className={`flex items-center gap-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
                                     <span className="w-2 h-2 rounded bg-emerald-500" /> Rendah
                                 </span>
                             </div>
@@ -1919,19 +1957,38 @@ export function LeanAnalyticsView({
                                     const isRank3 = idx === 2;
 
                                     const urgencyBadge = {
-                                        Darurat: { bg: 'bg-rose-500/20 text-rose-300 border-rose-500/50', dot: 'bg-rose-500' },
-                                        Tinggi:  { bg: 'bg-orange-500/20 text-orange-300 border-orange-500/50', dot: 'bg-orange-400' },
-                                        Sedang:  { bg: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/50', dot: 'bg-yellow-400' },
-                                        Rendah:  { bg: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50', dot: 'bg-emerald-500' },
-                                    }[item.highestUrgency] || { bg: 'bg-slate-700 text-slate-300 border-slate-600', dot: 'bg-slate-400' };
+                                        Darurat: {
+                                            bg: isDark ? 'bg-rose-500/20 text-rose-300 border-rose-500/50' : 'bg-rose-100 text-rose-800 border-rose-300 font-semibold',
+                                            dot: 'bg-rose-500',
+                                        },
+                                        Tinggi: {
+                                            bg: isDark ? 'bg-orange-500/20 text-orange-300 border-orange-500/50' : 'bg-orange-100 text-orange-800 border-orange-300 font-semibold',
+                                            dot: 'bg-orange-500',
+                                        },
+                                        Sedang: {
+                                            bg: isDark ? 'bg-yellow-500/20 text-yellow-300 border-yellow-500/50' : 'bg-yellow-100 text-yellow-800 border-yellow-300 font-semibold',
+                                            dot: 'bg-yellow-500',
+                                        },
+                                        Rendah: {
+                                            bg: isDark ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50' : 'bg-emerald-100 text-emerald-800 border-emerald-300 font-semibold',
+                                            dot: 'bg-emerald-500',
+                                        },
+                                    }[item.highestUrgency] || {
+                                        bg: isDark ? 'bg-slate-700 text-slate-300 border-slate-600' : 'bg-slate-100 text-slate-700 border-slate-300 font-medium',
+                                        dot: 'bg-slate-400',
+                                    };
 
                                     return (
                                         <div
                                             key={item.location}
                                             className={`p-3.5 rounded-xl border transition-all flex flex-col md:flex-row md:items-center justify-between gap-3 ${
                                                 item.highestUrgency === 'Darurat'
-                                                    ? 'bg-rose-950/25 border-rose-500/40 hover:border-rose-500/70 shadow-sm'
-                                                    : 'bg-slate-900/60 border-slate-700/70 hover:border-slate-600'
+                                                    ? isDark
+                                                        ? 'bg-rose-950/25 border-rose-500/40 hover:border-rose-500/70 shadow-sm'
+                                                        : 'bg-rose-50/90 border-rose-300 hover:border-rose-400 shadow-xs'
+                                                    : isDark
+                                                    ? 'bg-slate-900/60 border-slate-700/70 hover:border-slate-600'
+                                                    : 'bg-white/95 border-slate-200 hover:border-slate-300 shadow-xs'
                                             }`}
                                         >
                                             {/* Left: Rank & Location */}
@@ -1941,18 +1998,24 @@ export function LeanAnalyticsView({
                                                         isRank1
                                                             ? 'bg-gradient-to-br from-amber-400 to-rose-500 text-slate-950 border-amber-300 shadow-sm'
                                                             : isRank2
-                                                            ? 'bg-slate-700 text-slate-100 border-slate-500'
+                                                            ? isDark
+                                                                ? 'bg-slate-700 text-slate-100 border-slate-500'
+                                                                : 'bg-slate-200 text-slate-800 border-slate-300'
                                                             : isRank3
-                                                            ? 'bg-orange-950/60 text-orange-200 border-orange-700/60'
-                                                            : 'bg-slate-800 text-slate-400 border-slate-700'
+                                                            ? isDark
+                                                                ? 'bg-orange-950/60 text-orange-200 border-orange-700/60'
+                                                                : 'bg-orange-100 text-orange-800 border-orange-300'
+                                                            : isDark
+                                                            ? 'bg-slate-800 text-slate-400 border-slate-700'
+                                                            : 'bg-slate-100 text-slate-700 border-slate-300 font-bold'
                                                     }`}
                                                 >
                                                     #{idx + 1}
                                                 </div>
                                                 <div className="space-y-1">
                                                     <div className="flex items-center gap-2 flex-wrap">
-                                                        <h4 className="text-sm font-bold text-white flex items-center gap-1.5">
-                                                            <MapPin className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                                                        <h4 className={`text-sm font-bold flex items-center gap-1.5 ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                                                            <MapPin className="w-3.5 h-3.5 text-rose-500 shrink-0" />
                                                             {item.location}
                                                         </h4>
                                                         <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border ${urgencyBadge.bg}`}>
@@ -1960,14 +2023,18 @@ export function LeanAnalyticsView({
                                                             Urgensi: {item.highestUrgency}
                                                         </span>
                                                         {item.departments && item.departments.length > 0 && (
-                                                            <span className="text-[10px] text-slate-400 bg-slate-800 px-1.5 py-0.5 rounded border border-slate-700">
+                                                            <span className={`text-[10px] px-1.5 py-0.5 rounded border font-medium ${
+                                                                isDark
+                                                                    ? 'text-slate-400 bg-slate-800 border-slate-700'
+                                                                    : 'text-slate-700 bg-slate-100 border-slate-300'
+                                                            }`}>
                                                                 {item.departments.join(', ')}
                                                             </span>
                                                         )}
                                                     </div>
                                                     {item.latestIssueTitle && (
-                                                        <p className="text-xs text-slate-400 line-clamp-1">
-                                                            Laporan terbaru: <span className="text-slate-200 font-medium">"{item.latestIssueTitle}"</span>
+                                                        <p className={`text-xs line-clamp-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                                            Laporan terbaru: <span className={`font-medium ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>"{item.latestIssueTitle}"</span>
                                                         </p>
                                                     )}
                                                 </div>
@@ -1977,11 +2044,11 @@ export function LeanAnalyticsView({
                                             <div className="flex flex-col sm:flex-row sm:items-center gap-4 md:gap-6 self-stretch md:self-auto justify-between md:justify-end">
                                                 {/* Visual Urgency Proportion Mini Bar */}
                                                 <div className="min-w-[140px] max-w-[200px] flex-1">
-                                                    <div className="flex justify-between text-[10px] text-slate-400 mb-1">
+                                                    <div className={`flex justify-between text-[10px] mb-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                                                         <span>Distribusi Kasus</span>
-                                                        <span className="font-semibold text-white">{item.total} Total</span>
+                                                        <span className={`font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>{item.total} Total</span>
                                                     </div>
-                                                    <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden flex">
+                                                    <div className={`w-full h-2 rounded-full overflow-hidden flex ${isDark ? 'bg-slate-800' : 'bg-slate-200'}`}>
                                                         {item.Darurat > 0 && (
                                                             <div
                                                                 style={{ width: `${(item.Darurat / item.total) * 100}%` }}
@@ -2015,15 +2082,19 @@ export function LeanAnalyticsView({
 
                                                 {/* Active vs Resolved Counters */}
                                                 <div className="flex items-center gap-2 shrink-0">
-                                                    <div className="px-2.5 py-1 rounded-lg bg-slate-800 border border-slate-700/80 text-center min-w-[50px]">
-                                                        <div className="text-[10px] text-slate-400">Aktif</div>
-                                                        <div className={`text-xs font-black ${item.openCount > 0 ? 'text-rose-400' : 'text-slate-400'}`}>
+                                                    <div className={`px-2.5 py-1 rounded-lg border text-center min-w-[50px] ${
+                                                        isDark ? 'bg-slate-800 border-slate-700/80' : 'bg-white border-slate-200 shadow-xs'
+                                                    }`}>
+                                                        <div className={`text-[10px] font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Aktif</div>
+                                                        <div className={`text-xs font-black ${item.openCount > 0 ? (isDark ? 'text-rose-400' : 'text-rose-600') : (isDark ? 'text-slate-400' : 'text-slate-400')}`}>
                                                             {item.openCount}
                                                         </div>
                                                     </div>
-                                                    <div className="px-2.5 py-1 rounded-lg bg-slate-800 border border-slate-700/80 text-center min-w-[50px]">
-                                                        <div className="text-[10px] text-slate-400">Selesai</div>
-                                                        <div className="text-xs font-black text-emerald-400">{item.resolvedCount}</div>
+                                                    <div className={`px-2.5 py-1 rounded-lg border text-center min-w-[50px] ${
+                                                        isDark ? 'bg-slate-800 border-slate-700/80' : 'bg-white border-slate-200 shadow-xs'
+                                                    }`}>
+                                                        <div className={`text-[10px] font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Selesai</div>
+                                                        <div className={`text-xs font-black ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>{item.resolvedCount}</div>
                                                     </div>
                                                 </div>
                                             </div>

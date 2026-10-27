@@ -695,11 +695,53 @@ input[type="range"]::-moz-range-thumb {
   color: #ffffff !important;
 }
 
-/* Unchecked status filter buttons in Index.jsx */
-.lean-theme-light .bg-slate-900\/60.border-slate-800 {
+/* Unchecked status filter buttons and counters in Index.jsx */
+.lean-theme-light .bg-slate-900\/60.border-slate-800,
+.lean-theme-light .bg-slate-900\/60 {
   background-color: #ffffff !important;
   border-color: #e2e8f0 !important;
+  color: #334155 !important;
+}
+
+.lean-theme-light .bg-slate-900\/80,
+.lean-theme-light .bg-slate-900\/90,
+.lean-theme-light .bg-slate-900 {
+  background-color: #f1f5f9 !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+}
+
+/* Ensure headings inside light mode cards remain sharp and readable */
+.lean-theme-light h1,
+.lean-theme-light h2,
+.lean-theme-light h3,
+.lean-theme-light h4 {
+  color: #0f172a !important;
+}
+
+.lean-theme-light .text-slate-400 {
   color: #64748b !important;
+}
+
+.lean-theme-light .text-slate-300 {
+  color: #475569 !important;
+}
+
+.lean-theme-light .text-slate-200 {
+  color: #1e293b !important;
+}
+
+.lean-theme-light .text-slate-500 {
+  color: #64748b !important;
+}
+
+/* Ensure borders are delicate and clean */
+.lean-theme-light .border-slate-700,
+.lean-theme-light .border-slate-700\/60,
+.lean-theme-light .border-slate-700\/70,
+.lean-theme-light .border-slate-700\/80,
+.lean-theme-light .border-slate-800 {
+  border-color: #e2e8f0 !important;
 }
 
 

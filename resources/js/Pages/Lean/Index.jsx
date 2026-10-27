@@ -589,19 +589,23 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 mb-3">
                     {/* Live Search */}
                     <div className="relative flex-1 min-w-[200px]">
-                        <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                        <Search className={`w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 ${isDark ? 'text-slate-400' : 'text-slate-500'}`} />
                         <input
                             type="text"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             placeholder="Cari ID, judul, pelapor, lokasi..."
-                            className="w-full bg-slate-800/90 border border-slate-700 text-slate-200 placeholder-slate-500 text-xs rounded-xl pl-8 pr-7 py-2 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 shadow-sm transition-all"
+                            className={`w-full text-xs rounded-xl pl-8 pr-7 py-2 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 shadow-sm transition-all border ${
+                                isDark
+                                    ? 'bg-slate-800/90 border-slate-700 text-slate-200 placeholder-slate-500'
+                                    : 'bg-white/95 border-slate-300 text-slate-900 placeholder-slate-400 shadow-xs'
+                            }`}
                         />
                         {searchQuery && (
                             <button
                                 type="button"
                                 onClick={() => setSearchQuery('')}
-                                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                                className={`absolute right-2.5 top-1/2 -translate-y-1/2 ${isDark ? 'text-slate-400 hover:text-white' : 'text-slate-400 hover:text-slate-700'}`}
                                 title="Hapus pencarian"
                             >
                                 <X className="w-3.5 h-3.5" />
@@ -615,7 +619,11 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                             <select
                                 value={selectedDeptFilter}
                                 onChange={(e) => setSelectedDeptFilter(e.target.value)}
-                                className="bg-slate-800/90 border border-slate-700 text-slate-200 text-xs font-semibold rounded-xl px-3 py-2 focus:ring-1 focus:ring-emerald-500 cursor-pointer shadow-sm"
+                                className={`text-xs font-semibold rounded-xl px-3 py-2 focus:ring-1 focus:ring-emerald-500 cursor-pointer shadow-sm border ${
+                                    isDark
+                                        ? 'bg-slate-800/90 border-slate-700 text-slate-200'
+                                        : 'bg-white/95 border-slate-300 text-slate-800 shadow-xs'
+                                }`}
                             >
                                 <option value="all">Semua Dept (All)</option>
                                 {departments.map((dept) => (
@@ -628,25 +636,37 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                         <button
                             type="button"
                             onClick={() => setShowColumnModal(true)}
-                            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800/90 hover:bg-slate-700 border border-slate-700 hover:border-emerald-500/50 text-xs font-semibold text-slate-200 transition-all shadow-sm shrink-0"
+                            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all shadow-sm shrink-0 border ${
+                                isDark
+                                    ? 'bg-slate-800/90 hover:bg-slate-700 border-slate-700 hover:border-emerald-500/50 text-slate-200'
+                                    : 'bg-white/95 hover:bg-slate-50 border-slate-300 hover:border-slate-400 text-slate-800 shadow-xs'
+                            }`}
                             title="Pilih data/kolom apa saja yang ingin ditampilkan"
                         >
-                            <SlidersHorizontal className="w-3.5 h-3.5 text-emerald-400" />
+                            <SlidersHorizontal className="w-3.5 h-3.5 text-emerald-500" />
                             <span>Kolom</span>
-                            <span className="text-[10px] bg-emerald-950 text-emerald-300 font-bold px-1.5 py-0.2 rounded border border-emerald-800/60">
+                            <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded border ${
+                                isDark
+                                    ? 'bg-emerald-950 text-emerald-300 border-emerald-800/60'
+                                    : 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                            }`}>
                                 {activeColumnCount}/{COLUMN_DEFS.length}
                             </span>
                         </button>
 
-                        {/* View Mode Switcher (Table ERP vs Cards) */}
-                        <div className="flex items-center bg-slate-800/90 border border-slate-700 p-0.5 rounded-xl shrink-0">
+                        {/* View Mode Switcher (Table ERP vs Cards vs Analytics) */}
+                        <div className={`flex items-center p-0.5 rounded-xl shrink-0 border ${
+                            isDark ? 'bg-slate-800/90 border-slate-700' : 'bg-slate-100 border-slate-300 shadow-xs'
+                        }`}>
                             <button
                                 type="button"
                                 onClick={() => setViewMode('table')}
                                 className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
                                     viewMode === 'table'
                                         ? 'bg-emerald-600 text-white shadow-sm'
-                                        : 'text-slate-400 hover:text-slate-200'
+                                        : isDark
+                                        ? 'text-slate-400 hover:text-slate-200'
+                                        : 'text-slate-600 hover:text-slate-900 hover:bg-white'
                                 }`}
                                 title="Tampilan Tabel Spreadsheet ERP"
                             >
@@ -659,7 +679,9 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                                 className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
                                     viewMode === 'cards'
                                         ? 'bg-emerald-600 text-white shadow-sm'
-                                        : 'text-slate-400 hover:text-slate-200'
+                                        : isDark
+                                        ? 'text-slate-400 hover:text-slate-200'
+                                        : 'text-slate-600 hover:text-slate-900 hover:bg-white'
                                 }`}
                                 title="Tampilan Kartu Visual"
                             >
@@ -672,7 +694,9 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                                 className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
                                     viewMode === 'analytics'
                                         ? 'bg-emerald-600 text-white shadow-sm'
-                                        : 'text-slate-400 hover:text-slate-200'
+                                        : isDark
+                                        ? 'text-slate-400 hover:text-slate-200'
+                                        : 'text-slate-600 hover:text-slate-900 hover:bg-white'
                                 }`}
                                 title="Analisa Audit & Mitigasi Kerusakan"
                             >
@@ -687,10 +711,12 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                 </div>
 
                 {/* MULTI-SELECT STATUS CHECKLIST PILLS & PRESETS */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4 p-2.5 bg-slate-800/60 border border-slate-800 rounded-xl">
+                <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4 p-2.5 rounded-xl border backdrop-blur-md transition-all ${
+                    isDark ? 'bg-slate-800/60 border-slate-800' : 'bg-white/80 border-slate-200/90 shadow-xs'
+                }`}>
                     {/* Status Checklist Pills */}
                     <div className="flex items-center gap-1.5 flex-wrap text-xs">
-                        <span className="text-[11px] text-slate-400 font-semibold mr-1">Filter Status:</span>
+                        <span className={`text-[11px] font-semibold mr-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Filter Status:</span>
 
                         {/* Open Checkbox Pill */}
                         <button
@@ -698,17 +724,23 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                             onClick={() => toggleStatus('open')}
                             className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-semibold text-xs transition-all border ${
                                 selectedStatuses.open
-                                    ? 'bg-rose-950/80 border-rose-500/60 text-rose-300 shadow-sm'
-                                    : 'bg-slate-900/60 border-slate-800 text-slate-500 hover:text-slate-400'
+                                    ? isDark
+                                        ? 'bg-rose-950/80 border-rose-500/60 text-rose-300 shadow-sm'
+                                        : 'bg-rose-50 border-rose-300 text-rose-800 shadow-xs'
+                                    : isDark
+                                    ? 'bg-slate-900/60 border-slate-800 text-slate-500 hover:text-slate-400'
+                                    : 'bg-white border-slate-300 text-slate-600 hover:bg-slate-50 hover:text-slate-900 shadow-xs'
                             }`}
                         >
                             <span className={`w-3.5 h-3.5 rounded flex items-center justify-center text-[10px] border ${
-                                selectedStatuses.open ? 'bg-rose-500 border-rose-400 text-white' : 'border-slate-600'
+                                selectedStatuses.open ? 'bg-rose-500 border-rose-400 text-white' : (isDark ? 'border-slate-600' : 'border-slate-300')
                             }`}>
                                 {selectedStatuses.open && '✓'}
                             </span>
                             <span>Open</span>
-                            <span className="text-[10px] bg-slate-900/80 px-1.5 py-0.2 rounded-full font-bold">
+                            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                                isDark ? 'bg-slate-900/80 text-white' : 'bg-rose-100 text-rose-800 border border-rose-200'
+                            }`}>
                                 {counts.open}
                             </span>
                         </button>
@@ -719,17 +751,23 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                             onClick={() => toggleStatus('in_progress')}
                             className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-semibold text-xs transition-all border ${
                                 selectedStatuses.in_progress
-                                    ? 'bg-amber-950/80 border-amber-500/60 text-amber-300 shadow-sm'
-                                    : 'bg-slate-900/60 border-slate-800 text-slate-500 hover:text-slate-400'
+                                    ? isDark
+                                        ? 'bg-amber-950/80 border-amber-500/60 text-amber-300 shadow-sm'
+                                        : 'bg-amber-50 border-amber-300 text-amber-800 shadow-xs'
+                                    : isDark
+                                    ? 'bg-slate-900/60 border-slate-800 text-slate-500 hover:text-slate-400'
+                                    : 'bg-white border-slate-300 text-slate-600 hover:bg-slate-50 hover:text-slate-900 shadow-xs'
                             }`}
                         >
                             <span className={`w-3.5 h-3.5 rounded flex items-center justify-center text-[10px] border ${
-                                selectedStatuses.in_progress ? 'bg-amber-500 border-amber-400 text-white' : 'border-slate-600'
+                                selectedStatuses.in_progress ? 'bg-amber-500 border-amber-400 text-white' : (isDark ? 'border-slate-600' : 'border-slate-300')
                             }`}>
                                 {selectedStatuses.in_progress && '✓'}
                             </span>
                             <span>Progress</span>
-                            <span className="text-[10px] bg-slate-900/80 px-1.5 py-0.2 rounded-full font-bold">
+                            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                                isDark ? 'bg-slate-900/80 text-white' : 'bg-amber-100 text-amber-800 border border-amber-200'
+                            }`}>
                                 {counts.inProgress}
                             </span>
                         </button>
@@ -740,17 +778,23 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                             onClick={() => toggleStatus('pending')}
                             className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-semibold text-xs transition-all border ${
                                 selectedStatuses.pending
-                                    ? 'bg-orange-950/80 border-orange-500/60 text-orange-300 shadow-sm'
-                                    : 'bg-slate-900/60 border-slate-800 text-slate-500 hover:text-slate-400'
+                                    ? isDark
+                                        ? 'bg-orange-950/80 border-orange-500/60 text-orange-300 shadow-sm'
+                                        : 'bg-orange-50 border-orange-300 text-orange-800 shadow-xs'
+                                    : isDark
+                                    ? 'bg-slate-900/60 border-slate-800 text-slate-500 hover:text-slate-400'
+                                    : 'bg-white border-slate-300 text-slate-600 hover:bg-slate-50 hover:text-slate-900 shadow-xs'
                             }`}
                         >
                             <span className={`w-3.5 h-3.5 rounded flex items-center justify-center text-[10px] border ${
-                                selectedStatuses.pending ? 'bg-orange-500 border-orange-400 text-white' : 'border-slate-600'
+                                selectedStatuses.pending ? 'bg-orange-500 border-orange-400 text-white' : (isDark ? 'border-slate-600' : 'border-slate-300')
                             }`}>
                                 {selectedStatuses.pending && '✓'}
                             </span>
                             <span>Tertunda</span>
-                            <span className="text-[10px] bg-slate-900/80 px-1.5 py-0.2 rounded-full font-bold">
+                            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                                isDark ? 'bg-slate-900/80 text-white' : 'bg-orange-100 text-orange-800 border border-orange-200'
+                            }`}>
                                 {counts.pending}
                             </span>
                         </button>
@@ -761,17 +805,23 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                             onClick={() => toggleStatus('resolved')}
                             className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-semibold text-xs transition-all border ${
                                 selectedStatuses.resolved
-                                    ? 'bg-emerald-950/80 border-emerald-500/60 text-emerald-300 shadow-sm'
-                                    : 'bg-slate-900/60 border-slate-800 text-slate-500 hover:text-slate-400'
+                                    ? isDark
+                                        ? 'bg-emerald-950/80 border-emerald-500/60 text-emerald-300 shadow-sm'
+                                        : 'bg-emerald-50 border-emerald-300 text-emerald-800 shadow-xs'
+                                    : isDark
+                                    ? 'bg-slate-900/60 border-slate-800 text-slate-500 hover:text-slate-400'
+                                    : 'bg-white border-slate-300 text-slate-600 hover:bg-slate-50 hover:text-slate-900 shadow-xs'
                             }`}
                         >
                             <span className={`w-3.5 h-3.5 rounded flex items-center justify-center text-[10px] border ${
-                                selectedStatuses.resolved ? 'bg-emerald-500 border-emerald-400 text-white' : 'border-slate-600'
+                                selectedStatuses.resolved ? 'bg-emerald-500 border-emerald-400 text-white' : (isDark ? 'border-slate-600' : 'border-slate-300')
                             }`}>
                                 {selectedStatuses.resolved && '✓'}
                             </span>
                             <span>Selesai</span>
-                            <span className="text-[10px] bg-slate-900/80 px-1.5 py-0.2 rounded-full font-bold">
+                            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                                isDark ? 'bg-slate-900/80 text-white' : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                            }`}>
                                 {counts.resolved}
                             </span>
                         </button>
