@@ -571,33 +571,31 @@ export function LeanAnalyticsView({
         let maxDate = new Date();
         maxDate.setHours(23, 59, 59, 999);
 
-        if (timeRange === 'today') {
+        if (timeRange === 'hari_ini' || timeRange === 'today') {
             minDate = new Date();
             minDate.setHours(0, 0, 0, 0);
-        } else if (timeRange === '7d') {
+        } else if (timeRange === '7_hari' || timeRange === '7d') {
             minDate = new Date();
             minDate.setDate(minDate.getDate() - 7);
             minDate.setHours(0, 0, 0, 0);
-        } else if (timeRange === '30d') {
+        } else if (timeRange === '30_hari' || timeRange === '30d') {
             minDate = new Date();
             minDate.setDate(minDate.getDate() - 30);
             minDate.setHours(0, 0, 0, 0);
-        } else if (timeRange === '6m') {
+        } else if (timeRange === '6_bulan' || timeRange === '6m') {
             minDate = new Date();
             minDate.setMonth(minDate.getMonth() - 6);
             minDate.setHours(0, 0, 0, 0);
-        } else if (timeRange === '1y') {
+        } else if (timeRange === '1_tahun' || timeRange === '1y') {
             minDate = new Date();
             minDate.setFullYear(minDate.getFullYear() - 1);
             minDate.setHours(0, 0, 0, 0);
         } else if (timeRange === 'custom') {
             if (startDate) {
-                minDate = new Date(startDate);
-                minDate.setHours(0, 0, 0, 0);
+                minDate = new Date(startDate.includes('T') ? startDate : `${startDate}T00:00:00`);
             }
             if (endDate) {
-                maxDate = new Date(endDate);
-                maxDate.setHours(23, 59, 59, 999);
+                maxDate = new Date(endDate.includes('T') ? endDate : `${endDate}T23:59:59.999`);
             }
         }
 
@@ -1136,7 +1134,7 @@ export function LeanAnalyticsView({
 
                 {/* Custom Date Range Pickers & Info row */}
                 <div className="pt-2 border-t border-slate-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-                    {timeRange === 'custom' ? (
+                    {timeRange === 'custom' && (
                         <div className="flex flex-wrap items-center gap-2">
                             <span className="text-slate-400">Dari:</span>
                             <input
@@ -1153,12 +1151,12 @@ export function LeanAnalyticsView({
                                 className="bg-slate-800 border border-slate-700 rounded px-2.5 py-1 text-white text-xs focus:outline-none focus:border-teal-500"
                             />
                         </div>
-                    ) : (
-                        <div className="text-slate-400 flex items-center gap-1.5">
-                            <Calendar className="w-3.5 h-3.5 text-slate-500" />
-                            <span>Menampilkan <strong>{filteredIssues.length}</strong> dari <strong>{issues.length}</strong> total tiket</span>
-                        </div>
                     )}
+
+                    <div className="text-slate-400 flex items-center gap-1.5">
+                        <Calendar className="w-3.5 h-3.5 text-slate-500" />
+                        <span>Menampilkan <strong>{filteredIssues.length}</strong> dari <strong>{issues.length}</strong> total tiket</span>
+                    </div>
 
                     {syncFeedback && (
                         <div
