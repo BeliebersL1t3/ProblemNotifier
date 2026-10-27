@@ -242,7 +242,8 @@ const CustomMttrTooltip = ({ active, payload }) => {
 };
 
 // --- Denah Arsitektural Masterplan TPI (Telunas Private Island) ---
-function TpiResortMap({ zones = [], onSelectZone, selectedZoneId }) {
+function TpiResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark' }) {
+    const isDark = theme === 'dark';
     const [zoom, setZoom] = useState(1);
     const [filterMode, setFilterMode] = useState('all'); // 'all' (22 markers) | 'active' (issues only)
     const [hoveredZone, setHoveredZone] = useState(null);
@@ -256,28 +257,34 @@ function TpiResortMap({ zones = [], onSelectZone, selectedZoneId }) {
     return (
         <div className="space-y-3">
             {/* Map Canvas with Controls HUD */}
-            <div className="relative w-full rounded-2xl overflow-hidden bg-slate-950 border border-slate-700/80 shadow-2xl select-none group">
+            <div className={`relative w-full rounded-2xl overflow-hidden border shadow-xl select-none group ${
+                isDark ? 'bg-slate-950 border-slate-700/80' : 'bg-slate-100 border-slate-300 shadow-md'
+            }`}>
                 {/* HUD Toolbar */}
-                <div className="absolute top-3 right-3 z-30 flex items-center gap-1.5 p-1.5 rounded-xl bg-slate-900/90 border border-slate-700/80 backdrop-blur-md shadow-lg">
+                <div className={`absolute top-3 right-3 z-30 flex items-center gap-1.5 p-1.5 rounded-xl border backdrop-blur-md shadow-lg ${
+                    isDark ? 'bg-slate-900/90 border-slate-700/80 text-slate-300' : 'bg-white/95 border-slate-300 text-slate-800 shadow-sm'
+                }`}>
                     <button
                         type="button"
                         onClick={() => setFilterMode(prev => prev === 'all' ? 'active' : 'all')}
-                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all ${
+                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all ${
                             filterMode === 'active'
-                                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                                : 'text-slate-300 hover:text-white hover:bg-slate-800'
+                                ? isDark ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : 'bg-amber-100 text-amber-800 border border-amber-300'
+                                : isDark ? 'text-slate-300 hover:text-white hover:bg-slate-800' : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
                         }`}
                         title="Filter hanya lokasi dengan isu aktif"
                     >
                         {filterMode === 'active' ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
                         <span>{filterMode === 'active' ? 'Hanya Isu Aktif' : 'Semua 22 Titik'}</span>
                     </button>
-                    <div className="h-4 w-px bg-slate-700 mx-0.5" />
+                    <div className={`h-4 w-px mx-0.5 ${isDark ? 'bg-slate-700' : 'bg-slate-300'}`} />
                     <button
                         type="button"
                         onClick={handleZoomIn}
                         disabled={zoom >= 2.5}
-                        className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 disabled:opacity-40 transition-colors"
+                        className={`p-1.5 rounded-lg disabled:opacity-40 transition-colors ${
+                            isDark ? 'text-slate-300 hover:text-white hover:bg-slate-800' : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
+                        }`}
                         title="Perbesar Denah"
                     >
                         <ZoomIn className="w-3.5 h-3.5" />
@@ -286,7 +293,9 @@ function TpiResortMap({ zones = [], onSelectZone, selectedZoneId }) {
                         type="button"
                         onClick={handleZoomOut}
                         disabled={zoom <= 1}
-                        className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 disabled:opacity-40 transition-colors"
+                        className={`p-1.5 rounded-lg disabled:opacity-40 transition-colors ${
+                            isDark ? 'text-slate-300 hover:text-white hover:bg-slate-800' : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
+                        }`}
                         title="Perkecil Denah"
                     >
                         <ZoomOut className="w-3.5 h-3.5" />
@@ -429,7 +438,8 @@ function TpiResortMap({ zones = [], onSelectZone, selectedZoneId }) {
 }
 
 // --- Denah Arsitektural Masterplan TBR (Telunas Beach Resort) ---
-function TbrResortMap({ zones = [], onSelectZone, selectedZoneId }) {
+function TbrResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark' }) {
+    const isDark = theme === 'dark';
     const [zoom, setZoom] = useState(1);
     const [filterMode, setFilterMode] = useState('all'); // 'all' (all facilities) | 'active' (issues only)
     const [hoveredZone, setHoveredZone] = useState(null);
@@ -443,28 +453,34 @@ function TbrResortMap({ zones = [], onSelectZone, selectedZoneId }) {
     return (
         <div className="space-y-3">
             {/* Map Canvas with Controls HUD */}
-            <div className="relative w-full rounded-2xl overflow-hidden bg-slate-950 border border-slate-700/80 shadow-2xl select-none group">
+            <div className={`relative w-full rounded-2xl overflow-hidden border shadow-xl select-none group ${
+                isDark ? 'bg-slate-950 border-slate-700/80' : 'bg-slate-200/60 border-slate-300 shadow-md'
+            }`}>
                 {/* HUD Toolbar */}
-                <div className="absolute top-3 right-3 z-30 flex items-center gap-1.5 p-1.5 rounded-xl bg-slate-900/90 border border-slate-700/80 backdrop-blur-md shadow-lg">
+                <div className={`absolute top-3 right-3 z-30 flex items-center gap-1.5 p-1.5 rounded-xl border backdrop-blur-md shadow-lg ${
+                    isDark ? 'bg-slate-900/90 border-slate-700/80 text-slate-300' : 'bg-white/95 border-slate-300 text-slate-800 shadow-sm'
+                }`}>
                     <button
                         type="button"
                         onClick={() => setFilterMode(prev => prev === 'all' ? 'active' : 'all')}
-                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all ${
+                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all ${
                             filterMode === 'active'
-                                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                                : 'text-slate-300 hover:text-white hover:bg-slate-800'
+                                ? isDark ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : 'bg-amber-100 text-amber-800 border border-amber-300'
+                                : isDark ? 'text-slate-300 hover:text-white hover:bg-slate-800' : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
                         }`}
                         title="Filter hanya lokasi dengan isu aktif"
                     >
                         {filterMode === 'active' ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
                         <span>{filterMode === 'active' ? 'Hanya Isu Aktif' : 'Semua Fasilitas'}</span>
                     </button>
-                    <div className="h-4 w-px bg-slate-700 mx-0.5" />
+                    <div className={`h-4 w-px mx-0.5 ${isDark ? 'bg-slate-700' : 'bg-slate-300'}`} />
                     <button
                         type="button"
                         onClick={handleZoomIn}
                         disabled={zoom >= 2.5}
-                        className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 disabled:opacity-40 transition-colors"
+                        className={`p-1.5 rounded-lg disabled:opacity-40 transition-colors ${
+                            isDark ? 'text-slate-300 hover:text-white hover:bg-slate-800' : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
+                        }`}
                         title="Perbesar Denah"
                     >
                         <ZoomIn className="w-3.5 h-3.5" />
@@ -473,7 +489,9 @@ function TbrResortMap({ zones = [], onSelectZone, selectedZoneId }) {
                         type="button"
                         onClick={handleZoomOut}
                         disabled={zoom <= 1}
-                        className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 disabled:opacity-40 transition-colors"
+                        className={`p-1.5 rounded-lg disabled:opacity-40 transition-colors ${
+                            isDark ? 'text-slate-300 hover:text-white hover:bg-slate-800' : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
+                        }`}
                         title="Perkecil Denah"
                     >
                         <ZoomOut className="w-3.5 h-3.5" />
@@ -482,28 +500,32 @@ function TbrResortMap({ zones = [], onSelectZone, selectedZoneId }) {
                         <button
                             type="button"
                             onClick={handleResetZoom}
-                            className="px-2 py-1 rounded-lg text-[10px] font-semibold text-amber-400 hover:bg-amber-500/10 transition-colors"
-                            title="Reset Zoom ke 100%"
+                            className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-colors ${
+                                isDark ? 'text-amber-400 hover:bg-amber-500/10' : 'text-amber-700 hover:bg-amber-100'
+                            }`}
+                            title="Reset Zoom ke 100% (Fit)"
                         >
-                            Reset ({Math.round(zoom * 100)}%)
+                            Paskan ({Math.round(zoom * 100)}%)
                         </button>
                     )}
                 </div>
 
-                {/* Clean CAD Architectural Blueprint Container */}
-                <div className="relative w-full overflow-auto max-h-[640px] bg-[#ffffff]">
+                {/* Clean CAD Architectural Blueprint Container - Proportional Fit to Viewport */}
+                <div className={`relative w-full overflow-auto h-[600px] sm:h-[700px] flex items-center justify-center p-3 sm:p-6 transition-colors ${
+                    isDark ? 'bg-slate-950' : 'bg-slate-200/50'
+                }`}>
                     <div
-                        className="relative w-full origin-top-left transition-transform duration-200"
+                        className="relative transition-transform duration-200 shadow-xl rounded-2xl overflow-visible bg-white shrink-0 border border-slate-300/80"
                         style={{
                             transform: `scale(${zoom})`,
-                            width: zoom > 1 ? `${zoom * 100}%` : '100%',
+                            transformOrigin: zoom > 1 ? 'top left' : 'center center',
                         }}
                     >
                         {/* High-Contrast Architectural Site Plan Drawing */}
                         <img
                             src="/images/maps/tbr_masterplan.png"
                             alt="Denah Arsitektural Telunas Beach Resort (TBR)"
-                            className="w-full h-auto block select-none pointer-events-none"
+                            className="h-[540px] sm:h-[640px] w-auto max-w-none block select-none pointer-events-none rounded-2xl"
                             loading="eager"
                         />
 
@@ -590,10 +612,12 @@ function TbrResortMap({ zones = [], onSelectZone, selectedZoneId }) {
                 </div>
 
                 {/* Bottom Bar Info Legend */}
-                <div className="px-4 py-2.5 bg-slate-900/95 border-t border-slate-800 flex flex-wrap items-center justify-between text-xs text-slate-400 gap-2">
+                <div className={`px-4 py-2.5 border-t flex flex-wrap items-center justify-between text-xs gap-2 ${
+                    isDark ? 'bg-slate-900/95 border-slate-800 text-slate-400' : 'bg-white border-slate-200 text-slate-600'
+                }`}>
                     <div className="flex items-center gap-2">
-                        <span className="font-semibold text-slate-200">Denah Arsitektural Telunas Beach Resort (TBR)</span>
-                        <span className="text-[11px] text-slate-500">• Fasilitas Vila Terapung & Titian</span>
+                        <span className={`font-bold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>Denah Arsitektural Telunas Beach Resort (TBR)</span>
+                        <span className={`text-[11px] ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>• Fasilitas Vila Terapung & Titian</span>
                     </div>
                     <div className="flex items-center gap-3 text-[11px]">
                         <span className="flex items-center gap-1.5">
@@ -606,7 +630,7 @@ function TbrResortMap({ zones = [], onSelectZone, selectedZoneId }) {
                             <span className="w-2 h-2 rounded-full bg-emerald-500" /> Normal / Rendah
                         </span>
                         <span className="flex items-center gap-1.5">
-                            <span className="w-2 h-2 rounded-full bg-slate-600" /> Tidak Ada Isu
+                            <span className={`w-2 h-2 rounded-full ${isDark ? 'bg-slate-600' : 'bg-slate-400'}`} /> Tidak Ada Isu
                         </span>
                     </div>
                 </div>
@@ -2158,12 +2182,16 @@ export function LeanAnalyticsView({
                 {/* TAB 2: DENAH TPI (SPATIAL OVERVIEW) */}
                 {hotspotTab === 'tpi' && (
                     <div className="space-y-3">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between text-xs text-slate-400 gap-1 bg-slate-900/60 p-2.5 rounded-lg border border-slate-700/60">
-                            <span className="flex items-center gap-1.5 font-medium text-emerald-300">
-                                <Info className="w-3.5 h-3.5 shrink-0" />
+                        <div className={`flex flex-col sm:flex-row sm:items-center justify-between text-xs gap-1 p-2.5 rounded-lg border ${
+                            isDark
+                                ? 'bg-slate-900/60 border-slate-700/60 text-slate-400'
+                                : 'bg-emerald-50/90 border-emerald-300/80 text-emerald-900 shadow-xs'
+                        }`}>
+                            <span className={`flex items-center gap-1.5 font-bold ${isDark ? 'text-emerald-300' : 'text-emerald-800'}`}>
+                                <Info className="w-3.5 h-3.5 shrink-0 text-emerald-500" />
                                 Peta Spasial Telunas Private Island (TPI)
                             </span>
-                            <span className="text-[11px] text-slate-400">
+                            <span className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-emerald-800/80'}`}>
                                 Lokasi dipetakan secara otomatis oleh AI berdasarkan isi laporan unit
                             </span>
                         </div>
@@ -2171,6 +2199,7 @@ export function LeanAnalyticsView({
                             zones={spatialHotspots.tpiZones}
                             onSelectZone={(zone) => setSelectedTpiZone(prev => prev?.id === zone.id ? null : zone)}
                             selectedZoneId={selectedTpiZone?.id}
+                            theme={theme}
                         />
 
                         {/* Zone Detail Inspector if clicked */}
@@ -2277,12 +2306,16 @@ export function LeanAnalyticsView({
                 {/* TAB 3: DENAH TBR (SPATIAL OVERVIEW) */}
                 {hotspotTab === 'tbr' && (
                     <div className="space-y-3">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between text-xs text-slate-400 gap-1 bg-slate-900/60 p-2.5 rounded-lg border border-slate-700/60">
-                            <span className="flex items-center gap-1.5 font-medium text-amber-300">
-                                <Info className="w-3.5 h-3.5 shrink-0" />
+                        <div className={`flex flex-col sm:flex-row sm:items-center justify-between text-xs gap-1 p-2.5 rounded-lg border ${
+                            isDark
+                                ? 'bg-slate-900/60 border-slate-700/60 text-slate-400'
+                                : 'bg-amber-50/90 border-amber-300/80 text-amber-900 shadow-xs'
+                        }`}>
+                            <span className={`flex items-center gap-1.5 font-bold ${isDark ? 'text-amber-300' : 'text-amber-800'}`}>
+                                <Info className="w-3.5 h-3.5 shrink-0 text-amber-500" />
                                 Peta Spasial Telunas Beach Resort (TBR)
                             </span>
-                            <span className="text-[11px] text-slate-400">
+                            <span className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-amber-800/80'}`}>
                                 Lokasi dipetakan secara otomatis oleh AI berdasarkan isi laporan fasilitas
                             </span>
                         </div>
@@ -2290,6 +2323,7 @@ export function LeanAnalyticsView({
                             zones={spatialHotspots.tbrZones}
                             onSelectZone={(zone) => setSelectedTbrZone(prev => prev?.id === zone.id ? null : zone)}
                             selectedZoneId={selectedTbrZone?.id}
+                            theme={theme}
                         />
 
                         {/* Zone Detail Inspector if clicked */}
