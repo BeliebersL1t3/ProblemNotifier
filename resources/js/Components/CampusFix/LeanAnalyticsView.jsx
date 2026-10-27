@@ -312,8 +312,10 @@ function TpiResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                     )}
                 </div>
 
-                {/* Blueprint Map Container with Pan/Zoom overflow */}
-                <div className="relative w-full overflow-auto max-h-[640px] bg-[#fbf9f4]">
+                {/* Blueprint Map Container - Fixed & Immobile on Page Scroll */}
+                <div className={`relative w-full bg-[#fbf9f4] transition-all ${
+                    zoom > 1 ? 'overflow-auto max-h-[700px] overscroll-contain' : 'overflow-hidden'
+                }`}>
                     <div
                         className="relative w-full origin-top-left transition-transform duration-200"
                         style={{
@@ -412,10 +414,12 @@ function TpiResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                 </div>
 
                 {/* Bottom Bar Info Legend */}
-                <div className="px-4 py-2.5 bg-slate-900/95 border-t border-slate-800 flex flex-wrap items-center justify-between text-xs text-slate-400 gap-2">
+                <div className={`px-4 py-2.5 border-t flex flex-wrap items-center justify-between text-xs gap-2 ${
+                    isDark ? 'bg-slate-900/95 border-slate-800 text-slate-400' : 'bg-white border-slate-200 text-slate-600'
+                }`}>
                     <div className="flex items-center gap-2">
-                        <span className="font-semibold text-slate-200">Denah Spasial Resmi Pulau Telunas</span>
-                        <span className="text-[11px] text-slate-500">• 22 Titik Fasilitas Terpetakan</span>
+                        <span className={`font-semibold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>Denah Spasial Resmi Pulau Telunas</span>
+                        <span className={`text-[11px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>• 22 Titik Fasilitas Terpetakan</span>
                     </div>
                     <div className="flex items-center gap-3 text-[11px]">
                         <span className="flex items-center gap-1.5">
@@ -428,7 +432,7 @@ function TpiResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                             <span className="w-2 h-2 rounded-full bg-emerald-500" /> Normal / Rendah
                         </span>
                         <span className="flex items-center gap-1.5">
-                            <span className="w-2 h-2 rounded-full bg-slate-600" /> Tidak Ada Isu
+                            <span className={`w-2 h-2 rounded-full ${isDark ? 'bg-slate-600' : 'bg-slate-400'}`} /> Tidak Ada Isu
                         </span>
                     </div>
                 </div>
