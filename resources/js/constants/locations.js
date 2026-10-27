@@ -205,6 +205,112 @@ export const TPI_MASTERPLAN_ZONES = [
 ];
 
 /**
+ * Telunas Beach Resort (TBR) Architectural Masterplan Overwater Zones
+ * Source: Architectural site layout & overwater aerial facility diagram
+ */
+export const TBR_MASTERPLAN_ZONES = [
+    {
+        num: 1,
+        id: 'tbr_dining',
+        name: 'Dining Room',
+        enName: 'Main Dining Pavilion',
+        x: 23.5,
+        y: 86.8,
+        keywords: ['dining room', 'restoran', 'dining', 'meja makan', 'makan', 'lodge overwater dining', 'restoran lama'],
+    },
+    {
+        num: 2,
+        id: 'tbr_new_dining',
+        name: 'New Dining Room',
+        enName: 'New Dining Room',
+        x: 30.2,
+        y: 86.8,
+        keywords: ['new dining room', 'new dining', 'restoran baru', 'dining baru', 'paviliun makan baru'],
+    },
+    {
+        num: 3,
+        id: 'tbr_lounge',
+        name: 'Lounge',
+        enName: 'Lounge Deck',
+        x: 23.0,
+        y: 78.5,
+        keywords: ['lounge', 'lounge deck', 'balkon santai', 'deck tengah', 'ruang santai'],
+    },
+    {
+        num: 4,
+        id: 'tbr_bungalow_inner',
+        name: 'Overwater Bungalow (Tengah)',
+        enName: 'Inner Overwater Bungalow',
+        x: 19.2,
+        y: 59.4,
+        keywords: ['overwater bungalow tengah', 'bungalow tengah', 'inner bungalow', 'chalet tengah'],
+    },
+    {
+        num: 5,
+        id: 'tbr_bungalow_balcony',
+        name: 'Overwater Bungalow with Balcony',
+        enName: 'Overwater Bungalow with Balcony',
+        x: 14.2,
+        y: 67.5,
+        keywords: ['overwater bungalow with balcony', 'overwater bungalow', 'bungalow with balcony', 'chalet balkon', 'villa balkon', 'chalet timur'],
+    },
+    {
+        num: 6,
+        id: 'tbr_bungalow_3br',
+        name: 'Overwater 3-Bedroom Bungalow (Loft & Balcony)',
+        enName: '3-Bedroom Bungalow with Loft',
+        x: 14.2,
+        y: 88.0,
+        keywords: ['3 bedroom', '3-bedroom', 'bungalow loft', '3 br', 'villa 3 kamar', 'family bungalow', 'loft & balcony', 'villa selatan'],
+    },
+    {
+        num: 7,
+        id: 'tbr_rooms',
+        name: 'Overwater Rooms',
+        enName: 'Overwater Rooms (West)',
+        x: 28.0,
+        y: 53.5,
+        keywords: ['overwater room', 'kamar overwater', 'room 1', 'room 2', 'room 3', 'room 4', 'kamar barat', 'kamar titian'],
+    },
+    {
+        num: 8,
+        id: 'tbr_dorm',
+        name: 'Dorm Room',
+        enName: 'Dormitory Rooms',
+        x: 28.0,
+        y: 65.5,
+        keywords: ['dorm room', 'dorm', 'dormitory', 'kamar dorm', 'asrama', 'mes', 'kamar staf titian'],
+    },
+    {
+        num: 9,
+        id: 'tbr_meeting',
+        name: 'Meeting Room',
+        enName: 'Meeting Room',
+        x: 28.0,
+        y: 43.8,
+        keywords: ['meeting room', 'ruang pertemuan', 'ruang rapat', 'meeting', 'briefing room', 'serbaguna tbr'],
+    },
+    {
+        num: 10,
+        id: 'tbr_swimming',
+        name: 'Swimming Area',
+        enName: 'Designated Swimming Area',
+        x: 51.5,
+        y: 78.0,
+        keywords: ['swimming area', 'area berenang', 'kolam laut', 'laut renang', 'swimming', 'lagoon'],
+    },
+    {
+        num: 11,
+        id: 'tbr_beach_front',
+        name: 'Area Pantai & Resepsionis',
+        enName: 'Beachfront & Reception',
+        x: 45.0,
+        y: 18.5,
+        keywords: ['beach', 'pantai', 'resepsionis', 'reception', 'dapur', 'kitchen', 'genset', 'kantor tbr', 'mes staf tbr', 'dermaga boat tbr', 'kids club'],
+    },
+];
+
+/**
  * Quick selectable presets for TPI in report / edit issue forms
  */
 export const TPI_PRESET_LOCATIONS = [
@@ -221,9 +327,9 @@ export const TPI_PRESET_LOCATIONS = [
  * Quick selectable presets for TBR (Telunas Beach Resort)
  */
 export const TBR_PRESET_LOCATIONS = [
-    'Lodge Overwater Dining', 'Overwater Chalet 01', 'Overwater Chalet 02', 'Overwater Chalet 03',
-    'Overwater Chalet 04', 'Overwater Chalet 05', 'Overwater Chalet 06', 'Overwater Chalet 07',
-    'Overwater Chalet 08', 'Overwater Chalet 09', 'Overwater Chalet 10', 'Beach Reception',
-    'Restoran & Dapur TBR', 'Dermaga Boat TBR', 'Genset & Utilitas TBR', 'Mes Staf TBR',
-    'Kids Club & Activity Center'
+    'Dining Room (Overwater)', 'New Dining Room', 'Lounge Deck', 'Meeting Room',
+    'Overwater Bungalow with Balcony', 'Overwater 3-Bedroom Bungalow (Loft)',
+    'Overwater Bungalow (Tengah)', 'Overwater Rooms (Kamar Titian)', 'Dorm Room',
+    'Swimming Area (Laut)', 'Area Pantai & Resepsionis', 'Restoran & Dapur Pantai',
+    'Dermaga Boat TBR', 'Genset & Utilitas TBR', 'Mes Staf TBR'
 ];
