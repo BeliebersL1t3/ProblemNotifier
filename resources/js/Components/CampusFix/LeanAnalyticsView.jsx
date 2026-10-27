@@ -208,16 +208,33 @@ const CustomMttrTooltip = ({ active, payload }) => {
     const data = payload[0]?.payload;
     if (!data) return null;
     return (
-        <div className="bg-slate-900/95 border border-slate-700/80 rounded-lg p-2.5 shadow-xl text-xs backdrop-blur-sm z-50">
-            <p className="font-bold text-white mb-1 pb-1 border-b border-slate-800">{data.department}</p>
-            <div className="space-y-1 text-slate-300">
+        <div className="bg-slate-900/95 border border-slate-700/80 rounded-lg p-2.5 shadow-xl text-xs backdrop-blur-sm z-50 min-w-[210px]">
+            <p className="font-bold text-white mb-1 pb-1 border-b border-slate-800 flex items-center justify-between">
+                <span>{data.department}</span>
+                <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded border ${
+                    data.statusType === 'fast'
+                        ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                        : data.statusType === 'pending_delay'
+                        ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                        : data.statusType === 'normal'
+                        ? 'bg-sky-500/20 text-sky-300 border-sky-500/40'
+                        : 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                }`}>
+                    {data.speedStatus || 'Standar'}
+                </span>
+            </p>
+            <div className="space-y-1.5 text-slate-300">
                 <div className="flex items-center justify-between gap-4">
                     <span>Rata-rata Durasi Selesai:</span>
-                    <span className="font-bold text-amber-300">{data.avgHours} Jam</span>
+                    <span className="font-bold text-sky-300">{data.avgHours} Jam</span>
                 </div>
                 <div className="flex items-center justify-between gap-4 text-slate-400 text-[10px]">
                     <span>Tiket Diselesaikan:</span>
                     <span className="font-semibold text-white">{data.solvedCount}</span>
+                </div>
+                <div className="flex items-center justify-between gap-4 pt-1 border-t border-slate-800 text-[10px]">
+                    <span className="text-amber-400">Kasus Pending / Sparepart:</span>
+                    <span className="font-bold text-amber-300">{data.pendingCount || 0} Tiket</span>
                 </div>
             </div>
         </div>
@@ -1232,6 +1249,11 @@ export function LeanAnalyticsView({
                 else if (turnHours <= 24) slaUnder24h++;
                 else slaOver24h++;
 
+                const hasPendingDelay = issue.status === 'pending' || 
+                    Boolean(issue.pendingReason) || 
+                    Boolean(issue.pending_reason) || 
+                    Boolean(issue.ai_analysis?.perlu_sparepart);
+
                 let depts = issue.target_departments;
                 if (typeof depts === 'string') {
                     try { depts = JSON.parse(depts); } catch { depts = [depts]; }
@@ -1241,10 +1263,18 @@ export function LeanAnalyticsView({
                 depts.forEach((d) => {
                     const deptName = (d || 'Umum').trim() || 'Umum';
                     if (!deptTimeMap[deptName]) {
-                        deptTimeMap[deptName] = { department: deptName, totalHours: 0, count: 0 };
+                        deptTimeMap[deptName] = { 
+                            department: deptName, 
+                            totalHours: 0, 
+                            count: 0,
+                            pendingCount: 0,
+                        };
                     }
                     deptTimeMap[deptName].totalHours += turnHours;
                     deptTimeMap[deptName].count++;
+                    if (hasPendingDelay) {
+                        deptTimeMap[deptName].pendingCount++;
+                    }
                 });
             }
         });
@@ -1258,11 +1288,36 @@ export function LeanAnalyticsView({
             : 0;
 
         const deptMttrList = Object.values(deptTimeMap)
-            .map((d) => ({
-                department: d.department,
-                avgHours: parseFloat((d.totalHours / d.count).toFixed(1)),
-                solvedCount: d.count,
-            }))
+            .map((d) => {
+                const avgHours = parseFloat((d.totalHours / d.count).toFixed(1));
+                let speedStatus = 'Standar';
+                let statusType = 'normal'; // 'fast' | 'normal' | 'pending_delay' | 'needs_eval'
+
+                if (avgHours <= 6) {
+                    speedStatus = 'Sangat Cepat';
+                    statusType = 'fast';
+                } else if (avgHours <= 24) {
+                    speedStatus = 'Standar';
+                    statusType = 'normal';
+                } else {
+                    if (d.pendingCount > 0) {
+                        speedStatus = 'Tertunda Pending / Sparepart';
+                        statusType = 'pending_delay';
+                    } else {
+                        speedStatus = 'Perlu Evaluasi';
+                        statusType = 'needs_eval';
+                    }
+                }
+
+                return {
+                    department: d.department,
+                    avgHours,
+                    solvedCount: d.count,
+                    pendingCount: d.pendingCount,
+                    speedStatus,
+                    statusType,
+                };
+            })
             .sort((a, b) => a.avgHours - b.avgHours);
 
         const slaRate24h = resolvedWithTimeCount > 0
@@ -3007,6 +3062,7 @@ export function LeanAnalyticsView({
                                                 <tr>
                                                     <th className="py-2.5 px-3">Departemen</th>
                                                     <th className="py-2.5 px-3 text-right">Tiket Selesai</th>
+                                                    <th className="py-2.5 px-3 text-center">Pending / Sparepart</th>
                                                     <th className="py-2.5 px-3 text-right">Rata-rata MTTR</th>
                                                     <th className="py-2.5 px-3 text-center">Status Kecepatan</th>
                                                 </tr>
@@ -3016,18 +3072,41 @@ export function LeanAnalyticsView({
                                                     <tr key={d.department} className="hover:bg-slate-750/40">
                                                         <td className="py-2 px-3 font-semibold text-white">{d.department}</td>
                                                         <td className="py-2 px-3 text-right font-medium text-slate-200">{d.solvedCount}</td>
+                                                        <td className="py-2 px-3 text-center">
+                                                            {d.pendingCount > 0 ? (
+                                                                <span
+                                                                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm"
+                                                                    title={`${d.pendingCount} dari ${d.solvedCount} tiket mengalami penundaan pending atau butuh suku cadang`}
+                                                                >
+                                                                    ⏸️ {d.pendingCount} Tertunda
+                                                                </span>
+                                                            ) : (
+                                                                <span className="text-slate-500 text-[10px]">
+                                                                    0 Kasus (Lancar)
+                                                                </span>
+                                                            )}
+                                                        </td>
                                                         <td className="py-2 px-3 text-right font-bold text-sky-400">{d.avgHours} Jam</td>
                                                         <td className="py-2 px-3 text-center">
-                                                            {d.avgHours <= 6 ? (
+                                                            {d.statusType === 'fast' ? (
                                                                 <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
                                                                     Sangat Cepat
                                                                 </span>
-                                                            ) : d.avgHours <= 24 ? (
+                                                            ) : d.statusType === 'normal' ? (
                                                                 <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-sky-500/20 text-sky-300 border border-sky-500/40">
                                                                     Standar
                                                                 </span>
+                                                            ) : d.statusType === 'pending_delay' ? (
+                                                                <div className="inline-flex flex-col items-center">
+                                                                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                                                                        Tertunda Pending / Sparepart
+                                                                    </span>
+                                                                    <span className="text-[9px] text-slate-400 mt-0.5 font-normal">
+                                                                        Wajar (Kendala logistik/part)
+                                                                    </span>
+                                                                </div>
                                                             ) : (
-                                                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                                                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/40">
                                                                     Perlu Evaluasi
                                                                 </span>
                                                             )}
