@@ -594,11 +594,113 @@ input[type="range"]::-moz-range-thumb {
 .lean-theme-light .hover\:bg-slate-700\/50:hover,
 .lean-theme-light .hover\:bg-slate-800:hover {
   background-color: rgba(241, 245, 249, 0.9) !important;
+  color: #0f172a !important;
 }
 
 .lean-theme-light .divide-slate-700\/60 > * + *,
 .lean-theme-light .divide-slate-700\/80 > * + * {
   border-color: rgba(226, 232, 240, 0.9) !important;
 }
+
+/* ── Clean Modern Slate: Comprehensive Light Mode Controls & Badges ────────── */
+/* Plain slate background conversions */
+.lean-theme-light .bg-slate-800,
+.lean-theme-light .bg-slate-750 {
+  background-color: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  color: #1e293b !important;
+}
+
+.lean-theme-light .bg-slate-700 {
+  background-color: #e2e8f0 !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+}
+
+.lean-theme-light .bg-slate-600 {
+  background-color: #cbd5e1 !important;
+  color: #0f172a !important;
+}
+
+/* Common buttons and action pills */
+.lean-theme-light button.bg-slate-800,
+.lean-theme-light a.bg-slate-800 {
+  background-color: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  color: #1e293b !important;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+}
+
+.lean-theme-light button.bg-slate-800:hover,
+.lean-theme-light a.bg-slate-800:hover {
+  background-color: #f8fafc !important;
+  border-color: #94a3b8 !important;
+  color: #0f172a !important;
+}
+
+/* Hotspot list cards in Light Mode */
+.lean-theme-light .bg-rose-950\/25 {
+  background-color: rgba(255, 241, 242, 0.95) !important;
+  border-color: rgba(253, 164, 175, 0.9) !important;
+}
+.lean-theme-light .bg-slate-900\/60 {
+  background-color: rgba(255, 255, 255, 0.88) !important;
+  border-color: rgba(226, 232, 240, 0.9) !important;
+}
+
+/* Hotspot Rank Badges (#1, #2, #3, etc.) */
+.lean-theme-light .bg-slate-800.text-slate-400,
+.lean-theme-light .bg-slate-700.text-slate-100 {
+  background-color: #f1f5f9 !important;
+  color: #1e293b !important;
+  border-color: #cbd5e1 !important;
+}
+.lean-theme-light .bg-orange-950\/60.text-orange-200 {
+  background-color: #ffedd5 !important;
+  color: #9a3412 !important;
+  border-color: #fed7aa !important;
+}
+
+/* Hotspot department badges and generic badge chips */
+.lean-theme-light span.bg-slate-800 {
+  background-color: #f1f5f9 !important;
+  color: #334155 !important;
+  border-color: #cbd5e1 !important;
+  font-weight: 500;
+}
+
+/* Hotspot progress bar track */
+.lean-theme-light .bg-slate-800.h-2 {
+  background-color: #e2e8f0 !important;
+}
+
+/* Hotspot Aktif and Selesai counters */
+.lean-theme-light div.bg-slate-800.border {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
+}
+.lean-theme-light div.bg-slate-800 .text-slate-400 {
+  color: #64748b !important;
+}
+
+/* Switcher Tab Pill Container (Peringkat Risiko, Denah, dll) */
+.lean-theme-light .bg-slate-900\/90 {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04);
+}
+.lean-theme-light .bg-slate-700.text-white {
+  background-color: #0f172a !important;
+  color: #ffffff !important;
+}
+
+/* Unchecked status filter buttons in Index.jsx */
+.lean-theme-light .bg-slate-900\/60.border-slate-800 {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  color: #64748b !important;
+}
+
 
 

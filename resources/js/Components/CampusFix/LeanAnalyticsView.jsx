@@ -1421,7 +1421,9 @@ export function LeanAnalyticsView({
                                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
                                     timeRange === btn.id
                                         ? 'bg-teal-500 text-slate-950 shadow-md shadow-teal-500/20'
-                                        : 'bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white border border-slate-700'
+                                        : isDark
+                                        ? 'bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white border border-slate-700'
+                                        : 'bg-white text-slate-700 hover:bg-slate-50 hover:text-slate-900 border border-slate-300 shadow-xs'
                                 }`}
                             >
                                 {btn.label}
@@ -1446,22 +1448,30 @@ export function LeanAnalyticsView({
                             href="https://docs.google.com/spreadsheets/d/1o8SPuryJf__V1DJp6bm1MTRj60pkIsSX1GYr4-iJvhI/edit?usp=sharing"
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold border border-slate-700 transition"
+                            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition ${
+                                isDark
+                                    ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border-slate-700'
+                                    : 'bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 border-slate-300 shadow-xs'
+                            }`}
                             title="Buka Spreadsheet Log Tiket Masalah"
                         >
                             <span>Sheet Tiket</span>
-                            <ExternalLink className="w-3 h-3 text-slate-400" />
+                            <ExternalLink className={`w-3 h-3 ${isDark ? 'text-slate-400' : 'text-slate-500'}`} />
                         </a>
 
                         <a
                             href="https://docs.google.com/spreadsheets/d/1-LiBd1vd8_YA4aTJsf0EiynuayX1_TE800Ylkr4BX5I/edit?usp=sharing"
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold border border-slate-700 transition"
+                            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition ${
+                                isDark
+                                    ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border-slate-700'
+                                    : 'bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 border-slate-300 shadow-xs'
+                            }`}
                             title="Buka Spreadsheet Master Lokasi Hotspot"
                         >
                             <span>Sheet Lokasi</span>
-                            <ExternalLink className="w-3 h-3 text-slate-400" />
+                            <ExternalLink className={`w-3 h-3 ${isDark ? 'text-slate-400' : 'text-slate-500'}`} />
                         </a>
                     </div>
                 </div>
@@ -1554,7 +1564,11 @@ export function LeanAnalyticsView({
                     <button
                         type="button"
                         onClick={() => setShowWidgetModal(!showWidgetModal)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-medium border border-slate-700 transition shadow-sm"
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition shadow-sm ${
+                            isDark
+                                ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border-slate-700'
+                                : 'bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 border-slate-300 shadow-xs'
+                        }`}
                     >
                         <SlidersHorizontal className="w-3.5 h-3.5 text-teal-400" />
                         <span>Atur Tampilan Widget</span>
@@ -1796,14 +1810,18 @@ export function LeanAnalyticsView({
 
                                 <div className="flex items-center gap-2 self-start md:self-auto flex-wrap">
                                     {/* View Switcher Tabs (Default: Leaderboard Peringkat Risiko) */}
-                                    <div className="flex items-center gap-1 bg-slate-900/90 p-1 rounded-lg border border-slate-700">
+                                    <div className={`flex items-center gap-1 p-1 rounded-lg border ${
+                                        isDark ? 'bg-slate-900/90 border-slate-700' : 'bg-slate-100 border-slate-300 shadow-xs'
+                                    }`}>
                                         <button
                                             type="button"
                                             onClick={() => setHotspotTab('leaderboard')}
                                             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
                                                 hotspotTab === 'leaderboard'
                                                     ? 'bg-rose-500 text-white shadow-sm'
-                                                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                                                    : isDark
+                                                    ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                                                    : 'text-slate-600 hover:text-slate-900 hover:bg-white'
                                             }`}
                                         >
                                             <Flame className="w-3.5 h-3.5" />
@@ -1815,7 +1833,9 @@ export function LeanAnalyticsView({
                                             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
                                                 hotspotTab === 'tpi'
                                                     ? 'bg-emerald-600 text-white shadow-sm'
-                                                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                                                    : isDark
+                                                    ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                                                    : 'text-slate-600 hover:text-slate-900 hover:bg-white'
                                             }`}
                                         >
                                             <Compass className="w-3.5 h-3.5" />
@@ -1827,7 +1847,9 @@ export function LeanAnalyticsView({
                                             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
                                                 hotspotTab === 'tbr'
                                                     ? 'bg-amber-600 text-white shadow-sm'
-                                                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                                                    : isDark
+                                                    ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                                                    : 'text-slate-600 hover:text-slate-900 hover:bg-white'
                                             }`}
                                         >
                                             <Map className="w-3.5 h-3.5" />
@@ -1838,8 +1860,10 @@ export function LeanAnalyticsView({
                                             onClick={() => setHotspotTab('chart')}
                                             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
                                                 hotspotTab === 'chart'
-                                                    ? 'bg-slate-700 text-white shadow-sm'
-                                                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                                                    ? isDark ? 'bg-slate-700 text-white shadow-sm' : 'bg-slate-900 text-white shadow-sm'
+                                                    : isDark
+                                                    ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                                                    : 'text-slate-600 hover:text-slate-900 hover:bg-white'
                                             }`}
                                         >
                                             <BarChart2 className="w-3.5 h-3.5" />

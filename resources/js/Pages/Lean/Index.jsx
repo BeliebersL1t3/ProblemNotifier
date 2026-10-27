@@ -555,12 +555,16 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
             {/* MAIN CONTENT CONTAINER */}
             <main className="w-full px-4 sm:px-6 lg:px-8 pt-4 flex-1">
                 {/* NOTICE BANNER: ISOLATED TESTING */}
-                <div className="mb-4 p-3 rounded-xl bg-gradient-to-r from-amber-950/40 via-amber-900/20 to-slate-800/40 border border-amber-500/30 flex items-start justify-between gap-3 text-xs">
-                    <div className="flex items-start gap-2 text-amber-200">
-                        <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                <div className={`mb-4 p-3.5 rounded-xl border flex items-start justify-between gap-3 text-xs backdrop-blur-md transition-all ${
+                    isDark
+                        ? 'bg-gradient-to-r from-amber-950/40 via-amber-900/20 to-slate-800/40 border-amber-500/30'
+                        : 'bg-amber-50/95 border-amber-300/80 text-amber-950 shadow-sm'
+                }`}>
+                    <div className={`flex items-start gap-2.5 ${isDark ? 'text-amber-200' : 'text-amber-950'}`}>
+                        <AlertCircle className={`w-4 h-4 shrink-0 mt-0.5 ${isDark ? 'text-amber-400' : 'text-amber-600'}`} />
                         <div>
-                            <p className="font-semibold text-amber-300">Lingkungan Uji Coba Terisolasi (Sandbox)</p>
-                            <p className="text-[11px] text-amber-200/80 mt-0.5 leading-relaxed">
+                            <p className={`font-bold ${isDark ? 'text-amber-300' : 'text-amber-900'}`}>Lingkungan Uji Coba Terisolasi (Sandbox)</p>
+                            <p className={`text-[11px] mt-0.5 leading-relaxed ${isDark ? 'text-amber-200/80' : 'text-amber-800'}`}>
                                 Laporan di sini tidak masuk ke dashboard resmi dan tidak mengirim notifikasi WhatsApp. Bebas dipakai untuk simulasi.
                             </p>
                         </div>
@@ -568,7 +572,11 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                     {issues.length > 0 && (
                         <button
                             onClick={() => setShowResetConfirm(true)}
-                            className="shrink-0 flex items-center gap-1 text-[11px] text-rose-400 hover:text-rose-300 bg-rose-950/50 hover:bg-rose-900/60 border border-rose-800/60 px-2 py-1 rounded-md transition-colors"
+                            className={`shrink-0 flex items-center gap-1 text-[11px] px-2 py-1 rounded-md transition-colors ${
+                                isDark
+                                    ? 'text-rose-400 hover:text-rose-300 bg-rose-950/50 hover:bg-rose-900/60 border border-rose-800/60'
+                                    : 'text-rose-700 hover:text-rose-800 bg-rose-100 hover:bg-rose-200 border border-rose-300 font-semibold shadow-xs'
+                            }`}
                         >
                             <Trash2 className="w-3 h-3" />
                             Reset Data
@@ -771,25 +779,37 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
 
                     {/* Quick Presets */}
                     <div className="flex items-center gap-1 text-[11px] self-end sm:self-auto">
-                        <span className="text-slate-500 mr-1 hidden sm:inline">Preset:</span>
+                        <span className={`${isDark ? 'text-slate-500' : 'text-slate-500'} mr-1 hidden sm:inline font-medium`}>Preset:</span>
                         <button
                             type="button"
                             onClick={() => setStatusPreset('all')}
-                            className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition-colors"
+                            className={`px-2.5 py-0.5 rounded-md border text-xs font-medium transition-all ${
+                                isDark
+                                    ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border-slate-700'
+                                    : 'bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 border-slate-300 shadow-xs'
+                            }`}
                         >
                             Semua
                         </button>
                         <button
                             type="button"
                             onClick={() => setStatusPreset('active')}
-                            className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-amber-300 hover:text-amber-200 border border-slate-700 transition-colors"
+                            className={`px-2.5 py-0.5 rounded-md border text-xs font-semibold transition-all ${
+                                isDark
+                                    ? 'bg-slate-800 hover:bg-slate-700 text-amber-300 hover:text-amber-200 border-slate-700'
+                                    : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-300 shadow-xs'
+                            }`}
                         >
                             Isu Aktif
                         </button>
                         <button
                             type="button"
                             onClick={() => setStatusPreset('resolved')}
-                            className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-emerald-300 hover:text-emerald-200 border border-slate-700 transition-colors"
+                            className={`px-2.5 py-0.5 rounded-md border text-xs font-semibold transition-all ${
+                                isDark
+                                    ? 'bg-slate-800 hover:bg-slate-700 text-emerald-300 hover:text-emerald-200 border-slate-700'
+                                    : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-300 shadow-xs'
+                            }`}
                         >
                             Selesai Saja
                         </button>
