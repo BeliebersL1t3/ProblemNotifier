@@ -20,6 +20,7 @@ import {
     Image as ImageIcon,
     AlertCircle,
     ExternalLink,
+    LogIn,
     Power,
     MessageSquare,
     Table,
@@ -475,23 +476,35 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                         {/* Supervisor Account Profile Pill */}
                         <div
                             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800/90 border border-slate-700 text-xs shadow-sm"
-                            title={`Login sebagai ${myName} (Supervisor)`}
+                            title={currentUser ? `Login sebagai ${myName} (${currentUser.department || 'Supervisor'})` : 'Mode Tamu / Belum Login'}
                         >
-                            <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                            <span className={`w-2 h-2 rounded-full ${currentUser ? 'bg-emerald-400' : 'bg-slate-500'}`} />
                             <span className="font-bold text-slate-200 truncate max-w-[120px]">{myName}</span>
                             <span className="text-[10px] text-emerald-400 font-bold bg-emerald-950/80 px-1.5 py-0.2 rounded border border-emerald-800/60">
-                                Supervisor
+                                {currentUser?.is_admin ? 'Admin' : 'Supervisor'}
                             </span>
                         </div>
 
                         {/* Back to Full Dashboard / Login */}
-                        <Link
-                            href={currentUser ? route('dashboard') : route('login')}
-                            className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white transition-colors"
-                            title={currentUser ? "Buka Mode Kantor (Dashboard Lengkap)" : "Ke Halaman Login"}
-                        >
-                            <ExternalLink className="w-4 h-4" />
-                        </Link>
+                        {currentUser ? (
+                            <Link
+                                href={route('dashboard')}
+                                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-emerald-950/60 hover:bg-emerald-900/80 border border-emerald-600/50 text-emerald-300 hover:text-white transition-all text-xs font-semibold shadow-sm"
+                                title="Buka Mode Kantor (Dashboard Lengkap)"
+                            >
+                                <ExternalLink className="w-3.5 h-3.5" />
+                                <span className="hidden sm:inline">Mode Kantor</span>
+                            </Link>
+                        ) : (
+                            <Link
+                                href={route('login')}
+                                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-amber-950/60 hover:bg-amber-900/80 border border-amber-500/50 text-amber-300 hover:text-white transition-all text-xs font-semibold shadow-sm"
+                                title="Masuk ke Akun Anda"
+                            >
+                                <LogIn className="w-3.5 h-3.5" />
+                                <span>Masuk Akun</span>
+                            </Link>
+                        )}
                     </div>
                 </div>
             </header>
