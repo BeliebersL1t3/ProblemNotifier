@@ -3,6 +3,10 @@ import {
     ResponsiveContainer,
     BarChart,
     Bar,
+    ComposedChart,
+    Line,
+    ReferenceLine,
+    LabelList,
     XAxis,
     YAxis,
     Tooltip as RechartsTooltip,
@@ -63,16 +67,45 @@ const URGENCY_COLORS = {
     'Rendah': '#10b981',    // Emerald
 };
 
-// Custom Tooltip for Pareto: integer counts only, clean layout
+// Custom Tooltip for Pareto: shows count, individual share, and cumulative share
 const CustomParetoTooltip = ({ active, payload }) => {
     if (!active || !payload || !payload.length) return null;
-    const item = payload[0];
+    const data = payload[0]?.payload;
+    if (!data) return null;
+
     return (
-        <div className="bg-slate-900 border border-slate-700/80 rounded-lg p-2.5 shadow-xl text-xs">
-            <p className="font-bold text-white mb-1">{item.payload?.name}</p>
-            <div className="flex items-center justify-between gap-4 text-emerald-400">
-                <span className="text-slate-300">Jumlah Kasus:</span>
-                <span className="font-bold text-white">{item.value}</span>
+        <div className="bg-slate-900/95 border border-slate-700/80 rounded-lg p-3 shadow-xl text-xs backdrop-blur-sm min-w-[210px] z-50">
+            <p className="font-bold text-white mb-2 pb-1.5 border-b border-slate-800 flex items-center justify-between">
+                <span>{data.fullName || data.name}</span>
+                {data.isVital ? (
+                    <span className="text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/30">
+                        Top 80%
+                    </span>
+                ) : (
+                    <span className="text-[10px] text-slate-400 bg-slate-800 px-1.5 py-0.5 rounded border border-slate-700">
+                        Sekunder
+                    </span>
+                )}
+            </p>
+            <div className="space-y-1.5">
+                <div className="flex items-center justify-between text-slate-300">
+                    <span className="flex items-center gap-1.5">
+                        <span className="w-2.5 h-2.5 rounded-sm bg-emerald-400 inline-block" />
+                        Jumlah Kasus:
+                    </span>
+                    <span className="font-bold text-white text-sm">{data.count}</span>
+                </div>
+                <div className="flex items-center justify-between text-slate-300">
+                    <span className="text-slate-400">Porsi dari Total:</span>
+                    <span className="font-semibold text-emerald-300">{data.percentage}%</span>
+                </div>
+                <div className="flex items-center justify-between text-slate-300 pt-1 border-t border-slate-800">
+                    <span className="flex items-center gap-1.5 text-amber-400 font-medium">
+                        <span className="w-2 h-2 rounded-full bg-amber-400 inline-block" />
+                        Akumulasi Kumulatif:
+                    </span>
+                    <span className="font-bold text-amber-300">{data.cumulativePercentage}%</span>
+                </div>
             </div>
         </div>
     );
@@ -657,18 +690,61 @@ export function LeanAnalyticsView({
         };
     }, [filteredIssues]);
 
-    // --- 2. Pareto Chart Data (Top 7 Sub-Categories) ---
-    const paretoData = useMemo(() => {
+    // --- 2. Pareto Chart Data (Top 7 Sub-Categories with 80/20 Cumulative Calculation) ---
+    const { paretoData, paretoSummary } = useMemo(() => {
         const counts = {};
+        let totalCount = 0;
+
         filteredIssues.forEach((i) => {
             const sub = i.ai_sub_category || i.title || 'Lain-lain';
             counts[sub] = (counts[sub] || 0) + 1;
+            totalCount += 1;
         });
 
-        return Object.entries(counts)
-            .map(([name, count]) => ({ name, count }))
-            .sort((a, b) => b.count - a.count)
-            .slice(0, 7);
+        if (totalCount === 0) {
+            return { paretoData: [], paretoSummary: null };
+        }
+
+        const sorted = Object.entries(counts)
+            .map(([name, count]) => ({
+                name,
+                fullName: name,
+                count,
+            }))
+            .sort((a, b) => b.count - a.count);
+
+        let runningCumulative = 0;
+        let vitalCount = 0;
+
+        const dataWithCumulative = sorted.slice(0, 7).map((item) => {
+            const prevCumulative = runningCumulative;
+            runningCumulative += item.count;
+            const percentage = Math.round((item.count / totalCount) * 100);
+            const cumulativePercentage = Math.min(100, Math.round((runningCumulative / totalCount) * 100));
+            // Belongs to the vital 80% contributors if prior cumulative was under 80%
+            const isVital = (prevCumulative / totalCount) < 0.8;
+            if (isVital) vitalCount++;
+
+            return {
+                ...item,
+                percentage,
+                cumulativePercentage,
+                isVital,
+            };
+        });
+
+        const vitalTopPercentage = dataWithCumulative.length > 0
+            ? dataWithCumulative[Math.min(vitalCount - 1, dataWithCumulative.length - 1)]?.cumulativePercentage || 0
+            : 0;
+
+        return {
+            paretoData: dataWithCumulative,
+            paretoSummary: {
+                vitalCount,
+                vitalTopPercentage,
+                totalCount,
+            },
+        };
     }, [filteredIssues]);
 
     // --- 3. Category Distribution (Donut Chart) ---
@@ -1175,54 +1251,140 @@ export function LeanAnalyticsView({
 
             {/* CHARTS ROW 1: PARETO (TOP SUB-CATEGORIES) & CATEGORY DONUT */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                {/* 1. PARETO HORIZONTAL BAR */}
-                <div className="lg:col-span-2 p-4 rounded-xl bg-slate-800/90 border border-slate-700/80 shadow-sm">
-                    <div className="flex items-center justify-between mb-3">
-                        <div>
-                            <h3 className="text-xs font-bold text-white flex items-center gap-1.5">
-                                <TrendingUp className="w-4 h-4 text-emerald-400" />
-                                Analisa Pareto: Top Masalah Berulang (80/20 Rule)
-                            </h3>
-                            <p className="text-[11px] text-slate-400 mt-0.5">
-                                Sub-kategori kerusakan yang paling sering terjadi dan membutuhkan audit peremajaan unit
-                            </p>
+                {/* 1. PARETO DUAL-AXIS COMPOSED CHART */}
+                <div className="lg:col-span-2 p-4 rounded-xl bg-slate-800/90 border border-slate-700/80 shadow-sm flex flex-col justify-between">
+                    <div>
+                        <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                            <div>
+                                <h3 className="text-xs font-bold text-white flex items-center gap-1.5">
+                                    <TrendingUp className="w-4 h-4 text-emerald-400" />
+                                    Analisa Pareto: Top Masalah Berulang (80/20 Rule)
+                                </h3>
+                                <p className="text-[11px] text-slate-400 mt-0.5">
+                                    Identifikasi 20% akar masalah yang menyumbang 80% insiden resort
+                                </p>
+                            </div>
+
+                            {paretoSummary && paretoSummary.vitalCount > 0 && (
+                                <div className="px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-[11px] font-medium text-emerald-300 flex items-center gap-1.5 shadow-sm">
+                                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+                                    <span>
+                                        Top <strong>{paretoSummary.vitalCount}</strong> masalah menyumbang{' '}
+                                        <strong className="text-emerald-200">{paretoSummary.vitalTopPercentage}%</strong> komplain
+                                    </span>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Visual Legend Bar */}
+                        <div className="flex flex-wrap items-center gap-3 sm:gap-4 px-1 py-1 mb-2 text-[10px] text-slate-400 border-y border-slate-750/50">
+                            <div className="flex items-center gap-1.5">
+                                <span className="w-2.5 h-2.5 rounded-sm bg-emerald-500 shrink-0" />
+                                <span className="text-slate-200 font-medium">Vital Few (Prioritas 80%)</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                                <span className="w-2.5 h-2.5 rounded-sm bg-slate-500 shrink-0" />
+                                <span>Masalah Sekunder (&gt;80%)</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                                <span className="w-3.5 h-0.5 bg-amber-400 shrink-0 inline-block" />
+                                <span className="text-amber-400 font-medium">Garis Akumulasi (%)</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 ml-auto">
+                                <span className="w-3.5 h-0.5 border-b border-rose-500 border-dashed shrink-0 inline-block" />
+                                <span className="text-rose-400 font-medium">Batas 80% Target</span>
+                            </div>
                         </div>
                     </div>
 
                     {paretoData.length === 0 ? (
-                        <div className="py-12 text-center text-xs text-slate-500">
+                        <div className="py-16 text-center text-xs text-slate-500">
                             Belum ada data sub-kategori untuk ditampilkan.
                         </div>
                     ) : (
-                        <div className="h-64 w-full">
+                        <div className="h-72 w-full mt-1">
                             <ResponsiveContainer width="100%" height="100%">
-                                <BarChart
-                                    layout="vertical"
+                                <ComposedChart
                                     data={paretoData}
-                                    margin={{ top: 5, right: 30, left: 40, bottom: 5 }}
+                                    margin={{ top: 15, right: 25, left: -10, bottom: 40 }}
                                 >
-                                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" horizontal={false} />
+                                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
                                     <XAxis
+                                        dataKey="name"
+                                        stroke="#cbd5e1"
+                                        fontSize={10}
+                                        interval={0}
+                                        angle={-22}
+                                        textAnchor="end"
+                                        height={45}
+                                        tickFormatter={(val) => (val && val.length > 15 ? val.substring(0, 14) + '…' : val)}
+                                    />
+                                    {/* Sumbu Kiri: Jumlah Kasus */}
+                                    <YAxis
+                                        yAxisId="left"
                                         type="number"
                                         stroke="#94a3b8"
                                         fontSize={10}
                                         allowDecimals={false}
-                                        domain={[0, (dataMax) => Math.max(1, dataMax)]}
+                                        domain={[0, (dataMax) => Math.max(2, Math.ceil(dataMax * 1.25))]}
                                     />
+                                    {/* Sumbu Kanan: Persentase Kumulatif (0 - 100%) */}
                                     <YAxis
-                                        type="category"
-                                        dataKey="name"
-                                        stroke="#cbd5e1"
-                                        fontSize={11}
-                                        width={120}
-                                        tickFormatter={(val) => (val.length > 18 ? val.substring(0, 18) + '...' : val)}
+                                        yAxisId="right"
+                                        orientation="right"
+                                        type="number"
+                                        stroke="#f59e0b"
+                                        fontSize={10}
+                                        domain={[0, 100]}
+                                        unit="%"
+                                        tickFormatter={(val) => `${val}%`}
                                     />
                                     <RechartsTooltip
                                         cursor={{ fill: 'rgba(255, 255, 255, 0.05)' }}
                                         content={<CustomParetoTooltip />}
                                     />
-                                    <Bar dataKey="count" name="Jumlah Kasus" fill="#10b981" radius={[0, 4, 4, 0]} />
-                                </BarChart>
+                                    {/* Garis Batas 80% Pareto */}
+                                    <ReferenceLine
+                                        yAxisId="right"
+                                        y={80}
+                                        stroke="#f43f5e"
+                                        strokeDasharray="4 4"
+                                        strokeWidth={1.5}
+                                    />
+                                    {/* Bar Jumlah Kasus */}
+                                    <Bar
+                                        yAxisId="left"
+                                        dataKey="count"
+                                        name="Jumlah Kasus"
+                                        radius={[4, 4, 0, 0]}
+                                    >
+                                        {paretoData.map((entry, index) => (
+                                            <Cell
+                                                key={`cell-${index}`}
+                                                fill={entry.isVital ? '#10b981' : '#64748b'}
+                                            />
+                                        ))}
+                                        <LabelList
+                                            dataKey="count"
+                                            position="top"
+                                            fill="#ffffff"
+                                            fontSize={10}
+                                            fontWeight={700}
+                                            offset={5}
+                                        />
+                                    </Bar>
+                                    {/* Garis Kurva Akumulasi (%) */}
+                                    <Line
+                                        yAxisId="right"
+                                        type="monotone"
+                                        dataKey="cumulativePercentage"
+                                        name="Akumulasi %"
+                                        stroke="#f59e0b"
+                                        strokeWidth={2.5}
+                                        dot={{ r: 4, fill: '#f59e0b', stroke: '#0f172a', strokeWidth: 1.5 }}
+                                        activeDot={{ r: 6, fill: '#fbbf24' }}
+                                    />
+                                </ComposedChart>
                             </ResponsiveContainer>
                         </div>
                     )}
