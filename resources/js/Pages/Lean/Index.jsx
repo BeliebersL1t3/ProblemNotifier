@@ -435,8 +435,8 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
             <Head title="Mode Lapangan (Sandbox) — Telunas Issue Tracker" />
 
             {/* TOP HEADER */}
-            <header className="sticky top-0 z-30 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 px-4 py-3 shadow-md">
-                <div className="max-w-7xl mx-auto flex items-center justify-between gap-2">
+            <header className="sticky top-0 z-30 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 px-4 sm:px-6 lg:px-8 py-3 shadow-md">
+                <div className="w-full flex items-center justify-between gap-2">
                     {/* Brand & Sandbox Pill */}
                     <div className="flex items-center gap-2">
                         <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center justify-center font-bold text-sm shadow-sm">
@@ -497,7 +497,7 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
             </header>
 
             {/* MAIN CONTENT CONTAINER */}
-            <main className="max-w-7xl mx-auto w-full px-4 pt-4 flex-1">
+            <main className="w-full px-4 sm:px-6 lg:px-8 pt-4 flex-1">
                 {/* NOTICE BANNER: ISOLATED TESTING */}
                 <div className="mb-4 p-3 rounded-xl bg-gradient-to-r from-amber-950/40 via-amber-900/20 to-slate-800/40 border border-amber-500/30 flex items-start justify-between gap-3 text-xs">
                     <div className="flex items-start gap-2 text-amber-200">
@@ -915,7 +915,7 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
 
                                                 {/* DESKRIPSI */}
                                                 {visibleColumns.desc && (
-                                                    <td className="py-2.5 px-3.5 text-slate-300 text-xs min-w-[220px] max-w-md">
+                                                    <td className="py-2.5 px-3.5 text-slate-300 text-xs min-w-[220px] max-w-md xl:max-w-xl">
                                                         <p className="line-clamp-2 leading-relaxed" title={issue.description}>
                                                             {issue.description || <span className="text-slate-600 italic">Tidak ada keterangan</span>}
                                                         </p>
