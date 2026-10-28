@@ -2408,6 +2408,63 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                     </div>
                 </div>
             )}
+
+            {/* MOBILE BOTTOM NAVIGATION DOCK (KARTU & PETA) */}
+            <nav
+                aria-label="Navigasi Bawah Mobile Lapangan"
+                className={`fixed bottom-0 inset-x-0 z-40 md:hidden backdrop-blur-xl border-t shadow-[0_-8px_30px_rgba(0,0,0,0.4)] transition-colors duration-200 ${
+                    isDark
+                        ? 'bg-slate-900/95 border-slate-800 text-slate-300'
+                        : 'bg-white/95 border-slate-200 text-slate-700 shadow-slate-200/50'
+                }`}
+                style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.35rem)' }}
+            >
+                <div className="grid grid-cols-2 max-w-sm mx-auto w-full px-3 py-1.5 gap-2">
+                    {/* Tab 1: Kartu */}
+                    <button
+                        type="button"
+                        onClick={() => setViewMode('cards')}
+                        className={`flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                            viewMode === 'cards'
+                                ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30'
+                                : isDark
+                                ? 'hover:bg-slate-800 text-slate-400 hover:text-white'
+                                : 'hover:bg-slate-100 text-slate-600 hover:text-slate-900'
+                        }`}
+                    >
+                        <LayoutGrid className="w-4 h-4" />
+                        <span>Kartu Tiket</span>
+                        <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ml-0.5 ${
+                            viewMode === 'cards'
+                                ? 'bg-white/20 text-white'
+                                : isDark
+                                ? 'bg-slate-800 text-slate-400'
+                                : 'bg-slate-200 text-slate-700'
+                        }`}>
+                            {filteredIssues.length}
+                        </span>
+                    </button>
+
+                    {/* Tab 2: Peta & Analitik */}
+                    <button
+                        type="button"
+                        onClick={() => setViewMode('analytics')}
+                        className={`flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                            viewMode === 'analytics'
+                                ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30'
+                                : isDark
+                                ? 'hover:bg-slate-800 text-slate-400 hover:text-white'
+                                : 'hover:bg-slate-100 text-slate-600 hover:text-slate-900'
+                        }`}
+                    >
+                        <MapPin className="w-4 h-4" />
+                        <span>Peta & AI</span>
+                        {aiPendingCount > 0 && (
+                            <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse ml-0.5" />
+                        )}
+                    </button>
+                </div>
+            </nav>
         </div>
     );
 }
