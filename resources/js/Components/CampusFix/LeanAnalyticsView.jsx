@@ -58,6 +58,7 @@ import {
     FileText,
     Ticket,
     X,
+    Maximize2,
 } from 'lucide-react';
 import { TPI_MASTERPLAN_ZONES, TBR_MASTERPLAN_ZONES } from '@/constants/locations';
 
@@ -253,12 +254,125 @@ function TpiResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
     const [zoom, setZoom] = useState(1);
     const [filterMode, setFilterMode] = useState('all'); // 'all' (22 markers) | 'active' (issues only)
     const [hoveredZone, setHoveredZone] = useState(null);
+    const [isFullscreen, setIsFullscreen] = useState(false);
+    const [viewMode, setViewMode] = useState('fit'); // 'fit' (pas layar) | 'hd' (lebar HD scroll)
 
     const handleZoomIn = () => setZoom((prev) => Math.min(Number((prev + 0.25).toFixed(2)), 2.5));
     const handleZoomOut = () => setZoom((prev) => Math.max(Number((prev - 0.25).toFixed(2)), 1));
     const handleResetZoom = () => setZoom(1);
 
     const displayedZones = filterMode === 'active' ? zones.filter(z => (z.count || 0) > 0) : zones;
+
+    const renderMapCanvas = (isModal = false) => {
+        const isHd = isModal || viewMode === 'hd';
+        return (
+            <div
+                className="relative select-none transition-all duration-150 p-2 sm:p-3"
+                style={{
+                    width: isModal
+                        ? `${Math.max(100, Math.round(zoom * 100))}%`
+                        : isHd
+                        ? `${Math.max(120, Math.round(zoom * 100))}%`
+                        : `${Math.max(100, Math.round(zoom * 100))}%`,
+                    minWidth: isModal ? '920px' : isHd ? '720px' : undefined,
+                }}
+            >
+                {/* High-Resolution Masterplan Drawing Frame */}
+                <div className="relative rounded-xl overflow-hidden border border-slate-300/80 shadow-md bg-white">
+                    <img
+                        src="/images/maps/tpi_masterplan_v2.png"
+                        alt="Denah Masterplan Telunas Private Island (TPI)"
+                        className="w-full h-auto block select-none pointer-events-none"
+                        loading="eager"
+                    />
+
+                    {/* Interactive Specific Location Pins */}
+                    {displayedZones.map((zone) => {
+                        const count = zone.count || 0;
+                        const urgency = zone.highestUrgency;
+                        const color = urgency ? (URGENCY_COLORS[urgency] || '#facc15') : '#10b981';
+                        const isSelected = selectedZoneId === zone.id;
+                        const isHovered = hoveredZone === zone.id;
+
+                        // Clamping koordinat aman agar tidak terpotong separuh di tepi kanvas
+                        const safeX = Math.max(3.5, Math.min(96.5, zone.x));
+                        const safeY = Math.max(4.5, Math.min(95.5, zone.y));
+
+                        return (
+                            <div
+                                key={zone.id}
+                                onClick={() => onSelectZone && onSelectZone(zone)}
+                                onMouseEnter={() => setHoveredZone(zone.id)}
+                                onMouseLeave={() => setHoveredZone(null)}
+                                className={`absolute transform -translate-x-1/2 -translate-y-1/2 cursor-pointer transition-all duration-200 ${
+                                    isSelected ? 'z-30 scale-125' : isHovered ? 'z-20 scale-115' : count > 0 ? 'z-15' : 'z-10'
+                                }`}
+                                style={{ left: `${safeX}%`, top: `${safeY}%` }}
+                            >
+                                {/* Urgency Pulse Ring if issues exist */}
+                                {count > 0 && (
+                                    <span
+                                        className="absolute -inset-1.5 rounded-full animate-ping opacity-75 pointer-events-none"
+                                        style={{ backgroundColor: color }}
+                                    />
+                                )}
+
+                                {/* Pin Badge Marker */}
+                                <div
+                                    className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full shadow-lg border text-[10px] font-bold backdrop-blur-md transition-all ${
+                                        count > 0
+                                            ? 'bg-slate-950/95 text-white ring-2'
+                                            : 'bg-slate-900/85 text-slate-200 hover:bg-slate-900 hover:text-white'
+                                    } ${
+                                        isSelected
+                                            ? 'ring-4 ring-sky-400 border-white shadow-sky-500/50'
+                                            : count > 0
+                                            ? 'border-transparent'
+                                            : 'border-slate-600/70'
+                                    }`}
+                                    style={{
+                                        boxShadow: count > 0 ? `0 0 14px ${color}90` : undefined,
+                                        ringColor: count > 0 ? color : undefined,
+                                    }}
+                                >
+                                    <span
+                                        className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] font-black ${
+                                            count > 0 ? 'text-black' : 'text-white bg-slate-700'
+                                        }`}
+                                        style={{ backgroundColor: count > 0 ? color : undefined }}
+                                    >
+                                        {zone.num}
+                                    </span>
+                                    {count > 0 && (
+                                        <span className="text-[10px] font-black text-white pl-0.5 pr-1">
+                                            {count}
+                                        </span>
+                                    )}
+                                </div>
+
+                                {/* Hover / Selected Tooltip Card */}
+                                {(isHovered || isSelected) && (
+                                    <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2.5 px-3 py-1.5 rounded-xl bg-slate-950/95 border border-slate-700 shadow-2xl text-[11px] whitespace-nowrap z-40 pointer-events-none backdrop-blur-md animate-in fade-in zoom-in-95 duration-150">
+                                        <div className="flex items-center gap-1.5 font-bold text-white">
+                                            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
+                                            <span>#{zone.num} {zone.name}</span>
+                                        </div>
+                                        <div className="text-[10px] text-slate-400 flex items-center justify-between gap-3 pt-0.5">
+                                            <span>{zone.enName || 'Fasilitas TPI'}</span>
+                                            <span className="font-semibold" style={{ color }}>
+                                                {count > 0 ? `${count} Isu Aktif (${urgency || 'Sedang'})` : 'Tidak Ada Isu'}
+                                            </span>
+                                        </div>
+                                        <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-slate-950" />
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+        );
+    };
 
     return (
         <div className="space-y-3">
@@ -267,156 +381,98 @@ function TpiResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                 isDark ? 'bg-slate-950 border-slate-700/80' : 'bg-slate-100 border-slate-300 shadow-md'
             }`}>
                 {/* HUD Toolbar */}
-                <div className={`absolute top-3 right-3 z-30 flex items-center gap-1.5 p-1.5 rounded-xl border backdrop-blur-md shadow-lg ${
-                    isDark ? 'bg-slate-900/90 border-slate-700/80 text-slate-300' : 'bg-white/95 border-slate-300 text-slate-800 shadow-sm'
+                <div className={`flex flex-wrap items-center justify-between gap-2 p-2 border-b text-xs backdrop-blur-md ${
+                    isDark ? 'bg-slate-900/90 border-slate-800 text-slate-300' : 'bg-slate-100/90 border-slate-200 text-slate-800'
                 }`}>
-                    <button
-                        type="button"
-                        onClick={() => setFilterMode(prev => prev === 'all' ? 'active' : 'all')}
-                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all ${
-                            filterMode === 'active'
-                                ? isDark ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : 'bg-amber-100 text-amber-800 border border-amber-300'
-                                : isDark ? 'text-slate-300 hover:text-white hover:bg-slate-800' : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
-                        }`}
-                        title="Filter hanya lokasi dengan isu aktif"
-                    >
-                        {filterMode === 'active' ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
-                        <span>{filterMode === 'active' ? 'Hanya Isu Aktif' : 'Semua 22 Titik'}</span>
-                    </button>
-                    <div className={`h-4 w-px mx-0.5 ${isDark ? 'bg-slate-700' : 'bg-slate-300'}`} />
-                    <button
-                        type="button"
-                        onClick={handleZoomIn}
-                        disabled={zoom >= 2.5}
-                        className={`p-1.5 rounded-lg disabled:opacity-40 transition-colors ${
-                            isDark ? 'text-slate-300 hover:text-white hover:bg-slate-800' : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
-                        }`}
-                        title="Perbesar Denah"
-                    >
-                        <ZoomIn className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                        type="button"
-                        onClick={handleZoomOut}
-                        disabled={zoom <= 1}
-                        className={`p-1.5 rounded-lg disabled:opacity-40 transition-colors ${
-                            isDark ? 'text-slate-300 hover:text-white hover:bg-slate-800' : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
-                        }`}
-                        title="Perkecil Denah"
-                    >
-                        <ZoomOut className="w-3.5 h-3.5" />
-                    </button>
-                    {zoom > 1 && (
+                    <div className="flex items-center gap-1.5 flex-wrap">
                         <button
                             type="button"
-                            onClick={handleResetZoom}
-                            className="px-2 py-1 rounded-lg text-[10px] font-semibold text-sky-400 hover:bg-sky-500/10 transition-colors"
-                            title="Reset Zoom ke 100%"
+                            onClick={() => setFilterMode(prev => prev === 'all' ? 'active' : 'all')}
+                            className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all cursor-pointer ${
+                                filterMode === 'active'
+                                    ? isDark ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : 'bg-amber-100 text-amber-800 border border-amber-300'
+                                    : isDark ? 'text-slate-300 hover:text-white hover:bg-slate-800' : 'text-slate-700 hover:text-slate-900 hover:bg-white'
+                            }`}
+                            title="Filter hanya lokasi dengan isu aktif"
                         >
-                            Reset ({Math.round(zoom * 100)}%)
+                            {filterMode === 'active' ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+                            <span>{filterMode === 'active' ? 'Hanya Isu Aktif' : 'Semua 22 Titik'}</span>
                         </button>
-                    )}
+
+                        {/* Mode Fit vs Mode Tajam HD */}
+                        <button
+                            type="button"
+                            onClick={() => setViewMode(prev => prev === 'fit' ? 'hd' : 'fit')}
+                            className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold transition-all cursor-pointer ${
+                                viewMode === 'hd'
+                                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                                    : isDark ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-600 hover:text-slate-900 hover:bg-white'
+                            }`}
+                            title={viewMode === 'hd' ? 'Kembali ke mode Pas Layar' : 'Beralih ke mode Tajam HD (bisa digeser)'}
+                        >
+                            <Sparkles className="w-3 h-3 text-emerald-400" />
+                            <span>{viewMode === 'hd' ? 'Mode HD (Geser)' : 'Pas Layar'}</span>
+                        </button>
+                    </div>
+
+                    <div className="flex items-center gap-1">
+                        <button
+                            type="button"
+                            onClick={handleZoomIn}
+                            disabled={zoom >= 2.5}
+                            className={`p-1.5 rounded-lg disabled:opacity-40 transition-colors cursor-pointer ${
+                                isDark ? 'text-slate-300 hover:text-white hover:bg-slate-800' : 'text-slate-700 hover:text-slate-900 hover:bg-white'
+                            }`}
+                            title="Perbesar Denah"
+                        >
+                            <ZoomIn className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleZoomOut}
+                            disabled={zoom <= 1}
+                            className={`p-1.5 rounded-lg disabled:opacity-40 transition-colors cursor-pointer ${
+                                isDark ? 'text-slate-300 hover:text-white hover:bg-slate-800' : 'text-slate-700 hover:text-slate-900 hover:bg-white'
+                            }`}
+                            title="Perkecil Denah"
+                        >
+                            <ZoomOut className="w-3.5 h-3.5" />
+                        </button>
+                        {zoom > 1 && (
+                            <button
+                                type="button"
+                                onClick={handleResetZoom}
+                                className="px-2 py-1 rounded-lg text-[10px] font-semibold text-sky-400 hover:bg-sky-500/10 transition-colors cursor-pointer"
+                                title="Reset Zoom ke 100%"
+                            >
+                                Reset ({Math.round(zoom * 100)}%)
+                            </button>
+                        )}
+
+                        <div className={`h-4 w-px mx-0.5 ${isDark ? 'bg-slate-700' : 'bg-slate-300'}`} />
+
+                        {/* Fullscreen Trigger */}
+                        <button
+                            type="button"
+                            onClick={() => setIsFullscreen(true)}
+                            className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                                isDark
+                                    ? 'bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700'
+                                    : 'bg-white hover:bg-slate-50 text-sky-700 border border-slate-300 shadow-2xs'
+                            }`}
+                            title="Buka Denah di Layar Penuh"
+                        >
+                            <Maximize2 className="w-3.5 h-3.5" />
+                            <span className="hidden sm:inline">Layar Penuh</span>
+                        </button>
+                    </div>
                 </div>
 
-                {/* Blueprint Map Container - Fixed & Immobile on Page Scroll */}
-                <div className={`relative w-full bg-[#fbf9f4] transition-all ${
-                    zoom > 1 ? 'overflow-auto max-h-[700px] overscroll-contain' : 'overflow-hidden'
+                {/* Blueprint Map Container - Smooth Touch Scroll & Pan */}
+                <div className={`relative w-full bg-[#fbf9f4] overflow-auto touch-pan-x touch-pan-y transition-all ${
+                    viewMode === 'hd' || zoom > 1 ? 'max-h-[550px] sm:max-h-[650px]' : ''
                 }`}>
-                    <div
-                        className="relative w-full origin-top-left transition-transform duration-200"
-                        style={{
-                            transform: `scale(${zoom})`,
-                            width: zoom > 1 ? `${zoom * 100}%` : '100%',
-                        }}
-                    >
-                        {/* High-Resolution Masterplan Drawing */}
-                        <img
-                            src="/images/maps/tpi_masterplan_v2.png"
-                            alt="Denah Masterplan Telunas Private Island (TPI)"
-                            className="w-full h-auto block select-none pointer-events-none"
-                            loading="eager"
-                        />
-
-                        {/* Interactive Specific Location Pins */}
-                        {displayedZones.map((zone) => {
-                            const count = zone.count || 0;
-                            const urgency = zone.highestUrgency;
-                            const color = urgency ? (URGENCY_COLORS[urgency] || '#facc15') : '#10b981';
-                            const isSelected = selectedZoneId === zone.id;
-                            const isHovered = hoveredZone === zone.id;
-
-                            return (
-                                <div
-                                    key={zone.id}
-                                    onClick={() => onSelectZone && onSelectZone(zone)}
-                                    onMouseEnter={() => setHoveredZone(zone.id)}
-                                    onMouseLeave={() => setHoveredZone(null)}
-                                    className={`absolute transform -translate-x-1/2 -translate-y-1/2 cursor-pointer transition-all duration-200 z-10 ${
-                                        isSelected ? 'z-30 scale-125' : isHovered ? 'z-20 scale-115' : ''
-                                    }`}
-                                    style={{ left: `${zone.x}%`, top: `${zone.y}%` }}
-                                >
-                                    {/* Urgency Pulse Ring if issues exist */}
-                                    {count > 0 && (
-                                        <span
-                                            className="absolute -inset-2 rounded-full animate-ping opacity-75 pointer-events-none"
-                                            style={{ backgroundColor: color }}
-                                        />
-                                    )}
-
-                                    {/* Pin Badge Marker */}
-                                    <div
-                                        className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full shadow-xl border text-[10px] font-bold backdrop-blur-md transition-all ${
-                                            count > 0
-                                                ? 'bg-slate-950/95 text-white ring-2'
-                                                : 'bg-slate-900/85 text-slate-200 hover:bg-slate-900 hover:text-white'
-                                        } ${
-                                            isSelected
-                                                ? 'ring-4 ring-sky-400 border-white shadow-sky-500/50'
-                                                : count > 0
-                                                ? 'border-transparent'
-                                                : 'border-slate-600/70'
-                                        }`}
-                                        style={{
-                                            boxShadow: count > 0 ? `0 0 14px ${color}90` : undefined,
-                                            ringColor: count > 0 ? color : undefined,
-                                        }}
-                                    >
-                                        <span
-                                            className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] font-black ${
-                                                count > 0 ? 'text-black' : 'text-white bg-slate-700'
-                                            }`}
-                                            style={{ backgroundColor: count > 0 ? color : undefined }}
-                                        >
-                                            {zone.num}
-                                        </span>
-                                        {count > 0 && (
-                                            <span className="text-[10px] font-black text-white pl-0.5 pr-1">
-                                                {count}
-                                            </span>
-                                        )}
-                                    </div>
-
-                                    {/* Hover / Selected Tooltip Card */}
-                                    {(isHovered || isSelected) && (
-                                        <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2.5 px-3 py-1.5 rounded-xl bg-slate-950/95 border border-slate-700 shadow-2xl text-[11px] whitespace-nowrap z-40 pointer-events-none backdrop-blur-md animate-in fade-in zoom-in-95 duration-150">
-                                            <div className="flex items-center gap-1.5 font-bold text-white">
-                                                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
-                                                <span>#{zone.num} {zone.name}</span>
-                                            </div>
-                                            <div className="text-[10px] text-slate-400 flex items-center justify-between gap-3 pt-0.5">
-                                                <span>{zone.enName || 'Fasilitas TPI'}</span>
-                                                <span className="font-semibold" style={{ color }}>
-                                                    {count > 0 ? `${count} Isu Aktif (${urgency || 'Sedang'})` : 'Tidak Ada Isu'}
-                                                </span>
-                                            </div>
-                                            <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-slate-950" />
-                                        </div>
-                                    )}
-                                </div>
-                            );
-                        })}
-                    </div>
+                    {renderMapCanvas(false)}
                 </div>
 
                 {/* Bottom Bar Info Legend */}
@@ -443,6 +499,68 @@ function TpiResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                     </div>
                 </div>
             </div>
+
+            {/* Fullscreen HD Modal */}
+            {isFullscreen && (
+                <div className="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-xl flex flex-col p-2 sm:p-4 animate-in fade-in duration-200">
+                    {/* Modal Header */}
+                    <div className="flex items-center justify-between pb-2 px-2 border-b border-slate-800 text-white shrink-0">
+                        <div className="flex items-center gap-2">
+                            <Map className="w-5 h-5 text-emerald-400 shrink-0" />
+                            <div>
+                                <h3 className="font-bold text-xs sm:text-sm text-white">
+                                    Denah Resmi Pulau Telunas (TPI) - Mode Layar Penuh HD
+                                </h3>
+                                <p className="text-[10px] text-slate-400">
+                                    Geser / pan denah untuk melihat fasilitas • Klik pin untuk filter isu
+                                </p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-1 sm:gap-2">
+                            <button
+                                type="button"
+                                onClick={handleZoomIn}
+                                disabled={zoom >= 3}
+                                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 cursor-pointer"
+                                title="Perbesar"
+                            >
+                                <ZoomIn className="w-4 h-4" />
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleZoomOut}
+                                disabled={zoom <= 1}
+                                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 cursor-pointer"
+                                title="Perkecil"
+                            >
+                                <ZoomOut className="w-4 h-4" />
+                            </button>
+                            {zoom > 1 && (
+                                <button
+                                    type="button"
+                                    onClick={handleResetZoom}
+                                    className="px-2 py-1 rounded-lg text-xs font-semibold text-sky-400 bg-sky-500/10 cursor-pointer"
+                                >
+                                    Reset
+                                </button>
+                            )}
+                            <button
+                                type="button"
+                                onClick={() => setIsFullscreen(false)}
+                                className="p-1.5 rounded-lg bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 border border-rose-500/30 cursor-pointer ml-1"
+                                title="Tutup Layar Penuh"
+                            >
+                                <X className="w-4 h-4" />
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Modal Scrollable Body */}
+                    <div className="flex-1 overflow-auto touch-pan-x touch-pan-y relative mt-2 rounded-xl bg-[#fbf9f4] border border-slate-800 flex items-center justify-center">
+                        {renderMapCanvas(true)}
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
@@ -453,12 +571,125 @@ function TbrResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
     const [zoom, setZoom] = useState(1);
     const [filterMode, setFilterMode] = useState('all'); // 'all' (all facilities) | 'active' (issues only)
     const [hoveredZone, setHoveredZone] = useState(null);
+    const [isFullscreen, setIsFullscreen] = useState(false);
+    const [viewMode, setViewMode] = useState('fit'); // 'fit' (pas layar) | 'hd' (lebar HD scroll)
 
     const handleZoomIn = () => setZoom((prev) => Math.min(Number((prev + 0.25).toFixed(2)), 2.5));
     const handleZoomOut = () => setZoom((prev) => Math.max(Number((prev - 0.25).toFixed(2)), 1));
     const handleResetZoom = () => setZoom(1);
 
     const displayedZones = filterMode === 'active' ? zones.filter(z => (z.count || 0) > 0) : zones;
+
+    const renderMapCanvas = (isModal = false) => {
+        const isHd = isModal || viewMode === 'hd';
+        return (
+            <div
+                className="relative select-none transition-all duration-150 p-2 sm:p-3"
+                style={{
+                    width: isModal
+                        ? `${Math.max(100, Math.round(zoom * 100))}%`
+                        : isHd
+                        ? `${Math.max(120, Math.round(zoom * 100))}%`
+                        : `${Math.max(100, Math.round(zoom * 100))}%`,
+                    minWidth: isModal ? '800px' : isHd ? '650px' : undefined,
+                }}
+            >
+                {/* High-Contrast Architectural Site Plan Drawing Frame */}
+                <div className="relative rounded-xl overflow-hidden border border-slate-300/80 shadow-md bg-white">
+                    <img
+                        src="/images/maps/tbr_masterplan.png"
+                        alt="Denah Arsitektural Telunas Beach Resort (TBR)"
+                        className="w-full h-auto block select-none pointer-events-none"
+                        loading="eager"
+                    />
+
+                    {/* Interactive Pins & Hotspots */}
+                    {displayedZones.map((zone) => {
+                        const count = zone.count || 0;
+                        const urgency = zone.highestUrgency;
+                        const color = urgency ? (URGENCY_COLORS[urgency] || '#facc15') : '#10b981';
+                        const isSelected = selectedZoneId === zone.id;
+                        const isHovered = hoveredZone === zone.id;
+
+                        // Clamping koordinat aman agar tidak terpotong separuh di tepi kanvas
+                        const safeX = Math.max(3.5, Math.min(96.5, zone.x));
+                        const safeY = Math.max(4.5, Math.min(95.5, zone.y));
+
+                        return (
+                            <div
+                                key={zone.id}
+                                onClick={() => onSelectZone && onSelectZone(zone)}
+                                onMouseEnter={() => setHoveredZone(zone.id)}
+                                onMouseLeave={() => setHoveredZone(null)}
+                                className={`absolute transform -translate-x-1/2 -translate-y-1/2 cursor-pointer transition-all duration-200 ${
+                                    isSelected ? 'z-30 scale-125' : isHovered ? 'z-20 scale-115' : count > 0 ? 'z-15' : 'z-10'
+                                }`}
+                                style={{ left: `${safeX}%`, top: `${safeY}%` }}
+                            >
+                                {/* Urgency Pulse Ring if count > 0 */}
+                                {count > 0 && (
+                                    <span
+                                        className="absolute -inset-1.5 rounded-full animate-ping opacity-75 pointer-events-none"
+                                        style={{ backgroundColor: color }}
+                                    />
+                                )}
+
+                                {/* Clean Architectural Pin Badge */}
+                                <div
+                                    className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full shadow-lg border text-[10px] font-bold backdrop-blur-md transition-all ${
+                                        count > 0
+                                            ? 'bg-slate-950/95 text-white ring-2'
+                                            : 'bg-slate-900/90 text-slate-100 hover:bg-black'
+                                    } ${
+                                        isSelected
+                                            ? 'ring-4 ring-amber-400 border-white shadow-amber-500/50'
+                                            : count > 0
+                                            ? 'border-transparent'
+                                            : 'border-slate-700/80'
+                                    }`}
+                                    style={{
+                                        boxShadow: count > 0 ? `0 0 14px ${color}90` : undefined,
+                                        ringColor: count > 0 ? color : undefined,
+                                    }}
+                                >
+                                    <span
+                                        className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] font-black ${
+                                            count > 0 ? 'text-black' : 'text-white bg-slate-700'
+                                        }`}
+                                        style={{ backgroundColor: count > 0 ? color : undefined }}
+                                    >
+                                        {zone.num}
+                                    </span>
+                                    {count > 0 && (
+                                        <span className="text-[10px] font-black text-white pl-0.5 pr-1">
+                                            {count}
+                                        </span>
+                                    )}
+                                </div>
+
+                                {/* Tooltip Card on Hover / Select */}
+                                {(isHovered || isSelected) && (
+                                    <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2.5 px-3 py-1.5 rounded-xl bg-slate-950/95 border border-slate-700 shadow-2xl text-[11px] whitespace-nowrap z-40 pointer-events-none backdrop-blur-md animate-in fade-in zoom-in-95 duration-150">
+                                        <div className="flex items-center gap-1.5 font-bold text-white">
+                                            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
+                                            <span>#{zone.num} {zone.name}</span>
+                                        </div>
+                                        <div className="text-[10px] text-slate-400 flex items-center justify-between gap-3 pt-0.5">
+                                            <span>{zone.enName || 'Fasilitas TBR'}</span>
+                                            <span className="font-semibold" style={{ color }}>
+                                                {count > 0 ? `${count} Isu Aktif (${urgency || 'Sedang'})` : 'Tidak Ada Isu'}
+                                            </span>
+                                        </div>
+                                        <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-slate-950" />
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+        );
+    };
 
     return (
         <div className="space-y-3">
@@ -467,158 +698,100 @@ function TbrResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                 isDark ? 'bg-slate-950 border-slate-700/80' : 'bg-slate-200/60 border-slate-300 shadow-md'
             }`}>
                 {/* HUD Toolbar */}
-                <div className={`absolute top-3 right-3 z-30 flex items-center gap-1.5 p-1.5 rounded-xl border backdrop-blur-md shadow-lg ${
-                    isDark ? 'bg-slate-900/90 border-slate-700/80 text-slate-300' : 'bg-white/95 border-slate-300 text-slate-800 shadow-sm'
+                <div className={`flex flex-wrap items-center justify-between gap-2 p-2 border-b text-xs backdrop-blur-md ${
+                    isDark ? 'bg-slate-900/90 border-slate-800 text-slate-300' : 'bg-white/95 border-slate-300 text-slate-800 shadow-xs'
                 }`}>
-                    <button
-                        type="button"
-                        onClick={() => setFilterMode(prev => prev === 'all' ? 'active' : 'all')}
-                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all ${
-                            filterMode === 'active'
-                                ? isDark ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : 'bg-amber-100 text-amber-800 border border-amber-300'
-                                : isDark ? 'text-slate-300 hover:text-white hover:bg-slate-800' : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
-                        }`}
-                        title="Filter hanya lokasi dengan isu aktif"
-                    >
-                        {filterMode === 'active' ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
-                        <span>{filterMode === 'active' ? 'Hanya Isu Aktif' : 'Semua Fasilitas'}</span>
-                    </button>
-                    <div className={`h-4 w-px mx-0.5 ${isDark ? 'bg-slate-700' : 'bg-slate-300'}`} />
-                    <button
-                        type="button"
-                        onClick={handleZoomIn}
-                        disabled={zoom >= 2.5}
-                        className={`p-1.5 rounded-lg disabled:opacity-40 transition-colors ${
-                            isDark ? 'text-slate-300 hover:text-white hover:bg-slate-800' : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
-                        }`}
-                        title="Perbesar Denah"
-                    >
-                        <ZoomIn className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                        type="button"
-                        onClick={handleZoomOut}
-                        disabled={zoom <= 1}
-                        className={`p-1.5 rounded-lg disabled:opacity-40 transition-colors ${
-                            isDark ? 'text-slate-300 hover:text-white hover:bg-slate-800' : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
-                        }`}
-                        title="Perkecil Denah"
-                    >
-                        <ZoomOut className="w-3.5 h-3.5" />
-                    </button>
-                    {zoom > 1 && (
+                    <div className="flex items-center gap-1.5 flex-wrap">
                         <button
                             type="button"
-                            onClick={handleResetZoom}
-                            className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-colors ${
-                                isDark ? 'text-amber-400 hover:bg-amber-500/10' : 'text-amber-700 hover:bg-amber-100'
+                            onClick={() => setFilterMode(prev => prev === 'all' ? 'active' : 'all')}
+                            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all cursor-pointer ${
+                                filterMode === 'active'
+                                    ? isDark ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : 'bg-amber-100 text-amber-800 border border-amber-300'
+                                    : isDark ? 'text-slate-300 hover:text-white hover:bg-slate-800' : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
                             }`}
-                            title="Reset Zoom ke 100% (Fit)"
+                            title="Filter hanya lokasi dengan isu aktif"
                         >
-                            Paskan ({Math.round(zoom * 100)}%)
+                            {filterMode === 'active' ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+                            <span>{filterMode === 'active' ? 'Hanya Isu Aktif' : 'Semua Fasilitas'}</span>
                         </button>
-                    )}
+
+                        {/* Mode Fit vs Mode Tajam HD */}
+                        <button
+                            type="button"
+                            onClick={() => setViewMode(prev => prev === 'fit' ? 'hd' : 'fit')}
+                            className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold transition-all cursor-pointer ${
+                                viewMode === 'hd'
+                                    ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
+                                    : isDark ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                            }`}
+                            title={viewMode === 'hd' ? 'Kembali ke mode Pas Layar' : 'Beralih ke mode Tajam HD (bisa digeser)'}
+                        >
+                            <Sparkles className="w-3 h-3 text-amber-400" />
+                            <span>{viewMode === 'hd' ? 'Mode HD (Geser)' : 'Pas Layar'}</span>
+                        </button>
+                    </div>
+
+                    <div className="flex items-center gap-1">
+                        <button
+                            type="button"
+                            onClick={handleZoomIn}
+                            disabled={zoom >= 2.5}
+                            className={`p-1.5 rounded-lg disabled:opacity-40 transition-colors cursor-pointer ${
+                                isDark ? 'text-slate-300 hover:text-white hover:bg-slate-800' : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
+                            }`}
+                            title="Perbesar Denah"
+                        >
+                            <ZoomIn className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleZoomOut}
+                            disabled={zoom <= 1}
+                            className={`p-1.5 rounded-lg disabled:opacity-40 transition-colors cursor-pointer ${
+                                isDark ? 'text-slate-300 hover:text-white hover:bg-slate-800' : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
+                            }`}
+                            title="Perkecil Denah"
+                        >
+                            <ZoomOut className="w-3.5 h-3.5" />
+                        </button>
+                        {zoom > 1 && (
+                            <button
+                                type="button"
+                                onClick={handleResetZoom}
+                                className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-colors cursor-pointer ${
+                                    isDark ? 'text-amber-400 hover:bg-amber-500/10' : 'text-amber-700 hover:bg-amber-100'
+                                }`}
+                                title="Reset Zoom ke 100% (Fit)"
+                            >
+                                Paskan ({Math.round(zoom * 100)}%)
+                            </button>
+                        )}
+
+                        <div className={`h-4 w-px mx-0.5 ${isDark ? 'bg-slate-700' : 'bg-slate-300'}`} />
+
+                        {/* Fullscreen Trigger */}
+                        <button
+                            type="button"
+                            onClick={() => setIsFullscreen(true)}
+                            className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                                isDark
+                                    ? 'bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700'
+                                    : 'bg-white hover:bg-slate-50 text-amber-800 border border-slate-300 shadow-2xs'
+                            }`}
+                            title="Buka Denah di Layar Penuh"
+                        >
+                            <Maximize2 className="w-3.5 h-3.5" />
+                            <span className="hidden sm:inline">Layar Penuh</span>
+                        </button>
+                    </div>
                 </div>
 
-                {/* Clean CAD Architectural Blueprint Container - Proportional Fit to Viewport */}
-                <div className={`relative w-full overflow-auto h-[600px] sm:h-[700px] flex items-center justify-center p-3 sm:p-6 transition-colors ${
-                    isDark ? 'bg-slate-950' : 'bg-slate-200/50'
+                {/* Clean CAD Architectural Blueprint Container - Smooth Touch Scroll & Pan */}
+                <div className={`relative w-full bg-slate-100 overflow-auto touch-pan-x touch-pan-y transition-all ${
+                    viewMode === 'hd' || zoom > 1 ? 'max-h-[550px] sm:max-h-[650px]' : ''
                 }`}>
-                    <div
-                        className="relative transition-transform duration-200 shadow-xl rounded-2xl overflow-visible bg-white shrink-0 border border-slate-300/80"
-                        style={{
-                            transform: `scale(${zoom})`,
-                            transformOrigin: zoom > 1 ? 'top left' : 'center center',
-                        }}
-                    >
-                        {/* High-Contrast Architectural Site Plan Drawing */}
-                        <img
-                            src="/images/maps/tbr_masterplan.png"
-                            alt="Denah Arsitektural Telunas Beach Resort (TBR)"
-                            className="h-[540px] sm:h-[640px] w-auto max-w-none block select-none pointer-events-none rounded-2xl"
-                            loading="eager"
-                        />
-
-                        {/* Interactive Pins & Hotspots */}
-                        {displayedZones.map((zone) => {
-                            const count = zone.count || 0;
-                            const urgency = zone.highestUrgency;
-                            const color = urgency ? (URGENCY_COLORS[urgency] || '#facc15') : '#10b981';
-                            const isSelected = selectedZoneId === zone.id;
-                            const isHovered = hoveredZone === zone.id;
-
-                            return (
-                                <div
-                                    key={zone.id}
-                                    onClick={() => onSelectZone && onSelectZone(zone)}
-                                    onMouseEnter={() => setHoveredZone(zone.id)}
-                                    onMouseLeave={() => setHoveredZone(null)}
-                                    className={`absolute transform -translate-x-1/2 -translate-y-1/2 cursor-pointer transition-all duration-200 z-10 ${
-                                        isSelected ? 'z-30 scale-125' : isHovered ? 'z-20 scale-115' : ''
-                                    }`}
-                                    style={{ left: `${zone.x}%`, top: `${zone.y}%` }}
-                                >
-                                    {/* Urgency Pulse Ring if count > 0 */}
-                                    {count > 0 && (
-                                        <span
-                                            className="absolute -inset-2 rounded-full animate-ping opacity-75 pointer-events-none"
-                                            style={{ backgroundColor: color }}
-                                        />
-                                    )}
-
-                                    {/* Clean Minimal Architectural Pin Badge */}
-                                    <div
-                                        className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full shadow-lg border text-[10px] font-bold backdrop-blur-md transition-all ${
-                                            count > 0
-                                                ? 'bg-slate-950/95 text-white ring-2'
-                                                : 'bg-slate-900/90 text-slate-100 hover:bg-black'
-                                        } ${
-                                            isSelected
-                                                ? 'ring-4 ring-amber-400 border-white shadow-amber-500/50'
-                                                : count > 0
-                                                ? 'border-transparent'
-                                                : 'border-slate-700/80'
-                                        }`}
-                                        style={{
-                                            boxShadow: count > 0 ? `0 0 14px ${color}90` : undefined,
-                                            ringColor: count > 0 ? color : undefined,
-                                        }}
-                                    >
-                                        <span
-                                            className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] font-black ${
-                                                count > 0 ? 'text-black' : 'text-white bg-slate-700'
-                                            }`}
-                                            style={{ backgroundColor: count > 0 ? color : undefined }}
-                                        >
-                                            {zone.num}
-                                        </span>
-                                        {count > 0 && (
-                                            <span className="text-[10px] font-black text-white pl-0.5 pr-1">
-                                                {count}
-                                            </span>
-                                        )}
-                                    </div>
-
-                                    {/* Tooltip Card on Hover / Select */}
-                                    {(isHovered || isSelected) && (
-                                        <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2.5 px-3 py-1.5 rounded-xl bg-slate-950/95 border border-slate-700 shadow-2xl text-[11px] whitespace-nowrap z-40 pointer-events-none backdrop-blur-md animate-in fade-in zoom-in-95 duration-150">
-                                            <div className="flex items-center gap-1.5 font-bold text-white">
-                                                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
-                                                <span>#{zone.num} {zone.name}</span>
-                                            </div>
-                                            <div className="text-[10px] text-slate-400 flex items-center justify-between gap-3 pt-0.5">
-                                                <span>{zone.enName || 'Fasilitas TBR'}</span>
-                                                <span className="font-semibold" style={{ color }}>
-                                                    {count > 0 ? `${count} Isu Aktif (${urgency || 'Sedang'})` : 'Tidak Ada Isu'}
-                                                </span>
-                                            </div>
-                                            <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-slate-950" />
-                                        </div>
-                                    )}
-                                </div>
-                            );
-                        })}
-                    </div>
+                    {renderMapCanvas(false)}
                 </div>
 
                 {/* Bottom Bar Info Legend */}
@@ -645,6 +818,68 @@ function TbrResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                     </div>
                 </div>
             </div>
+
+            {/* Fullscreen HD Modal */}
+            {isFullscreen && (
+                <div className="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-xl flex flex-col p-2 sm:p-4 animate-in fade-in duration-200">
+                    {/* Modal Header */}
+                    <div className="flex items-center justify-between pb-2 px-2 border-b border-slate-800 text-white shrink-0">
+                        <div className="flex items-center gap-2">
+                            <Map className="w-5 h-5 text-amber-400 shrink-0" />
+                            <div>
+                                <h3 className="font-bold text-xs sm:text-sm text-white">
+                                    Denah Resmi Telunas Beach Resort (TBR) - Mode Layar Penuh HD
+                                </h3>
+                                <p className="text-[10px] text-slate-400">
+                                    Geser / pan denah untuk melihat fasilitas • Klik pin untuk filter isu
+                                </p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-1 sm:gap-2">
+                            <button
+                                type="button"
+                                onClick={handleZoomIn}
+                                disabled={zoom >= 3}
+                                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 cursor-pointer"
+                                title="Perbesar"
+                            >
+                                <ZoomIn className="w-4 h-4" />
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleZoomOut}
+                                disabled={zoom <= 1}
+                                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 cursor-pointer"
+                                title="Perkecil"
+                            >
+                                <ZoomOut className="w-4 h-4" />
+                            </button>
+                            {zoom > 1 && (
+                                <button
+                                    type="button"
+                                    onClick={handleResetZoom}
+                                    className="px-2 py-1 rounded-lg text-xs font-semibold text-amber-400 bg-amber-500/10 cursor-pointer"
+                                >
+                                    Reset
+                                </button>
+                            )}
+                            <button
+                                type="button"
+                                onClick={() => setIsFullscreen(false)}
+                                className="p-1.5 rounded-lg bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 border border-rose-500/30 cursor-pointer ml-1"
+                                title="Tutup Layar Penuh"
+                            >
+                                <X className="w-4 h-4" />
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Modal Scrollable Body */}
+                    <div className="flex-1 overflow-auto touch-pan-x touch-pan-y relative mt-2 rounded-xl bg-slate-100 border border-slate-800 flex items-center justify-center">
+                        {renderMapCanvas(true)}
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
