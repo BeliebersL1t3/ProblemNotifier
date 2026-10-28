@@ -17,6 +17,7 @@ import {
     Filter,
     Check,
     ArrowLeft,
+    ArrowUpDown,
     Image as ImageIcon,
     AlertCircle,
     ExternalLink,
@@ -120,6 +121,21 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
     const [searchQuery, setSearchQuery] = useState('');
     const [showColumnModal, setShowColumnModal] = useState(false);
     const [activeAnalyticsTab, setActiveAnalyticsTab] = useState('executive');
+
+    // Quick Sort Mode: 'urgency' | 'newest' | 'oldest' | 'waiting_acc'
+    const [sortBy, setSortBy] = useState(() => {
+        try {
+            return localStorage.getItem('telunas_field_sort_by') || 'urgency';
+        } catch (e) {
+            return 'urgency';
+        }
+    });
+
+    useEffect(() => {
+        try {
+            localStorage.setItem('telunas_field_sort_by', sortBy);
+        } catch (e) {}
+    }, [sortBy]);
 
     // Save preferences to localStorage
     useEffect(() => {
@@ -391,10 +407,17 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
         });
     };
 
-    // --- Filter Issues based on Status Checklist, Department & Live Search ---
+    // --- Filter & Sort Issues based on Status Checklist, Department, Live Search & Sort Mode ---
     const filteredIssues = useMemo(() => {
         const q = searchQuery.trim().toLowerCase();
-        return issues.filter((item) => {
+        const urgencyWeight = {
+            'Darurat': 4,
+            'Tinggi': 3,
+            'Sedang': 2,
+            'Rendah': 1,
+        };
+
+        const result = issues.filter((item) => {
             // 1. Department filter (all vs 1 dept)
             if (selectedDeptFilter !== 'all') {
                 const targets = item.target_departments || [];
@@ -431,7 +454,61 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
 
             return true;
         });
-    }, [issues, selectedStatuses, selectedDeptFilter, searchQuery]);
+
+        // 4. Sort Cepat Multi-Criteria
+        return result.sort((a, b) => {
+            if (sortBy === 'newest') {
+                return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+            }
+
+            if (sortBy === 'oldest') {
+                return new Date(a.created_at || 0) - new Date(b.created_at || 0);
+            }
+
+            if (sortBy === 'waiting_acc') {
+                // Priority: tiket yang belum ACC dari semua departemen atau belum resolved
+                const aIsResolved = a.status === 'resolved';
+                const bIsResolved = b.status === 'resolved';
+                if (aIsResolved !== bIsResolved) {
+                    return aIsResolved ? 1 : -1; // belum selesai di atas
+                }
+
+                const aAccs = a.department_accs || {};
+                const bAccs = b.department_accs || {};
+                const aTargets = a.target_departments || [];
+                const bTargets = b.target_departments || [];
+
+                const aPendingAcc = aTargets.some((d) => !aAccs[d]?.is_acc);
+                const bPendingAcc = bTargets.some((d) => !bAccs[d]?.is_acc);
+
+                if (aPendingAcc !== bPendingAcc) {
+                    return aPendingAcc ? -1 : 1; // yang menunggu ACC di atas
+                }
+
+                // Tie-breaker: newest first
+                return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+            }
+
+            // Default: 'urgency' (AI Urgency Tertinggi duluan)
+            // Urgensi: Darurat (4) > Tinggi (3) > Sedang (2) > Rendah (1)
+            const weightA = urgencyWeight[a.ai_urgency] || 0;
+            const weightB = urgencyWeight[b.ai_urgency] || 0;
+
+            if (weightB !== weightA) {
+                return weightB - weightA;
+            }
+
+            // Secondary: Non-resolved issues before resolved issues
+            const aIsResolved = a.status === 'resolved';
+            const bIsResolved = b.status === 'resolved';
+            if (aIsResolved !== bIsResolved) {
+                return aIsResolved ? 1 : -1;
+            }
+
+            // Tie-breaker: newest first
+            return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+        });
+    }, [issues, selectedStatuses, selectedDeptFilter, searchQuery, sortBy]);
 
     // Counters for status filters and totals
     const counts = useMemo(() => {
@@ -703,6 +780,28 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                                     <option key={dept} value={dept}>{dept}</option>
                                 ))}
                             </select>
+                        </div>
+
+                        {/* Sort Cepat (Quick Sort) Control */}
+                        <div className="flex items-center gap-1.5 shrink-0">
+                            <div className="relative flex items-center">
+                                <ArrowUpDown className="w-3.5 h-3.5 text-emerald-500 absolute left-3 pointer-events-none" />
+                                <select
+                                    value={sortBy}
+                                    onChange={(e) => setSortBy(e.target.value)}
+                                    className={`text-xs font-semibold rounded-xl pl-8 pr-3 py-2 focus:ring-1 focus:ring-emerald-500 cursor-pointer shadow-sm border ${
+                                        isDark
+                                            ? 'bg-slate-800/90 border-slate-700 text-slate-200 hover:border-slate-600'
+                                            : 'bg-white/95 border-slate-300 text-slate-800 shadow-xs hover:border-slate-400'
+                                    }`}
+                                    title="Urutkan daftar tiket secara cepat"
+                                >
+                                    <option value="urgency">⚡ Urgensi AI: Darurat Duluan</option>
+                                    <option value="newest">🕒 Waktu: Paling Baru</option>
+                                    <option value="oldest">⏳ Waktu: Terlama (Stagnan)</option>
+                                    <option value="waiting_acc">🚨 Menunggu ACC Departemen</option>
+                                </select>
+                            </div>
                         </div>
 
                         {/* Column Customizer Button */}
