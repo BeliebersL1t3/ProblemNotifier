@@ -558,26 +558,26 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                     ? 'bg-slate-900/95 border-slate-800 shadow-slate-950/40'
                     : 'bg-white/95 border-slate-200 shadow-slate-200/50'
             }`}>
-                <div className="w-full flex items-center justify-between gap-2 sm:gap-3 flex-wrap lg:flex-nowrap">
-                    {/* Brand & Sandbox Pill */}
-                    <div className="flex items-center gap-2 sm:gap-2.5 min-w-0 shrink-0">
+                <div className="w-full flex items-center justify-between gap-1.5 sm:gap-3">
+                    {/* Brand & Sandbox Pill (Left) */}
+                    <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0 shrink-0">
                         <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center font-bold text-xs sm:text-sm border shadow-xs shrink-0 ${
                             isDark ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' : 'bg-emerald-50 text-emerald-700 border-emerald-200'
                         }`}>
                             📱
                         </div>
                         <div className="min-w-0">
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-1">
                                 <h1 className={`text-xs sm:text-sm font-bold tracking-tight truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>
                                     Mode Lapangan
                                 </h1>
-                                <span className={`text-[9px] sm:text-[10px] font-bold px-1.5 py-0.2 rounded-full border shrink-0 ${
+                                <span className={`text-[8.5px] sm:text-[10px] font-bold px-1.5 py-0.2 rounded-full border shrink-0 ${
                                     isDark ? 'bg-amber-500/20 border-amber-500/40 text-amber-300' : 'bg-amber-50 border-amber-300 text-amber-800'
                                 }`}>
                                     Sandbox
                                 </span>
                             </div>
-                            <p className={`text-[10px] sm:text-[11px] truncate hidden xs:block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Telunas Resorts Tracker</p>
+                            <p className={`text-[10px] sm:text-[11px] truncate hidden md:block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Telunas Resorts Tracker</p>
                         </div>
                     </div>
 
@@ -633,13 +633,13 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                         </div>
                     )}
 
-                    {/* Profile & Navigation Switcher & Bot Controls */}
-                    <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                    {/* Profile & Navigation Switcher & Bot Controls (Right - Fixed 1-Line Sleek App Bar) */}
+                    <div className="flex items-center gap-1 sm:gap-2 shrink-0">
                         {/* Quick Theme Toggle (Icon Only) */}
                         <button
                             type="button"
                             onClick={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')}
-                            className={`h-8 w-8 sm:h-8.5 sm:w-8.5 flex items-center justify-center rounded-lg border transition-all shadow-xs cursor-pointer ${
+                            className={`h-7.5 w-7.5 sm:h-8.5 sm:w-8.5 flex items-center justify-center rounded-lg border transition-all shadow-xs cursor-pointer shrink-0 ${
                                 isDark
                                     ? 'bg-slate-800/90 hover:bg-slate-700 text-amber-300 border-slate-700'
                                     : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200 hover:border-slate-300'
@@ -658,7 +658,7 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                         <button
                             type="button"
                             onClick={() => setBotControlModalOpen(true)}
-                            className={`h-8 sm:h-8.5 flex items-center gap-1.5 px-2 sm:px-2.5 rounded-lg border text-xs font-bold transition-all shadow-xs cursor-pointer ${
+                            className={`h-7.5 sm:h-8.5 flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 rounded-lg border text-xs font-bold transition-all shadow-xs cursor-pointer shrink-0 ${
                                 botStatus?.connected
                                     ? (isDark ? 'bg-emerald-950/70 hover:bg-emerald-900/80 border-emerald-600/50 text-emerald-300' : 'bg-emerald-50 hover:bg-emerald-100 border-emerald-200 text-emerald-800')
                                     : (isDark ? 'bg-rose-950/70 hover:bg-rose-900/80 border-rose-600/50 text-rose-300' : 'bg-rose-50 hover:bg-rose-100 border-rose-200 text-rose-800')
@@ -666,21 +666,20 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                             title="Klik untuk Kontrol Bot WA (Lihat Status / Matikan / Nyalakan)"
                         >
                             <span className={`w-2 h-2 rounded-full shrink-0 ${botStatus?.connected ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
-                            <span className="hidden sm:inline">Bot WA:</span>
-                            <span className="text-[11px] sm:text-xs">{botStatus?.connected ? 'Online' : 'Offline'}</span>
-                            <Power className="w-2.5 h-2.5 sm:w-3 sm:h-3 opacity-60 ml-0.5 hidden xs:inline" />
+                            <span className="hidden md:inline">Bot WA:</span>
+                            <span className="text-[10px] sm:text-xs">{botStatus?.connected ? 'Online' : 'Offline'}</span>
                         </button>
 
                         {/* Supervisor Account Profile Pill */}
                         <div
-                            className={`h-8 sm:h-8.5 flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 rounded-lg border text-xs shadow-xs ${
+                            className={`h-7.5 sm:h-8.5 flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2.5 rounded-lg border text-xs shadow-xs shrink-0 ${
                                 isDark ? 'bg-slate-800/90 border-slate-700 text-slate-200' : 'bg-white border-slate-200 text-slate-800'
                             }`}
                             title={currentUser ? `Login sebagai ${myName} (${currentUser.department || 'Supervisor'})` : 'Mode Tamu / Belum Login'}
                         >
                             <span className={`w-2 h-2 rounded-full shrink-0 ${currentUser ? 'bg-emerald-500' : 'bg-slate-400'}`} />
-                            <span className="font-bold truncate max-w-[65px] sm:max-w-[120px] text-[11px] sm:text-xs">{myName}</span>
-                            <span className={`text-[9px] sm:text-[10px] font-bold px-1 sm:px-1.5 py-0.2 rounded border hidden xs:inline ${
+                            <span className="font-bold truncate max-w-[50px] sm:max-w-[120px] text-[10.5px] sm:text-xs">{myName}</span>
+                            <span className={`text-[9px] sm:text-[10px] font-bold px-1 sm:px-1.5 py-0.2 rounded border hidden sm:inline ${
                                 isDark ? 'text-emerald-400 bg-emerald-950/80 border-emerald-800/60' : 'text-emerald-800 bg-emerald-100 border-emerald-200'
                             }`}>
                                 {currentUser?.is_admin ? 'Admin' : 'Supervisor'}
@@ -691,7 +690,7 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                         {currentUser ? (
                             <Link
                                 href={route('dashboard')}
-                                className={`h-8 w-8 sm:h-8.5 sm:w-8.5 flex items-center justify-center rounded-lg border transition-all shadow-xs shrink-0 ${
+                                className={`h-7.5 w-7.5 sm:h-8.5 sm:w-8.5 flex items-center justify-center rounded-lg border transition-all shadow-xs shrink-0 ${
                                     isDark
                                         ? 'bg-slate-800/90 hover:bg-emerald-950 hover:text-emerald-300 text-slate-300 border-slate-700 hover:border-emerald-600/60'
                                         : 'bg-white hover:bg-emerald-50 hover:text-emerald-800 text-slate-700 border-slate-200 hover:border-emerald-300'
@@ -704,15 +703,15 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                         ) : (
                             <Link
                                 href={route('login')}
-                                className={`h-8 sm:h-8.5 flex items-center gap-1.5 px-2.5 rounded-lg border text-xs font-bold transition-all shadow-xs shrink-0 ${
+                                className={`h-7.5 sm:h-8.5 flex items-center gap-1 px-2 sm:px-2.5 rounded-lg border text-xs font-bold transition-all shadow-xs shrink-0 ${
                                     isDark
                                         ? 'bg-amber-950/60 hover:bg-amber-900/80 border-amber-500/50 text-amber-300'
                                         : 'bg-amber-50 hover:bg-amber-100 border-amber-200 text-amber-800'
                                 }`}
                                 title="Masuk ke Akun Anda"
                             >
-                                <LogIn className="w-3.5 h-3.5" />
-                                <span>Masuk</span>
+                                <LogIn className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                                <span className="text-[10px] sm:text-xs">Masuk</span>
                             </Link>
                         )}
                     </div>
@@ -947,18 +946,16 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                 </div>
 
                 {/* Row 3: MULTI-SELECT STATUS CHECKLIST PILLS & PRESETS */}
-                <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 mb-4 p-2.5 rounded-xl border backdrop-blur-md transition-all ${
+                <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 mb-4 p-2 sm:p-2.5 rounded-xl border backdrop-blur-md transition-all ${
                     isDark ? 'bg-slate-800/60 border-slate-800' : 'bg-white/80 border-slate-200/90 shadow-xs'
                 }`}>
-                    {/* Status Checklist Pills: Horizontal scroll on mobile or flex wrap on desktop */}
-                    <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 text-xs">
-                        <span className={`text-[11px] font-semibold mr-0.5 shrink-0 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Status:</span>
-
+                    {/* Status Checklist Pills: 4-Column Grid on Mobile (Non-scrollable, fits 100% width), Flex on Desktop */}
+                    <div className="grid grid-cols-4 gap-1 sm:flex sm:items-center sm:gap-1.5 w-full sm:w-auto">
                         {/* Open Checkbox Pill */}
                         <button
                             type="button"
                             onClick={() => toggleStatus('open')}
-                            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-semibold text-xs transition-all border shrink-0 ${
+                            className={`flex items-center justify-center sm:justify-start gap-1 sm:gap-1.5 px-1 py-1.5 sm:px-2.5 sm:py-1 rounded-lg font-semibold text-[11px] sm:text-xs transition-all border ${
                                 selectedStatuses.open
                                     ? isDark
                                         ? 'bg-rose-950/80 border-rose-500/60 text-rose-300 shadow-sm'
@@ -968,13 +965,13 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                                     : 'bg-white border-slate-300 text-slate-600 hover:bg-slate-50 hover:text-slate-900 shadow-xs'
                             }`}
                         >
-                            <span className={`w-3.5 h-3.5 rounded flex items-center justify-center text-[10px] border ${
+                            <span className={`w-3 h-3 sm:w-3.5 sm:h-3.5 rounded flex items-center justify-center text-[9px] sm:text-[10px] border shrink-0 ${
                                 selectedStatuses.open ? 'bg-rose-500 border-rose-400 text-white' : (isDark ? 'border-slate-600' : 'border-slate-300')
                             }`}>
                                 {selectedStatuses.open && '✓'}
                             </span>
-                            <span>Open</span>
-                            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                            <span className="truncate">Open</span>
+                            <span className={`text-[9px] sm:text-[10px] px-1 sm:px-1.5 py-0.2 rounded-full font-bold shrink-0 ${
                                 isDark ? 'bg-slate-900/80 text-white' : 'bg-rose-100 text-rose-800 border border-rose-200'
                             }`}>
                                 {counts.open}
@@ -985,7 +982,7 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                         <button
                             type="button"
                             onClick={() => toggleStatus('in_progress')}
-                            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-semibold text-xs transition-all border shrink-0 ${
+                            className={`flex items-center justify-center sm:justify-start gap-1 sm:gap-1.5 px-1 py-1.5 sm:px-2.5 sm:py-1 rounded-lg font-semibold text-[11px] sm:text-xs transition-all border ${
                                 selectedStatuses.in_progress
                                     ? isDark
                                         ? 'bg-amber-950/80 border-amber-500/60 text-amber-300 shadow-sm'
@@ -995,13 +992,14 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                                     : 'bg-white border-slate-300 text-slate-600 hover:bg-slate-50 hover:text-slate-900 shadow-xs'
                             }`}
                         >
-                            <span className={`w-3.5 h-3.5 rounded flex items-center justify-center text-[10px] border ${
+                            <span className={`w-3 h-3 sm:w-3.5 sm:h-3.5 rounded flex items-center justify-center text-[9px] sm:text-[10px] border shrink-0 ${
                                 selectedStatuses.in_progress ? 'bg-amber-500 border-amber-400 text-white' : (isDark ? 'border-slate-600' : 'border-slate-300')
                             }`}>
                                 {selectedStatuses.in_progress && '✓'}
                             </span>
-                            <span>Progress</span>
-                            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                            <span className="truncate hidden xs:inline">Progress</span>
+                            <span className="truncate xs:hidden">Prog</span>
+                            <span className={`text-[9px] sm:text-[10px] px-1 sm:px-1.5 py-0.2 rounded-full font-bold shrink-0 ${
                                 isDark ? 'bg-slate-900/80 text-white' : 'bg-amber-100 text-amber-800 border border-amber-200'
                             }`}>
                                 {counts.inProgress}
@@ -1012,7 +1010,7 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                         <button
                             type="button"
                             onClick={() => toggleStatus('pending')}
-                            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-semibold text-xs transition-all border shrink-0 ${
+                            className={`flex items-center justify-center sm:justify-start gap-1 sm:gap-1.5 px-1 py-1.5 sm:px-2.5 sm:py-1 rounded-lg font-semibold text-[11px] sm:text-xs transition-all border ${
                                 selectedStatuses.pending
                                     ? isDark
                                         ? 'bg-orange-950/80 border-orange-500/60 text-orange-300 shadow-sm'
@@ -1022,13 +1020,14 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                                     : 'bg-white border-slate-300 text-slate-600 hover:bg-slate-50 hover:text-slate-900 shadow-xs'
                             }`}
                         >
-                            <span className={`w-3.5 h-3.5 rounded flex items-center justify-center text-[10px] border ${
+                            <span className={`w-3 h-3 sm:w-3.5 sm:h-3.5 rounded flex items-center justify-center text-[9px] sm:text-[10px] border shrink-0 ${
                                 selectedStatuses.pending ? 'bg-orange-500 border-orange-400 text-white' : (isDark ? 'border-slate-600' : 'border-slate-300')
                             }`}>
                                 {selectedStatuses.pending && '✓'}
                             </span>
-                            <span>Tertunda</span>
-                            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                            <span className="truncate hidden xs:inline">Tertunda</span>
+                            <span className="truncate xs:hidden">Tunda</span>
+                            <span className={`text-[9px] sm:text-[10px] px-1 sm:px-1.5 py-0.2 rounded-full font-bold shrink-0 ${
                                 isDark ? 'bg-slate-900/80 text-white' : 'bg-orange-100 text-orange-800 border border-orange-200'
                             }`}>
                                 {counts.pending}
@@ -1039,7 +1038,7 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                         <button
                             type="button"
                             onClick={() => toggleStatus('resolved')}
-                            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-semibold text-xs transition-all border shrink-0 ${
+                            className={`flex items-center justify-center sm:justify-start gap-1 sm:gap-1.5 px-1 py-1.5 sm:px-2.5 sm:py-1 rounded-lg font-semibold text-[11px] sm:text-xs transition-all border ${
                                 selectedStatuses.resolved
                                     ? isDark
                                         ? 'bg-emerald-950/80 border-emerald-500/60 text-emerald-300 shadow-sm'
@@ -1049,13 +1048,13 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                                     : 'bg-white border-slate-300 text-slate-600 hover:bg-slate-50 hover:text-slate-900 shadow-xs'
                             }`}
                         >
-                            <span className={`w-3.5 h-3.5 rounded flex items-center justify-center text-[10px] border ${
+                            <span className={`w-3 h-3 sm:w-3.5 sm:h-3.5 rounded flex items-center justify-center text-[9px] sm:text-[10px] border shrink-0 ${
                                 selectedStatuses.resolved ? 'bg-emerald-500 border-emerald-400 text-white' : (isDark ? 'border-slate-600' : 'border-slate-300')
                             }`}>
                                 {selectedStatuses.resolved && '✓'}
                             </span>
-                            <span>Selesai</span>
-                            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                            <span className="truncate">Selesai</span>
+                            <span className={`text-[9px] sm:text-[10px] px-1 sm:px-1.5 py-0.2 rounded-full font-bold shrink-0 ${
                                 isDark ? 'bg-slate-900/80 text-white' : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
                             }`}>
                                 {counts.resolved}
@@ -1063,13 +1062,12 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                         </button>
                     </div>
 
-                    {/* Quick Presets */}
-                    <div className="flex items-center justify-end gap-1.5 text-[11px] pt-1.5 sm:pt-0 border-t sm:border-t-0 border-slate-700/40 sm:border-transparent shrink-0">
-                        <span className={`${isDark ? 'text-slate-400' : 'text-slate-500'} mr-0.5 text-xs font-medium`}>Preset:</span>
+                    {/* Quick Presets: 3-column grid on mobile, inline on desktop */}
+                    <div className="grid grid-cols-3 sm:flex items-center gap-1.5 pt-1.5 sm:pt-0 border-t sm:border-t-0 border-slate-700/40 sm:border-transparent w-full sm:w-auto">
                         <button
                             type="button"
                             onClick={() => setStatusPreset('all')}
-                            className={`px-2 py-0.5 rounded-md border text-xs font-medium transition-all ${
+                            className={`px-2 py-1 sm:py-0.5 rounded-md border text-center text-[11px] sm:text-xs font-medium transition-all ${
                                 isDark
                                     ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border-slate-700'
                                     : 'bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 border-slate-300 shadow-xs'
@@ -1080,7 +1078,7 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                         <button
                             type="button"
                             onClick={() => setStatusPreset('active')}
-                            className={`px-2 py-0.5 rounded-md border text-xs font-semibold transition-all ${
+                            className={`px-2 py-1 sm:py-0.5 rounded-md border text-center text-[11px] sm:text-xs font-semibold transition-all ${
                                 isDark
                                     ? 'bg-slate-800 hover:bg-slate-700 text-amber-300 hover:text-amber-200 border-slate-700'
                                     : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-300 shadow-xs'
@@ -1091,7 +1089,7 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                         <button
                             type="button"
                             onClick={() => setStatusPreset('resolved')}
-                            className={`px-2 py-0.5 rounded-md border text-xs font-semibold transition-all ${
+                            className={`px-2 py-1 sm:py-0.5 rounded-md border text-center text-[11px] sm:text-xs font-semibold transition-all ${
                                 isDark
                                     ? 'bg-slate-800 hover:bg-slate-700 text-emerald-300 hover:text-emerald-200 border-slate-700'
                                     : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-300 shadow-xs'
