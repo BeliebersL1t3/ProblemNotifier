@@ -35,6 +35,7 @@ import {
     Map,
     BarChart2,
     Users,
+    User,
     Check,
     Briefcase,
     Calendar,
@@ -653,8 +654,10 @@ export function LeanAnalyticsView({
     theme = 'dark',
     activeTab: propActiveTab,
     onTabChange,
+    onSelectIssue,
 }) {
     const isDark = theme === 'dark';
+    const [expandedLocation, setExpandedLocation] = useState(null);
     const [selectedCategory, setSelectedCategory] = useState('all');
     const [searchFilter, setSearchFilter] = useState('');
     const [hotspotTab, setHotspotTab] = useState('leaderboard'); // 'leaderboard' (default) | 'tpi' | 'tbr' | 'chart'
@@ -1025,6 +1028,7 @@ export function LeanAnalyticsView({
                     latestIssueTitle: i.title || '',
                     latestIssueCode: i.issue_code || '',
                     departments: new Set(),
+                    issues: [],
                 };
             }
             const urg = i.ai_urgency || 'Sedang';
@@ -1048,6 +1052,8 @@ export function LeanAnalyticsView({
             if (Array.isArray(i.target_departments)) {
                 i.target_departments.forEach((d) => d && locMap[loc].departments.add(d));
             }
+
+            locMap[loc].issues.push(i);
         });
 
         // Sorted by Severity Weighted Score for Leaderboard
@@ -1059,9 +1065,23 @@ export function LeanAnalyticsView({
                     item.Sedang * 10 +
                     item.Rendah * 1 +
                     item.openCount * 5;
+
+                // Sort issues within location: urgency priority -> open before resolved -> newest
+                const sortedIssues = [...item.issues].sort((a, b) => {
+                    const weightA = urgencyWeight[a.ai_urgency] || 0;
+                    const weightB = urgencyWeight[b.ai_urgency] || 0;
+                    if (weightB !== weightA) return weightB - weightA;
+                    if (a.status !== b.status) {
+                        if (a.status === 'resolved') return 1;
+                        if (b.status === 'resolved') return -1;
+                    }
+                    return (b.id || 0) - (a.id || 0);
+                });
+
                 return {
                     ...item,
                     departments: Array.from(item.departments),
+                    issues: sortedIssues,
                     score,
                 };
             })
@@ -2035,6 +2055,7 @@ export function LeanAnalyticsView({
                                     const isRank1 = idx === 0;
                                     const isRank2 = idx === 1;
                                     const isRank3 = idx === 2;
+                                    const isExpanded = expandedLocation === item.location;
 
                                     const urgencyBadge = {
                                         Darurat: {
@@ -2061,7 +2082,7 @@ export function LeanAnalyticsView({
                                     return (
                                         <div
                                             key={item.location}
-                                            className={`p-3.5 rounded-xl border transition-all flex flex-col md:flex-row md:items-center justify-between gap-3 ${
+                                            className={`rounded-xl border transition-all overflow-hidden ${
                                                 item.highestUrgency === 'Darurat'
                                                     ? isDark
                                                         ? 'bg-rose-950/25 border-rose-500/40 hover:border-rose-500/70 shadow-sm'
@@ -2069,115 +2090,277 @@ export function LeanAnalyticsView({
                                                     : isDark
                                                     ? 'bg-slate-900/60 border-slate-700/70 hover:border-slate-600'
                                                     : 'bg-white/95 border-slate-200 hover:border-slate-300 shadow-xs'
-                                            }`}
+                                            } ${isExpanded ? (isDark ? 'ring-1 ring-sky-500/50 border-sky-500/50' : 'ring-1 ring-sky-400 border-sky-400') : ''}`}
                                         >
-                                            {/* Left: Rank & Location */}
-                                            <div className="flex items-start gap-3 min-w-[240px]">
-                                                <div
-                                                    className={`w-7 h-7 rounded-lg shrink-0 flex items-center justify-center font-black text-xs border ${
-                                                        isRank1
-                                                            ? 'bg-gradient-to-br from-amber-400 to-rose-500 text-slate-950 border-amber-300 shadow-sm'
-                                                            : isRank2
-                                                            ? isDark
-                                                                ? 'bg-slate-700 text-slate-100 border-slate-500'
-                                                                : 'bg-slate-200 text-slate-800 border-slate-300'
-                                                            : isRank3
-                                                            ? isDark
-                                                                ? 'bg-orange-950/60 text-orange-200 border-orange-700/60'
-                                                                : 'bg-orange-100 text-orange-800 border-orange-300'
-                                                            : isDark
-                                                            ? 'bg-slate-800 text-slate-400 border-slate-700'
-                                                            : 'bg-slate-100 text-slate-700 border-slate-300 font-bold'
-                                                    }`}
-                                                >
-                                                    #{idx + 1}
-                                                </div>
-                                                <div className="space-y-1">
-                                                    <div className="flex items-center gap-2 flex-wrap">
-                                                        <h4 className={`text-sm font-bold flex items-center gap-1.5 ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                                                            <MapPin className="w-3.5 h-3.5 text-rose-500 shrink-0" />
-                                                            {item.location}
-                                                        </h4>
-                                                        <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border ${urgencyBadge.bg}`}>
-                                                            <span className={`w-1.5 h-1.5 rounded-full ${urgencyBadge.dot}`} />
-                                                            Urgensi: {item.highestUrgency}
-                                                        </span>
-                                                        {item.departments && item.departments.length > 0 && (
-                                                            <span className={`text-[10px] px-1.5 py-0.5 rounded border font-medium ${
-                                                                isDark
-                                                                    ? 'text-slate-400 bg-slate-800 border-slate-700'
-                                                                    : 'text-slate-700 bg-slate-100 border-slate-300'
-                                                            }`}>
-                                                                {item.departments.join(', ')}
+                                            {/* Summary Clickable Bar */}
+                                            <div
+                                                role="button"
+                                                tabIndex={0}
+                                                onClick={() => setExpandedLocation((prev) => (prev === item.location ? null : item.location))}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter' || e.key === ' ') {
+                                                        e.preventDefault();
+                                                        setExpandedLocation((prev) => (prev === item.location ? null : item.location));
+                                                    }
+                                                }}
+                                                className="p-3.5 flex flex-col md:flex-row md:items-center justify-between gap-3 cursor-pointer select-none transition-colors hover:bg-slate-500/5"
+                                            >
+                                                {/* Left: Rank & Location */}
+                                                <div className="flex items-start gap-3 min-w-[240px]">
+                                                    <div
+                                                        className={`w-7 h-7 rounded-lg shrink-0 flex items-center justify-center font-black text-xs border ${
+                                                            isRank1
+                                                                ? 'bg-gradient-to-br from-amber-400 to-rose-500 text-slate-950 border-amber-300 shadow-sm'
+                                                                : isRank2
+                                                                ? isDark
+                                                                    ? 'bg-slate-700 text-slate-100 border-slate-500'
+                                                                    : 'bg-slate-200 text-slate-800 border-slate-300'
+                                                                : isRank3
+                                                                ? isDark
+                                                                    ? 'bg-orange-950/60 text-orange-200 border-orange-700/60'
+                                                                    : 'bg-orange-100 text-orange-800 border-orange-300'
+                                                                : isDark
+                                                                ? 'bg-slate-800 text-slate-400 border-slate-700'
+                                                                : 'bg-slate-100 text-slate-700 border-slate-300 font-bold'
+                                                        }`}
+                                                    >
+                                                        #{idx + 1}
+                                                    </div>
+                                                    <div className="space-y-1">
+                                                        <div className="flex items-center gap-2 flex-wrap">
+                                                            <h4 className={`text-sm font-bold flex items-center gap-1.5 ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                                                                <MapPin className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                                                                {item.location}
+                                                            </h4>
+                                                            <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border ${urgencyBadge.bg}`}>
+                                                                <span className={`w-1.5 h-1.5 rounded-full ${urgencyBadge.dot}`} />
+                                                                Urgensi: {item.highestUrgency}
                                                             </span>
-                                                        )}
-                                                    </div>
-                                                    {item.latestIssueTitle && (
-                                                        <p className={`text-xs line-clamp-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                                                            Laporan terbaru: <span className={`font-medium ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>"{item.latestIssueTitle}"</span>
-                                                        </p>
-                                                    )}
-                                                </div>
-                                            </div>
-
-                                            {/* Middle / Right: Breakdown Bar & Stats */}
-                                            <div className="flex flex-col sm:flex-row sm:items-center gap-4 md:gap-6 self-stretch md:self-auto justify-between md:justify-end">
-                                                {/* Visual Urgency Proportion Mini Bar */}
-                                                <div className="min-w-[140px] max-w-[200px] flex-1">
-                                                    <div className={`flex justify-between text-[10px] mb-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                                                        <span>Distribusi Kasus</span>
-                                                        <span className={`font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>{item.total} Total</span>
-                                                    </div>
-                                                    <div className={`w-full h-2 rounded-full overflow-hidden flex ${isDark ? 'bg-slate-800' : 'bg-slate-200'}`}>
-                                                        {item.Darurat > 0 && (
-                                                            <div
-                                                                style={{ width: `${(item.Darurat / item.total) * 100}%` }}
-                                                                className="bg-rose-500 h-full"
-                                                                title={`Darurat: ${item.Darurat}`}
-                                                            />
-                                                        )}
-                                                        {item.Tinggi > 0 && (
-                                                            <div
-                                                                style={{ width: `${(item.Tinggi / item.total) * 100}%` }}
-                                                                className="bg-orange-400 h-full"
-                                                                title={`Tinggi: ${item.Tinggi}`}
-                                                            />
-                                                        )}
-                                                        {item.Sedang > 0 && (
-                                                            <div
-                                                                style={{ width: `${(item.Sedang / item.total) * 100}%` }}
-                                                                className="bg-yellow-400 h-full"
-                                                                title={`Sedang: ${item.Sedang}`}
-                                                            />
-                                                        )}
-                                                        {item.Rendah > 0 && (
-                                                            <div
-                                                                style={{ width: `${(item.Rendah / item.total) * 100}%` }}
-                                                                className="bg-emerald-500 h-full"
-                                                                title={`Rendah: ${item.Rendah}`}
-                                                            />
+                                                            {item.departments && item.departments.length > 0 && (
+                                                                <span className={`text-[10px] px-1.5 py-0.5 rounded border font-medium ${
+                                                                    isDark
+                                                                        ? 'text-slate-400 bg-slate-800 border-slate-700'
+                                                                        : 'text-slate-700 bg-slate-100 border-slate-300'
+                                                                }`}>
+                                                                    {item.departments.join(', ')}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        {item.latestIssueTitle && (
+                                                            <p className={`text-xs line-clamp-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                                                Laporan terbaru: <span className={`font-medium ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>"{item.latestIssueTitle}"</span>
+                                                            </p>
                                                         )}
                                                     </div>
                                                 </div>
 
-                                                {/* Active vs Resolved Counters */}
-                                                <div className="flex items-center gap-2 shrink-0">
-                                                    <div className={`px-2.5 py-1 rounded-lg border text-center min-w-[50px] ${
-                                                        isDark ? 'bg-slate-800 border-slate-700/80' : 'bg-white border-slate-200 shadow-xs'
-                                                    }`}>
-                                                        <div className={`text-[10px] font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Aktif</div>
-                                                        <div className={`text-xs font-black ${item.openCount > 0 ? (isDark ? 'text-rose-400' : 'text-rose-600') : (isDark ? 'text-slate-400' : 'text-slate-400')}`}>
-                                                            {item.openCount}
+                                                {/* Middle / Right: Breakdown Bar & Stats + Accordion Arrow */}
+                                                <div className="flex flex-col sm:flex-row sm:items-center gap-4 md:gap-6 self-stretch md:self-auto justify-between md:justify-end">
+                                                    {/* Visual Urgency Proportion Mini Bar */}
+                                                    <div className="min-w-[140px] max-w-[200px] flex-1">
+                                                        <div className={`flex justify-between text-[10px] mb-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                                            <span>Distribusi Kasus</span>
+                                                            <span className={`font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>{item.total} Total</span>
+                                                        </div>
+                                                        <div className={`w-full h-2 rounded-full overflow-hidden flex ${isDark ? 'bg-slate-800' : 'bg-slate-200'}`}>
+                                                            {item.Darurat > 0 && (
+                                                                <div
+                                                                    style={{ width: `${(item.Darurat / item.total) * 100}%` }}
+                                                                    className="bg-rose-500 h-full"
+                                                                    title={`Darurat: ${item.Darurat}`}
+                                                                />
+                                                            )}
+                                                            {item.Tinggi > 0 && (
+                                                                <div
+                                                                    style={{ width: `${(item.Tinggi / item.total) * 100}%` }}
+                                                                    className="bg-orange-400 h-full"
+                                                                    title={`Tinggi: ${item.Tinggi}`}
+                                                                />
+                                                            )}
+                                                            {item.Sedang > 0 && (
+                                                                <div
+                                                                    style={{ width: `${(item.Sedang / item.total) * 100}%` }}
+                                                                    className="bg-yellow-400 h-full"
+                                                                    title={`Sedang: ${item.Sedang}`}
+                                                                />
+                                                            )}
+                                                            {item.Rendah > 0 && (
+                                                                <div
+                                                                    style={{ width: `${(item.Rendah / item.total) * 100}%` }}
+                                                                    className="bg-emerald-500 h-full"
+                                                                    title={`Rendah: ${item.Rendah}`}
+                                                                />
+                                                            )}
                                                         </div>
                                                     </div>
-                                                    <div className={`px-2.5 py-1 rounded-lg border text-center min-w-[50px] ${
-                                                        isDark ? 'bg-slate-800 border-slate-700/80' : 'bg-white border-slate-200 shadow-xs'
-                                                    }`}>
-                                                        <div className={`text-[10px] font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Selesai</div>
-                                                        <div className={`text-xs font-black ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>{item.resolvedCount}</div>
+
+                                                    {/* Active vs Resolved Counters */}
+                                                    <div className="flex items-center gap-2 shrink-0">
+                                                        <div className={`px-2.5 py-1 rounded-lg border text-center min-w-[50px] ${
+                                                            isDark ? 'bg-slate-800 border-slate-700/80' : 'bg-white border-slate-200 shadow-xs'
+                                                        }`}>
+                                                            <div className={`text-[10px] font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Aktif</div>
+                                                            <div className={`text-xs font-black ${item.openCount > 0 ? (isDark ? 'text-rose-400' : 'text-rose-600') : (isDark ? 'text-slate-400' : 'text-slate-400')}`}>
+                                                                {item.openCount}
+                                                            </div>
+                                                        </div>
+                                                        <div className={`px-2.5 py-1 rounded-lg border text-center min-w-[50px] ${
+                                                            isDark ? 'bg-slate-800 border-slate-700/80' : 'bg-white border-slate-200 shadow-xs'
+                                                        }`}>
+                                                            <div className={`text-[10px] font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Selesai</div>
+                                                            <div className={`text-xs font-black ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>{item.resolvedCount}</div>
+                                                        </div>
+
+                                                        {/* Expand Chevron */}
+                                                        <div className={`p-1.5 rounded-lg border transition-all ${
+                                                            isExpanded
+                                                                ? (isDark ? 'bg-sky-500/20 text-sky-300 border-sky-500/50' : 'bg-sky-100 text-sky-700 border-sky-300')
+                                                                : (isDark ? 'bg-slate-800 text-slate-400 border-slate-700 hover:text-slate-200' : 'bg-slate-100 text-slate-600 border-slate-300 hover:text-slate-900')
+                                                        }`} title={isExpanded ? 'Tutup daftar isu' : 'Klik untuk melihat isu di lokasi ini'}>
+                                                            <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </div>
+
+                                            {/* Expandable Accordion Drawer: Daftar Isu di Lokasi */}
+                                            {isExpanded && (
+                                                <div className={`border-t px-4 py-3.5 space-y-2.5 animate-in fade-in slide-in-from-top-1 duration-150 ${
+                                                    isDark ? 'bg-slate-950/60 border-slate-800/80' : 'bg-slate-50/90 border-slate-200/90'
+                                                }`}>
+                                                    {/* Header Accordion */}
+                                                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                                                        <div className="flex items-center gap-2">
+                                                            <Ticket className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+                                                            <span className={`text-xs font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                                                                Daftar Masalah di {item.location}
+                                                            </span>
+                                                            <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border ${
+                                                                isDark ? 'bg-slate-800 text-slate-300 border-slate-700' : 'bg-white text-slate-700 border-slate-300 shadow-2xs'
+                                                            }`}>
+                                                                {item.issues?.length || 0} Tiket
+                                                            </span>
+                                                        </div>
+                                                        <span className={`text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                                            Klik tiket untuk membuka detail lengkap
+                                                        </span>
+                                                    </div>
+
+                                                    {/* List of Issues */}
+                                                    <div className="max-h-80 overflow-y-auto space-y-2 pr-1">
+                                                        {(!item.issues || item.issues.length === 0) ? (
+                                                            <div className="py-4 text-center text-xs text-slate-500 italic">
+                                                                Tidak ada catatan isu untuk lokasi ini.
+                                                            </div>
+                                                        ) : (
+                                                            item.issues.map((iss) => {
+                                                                const urgStyle = {
+                                                                    Darurat: isDark ? 'bg-rose-500/20 text-rose-300 border-rose-500/40' : 'bg-rose-100 text-rose-800 border-rose-300',
+                                                                    Tinggi: isDark ? 'bg-orange-500/20 text-orange-300 border-orange-500/40' : 'bg-orange-100 text-orange-800 border-orange-300',
+                                                                    Sedang: isDark ? 'bg-yellow-500/20 text-yellow-300 border-yellow-500/40' : 'bg-yellow-100 text-yellow-800 border-yellow-300',
+                                                                    Rendah: isDark ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' : 'bg-emerald-100 text-emerald-800 border-emerald-300',
+                                                                }[iss.ai_urgency || 'Sedang'] || (isDark ? 'bg-slate-800 text-slate-300 border-slate-700' : 'bg-slate-100 text-slate-700 border-slate-300');
+
+                                                                const isResolved = iss.status === 'resolved';
+
+                                                                return (
+                                                                    <div
+                                                                        key={iss.id || iss.issue_code}
+                                                                        onClick={() => onSelectIssue && onSelectIssue(iss)}
+                                                                        className={`p-2.5 rounded-lg border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 cursor-pointer group ${
+                                                                            isDark
+                                                                                ? 'bg-slate-900/90 border-slate-800 hover:border-sky-500/60 hover:bg-slate-800/80'
+                                                                                : 'bg-white border-slate-200 hover:border-sky-400 hover:bg-sky-50/40 shadow-2xs'
+                                                                        }`}
+                                                                    >
+                                                                        <div className="space-y-1 min-w-0 flex-1">
+                                                                            <div className="flex items-center gap-2 flex-wrap">
+                                                                                <span className={`font-mono text-[11px] font-bold px-1.5 py-0.5 rounded border ${
+                                                                                    isDark ? 'bg-slate-800 text-amber-300 border-slate-700' : 'bg-slate-100 text-slate-800 border-slate-300'
+                                                                                }`}>
+                                                                                    #{iss.issue_code || ('LEAN-' + iss.id)}
+                                                                                </span>
+
+                                                                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${urgStyle}`}>
+                                                                                    {iss.ai_urgency || 'Sedang'}
+                                                                                </span>
+
+                                                                                {/* Status badge */}
+                                                                                {isResolved ? (
+                                                                                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                                                                                        <CheckCircle2 className="w-2.5 h-2.5" /> Selesai
+                                                                                    </span>
+                                                                                ) : iss.status === 'in_progress' ? (
+                                                                                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 flex items-center gap-1">
+                                                                                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400" /> Progress
+                                                                                    </span>
+                                                                                ) : iss.status === 'pending' ? (
+                                                                                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-orange-500/15 text-orange-300 border border-orange-500/30 flex items-center gap-1">
+                                                                                        <span className="w-1.5 h-1.5 rounded-full bg-orange-400" /> Tertunda
+                                                                                    </span>
+                                                                                ) : (
+                                                                                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-400 border border-rose-500/30 flex items-center gap-1">
+                                                                                        <span className="w-1.5 h-1.5 rounded-full bg-rose-400" /> Open
+                                                                                    </span>
+                                                                                )}
+
+                                                                                {iss.created_at_human && (
+                                                                                    <span className={`text-[10px] flex items-center gap-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                                                                        <Clock className="w-2.5 h-2.5" /> {iss.created_at_human}
+                                                                                    </span>
+                                                                                )}
+                                                                            </div>
+
+                                                                            <h5 className={`text-xs font-bold leading-tight group-hover:text-sky-400 transition-colors ${
+                                                                                isDark ? 'text-slate-200' : 'text-slate-800'
+                                                                            }`}>
+                                                                                {iss.title}
+                                                                            </h5>
+
+                                                                            <div className={`flex items-center gap-3 text-[10px] flex-wrap ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                                                                {iss.reporter_name && (
+                                                                                    <span className="flex items-center gap-1">
+                                                                                        <User className="w-3 h-3 text-emerald-400" />
+                                                                                        Pelapor: <strong className={isDark ? 'text-slate-300' : 'text-slate-700'}>{iss.reporter_name}</strong>
+                                                                                    </span>
+                                                                                )}
+                                                                                {iss.target_departments && iss.target_departments.length > 0 && (
+                                                                                    <span>
+                                                                                        Dept: <strong className={isDark ? 'text-slate-300' : 'text-slate-700'}>{iss.target_departments.join(', ')}</strong>
+                                                                                    </span>
+                                                                                )}
+                                                                                {iss.claimed_by_name && (
+                                                                                    <span className="text-amber-400 font-medium">
+                                                                                        Dikerjakan: {iss.claimed_by_name}
+                                                                                    </span>
+                                                                                )}
+                                                                            </div>
+                                                                        </div>
+
+                                                                        <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    if (onSelectIssue) onSelectIssue(iss);
+                                                                                }}
+                                                                                className={`px-2.5 py-1 rounded-md text-[11px] font-semibold border flex items-center gap-1 transition-all ${
+                                                                                    isDark
+                                                                                        ? 'bg-slate-800 hover:bg-sky-600 hover:text-white text-slate-300 border-slate-700 hover:border-sky-500'
+                                                                                        : 'bg-white hover:bg-sky-600 hover:text-white text-slate-700 border-slate-300 hover:border-sky-500 shadow-2xs'
+                                                                                }`}
+                                                                            >
+                                                                                <Eye className="w-3 h-3" />
+                                                                                <span>Detail</span>
+                                                                            </button>
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            })
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                     );
                                 })}

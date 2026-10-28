@@ -940,6 +940,7 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                         theme={theme}
                         activeTab={activeAnalyticsTab}
                         onTabChange={setActiveAnalyticsTab}
+                        onSelectIssue={setSelectedDetailIssue}
                     />
                 ) : filteredIssues.length === 0 ? (
                     <div className="py-16 text-center border-2 border-dashed border-slate-800 rounded-2xl p-6">
