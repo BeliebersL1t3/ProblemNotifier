@@ -719,44 +719,50 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
 
                 {/* Mobile Analytics 3 Tabs (Under Header when in Analytics View) */}
                 {viewMode === 'analytics' && (
-                    <div className={`flex lg:hidden items-center gap-1 p-1 mt-2 rounded-xl border overflow-x-auto justify-start ${
-                        isDark ? 'bg-slate-950/80 border-slate-800' : 'bg-slate-100 border-slate-200 shadow-xs'
+                    <div className={`grid grid-cols-3 lg:hidden gap-1 p-1 mt-2 rounded-xl border w-full ${
+                        isDark ? 'bg-slate-950/80 border-slate-800' : 'bg-slate-100/90 border-slate-200 shadow-xs'
                     }`}>
                         <button
                             type="button"
                             onClick={() => setActiveAnalyticsTab('executive')}
-                            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
+                            className={`flex items-center justify-center gap-1.5 py-1.5 px-1 rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer ${
                                 activeAnalyticsTab === 'executive'
-                                    ? 'bg-teal-500 text-slate-950 shadow-sm'
-                                    : isDark ? 'text-slate-400' : 'text-slate-600'
+                                    ? 'bg-teal-500 text-slate-950 shadow-sm shadow-teal-500/20'
+                                    : isDark
+                                    ? 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                                    : 'text-slate-600 hover:text-slate-900 hover:bg-white'
                             }`}
                         >
-                            <Compass className="w-3.5 h-3.5" />
-                            <span>Eksekutif</span>
+                            <Compass className="w-3.5 h-3.5 shrink-0" />
+                            <span className="truncate">Eksekutif</span>
                         </button>
                         <button
                             type="button"
                             onClick={() => setActiveAnalyticsTab('maintenance')}
-                            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
+                            className={`flex items-center justify-center gap-1.5 py-1.5 px-1 rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer ${
                                 activeAnalyticsTab === 'maintenance'
-                                    ? 'bg-teal-500 text-slate-950 shadow-sm'
-                                    : isDark ? 'text-slate-400' : 'text-slate-600'
+                                    ? 'bg-teal-500 text-slate-950 shadow-sm shadow-teal-500/20'
+                                    : isDark
+                                    ? 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                                    : 'text-slate-600 hover:text-slate-900 hover:bg-white'
                             }`}
                         >
-                            <Wrench className="w-3.5 h-3.5" />
-                            <span>Maintenance</span>
+                            <Wrench className="w-3.5 h-3.5 shrink-0" />
+                            <span className="truncate">Maintenance</span>
                         </button>
                         <button
                             type="button"
                             onClick={() => setActiveAnalyticsTab('sla_performance')}
-                            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
+                            className={`flex items-center justify-center gap-1.5 py-1.5 px-1 rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer ${
                                 activeAnalyticsTab === 'sla_performance'
-                                    ? 'bg-teal-500 text-slate-950 shadow-sm'
-                                    : isDark ? 'text-slate-400' : 'text-slate-600'
+                                    ? 'bg-teal-500 text-slate-950 shadow-sm shadow-teal-500/20'
+                                    : isDark
+                                    ? 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                                    : 'text-slate-600 hover:text-slate-900 hover:bg-white'
                             }`}
                         >
-                            <Clock className="w-3.5 h-3.5" />
-                            <span>SLA</span>
+                            <Clock className="w-3.5 h-3.5 shrink-0" />
+                            <span className="truncate">SLA</span>
                         </button>
                     </div>
                 )}
