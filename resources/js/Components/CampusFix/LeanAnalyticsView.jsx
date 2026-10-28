@@ -1615,74 +1615,77 @@ export function LeanAnalyticsView({
                 </div>
             </div>
 
-            {/* TAB NAVIGATION & ERP WIDGET CONTROLS */}
-            <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b ${
-                isDark ? 'border-slate-700/80' : 'border-slate-200'
+            {/* TAB NAVIGATION & ERP WIDGET CONTROLS (STICKY SUB-HEADER) */}
+            <div className={`sticky top-[57px] sm:top-[61px] z-20 py-2.5 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 mb-4 border-b transition-all ${
+                isDark
+                    ? 'bg-slate-900/90 backdrop-blur-md border-slate-800/80 shadow-md shadow-black/20'
+                    : 'bg-white/90 backdrop-blur-md border-slate-200/80 shadow-xs'
             }`}>
-                <div className={`flex items-center gap-1.5 p-1 rounded-xl border flex-wrap ${
-                    isDark ? 'bg-slate-900/90 border-slate-700/80' : 'bg-slate-100 border-slate-300 shadow-xs'
-                }`}>
-                    <button
-                        type="button"
-                        onClick={() => setActiveTab('executive')}
-                        className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                            activeTab === 'executive'
-                                ? 'bg-teal-500 text-slate-950 shadow-md shadow-teal-500/20'
-                                : isDark
-                                ? 'text-slate-400 hover:text-white hover:bg-slate-800'
-                                : 'text-slate-600 hover:text-slate-900 hover:bg-white'
-                        }`}
-                    >
-                        <Compass className="w-3.5 h-3.5" />
-                        <span>1. Ringkasan Eksekutif & Spasial</span>
-                    </button>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className={`flex items-center gap-1.5 p-1 rounded-xl border flex-wrap ${
+                        isDark ? 'bg-slate-950/80 border-slate-800/80' : 'bg-slate-100 border-slate-300 shadow-xs'
+                    }`}>
+                        <button
+                            type="button"
+                            onClick={() => setActiveTab('executive')}
+                            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                activeTab === 'executive'
+                                    ? 'bg-teal-500 text-slate-950 shadow-md shadow-teal-500/20'
+                                    : isDark
+                                    ? 'text-slate-400 hover:text-white hover:bg-slate-800'
+                                    : 'text-slate-600 hover:text-slate-900 hover:bg-white'
+                            }`}
+                        >
+                            <Compass className="w-3.5 h-3.5" />
+                            <span>1. Ringkasan Eksekutif & Spasial</span>
+                        </button>
 
-                    <button
-                        type="button"
-                        onClick={() => setActiveTab('maintenance')}
-                        className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                            activeTab === 'maintenance'
-                                ? 'bg-teal-500 text-slate-950 shadow-md shadow-teal-500/20'
-                                : isDark
-                                ? 'text-slate-400 hover:text-white hover:bg-slate-800'
-                                : 'text-slate-600 hover:text-slate-900 hover:bg-white'
-                        }`}
-                    >
-                        <Wrench className="w-3.5 h-3.5" />
-                        <span>2. Maintenance & Akar Masalah</span>
-                    </button>
+                        <button
+                            type="button"
+                            onClick={() => setActiveTab('maintenance')}
+                            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                activeTab === 'maintenance'
+                                    ? 'bg-teal-500 text-slate-950 shadow-md shadow-teal-500/20'
+                                    : isDark
+                                    ? 'text-slate-400 hover:text-white hover:bg-slate-800'
+                                    : 'text-slate-600 hover:text-slate-900 hover:bg-white'
+                            }`}
+                        >
+                            <Wrench className="w-3.5 h-3.5" />
+                            <span>2. Maintenance & Akar Masalah</span>
+                        </button>
 
-                    <button
-                        type="button"
-                        onClick={() => setActiveTab('sla_performance')}
-                        className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                            activeTab === 'sla_performance'
-                                ? 'bg-teal-500 text-slate-950 shadow-md shadow-teal-500/20'
-                                : isDark
-                                ? 'text-slate-400 hover:text-white hover:bg-slate-800'
-                                : 'text-slate-600 hover:text-slate-900 hover:bg-white'
-                        }`}
-                    >
-                        <Clock className="w-3.5 h-3.5" />
-                        <span>3. Performa Waktu & Departemen</span>
-                    </button>
-                </div>
+                        <button
+                            type="button"
+                            onClick={() => setActiveTab('sla_performance')}
+                            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                activeTab === 'sla_performance'
+                                    ? 'bg-teal-500 text-slate-950 shadow-md shadow-teal-500/20'
+                                    : isDark
+                                    ? 'text-slate-400 hover:text-white hover:bg-slate-800'
+                                    : 'text-slate-600 hover:text-slate-900 hover:bg-white'
+                            }`}
+                        >
+                            <Clock className="w-3.5 h-3.5" />
+                            <span>3. Performa Waktu & Departemen</span>
+                        </button>
+                    </div>
 
-                {/* ERP Widget Customization Controls */}
-                <div className="relative">
-                    <button
-                        type="button"
-                        onClick={() => setShowWidgetModal(!showWidgetModal)}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition shadow-sm ${
-                            isDark
-                                ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border-slate-700'
-                                : 'bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 border-slate-300 shadow-xs'
-                        }`}
-                    >
-                        <SlidersHorizontal className="w-3.5 h-3.5 text-teal-400" />
-                        <span>Atur Tampilan Widget</span>
-                        <ChevronDown className={`w-3 h-3 transition-transform ${showWidgetModal ? 'rotate-180' : ''}`} />
-                    </button>
+                    {/* ERP Widget Customization Controls */}
+                    <div className="relative">
+                        <button
+                            type="button"
+                            onClick={() => setShowWidgetModal(!showWidgetModal)}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition shadow-sm cursor-pointer ${
+                                isDark
+                                    ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border-slate-700'
+                                    : 'bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 border-slate-300 shadow-xs'
+                            }`}
+                        >
+                            <SlidersHorizontal className="w-3.5 h-3.5 text-teal-400" />
+                            <span>Atur Tampilan Widget</span>
+                            <ChevronDown className={`w-3 h-3 transition-transform ${showWidgetModal ? 'rotate-180' : ''}`} />
+                        </button>
 
                     {showWidgetModal && (
                         <div className="absolute right-0 top-full mt-2 w-72 bg-slate-900 border border-slate-700 rounded-xl p-3 shadow-2xl z-50 text-xs backdrop-blur-md">
@@ -1810,6 +1813,7 @@ export function LeanAnalyticsView({
                     )}
                 </div>
             </div>
+        </div>
 
             {/* ========================================================= */}
             {/* TAB 1: RINGKASAN EKSEKUTIF & SPASIAL                      */}
