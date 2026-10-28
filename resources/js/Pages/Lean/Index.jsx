@@ -35,7 +35,8 @@ import {
     Sun,
     Moon,
     Compass,
-    Wrench
+    Wrench,
+    LayoutDashboard
 } from 'lucide-react';
 import axios from 'axios';
 import { BotControlModal } from '@/Components/CampusFix/BotControlModal';
@@ -590,11 +591,15 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                         {currentUser ? (
                             <Link
                                 href={route('dashboard')}
-                                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-emerald-950/60 hover:bg-emerald-900/80 border border-emerald-600/50 text-emerald-300 hover:text-white transition-all text-xs font-semibold shadow-sm"
-                                title="Buka Mode Kantor (Dashboard Lengkap)"
+                                className={`flex items-center justify-center p-2 rounded-lg border transition-all shadow-sm ${
+                                    isDark
+                                        ? 'bg-emerald-950/60 hover:bg-emerald-900/80 border-emerald-600/50 text-emerald-300 hover:text-white'
+                                        : 'bg-emerald-50 hover:bg-emerald-100 border-emerald-300 text-emerald-800 hover:text-emerald-950 shadow-xs'
+                                }`}
+                                title="Kembali ke Dashboard Utama (Mode Kantor)"
+                                aria-label="Kembali ke Dashboard Utama"
                             >
-                                <ExternalLink className="w-3.5 h-3.5" />
-                                <span className="hidden sm:inline">Mode Kantor</span>
+                                <LayoutDashboard className="w-4 h-4" />
                             </Link>
                         ) : (
                             <Link
