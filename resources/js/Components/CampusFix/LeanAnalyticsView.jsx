@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect, useCallback } from 'react';
+import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import {
     ResponsiveContainer,
     BarChart,
@@ -255,25 +255,36 @@ function TpiResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
     const [filterMode, setFilterMode] = useState('all'); // 'all' (22 markers) | 'active' (issues only)
     const [hoveredZone, setHoveredZone] = useState(null);
     const [isFullscreen, setIsFullscreen] = useState(false);
+    const scrollContainerRef = useRef(null);
+    const modalScrollRef = useRef(null);
 
     const handleZoomIn = () => setZoom((prev) => Math.min(Number((prev + 0.25).toFixed(2)), 3));
     const handleZoomOut = () => setZoom((prev) => Math.max(Number((prev - 0.25).toFixed(2)), 1));
-    const handleSetZoomPreset = (val) => setZoom(val);
+    const handleSetZoomPreset = (val) => {
+        setZoom(val);
+        if (scrollContainerRef.current) {
+            scrollContainerRef.current.scrollLeft = 0;
+            scrollContainerRef.current.scrollTop = 0;
+        }
+    };
 
     const displayedZones = filterMode === 'active' ? zones.filter(z => (z.count || 0) > 0) : zones;
 
     const renderMapCanvas = (isModal = false) => {
         const effectiveZoom = isModal ? Math.max(1.25, zoom) : zoom;
+        const isFit = !isModal && effectiveZoom <= 1;
+
         return (
             <div
-                className="relative select-none transition-all duration-150 p-2 sm:p-3"
+                className="relative select-none transition-all duration-150 p-1 sm:p-2.5"
                 style={{
-                    width: `${Math.round(effectiveZoom * 100)}%`,
-                    minWidth: isModal ? '950px' : effectiveZoom > 1 ? `${Math.round(effectiveZoom * 100)}%` : undefined,
+                    width: isFit ? '100%' : `${Math.round(effectiveZoom * 100)}%`,
+                    minWidth: isModal ? '950px' : isFit ? '100%' : `${Math.round(effectiveZoom * 100)}%`,
+                    maxWidth: isFit ? '100%' : undefined,
                 }}
             >
                 {/* High-Resolution Masterplan Drawing Frame with High-Contrast Filter */}
-                <div className="relative rounded-xl overflow-hidden border border-slate-300/80 shadow-md bg-white">
+                <div className="relative rounded-xl overflow-hidden border border-slate-300/80 shadow-md bg-white w-full">
                     <img
                         src="/images/maps/tpi_masterplan_v2.png"
                         alt="Denah Masterplan Telunas Private Island (TPI)"
@@ -478,9 +489,14 @@ function TpiResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                 </div>
 
                 {/* Blueprint Map Container - Smooth Touch Scroll & Pan */}
-                <div className={`relative w-full bg-[#fbf9f4] overflow-auto touch-pan-x touch-pan-y overscroll-contain transition-all ${
-                    zoom > 1 ? 'max-h-[550px] sm:max-h-[650px]' : ''
-                }`}>
+                <div
+                    ref={scrollContainerRef}
+                    className={`relative w-full bg-[#fbf9f4] overscroll-contain transition-all ${
+                        zoom > 1
+                            ? 'overflow-auto touch-pan-x touch-pan-y max-h-[550px] sm:max-h-[650px]'
+                            : 'overflow-hidden max-h-none'
+                    }`}
+                >
                     {renderMapCanvas(false)}
                 </div>
 
@@ -578,8 +594,11 @@ function TpiResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                         </div>
                     </div>
 
-                    {/* Modal Scrollable Body */}
-                    <div className="flex-1 overflow-auto touch-pan-x touch-pan-y relative mt-2 rounded-xl bg-[#fbf9f4] border border-slate-800 flex items-center justify-center">
+                    {/* Modal Scrollable Body - Anti Left Clipping */}
+                    <div
+                        ref={modalScrollRef}
+                        className="flex-1 overflow-auto touch-pan-x touch-pan-y relative mt-2 rounded-xl bg-[#fbf9f4] border border-slate-800"
+                    >
                         {renderMapCanvas(true)}
                     </div>
                 </div>
@@ -595,25 +614,36 @@ function TbrResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
     const [filterMode, setFilterMode] = useState('all'); // 'all' (all facilities) | 'active' (issues only)
     const [hoveredZone, setHoveredZone] = useState(null);
     const [isFullscreen, setIsFullscreen] = useState(false);
+    const scrollContainerRef = useRef(null);
+    const modalScrollRef = useRef(null);
 
     const handleZoomIn = () => setZoom((prev) => Math.min(Number((prev + 0.25).toFixed(2)), 3));
     const handleZoomOut = () => setZoom((prev) => Math.max(Number((prev - 0.25).toFixed(2)), 1));
-    const handleSetZoomPreset = (val) => setZoom(val);
+    const handleSetZoomPreset = (val) => {
+        setZoom(val);
+        if (scrollContainerRef.current) {
+            scrollContainerRef.current.scrollLeft = 0;
+            scrollContainerRef.current.scrollTop = 0;
+        }
+    };
 
     const displayedZones = filterMode === 'active' ? zones.filter(z => (z.count || 0) > 0) : zones;
 
     const renderMapCanvas = (isModal = false) => {
         const effectiveZoom = isModal ? Math.max(1.25, zoom) : zoom;
+        const isFit = !isModal && effectiveZoom <= 1;
+
         return (
             <div
-                className="relative select-none transition-all duration-150 p-2 sm:p-3"
+                className="relative select-none transition-all duration-150 p-1 sm:p-2.5"
                 style={{
-                    width: `${Math.round(effectiveZoom * 100)}%`,
-                    minWidth: isModal ? '850px' : effectiveZoom > 1 ? `${Math.round(effectiveZoom * 100)}%` : undefined,
+                    width: isFit ? '100%' : `${Math.round(effectiveZoom * 100)}%`,
+                    minWidth: isModal ? '850px' : isFit ? '100%' : `${Math.round(effectiveZoom * 100)}%`,
+                    maxWidth: isFit ? '100%' : undefined,
                 }}
             >
                 {/* High-Contrast Architectural Site Plan Drawing Frame */}
-                <div className="relative rounded-xl overflow-hidden border border-slate-300/80 shadow-md bg-white">
+                <div className="relative rounded-xl overflow-hidden border border-slate-300/80 shadow-md bg-white w-full">
                     <img
                         src="/images/maps/tbr_masterplan.png"
                         alt="Denah Arsitektural Telunas Beach Resort (TBR)"
@@ -818,9 +848,14 @@ function TbrResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                 </div>
 
                 {/* Clean CAD Architectural Blueprint Container - Smooth Touch Scroll & Pan */}
-                <div className={`relative w-full bg-slate-100 overflow-auto touch-pan-x touch-pan-y overscroll-contain transition-all ${
-                    zoom > 1 ? 'max-h-[550px] sm:max-h-[650px]' : ''
-                }`}>
+                <div
+                    ref={scrollContainerRef}
+                    className={`relative w-full bg-slate-100 overscroll-contain transition-all ${
+                        zoom > 1
+                            ? 'overflow-auto touch-pan-x touch-pan-y max-h-[550px] sm:max-h-[650px]'
+                            : 'overflow-hidden max-h-none'
+                    }`}
+                >
                     {renderMapCanvas(false)}
                 </div>
 
@@ -918,8 +953,11 @@ function TbrResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                         </div>
                     </div>
 
-                    {/* Modal Scrollable Body */}
-                    <div className="flex-1 overflow-auto touch-pan-x touch-pan-y relative mt-2 rounded-xl bg-slate-100 border border-slate-800 flex items-center justify-center">
+                    {/* Modal Scrollable Body - Anti Left Clipping */}
+                    <div
+                        ref={modalScrollRef}
+                        className="flex-1 overflow-auto touch-pan-x touch-pan-y relative mt-2 rounded-xl bg-slate-100 border border-slate-800"
+                    >
                         {renderMapCanvas(true)}
                     </div>
                 </div>
