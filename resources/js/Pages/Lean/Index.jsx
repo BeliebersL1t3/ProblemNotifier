@@ -644,7 +644,7 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                             title="Pilih data/kolom apa saja yang ingin ditampilkan"
                         >
                             <SlidersHorizontal className="w-3.5 h-3.5 text-emerald-500" />
-                            <span>Kolom</span>
+                            <span>Tampilan</span>
                             <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded border ${
                                 isDark
                                     ? 'bg-emerald-950 text-emerald-300 border-emerald-800/60'
@@ -1888,7 +1888,7 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                                     title="Ubah kolom yang ditampilkan di modal & tabel"
                                 >
                                     <SlidersHorizontal className="w-3.5 h-3.5" />
-                                    <span>Sesuaikan Kolom ERP ({activeColumnCount}/{COLUMN_DEFS.length})</span>
+                                    <span>Sesuaikan Tampilan Data ({activeColumnCount}/{COLUMN_DEFS.length})</span>
                                 </button>
                                 <button
                                     type="button"
@@ -1947,7 +1947,7 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                                     <SlidersHorizontal className="w-4 h-4" />
                                 </div>
                                 <div>
-                                    <h3 className="font-bold text-sm text-white">Kustomisasi Kolom Tampilan ERP</h3>
+                                    <h3 className="font-bold text-sm text-white">Kustomisasi Tampilan Data</h3>
                                     <p className="text-[11px] text-slate-400">Pilih data yang ingin dimunculkan ({activeColumnCount} dari {COLUMN_DEFS.length} aktif)</p>
                                 </div>
                             </div>

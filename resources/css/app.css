@@ -444,8 +444,7 @@ input[type="range"]::-moz-range-thumb {
 /* Ensure foreground content sits above backdrop overlay */
 .lean-root > header,
 .lean-root > main,
-.lean-root > footer,
-.lean-root > div {
+.lean-root > footer {
   position: relative;
   z-index: 10;
 }
