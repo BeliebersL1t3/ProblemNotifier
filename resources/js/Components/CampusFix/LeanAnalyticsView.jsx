@@ -255,38 +255,34 @@ function TpiResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
     const [filterMode, setFilterMode] = useState('all'); // 'all' (22 markers) | 'active' (issues only)
     const [hoveredZone, setHoveredZone] = useState(null);
     const [isFullscreen, setIsFullscreen] = useState(false);
-    const [viewMode, setViewMode] = useState('fit'); // 'fit' (pas layar) | 'hd' (lebar HD scroll)
 
-    const handleZoomIn = () => setZoom((prev) => Math.min(Number((prev + 0.25).toFixed(2)), 2.5));
+    const handleZoomIn = () => setZoom((prev) => Math.min(Number((prev + 0.25).toFixed(2)), 3));
     const handleZoomOut = () => setZoom((prev) => Math.max(Number((prev - 0.25).toFixed(2)), 1));
-    const handleResetZoom = () => setZoom(1);
+    const handleSetZoomPreset = (val) => setZoom(val);
 
     const displayedZones = filterMode === 'active' ? zones.filter(z => (z.count || 0) > 0) : zones;
 
     const renderMapCanvas = (isModal = false) => {
-        const isHd = isModal || viewMode === 'hd';
+        const effectiveZoom = isModal ? Math.max(1.25, zoom) : zoom;
         return (
             <div
                 className="relative select-none transition-all duration-150 p-2 sm:p-3"
                 style={{
-                    width: isModal
-                        ? `${Math.max(100, Math.round(zoom * 100))}%`
-                        : isHd
-                        ? `${Math.max(120, Math.round(zoom * 100))}%`
-                        : `${Math.max(100, Math.round(zoom * 100))}%`,
-                    minWidth: isModal ? '920px' : isHd ? '720px' : undefined,
+                    width: `${Math.round(effectiveZoom * 100)}%`,
+                    minWidth: isModal ? '950px' : effectiveZoom > 1 ? `${Math.round(effectiveZoom * 100)}%` : undefined,
                 }}
             >
-                {/* High-Resolution Masterplan Drawing Frame */}
+                {/* High-Resolution Masterplan Drawing Frame with High-Contrast Filter */}
                 <div className="relative rounded-xl overflow-hidden border border-slate-300/80 shadow-md bg-white">
                     <img
                         src="/images/maps/tpi_masterplan_v2.png"
                         alt="Denah Masterplan Telunas Private Island (TPI)"
-                        className="w-full h-auto block select-none pointer-events-none"
+                        className="w-full h-auto block select-none pointer-events-none filter contrast-[1.08] brightness-[0.98]"
+                        style={{ imageRendering: '-webkit-optimize-contrast' }}
                         loading="eager"
                     />
 
-                    {/* Interactive Specific Location Pins */}
+                    {/* Interactive Compact Location Pins */}
                     {displayedZones.map((zone) => {
                         const count = zone.count || 0;
                         const urgency = zone.highestUrgency;
@@ -304,47 +300,42 @@ function TpiResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                                 onClick={() => onSelectZone && onSelectZone(zone)}
                                 onMouseEnter={() => setHoveredZone(zone.id)}
                                 onMouseLeave={() => setHoveredZone(null)}
-                                className={`absolute transform -translate-x-1/2 -translate-y-1/2 cursor-pointer transition-all duration-200 ${
-                                    isSelected ? 'z-30 scale-125' : isHovered ? 'z-20 scale-115' : count > 0 ? 'z-15' : 'z-10'
+                                className={`absolute transform -translate-x-1/2 -translate-y-1/2 cursor-pointer transition-all duration-150 ${
+                                    isSelected ? 'z-40 scale-125' : isHovered ? 'z-30 scale-115' : count > 0 ? 'z-20' : 'z-10'
                                 }`}
                                 style={{ left: `${safeX}%`, top: `${safeY}%` }}
                             >
-                                {/* Urgency Pulse Ring if issues exist */}
-                                {count > 0 && (
+                                {/* Micro ping ring for active issues (ringan dan tidak menutupi pulau) */}
+                                {count > 0 && !isSelected && (
                                     <span
-                                        className="absolute -inset-1.5 rounded-full animate-ping opacity-75 pointer-events-none"
+                                        className="absolute -inset-1 rounded-full animate-ping opacity-60 pointer-events-none"
                                         style={{ backgroundColor: color }}
                                     />
                                 )}
 
-                                {/* Pin Badge Marker */}
+                                {/* Compact Pin Marker (~20px Circle) */}
                                 <div
-                                    className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full shadow-lg border text-[10px] font-bold backdrop-blur-md transition-all ${
-                                        count > 0
-                                            ? 'bg-slate-950/95 text-white ring-2'
-                                            : 'bg-slate-900/85 text-slate-200 hover:bg-slate-900 hover:text-white'
-                                    } ${
+                                    className={`relative flex items-center justify-center w-5 h-5 sm:w-5.5 sm:h-5.5 rounded-full transition-all select-none ${
                                         isSelected
-                                            ? 'ring-4 ring-sky-400 border-white shadow-sky-500/50'
+                                            ? 'ring-3 ring-sky-400 bg-white text-slate-950 font-black shadow-lg'
                                             : count > 0
-                                            ? 'border-transparent'
-                                            : 'border-slate-600/70'
+                                            ? 'text-white font-extrabold ring-1 ring-white/90 shadow-sm'
+                                            : isDark
+                                            ? 'bg-slate-900/90 text-slate-200 border border-slate-700/80 hover:bg-slate-800 shadow-2xs'
+                                            : 'bg-white/95 text-slate-800 border border-slate-300 shadow-2xs hover:bg-slate-100'
                                     }`}
                                     style={{
-                                        boxShadow: count > 0 ? `0 0 14px ${color}90` : undefined,
-                                        ringColor: count > 0 ? color : undefined,
+                                        backgroundColor: isSelected ? undefined : count > 0 ? color : undefined,
                                     }}
                                 >
-                                    <span
-                                        className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] font-black ${
-                                            count > 0 ? 'text-black' : 'text-white bg-slate-700'
-                                        }`}
-                                        style={{ backgroundColor: count > 0 ? color : undefined }}
-                                    >
+                                    {/* Number */}
+                                    <span className="text-[9px] sm:text-[10px] font-black leading-none">
                                         {zone.num}
                                     </span>
+
+                                    {/* Micro Notification Badge for issue count (Top-Right) */}
                                     {count > 0 && (
-                                        <span className="text-[10px] font-black text-white pl-0.5 pr-1">
+                                        <span className="absolute -top-1.5 -right-1.5 min-w-[13px] h-[13px] px-0.5 rounded-full bg-slate-950 text-white border border-white text-[7.5px] font-black flex items-center justify-center shadow-xs">
                                             {count}
                                         </span>
                                     )}
@@ -352,7 +343,7 @@ function TpiResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
 
                                 {/* Hover / Selected Tooltip Card */}
                                 {(isHovered || isSelected) && (
-                                    <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2.5 px-3 py-1.5 rounded-xl bg-slate-950/95 border border-slate-700 shadow-2xl text-[11px] whitespace-nowrap z-40 pointer-events-none backdrop-blur-md animate-in fade-in zoom-in-95 duration-150">
+                                    <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2.5 px-3 py-1.5 rounded-xl bg-slate-950/95 border border-slate-700 shadow-2xl text-[11px] whitespace-nowrap z-50 pointer-events-none backdrop-blur-md animate-in fade-in zoom-in-95 duration-150">
                                         <div className="flex items-center gap-1.5 font-bold text-white">
                                             <span className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
                                             <span>#{zone.num} {zone.name}</span>
@@ -399,27 +390,55 @@ function TpiResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                             <span>{filterMode === 'active' ? 'Hanya Isu Aktif' : 'Semua 22 Titik'}</span>
                         </button>
 
-                        {/* Mode Fit vs Mode Tajam HD */}
-                        <button
-                            type="button"
-                            onClick={() => setViewMode(prev => prev === 'fit' ? 'hd' : 'fit')}
-                            className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold transition-all cursor-pointer ${
-                                viewMode === 'hd'
-                                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
-                                    : isDark ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-600 hover:text-slate-900 hover:bg-white'
-                            }`}
-                            title={viewMode === 'hd' ? 'Kembali ke mode Pas Layar' : 'Beralih ke mode Tajam HD (bisa digeser)'}
-                        >
-                            <Sparkles className="w-3 h-3 text-emerald-400" />
-                            <span>{viewMode === 'hd' ? 'Mode HD (Geser)' : 'Pas Layar'}</span>
-                        </button>
+                        {/* Quick HD Zoom Chips */}
+                        <div className={`flex items-center rounded-lg border p-0.5 text-[10px] font-bold ${
+                            isDark ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200'
+                        }`}>
+                            <button
+                                type="button"
+                                onClick={() => handleSetZoomPreset(1)}
+                                className={`px-2 py-0.5 rounded-md transition-all cursor-pointer ${
+                                    zoom === 1
+                                        ? 'bg-sky-500 text-slate-950 shadow-2xs font-extrabold'
+                                        : isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'
+                                }`}
+                                title="Paskan 100% Lebar Layar"
+                            >
+                                1x Fit
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => handleSetZoomPreset(1.5)}
+                                className={`px-2 py-0.5 rounded-md transition-all cursor-pointer flex items-center gap-0.5 ${
+                                    zoom === 1.5
+                                        ? 'bg-emerald-500 text-slate-950 shadow-2xs font-extrabold'
+                                        : isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'
+                                }`}
+                                title="Zoom 1.5x HD (Teks tajam terbaca)"
+                            >
+                                <Sparkles className="w-2.5 h-2.5" />
+                                <span>1.5x HD</span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => handleSetZoomPreset(2)}
+                                className={`px-2 py-0.5 rounded-md transition-all cursor-pointer ${
+                                    zoom === 2
+                                        ? 'bg-purple-500 text-white shadow-2xs font-extrabold'
+                                        : isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'
+                                }`}
+                                title="Zoom 2x Ultra Detail"
+                            >
+                                2x Ultra
+                            </button>
+                        </div>
                     </div>
 
                     <div className="flex items-center gap-1">
                         <button
                             type="button"
                             onClick={handleZoomIn}
-                            disabled={zoom >= 2.5}
+                            disabled={zoom >= 3}
                             className={`p-1.5 rounded-lg disabled:opacity-40 transition-colors cursor-pointer ${
                                 isDark ? 'text-slate-300 hover:text-white hover:bg-slate-800' : 'text-slate-700 hover:text-slate-900 hover:bg-white'
                             }`}
@@ -438,16 +457,6 @@ function TpiResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                         >
                             <ZoomOut className="w-3.5 h-3.5" />
                         </button>
-                        {zoom > 1 && (
-                            <button
-                                type="button"
-                                onClick={handleResetZoom}
-                                className="px-2 py-1 rounded-lg text-[10px] font-semibold text-sky-400 hover:bg-sky-500/10 transition-colors cursor-pointer"
-                                title="Reset Zoom ke 100%"
-                            >
-                                Reset ({Math.round(zoom * 100)}%)
-                            </button>
-                        )}
 
                         <div className={`h-4 w-px mx-0.5 ${isDark ? 'bg-slate-700' : 'bg-slate-300'}`} />
 
@@ -469,8 +478,8 @@ function TpiResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                 </div>
 
                 {/* Blueprint Map Container - Smooth Touch Scroll & Pan */}
-                <div className={`relative w-full bg-[#fbf9f4] overflow-auto touch-pan-x touch-pan-y transition-all ${
-                    viewMode === 'hd' || zoom > 1 ? 'max-h-[550px] sm:max-h-[650px]' : ''
+                <div className={`relative w-full bg-[#fbf9f4] overflow-auto touch-pan-x touch-pan-y overscroll-contain transition-all ${
+                    zoom > 1 ? 'max-h-[550px] sm:max-h-[650px]' : ''
                 }`}>
                     {renderMapCanvas(false)}
                 </div>
@@ -517,6 +526,29 @@ function TpiResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                             </div>
                         </div>
                         <div className="flex items-center gap-1 sm:gap-2">
+                            <div className="flex items-center bg-slate-900 border border-slate-700 rounded-lg p-0.5 text-xs">
+                                <button
+                                    type="button"
+                                    onClick={() => handleSetZoomPreset(1)}
+                                    className={`px-2 py-0.5 rounded cursor-pointer ${zoom === 1 ? 'bg-sky-500 text-black font-bold' : 'text-slate-400'}`}
+                                >
+                                    1x
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleSetZoomPreset(1.5)}
+                                    className={`px-2 py-0.5 rounded cursor-pointer ${zoom === 1.5 ? 'bg-emerald-500 text-black font-bold' : 'text-slate-400'}`}
+                                >
+                                    1.5x HD
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleSetZoomPreset(2)}
+                                    className={`px-2 py-0.5 rounded cursor-pointer ${zoom === 2 ? 'bg-purple-500 text-white font-bold' : 'text-slate-400'}`}
+                                >
+                                    2x Ultra
+                                </button>
+                            </div>
                             <button
                                 type="button"
                                 onClick={handleZoomIn}
@@ -535,15 +567,6 @@ function TpiResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                             >
                                 <ZoomOut className="w-4 h-4" />
                             </button>
-                            {zoom > 1 && (
-                                <button
-                                    type="button"
-                                    onClick={handleResetZoom}
-                                    className="px-2 py-1 rounded-lg text-xs font-semibold text-sky-400 bg-sky-500/10 cursor-pointer"
-                                >
-                                    Reset
-                                </button>
-                            )}
                             <button
                                 type="button"
                                 onClick={() => setIsFullscreen(false)}
@@ -572,26 +595,21 @@ function TbrResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
     const [filterMode, setFilterMode] = useState('all'); // 'all' (all facilities) | 'active' (issues only)
     const [hoveredZone, setHoveredZone] = useState(null);
     const [isFullscreen, setIsFullscreen] = useState(false);
-    const [viewMode, setViewMode] = useState('fit'); // 'fit' (pas layar) | 'hd' (lebar HD scroll)
 
-    const handleZoomIn = () => setZoom((prev) => Math.min(Number((prev + 0.25).toFixed(2)), 2.5));
+    const handleZoomIn = () => setZoom((prev) => Math.min(Number((prev + 0.25).toFixed(2)), 3));
     const handleZoomOut = () => setZoom((prev) => Math.max(Number((prev - 0.25).toFixed(2)), 1));
-    const handleResetZoom = () => setZoom(1);
+    const handleSetZoomPreset = (val) => setZoom(val);
 
     const displayedZones = filterMode === 'active' ? zones.filter(z => (z.count || 0) > 0) : zones;
 
     const renderMapCanvas = (isModal = false) => {
-        const isHd = isModal || viewMode === 'hd';
+        const effectiveZoom = isModal ? Math.max(1.25, zoom) : zoom;
         return (
             <div
                 className="relative select-none transition-all duration-150 p-2 sm:p-3"
                 style={{
-                    width: isModal
-                        ? `${Math.max(100, Math.round(zoom * 100))}%`
-                        : isHd
-                        ? `${Math.max(120, Math.round(zoom * 100))}%`
-                        : `${Math.max(100, Math.round(zoom * 100))}%`,
-                    minWidth: isModal ? '800px' : isHd ? '650px' : undefined,
+                    width: `${Math.round(effectiveZoom * 100)}%`,
+                    minWidth: isModal ? '850px' : effectiveZoom > 1 ? `${Math.round(effectiveZoom * 100)}%` : undefined,
                 }}
             >
                 {/* High-Contrast Architectural Site Plan Drawing Frame */}
@@ -599,11 +617,12 @@ function TbrResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                     <img
                         src="/images/maps/tbr_masterplan.png"
                         alt="Denah Arsitektural Telunas Beach Resort (TBR)"
-                        className="w-full h-auto block select-none pointer-events-none"
+                        className="w-full h-auto block select-none pointer-events-none filter contrast-[1.10] brightness-[0.98]"
+                        style={{ imageRendering: '-webkit-optimize-contrast' }}
                         loading="eager"
                     />
 
-                    {/* Interactive Pins & Hotspots */}
+                    {/* Interactive Compact Location Pins */}
                     {displayedZones.map((zone) => {
                         const count = zone.count || 0;
                         const urgency = zone.highestUrgency;
@@ -621,47 +640,42 @@ function TbrResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                                 onClick={() => onSelectZone && onSelectZone(zone)}
                                 onMouseEnter={() => setHoveredZone(zone.id)}
                                 onMouseLeave={() => setHoveredZone(null)}
-                                className={`absolute transform -translate-x-1/2 -translate-y-1/2 cursor-pointer transition-all duration-200 ${
-                                    isSelected ? 'z-30 scale-125' : isHovered ? 'z-20 scale-115' : count > 0 ? 'z-15' : 'z-10'
+                                className={`absolute transform -translate-x-1/2 -translate-y-1/2 cursor-pointer transition-all duration-150 ${
+                                    isSelected ? 'z-40 scale-125' : isHovered ? 'z-30 scale-115' : count > 0 ? 'z-20' : 'z-10'
                                 }`}
                                 style={{ left: `${safeX}%`, top: `${safeY}%` }}
                             >
-                                {/* Urgency Pulse Ring if count > 0 */}
-                                {count > 0 && (
+                                {/* Micro ping ring for active issues (ringan dan tidak menutupi pulau) */}
+                                {count > 0 && !isSelected && (
                                     <span
-                                        className="absolute -inset-1.5 rounded-full animate-ping opacity-75 pointer-events-none"
+                                        className="absolute -inset-1 rounded-full animate-ping opacity-60 pointer-events-none"
                                         style={{ backgroundColor: color }}
                                     />
                                 )}
 
-                                {/* Clean Architectural Pin Badge */}
+                                {/* Compact Pin Marker (~20px Circle) */}
                                 <div
-                                    className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full shadow-lg border text-[10px] font-bold backdrop-blur-md transition-all ${
-                                        count > 0
-                                            ? 'bg-slate-950/95 text-white ring-2'
-                                            : 'bg-slate-900/90 text-slate-100 hover:bg-black'
-                                    } ${
+                                    className={`relative flex items-center justify-center w-5 h-5 sm:w-5.5 sm:h-5.5 rounded-full transition-all select-none ${
                                         isSelected
-                                            ? 'ring-4 ring-amber-400 border-white shadow-amber-500/50'
+                                            ? 'ring-3 ring-amber-400 bg-white text-slate-950 font-black shadow-lg'
                                             : count > 0
-                                            ? 'border-transparent'
-                                            : 'border-slate-700/80'
+                                            ? 'text-white font-extrabold ring-1 ring-white/90 shadow-sm'
+                                            : isDark
+                                            ? 'bg-slate-900/90 text-slate-200 border border-slate-700/80 hover:bg-slate-800 shadow-2xs'
+                                            : 'bg-white/95 text-slate-800 border border-slate-300 shadow-2xs hover:bg-slate-100'
                                     }`}
                                     style={{
-                                        boxShadow: count > 0 ? `0 0 14px ${color}90` : undefined,
-                                        ringColor: count > 0 ? color : undefined,
+                                        backgroundColor: isSelected ? undefined : count > 0 ? color : undefined,
                                     }}
                                 >
-                                    <span
-                                        className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] font-black ${
-                                            count > 0 ? 'text-black' : 'text-white bg-slate-700'
-                                        }`}
-                                        style={{ backgroundColor: count > 0 ? color : undefined }}
-                                    >
+                                    {/* Number */}
+                                    <span className="text-[9px] sm:text-[10px] font-black leading-none">
                                         {zone.num}
                                     </span>
+
+                                    {/* Micro Notification Badge for issue count (Top-Right) */}
                                     {count > 0 && (
-                                        <span className="text-[10px] font-black text-white pl-0.5 pr-1">
+                                        <span className="absolute -top-1.5 -right-1.5 min-w-[13px] h-[13px] px-0.5 rounded-full bg-slate-950 text-white border border-white text-[7.5px] font-black flex items-center justify-center shadow-xs">
                                             {count}
                                         </span>
                                     )}
@@ -669,7 +683,7 @@ function TbrResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
 
                                 {/* Tooltip Card on Hover / Select */}
                                 {(isHovered || isSelected) && (
-                                    <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2.5 px-3 py-1.5 rounded-xl bg-slate-950/95 border border-slate-700 shadow-2xl text-[11px] whitespace-nowrap z-40 pointer-events-none backdrop-blur-md animate-in fade-in zoom-in-95 duration-150">
+                                    <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2.5 px-3 py-1.5 rounded-xl bg-slate-950/95 border border-slate-700 shadow-2xl text-[11px] whitespace-nowrap z-50 pointer-events-none backdrop-blur-md animate-in fade-in zoom-in-95 duration-150">
                                         <div className="flex items-center gap-1.5 font-bold text-white">
                                             <span className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
                                             <span>#{zone.num} {zone.name}</span>
@@ -716,27 +730,55 @@ function TbrResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                             <span>{filterMode === 'active' ? 'Hanya Isu Aktif' : 'Semua Fasilitas'}</span>
                         </button>
 
-                        {/* Mode Fit vs Mode Tajam HD */}
-                        <button
-                            type="button"
-                            onClick={() => setViewMode(prev => prev === 'fit' ? 'hd' : 'fit')}
-                            className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold transition-all cursor-pointer ${
-                                viewMode === 'hd'
-                                    ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
-                                    : isDark ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                            }`}
-                            title={viewMode === 'hd' ? 'Kembali ke mode Pas Layar' : 'Beralih ke mode Tajam HD (bisa digeser)'}
-                        >
-                            <Sparkles className="w-3 h-3 text-amber-400" />
-                            <span>{viewMode === 'hd' ? 'Mode HD (Geser)' : 'Pas Layar'}</span>
-                        </button>
+                        {/* Quick HD Zoom Chips */}
+                        <div className={`flex items-center rounded-lg border p-0.5 text-[10px] font-bold ${
+                            isDark ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200'
+                        }`}>
+                            <button
+                                type="button"
+                                onClick={() => handleSetZoomPreset(1)}
+                                className={`px-2 py-0.5 rounded-md transition-all cursor-pointer ${
+                                    zoom === 1
+                                        ? 'bg-amber-500 text-slate-950 shadow-2xs font-extrabold'
+                                        : isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'
+                                }`}
+                                title="Paskan 100% Lebar Layar"
+                            >
+                                1x Fit
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => handleSetZoomPreset(1.5)}
+                                className={`px-2 py-0.5 rounded-md transition-all cursor-pointer flex items-center gap-0.5 ${
+                                    zoom === 1.5
+                                        ? 'bg-amber-500 text-slate-950 shadow-2xs font-extrabold'
+                                        : isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'
+                                }`}
+                                title="Zoom 1.5x HD (Teks tajam terbaca)"
+                            >
+                                <Sparkles className="w-2.5 h-2.5" />
+                                <span>1.5x HD</span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => handleSetZoomPreset(2)}
+                                className={`px-2 py-0.5 rounded-md transition-all cursor-pointer ${
+                                    zoom === 2
+                                        ? 'bg-purple-500 text-white shadow-2xs font-extrabold'
+                                        : isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'
+                                }`}
+                                title="Zoom 2x Ultra Detail"
+                            >
+                                2x Ultra
+                            </button>
+                        </div>
                     </div>
 
                     <div className="flex items-center gap-1">
                         <button
                             type="button"
                             onClick={handleZoomIn}
-                            disabled={zoom >= 2.5}
+                            disabled={zoom >= 3}
                             className={`p-1.5 rounded-lg disabled:opacity-40 transition-colors cursor-pointer ${
                                 isDark ? 'text-slate-300 hover:text-white hover:bg-slate-800' : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
                             }`}
@@ -755,18 +797,6 @@ function TbrResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                         >
                             <ZoomOut className="w-3.5 h-3.5" />
                         </button>
-                        {zoom > 1 && (
-                            <button
-                                type="button"
-                                onClick={handleResetZoom}
-                                className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-colors cursor-pointer ${
-                                    isDark ? 'text-amber-400 hover:bg-amber-500/10' : 'text-amber-700 hover:bg-amber-100'
-                                }`}
-                                title="Reset Zoom ke 100% (Fit)"
-                            >
-                                Paskan ({Math.round(zoom * 100)}%)
-                            </button>
-                        )}
 
                         <div className={`h-4 w-px mx-0.5 ${isDark ? 'bg-slate-700' : 'bg-slate-300'}`} />
 
@@ -788,8 +818,8 @@ function TbrResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                 </div>
 
                 {/* Clean CAD Architectural Blueprint Container - Smooth Touch Scroll & Pan */}
-                <div className={`relative w-full bg-slate-100 overflow-auto touch-pan-x touch-pan-y transition-all ${
-                    viewMode === 'hd' || zoom > 1 ? 'max-h-[550px] sm:max-h-[650px]' : ''
+                <div className={`relative w-full bg-slate-100 overflow-auto touch-pan-x touch-pan-y overscroll-contain transition-all ${
+                    zoom > 1 ? 'max-h-[550px] sm:max-h-[650px]' : ''
                 }`}>
                     {renderMapCanvas(false)}
                 </div>
@@ -836,6 +866,29 @@ function TbrResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                             </div>
                         </div>
                         <div className="flex items-center gap-1 sm:gap-2">
+                            <div className="flex items-center bg-slate-900 border border-slate-700 rounded-lg p-0.5 text-xs">
+                                <button
+                                    type="button"
+                                    onClick={() => handleSetZoomPreset(1)}
+                                    className={`px-2 py-0.5 rounded cursor-pointer ${zoom === 1 ? 'bg-amber-500 text-black font-bold' : 'text-slate-400'}`}
+                                >
+                                    1x
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleSetZoomPreset(1.5)}
+                                    className={`px-2 py-0.5 rounded cursor-pointer ${zoom === 1.5 ? 'bg-amber-500 text-black font-bold' : 'text-slate-400'}`}
+                                >
+                                    1.5x HD
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleSetZoomPreset(2)}
+                                    className={`px-2 py-0.5 rounded cursor-pointer ${zoom === 2 ? 'bg-purple-500 text-white font-bold' : 'text-slate-400'}`}
+                                >
+                                    2x Ultra
+                                </button>
+                            </div>
                             <button
                                 type="button"
                                 onClick={handleZoomIn}
@@ -854,15 +907,6 @@ function TbrResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                             >
                                 <ZoomOut className="w-4 h-4" />
                             </button>
-                            {zoom > 1 && (
-                                <button
-                                    type="button"
-                                    onClick={handleResetZoom}
-                                    className="px-2 py-1 rounded-lg text-xs font-semibold text-amber-400 bg-amber-500/10 cursor-pointer"
-                                >
-                                    Reset
-                                </button>
-                            )}
                             <button
                                 type="button"
                                 onClick={() => setIsFullscreen(false)}
