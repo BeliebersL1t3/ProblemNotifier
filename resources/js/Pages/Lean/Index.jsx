@@ -459,43 +459,52 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
             <Head title="Mode Lapangan (Sandbox) — Telunas Issue Tracker" />
 
             {/* TOP HEADER */}
-            <header className="sticky top-0 z-30 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 px-4 sm:px-6 lg:px-8 py-3 shadow-md">
-                <div className="w-full flex items-center justify-between gap-2">
+            <header className={`sticky top-0 z-30 backdrop-blur-md border-b px-4 sm:px-6 lg:px-8 py-2.5 shadow-xs transition-colors duration-200 ${
+                isDark
+                    ? 'bg-slate-900/95 border-slate-800 shadow-slate-950/40'
+                    : 'bg-white/95 border-slate-200 shadow-slate-200/50'
+            }`}>
+                <div className="w-full flex items-center justify-between gap-3 flex-wrap lg:flex-nowrap">
                     {/* Brand & Sandbox Pill */}
-                    <div className="flex items-center gap-2 shrink-0">
-                        <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center justify-center font-bold text-sm shadow-sm">
+                    <div className="flex items-center gap-2.5 shrink-0">
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm border shadow-xs ${
+                            isDark ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        }`}>
                             📱
                         </div>
                         <div>
                             <div className="flex items-center gap-1.5">
-                                <h1 className="text-sm font-bold text-white tracking-tight">Mode Lapangan</h1>
-                                <span className="text-[10px] bg-amber-500/20 border border-amber-500/40 text-amber-300 font-semibold px-1.5 py-0.2 rounded-full">
+                                <h1 className={`text-sm font-bold tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                                    Mode Lapangan
+                                </h1>
+                                <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full border ${
+                                    isDark ? 'bg-amber-500/20 border-amber-500/40 text-amber-300' : 'bg-amber-50 border-amber-300 text-amber-800'
+                                }`}>
                                     Sandbox
                                 </span>
                             </div>
-                            <p className="text-[11px] text-slate-400">Telunas Resorts Tracker</p>
+                            <p className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Telunas Resorts Tracker</p>
                         </div>
                     </div>
 
                     {/* Analytics 3 Tabs (Centered in Header when in Analytics View) */}
                     {viewMode === 'analytics' && (
                         <div className={`flex items-center gap-1 p-1 rounded-xl border shrink-0 overflow-x-auto max-w-full order-last lg:order-none w-full lg:w-auto justify-center ${
-                            isDark ? 'bg-slate-950/80 border-slate-800' : 'bg-slate-100 border-slate-300 shadow-xs'
+                            isDark ? 'bg-slate-950/80 border-slate-800' : 'bg-slate-100 border-slate-200 shadow-xs'
                         }`}>
                             <button
                                 type="button"
                                 onClick={() => setActiveAnalyticsTab('executive')}
                                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
                                     activeAnalyticsTab === 'executive'
-                                        ? 'bg-teal-500 text-slate-950 shadow-md shadow-teal-500/20'
+                                        ? 'bg-teal-500 text-slate-950 shadow-sm shadow-teal-500/30'
                                         : isDark
                                         ? 'text-slate-400 hover:text-white hover:bg-slate-800/80'
                                         : 'text-slate-600 hover:text-slate-900 hover:bg-white'
                                 }`}
                             >
                                 <Compass className="w-3.5 h-3.5" />
-                                <span className="hidden xl:inline">1. Ringkasan Eksekutif & Spasial</span>
-                                <span className="xl:hidden">1. Ringkasan</span>
+                                <span>Ringkasan Eksekutif</span>
                             </button>
 
                             <button
@@ -503,15 +512,14 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                                 onClick={() => setActiveAnalyticsTab('maintenance')}
                                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
                                     activeAnalyticsTab === 'maintenance'
-                                        ? 'bg-teal-500 text-slate-950 shadow-md shadow-teal-500/20'
+                                        ? 'bg-teal-500 text-slate-950 shadow-sm shadow-teal-500/30'
                                         : isDark
                                         ? 'text-slate-400 hover:text-white hover:bg-slate-800/80'
                                         : 'text-slate-600 hover:text-slate-900 hover:bg-white'
                                 }`}
                             >
                                 <Wrench className="w-3.5 h-3.5" />
-                                <span className="hidden xl:inline">2. Maintenance & Akar Masalah</span>
-                                <span className="xl:hidden">2. Maintenance</span>
+                                <span>Maintenance</span>
                             </button>
 
                             <button
@@ -519,42 +527,36 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                                 onClick={() => setActiveAnalyticsTab('sla_performance')}
                                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
                                     activeAnalyticsTab === 'sla_performance'
-                                        ? 'bg-teal-500 text-slate-950 shadow-md shadow-teal-500/20'
+                                        ? 'bg-teal-500 text-slate-950 shadow-sm shadow-teal-500/30'
                                         : isDark
                                         ? 'text-slate-400 hover:text-white hover:bg-slate-800/80'
                                         : 'text-slate-600 hover:text-slate-900 hover:bg-white'
                                 }`}
                             >
                                 <Clock className="w-3.5 h-3.5" />
-                                <span className="hidden xl:inline">3. Performa Waktu & Departemen</span>
-                                <span className="xl:hidden">3. Performa</span>
+                                <span>Performa & SLA</span>
                             </button>
                         </div>
                     )}
 
                     {/* Profile & Navigation Switcher & Bot Controls */}
-                    <div className="flex items-center gap-2">
-                        {/* Quick Theme Toggle (Sun / Moon) */}
+                    <div className="flex items-center gap-2 shrink-0">
+                        {/* Quick Theme Toggle (Icon Only) */}
                         <button
                             type="button"
                             onClick={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')}
-                            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-bold transition-all shadow-sm cursor-pointer ${
+                            className={`h-8.5 w-8.5 flex items-center justify-center rounded-lg border transition-all shadow-xs cursor-pointer ${
                                 isDark
-                                    ? 'bg-slate-800/90 border-slate-700 text-amber-300 hover:bg-slate-700 hover:text-amber-200'
-                                    : 'bg-white/95 border-slate-200 text-amber-700 hover:bg-amber-50 hover:text-amber-800 shadow-slate-200/50'
+                                    ? 'bg-slate-800/90 hover:bg-slate-700 text-amber-300 border-slate-700'
+                                    : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200 hover:border-slate-300'
                             }`}
-                            title={isDark ? 'Beralih ke Mode Terang (Light Mode)' : 'Beralih ke Mode Gelap (Dark Mode)'}
+                            title={isDark ? 'Beralih ke Mode Terang' : 'Beralih ke Mode Gelap'}
+                            aria-label="Toggle Tema"
                         >
                             {isDark ? (
-                                <>
-                                    <Sun className="w-3.5 h-3.5 text-amber-400" />
-                                    <span className="hidden sm:inline">Terang</span>
-                                </>
+                                <Sun className="w-4 h-4 text-amber-400" />
                             ) : (
-                                <>
-                                    <Moon className="w-3.5 h-3.5 text-slate-700" />
-                                    <span className="hidden sm:inline">Gelap</span>
-                                </>
+                                <Moon className="w-4 h-4 text-slate-600" />
                             )}
                         </button>
 
@@ -562,27 +564,31 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                         <button
                             type="button"
                             onClick={() => setBotControlModalOpen(true)}
-                            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-bold transition-all shadow-sm cursor-pointer ${
+                            className={`h-8.5 flex items-center gap-1.5 px-2.5 rounded-lg border text-xs font-bold transition-all shadow-xs cursor-pointer ${
                                 botStatus?.connected
-                                    ? 'bg-emerald-950/80 border-emerald-500/60 text-emerald-300 hover:bg-emerald-900/80 shadow-[0_0_10px_rgba(16,185,129,0.2)]'
-                                    : 'bg-rose-950/80 border-rose-500/60 text-rose-300 hover:bg-rose-900/80'
+                                    ? (isDark ? 'bg-emerald-950/70 hover:bg-emerald-900/80 border-emerald-600/50 text-emerald-300' : 'bg-emerald-50 hover:bg-emerald-100 border-emerald-200 text-emerald-800')
+                                    : (isDark ? 'bg-rose-950/70 hover:bg-rose-900/80 border-rose-600/50 text-rose-300' : 'bg-rose-50 hover:bg-rose-100 border-rose-200 text-rose-800')
                             }`}
-                            title="Klik untuk Kontrol Bot (Matikan / Nyalakan / Lihat Status)"
+                            title="Klik untuk Kontrol Bot WA (Lihat Status / Matikan / Nyalakan)"
                         >
-                            <span className={`w-2 h-2 rounded-full ${botStatus?.connected ? 'bg-emerald-400 animate-pulse' : 'bg-rose-500'}`} />
-                            <span className="hidden sm:inline">Bot WA V2:</span>
+                            <span className={`w-2 h-2 rounded-full ${botStatus?.connected ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
+                            <span className="hidden sm:inline">Bot WA:</span>
                             <span>{botStatus?.connected ? 'Online' : 'Offline'}</span>
-                            <Power className="w-3 h-3 text-slate-400 ml-0.5" />
+                            <Power className="w-3 h-3 opacity-60 ml-0.5" />
                         </button>
 
                         {/* Supervisor Account Profile Pill */}
                         <div
-                            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800/90 border border-slate-700 text-xs shadow-sm"
+                            className={`h-8.5 flex items-center gap-1.5 px-2.5 rounded-lg border text-xs shadow-xs ${
+                                isDark ? 'bg-slate-800/90 border-slate-700 text-slate-200' : 'bg-white border-slate-200 text-slate-800'
+                            }`}
                             title={currentUser ? `Login sebagai ${myName} (${currentUser.department || 'Supervisor'})` : 'Mode Tamu / Belum Login'}
                         >
-                            <span className={`w-2 h-2 rounded-full ${currentUser ? 'bg-emerald-400' : 'bg-slate-500'}`} />
-                            <span className="font-bold text-slate-200 truncate max-w-[120px]">{myName}</span>
-                            <span className="text-[10px] text-emerald-400 font-bold bg-emerald-950/80 px-1.5 py-0.2 rounded border border-emerald-800/60">
+                            <span className={`w-2 h-2 rounded-full ${currentUser ? 'bg-emerald-500' : 'bg-slate-400'}`} />
+                            <span className="font-bold truncate max-w-[100px] sm:max-w-[120px]">{myName}</span>
+                            <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded border ${
+                                isDark ? 'text-emerald-400 bg-emerald-950/80 border-emerald-800/60' : 'text-emerald-800 bg-emerald-100 border-emerald-200'
+                            }`}>
                                 {currentUser?.is_admin ? 'Admin' : 'Supervisor'}
                             </span>
                         </div>
@@ -591,10 +597,10 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                         {currentUser ? (
                             <Link
                                 href={route('dashboard')}
-                                className={`flex items-center justify-center p-2 rounded-lg border transition-all shadow-sm ${
+                                className={`h-8.5 w-8.5 flex items-center justify-center rounded-lg border transition-all shadow-xs ${
                                     isDark
-                                        ? 'bg-emerald-950/60 hover:bg-emerald-900/80 border-emerald-600/50 text-emerald-300 hover:text-white'
-                                        : 'bg-emerald-50 hover:bg-emerald-100 border-emerald-300 text-emerald-800 hover:text-emerald-950 shadow-xs'
+                                        ? 'bg-slate-800/90 hover:bg-emerald-950 hover:text-emerald-300 text-slate-300 border-slate-700 hover:border-emerald-600/60'
+                                        : 'bg-white hover:bg-emerald-50 hover:text-emerald-800 text-slate-700 border-slate-200 hover:border-emerald-300'
                                 }`}
                                 title="Kembali ke Dashboard Utama (Mode Kantor)"
                                 aria-label="Kembali ke Dashboard Utama"
@@ -604,11 +610,15 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                         ) : (
                             <Link
                                 href={route('login')}
-                                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-amber-950/60 hover:bg-amber-900/80 border border-amber-500/50 text-amber-300 hover:text-white transition-all text-xs font-semibold shadow-sm"
+                                className={`h-8.5 flex items-center gap-1.5 px-2.5 rounded-lg border text-xs font-bold transition-all shadow-xs ${
+                                    isDark
+                                        ? 'bg-amber-950/60 hover:bg-amber-900/80 border-amber-500/50 text-amber-300'
+                                        : 'bg-amber-50 hover:bg-amber-100 border-amber-200 text-amber-800'
+                                }`}
                                 title="Masuk ke Akun Anda"
                             >
                                 <LogIn className="w-3.5 h-3.5" />
-                                <span>Masuk Akun</span>
+                                <span>Masuk</span>
                             </Link>
                         )}
                     </div>
