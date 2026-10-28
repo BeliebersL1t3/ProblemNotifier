@@ -2033,25 +2033,39 @@ export function LeanAnalyticsView({
                             <div className={`flex flex-col md:flex-row md:items-center justify-between gap-3 pb-2 border-b ${
                                 isDark ? 'border-slate-700/60' : 'border-slate-200'
                             }`}>
-                                <div>
-                                    <h3 className={`text-xs font-bold flex items-center gap-1.5 ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                                        <MapPin className="w-4 h-4 text-rose-500" />
-                                        Matriks Hotspot Lokasi & Peta Denah Resort
-                                    </h3>
-                                    <p className={`text-[11px] mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                                        Visualisasi sebaran masalah pada unit/villa Telunas (Grafik analitik & denah spasial TPI/TBR)
-                                    </p>
+                                <div className="flex items-start justify-between w-full md:w-auto">
+                                    <div>
+                                        <h3 className={`text-xs font-bold flex items-center gap-1.5 ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                                            <MapPin className="w-4 h-4 text-rose-500" />
+                                            Matriks Hotspot Lokasi & Peta Denah Resort
+                                        </h3>
+                                        <p className={`text-[11px] mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                            Visualisasi sebaran masalah pada unit/villa Telunas (Grafik analitik & denah spasial TPI/TBR)
+                                        </p>
+                                    </div>
+
+                                    {/* EyeOff Toggle Button (Mobile: Placed at top-right of header to save vertical space) */}
+                                    <button
+                                        type="button"
+                                        onClick={() => toggleWidgetVisibility('hotspot_matrix')}
+                                        className={`md:hidden p-1.5 rounded-lg transition-colors shrink-0 ml-2 ${
+                                            isDark ? 'text-slate-400 hover:text-rose-400 hover:bg-slate-700/50' : 'text-slate-500 hover:text-rose-600 hover:bg-slate-100'
+                                        }`}
+                                        title="Sembunyikan Matriks Hotspot"
+                                    >
+                                        <EyeOff className="w-3.5 h-3.5" />
+                                    </button>
                                 </div>
 
-                                <div className="flex items-center gap-2 self-start md:self-auto flex-wrap">
-                                    {/* View Switcher Tabs (Default: Leaderboard Peringkat Risiko) */}
-                                    <div className={`flex items-center gap-1 p-1 rounded-lg border ${
+                                <div className="flex items-center gap-2 self-start md:self-auto flex-wrap sm:flex-nowrap w-full md:w-auto justify-between md:justify-end">
+                                    {/* View Switcher Tabs: Slim layout with icon above text */}
+                                    <div className={`grid grid-cols-4 md:flex items-center gap-1 p-1 rounded-xl border w-full md:w-auto ${
                                         isDark ? 'bg-slate-900/90 border-slate-700' : 'bg-slate-100 border-slate-300 shadow-xs'
                                     }`}>
                                         <button
                                             type="button"
                                             onClick={() => setHotspotTab('leaderboard')}
-                                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                                            className={`flex flex-col items-center justify-center gap-0.5 py-1.5 px-2 rounded-lg text-[10px] sm:text-xs font-semibold transition-all ${
                                                 hotspotTab === 'leaderboard'
                                                     ? 'bg-rose-500 text-white shadow-sm'
                                                     : isDark
@@ -2059,13 +2073,13 @@ export function LeanAnalyticsView({
                                                     : 'text-slate-600 hover:text-slate-900 hover:bg-white'
                                             }`}
                                         >
-                                            <Flame className="w-3.5 h-3.5" />
-                                            <span>Peringkat Risiko</span>
+                                            <Flame className="w-3.5 h-3.5 shrink-0" />
+                                            <span className="truncate">Peringkat</span>
                                         </button>
                                         <button
                                             type="button"
                                             onClick={() => setHotspotTab('tpi')}
-                                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                                            className={`flex flex-col items-center justify-center gap-0.5 py-1.5 px-2 rounded-lg text-[10px] sm:text-xs font-semibold transition-all ${
                                                 hotspotTab === 'tpi'
                                                     ? 'bg-emerald-600 text-white shadow-sm'
                                                     : isDark
@@ -2073,13 +2087,13 @@ export function LeanAnalyticsView({
                                                     : 'text-slate-600 hover:text-slate-900 hover:bg-white'
                                             }`}
                                         >
-                                            <Compass className="w-3.5 h-3.5" />
-                                            <span>TPI</span>
+                                            <Compass className="w-3.5 h-3.5 shrink-0" />
+                                            <span className="truncate">TPI</span>
                                         </button>
                                         <button
                                             type="button"
                                             onClick={() => setHotspotTab('tbr')}
-                                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                                            className={`flex flex-col items-center justify-center gap-0.5 py-1.5 px-2 rounded-lg text-[10px] sm:text-xs font-semibold transition-all ${
                                                 hotspotTab === 'tbr'
                                                     ? 'bg-amber-600 text-white shadow-sm'
                                                     : isDark
@@ -2087,13 +2101,13 @@ export function LeanAnalyticsView({
                                                     : 'text-slate-600 hover:text-slate-900 hover:bg-white'
                                             }`}
                                         >
-                                            <Map className="w-3.5 h-3.5" />
-                                            <span>TBR</span>
+                                            <Map className="w-3.5 h-3.5 shrink-0" />
+                                            <span className="truncate">TBR</span>
                                         </button>
                                         <button
                                             type="button"
                                             onClick={() => setHotspotTab('chart')}
-                                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                                            className={`flex flex-col items-center justify-center gap-0.5 py-1.5 px-2 rounded-lg text-[10px] sm:text-xs font-semibold transition-all ${
                                                 hotspotTab === 'chart'
                                                     ? isDark ? 'bg-slate-700 text-white shadow-sm' : 'bg-slate-900 text-white shadow-sm'
                                                     : isDark
@@ -2101,15 +2115,16 @@ export function LeanAnalyticsView({
                                                     : 'text-slate-600 hover:text-slate-900 hover:bg-white'
                                             }`}
                                         >
-                                            <BarChart2 className="w-3.5 h-3.5" />
-                                            <span>Grafik Balok</span>
+                                            <BarChart2 className="w-3.5 h-3.5 shrink-0" />
+                                            <span className="truncate">Balok</span>
                                         </button>
                                     </div>
 
+                                    {/* Desktop EyeOff Button */}
                                     <button
                                         type="button"
                                         onClick={() => toggleWidgetVisibility('hotspot_matrix')}
-                                        className={`p-1.5 rounded-lg transition-colors ${
+                                        className={`hidden md:flex p-1.5 rounded-lg transition-colors shrink-0 ${
                                             isDark ? 'text-slate-400 hover:text-rose-400 hover:bg-slate-700/50' : 'text-slate-500 hover:text-rose-600 hover:bg-slate-100'
                                         }`}
                                         title="Sembunyikan Matriks Hotspot"
@@ -2122,26 +2137,44 @@ export function LeanAnalyticsView({
                 {/* TAB 1: PERINGKAT RISIKO LOKASI (LEADERBOARD - DEFAULT) */}
                 {hotspotTab === 'leaderboard' && (
                     <div className="space-y-3">
-                        {/* Summary Bar */}
-                        <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 rounded-lg text-xs border ${
+                        {/* Summary Bar: Prioritas Risiko Wilayah (Modern Badge Style) */}
+                        <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3 rounded-xl text-xs border transition-all ${
                             isDark ? 'bg-slate-900/60 border-slate-700/60 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-700 shadow-xs'
                         }`}>
-                            <span className="flex items-center gap-1.5">
-                                <Flame className="w-4 h-4 text-rose-500 shrink-0" />
-                                Lokasi diurutkan berdasarkan <strong>Tingkat Keparahan Kritis</strong> (Darurat & Tinggi otomatis di posisi teratas)
-                            </span>
-                            <div className="flex items-center gap-2.5 flex-wrap text-[10px]">
-                                <span className={`flex items-center gap-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                                    <span className="w-2 h-2 rounded bg-rose-500" /> Darurat
+                            <div className="flex items-start sm:items-center gap-2.5">
+                                <span className="p-1.5 rounded-lg bg-rose-500/10 text-rose-500 border border-rose-500/20 shrink-0 mt-0.5 sm:mt-0">
+                                    <Flame className="w-4 h-4" />
                                 </span>
-                                <span className={`flex items-center gap-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                                    <span className="w-2 h-2 rounded bg-orange-400" /> Tinggi
+                                <div>
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                        <span className={`font-bold text-[11px] sm:text-xs ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                                            Prioritas Risiko Wilayah
+                                        </span>
+                                        <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded border ${
+                                            isDark ? 'bg-rose-950/80 text-rose-300 border-rose-800/60' : 'bg-rose-100 text-rose-800 border-rose-200'
+                                        }`}>
+                                            Darurat & Tinggi Teratas
+                                        </span>
+                                    </div>
+                                    <p className={`text-[10px] mt-0.5 leading-relaxed ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                        Diurutkan otomatis berdasarkan skor keparahan & volume tiket aktif.
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* Urgency Legend */}
+                            <div className="flex items-center gap-2.5 flex-wrap text-[10px] pt-1.5 sm:pt-0 border-t sm:border-t-0 border-slate-700/40 shrink-0">
+                                <span className={`flex items-center gap-1 font-medium ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                                    <span className="w-2 h-2 rounded-full bg-rose-500" /> Darurat
                                 </span>
-                                <span className={`flex items-center gap-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                                    <span className="w-2 h-2 rounded bg-yellow-400" /> Sedang
+                                <span className={`flex items-center gap-1 font-medium ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                                    <span className="w-2 h-2 rounded-full bg-orange-400" /> Tinggi
                                 </span>
-                                <span className={`flex items-center gap-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                                    <span className="w-2 h-2 rounded bg-emerald-500" /> Rendah
+                                <span className={`flex items-center gap-1 font-medium ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                                    <span className="w-2 h-2 rounded-full bg-yellow-400" /> Sedang
+                                </span>
+                                <span className={`flex items-center gap-1 font-medium ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                                    <span className="w-2 h-2 rounded-full bg-emerald-500" /> Rendah
                                 </span>
                             </div>
                         </div>
