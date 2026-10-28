@@ -3421,10 +3421,10 @@ export function LeanAnalyticsView({
             {activeTab === 'maintenance' && (
                 <div className="space-y-6">
                     {/* CHARTS ROW 1: PARETO (TOP SUB-CATEGORIES) & CATEGORY DONUT */}
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
                         {/* 1. PARETO DUAL-AXIS COMPOSED CHART */}
                         {widgetVisibility.pareto_chart !== false && (
-                            <div className={`${widgetVisibility.category_donut === false ? 'lg:col-span-3' : 'lg:col-span-2'} p-4 rounded-xl bg-slate-800/90 border border-slate-700/80 shadow-sm flex flex-col justify-between`}>
+                            <div className={`${widgetVisibility.category_donut === false ? 'lg:col-span-3' : 'lg:col-span-2'} p-4 rounded-xl bg-slate-800/90 border border-slate-700/80 shadow-sm flex flex-col space-y-3`}>
                                 <div>
                                     <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
                                         <div>
@@ -3631,7 +3631,7 @@ export function LeanAnalyticsView({
 
                         {/* 2. CATEGORY DISTRIBUTION (DONUT / TABLE) */}
                         {widgetVisibility.category_donut !== false && (
-                            <div className={`${widgetVisibility.pareto_chart === false ? 'lg:col-span-3' : 'lg:col-span-1'} p-4 rounded-xl bg-slate-800/90 border border-slate-700/80 shadow-sm flex flex-col justify-between`}>
+                            <div className={`${widgetVisibility.pareto_chart === false ? 'lg:col-span-3' : 'lg:col-span-1'} p-4 rounded-xl bg-slate-800/90 border border-slate-700/80 shadow-sm flex flex-col space-y-3`}>
                                 <div className="flex items-center justify-between pb-2 border-b border-slate-700/60">
                                     <div>
                                         <h3 className="text-xs font-bold text-white flex items-center gap-1.5">
@@ -3697,7 +3697,7 @@ export function LeanAnalyticsView({
                                         </table>
                                     </div>
                                 ) : (
-                                    <div className="h-64 w-full mt-2">
+                                    <div className="h-72 sm:h-80 w-full mt-2">
                                         <ResponsiveContainer width="100%" height="100%">
                                             <PieChart>
                                                 <Pie
@@ -4156,10 +4156,10 @@ export function LeanAnalyticsView({
                             </button>
                         </div>
 
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
                             {/* MTTR SPEED PER DEPT */}
                             {widgetVisibility.mttr_analytics !== false && (
-                                <div className={`p-4 rounded-xl border shadow-sm flex flex-col justify-between ${
+                                <div className={`p-4 rounded-xl border shadow-sm flex flex-col space-y-3 ${
                                     isDark ? 'bg-slate-800/90 border-slate-700/80' : 'bg-white border-slate-200'
                                 }`}>
                                     <div className={`flex items-center justify-between pb-2 border-b ${
@@ -4300,7 +4300,7 @@ export function LeanAnalyticsView({
                                             </table>
                                         </div>
                                     ) : (
-                                        <div className="h-64 w-full mt-2">
+                                        <div className="h-72 sm:h-80 w-full mt-2">
                                             <ResponsiveContainer width="100%" height="100%">
                                                 <BarChart
                                                     data={mttrData.deptMttrList.filter((d) => d.avgHours !== null)}
@@ -4323,7 +4323,7 @@ export function LeanAnalyticsView({
 
                             {/* DEPARTMENT WORKLOAD */}
                             {widgetVisibility.dept_workload !== false && (
-                                <div className={`p-4 rounded-xl border shadow-sm flex flex-col justify-between ${
+                                <div className={`p-4 rounded-xl border shadow-sm flex flex-col space-y-3 ${
                                     isDark ? 'bg-slate-800/90 border-slate-700/80' : 'bg-white border-slate-200'
                                 }`}>
                                     <div className={`flex items-center justify-between pb-2 border-b ${
@@ -4410,7 +4410,7 @@ export function LeanAnalyticsView({
                                             </table>
                                         </div>
                                     ) : (
-                                        <div className="h-64 w-full mt-2">
+                                        <div className="h-72 sm:h-80 w-full mt-2">
                                             <ResponsiveContainer width="100%" height="100%">
                                                 <BarChart
                                                     data={departmentData}
