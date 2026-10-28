@@ -2074,7 +2074,7 @@ export function LeanAnalyticsView({
                                             }`}
                                         >
                                             <Compass className="w-3.5 h-3.5" />
-                                            <span>Denah TPI (Island)</span>
+                                            <span>TPI</span>
                                         </button>
                                         <button
                                             type="button"
@@ -2088,7 +2088,7 @@ export function LeanAnalyticsView({
                                             }`}
                                         >
                                             <Map className="w-3.5 h-3.5" />
-                                            <span>Denah TBR (Beach)</span>
+                                            <span>TBR</span>
                                         </button>
                                         <button
                                             type="button"
