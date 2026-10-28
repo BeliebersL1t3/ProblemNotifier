@@ -2858,12 +2858,12 @@ export function LeanAnalyticsView({
                         ) : (
                             <div className="space-y-3">
                                 <div className="w-full overflow-x-auto pb-2">
-                                <div style={{ minWidth: hotspotData.length > 8 ? `${Math.max(650, hotspotData.length * 80)}px` : '100%', height: '280px' }}>
+                                <div style={{ minWidth: hotspotData.length > 8 ? `${Math.max(650, hotspotData.length * 80)}px` : '100%', height: '330px' }}>
                                     <ResponsiveContainer width="100%" height="100%">
                                         <BarChart
                                             data={hotspotData}
                                             maxBarSize={48}
-                                            margin={{ top: 10, right: 20, left: 0, bottom: 25 }}
+                                            margin={{ top: 10, right: 20, left: 10, bottom: 55 }}
                                             onClick={(state) => {
                                                 const loc = state?.activeLabel || state?.activePayload?.[0]?.payload?.location;
                                                 if (loc) {
@@ -2878,6 +2878,7 @@ export function LeanAnalyticsView({
                                                 stroke={isDark ? "#94a3b8" : "#64748b"}
                                                 fontSize={11}
                                                 interval={0}
+                                                height={65}
                                                 tick={({ x, y, payload }) => (
                                                     <g
                                                         transform={`translate(${x},${y})`}
@@ -2887,13 +2888,16 @@ export function LeanAnalyticsView({
                                                         <text
                                                             x={0}
                                                             y={0}
-                                                            dy={12}
-                                                            textAnchor="middle"
+                                                            dx={-6}
+                                                            dy={10}
+                                                            textAnchor="end"
+                                                            transform="rotate(-35)"
                                                             fill={isDark ? "#94a3b8" : "#475569"}
                                                             fontSize={10}
                                                             fontWeight={500}
                                                         >
-                                                            {payload.value.length > 18 ? `${payload.value.substring(0, 16)}...` : payload.value}
+                                                            <title>{payload.value}</title>
+                                                            {payload.value.length > 25 ? `${payload.value.substring(0, 23)}...` : payload.value}
                                                         </text>
                                                     </g>
                                                 )}
