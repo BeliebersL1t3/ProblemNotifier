@@ -149,6 +149,9 @@ const CustomHotspotTooltip = ({ active, payload, label }) => {
             ) : (
                 <p className="text-[11px] text-slate-400">Tidak ada insiden</p>
             )}
+            <div className="pt-1.5 mt-1.5 border-t border-slate-800/80 text-[10px] text-sky-400 font-medium">
+                💡 Klik balok untuk lihat detail tiket
+            </div>
         </div>
     );
 };
@@ -661,6 +664,7 @@ export function LeanAnalyticsView({
     const [selectedCategory, setSelectedCategory] = useState('all');
     const [searchFilter, setSearchFilter] = useState('');
     const [hotspotTab, setHotspotTab] = useState('leaderboard'); // 'leaderboard' (default) | 'tpi' | 'tbr' | 'chart'
+    const [hotspotChartLimit, setHotspotChartLimit] = useState('6'); // '6' | '10' | 'all'
     const [selectedTpiZone, setSelectedTpiZone] = useState(null);
     const [selectedTbrZone, setSelectedTbrZone] = useState(null);
     const [expandedDescriptions, setExpandedDescriptions] = useState({});
@@ -1087,12 +1091,16 @@ export function LeanAnalyticsView({
             })
             .sort((a, b) => b.score - a.score || b.total - a.total);
 
-        const chartData = Object.values(locMap)
-            .sort((a, b) => b.total - a.total)
-            .slice(0, 6);
+        // Chart data follows risk-weighted leaderboard order, with selectable limit
+        let chartData = leaderboard;
+        if (hotspotChartLimit === '6') {
+            chartData = leaderboard.slice(0, 6);
+        } else if (hotspotChartLimit === '10') {
+            chartData = leaderboard.slice(0, 10);
+        }
 
         return { hotspotLeaderboardData: leaderboard, hotspotData: chartData };
-    }, [filteredIssues]);
+    }, [filteredIssues, hotspotChartLimit]);
 
     const topHotspotLocation = hotspotLeaderboardData && hotspotLeaderboardData.length > 0 ? hotspotLeaderboardData[0] : null;
 
@@ -2455,19 +2463,70 @@ export function LeanAnalyticsView({
                 {/* TAB 4: GRAFIK BALOK (OPTIONAL ALTERNATIVE) */}
                 {hotspotTab === 'chart' && (
                     <div className="space-y-3">
-                        <div className="flex items-center justify-end gap-2 flex-wrap text-[10px]">
-                            <span className="flex items-center gap-1 text-slate-300">
-                                <span className="w-2 h-2 rounded bg-rose-500" /> Darurat
+                        <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-2.5 rounded-lg text-xs border ${
+                            isDark ? 'bg-slate-900/60 border-slate-700/60 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-700 shadow-xs'
+                        }`}>
+                            <span className="flex items-center gap-1.5">
+                                <Flame className="w-4 h-4 text-rose-500 shrink-0" />
+                                Diurutkan berdasarkan <strong>Tingkat Risiko</strong> (kritis di kiri). Klik balok untuk lihat rincian.
                             </span>
-                            <span className="flex items-center gap-1 text-slate-300">
-                                <span className="w-2 h-2 rounded bg-orange-400" /> Tinggi
-                            </span>
-                            <span className="flex items-center gap-1 text-slate-300">
-                                <span className="w-2 h-2 rounded bg-yellow-400" /> Sedang
-                            </span>
-                            <span className="flex items-center gap-1 text-slate-300">
-                                <span className="w-2 h-2 rounded bg-emerald-500" /> Rendah
-                            </span>
+
+                            <div className="flex items-center gap-3 flex-wrap">
+                                {/* Urgency Legend */}
+                                <div className="flex items-center gap-2 flex-wrap text-[10px]">
+                                    <span className={`flex items-center gap-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                                        <span className="w-2 h-2 rounded bg-rose-500" /> Darurat
+                                    </span>
+                                    <span className={`flex items-center gap-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                                        <span className="w-2 h-2 rounded bg-orange-400" /> Tinggi
+                                    </span>
+                                    <span className={`flex items-center gap-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                                        <span className="w-2 h-2 rounded bg-yellow-400" /> Sedang
+                                    </span>
+                                    <span className={`flex items-center gap-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                                        <span className="w-2 h-2 rounded bg-emerald-500" /> Rendah
+                                    </span>
+                                </div>
+
+                                {/* Limit Selector Toggle */}
+                                <div className={`flex items-center p-0.5 rounded-lg border text-xs font-semibold ${
+                                    isDark ? 'bg-slate-800 border-slate-700' : 'bg-slate-200/80 border-slate-300'
+                                }`}>
+                                    <button
+                                        type="button"
+                                        onClick={() => setHotspotChartLimit('6')}
+                                        className={`px-2 py-0.5 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
+                                            hotspotChartLimit === '6'
+                                                ? (isDark ? 'bg-sky-600 text-white shadow-xs' : 'bg-white text-sky-800 shadow-xs')
+                                                : (isDark ? 'text-slate-400 hover:text-slate-200' : 'text-slate-600 hover:text-slate-900')
+                                        }`}
+                                    >
+                                        Top 6
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setHotspotChartLimit('10')}
+                                        className={`px-2 py-0.5 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
+                                            hotspotChartLimit === '10'
+                                                ? (isDark ? 'bg-sky-600 text-white shadow-xs' : 'bg-white text-sky-800 shadow-xs')
+                                                : (isDark ? 'text-slate-400 hover:text-slate-200' : 'text-slate-600 hover:text-slate-900')
+                                        }`}
+                                    >
+                                        Top 10
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setHotspotChartLimit('all')}
+                                        className={`px-2 py-0.5 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
+                                            hotspotChartLimit === 'all'
+                                                ? (isDark ? 'bg-sky-600 text-white shadow-xs' : 'bg-white text-sky-800 shadow-xs')
+                                                : (isDark ? 'text-slate-400 hover:text-slate-200' : 'text-slate-600 hover:text-slate-900')
+                                        }`}
+                                    >
+                                        Semua ({hotspotLeaderboardData.length})
+                                    </button>
+                                </div>
+                            </div>
                         </div>
 
                         {hotspotData.length === 0 ? (
@@ -2475,27 +2534,61 @@ export function LeanAnalyticsView({
                                 Belum ada data lokasi untuk dianalisa.
                             </div>
                         ) : (
-                            <div className="h-64 w-full">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={hotspotData} maxBarSize={48} margin={{ top: 10, right: 20, left: 0, bottom: 20 }}>
-                                        <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
-                                        <XAxis dataKey="location" stroke="#94a3b8" fontSize={11} />
-                                        <YAxis
-                                            stroke="#94a3b8"
-                                            fontSize={10}
-                                            allowDecimals={false}
-                                            domain={[0, (dataMax) => Math.max(1, dataMax)]}
-                                        />
-                                        <RechartsTooltip
-                                            cursor={{ fill: 'rgba(255, 255, 255, 0.05)' }}
-                                            content={<CustomHotspotTooltip />}
-                                        />
-                                        <Bar dataKey="Darurat" stackId="a" fill="#f43f5e" />
-                                        <Bar dataKey="Tinggi" stackId="a" fill="#fb923c" />
-                                        <Bar dataKey="Sedang" stackId="a" fill="#facc15" />
-                                        <Bar dataKey="Rendah" stackId="a" fill="#10b981" radius={[4, 4, 0, 0]} />
-                                    </BarChart>
-                                </ResponsiveContainer>
+                            <div className="w-full overflow-x-auto pb-2">
+                                <div style={{ minWidth: hotspotData.length > 8 ? `${Math.max(650, hotspotData.length * 80)}px` : '100%', height: '280px' }}>
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <BarChart
+                                            data={hotspotData}
+                                            maxBarSize={48}
+                                            margin={{ top: 10, right: 20, left: 0, bottom: 25 }}
+                                            onClick={(state) => {
+                                                if (state && state.activePayload && state.activePayload.length) {
+                                                    const clickedLoc = state.activePayload[0].payload.location;
+                                                    setExpandedLocation(clickedLoc);
+                                                    setHotspotTab('leaderboard');
+                                                }
+                                            }}
+                                            className="cursor-pointer"
+                                        >
+                                            <CartesianGrid strokeDasharray="3 3" stroke={isDark ? "#334155" : "#e2e8f0"} vertical={false} />
+                                            <XAxis
+                                                dataKey="location"
+                                                stroke={isDark ? "#94a3b8" : "#64748b"}
+                                                fontSize={11}
+                                                interval={0}
+                                                tick={({ x, y, payload }) => (
+                                                    <g transform={`translate(${x},${y})`}>
+                                                        <text
+                                                            x={0}
+                                                            y={0}
+                                                            dy={12}
+                                                            textAnchor="middle"
+                                                            fill={isDark ? "#94a3b8" : "#475569"}
+                                                            fontSize={10}
+                                                            fontWeight={500}
+                                                        >
+                                                            {payload.value.length > 18 ? `${payload.value.substring(0, 16)}...` : payload.value}
+                                                        </text>
+                                                    </g>
+                                                )}
+                                            />
+                                            <YAxis
+                                                stroke={isDark ? "#94a3b8" : "#64748b"}
+                                                fontSize={10}
+                                                allowDecimals={false}
+                                                domain={[0, (dataMax) => Math.max(1, dataMax)]}
+                                            />
+                                            <RechartsTooltip
+                                                cursor={{ fill: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.04)' }}
+                                                content={<CustomHotspotTooltip />}
+                                            />
+                                            <Bar dataKey="Darurat" stackId="a" fill="#f43f5e" />
+                                            <Bar dataKey="Tinggi" stackId="a" fill="#fb923c" />
+                                            <Bar dataKey="Sedang" stackId="a" fill="#facc15" />
+                                            <Bar dataKey="Rendah" stackId="a" fill="#10b981" radius={[4, 4, 0, 0]} />
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                </div>
                             </div>
                         )}
                     </div>
