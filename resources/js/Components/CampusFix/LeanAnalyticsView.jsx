@@ -1094,6 +1094,8 @@ export function LeanAnalyticsView({
         return { hotspotLeaderboardData: leaderboard, hotspotData: chartData };
     }, [filteredIssues]);
 
+    const topHotspotLocation = hotspotLeaderboardData && hotspotLeaderboardData.length > 0 ? hotspotLeaderboardData[0] : null;
+
     // --- 5. Department Workload Breakdown (Laporan per Departemen) ---
     const departmentData = useMemo(() => {
         const deptMap = {};
@@ -1883,24 +1885,53 @@ export function LeanAnalyticsView({
                                 </p>
                             </div>
 
-                            {/* Hotspot Location */}
-                            <div className={`p-4 rounded-xl border shadow-sm relative overflow-hidden backdrop-blur-md transition-all ${
-                                isDark ? 'bg-slate-800/90 border-slate-700/80' : 'bg-white/95 border-slate-200/90 shadow-xs'
-                            }`}>
+                            {/* Hotspot Location (Rank #1 Severity Risk - Sesuai Leaderboard Peringkat Risiko) */}
+                            <div
+                                role="button"
+                                tabIndex={0}
+                                onClick={() => {
+                                    if (topHotspotLocation) {
+                                        setExpandedLocation(topHotspotLocation.location);
+                                    }
+                                }}
+                                className={`p-4 rounded-xl border shadow-sm relative overflow-hidden backdrop-blur-md transition-all cursor-pointer group ${
+                                    isDark ? 'bg-slate-800/90 border-slate-700/80 hover:border-rose-500/50' : 'bg-white/95 border-slate-200/90 shadow-xs hover:border-rose-300'
+                                }`}
+                                title={topHotspotLocation ? `Klik untuk membuka daftar isu di ${topHotspotLocation.location}` : undefined}
+                            >
                                 <div className="flex items-center justify-between">
                                     <span className={`text-xs font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Titik Hotspot Masalah</span>
-                                    <div className="w-7 h-7 rounded-lg bg-rose-500/20 text-rose-500 flex items-center justify-center">
+                                    <div className="w-7 h-7 rounded-lg bg-rose-500/20 text-rose-500 flex items-center justify-center group-hover:scale-110 transition-transform">
                                         <Flame className="w-4 h-4" />
                                     </div>
                                 </div>
                                 <div className="mt-2">
-                                    <span className={`text-base font-bold truncate block ${isDark ? 'text-rose-300' : 'text-rose-700'}`}>
-                                        {stats.topLoc}
+                                    <span className={`text-base font-bold truncate block group-hover:underline ${isDark ? 'text-rose-300' : 'text-rose-700'}`}>
+                                        {topHotspotLocation?.location || '-'}
                                     </span>
                                 </div>
-                                <p className={`text-[11px] mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                                    {stats.topLocCount} insiden tercatat di lokasi ini
-                                </p>
+                                <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+                                    {topHotspotLocation ? (
+                                        <>
+                                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${
+                                                topHotspotLocation.highestUrgency === 'Darurat'
+                                                    ? (isDark ? 'bg-rose-500/20 text-rose-300 border-rose-500/40' : 'bg-rose-100 text-rose-800 border-rose-300 font-semibold')
+                                                    : topHotspotLocation.highestUrgency === 'Tinggi'
+                                                    ? (isDark ? 'bg-orange-500/20 text-orange-300 border-orange-500/40' : 'bg-orange-100 text-orange-800 border-orange-300 font-semibold')
+                                                    : (isDark ? 'bg-amber-500/20 text-amber-300 border-amber-500/40' : 'bg-amber-100 text-amber-800 border-amber-300 font-medium')
+                                            }`}>
+                                                Urgensi: {topHotspotLocation.highestUrgency}
+                                            </span>
+                                            <span className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                                {topHotspotLocation.total} insiden ({topHotspotLocation.openCount} aktif)
+                                            </span>
+                                        </>
+                                    ) : (
+                                        <span className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                            Belum ada data insiden
+                                        </span>
+                                    )}
+                                </div>
                             </div>
 
                             {/* Sparepart Dependency */}
