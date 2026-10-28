@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import {
     ResponsiveContainer,
     BarChart,
@@ -55,6 +55,7 @@ import {
     CheckSquare,
     Square,
     FileText,
+    Ticket,
 } from 'lucide-react';
 import { TPI_MASTERPLAN_ZONES, TBR_MASTERPLAN_ZONES } from '@/constants/locations';
 
@@ -650,6 +651,8 @@ export function LeanAnalyticsView({
     onRetryAi,
     isRetrying = false,
     theme = 'dark',
+    activeTab: propActiveTab,
+    onTabChange,
 }) {
     const isDark = theme === 'dark';
     const [selectedCategory, setSelectedCategory] = useState('all');
@@ -666,13 +669,21 @@ export function LeanAnalyticsView({
     const [endDate, setEndDate] = useState('');
     
     // --- 3-Tab ERP State & Widget Customization ---
-    const [activeTab, setActiveTab] = useState(() => {
+    const [internalActiveTab, setInternalActiveTab] = useState(() => {
         try {
             return localStorage.getItem('lean_erp_analytics_tab') || 'executive';
         } catch {
             return 'executive';
         }
     });
+    const activeTab = propActiveTab !== undefined ? propActiveTab : internalActiveTab;
+    const setActiveTab = (tab) => {
+        if (onTabChange) onTabChange(tab);
+        setInternalActiveTab(tab);
+        try {
+            localStorage.setItem('lean_erp_analytics_tab', tab);
+        } catch {}
+    };
 
     const [widgetVisibility, setWidgetVisibility] = useState(() => {
         const defaultVisibility = {
@@ -775,10 +786,6 @@ export function LeanAnalyticsView({
         } catch {}
     };
 
-    // Google Sheets Sync states
-    const [isSyncingSheets, setIsSyncingSheets] = useState(false);
-    const [syncFeedback, setSyncFeedback] = useState(null);
-
     // Filter issues reactively by selected time range
     const filteredIssues = useMemo(() => {
         if (timeRange === 'all') return issues;
@@ -825,10 +832,15 @@ export function LeanAnalyticsView({
         });
     }, [issues, timeRange, startDate, endDate]);
 
-    // Handler to trigger full sync to Google Sheets
-    const handleSyncSheets = async () => {
+    // Google Sheets Auto-Sync & Manual Trigger
+    const [lastSyncedTime, setLastSyncedTime] = useState(null);
+    const [isSyncingSheets, setIsSyncingSheets] = useState(false);
+    const [syncFeedback, setSyncFeedback] = useState(null);
+
+    const triggerAutoSync = useCallback(async (isSilent = true) => {
+        if (isSyncingSheets) return;
         setIsSyncingSheets(true);
-        setSyncFeedback(null);
+        if (!isSilent) setSyncFeedback(null);
         try {
             const res = await fetch('/lapangan/sync-sheets', {
                 method: 'POST',
@@ -839,20 +851,36 @@ export function LeanAnalyticsView({
                 },
             });
             const data = await res.json();
-            setSyncFeedback({
-                type: data.success ? 'success' : 'error',
-                message: data.message || (data.success ? 'Sinkronisasi berhasil!' : 'Sinkronisasi gagal.'),
-            });
+            setLastSyncedTime(new Date());
+            if (!isSilent) {
+                setSyncFeedback({
+                    type: data.success ? 'success' : 'error',
+                    message: data.message || (data.success ? 'Sinkronisasi berhasil!' : 'Sinkronisasi gagal.'),
+                });
+            }
         } catch (err) {
-            setSyncFeedback({
-                type: 'error',
-                message: 'Gagal menghubungi server untuk sinkronisasi Google Sheets.',
-            });
+            if (!isSilent) {
+                setSyncFeedback({
+                    type: 'error',
+                    message: 'Gagal menghubungi server untuk sinkronisasi Google Sheets.',
+                });
+            }
         } finally {
             setIsSyncingSheets(false);
-            setTimeout(() => setSyncFeedback(null), 6000);
+            if (!isSilent) setTimeout(() => setSyncFeedback(null), 6000);
         }
-    };
+    }, [isSyncingSheets]);
+
+    // Automatically sync on initial load and every 3 minutes (180,000 ms)
+    useEffect(() => {
+        triggerAutoSync(true);
+        const interval = setInterval(() => {
+            triggerAutoSync(true);
+        }, 180000);
+        return () => clearInterval(interval);
+    }, []);
+
+    const handleSyncSheets = () => triggerAutoSync(false);
 
     // --- 1. Key Performance & Audit Metric Cards ---
     const stats = useMemo(() => {
@@ -1491,111 +1519,268 @@ export function LeanAnalyticsView({
             <div className={`border rounded-2xl p-4 backdrop-blur space-y-3.5 transition-all ${
                 isDark ? 'bg-slate-900/95 border-slate-700/80 shadow-xl' : 'bg-white/95 border-slate-200/90 shadow-sm'
             }`}>
-                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                    {/* Time Range Filter Buttons */}
-                    <div className="flex flex-wrap items-center gap-1.5">
-                        <span className={`text-xs font-semibold flex items-center gap-1.5 mr-2 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                    {/* Time Range Filter: Dropdown */}
+                    <div className="flex flex-wrap items-center gap-2">
+                        <span className={`text-xs font-semibold flex items-center gap-1.5 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
                             <Clock className="w-3.5 h-3.5 text-teal-500" />
                             Periode:
                         </span>
-                        {[
-                            { id: 'hari_ini', label: 'Hari Ini' },
-                            { id: '7_hari', label: '7 Hari' },
-                            { id: '30_hari', label: '30 Hari' },
-                            { id: '6_bulan', label: '6 Bulan' },
-                            { id: '1_tahun', label: '1 Tahun' },
-                            { id: 'all', label: 'Semua' },
-                            { id: 'custom', label: 'Kustom Tanggal' },
-                        ].map((btn) => (
-                            <button
-                                key={btn.id}
-                                type="button"
-                                onClick={() => setTimeRange(btn.id)}
-                                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                                    timeRange === btn.id
-                                        ? 'bg-teal-500 text-slate-950 shadow-md shadow-teal-500/20'
-                                        : isDark
-                                        ? 'bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white border border-slate-700'
-                                        : 'bg-white text-slate-700 hover:bg-slate-50 hover:text-slate-900 border border-slate-300 shadow-xs'
+                        <div className="relative">
+                            <select
+                                value={timeRange}
+                                onChange={(e) => setTimeRange(e.target.value)}
+                                className={`appearance-none px-3 py-1.5 pr-8 rounded-xl text-xs font-bold border transition cursor-pointer focus:outline-none focus:ring-1 focus:ring-teal-500 shadow-sm ${
+                                    isDark
+                                        ? 'bg-slate-800 border-slate-700 text-white'
+                                        : 'bg-white border-slate-300 text-slate-800 shadow-xs'
                                 }`}
                             >
-                                {btn.label}
-                            </button>
-                        ))}
+                                <option value="hari_ini">Hari Ini</option>
+                                <option value="7_hari">7 Hari Terakhir</option>
+                                <option value="30_hari">30 Hari Terakhir</option>
+                                <option value="6_bulan">6 Bulan Terakhir</option>
+                                <option value="1_tahun">1 Tahun Terakhir</option>
+                                <option value="all">Semua Waktu</option>
+                                <option value="custom">Kustom Tanggal</option>
+                            </select>
+                            <ChevronDown className="w-3.5 h-3.5 pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                        </div>
+
+                        {timeRange === 'custom' && (
+                            <div className="flex flex-wrap items-center gap-1.5 ml-2">
+                                <span className={isDark ? 'text-slate-400' : 'text-slate-600'}>Dari:</span>
+                                <input
+                                    type="date"
+                                    value={startDate}
+                                    onChange={(e) => setStartDate(e.target.value)}
+                                    className={`border rounded px-2 py-1 text-xs focus:outline-none focus:border-teal-500 ${
+                                        isDark ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-800 shadow-xs'
+                                    }`}
+                                />
+                                <span className={isDark ? 'text-slate-400' : 'text-slate-600'}>Sampai:</span>
+                                <input
+                                    type="date"
+                                    value={endDate}
+                                    onChange={(e) => setEndDate(e.target.value)}
+                                    className={`border rounded px-2 py-1 text-xs focus:outline-none focus:border-teal-500 ${
+                                        isDark ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-800 shadow-xs'
+                                    }`}
+                                />
+                            </div>
+                        )}
                     </div>
 
-                    {/* Google Sheets Actions */}
+                    {/* Google Sheets Actions & Widget Controls */}
                     <div className="flex flex-wrap items-center gap-2">
+                        {/* Auto-Sync Google Sheets Indicator / Trigger */}
                         <button
                             type="button"
-                            onClick={handleSyncSheets}
+                            onClick={() => triggerAutoSync(false)}
                             disabled={isSyncingSheets}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md transition-all disabled:opacity-50"
-                            title="Kirim semua data tiket dan lokasi terkini ke Google Sheets"
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition shadow-sm cursor-pointer ${
+                                isDark
+                                    ? 'bg-emerald-950/40 hover:bg-emerald-900/50 border-emerald-500/40 text-emerald-300'
+                                    : 'bg-emerald-50 hover:bg-emerald-100 border-emerald-300 text-emerald-800 shadow-xs'
+                            }`}
+                            title={`Google Sheets otomatis tersinkron tiap 3 menit.${lastSyncedTime ? ' Terakhir: ' + lastSyncedTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''} (Klik untuk sinkronkan manual sekarang)`}
                         >
-                            <FileSpreadsheet className={`w-3.5 h-3.5 ${isSyncingSheets ? 'animate-spin' : ''}`} />
-                            <span>{isSyncingSheets ? 'Menyinkronkan...' : 'Sinkronkan Google Sheets'}</span>
+                            <span className="relative flex h-2 w-2">
+                                {isSyncingSheets ? (
+                                    <span className="animate-spin h-2 w-2 rounded-full border border-emerald-400 border-t-transparent" />
+                                ) : (
+                                    <>
+                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                                        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+                                    </>
+                                )}
+                            </span>
+                            <FileSpreadsheet className={`w-3.5 h-3.5 text-emerald-500 ${isSyncingSheets ? 'animate-spin' : ''}`} />
+                            <span>{isSyncingSheets ? 'Menyinkronkan...' : 'Auto-Sync Aktif'}</span>
                         </button>
 
+                        {/* Sheet Tiket Button with Ticket Logo */}
                         <a
                             href="https://docs.google.com/spreadsheets/d/1o8SPuryJf__V1DJp6bm1MTRj60pkIsSX1GYr4-iJvhI/edit?usp=sharing"
                             target="_blank"
                             rel="noopener noreferrer"
-                            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition ${
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition shadow-sm ${
                                 isDark
-                                    ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border-slate-700'
-                                    : 'bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 border-slate-300 shadow-xs'
+                                    ? 'bg-slate-800 hover:bg-slate-700 text-amber-300 hover:text-white border-amber-500/30'
+                                    : 'bg-amber-50 hover:bg-amber-100 text-amber-900 border-amber-300 shadow-xs'
                             }`}
-                            title="Buka Spreadsheet Log Tiket Masalah"
+                            title="Buka Spreadsheet Log Tiket Masalah di Google Sheets"
                         >
+                            <Ticket className="w-3.5 h-3.5 text-amber-400" />
                             <span>Sheet Tiket</span>
-                            <ExternalLink className={`w-3 h-3 ${isDark ? 'text-slate-400' : 'text-slate-500'}`} />
+                            <ExternalLink className="w-3 h-3 opacity-60 ml-0.5" />
                         </a>
 
+                        {/* Sheet Lokasi Button with MapPin Logo */}
                         <a
                             href="https://docs.google.com/spreadsheets/d/1-LiBd1vd8_YA4aTJsf0EiynuayX1_TE800Ylkr4BX5I/edit?usp=sharing"
                             target="_blank"
                             rel="noopener noreferrer"
-                            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition ${
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition shadow-sm ${
                                 isDark
-                                    ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border-slate-700'
-                                    : 'bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 border-slate-300 shadow-xs'
+                                    ? 'bg-slate-800 hover:bg-slate-700 text-emerald-300 hover:text-white border-emerald-500/30'
+                                    : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border-emerald-300 shadow-xs'
                             }`}
-                            title="Buka Spreadsheet Master Lokasi Hotspot"
+                            title="Buka Spreadsheet Master Lokasi Hotspot di Google Sheets"
                         >
+                            <MapPin className="w-3.5 h-3.5 text-emerald-400" />
                             <span>Sheet Lokasi</span>
-                            <ExternalLink className={`w-3 h-3 ${isDark ? 'text-slate-400' : 'text-slate-500'}`} />
+                            <ExternalLink className="w-3 h-3 opacity-60 ml-0.5" />
                         </a>
+
+                        {/* ERP Widget Customization Controls */}
+                        <div className="relative">
+                            <button
+                                type="button"
+                                onClick={() => setShowWidgetModal(!showWidgetModal)}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition shadow-sm cursor-pointer ${
+                                    isDark
+                                        ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border-slate-700'
+                                        : 'bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 border-slate-300 shadow-xs'
+                                }`}
+                            >
+                                <SlidersHorizontal className="w-3.5 h-3.5 text-teal-400" />
+                                <span>Atur Tampilan Widget</span>
+                                <ChevronDown className={`w-3 h-3 transition-transform ${showWidgetModal ? 'rotate-180' : ''}`} />
+                            </button>
+
+                            {showWidgetModal && (
+                                <div className="absolute right-0 top-full mt-2 w-72 bg-slate-900 border border-slate-700 rounded-xl p-3 shadow-2xl z-50 text-xs backdrop-blur-md">
+                                    <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-800">
+                                        <span className="font-bold text-white flex items-center gap-1.5">
+                                            <SlidersHorizontal className="w-3.5 h-3.5 text-teal-400" />
+                                            Kustomisasi Widget
+                                        </span>
+                                        <button
+                                            type="button"
+                                            onClick={resetWidgetSettings}
+                                            className="text-[10px] text-teal-400 hover:underline flex items-center gap-1"
+                                        >
+                                            <RotateCcw className="w-3 h-3" />
+                                            Reset
+                                        </button>
+                                    </div>
+
+                                    <p className="text-[10px] text-slate-400 mb-2">
+                                        Atur visibilitas widget untuk tab aktif ({activeTab}):
+                                    </p>
+
+                                    <div className="space-y-1.5 max-h-60 overflow-y-auto pr-1">
+                                        {activeTab === 'executive' && (
+                                            <>
+                                                <label className="flex items-center justify-between p-1.5 rounded hover:bg-slate-800/80 cursor-pointer">
+                                                    <span className="text-slate-200">Kartu KPI Ringkasan</span>
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={widgetVisibility.kpi_cards !== false}
+                                                        onChange={() => toggleWidgetVisibility('kpi_cards')}
+                                                        className="rounded bg-slate-800 border-slate-700 text-teal-500 focus:ring-0"
+                                                    />
+                                                </label>
+                                                <label className="flex items-center justify-between p-1.5 rounded hover:bg-slate-800/80 cursor-pointer">
+                                                    <span className="text-slate-200">Matriks Hotspot & Denah</span>
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={widgetVisibility.hotspot_matrix !== false}
+                                                        onChange={() => toggleWidgetVisibility('hotspot_matrix')}
+                                                        className="rounded bg-slate-800 border-slate-700 text-teal-500 focus:ring-0"
+                                                    />
+                                                </label>
+                                            </>
+                                        )}
+
+                                        {activeTab === 'maintenance' && (
+                                            <>
+                                                <label className="flex items-center justify-between p-1.5 rounded hover:bg-slate-800/80 cursor-pointer">
+                                                    <span className="text-slate-200">Diagram Pareto (80/20)</span>
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={widgetVisibility.pareto_chart !== false}
+                                                        onChange={() => toggleWidgetVisibility('pareto_chart')}
+                                                        className="rounded bg-slate-800 border-slate-700 text-teal-500 focus:ring-0"
+                                                    />
+                                                </label>
+                                                <label className="flex items-center justify-between p-1.5 rounded hover:bg-slate-800/80 cursor-pointer">
+                                                    <span className="text-slate-200">Distribusi Kategori Fasilitas</span>
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={widgetVisibility.category_donut !== false}
+                                                        onChange={() => toggleWidgetVisibility('category_donut')}
+                                                        className="rounded bg-slate-800 border-slate-700 text-teal-500 focus:ring-0"
+                                                    />
+                                                </label>
+                                                <label className="flex items-center justify-between p-1.5 rounded hover:bg-slate-800/80 cursor-pointer">
+                                                    <span className="text-slate-200">Matriks Urgensi per Kategori</span>
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={widgetVisibility.urgency_matrix !== false}
+                                                        onChange={() => toggleWidgetVisibility('urgency_matrix')}
+                                                        className="rounded bg-slate-800 border-slate-700 text-teal-500 focus:ring-0"
+                                                    />
+                                                </label>
+                                                <label className="flex items-center justify-between p-1.5 rounded hover:bg-slate-800/80 cursor-pointer">
+                                                    <span className="text-slate-200">Feed Mitigasi AI</span>
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={widgetVisibility.mitigation_feed !== false}
+                                                        onChange={() => toggleWidgetVisibility('mitigation_feed')}
+                                                        className="rounded bg-slate-800 border-slate-700 text-teal-500 focus:ring-0"
+                                                    />
+                                                </label>
+                                            </>
+                                        )}
+
+                                        {activeTab === 'sla_performance' && (
+                                            <>
+                                                <label className="flex items-center justify-between p-1.5 rounded hover:bg-slate-800/80 cursor-pointer">
+                                                    <span className="text-slate-200">Metrik Kecepatan & SLA</span>
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={widgetVisibility.sla_kpi !== false}
+                                                        onChange={() => toggleWidgetVisibility('sla_kpi')}
+                                                        className="rounded bg-slate-800 border-slate-700 text-teal-500 focus:ring-0"
+                                                    />
+                                                </label>
+                                                <label className="flex items-center justify-between p-1.5 rounded hover:bg-slate-800/80 cursor-pointer">
+                                                    <span className="text-slate-200">Kecepatan MTTR per Dept</span>
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={widgetVisibility.mttr_analytics !== false}
+                                                        onChange={() => toggleWidgetVisibility('mttr_analytics')}
+                                                        className="rounded bg-slate-800 border-slate-700 text-teal-500 focus:ring-0"
+                                                    />
+                                                </label>
+                                                <label className="flex items-center justify-between p-1.5 rounded hover:bg-slate-800/80 cursor-pointer">
+                                                    <span className="text-slate-200">Laporan Beban per Dept</span>
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={widgetVisibility.dept_workload !== false}
+                                                        onChange={() => toggleWidgetVisibility('dept_workload')}
+                                                        className="rounded bg-slate-800 border-slate-700 text-teal-500 focus:ring-0"
+                                                    />
+                                                </label>
+                                            </>
+                                        )}
+                                    </div>
+
+                                    <div className="pt-2 mt-2 border-t border-slate-800 text-[10px] text-slate-500 text-center">
+                                        Preferensi tersimpan di browser
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
 
-                {/* Custom Date Range Pickers & Info row */}
+                {/* Info row */}
                 <div className={`pt-2 border-t flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs ${
                     isDark ? 'border-slate-800/80 text-slate-400' : 'border-slate-200 text-slate-600'
                 }`}>
-                    {timeRange === 'custom' && (
-                        <div className="flex flex-wrap items-center gap-2">
-                            <span className={isDark ? 'text-slate-400' : 'text-slate-600'}>Dari:</span>
-                            <input
-                                type="date"
-                                value={startDate}
-                                onChange={(e) => setStartDate(e.target.value)}
-                                className={`border rounded px-2.5 py-1 text-xs focus:outline-none focus:border-teal-500 ${
-                                    isDark ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-800 shadow-xs'
-                                }`}
-                            />
-                            <span className={isDark ? 'text-slate-400' : 'text-slate-600'}>Sampai:</span>
-                            <input
-                                type="date"
-                                value={endDate}
-                                onChange={(e) => setEndDate(e.target.value)}
-                                className={`border rounded px-2.5 py-1 text-xs focus:outline-none focus:border-teal-500 ${
-                                    isDark ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-800 shadow-xs'
-                                }`}
-                            />
-                        </div>
-                    )}
-
                     <div className={`flex items-center gap-1.5 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
                         <Calendar className={`w-3.5 h-3.5 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
                         <span>Menampilkan <strong>{filteredIssues.length}</strong> dari <strong>{issues.length}</strong> total tiket</span>
@@ -1614,206 +1799,6 @@ export function LeanAnalyticsView({
                     )}
                 </div>
             </div>
-
-            {/* TAB NAVIGATION & ERP WIDGET CONTROLS (STICKY SUB-HEADER) */}
-            <div className={`sticky top-[57px] sm:top-[61px] z-20 py-2.5 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 mb-4 border-b transition-all ${
-                isDark
-                    ? 'bg-slate-900/90 backdrop-blur-md border-slate-800/80 shadow-md shadow-black/20'
-                    : 'bg-white/90 backdrop-blur-md border-slate-200/80 shadow-xs'
-            }`}>
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div className={`flex items-center gap-1.5 p-1 rounded-xl border flex-wrap ${
-                        isDark ? 'bg-slate-950/80 border-slate-800/80' : 'bg-slate-100 border-slate-300 shadow-xs'
-                    }`}>
-                        <button
-                            type="button"
-                            onClick={() => setActiveTab('executive')}
-                            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                                activeTab === 'executive'
-                                    ? 'bg-teal-500 text-slate-950 shadow-md shadow-teal-500/20'
-                                    : isDark
-                                    ? 'text-slate-400 hover:text-white hover:bg-slate-800'
-                                    : 'text-slate-600 hover:text-slate-900 hover:bg-white'
-                            }`}
-                        >
-                            <Compass className="w-3.5 h-3.5" />
-                            <span>1. Ringkasan Eksekutif & Spasial</span>
-                        </button>
-
-                        <button
-                            type="button"
-                            onClick={() => setActiveTab('maintenance')}
-                            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                                activeTab === 'maintenance'
-                                    ? 'bg-teal-500 text-slate-950 shadow-md shadow-teal-500/20'
-                                    : isDark
-                                    ? 'text-slate-400 hover:text-white hover:bg-slate-800'
-                                    : 'text-slate-600 hover:text-slate-900 hover:bg-white'
-                            }`}
-                        >
-                            <Wrench className="w-3.5 h-3.5" />
-                            <span>2. Maintenance & Akar Masalah</span>
-                        </button>
-
-                        <button
-                            type="button"
-                            onClick={() => setActiveTab('sla_performance')}
-                            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                                activeTab === 'sla_performance'
-                                    ? 'bg-teal-500 text-slate-950 shadow-md shadow-teal-500/20'
-                                    : isDark
-                                    ? 'text-slate-400 hover:text-white hover:bg-slate-800'
-                                    : 'text-slate-600 hover:text-slate-900 hover:bg-white'
-                            }`}
-                        >
-                            <Clock className="w-3.5 h-3.5" />
-                            <span>3. Performa Waktu & Departemen</span>
-                        </button>
-                    </div>
-
-                    {/* ERP Widget Customization Controls */}
-                    <div className="relative">
-                        <button
-                            type="button"
-                            onClick={() => setShowWidgetModal(!showWidgetModal)}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition shadow-sm cursor-pointer ${
-                                isDark
-                                    ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border-slate-700'
-                                    : 'bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 border-slate-300 shadow-xs'
-                            }`}
-                        >
-                            <SlidersHorizontal className="w-3.5 h-3.5 text-teal-400" />
-                            <span>Atur Tampilan Widget</span>
-                            <ChevronDown className={`w-3 h-3 transition-transform ${showWidgetModal ? 'rotate-180' : ''}`} />
-                        </button>
-
-                    {showWidgetModal && (
-                        <div className="absolute right-0 top-full mt-2 w-72 bg-slate-900 border border-slate-700 rounded-xl p-3 shadow-2xl z-50 text-xs backdrop-blur-md">
-                            <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-800">
-                                <span className="font-bold text-white flex items-center gap-1.5">
-                                    <SlidersHorizontal className="w-3.5 h-3.5 text-teal-400" />
-                                    Kustomisasi Widget
-                                </span>
-                                <button
-                                    type="button"
-                                    onClick={resetWidgetSettings}
-                                    className="text-[10px] text-teal-400 hover:underline flex items-center gap-1"
-                                >
-                                    <RotateCcw className="w-3 h-3" />
-                                    Reset
-                                </button>
-                            </div>
-
-                            <p className="text-[10px] text-slate-400 mb-2">
-                                Atur visibilitas widget untuk tab aktif:
-                            </p>
-
-                            <div className="space-y-1.5 max-h-60 overflow-y-auto pr-1">
-                                {activeTab === 'executive' && (
-                                    <>
-                                        <label className="flex items-center justify-between p-1.5 rounded hover:bg-slate-800/80 cursor-pointer">
-                                            <span className="text-slate-200">Kartu KPI Ringkasan</span>
-                                            <input
-                                                type="checkbox"
-                                                checked={widgetVisibility.kpi_cards !== false}
-                                                onChange={() => toggleWidgetVisibility('kpi_cards')}
-                                                className="rounded bg-slate-800 border-slate-700 text-teal-500 focus:ring-0"
-                                            />
-                                        </label>
-                                        <label className="flex items-center justify-between p-1.5 rounded hover:bg-slate-800/80 cursor-pointer">
-                                            <span className="text-slate-200">Matriks Hotspot & Denah</span>
-                                            <input
-                                                type="checkbox"
-                                                checked={widgetVisibility.hotspot_matrix !== false}
-                                                onChange={() => toggleWidgetVisibility('hotspot_matrix')}
-                                                className="rounded bg-slate-800 border-slate-700 text-teal-500 focus:ring-0"
-                                            />
-                                        </label>
-                                    </>
-                                )}
-
-                                {activeTab === 'maintenance' && (
-                                    <>
-                                        <label className="flex items-center justify-between p-1.5 rounded hover:bg-slate-800/80 cursor-pointer">
-                                            <span className="text-slate-200">Diagram Pareto (80/20)</span>
-                                            <input
-                                                type="checkbox"
-                                                checked={widgetVisibility.pareto_chart !== false}
-                                                onChange={() => toggleWidgetVisibility('pareto_chart')}
-                                                className="rounded bg-slate-800 border-slate-700 text-teal-500 focus:ring-0"
-                                            />
-                                        </label>
-                                        <label className="flex items-center justify-between p-1.5 rounded hover:bg-slate-800/80 cursor-pointer">
-                                            <span className="text-slate-200">Distribusi Kategori Fasilitas</span>
-                                            <input
-                                                type="checkbox"
-                                                checked={widgetVisibility.category_donut !== false}
-                                                onChange={() => toggleWidgetVisibility('category_donut')}
-                                                className="rounded bg-slate-800 border-slate-700 text-teal-500 focus:ring-0"
-                                            />
-                                        </label>
-                                        <label className="flex items-center justify-between p-1.5 rounded hover:bg-slate-800/80 cursor-pointer">
-                                            <span className="text-slate-200">Matriks Urgensi per Kategori</span>
-                                            <input
-                                                type="checkbox"
-                                                checked={widgetVisibility.urgency_matrix !== false}
-                                                onChange={() => toggleWidgetVisibility('urgency_matrix')}
-                                                className="rounded bg-slate-800 border-slate-700 text-teal-500 focus:ring-0"
-                                            />
-                                        </label>
-                                        <label className="flex items-center justify-between p-1.5 rounded hover:bg-slate-800/80 cursor-pointer">
-                                            <span className="text-slate-200">Feed Mitigasi AI</span>
-                                            <input
-                                                type="checkbox"
-                                                checked={widgetVisibility.mitigation_feed !== false}
-                                                onChange={() => toggleWidgetVisibility('mitigation_feed')}
-                                                className="rounded bg-slate-800 border-slate-700 text-teal-500 focus:ring-0"
-                                            />
-                                        </label>
-                                    </>
-                                )}
-
-                                {activeTab === 'sla_performance' && (
-                                    <>
-                                        <label className="flex items-center justify-between p-1.5 rounded hover:bg-slate-800/80 cursor-pointer">
-                                            <span className="text-slate-200">Metrik Kecepatan & SLA</span>
-                                            <input
-                                                type="checkbox"
-                                                checked={widgetVisibility.sla_kpi !== false}
-                                                onChange={() => toggleWidgetVisibility('sla_kpi')}
-                                                className="rounded bg-slate-800 border-slate-700 text-teal-500 focus:ring-0"
-                                            />
-                                        </label>
-                                        <label className="flex items-center justify-between p-1.5 rounded hover:bg-slate-800/80 cursor-pointer">
-                                            <span className="text-slate-200">Kecepatan MTTR per Dept</span>
-                                            <input
-                                                type="checkbox"
-                                                checked={widgetVisibility.mttr_analytics !== false}
-                                                onChange={() => toggleWidgetVisibility('mttr_analytics')}
-                                                className="rounded bg-slate-800 border-slate-700 text-teal-500 focus:ring-0"
-                                            />
-                                        </label>
-                                        <label className="flex items-center justify-between p-1.5 rounded hover:bg-slate-800/80 cursor-pointer">
-                                            <span className="text-slate-200">Laporan Beban per Dept</span>
-                                            <input
-                                                type="checkbox"
-                                                checked={widgetVisibility.dept_workload !== false}
-                                                onChange={() => toggleWidgetVisibility('dept_workload')}
-                                                className="rounded bg-slate-800 border-slate-700 text-teal-500 focus:ring-0"
-                                            />
-                                        </label>
-                                    </>
-                                )}
-                            </div>
-
-                            <div className="pt-2 mt-2 border-t border-slate-800 text-[10px] text-slate-500 text-center">
-                                Preferensi tersimpan di browser
-                            </div>
-                        </div>
-                    )}
-                </div>
-            </div>
-        </div>
 
             {/* ========================================================= */}
             {/* TAB 1: RINGKASAN EKSEKUTIF & SPASIAL                      */}

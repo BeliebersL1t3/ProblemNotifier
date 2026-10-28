@@ -33,7 +33,9 @@ import {
     BarChart3,
     Sparkles,
     Sun,
-    Moon
+    Moon,
+    Compass,
+    Wrench
 } from 'lucide-react';
 import axios from 'axios';
 import { BotControlModal } from '@/Components/CampusFix/BotControlModal';
@@ -116,6 +118,7 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
 
     const [searchQuery, setSearchQuery] = useState('');
     const [showColumnModal, setShowColumnModal] = useState(false);
+    const [activeAnalyticsTab, setActiveAnalyticsTab] = useState('executive');
 
     // Save preferences to localStorage
     useEffect(() => {
@@ -458,7 +461,7 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
             <header className="sticky top-0 z-30 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 px-4 sm:px-6 lg:px-8 py-3 shadow-md">
                 <div className="w-full flex items-center justify-between gap-2">
                     {/* Brand & Sandbox Pill */}
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 shrink-0">
                         <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center justify-center font-bold text-sm shadow-sm">
                             📱
                         </div>
@@ -472,6 +475,61 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                             <p className="text-[11px] text-slate-400">Telunas Resorts Tracker</p>
                         </div>
                     </div>
+
+                    {/* Analytics 3 Tabs (Centered in Header when in Analytics View) */}
+                    {viewMode === 'analytics' && (
+                        <div className={`flex items-center gap-1 p-1 rounded-xl border shrink-0 overflow-x-auto max-w-full order-last lg:order-none w-full lg:w-auto justify-center ${
+                            isDark ? 'bg-slate-950/80 border-slate-800' : 'bg-slate-100 border-slate-300 shadow-xs'
+                        }`}>
+                            <button
+                                type="button"
+                                onClick={() => setActiveAnalyticsTab('executive')}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                                    activeAnalyticsTab === 'executive'
+                                        ? 'bg-teal-500 text-slate-950 shadow-md shadow-teal-500/20'
+                                        : isDark
+                                        ? 'text-slate-400 hover:text-white hover:bg-slate-800/80'
+                                        : 'text-slate-600 hover:text-slate-900 hover:bg-white'
+                                }`}
+                            >
+                                <Compass className="w-3.5 h-3.5" />
+                                <span className="hidden xl:inline">1. Ringkasan Eksekutif & Spasial</span>
+                                <span className="xl:hidden">1. Ringkasan</span>
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => setActiveAnalyticsTab('maintenance')}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                                    activeAnalyticsTab === 'maintenance'
+                                        ? 'bg-teal-500 text-slate-950 shadow-md shadow-teal-500/20'
+                                        : isDark
+                                        ? 'text-slate-400 hover:text-white hover:bg-slate-800/80'
+                                        : 'text-slate-600 hover:text-slate-900 hover:bg-white'
+                                }`}
+                            >
+                                <Wrench className="w-3.5 h-3.5" />
+                                <span className="hidden xl:inline">2. Maintenance & Akar Masalah</span>
+                                <span className="xl:hidden">2. Maintenance</span>
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => setActiveAnalyticsTab('sla_performance')}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                                    activeAnalyticsTab === 'sla_performance'
+                                        ? 'bg-teal-500 text-slate-950 shadow-md shadow-teal-500/20'
+                                        : isDark
+                                        ? 'text-slate-400 hover:text-white hover:bg-slate-800/80'
+                                        : 'text-slate-600 hover:text-slate-900 hover:bg-white'
+                                }`}
+                            >
+                                <Clock className="w-3.5 h-3.5" />
+                                <span className="hidden xl:inline">3. Performa Waktu & Departemen</span>
+                                <span className="xl:hidden">3. Performa</span>
+                            </button>
+                        </div>
+                    )}
 
                     {/* Profile & Navigation Switcher & Bot Controls */}
                     <div className="flex items-center gap-2">
@@ -875,6 +933,8 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                         onRetryAi={handleRetryAi}
                         isRetrying={isRetryingAi}
                         theme={theme}
+                        activeTab={activeAnalyticsTab}
+                        onTabChange={setActiveAnalyticsTab}
                     />
                 ) : filteredIssues.length === 0 ? (
                     <div className="py-16 text-center border-2 border-dashed border-slate-800 rounded-2xl p-6">
