@@ -1,13 +1,64 @@
 /**
- * Telunas Fix - Web Push Service Worker
+ * Telunas Fix - Web Push & Static Map Cache Service Worker
  */
+
+const MAPS_CACHE_NAME = 'telunas-maps-cache-v1';
+const MAPS_ASSETS = [
+    '/images/maps/tpi_masterplan_v2.png',
+    '/images/maps/tbr_masterplan.png',
+];
 
 self.addEventListener('install', (event) => {
     self.skipWaiting();
+    event.waitUntil(
+        caches.open(MAPS_CACHE_NAME).then((cache) => {
+            return cache.addAll(MAPS_ASSETS).catch((err) => {
+                console.warn('[SW] Pre-caching maps failed (will fetch on demand):', err);
+            });
+        })
+    );
 });
 
 self.addEventListener('activate', (event) => {
-    event.waitUntil(self.clients.claim());
+    event.waitUntil(
+        Promise.all([
+            self.clients.claim(),
+            caches.keys().then((keys) => {
+                return Promise.all(
+                    keys.map((key) => {
+                        if (key.startsWith('telunas-maps-cache-') && key !== MAPS_CACHE_NAME) {
+                            return caches.delete(key);
+                        }
+                    })
+                );
+            }),
+        ])
+    );
+});
+
+// Cache-First strategy for map images
+self.addEventListener('fetch', (event) => {
+    const url = new URL(event.request.url);
+
+    if (url.origin === self.location.origin && url.pathname.startsWith('/images/maps/')) {
+        event.respondWith(
+            caches.open(MAPS_CACHE_NAME).then(async (cache) => {
+                const cachedResponse = await cache.match(event.request);
+                if (cachedResponse) {
+                    return cachedResponse;
+                }
+                try {
+                    const networkResponse = await fetch(event.request);
+                    if (networkResponse && networkResponse.status === 200) {
+                        cache.put(event.request, networkResponse.clone());
+                    }
+                    return networkResponse;
+                } catch (err) {
+                    return cachedResponse;
+                }
+            })
+        );
+    }
 });
 
 self.addEventListener('push', (event) => {

@@ -671,6 +671,14 @@ export function LeanAnalyticsView({
     const [selectedTbrZone, setSelectedTbrZone] = useState(null);
     const [expandedDescriptions, setExpandedDescriptions] = useState({});
     const [showAllMasterDepts, setShowAllMasterDepts] = useState(false);
+
+    // Preload architectural resort map images in background so tabs render instantly
+    useEffect(() => {
+        ['/images/maps/tpi_masterplan_v2.png', '/images/maps/tbr_masterplan.png'].forEach((src) => {
+            const img = new Image();
+            img.src = src;
+        });
+    }, []);
     
     // Time Range Filter states
     const [timeRange, setTimeRange] = useState('all'); // 'all' | 'today' | '7d' | '30d' | '6m' | '1y' | 'custom'
@@ -2847,9 +2855,8 @@ export function LeanAnalyticsView({
                     </div>
                 )}
 
-                {/* TAB 2: DENAH TPI (SPATIAL OVERVIEW) */}
-                {hotspotTab === 'tpi' && (
-                    <div className="space-y-3">
+                {/* TAB 2: DENAH TPI (SPATIAL OVERVIEW - PERSISTENT DOM FOR ZERO FLICKER) */}
+                <div className={hotspotTab === 'tpi' ? 'space-y-3' : 'hidden'}>
                         <div className={`flex flex-col sm:flex-row sm:items-center justify-between text-xs gap-1 p-2.5 rounded-lg border ${
                             isDark
                                 ? 'bg-slate-900/60 border-slate-700/60 text-slate-400'
@@ -2969,11 +2976,9 @@ export function LeanAnalyticsView({
                             </div>
                         </div>
                     </div>
-                )}
 
-                {/* TAB 3: DENAH TBR (SPATIAL OVERVIEW) */}
-                {hotspotTab === 'tbr' && (
-                    <div className="space-y-3">
+                {/* TAB 3: DENAH TBR (SPATIAL OVERVIEW - PERSISTENT DOM FOR ZERO FLICKER) */}
+                <div className={hotspotTab === 'tbr' ? 'space-y-3' : 'hidden'}>
                         <div className={`flex flex-col sm:flex-row sm:items-center justify-between text-xs gap-1 p-2.5 rounded-lg border ${
                             isDark
                                 ? 'bg-slate-900/60 border-slate-700/60 text-slate-400'
@@ -3093,7 +3098,6 @@ export function LeanAnalyticsView({
                             </div>
                         </div>
                     </div>
-                )}
                         </div>
                     )}
                 </div>
