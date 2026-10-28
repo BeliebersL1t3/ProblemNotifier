@@ -1677,10 +1677,10 @@ export function LeanAnalyticsView({
                                         className="fixed inset-0 z-40"
                                         onClick={() => setShowWidgetModal(false)}
                                     />
-                                    <div className={`absolute right-0 top-full mt-2 w-72 rounded-xl p-3 shadow-2xl z-50 text-xs border backdrop-blur-md animate-in fade-in zoom-in-95 duration-150 ${
+                                    <div className={`absolute right-0 top-full mt-2 w-72 rounded-xl p-3.5 shadow-2xl z-50 text-xs border animate-in fade-in zoom-in-95 duration-150 ${
                                         isDark
-                                            ? 'bg-slate-900/98 border-slate-700 text-white shadow-black/80'
-                                            : 'bg-white/98 border-slate-300 text-slate-800 shadow-xl'
+                                            ? 'bg-slate-900 border-slate-700 text-white shadow-black/90'
+                                            : 'bg-white border-slate-200 text-slate-800 shadow-2xl ring-1 ring-slate-900/10'
                                     }`}>
                                         <div className={`flex items-center justify-between pb-2 mb-2 border-b ${
                                             isDark ? 'border-slate-800' : 'border-slate-200'
@@ -1694,40 +1694,44 @@ export function LeanAnalyticsView({
                                             <button
                                                 type="button"
                                                 onClick={resetWidgetSettings}
-                                                className="text-[10px] text-teal-500 hover:underline flex items-center gap-1 font-semibold"
+                                                className="text-[10px] text-teal-600 hover:underline flex items-center gap-1 font-semibold"
                                             >
                                                 <RotateCcw className="w-3 h-3" />
                                                 Reset
                                             </button>
                                         </div>
 
-                                        <p className={`text-[10px] mb-2 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                        <p className={`text-[10px] mb-2 font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                                             Atur visibilitas widget untuk tab aktif ({activeTab}):
                                         </p>
 
                                         <div className="space-y-1.5 max-h-60 overflow-y-auto pr-1">
                                             {activeTab === 'executive' && (
                                                 <>
-                                                    <label className={`flex items-center justify-between p-1.5 rounded cursor-pointer transition-colors ${
-                                                        isDark ? 'hover:bg-slate-800/80 text-slate-200' : 'hover:bg-slate-100 text-slate-700'
+                                                    <label className={`flex items-center justify-between p-1.5 rounded-lg cursor-pointer transition-colors ${
+                                                        isDark ? 'hover:bg-slate-800/80 text-slate-200' : 'hover:bg-slate-100 text-slate-800'
                                                     }`}>
                                                         <span>Kartu KPI Ringkasan</span>
                                                         <input
                                                             type="checkbox"
                                                             checked={widgetVisibility.kpi_cards !== false}
                                                             onChange={() => toggleWidgetVisibility('kpi_cards')}
-                                                            className="rounded bg-slate-800 border-slate-700 text-teal-500 focus:ring-0"
+                                                            className={`rounded text-teal-600 focus:ring-0 cursor-pointer ${
+                                                                isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-300'
+                                                            }`}
                                                         />
                                                     </label>
-                                                    <label className={`flex items-center justify-between p-1.5 rounded cursor-pointer transition-colors ${
-                                                        isDark ? 'hover:bg-slate-800/80 text-slate-200' : 'hover:bg-slate-100 text-slate-700'
+                                                    <label className={`flex items-center justify-between p-1.5 rounded-lg cursor-pointer transition-colors ${
+                                                        isDark ? 'hover:bg-slate-800/80 text-slate-200' : 'hover:bg-slate-100 text-slate-800'
                                                     }`}>
                                                         <span>Matriks Hotspot & Denah</span>
                                                         <input
                                                             type="checkbox"
                                                             checked={widgetVisibility.hotspot_matrix !== false}
                                                             onChange={() => toggleWidgetVisibility('hotspot_matrix')}
-                                                            className="rounded bg-slate-800 border-slate-700 text-teal-500 focus:ring-0"
+                                                            className={`rounded text-teal-600 focus:ring-0 cursor-pointer ${
+                                                                isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-300'
+                                                            }`}
                                                         />
                                                     </label>
                                                 </>
@@ -1735,48 +1739,56 @@ export function LeanAnalyticsView({
 
                                             {activeTab === 'maintenance' && (
                                                 <>
-                                                    <label className={`flex items-center justify-between p-1.5 rounded cursor-pointer transition-colors ${
-                                                        isDark ? 'hover:bg-slate-800/80 text-slate-200' : 'hover:bg-slate-100 text-slate-700'
+                                                    <label className={`flex items-center justify-between p-1.5 rounded-lg cursor-pointer transition-colors ${
+                                                        isDark ? 'hover:bg-slate-800/80 text-slate-200' : 'hover:bg-slate-100 text-slate-800'
                                                     }`}>
                                                         <span>Diagram Pareto (80/20)</span>
                                                         <input
                                                             type="checkbox"
                                                             checked={widgetVisibility.pareto_chart !== false}
                                                             onChange={() => toggleWidgetVisibility('pareto_chart')}
-                                                            className="rounded bg-slate-800 border-slate-700 text-teal-500 focus:ring-0"
+                                                            className={`rounded text-teal-600 focus:ring-0 cursor-pointer ${
+                                                                isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-300'
+                                                            }`}
                                                         />
                                                     </label>
-                                                    <label className={`flex items-center justify-between p-1.5 rounded cursor-pointer transition-colors ${
-                                                        isDark ? 'hover:bg-slate-800/80 text-slate-200' : 'hover:bg-slate-100 text-slate-700'
+                                                    <label className={`flex items-center justify-between p-1.5 rounded-lg cursor-pointer transition-colors ${
+                                                        isDark ? 'hover:bg-slate-800/80 text-slate-200' : 'hover:bg-slate-100 text-slate-800'
                                                     }`}>
                                                         <span>Distribusi Kategori Fasilitas</span>
                                                         <input
                                                             type="checkbox"
                                                             checked={widgetVisibility.category_donut !== false}
                                                             onChange={() => toggleWidgetVisibility('category_donut')}
-                                                            className="rounded bg-slate-800 border-slate-700 text-teal-500 focus:ring-0"
+                                                            className={`rounded text-teal-600 focus:ring-0 cursor-pointer ${
+                                                                isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-300'
+                                                            }`}
                                                         />
                                                     </label>
-                                                    <label className={`flex items-center justify-between p-1.5 rounded cursor-pointer transition-colors ${
-                                                        isDark ? 'hover:bg-slate-800/80 text-slate-200' : 'hover:bg-slate-100 text-slate-700'
+                                                    <label className={`flex items-center justify-between p-1.5 rounded-lg cursor-pointer transition-colors ${
+                                                        isDark ? 'hover:bg-slate-800/80 text-slate-200' : 'hover:bg-slate-100 text-slate-800'
                                                     }`}>
                                                         <span>Matriks Urgensi per Kategori</span>
                                                         <input
                                                             type="checkbox"
                                                             checked={widgetVisibility.urgency_matrix !== false}
                                                             onChange={() => toggleWidgetVisibility('urgency_matrix')}
-                                                            className="rounded bg-slate-800 border-slate-700 text-teal-500 focus:ring-0"
+                                                            className={`rounded text-teal-600 focus:ring-0 cursor-pointer ${
+                                                                isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-300'
+                                                            }`}
                                                         />
                                                     </label>
-                                                    <label className={`flex items-center justify-between p-1.5 rounded cursor-pointer transition-colors ${
-                                                        isDark ? 'hover:bg-slate-800/80 text-slate-200' : 'hover:bg-slate-100 text-slate-700'
+                                                    <label className={`flex items-center justify-between p-1.5 rounded-lg cursor-pointer transition-colors ${
+                                                        isDark ? 'hover:bg-slate-800/80 text-slate-200' : 'hover:bg-slate-100 text-slate-800'
                                                     }`}>
                                                         <span>Feed Mitigasi AI</span>
                                                         <input
                                                             type="checkbox"
                                                             checked={widgetVisibility.mitigation_feed !== false}
                                                             onChange={() => toggleWidgetVisibility('mitigation_feed')}
-                                                            className="rounded bg-slate-800 border-slate-700 text-teal-500 focus:ring-0"
+                                                            className={`rounded text-teal-600 focus:ring-0 cursor-pointer ${
+                                                                isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-300'
+                                                            }`}
                                                         />
                                                     </label>
                                                 </>
@@ -1784,37 +1796,43 @@ export function LeanAnalyticsView({
 
                                             {activeTab === 'sla_performance' && (
                                                 <>
-                                                    <label className={`flex items-center justify-between p-1.5 rounded cursor-pointer transition-colors ${
-                                                        isDark ? 'hover:bg-slate-800/80 text-slate-200' : 'hover:bg-slate-100 text-slate-700'
+                                                    <label className={`flex items-center justify-between p-1.5 rounded-lg cursor-pointer transition-colors ${
+                                                        isDark ? 'hover:bg-slate-800/80 text-slate-200' : 'hover:bg-slate-100 text-slate-800'
                                                     }`}>
                                                         <span>Metrik Kecepatan & SLA</span>
                                                         <input
                                                             type="checkbox"
                                                             checked={widgetVisibility.sla_kpi !== false}
                                                             onChange={() => toggleWidgetVisibility('sla_kpi')}
-                                                            className="rounded bg-slate-800 border-slate-700 text-teal-500 focus:ring-0"
+                                                            className={`rounded text-teal-600 focus:ring-0 cursor-pointer ${
+                                                                isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-300'
+                                                            }`}
                                                         />
                                                     </label>
-                                                    <label className={`flex items-center justify-between p-1.5 rounded cursor-pointer transition-colors ${
-                                                        isDark ? 'hover:bg-slate-800/80 text-slate-200' : 'hover:bg-slate-100 text-slate-700'
+                                                    <label className={`flex items-center justify-between p-1.5 rounded-lg cursor-pointer transition-colors ${
+                                                        isDark ? 'hover:bg-slate-800/80 text-slate-200' : 'hover:bg-slate-100 text-slate-800'
                                                     }`}>
                                                         <span>Kecepatan MTTR per Dept</span>
                                                         <input
                                                             type="checkbox"
                                                             checked={widgetVisibility.mttr_analytics !== false}
                                                             onChange={() => toggleWidgetVisibility('mttr_analytics')}
-                                                            className="rounded bg-slate-800 border-slate-700 text-teal-500 focus:ring-0"
+                                                            className={`rounded text-teal-600 focus:ring-0 cursor-pointer ${
+                                                                isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-300'
+                                                            }`}
                                                         />
                                                     </label>
-                                                    <label className={`flex items-center justify-between p-1.5 rounded cursor-pointer transition-colors ${
-                                                        isDark ? 'hover:bg-slate-800/80 text-slate-200' : 'hover:bg-slate-100 text-slate-700'
+                                                    <label className={`flex items-center justify-between p-1.5 rounded-lg cursor-pointer transition-colors ${
+                                                        isDark ? 'hover:bg-slate-800/80 text-slate-200' : 'hover:bg-slate-100 text-slate-800'
                                                     }`}>
                                                         <span>Laporan Beban per Dept</span>
                                                         <input
                                                             type="checkbox"
                                                             checked={widgetVisibility.dept_workload !== false}
                                                             onChange={() => toggleWidgetVisibility('dept_workload')}
-                                                            className="rounded bg-slate-800 border-slate-700 text-teal-500 focus:ring-0"
+                                                            className={`rounded text-teal-600 focus:ring-0 cursor-pointer ${
+                                                                isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-300'
+                                                            }`}
                                                         />
                                                     </label>
                                                 </>
