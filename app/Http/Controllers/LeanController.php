@@ -70,6 +70,7 @@ class LeanController extends Controller
                 'ai_urgency'           => $item->ai_urgency,
                 'ai_is_minimal'        => (bool)($item->ai_is_minimal ?? false),
                 'ai_analysis'          => $item->ai_analysis,
+                'transfer_history'     => $item->transfer_history ?? [],
             ];
         });
 
@@ -383,6 +384,7 @@ class LeanController extends Controller
                 'resolved_at'          => $item->resolved_at ? $item->resolved_at->toIso8601String() : null,
                 'fixDescription'       => $item->resolution_note,
                 'proofImageUrl'        => $item->resolution_image_url,
+                'transfer_history'     => $item->transfer_history ?? [],
                 'created_at'           => $item->created_at ? $item->created_at->toIso8601String() : null,
                 'created_at_human'     => $item->created_at ? $item->created_at->locale('id')->diffForHumans() : '',
             ];
@@ -561,6 +563,18 @@ class LeanController extends Controller
         $newDept = trim($request->input('to_department'));
         $reason = trim($request->input('reason'));
         $transferredBy = trim($request->input('transferred_by'));
+        $transferredByPhone = trim($request->input('transferred_by_phone', ''));
+
+        // Record transfer history (unlimited audit trail)
+        $history = $issue->transfer_history ?? [];
+        $history[] = [
+            'from_department'      => $oldDept,
+            'to_department'        => $newDept,
+            'reason'               => $reason,
+            'transferred_by'       => $transferredBy,
+            'transferred_by_phone' => $transferredByPhone,
+            'transferred_at'       => Carbon::now('Asia/Jakarta')->toIso8601String(),
+        ];
 
         // Update LeanIssue
         $issue->target_departments = [$newDept];
@@ -568,6 +582,7 @@ class LeanController extends Controller
         $issue->claimed_by_name = null;
         $issue->claimed_by_dept = null;
         $issue->claimed_at = null;
+        $issue->transfer_history = $history;
         $issue->save();
 
         $code = self::formatIssueCode($issue);
@@ -576,15 +591,16 @@ class LeanController extends Controller
             'success' => true,
             'message' => "Tiket berhasil dialihkan dari {$oldDept} ke {$newDept}.",
             'data'    => [
-                'id'              => $code,
-                'title'           => $issue->title,
-                'location'        => $issue->location,
-                'description'     => $issue->description,
-                'from_department' => $oldDept,
-                'to_department'   => $newDept,
-                'transferred_by'  => $transferredBy,
-                'reason'          => $reason,
-                'status'          => 'open',
+                'id'               => $code,
+                'title'            => $issue->title,
+                'location'         => $issue->location,
+                'description'      => $issue->description,
+                'from_department'  => $oldDept,
+                'to_department'    => $newDept,
+                'transferred_by'   => $transferredBy,
+                'reason'           => $reason,
+                'status'           => 'open',
+                'transfer_history' => $history,
             ]
         ]);
     }

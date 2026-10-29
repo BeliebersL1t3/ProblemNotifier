@@ -1394,6 +1394,17 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                                                         )}
                                                     </>
                                                 )}
+
+                                                {/* Transfer Badge */}
+                                                {issue.transfer_history && issue.transfer_history.length > 0 && (
+                                                    <span
+                                                        className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/30 flex items-center gap-1"
+                                                        title={`Dialihkan ${issue.transfer_history.length} kali`}
+                                                    >
+                                                        <RotateCcw className="w-2.5 h-2.5 text-amber-400" />
+                                                        <span>{issue.transfer_history.length}x Dialihkan</span>
+                                                    </span>
+                                                )}
                                             </div>
 
                                             {/* Time & Delete Action */}
@@ -2124,6 +2135,38 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                                             {activeDetailIssue.resolution_note && ` — "${activeDetailIssue.resolution_note}"`}
                                         </p>
                                     )}
+                                </div>
+                            )}
+
+                            {/* Riwayat Pengalihan Departemen (Transfer History) */}
+                            {activeDetailIssue.transfer_history && activeDetailIssue.transfer_history.length > 0 && (
+                                <div className="p-3 rounded-xl bg-slate-900/90 border border-amber-900/50 space-y-2 text-xs">
+                                    <div className="flex items-center gap-1.5 font-bold text-amber-400">
+                                        <RotateCcw className="w-3.5 h-3.5" />
+                                        <span>Riwayat Pengalihan Departemen ({activeDetailIssue.transfer_history.length}x)</span>
+                                    </div>
+                                    <div className="space-y-1.5 pl-2 border-l-2 border-amber-500/40">
+                                        {activeDetailIssue.transfer_history.map((hist, idx) => (
+                                            <div key={idx} className="bg-slate-950/60 p-2 rounded-lg border border-slate-800 space-y-0.5">
+                                                <div className="flex items-center justify-between text-[11px] font-semibold text-slate-200">
+                                                    <span>
+                                                        <span className="text-slate-400">{hist.from_department}</span>
+                                                        <span className="text-amber-400 mx-1.5">➔</span>
+                                                        <span className="text-emerald-400">{hist.to_department}</span>
+                                                    </span>
+                                                    <span className="text-[10px] text-slate-500 font-normal">
+                                                        {hist.transferred_at ? new Date(hist.transferred_at).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' }) : ''}
+                                                    </span>
+                                                </div>
+                                                <p className="text-[11px] text-slate-300 italic">
+                                                    "{hist.reason}"
+                                                </p>
+                                                <p className="text-[10px] text-slate-500">
+                                                    Oleh: <strong className="text-slate-400">{hist.transferred_by}</strong>
+                                                </p>
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
                             )}
                         </div>

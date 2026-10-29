@@ -308,7 +308,9 @@ const STEPS = {
     AWAITING_LOCATION: 2,
     AWAITING_DESC: 3,
     AWAITING_PHOTO: 4,
-    AWAITING_DEPARTMENT: 5
+    AWAITING_DEPARTMENT: 5,
+    TRANSFER_AWAITING_DEPT: 6,
+    TRANSFER_AWAITING_REASON: 7
 };
 
 const userStates = new Map(); // key: senderPhone -> { step, data, timestamp }
@@ -429,12 +431,155 @@ async function startBot() {
             if (!registeredUser) {
                 if (!isGroup) {
                     await reply(
-                        `🔒 *AKSES DITOLAK — NOMOR TIDAK TERDAFTAR*\n\n` +
-                        `Nomor WhatsApp Anda (+${senderPhone}) belum terdaftar dalam sistem Telunas Issue Tracker.\n\n` +
-                        `Bot ini khusus digunakan oleh staf resmi Telunas Resort.\n` +
-                        `Silakan daftarkan nomor WhatsApp Anda melalui Web Dashboard di:\n${BASE_URL}/profile atau hubungi HOD Anda.`
+                        `🔒 *AKSES DITOLAK — NOMOR TIDAK TERDAFTAR*\n` +
+                        `_ACCESS DENIED — UNREGISTERED NUMBER_\n\n` +
+                        `Nomor WhatsApp Anda (+${senderPhone}) belum terdaftar dalam sistem Telunas Issue Tracker.\n` +
+                        `Bot ini khusus digunakan oleh staf resmi Telunas Resort.\n\n` +
+                        `Silakan hubungi Administrator atau Tim IT untuk mendaftarkan nomor dan departemen Anda ke sistem.\n` +
+                        `_Please contact the Administrator or IT Team to register your phone number and department._`
                     );
                 }
+                continue;
+            }
+
+            // ─────────────────────────────────────────────────────────────────
+            // 0. GLOBAL INTERACTIVE TRANSFER WIZARD (Works in Group & DM)
+            // ─────────────────────────────────────────────────────────────────
+            let state = getUserState(senderPhone);
+
+            // Handle Cancel globally (in group or DM)
+            if (state && ['batal', 'cancel', 'reset', '!batal', '!cancel'].includes(lower)) {
+                const wasTransfer = state.step === STEPS.TRANSFER_AWAITING_DEPT || state.step === STEPS.TRANSFER_AWAITING_REASON;
+                clearUserState(senderPhone);
+                if (wasTransfer) {
+                    await reply(`🔄 Proses pengalihan tiket telah dibatalkan / Ticket transfer cancelled.`);
+                } else {
+                    await reply(`🔄 Proses pelaporan telah dibatalkan / Reporting cancelled. Ketik *lapor* / *report* kapan saja untuk membuat laporan baru.`);
+                }
+                continue;
+            }
+
+            // Step 1 of Transfer Wizard: Department Selection
+            if (state && state.step === STEPS.TRANSFER_AWAITING_DEPT) {
+                let selectedDept = null;
+                const num = parseInt(text.trim(), 10);
+                if (!isNaN(num) && num >= 1 && num <= OFFICIAL_DEPARTMENTS.length) {
+                    selectedDept = OFFICIAL_DEPARTMENTS[num - 1];
+                } else {
+                    selectedDept = normalizeDept(text.trim());
+                }
+
+                if (!selectedDept) {
+                    await reply(
+                        `⚠️ Pilihan departemen tidak valid / Invalid department.\n\n` +
+                        `Silakan ketik angka 1-${OFFICIAL_DEPARTMENTS.length} atau kode departemen (contoh: HK / ENG).\n` +
+                        `_Type number 1-${OFFICIAL_DEPARTMENTS.length} or department code._\n\n` +
+                        `💡 _Ketik *batal* / *cancel* untuk membatalkan._`
+                    );
+                    continue;
+                }
+
+                state.step = STEPS.TRANSFER_AWAITING_REASON;
+                state.data.toDept = selectedDept.name;
+                state.data.toDeptCode = selectedDept.code;
+                state.data.toDeptKey = selectedDept.key;
+                setUserState(senderPhone, state);
+
+                await reply(
+                    `📝 *PENGALIHAN DEPARTEMEN TIKET #${state.data.targetId} (2/2)* 📝\n` +
+                    `_REASSIGN DEPARTMENT REASON_\n\n` +
+                    `Departemen Tujuan / Target: *${selectedDept.name} (${selectedDept.code})*\n\n` +
+                    `Silakan tuliskan alasan pengalihan tiket ini:\n` +
+                    `_Please write the reason for transferring this issue:_\n\n` +
+                    `_(Contoh: Plafon bernoda butuh dibersihkan HK terlebih dahulu)_\n` +
+                    `💡 _Ketik *batal* / *cancel* untuk membatalkan._`
+                );
+                continue;
+            }
+
+            // Step 2 of Transfer Wizard: Reason Input & Submission
+            if (state && state.step === STEPS.TRANSFER_AWAITING_REASON) {
+                if (!text || text.trim().length < 3) {
+                    await reply(
+                        `⚠️ Mohon tuliskan alasan pengalihan dengan jelas (minimal 3 karakter).\n` +
+                        `_Please write a clear reason (min 3 chars)._\n` +
+                        `_Ketik *batal* / *cancel* untuk membatalkan._`
+                    );
+                    continue;
+                }
+
+                const transferReason = text.trim();
+                const targetId = state.data.targetId;
+                const newDeptName = state.data.toDept;
+                const newDeptKey = state.data.toDeptKey;
+
+                await reply(`⏳ *Mengalihkan tiket #${targetId} ke ${newDeptName}... Mohon tunggu sebentar / Please wait.*`);
+
+                try {
+                    const transferRes = await axios.post(`${BASE_URL}/api/lean/issues/${targetId}/transfer`, {
+                        to_department: newDeptName,
+                        reason: transferReason,
+                        transferred_by: registeredUser.name,
+                        transferred_by_phone: senderPhone
+                    });
+
+                    if (transferRes.data.success) {
+                        const updated = transferRes.data.data;
+                        const oldDeptName = updated.from_department || registeredUser.department || 'Departemen Asal';
+
+                        // 1. Announce in current group / chat
+                        await reply(
+                            `🔄 *TIKET BERHASIL DIALIHKAN KE DEPARTEMEN LAIN* 🔄\n` +
+                            `_TICKET REASSIGNED SUCCESSFULLY_\n\n` +
+                            `• *ID Tiket:* #${targetId}\n` +
+                            `• *Masalah:* ${updated.title || '-'}\n` +
+                            `• *Dari / From:* ${oldDeptName}\n` +
+                            `• *Dialihkan ke / To:* ${newDeptName}\n` +
+                            `• *Dialihkan oleh / By:* ${registeredUser.name}\n` +
+                            `• *Alasan / Reason:* ${transferReason}\n\n` +
+                            `_Tiket telah dilepaskan dari antrean ${oldDeptName} dan diteruskan ke grup ${newDeptName}._`
+                        );
+
+                        // 2. Broadcast to New Department Group
+                        const newGroupJid = botConfig.departmentGroups[newDeptKey];
+                        if (newGroupJid) {
+                            const newDeptMsg = 
+                                `📥 *TIKET MASUK (DIALIHKAN) / INCOMING TICKET* 📥\n\n` +
+                                `• *ID Tiket:* #${targetId}\n` +
+                                `• *Masalah:* ${updated.title || '-'}\n` +
+                                `• *Lokasi:* ${updated.location || '-'}\n` +
+                                `• *Dialihkan dari:* ${oldDeptName}\n` +
+                                `• *Dialihkan oleh:* ${registeredUser.name}\n` +
+                                `• *Alasan Pengalihan:* ${transferReason}\n` +
+                                `• *Deskripsi Asal:* ${updated.description || '-'}\n\n` +
+                                `👉 _Ketik *ambil ${targetId}* (atau *take ${targetId}*) atau reply pesan ini untuk mengambil tugas._`;
+                            
+                            await sock.sendMessage(newGroupJid, { text: newDeptMsg });
+                        }
+
+                        // 3. Notify Reporter's DM if phone is mapped
+                        const reporterPhone = updated.reporter_phone || null;
+                        if (reporterPhone) {
+                            const repDmJid = `${reporterPhone}@s.whatsapp.net`;
+                            try {
+                                await sock.sendMessage(repDmJid, {
+                                    text: `ℹ️ *UPDATE STATUS LAPORAN ANDA / STATUS UPDATE*\n\n` +
+                                          `Laporan Anda *#${targetId}* (${updated.title}) telah dialihkan pengerjaannya dari *${oldDeptName}* ke *${newDeptName}*.\n` +
+                                          `_Your report has been transferred from ${oldDeptName} to ${newDeptName}._\n\n` +
+                                          `*Alasan / Reason:* ${transferReason}\n\n` +
+                                          `Tim ${newDeptName} akan segera menindaklanjuti laporan Anda.`
+                                });
+                            } catch (e) {}
+                        }
+                    } else {
+                        await reply(`❌ Gagal mengalihkan tiket: ${transferRes.data.message || 'Error'}`);
+                    }
+                } catch (e) {
+                    const errMsg = e.response?.data?.message || e.message;
+                    await reply(`❌ Gagal mengalihkan tiket: ${errMsg}`);
+                }
+
+                clearUserState(senderPhone);
                 continue;
             }
 
@@ -442,26 +587,33 @@ async function startBot() {
             // A. COMMANDS IN GROUP (Action-Only: ambil, selesai, edit, list forwarding)
             // ═════════════════════════════════════════════════════════════════
             if (isGroup) {
-                // 1. HELP in Group
-                if (lower === 'help' || lower === '!help') {
+                // 1. HELP in Group (Bilingual)
+                if (['help', '!help', 'bantuan'].includes(lower)) {
                     await reply(
-                        `🛠️ *TELUNAS CAMPUSFIX - PERINTAH GRUP* 🛠️\n\n` +
-                        `Grup ini khusus digunakan untuk eksekusi tindakan penanganan isu:\n\n` +
-                        `👉 *ambil [ID]* : Mengklaim & mulai mengerjakan isu.\n` +
-                        `   _Bisa juga langsung reply pesan tiket dengan kata *ambil*._\n\n` +
-                        `👉 *selesai [ID]* : Menyelesaikan tiket pengerjaan.\n` +
-                        `   _Bisa juga langsung reply pesan tiket dengan kata *selesai*._\n\n` +
-                        `👉 *edit [ID] ke [DEPT] [Alasan]* : Mengalihkan isu ke departemen lain.\n` +
-                        `   _Contoh: edit ENG-221026-105 ke HK Plafon berjamur butuh dibersihkan HK._\n\n` +
-                        `👉 *list departemen* : Melihat daftar kode & nama departemen.\n\n` +
-                        `💡 _Perintah *lapor* dan pengecekan *list status* dilakukan melalui Chat Pribadi (DM) ke bot._`
+                        `🛠️ *TELUNAS CAMPUSFIX - PERINTAH GRUP / GROUP COMMANDS* 🛠️\n\n` +
+                        `Grup ini khusus digunakan untuk eksekusi tindakan penanganan isu:\n` +
+                        `_This group is for executing issue actions:_\n\n` +
+                        `👉 *ambil [ID]* / *take [ID]* / *claim [ID]* :\n` +
+                        `   Mulai pengerjaan isu (atau reply tiket dengan kata *ambil* / *take*).\n` +
+                        `   _Claim & start working on the issue._\n\n` +
+                        `👉 *selesai [ID]* / *done [ID]* / *finish [ID]* / *solve [ID]* :\n` +
+                        `   Selesaikan tiket (atau reply tiket dengan kata *selesai* / *done*).\n` +
+                        `   _Complete and resolve the ticket._\n\n` +
+                        `👉 *edit* / *transfer* :\n` +
+                        `   Reply tiket dengan kata *edit* untuk memulai alur pengalihan departemen interaktif.\n` +
+                        `   _Reply to ticket with 'edit' to start interactive department transfer wizard._\n\n` +
+                        `👉 *list departemen* / *list department* :\n` +
+                        `   Melihat daftar kode & nama departemen / _View department codes._\n\n` +
+                        `💡 _Perintah *lapor* / *report* dan pengecekan *list status* dilakukan melalui Chat Pribadi (DM) ke bot._`
                     );
                     continue;
                 }
 
                 // 2. LIST DEPARTEMEN in Group or DM
-                if (lower === 'list departemen' || lower === 'list dept' || lower === '!list dept') {
-                    let deptList = `📋 *DAFTAR KODE & DEPARTEMEN TELUNAS* 📋\n\n`;
+                if (lower === 'list departemen' || lower === 'list dept' || lower === '!list dept' ||
+                    lower === 'list department' || lower === 'list departments') {
+                    let deptList = `📋 *DAFTAR KODE & DEPARTEMEN TELUNAS* 📋\n` +
+                                   `_TELUNAS DEPARTMENT CODES_\n\n`;
                     OFFICIAL_DEPARTMENTS.forEach(d => {
                         deptList += `• *${d.code.padEnd(4, ' ')}* : ${d.name}\n`;
                     });
@@ -471,12 +623,14 @@ async function startBot() {
                 }
 
                 // 3. LIST COMMANDS IN GROUP (FORWARD TO PRIVATE DM!)
-                if (lower.startsWith('list menunggu') || lower.startsWith('list progress') || 
-                    lower.startsWith('list pending')  || lower.startsWith('list selesai')) {
+                if (lower.startsWith('list menunggu') || lower.startsWith('list waiting') || lower.startsWith('list open') ||
+                    lower.startsWith('list progress') || lower.startsWith('list ongoing') || lower.startsWith('list in progress') ||
+                    lower.startsWith('list pending')  || lower.startsWith('list tertunda') ||
+                    lower.startsWith('list selesai')  || lower.startsWith('list done')    || lower.startsWith('list solved') || lower.startsWith('list resolved')) {
                     
-                    const statusType = lower.includes('menunggu') ? 'open' :
-                                       lower.includes('progress') ? 'progress' :
-                                       lower.includes('pending') ? 'pending' : 'solved';
+                    const statusType = (lower.includes('menunggu') || lower.includes('waiting') || lower.includes('open')) ? 'open' :
+                                       (lower.includes('progress') || lower.includes('ongoing')) ? 'in_progress' :
+                                       (lower.includes('pending') || lower.includes('tertunda')) ? 'pending' : 'resolved';
 
                     const userDept = registeredUser.department || '';
                     const userDmJid = `${senderPhone}@s.whatsapp.net`;
@@ -486,24 +640,28 @@ async function startBot() {
                         const issuesRes = await axios.get(`${BASE_URL}/api/lean/issues`);
                         let issues = issuesRes.data?.data || [];
 
-                        // Filter by user's department & status
+                        // Filter by user's department & status with normalization
                         const filtered = issues.filter(iss => {
                             const issDept = (iss.department || iss.assignedDepartments?.[0] || '').toLowerCase();
-                            const matchesDept = userDept ? issDept.includes(userDept.toLowerCase()) : true;
-                            const matchesStatus = (iss.status || '').toLowerCase() === statusType;
+                            const matchesDept = userDept ? (issDept.includes(userDept.toLowerCase()) || userDept.toLowerCase().includes(issDept)) : true;
+                            const currentStatus = (iss.status || '').toLowerCase();
+                            const matchesStatus = currentStatus === statusType ||
+                                                  (statusType === 'in_progress' && (currentStatus === 'progress' || currentStatus === 'in_progress')) ||
+                                                  (statusType === 'resolved' && (currentStatus === 'solved' || currentStatus === 'resolved'));
                             return matchesDept && matchesStatus;
                         });
 
-                        const statusLabel = statusType === 'open' ? 'MENUNGGU PENANGANAN' :
-                                            statusType === 'progress' ? 'SEDANG DIKERJAKAN' :
-                                            statusType === 'pending' ? 'TERTUNDA (PENDING)' : 'SUDAH SELESAI';
+                        const statusLabel = statusType === 'open' ? 'MENUNGGU PENANGANAN (WAITING)' :
+                                            statusType === 'in_progress' ? 'SEDANG DIKERJAKAN (IN PROGRESS)' :
+                                            statusType === 'pending' ? 'TERTUNDA (PENDING)' : 'SUDAH SELESAI (RESOLVED)';
 
                         let listMsg = `📋 *DAFTAR ISU ${statusLabel}* 📋\n`;
-                        listMsg += `🏢 *Departemen:* ${userDept || 'Semua'}\n`;
+                        listMsg += `🏢 *Departemen:* ${userDept || 'Semua / All'}\n`;
                         listMsg += `👤 *Penerima:* ${registeredUser.name}\n\n`;
 
                         if (filtered.length === 0) {
-                            listMsg += `_Tidak ada isu dengan status ${statusLabel} untuk departemen Anda saat ini._`;
+                            listMsg += `_Tidak ada isu dengan status ${statusLabel} untuk departemen Anda saat ini._\n` +
+                                       `_No issues found for your department with this status._`;
                         } else {
                             filtered.slice(0, 10).forEach((item, idx) => {
                                 listMsg += `${idx + 1}. *#${item.id}* - ${item.title}\n`;
@@ -523,13 +681,15 @@ async function startBot() {
                     continue;
                 }
 
-                // 4. GROUP ACTION: AMBIL (CLAIM)
-                if (lower.startsWith('ambil') || lower.startsWith('!ambil') || lower.startsWith('claim') || lower.startsWith('!claim')) {
+                // 4. GROUP ACTION: AMBIL / TAKE / CLAIM
+                if (lower.startsWith('ambil') || lower.startsWith('!ambil') || 
+                    lower.startsWith('claim') || lower.startsWith('!claim') ||
+                    lower.startsWith('take')  || lower.startsWith('!take')) {
                     const words = text.split(/\s+/);
                     let targetId = words[1] || extractIssueId(text) || extractIssueId(quotedText);
 
                     if (!targetId) {
-                        await reply(`⚠️ *Format Tidak Lengkap*\n\nKetik: *ambil [ID_ISU]*\nAtau reply pesan notifikasi tiket dengan kata *ambil*.`);
+                        await reply(`⚠️ *Format Tidak Lengkap / Incomplete Format*\n\nKetik: *ambil [ID_ISU]* atau *take [ID_ISU]*\nAtau reply pesan tiket dengan kata *ambil* / *take*.`);
                         continue;
                     }
 
@@ -541,11 +701,12 @@ async function startBot() {
 
                         if (claimRes.data.success) {
                             await reply(
-                                `✅ *TIKET BERHASIL DIAMBIL* ✅\n\n` +
+                                `✅ *TIKET BERHASIL DIAMBIL* ✅\n` +
+                                `_TICKET CLAIMED SUCCESSFULLY_\n\n` +
                                 `• *ID Tiket:* #${targetId}\n` +
                                 `• *Pengerja:* ${registeredUser.name} (${registeredUser.department || 'Staf'})\n` +
                                 `• *Status:* 🟡 Sedang Dikerjakan (In Progress)\n\n` +
-                                `_Selamat bertugas! Ketik *selesai ${targetId}* bila pekerjaan telah rampung._`
+                                `_Selamat bertugas! Ketik *selesai ${targetId}* (or *done ${targetId}*) bila pekerjaan telah rampung._`
                             );
                         } else {
                             await reply(`❌ Gagal mengambil tiket: ${claimRes.data.message || 'Error tidak diketahui'}`);
@@ -557,13 +718,16 @@ async function startBot() {
                     continue;
                 }
 
-                // 5. GROUP ACTION: SELESAI (RESOLVE)
-                if (lower.startsWith('selesai') || lower.startsWith('!selesai') || lower.startsWith('solve') || lower.startsWith('!solve')) {
+                // 5. GROUP ACTION: SELESAI / DONE / SOLVE / RESOLVE
+                if (lower.startsWith('selesai') || lower.startsWith('!selesai') || 
+                    lower.startsWith('solve')   || lower.startsWith('!solve')   ||
+                    lower.startsWith('done')    || lower.startsWith('!done')    ||
+                    lower.startsWith('finish')  || lower.startsWith('!finish')) {
                     const words = text.split(/\s+/);
                     let targetId = words[1] || extractIssueId(text) || extractIssueId(quotedText);
 
                     if (!targetId) {
-                        await reply(`⚠️ *Format Tidak Lengkap*\n\nKetik: *selesai [ID_ISU]*\nAtau reply pesan notifikasi tiket dengan kata *selesai*.`);
+                        await reply(`⚠️ *Format Tidak Lengkap / Incomplete Format*\n\nKetik: *selesai [ID_ISU]* atau *done [ID_ISU]*\nAtau reply pesan tiket dengan kata *selesai* / *done*.`);
                         continue;
                     }
 
@@ -575,7 +739,8 @@ async function startBot() {
 
                         if (solveRes.data.success) {
                             await reply(
-                                `🎉 *TIKET TELAH SELESAI* 🎉\n\n` +
+                                `🎉 *TIKET TELAH SELESAI* 🎉\n` +
+                                `_TICKET RESOLVED SUCCESSFULLY_\n\n` +
                                 `• *ID Tiket:* #${targetId}\n` +
                                 `• *Diselesaikan oleh:* ${registeredUser.name} (${registeredUser.department || 'Staf'})\n` +
                                 `• *Status:* 🟢 Selesai (Resolved)\n\n` +
@@ -591,102 +756,125 @@ async function startBot() {
                     continue;
                 }
 
-                // 6. GROUP ACTION: EDIT (PENGALIHAN KE DEPT LAIN)
-                if (lower.startsWith('edit') || lower.startsWith('!edit') || lower.startsWith('transfer')) {
-                    // Pattern 1: edit ENG-221026-105 ke HK Alasan kenapa
-                    // Pattern 2: (quoted message) edit ke HK Alasan kenapa
+                // 6. GROUP ACTION: EDIT / TRANSFER
+                if (lower.startsWith('edit') || lower.startsWith('!edit') || lower.startsWith('transfer') || lower.startsWith('!transfer')) {
                     let targetId = extractIssueId(text) || extractIssueId(quotedText);
-                    
-                    // Parse target department and reason
-                    let remaining = text.replace(/^(?:!edit|edit|transfer)\s+/i, '');
+
+                    // Check fast one-liner shortcut: edit [ID] ke [DEPT] [Alasan] or edit [ID] to [DEPT] [Reason]
+                    let remaining = text.replace(/^(?:!edit|edit|!transfer|transfer)\s*/i, '');
                     if (targetId) {
                         remaining = remaining.replace(new RegExp('#?' + targetId, 'i'), '').trim();
                     }
-                    remaining = remaining.replace(/^ke\s+/i, '').trim();
+                    remaining = remaining.replace(/^(?:ke|to)\s+/i, '').trim();
 
                     const matchDept = remaining.match(/^([A-Za-z]+)\s*(.*)$/);
                     let targetDeptRaw = matchDept ? matchDept[1] : '';
                     let transferReason = matchDept ? matchDept[2].trim() : '';
-
                     const validDept = normalizeDept(targetDeptRaw);
 
-                    if (!targetId || !validDept || !transferReason) {
+                    // If fast one-liner provided all parameters, execute directly!
+                    if (targetId && validDept && transferReason) {
+                        try {
+                            const transferRes = await axios.post(`${BASE_URL}/api/lean/issues/${targetId}/transfer`, {
+                                to_department: validDept.name,
+                                reason: transferReason,
+                                transferred_by: registeredUser.name,
+                                transferred_by_phone: senderPhone
+                            });
+
+                            if (transferRes.data.success) {
+                                const updated = transferRes.data.data;
+                                const oldDeptName = updated.from_department || registeredUser.department || 'Departemen Asal';
+                                const newDeptName = validDept.name;
+
+                                await reply(
+                                    `🔄 *TIKET DIALIHKAN KE DEPARTEMEN LAIN* 🔄\n` +
+                                    `_TICKET REASSIGNED_\n\n` +
+                                    `• *ID Tiket:* #${targetId}\n` +
+                                    `• *Dialihkan ke:* ${newDeptName}\n` +
+                                    `• *Dialihkan oleh:* ${registeredUser.name}\n` +
+                                    `• *Alasan / Reason:* ${transferReason}\n\n` +
+                                    `_Tiket telah dilepaskan dari antrean ${oldDeptName} dan diteruskan ke grup ${newDeptName}._`
+                                );
+
+                                const newDeptKey = validDept.key;
+                                const newGroupJid = botConfig.departmentGroups[newDeptKey];
+                                if (newGroupJid) {
+                                    const newDeptMsg = 
+                                        `📥 *TIKET MASUK (DIALIHKAN) / INCOMING TICKET* 📥\n\n` +
+                                        `• *ID Tiket:* #${targetId}\n` +
+                                        `• *Masalah:* ${updated.title || '-'}\n` +
+                                        `• *Lokasi:* ${updated.location || '-'}\n` +
+                                        `• *Dialihkan dari:* ${oldDeptName}\n` +
+                                        `• *Dialihkan oleh:* ${registeredUser.name}\n` +
+                                        `• *Alasan Pengalihan:* ${transferReason}\n` +
+                                        `• *Deskripsi Asal:* ${updated.description || '-'}\n\n` +
+                                        `👉 _Ketik *ambil ${targetId}* (atau *take ${targetId}*) atau reply pesan ini untuk mengambil tugas._`;
+                                    
+                                    await sock.sendMessage(newGroupJid, { text: newDeptMsg });
+                                }
+
+                                const reporterPhone = updated.reporter_phone || null;
+                                if (reporterPhone) {
+                                    const repDmJid = `${reporterPhone}@s.whatsapp.net`;
+                                    try {
+                                        await sock.sendMessage(repDmJid, {
+                                            text: `ℹ️ *UPDATE STATUS LAPORAN ANDA / STATUS UPDATE*\n\n` +
+                                                  `Laporan Anda *#${targetId}* (${updated.title}) telah dialihkan pengerjaannya dari *${oldDeptName}* ke *${newDeptName}*.\n` +
+                                                  `_Your report has been transferred from ${oldDeptName} to ${newDeptName}._\n\n` +
+                                                  `*Alasan / Reason:* ${transferReason}\n\n` +
+                                                  `Tim ${newDeptName} akan segera menindaklanjuti laporan Anda.`
+                                        });
+                                    } catch (e) {}
+                                }
+                            } else {
+                                await reply(`❌ Gagal mengalihkan tiket: ${transferRes.data.message || 'Error'}`);
+                            }
+                        } catch (e) {
+                            const errMsg = e.response?.data?.message || e.message;
+                            await reply(`❌ Gagal mengalihkan tiket: ${errMsg}`);
+                        }
+                        continue;
+                    }
+
+                    // Otherwise, start Interactive Edit Wizard if targetId is found!
+                    if (!targetId) {
                         await reply(
-                            `⚠️ *Format Perintah Edit / Pengalihan Departemen:*\n\n` +
-                            `Ketik:\n*edit [ID] ke [DEPARTEMEN] [Alasan]*\n\n` +
-                            `*Contoh:* edit ENG-221026-105 ke HK Plafon bernoda butuh dibersihkan HK terlebih dahulu.\n` +
-                            `_Atau reply pesan tiket dan ketik: edit ke HK [Alasan]_`
+                            `⚠️ *Format Perintah Edit / Reassign:*\n\n` +
+                            `Ketik *edit [ID_TIKET]* atau reply pesan tiket dengan kata *edit* / *transfer*.\n` +
+                            `_Type edit [TICKET_ID] or reply to ticket notification with 'edit' or 'transfer'._`
                         );
                         continue;
                     }
 
-                    try {
-                        const transferRes = await axios.post(`${BASE_URL}/api/lean/issues/${targetId}/transfer`, {
-                            to_department: validDept.name,
-                            reason: transferReason,
-                            transferred_by: registeredUser.name,
-                            transferred_by_phone: senderPhone
-                        });
-
-                        if (transferRes.data.success) {
-                            const updated = transferRes.data.data;
-                            const oldDeptName = updated.from_department || registeredUser.department || 'Departemen Asal';
-                            const newDeptName = validDept.name;
-
-                            // 1. Announce in current group (Old Group)
-                            await reply(
-                                `🔄 *TIKET DIALIHKAN KE DEPARTEMEN LAIN* 🔄\n\n` +
-                                `• *ID Tiket:* #${targetId}\n` +
-                                `• *Dialihkan ke:* ${newDeptName}\n` +
-                                `• *Dialihkan oleh:* ${registeredUser.name}\n` +
-                                `• *Alasan:* ${transferReason}\n\n` +
-                                `_Tiket telah dilepaskan dari antrean ${oldDeptName} dan diteruskan ke grup ${newDeptName}._`
-                            );
-
-                            // 2. Broadcast to New Department Group
-                            const newDeptKey = validDept.key;
-                            const newGroupJid = botConfig.departmentGroups[newDeptKey];
-                            if (newGroupJid) {
-                                const newDeptMsg = 
-                                    `📥 *TIKET MASUK (DIALIHKAN)* 📥\n\n` +
-                                    `• *ID Tiket:* #${targetId}\n` +
-                                    `• *Masalah:* ${updated.title || '-'}\n` +
-                                    `• *Lokasi:* ${updated.location || '-'}\n` +
-                                    `• *Dialihkan dari:* ${oldDeptName}\n` +
-                                    `• *Dialihkan oleh:* ${registeredUser.name}\n` +
-                                    `• *Alasan Pengalihan:* ${transferReason}\n` +
-                                    `• *Deskripsi Asal:* ${updated.description || '-'}\n\n` +
-                                    `👉 _Ketik *ambil ${targetId}* atau reply pesan ini dengan kata *ambil* untuk memulai pengerjaan._`;
-                                
-                                await sock.sendMessage(newGroupJid, { text: newDeptMsg });
-                            }
-
-                            // 3. Notify Reporter's DM if phone is mapped
-                            const reporterPhone = updated.reporter_phone || null;
-                            if (reporterPhone) {
-                                const repDmJid = `${reporterPhone}@s.whatsapp.net`;
-                                try {
-                                    await sock.sendMessage(repDmJid, {
-                                        text: `ℹ️ *UPDATE STATUS LAPORAN ANDA*\n\n` +
-                                              `Laporan Anda *#${targetId}* (${updated.title}) telah dialihkan pengerjaannya dari *${oldDeptName}* ke *${newDeptName}*.\n\n` +
-                                              `*Alasan:* ${transferReason}\n\n` +
-                                              `Tim ${newDeptName} akan segera menindaklanjuti laporan Anda.`
-                                    });
-                                } catch (e) {}
-                            }
-                        } else {
-                            await reply(`❌ Gagal mengalihkan tiket: ${transferRes.data.message || 'Error'}`);
+                    // Initiate Step 1: Ask for target department
+                    setUserState(senderPhone, {
+                        step: STEPS.TRANSFER_AWAITING_DEPT,
+                        data: {
+                            targetId: targetId,
+                            groupJid: from
                         }
-                    } catch (e) {
-                        const errMsg = e.response?.data?.message || e.message;
-                        await reply(`❌ Gagal mengalihkan tiket: ${errMsg}`);
-                    }
+                    });
+
+                    let deptPrompt = 
+                        `🔄 *PENGALIHAN DEPARTEMEN TIKET #${targetId} (1/2)* 🔄\n` +
+                        `_REASSIGN DEPARTMENT_\n\n` +
+                        `Halo *${registeredUser.name}*, silakan pilih Departemen yang dituju:\n` +
+                        `_Please select the target Department:_\n\n`;
+                    OFFICIAL_DEPARTMENTS.forEach((d, idx) => {
+                        deptPrompt += `${idx + 1}. *${d.name}* (${d.code})\n`;
+                    });
+                    deptPrompt += `\nKetik angka (1-${OFFICIAL_DEPARTMENTS.length}) atau nama/kode departemen.\n` +
+                                  `_Type number (1-${OFFICIAL_DEPARTMENTS.length}) or department code._\n\n` +
+                                  `💡 _Ketik *batal* / *cancel* untuk membatalkan._`;
+
+                    await reply(deptPrompt);
                     continue;
                 }
 
-                // If user tried to 'lapor' in group, gently direct them to DM
-                if (lower === 'lapor' || lower === '!lapor') {
-                    await reply(`📝 Halo @${senderPhone}, pembuatan laporan masalah dilakukan melalui *Chat Pribadi (DM)* ke bot ini agar data dan foto tersimpan dengan tertib.`);
+                // If user tried to 'lapor' / 'report' in group, gently direct them to DM
+                if (lower === 'lapor' || lower === '!lapor' || lower === 'report' || lower === '!report') {
+                    await reply(`📝 Halo @${senderPhone}, pembuatan laporan masalah dilakukan melalui *Chat Pribadi (DM)* ke bot ini agar data dan foto tersimpan dengan tertib.\n_Please send DM to create reports._`);
                     continue;
                 }
 
@@ -698,35 +886,30 @@ async function startBot() {
             // B. COMMANDS IN DIRECT MESSAGE (DM / Chat Pribadi)
             // ═════════════════════════════════════════════════════════════════
 
-            let state = getUserState(senderPhone) || { step: STEPS.IDLE, data: {} };
+            state = getUserState(senderPhone) || { step: STEPS.IDLE, data: {} };
 
-            // CANCEL COMMAND
-            if (['batal', 'cancel', 'reset', '!batal'].includes(lower)) {
-                clearUserState(senderPhone);
-                await reply(`🔄 Proses pelaporan telah dibatalkan. Ketik *lapor* kapan saja untuk membuat laporan baru.`);
-                continue;
-            }
-
-            // HELP in DM
-            if (state.step === STEPS.IDLE && (lower === 'help' || lower === '!help' || lower === 'bantuan')) {
+            // HELP in DM (Bilingual)
+            if (state.step === STEPS.IDLE && ['help', '!help', 'bantuan'].includes(lower)) {
                 await reply(
-                    `👋 *HALO ${registeredUser.name.toUpperCase()}!* 📱\n` +
+                    `👋 *HALO / HELLO ${registeredUser.name.toUpperCase()}!* 📱\n` +
                     `Selamat datang di Telunas CampusFix Bot V2.\n\n` +
-                    `Berikut perintah yang dapat Anda gunakan di chat pribadi:\n\n` +
-                    `👉 *lapor* : Memulai pelaporan masalah baru step-by-step.\n` +
-                    `👉 *list menunggu* : Melihat isu yang belum dikerjakan di departemen Anda.\n` +
-                    `👉 *list progress* : Melihat isu yang sedang dikerjakan tim Anda.\n` +
-                    `👉 *list pending* : Melihat isu yang sedang tertunda/pending.\n` +
-                    `👉 *list selesai* : Melihat riwayat isu yang baru diselesaikan.\n` +
-                    `👉 *list departemen* : Melihat daftar kode & singkatan departemen.\n` +
-                    `👉 *batal* : Membatalkan proses pengisian formulir pelaporan.`
+                    `Berikut perintah yang dapat Anda gunakan di chat pribadi:\n` +
+                    `_Available commands in private chat:_\n\n` +
+                    `👉 *lapor* / *report* : Memulai pelaporan masalah baru / _Create new report._\n` +
+                    `👉 *list menunggu* / *list waiting* : Melihat isu antrean departemen Anda / _Open issues._\n` +
+                    `👉 *list progress* / *list ongoing* : Melihat isu yang sedang dikerjakan / _In-progress._\n` +
+                    `👉 *list pending* : Melihat isu tertunda / _Pending issues._\n` +
+                    `👉 *list selesai* / *list done* : Melihat riwayat isu selesai / _Resolved issues._\n` +
+                    `👉 *list departemen* / *list department* : Melihat daftar kode departemen.\n` +
+                    `👉 *batal* / *cancel* : Membatalkan proses pengisian formulir.`
                 );
                 continue;
             }
 
             // LIST DEPARTEMEN in DM
-            if (state.step === STEPS.IDLE && (lower === 'list departemen' || lower === 'list dept')) {
-                let deptList = `📋 *DAFTAR KODE & DEPARTEMEN TELUNAS* 📋\n\n`;
+            if (state.step === STEPS.IDLE && (lower === 'list departemen' || lower === 'list dept' || lower === 'list department' || lower === 'list departments')) {
+                let deptList = `📋 *DAFTAR KODE & DEPARTEMEN TELUNAS* 📋\n` +
+                               `_TELUNAS DEPARTMENT CODES_\n\n`;
                 OFFICIAL_DEPARTMENTS.forEach(d => {
                     deptList += `• *${d.code.padEnd(4, ' ')}* : ${d.name}\n`;
                 });
@@ -736,12 +919,15 @@ async function startBot() {
             }
 
             // LIST STATUS COMMANDS in DM
-            if (state.step === STEPS.IDLE && (lower.startsWith('list menunggu') || lower.startsWith('list progress') || 
-                lower.startsWith('list pending')  || lower.startsWith('list selesai'))) {
+            if (state.step === STEPS.IDLE && (
+                lower.startsWith('list menunggu') || lower.startsWith('list waiting') || lower.startsWith('list open') ||
+                lower.startsWith('list progress') || lower.startsWith('list ongoing') || lower.startsWith('list in progress') ||
+                lower.startsWith('list pending')  || lower.startsWith('list tertunda') ||
+                lower.startsWith('list selesai')  || lower.startsWith('list done')    || lower.startsWith('list solved') || lower.startsWith('list resolved'))) {
 
-                const statusType = lower.includes('menunggu') ? 'open' :
-                                   lower.includes('progress') ? 'progress' :
-                                   lower.includes('pending') ? 'pending' : 'solved';
+                const statusType = (lower.includes('menunggu') || lower.includes('waiting') || lower.includes('open')) ? 'open' :
+                                   (lower.includes('progress') || lower.includes('ongoing')) ? 'in_progress' :
+                                   (lower.includes('pending') || lower.includes('tertunda')) ? 'pending' : 'resolved';
 
                 const userDept = registeredUser.department || '';
 
@@ -751,20 +937,24 @@ async function startBot() {
 
                     const filtered = issues.filter(iss => {
                         const issDept = (iss.department || iss.assignedDepartments?.[0] || '').toLowerCase();
-                        const matchesDept = userDept ? issDept.includes(userDept.toLowerCase()) : true;
-                        const matchesStatus = (iss.status || '').toLowerCase() === statusType;
+                        const matchesDept = userDept ? (issDept.includes(userDept.toLowerCase()) || userDept.toLowerCase().includes(issDept)) : true;
+                        const currentStatus = (iss.status || '').toLowerCase();
+                        const matchesStatus = currentStatus === statusType ||
+                                              (statusType === 'in_progress' && (currentStatus === 'progress' || currentStatus === 'in_progress')) ||
+                                              (statusType === 'resolved' && (currentStatus === 'solved' || currentStatus === 'resolved'));
                         return matchesDept && matchesStatus;
                     });
 
-                    const statusLabel = statusType === 'open' ? 'MENUNGGU PENANGANAN' :
-                                        statusType === 'progress' ? 'SEDANG DIKERJAKAN' :
-                                        statusType === 'pending' ? 'TERTUNDA (PENDING)' : 'SUDAH SELESAI';
+                    const statusLabel = statusType === 'open' ? 'MENUNGGU PENANGANAN (WAITING)' :
+                                        statusType === 'in_progress' ? 'SEDANG DIKERJAKAN (IN PROGRESS)' :
+                                        statusType === 'pending' ? 'TERTUNDA (PENDING)' : 'SUDAH SELESAI (RESOLVED)';
 
                     let listMsg = `📋 *DAFTAR ISU ${statusLabel}* 📋\n`;
-                    listMsg += `🏢 *Departemen:* ${userDept || 'Semua'}\n\n`;
+                    listMsg += `🏢 *Departemen:* ${userDept || 'Semua / All'}\n\n`;
 
                     if (filtered.length === 0) {
-                        listMsg += `_Tidak ada isu dengan status ${statusLabel} untuk departemen Anda saat ini._`;
+                        listMsg += `_Tidak ada isu dengan status ${statusLabel} untuk departemen Anda saat ini._\n` +
+                                   `_No issues found for your department with this status._`;
                     } else {
                         filtered.slice(0, 10).forEach((item, idx) => {
                             listMsg += `${idx + 1}. *#${item.id}* - ${item.title}\n`;
@@ -781,10 +971,10 @@ async function startBot() {
             }
 
             // ═════════════════════════════════════════════════════════════════
-            // STEP-BY-STEP REPORTING WIZARD (lapor)
+            // STEP-BY-STEP REPORTING WIZARD (lapor / report)
             // ═════════════════════════════════════════════════════════════════
             if (state.step === STEPS.IDLE) {
-                if (lower === 'lapor' || lower === '!lapor' || lower === 'buat tiket') {
+                if (['lapor', '!lapor', 'report', '!report', 'buat tiket', 'create ticket', 'new issue'].includes(lower)) {
                     state.step = STEPS.AWAITING_TITLE;
                     state.data = {
                         reporter: registeredUser.name,
@@ -794,19 +984,20 @@ async function startBot() {
                     setUserState(senderPhone, state);
 
                     await reply(
-                        `📝 *FORMULIR LAPORAN KENDALA / MASALAH* 📝\n\n` +
+                        `📝 *FORMULIR LAPORAN KENDALA / ISSUE REPORT* 📝\n\n` +
                         `Halo *${registeredUser.name}* (${registeredUser.department || 'Staf Telunas'})!\n` +
                         `Identitas Anda telah terverifikasi secara otomatis.\n\n` +
                         `*Langkah 1/5:* Apa masalah atau judul kendala yang Anda temukan?\n` +
-                        `_(Contoh: AC Kamar 5 Menetes Air / Lampu Dermaga Mati)_\n\n` +
-                        `💡 _Ketik *batal* kapan saja untuk membatalkan._`
+                        `_Step 1/5: What issue or problem did you discover?_\n` +
+                        `_(Contoh: AC Kamar 5 Menetes Air / Light bulb broken)_\n\n` +
+                        `💡 _Ketik *batal* / *cancel* kapan saja untuk membatalkan._`
                     );
                     continue;
                 } else {
                     // Friendly greeting
                     await reply(
                         `Halo *${registeredUser.name}*! 👋\n` +
-                        `Ketik *lapor* untuk membuat laporan masalah baru, atau ketik *help* untuk melihat seluruh perintah yang tersedia.`
+                        `Ketik *lapor* / *report* untuk membuat laporan masalah baru, atau ketik *help* untuk melihat seluruh perintah yang tersedia.`
                     );
                     continue;
                 }
@@ -823,8 +1014,9 @@ async function startBot() {
                 setUserState(senderPhone, state);
 
                 await reply(
-                    `📍 *Langkah 2/5:* Di mana lokasi kendala ini?\n\n` +
-                    `Pilih angka atau ketik nama lokasi:\n` +
+                    `📍 *Langkah 2/5:* Di mana lokasi kendala ini?\n` +
+                    `_Step 2/5: Where is this issue located?_\n\n` +
+                    `Pilih angka atau ketik nama lokasi / _Choose number or type location_:\n` +
                     `1. *TBR* (Telunas Beach Resort)\n` +
                     `2. *TPC / TPI* (Telunas Private Island)\n` +
                     `3. *Kantor Sekupang*\n` +
@@ -846,6 +1038,7 @@ async function startBot() {
 
                 await reply(
                     `📝 *Langkah 3/5:* Jelaskan deskripsi detail kendala atau kronologinya:\n` +
+                    `_Step 3/5: Describe the issue details or chronology:_\n\n` +
                     `_(Contoh: Rembesan air mengenai meja kerja sejak tadi malam, tamu meminta dicek segera.)_`
                 );
                 continue;
@@ -854,7 +1047,7 @@ async function startBot() {
             // Step 3 -> Step 4: Photo
             if (state.step === STEPS.AWAITING_DESC) {
                 if (!text || text.length < 3) {
-                    await reply(`⚠️ Mohon tuliskan deskripsi masalah dengan cukup jelas.`);
+                    await reply(`⚠️ Mohon tuliskan deskripsi masalah dengan cukup jelas / Please provide a clear description.`);
                     continue;
                 }
                 state.data.description = text;
@@ -862,8 +1055,9 @@ async function startBot() {
                 setUserState(senderPhone, state);
 
                 await reply(
-                    `📸 *Langkah 4/5:* Silakan kirimkan *FOTO BUKTI KENDALA*.\n\n` +
-                    `_Kirim foto langsung ke chat ini, atau ketik *lewati* jika tidak ada foto saat ini._`
+                    `📸 *Langkah 4/5:* Silakan kirimkan *FOTO BUKTI KENDALA*.\n` +
+                    `_Step 4/5: Please send PHOTO PROOF of the issue._\n\n` +
+                    `_Kirim foto langsung ke chat ini, atau ketik *lewati* / *skip* jika tidak ada foto saat ini._`
                 );
                 continue;
             }
@@ -884,19 +1078,21 @@ async function startBot() {
                     } catch (e) {
                         console.error('[Download Photo Error]', e.message);
                     }
-                } else if (lower !== 'lewati' && lower !== 'skip' && lower !== 'tidak ada') {
-                    await reply(`⚠️ Kirimkan gambar foto bukti kendala, atau ketik *lewati* jika tidak memiliki foto.`);
+                } else if (!['lewati', 'skip', 'tidak ada', 'none', 'no'].includes(lower)) {
+                    await reply(`⚠️ Kirimkan gambar foto bukti kendala, atau ketik *lewati* / *skip* jika tidak memiliki foto.`);
                     continue;
                 }
 
                 state.step = STEPS.AWAITING_DEPARTMENT;
                 setUserState(senderPhone, state);
 
-                let deptPrompt = `🎯 *Langkah 5/5: Pilih 1 Departemen yang bertanggung jawab menyelesaikan masalah ini:*\n\n`;
+                let deptPrompt = `🎯 *Langkah 5/5: Pilih 1 Departemen yang bertanggung jawab:*\n` +
+                                 `_Step 5/5: Select 1 responsible Department:_\n\n`;
                 OFFICIAL_DEPARTMENTS.forEach((d, idx) => {
                     deptPrompt += `${idx + 1}. *${d.name}* (${d.code})\n`;
                 });
-                deptPrompt += `\n_Ketik angka (1-11) atau nama departemen tujuan._`;
+                deptPrompt += `\n_Ketik angka (1-11) atau nama/kode departemen tujuan._\n` +
+                              `_Type number (1-11) or department code._`;
 
                 await reply(deptPrompt);
                 continue;

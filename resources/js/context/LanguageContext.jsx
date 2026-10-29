@@ -692,6 +692,14 @@ const translations = {
         tagged_department_desc: 'Tagged Department',
         staff: 'Staff',
         job_already_taken_err: 'Display Error: Job Already Taken',
+        transfer_history: 'Transfer History',
+        dept_transfer_history: 'Department Transfer History',
+        transfer_from: 'Transferred from',
+        transfer_to: 'to',
+        transfer_by: 'by',
+        transfer_reason: 'Reason',
+        no_transfer_history: 'No transfer history for this issue.',
+        transferred_badge: 'Transferred',
     },
     id: {
         // Header & Nav
@@ -1384,6 +1392,14 @@ const translations = {
         tagged_department_desc: 'Departemen Ditandai (Pemberitahuan)',
         staff: 'Staf',
         job_already_taken_err: 'Kesalahan Tampilan: Pekerjaan Sudah Diambil',
+        transfer_history: 'Riwayat Pengalihan',
+        dept_transfer_history: 'Riwayat Pengalihan Departemen',
+        transfer_from: 'Dialihkan dari',
+        transfer_to: 'ke',
+        transfer_by: 'oleh',
+        transfer_reason: 'Alasan',
+        no_transfer_history: 'Belum ada riwayat pengalihan untuk isu ini.',
+        transferred_badge: 'Dialihkan',
     }
 };
 

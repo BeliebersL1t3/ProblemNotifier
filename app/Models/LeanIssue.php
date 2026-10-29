@@ -38,11 +38,13 @@ class LeanIssue extends Model
         'ai_analysis',
         'ai_processed_at',
         'deleted_by_name',
+        'transfer_history',
     ];
 
     protected $casts = [
         'target_departments' => 'array',
         'department_accs'    => 'array',
+        'transfer_history'   => 'array',
         'ai_analysis'        => 'array',
         'ai_is_minimal'      => 'boolean',
         'claimed_at'         => 'datetime',
