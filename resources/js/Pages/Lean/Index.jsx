@@ -581,57 +581,60 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                         </div>
                     </div>
 
-                    {/* Analytics 3 Tabs (Desktop in Header) */}
-                    {viewMode === 'analytics' && (
-                        <div className={`hidden lg:flex items-center gap-1 p-1 rounded-xl border shrink-0 overflow-x-auto justify-center ${
-                            isDark ? 'bg-slate-950/80 border-slate-800' : 'bg-slate-100 border-slate-200 shadow-xs'
-                        }`}>
-                            <button
-                                type="button"
-                                onClick={() => setActiveAnalyticsTab('executive')}
-                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-                                    activeAnalyticsTab === 'executive'
-                                        ? 'bg-teal-500 text-slate-950 shadow-sm shadow-teal-500/30'
-                                        : isDark
-                                        ? 'text-slate-400 hover:text-white hover:bg-slate-800/80'
-                                        : 'text-slate-600 hover:text-slate-900 hover:bg-white'
-                                }`}
-                            >
-                                <Compass className="w-3.5 h-3.5" />
-                                <span>Ringkasan Eksekutif</span>
-                            </button>
-
-                            <button
-                                type="button"
-                                onClick={() => setActiveAnalyticsTab('maintenance')}
-                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-                                    activeAnalyticsTab === 'maintenance'
-                                        ? 'bg-teal-500 text-slate-950 shadow-sm shadow-teal-500/30'
-                                        : isDark
-                                        ? 'text-slate-400 hover:text-white hover:bg-slate-800/80'
-                                        : 'text-slate-600 hover:text-slate-900 hover:bg-white'
-                                }`}
-                            >
-                                <Wrench className="w-3.5 h-3.5" />
-                                <span>Maintenance</span>
-                            </button>
-
-                            <button
-                                type="button"
-                                onClick={() => setActiveAnalyticsTab('sla_performance')}
-                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-                                    activeAnalyticsTab === 'sla_performance'
-                                        ? 'bg-teal-500 text-slate-950 shadow-sm shadow-teal-500/30'
-                                        : isDark
-                                        ? 'text-slate-400 hover:text-white hover:bg-slate-800/80'
-                                        : 'text-slate-600 hover:text-slate-900 hover:bg-white'
-                                }`}
-                            >
-                                <Clock className="w-3.5 h-3.5" />
-                                <span>Performa & SLA</span>
-                            </button>
-                        </div>
-                    )}
+                    {/* View Mode Switcher (Moved to Header) */}
+                    <div className={`flex items-center p-0.5 sm:p-1 rounded-xl border shrink-0 ${
+                        isDark ? 'bg-slate-950/80 border-slate-800' : 'bg-slate-100 border-slate-200 shadow-xs'
+                    }`}>
+                        {/* Desktop only Table ERP */}
+                        <button
+                            type="button"
+                            onClick={() => setViewMode('table')}
+                            className={`hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                viewMode === 'table'
+                                    ? 'bg-emerald-600 text-white shadow-sm'
+                                    : isDark
+                                    ? 'text-slate-400 hover:text-slate-200'
+                                    : 'text-slate-600 hover:text-slate-900 hover:bg-white'
+                            }`}
+                            title="Tampilan Tabel Spreadsheet ERP (Khusus Desktop)"
+                        >
+                            <Table className="w-3.5 h-3.5" />
+                            <span>Tabel ERP</span>
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setViewMode('cards')}
+                            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                viewMode === 'cards'
+                                    ? 'bg-emerald-600 text-white shadow-sm'
+                                    : isDark
+                                    ? 'text-slate-400 hover:text-slate-200'
+                                    : 'text-slate-600 hover:text-slate-900 hover:bg-white'
+                            }`}
+                            title="Tampilan Kartu Visual"
+                        >
+                            <LayoutGrid className="w-3.5 h-3.5" />
+                            <span className="hidden sm:inline">Kartu</span>
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setViewMode('analytics')}
+                            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                viewMode === 'analytics'
+                                    ? 'bg-emerald-600 text-white shadow-sm'
+                                    : isDark
+                                    ? 'text-slate-400 hover:text-slate-200'
+                                    : 'text-slate-600 hover:text-slate-900 hover:bg-white'
+                            }`}
+                            title="Analisa Audit & Mitigasi Kerusakan"
+                        >
+                            <BarChart3 className="w-3.5 h-3.5" />
+                            <span className="hidden sm:inline">Analitik AI</span>
+                            {aiPendingCount > 0 && (
+                                <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                            )}
+                        </button>
+                    </div>
 
                     {/* Profile & Navigation Switcher & Bot Controls (Right - Fixed 1-Line Sleek App Bar) */}
                     <div className="flex items-center gap-1 sm:gap-2 shrink-0">
@@ -717,55 +720,7 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                     </div>
                 </div>
 
-                {/* Mobile Analytics 3 Tabs (Under Header when in Analytics View) */}
-                {viewMode === 'analytics' && (
-                    <div className={`grid grid-cols-3 lg:hidden gap-1 p-1 mt-2 rounded-xl border w-full ${
-                        isDark ? 'bg-slate-950/80 border-slate-800' : 'bg-slate-100/90 border-slate-200 shadow-xs'
-                    }`}>
-                        <button
-                            type="button"
-                            onClick={() => setActiveAnalyticsTab('executive')}
-                            className={`flex items-center justify-center gap-1.5 py-1.5 px-1 rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer ${
-                                activeAnalyticsTab === 'executive'
-                                    ? 'bg-teal-500 text-slate-950 shadow-sm shadow-teal-500/20'
-                                    : isDark
-                                    ? 'text-slate-400 hover:text-white hover:bg-slate-800/60'
-                                    : 'text-slate-600 hover:text-slate-900 hover:bg-white'
-                            }`}
-                        >
-                            <Compass className="w-3.5 h-3.5 shrink-0" />
-                            <span className="truncate">Eksekutif</span>
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setActiveAnalyticsTab('maintenance')}
-                            className={`flex items-center justify-center gap-1.5 py-1.5 px-1 rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer ${
-                                activeAnalyticsTab === 'maintenance'
-                                    ? 'bg-teal-500 text-slate-950 shadow-sm shadow-teal-500/20'
-                                    : isDark
-                                    ? 'text-slate-400 hover:text-white hover:bg-slate-800/60'
-                                    : 'text-slate-600 hover:text-slate-900 hover:bg-white'
-                            }`}
-                        >
-                            <Wrench className="w-3.5 h-3.5 shrink-0" />
-                            <span className="truncate">Maintenance</span>
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setActiveAnalyticsTab('sla_performance')}
-                            className={`flex items-center justify-center gap-1.5 py-1.5 px-1 rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer ${
-                                activeAnalyticsTab === 'sla_performance'
-                                    ? 'bg-teal-500 text-slate-950 shadow-sm shadow-teal-500/20'
-                                    : isDark
-                                    ? 'text-slate-400 hover:text-white hover:bg-slate-800/60'
-                                    : 'text-slate-600 hover:text-slate-900 hover:bg-white'
-                            }`}
-                        >
-                            <Clock className="w-3.5 h-3.5 shrink-0" />
-                            <span className="truncate">SLA</span>
-                        </button>
-                    </div>
-                )}
+
             </header>
 
             {/* MAIN CONTENT CONTAINER */}
@@ -869,84 +824,83 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                             </select>
                         </div>
 
-                        {/* Actions group: View Mode Switcher + Column Customizer */}
+                        {/* Actions group: Analytics Sub-Tabs (in Analytics Mode) OR Column Customizer (in Table/Card Mode) */}
                         <div className="col-span-2 sm:col-span-1 sm:ml-auto flex items-center justify-between sm:justify-end gap-2">
-                            {/* Column Customizer Button */}
-                            <button
-                                type="button"
-                                onClick={() => setShowColumnModal(true)}
-                                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all shadow-sm border ${
-                                    isDark
-                                        ? 'bg-slate-800/90 hover:bg-slate-700 border-slate-700 hover:border-emerald-500/50 text-slate-200'
-                                        : 'bg-white/95 hover:bg-slate-50 border-slate-300 hover:border-slate-400 text-slate-800 shadow-xs'
-                                }`}
-                                title="Pilih data/kolom apa saja yang ingin ditampilkan"
-                            >
-                                <SlidersHorizontal className="w-3.5 h-3.5 text-emerald-500" />
-                                <span>Tampilan</span>
-                                <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded border ${
-                                    isDark
-                                        ? 'bg-emerald-950 text-emerald-300 border-emerald-800/60'
-                                        : 'bg-emerald-100 text-emerald-800 border-emerald-300'
-                                }`}>
-                                    {activeColumnCount}/{COLUMN_DEFS.length}
-                                </span>
-                            </button>
+                            {/* Column Customizer Button (Table & Cards mode) */}
+                            {viewMode !== 'analytics' && (
+                                <button
+                                    type="button"
+                                    onClick={() => setShowColumnModal(true)}
+                                    className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all shadow-sm border ${
+                                        isDark
+                                            ? 'bg-slate-800/90 hover:bg-slate-700 border-slate-700 hover:border-emerald-500/50 text-slate-200'
+                                            : 'bg-white/95 hover:bg-slate-50 border-slate-300 hover:border-slate-400 text-slate-800 shadow-xs'
+                                    }`}
+                                    title="Pilih data/kolom apa saja yang ingin ditampilkan"
+                                >
+                                    <SlidersHorizontal className="w-3.5 h-3.5 text-emerald-500" />
+                                    <span>Tampilan</span>
+                                    <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded border ${
+                                        isDark
+                                            ? 'bg-emerald-950 text-emerald-300 border-emerald-800/60'
+                                            : 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                    }`}>
+                                        {activeColumnCount}/{COLUMN_DEFS.length}
+                                    </span>
+                                </button>
+                            )}
 
-                            {/* View Mode Switcher (Kartu & Analitk di Mobile; Tabel ERP hanya di Desktop) */}
-                            <div className={`flex items-center p-0.5 rounded-xl border ${
-                                isDark ? 'bg-slate-800/90 border-slate-700' : 'bg-slate-100 border-slate-300 shadow-xs'
-                            }`}>
-                                {/* Desktop only Table ERP */}
-                                <button
-                                    type="button"
-                                    onClick={() => setViewMode('table')}
-                                    className={`hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                                        viewMode === 'table'
-                                            ? 'bg-emerald-600 text-white shadow-sm'
-                                            : isDark
-                                            ? 'text-slate-400 hover:text-slate-200'
-                                            : 'text-slate-600 hover:text-slate-900 hover:bg-white'
-                                    }`}
-                                    title="Tampilan Tabel Spreadsheet ERP (Khusus Desktop)"
-                                >
-                                    <Table className="w-3.5 h-3.5" />
-                                    <span>Tabel ERP</span>
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setViewMode('cards')}
-                                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                                        viewMode === 'cards'
-                                            ? 'bg-emerald-600 text-white shadow-sm'
-                                            : isDark
-                                            ? 'text-slate-400 hover:text-slate-200'
-                                            : 'text-slate-600 hover:text-slate-900 hover:bg-white'
-                                    }`}
-                                    title="Tampilan Kartu Visual"
-                                >
-                                    <LayoutGrid className="w-3.5 h-3.5" />
-                                    <span className="hidden sm:inline">Kartu</span>
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setViewMode('analytics')}
-                                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                                        viewMode === 'analytics'
-                                            ? 'bg-emerald-600 text-white shadow-sm'
-                                            : isDark
-                                            ? 'text-slate-400 hover:text-slate-200'
-                                            : 'text-slate-600 hover:text-slate-900 hover:bg-white'
-                                    }`}
-                                    title="Analisa Audit & Mitigasi Kerusakan"
-                                >
-                                    <BarChart3 className="w-3.5 h-3.5" />
-                                    <span className="hidden sm:inline">Analitik AI</span>
-                                    {aiPendingCount > 0 && (
-                                        <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-                                    )}
-                                </button>
-                            </div>
+                            {/* Analytics Sub-Tabs (Swapped here - only appears when viewMode === 'analytics') */}
+                            {viewMode === 'analytics' && (
+                                <div className={`flex items-center gap-1 p-1 rounded-xl border shrink-0 overflow-x-auto justify-center w-full sm:w-auto ${
+                                    isDark ? 'bg-slate-800/90 border-slate-700' : 'bg-slate-100 border-slate-300 shadow-xs'
+                                }`}>
+                                    <button
+                                        type="button"
+                                        onClick={() => setActiveAnalyticsTab('executive')}
+                                        className={`flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex-1 sm:flex-initial ${
+                                            activeAnalyticsTab === 'executive'
+                                                ? 'bg-teal-500 text-slate-950 shadow-sm shadow-teal-500/30'
+                                                : isDark
+                                                ? 'text-slate-400 hover:text-white hover:bg-slate-800/80'
+                                                : 'text-slate-600 hover:text-slate-900 hover:bg-white'
+                                        }`}
+                                    >
+                                        <Compass className="w-3.5 h-3.5 shrink-0" />
+                                        <span><span className="hidden sm:inline">Ringkasan </span>Eksekutif</span>
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => setActiveAnalyticsTab('maintenance')}
+                                        className={`flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex-1 sm:flex-initial ${
+                                            activeAnalyticsTab === 'maintenance'
+                                                ? 'bg-teal-500 text-slate-950 shadow-sm shadow-teal-500/30'
+                                                : isDark
+                                                ? 'text-slate-400 hover:text-white hover:bg-slate-800/80'
+                                                : 'text-slate-600 hover:text-slate-900 hover:bg-white'
+                                        }`}
+                                    >
+                                        <Wrench className="w-3.5 h-3.5 shrink-0" />
+                                        <span>Maintenance</span>
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => setActiveAnalyticsTab('sla_performance')}
+                                        className={`flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex-1 sm:flex-initial ${
+                                            activeAnalyticsTab === 'sla_performance'
+                                                ? 'bg-teal-500 text-slate-950 shadow-sm shadow-teal-500/30'
+                                                : isDark
+                                                ? 'text-slate-400 hover:text-white hover:bg-slate-800/80'
+                                                : 'text-slate-600 hover:text-slate-900 hover:bg-white'
+                                        }`}
+                                    >
+                                        <Clock className="w-3.5 h-3.5 shrink-0" />
+                                        <span><span className="hidden sm:inline">Performa & </span>SLA</span>
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
