@@ -2,7 +2,7 @@
  * Telunas Fix - Web Push & Static Map Cache Service Worker
  */
 
-const MAPS_CACHE_NAME = 'telunas-maps-cache-v1';
+const MAPS_CACHE_NAME = 'telunas-maps-cache-v2';
 const MAPS_ASSETS = [
     '/images/maps/tpi_masterplan_v2.png',
     '/images/maps/tbr_masterplan.png',

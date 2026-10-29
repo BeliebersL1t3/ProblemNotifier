@@ -259,7 +259,7 @@ function TpiResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
     const modalScrollRef = useRef(null);
 
     const handleZoomIn = () => setZoom((prev) => Math.min(Number((prev + 0.25).toFixed(2)), 3));
-    const handleZoomOut = () => setZoom((prev) => Math.max(Number((prev - 0.25).toFixed(2)), 1));
+    const handleZoomOut = () => setZoom((prev) => Math.max(Number((prev - 0.25).toFixed(2)), 0.75));
     const handleSetZoomPreset = (val) => {
         setZoom(val);
         if (scrollContainerRef.current) {
@@ -286,7 +286,7 @@ function TpiResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                 {/* High-Resolution Masterplan Drawing Frame with High-Contrast Filter */}
                 <div className="relative rounded-xl overflow-hidden border border-slate-300/80 shadow-md bg-white w-full">
                     <img
-                        src="/images/maps/tpi_masterplan_v2.png"
+                        src="/images/maps/tpi_masterplan_v2.png?v=3"
                         alt="Denah Masterplan Telunas Private Island (TPI)"
                         className="w-full h-auto block select-none pointer-events-none filter contrast-[1.08] brightness-[0.98]"
                         style={{ imageRendering: '-webkit-optimize-contrast' }}
@@ -460,7 +460,7 @@ function TpiResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                         <button
                             type="button"
                             onClick={handleZoomOut}
-                            disabled={zoom <= 1}
+                            disabled={zoom <= 0.75}
                             className={`p-1.5 rounded-lg disabled:opacity-40 transition-colors cursor-pointer ${
                                 isDark ? 'text-slate-300 hover:text-white hover:bg-slate-800' : 'text-slate-700 hover:text-slate-900 hover:bg-white'
                             }`}
@@ -610,15 +610,15 @@ function TpiResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
 // --- Denah Arsitektural Masterplan TBR (Telunas Beach Resort) ---
 function TbrResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark' }) {
     const isDark = theme === 'dark';
-    const [zoom, setZoom] = useState(1);
+    const [zoom, setZoom] = useState(0.65); // Default 0.65x compact for square TBR layout
     const [filterMode, setFilterMode] = useState('all'); // 'all' (all facilities) | 'active' (issues only)
     const [hoveredZone, setHoveredZone] = useState(null);
     const [isFullscreen, setIsFullscreen] = useState(false);
     const scrollContainerRef = useRef(null);
     const modalScrollRef = useRef(null);
 
-    const handleZoomIn = () => setZoom((prev) => Math.min(Number((prev + 0.25).toFixed(2)), 3));
-    const handleZoomOut = () => setZoom((prev) => Math.max(Number((prev - 0.25).toFixed(2)), 1));
+    const handleZoomIn = () => setZoom((prev) => Math.min(Number((prev + 0.15).toFixed(2)), 2.5));
+    const handleZoomOut = () => setZoom((prev) => Math.max(Number((prev - 0.15).toFixed(2)), 0.45));
     const handleSetZoomPreset = (val) => {
         setZoom(val);
         if (scrollContainerRef.current) {
@@ -630,16 +630,15 @@ function TbrResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
     const displayedZones = filterMode === 'active' ? zones.filter(z => (z.count || 0) > 0) : zones;
 
     const renderMapCanvas = (isModal = false) => {
-        const effectiveZoom = isModal ? Math.max(1.25, zoom) : zoom;
-        const isFit = !isModal && effectiveZoom <= 1;
+        const effectiveZoom = isModal ? Math.max(1, zoom) : zoom;
 
         return (
             <div
-                className="relative select-none transition-all duration-150 p-1 sm:p-2.5"
+                className="relative select-none transition-all duration-150 p-1 sm:p-2.5 mx-auto"
                 style={{
-                    width: isFit ? '100%' : `${Math.round(effectiveZoom * 100)}%`,
-                    minWidth: isModal ? '850px' : isFit ? '100%' : `${Math.round(effectiveZoom * 100)}%`,
-                    maxWidth: isFit ? '100%' : undefined,
+                    width: isModal ? `${Math.round(effectiveZoom * 100)}%` : `${Math.round(effectiveZoom * 100)}%`,
+                    minWidth: isModal ? '850px' : undefined,
+                    maxWidth: isModal ? undefined : `${Math.round(effectiveZoom * 100)}%`,
                 }}
             >
                 {/* High-Contrast Architectural Site Plan Drawing Frame */}
@@ -766,15 +765,27 @@ function TbrResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                         }`}>
                             <button
                                 type="button"
+                                onClick={() => handleSetZoomPreset(0.65)}
+                                className={`px-2 py-0.5 rounded-md transition-all cursor-pointer ${
+                                    zoom === 0.65
+                                        ? 'bg-amber-500 text-slate-950 shadow-2xs font-extrabold'
+                                        : isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'
+                                }`}
+                                title="Tampilan Kompak Pas Layar"
+                            >
+                                0.6x Kompak
+                            </button>
+                            <button
+                                type="button"
                                 onClick={() => handleSetZoomPreset(1)}
                                 className={`px-2 py-0.5 rounded-md transition-all cursor-pointer ${
                                     zoom === 1
                                         ? 'bg-amber-500 text-slate-950 shadow-2xs font-extrabold'
                                         : isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'
                                 }`}
-                                title="Paskan 100% Lebar Layar"
+                                title="Ukuran 1x Standar"
                             >
-                                1x Fit
+                                1x Standar
                             </button>
                             <button
                                 type="button"
@@ -789,18 +800,6 @@ function TbrResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                                 <Sparkles className="w-2.5 h-2.5" />
                                 <span>1.5x HD</span>
                             </button>
-                            <button
-                                type="button"
-                                onClick={() => handleSetZoomPreset(2)}
-                                className={`px-2 py-0.5 rounded-md transition-all cursor-pointer ${
-                                    zoom === 2
-                                        ? 'bg-purple-500 text-white shadow-2xs font-extrabold'
-                                        : isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'
-                                }`}
-                                title="Zoom 2x Ultra Detail"
-                            >
-                                2x Ultra
-                            </button>
                         </div>
                     </div>
 
@@ -808,7 +807,7 @@ function TbrResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                         <button
                             type="button"
                             onClick={handleZoomIn}
-                            disabled={zoom >= 3}
+                            disabled={zoom >= 2.5}
                             className={`p-1.5 rounded-lg disabled:opacity-40 transition-colors cursor-pointer ${
                                 isDark ? 'text-slate-300 hover:text-white hover:bg-slate-800' : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
                             }`}
@@ -819,7 +818,7 @@ function TbrResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                         <button
                             type="button"
                             onClick={handleZoomOut}
-                            disabled={zoom <= 1}
+                            disabled={zoom <= 0.45}
                             className={`p-1.5 rounded-lg disabled:opacity-40 transition-colors cursor-pointer ${
                                 isDark ? 'text-slate-300 hover:text-white hover:bg-slate-800' : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
                             }`}
@@ -850,11 +849,7 @@ function TbrResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                 {/* Clean CAD Architectural Blueprint Container - Smooth Touch Scroll & Pan */}
                 <div
                     ref={scrollContainerRef}
-                    className={`relative w-full bg-slate-100 overscroll-contain transition-all ${
-                        zoom > 1
-                            ? 'overflow-auto touch-pan-x touch-pan-y max-h-[550px] sm:max-h-[650px]'
-                            : 'overflow-hidden max-h-none'
-                    }`}
+                    className="relative w-full bg-slate-100 overscroll-contain transition-all overflow-auto touch-pan-x touch-pan-y max-h-[500px] sm:max-h-[560px] flex justify-center"
                 >
                     {renderMapCanvas(false)}
                 </div>
@@ -989,7 +984,7 @@ export function LeanAnalyticsView({
 
     // Preload architectural resort map images in background so tabs render instantly
     useEffect(() => {
-        ['/images/maps/tpi_masterplan_v2.png', '/images/maps/tbr_masterplan.png'].forEach((src) => {
+        ['/images/maps/tpi_masterplan_v2.png?v=3', '/images/maps/tbr_masterplan.png'].forEach((src) => {
             const img = new Image();
             img.src = src;
         });

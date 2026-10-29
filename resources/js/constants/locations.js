@@ -10,7 +10,7 @@ export const TPI_MASTERPLAN_ZONES = [
         name: 'Jetty Kedatangan',
         enName: 'Arrival Dock',
         x: 12.54,
-        y: 22.55,
+        y: 30.50,
         keywords: ['jetty kedatangan', 'dermaga kedatangan', 'arrival dock', 'arrival jetty', 'dermaga utama', 'boat arrival', 'dock kedatangan'],
     },
     {
@@ -19,7 +19,7 @@ export const TPI_MASTERPLAN_ZONES = [
         name: 'Restoran & Kantor',
         enName: 'Restaurant & Office',
         x: 19.29,
-        y: 31.21,
+        y: 42.21,
         keywords: ['restoran', 'restaurant', 'kantor', 'office', 'dining room', 'reception', 'lobby', 'front office', 'kasir', 'bar', 'dapur utama', 'kitchen'],
     },
     {
@@ -28,7 +28,7 @@ export const TPI_MASTERPLAN_ZONES = [
         name: 'Ruang Pertemuan',
         enName: 'Meeting Room',
         x: 22.64,
-        y: 28.38,
+        y: 38.38,
         keywords: ['ruang pertemuan', 'meeting room', 'meeting', 'ruang rapat', 'conference', 'serbaguna'],
     },
     {
@@ -37,7 +37,7 @@ export const TPI_MASTERPLAN_ZONES = [
         name: 'Kolam Renang',
         enName: 'Swimming Pool',
         x: 17.95,
-        y: 22.73,
+        y: 30.74,
         keywords: ['kolam renang', 'swimming pool', 'pool', 'kolam', 'deck pool'],
     },
     {
@@ -46,7 +46,7 @@ export const TPI_MASTERPLAN_ZONES = [
         name: 'Rumah Manager',
         enName: 'Manager Residence',
         x: 12.12,
-        y: 31.12,
+        y: 42.09,
         keywords: ['rumah manager', 'manager residence', 'villa manager', 'gm house', 'manager'],
     },
     {
@@ -55,7 +55,7 @@ export const TPI_MASTERPLAN_ZONES = [
         name: 'Spa Pavillion',
         enName: 'Spa',
         x: 8.98,
-        y: 37.50,
+        y: 50.71,
         keywords: ['spa', 'massage', 'spa pavillion', 'balai spa', 'pijat'],
     },
     {
@@ -64,7 +64,7 @@ export const TPI_MASTERPLAN_ZONES = [
         name: 'Akomodasi Tamu (Vila Terapung 1–15)',
         enName: 'Overwater Villas 1-15',
         x: 32.82,
-        y: 11.65,
+        y: 15.76,
         keywords: ['villa', 'overwater', 'vila terapung', 'kamar', 'bungalow', 'water villa', 'unit'],
     },
     {
@@ -73,7 +73,7 @@ export const TPI_MASTERPLAN_ZONES = [
         name: 'Pelantar (Boardwalk)',
         enName: 'Overwater Boardwalk',
         x: 37.37,
-        y: 21.43,
+        y: 28.98,
         keywords: ['pelantar', 'boardwalk', 'jembatan kayu', 'dermaga kayu penghubung', 'titian', 'pier walk'],
     },
     {
@@ -82,7 +82,7 @@ export const TPI_MASTERPLAN_ZONES = [
         name: 'Gudang HK',
         enName: 'Housekeeping Storage',
         x: 36.73,
-        y: 27.74,
+        y: 37.52,
         keywords: ['gudang hk', 'housekeeping', 'linen', 'laundry', 'store hk', 'gudang housekeeping'],
     },
     {
@@ -91,7 +91,7 @@ export const TPI_MASTERPLAN_ZONES = [
         name: 'Asrama Karyawan',
         enName: 'Staff Dormitory',
         x: 38.46,
-        y: 34.97,
+        y: 47.29,
         keywords: ['asrama karyawan', 'mes karyawan', 'staff dorm', 'asrama umum', 'mess staf'],
     },
     {
@@ -100,7 +100,7 @@ export const TPI_MASTERPLAN_ZONES = [
         name: 'Bengkel Kayu',
         enName: 'Carpentry Workshop',
         x: 54.75,
-        y: 39.27,
+        y: 53.11,
         keywords: ['bengkel kayu', 'carpentry', 'wood workshop', 'pertukangan', 'tukang kayu'],
     },
     {
@@ -109,7 +109,7 @@ export const TPI_MASTERPLAN_ZONES = [
         name: 'Asrama Karyawan Pria',
         enName: 'Male Staff Dorm',
         x: 50.92,
-        y: 40.80,
+        y: 55.18,
         keywords: ['asrama pria', 'asrama karyawan pria', 'mes pria', 'male dorm', 'mess cowok', 'asrama laki'],
     },
     {
@@ -118,7 +118,7 @@ export const TPI_MASTERPLAN_ZONES = [
         name: 'Asrama Karyawan Wanita',
         enName: 'Female Staff Dorm',
         x: 48.90,
-        y: 39.46,
+        y: 53.36,
         keywords: ['asrama wanita', 'asrama karyawan wanita', 'mes wanita', 'female dorm', 'mess cewek', 'asrama perempuan'],
     },
     {
@@ -127,7 +127,7 @@ export const TPI_MASTERPLAN_ZONES = [
         name: 'Rumah Karyawan',
         enName: 'Staff House',
         x: 49.42,
-        y: 50.29,
+        y: 68.01,
         keywords: ['rumah karyawan', 'staff house', 'perumahan staf', 'rumah tinggal karyawan'],
     },
     {
@@ -136,7 +136,7 @@ export const TPI_MASTERPLAN_ZONES = [
         name: 'Gudang / Genset',
         enName: 'Genset & Powerhouse',
         x: 54.75,
-        y: 47.46,
+        y: 64.18,
         keywords: ['genset', 'powerhouse', 'gudang genset', 'panel listrik', 'mesin genset', 'utilitas', 'power plant', 'kelistrikan'],
     },
     {
@@ -145,7 +145,7 @@ export const TPI_MASTERPLAN_ZONES = [
         name: 'Area Rekreasi',
         enName: 'Recreation Area',
         x: 63.80,
-        y: 45.20,
+        y: 61.13,
         keywords: ['area rekreasi', 'lapangan', 'recreation', 'games', 'sport', 'lapangan voli', 'taman bermain'],
     },
     {
@@ -154,7 +154,7 @@ export const TPI_MASTERPLAN_ZONES = [
         name: 'Area Konservasi & Edukasi',
         enName: 'Conservation & Trail',
         x: 82.80,
-        y: 48.60,
+        y: 65.73,
         keywords: ['konservasi', 'edukasi', 'conservation', 'jalur treking', 'treking', 'hutan', 'bukit edukasi', 'mangrove', 'bakau'],
     },
     {
@@ -163,7 +163,7 @@ export const TPI_MASTERPLAN_ZONES = [
         name: 'Jetty Logistik',
         enName: 'Logistics Jetty',
         x: 69.60,
-        y: 23.34,
+        y: 31.56,
         keywords: ['jetty logistik', 'dermaga logistik', 'cargo jetty', 'supply dock', 'dermaga barang', 'dermaga boat barang'],
     },
     {
@@ -172,7 +172,7 @@ export const TPI_MASTERPLAN_ZONES = [
         name: 'Bengkel Kapal',
         enName: 'Boat Workshop',
         x: 66.60,
-        y: 13.40,
+        y: 18.12,
         keywords: ['bengkel kapal', 'boat workshop', 'dock boat', 'speed boat', 'perahu', 'slipway', 'mesin kapal'],
     },
     {
@@ -181,7 +181,7 @@ export const TPI_MASTERPLAN_ZONES = [
         name: 'Reservoir Air',
         enName: 'Water Reservoir',
         x: 33.14,
-        y: 42.39,
+        y: 57.33,
         keywords: ['reservoir air', 'tangki air', 'water tank', 'tandon air', 'pompa air utama', 'toren air', 'penampungan air'],
     },
     {
@@ -190,7 +190,7 @@ export const TPI_MASTERPLAN_ZONES = [
         name: 'Vila Bukit Telunas',
         enName: 'Ridge Guest Villas',
         x: 20.52,
-        y: 44.26,
+        y: 59.86,
         keywords: ['vila bukit', 'villa bukit', 'hill villa', 'bukit telunas', 'ridge villa', 'villa bukit telunas'],
     },
     {
@@ -199,7 +199,7 @@ export const TPI_MASTERPLAN_ZONES = [
         name: 'Akomodasi Tamu (Rencana)',
         enName: 'Planned South Units',
         x: 59.70,
-        y: 63.98,
+        y: 86.53,
         keywords: ['rencana', 'akomodasi rencana', 'pantai selatan', 'vila rencana'],
     },
 ];
