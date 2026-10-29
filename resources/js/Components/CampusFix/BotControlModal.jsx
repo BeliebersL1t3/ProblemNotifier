@@ -43,7 +43,10 @@ export function BotControlModal({ open, onOpenChange, botStatus, onRefreshStatus
     const cleanActivePhone = activePhone ? String(activePhone).replace(/[^0-9]/g, '') : '';
     const waChatUrl = cleanActivePhone ? `https://wa.me/${cleanActivePhone}` : null;
 
+    const isBackingOffRef = useRef(false);
+
     const fetchAuthState = useCallback(async () => {
+        if (isBackingOffRef.current) return;
         try {
             setLoadingAuth(true);
             const res = await axios.get('/api/bot/auth-state');
@@ -55,8 +58,14 @@ export function BotControlModal({ open, onOpenChange, botStatus, onRefreshStatus
                     onRefreshStatus();
                 }
             }
-        } catch {
-            // Silently ignore or set basic offline
+        } catch (err) {
+            if (err.response?.status === 429) {
+                // Rate limited: pause polling for 15 seconds to allow cooling off
+                isBackingOffRef.current = true;
+                setTimeout(() => {
+                    isBackingOffRef.current = false;
+                }, 15000);
+            }
         } finally {
             setLoadingAuth(false);
         }
@@ -83,10 +92,10 @@ export function BotControlModal({ open, onOpenChange, botStatus, onRefreshStatus
             fetchAuthState();
             if (showLogs) fetchLogs();
 
-            // Set up polling for connection updates while modal is open
+            // Set up polling for connection updates while modal is open (relaxed to 5s)
             pollIntervalRef.current = setInterval(() => {
                 fetchAuthState();
-            }, 3500);
+            }, 5000);
         } else {
             if (pollIntervalRef.current) {
                 clearInterval(pollIntervalRef.current);

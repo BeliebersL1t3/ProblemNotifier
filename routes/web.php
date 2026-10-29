@@ -99,14 +99,14 @@ Route::middleware('auth')->group(function () {
     Route::get('/bot/status', [IssueController::class, 'getBotStatus'])->name('bot.status');
 
     // WhatsApp Bot Lifecycle & Number Management (Admin Only)
-    Route::post('/api/bot/start', [IssueController::class, 'startBot'])->middleware('throttle:10,1');
-    Route::post('/api/bot/stop', [IssueController::class, 'stopBot'])->middleware('throttle:10,1');
-    Route::post('/api/bot/restart', [IssueController::class, 'restartBot'])->middleware('throttle:10,1');
-    Route::get('/api/bot/logs', [IssueController::class, 'getBotLogs'])->middleware('throttle:30,1');
-    Route::get('/api/bot/auth-state', [IssueController::class, 'getBotAuthState'])->middleware('throttle:30,1');
-    Route::post('/api/bot/pair-phone', [IssueController::class, 'pairBotPhone'])->middleware('throttle:10,1');
-    Route::post('/api/bot/unlink', [IssueController::class, 'unlinkBot'])->middleware('throttle:10,1');
-    Route::get('/api/bot/public-contact', [IssueController::class, 'getPublicBotContact'])->middleware('throttle:60,1');
+    Route::post('/api/bot/start', [IssueController::class, 'startBot'])->middleware('throttle:60,1');
+    Route::post('/api/bot/stop', [IssueController::class, 'stopBot'])->middleware('throttle:60,1');
+    Route::post('/api/bot/restart', [IssueController::class, 'restartBot'])->middleware('throttle:60,1');
+    Route::get('/api/bot/logs', [IssueController::class, 'getBotLogs'])->middleware('throttle:120,1');
+    Route::get('/api/bot/auth-state', [IssueController::class, 'getBotAuthState'])->middleware('throttle:120,1');
+    Route::post('/api/bot/pair-phone', [IssueController::class, 'pairBotPhone'])->middleware('throttle:30,1');
+    Route::post('/api/bot/unlink', [IssueController::class, 'unlinkBot'])->middleware('throttle:30,1');
+    Route::get('/api/bot/public-contact', [IssueController::class, 'getPublicBotContact'])->middleware('throttle:120,1');
 });
 
 // CampusFix API Endpoints
