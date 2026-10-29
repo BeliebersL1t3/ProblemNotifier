@@ -333,3 +333,111 @@ export const TBR_PRESET_LOCATIONS = [
     'Swimming Area (Laut)', 'Area Pantai & Resepsionis', 'Restoran & Dapur Pantai',
     'Dermaga Boat TBR', 'Genset & Utilitas TBR', 'Mes Staf TBR'
 ];
+
+/**
+ * Resolves an issue to its corresponding Resort ('TPI', 'TBR', or 'OFFICE')
+ * and matching spatial masterplan zone.
+ */
+export function resolveIssueResortAndZone(issue) {
+    if (!issue) return { resort: null, zoneId: null, zoneName: null, isOffice: false };
+
+    const loc = (issue.location || '').toLowerCase().trim();
+    const title = (issue.title || '').toLowerCase().trim();
+    const desc = (issue.description || '').toLowerCase().trim();
+    const fullText = `${loc} ${title} ${desc}`;
+    const aiResort = (issue.ai_analysis?.resort || '').toUpperCase();
+    const aiZone = issue.ai_analysis?.zona_spasial;
+
+    // Check if Office / Kantor
+    const isOffice = (
+        aiResort === 'KANTOR' || 
+        aiResort === 'OFFICE' || 
+        loc.startsWith('kantor') || 
+        loc.startsWith('office') || 
+        (loc.includes('kantor') && !loc.includes('tpi') && !loc.includes('tbr') && !loc.includes('restoran'))
+    );
+
+    if (isOffice) {
+        return { resort: 'OFFICE', zoneId: null, zoneName: 'Kantor / Office', isOffice: true };
+    }
+
+    const isTbr = aiResort === 'TBR' || loc.includes('tbr') || loc.includes('beach resort');
+    const resort = isTbr ? 'TBR' : 'TPI';
+
+    let matchedKey = null;
+    let matchedZone = null;
+
+    if (isTbr) {
+        if (loc.includes('3 bedroom') || loc.includes('3-bedroom') || loc.includes('3 br') || fullText.includes('loft') || fullText.includes('3 bedroom')) {
+            matchedKey = 'tbr_bungalow_3br';
+        } else if (loc.includes('balcony') || loc.includes('balkon') || fullText.includes('bungalow with balcony') || loc.includes('chalet timur')) {
+            matchedKey = 'tbr_bungalow_balcony';
+        } else if (loc.includes('new dining') || loc.includes('dining baru') || loc.includes('restoran baru')) {
+            matchedKey = 'tbr_new_dining';
+        } else if (loc.includes('dining') || loc.includes('restoran') || loc.includes('lodge') || aiZone === 'Dining Room') {
+            matchedKey = 'tbr_dining';
+        } else if (loc.includes('lounge') || loc.includes('deck')) {
+            matchedKey = 'tbr_lounge';
+        } else if (loc.includes('meeting') || loc.includes('rapat') || loc.includes('serbaguna')) {
+            matchedKey = 'tbr_meeting';
+        } else if (loc.includes('dorm') || loc.includes('asrama')) {
+            matchedKey = 'tbr_dorm';
+        } else if (loc.includes('swimming') || loc.includes('renang') || loc.includes('laut') || loc.includes('lagoon')) {
+            matchedKey = 'tbr_swimming';
+        } else if (loc.includes('chalet') || loc.includes('kamar') || loc.includes('room') || aiZone === 'Vila Terapung') {
+            if (loc.includes('tengah') || loc.includes('inner')) {
+                matchedKey = 'tbr_bungalow_inner';
+            } else {
+                matchedKey = 'tbr_rooms';
+            }
+        } else {
+            for (const zone of TBR_MASTERPLAN_ZONES) {
+                const hasKeyword = zone.keywords.some(kw => fullText.includes(kw));
+                if (hasKeyword) {
+                    matchedKey = zone.id;
+                    break;
+                }
+            }
+            if (!matchedKey) {
+                matchedKey = 'tbr_beach_front';
+            }
+        }
+        matchedZone = TBR_MASTERPLAN_ZONES.find(z => z.id === matchedKey);
+    } else {
+        // TPI matching against 22 official masterplan facilities
+        if (loc.includes('bukit') || fullText.includes('vila bukit') || fullText.includes('villa bukit') || fullText.includes('ridge')) {
+            matchedKey = 'villas_ridge';
+        } else if (loc.includes('villa') || loc.includes('kamar') || loc.includes('overwater') || aiZone === 'Vila Terapung') {
+            matchedKey = 'villas_overwater';
+        } else {
+            for (const zone of TPI_MASTERPLAN_ZONES) {
+                if (zone.id === 'villas_overwater' || zone.id === 'villas_ridge') continue;
+                const hasKeyword = zone.keywords.some(kw => fullText.includes(kw));
+                if (hasKeyword) {
+                    matchedKey = zone.id;
+                    break;
+                }
+            }
+            if (!matchedKey && aiZone) {
+                if (aiZone.includes('Jetty') || aiZone.includes('Dermaga')) matchedKey = 'jetty_arrival';
+                else if (aiZone.includes('Dining') || aiZone.includes('Restoran')) matchedKey = 'restaurant_office';
+                else if (aiZone.includes('Clubhouse') || aiZone.includes('Lobby')) matchedKey = 'restaurant_office';
+                else if (aiZone.includes('Spa')) matchedKey = 'spa';
+                else if (aiZone.includes('Genset') || aiZone.includes('Utilitas')) matchedKey = 'genset_warehouse';
+                else if (aiZone.includes('Mes') || aiZone.includes('Staf')) matchedKey = 'asrama_staff';
+            }
+            if (!matchedKey) {
+                matchedKey = 'restaurant_office';
+            }
+        }
+        matchedZone = TPI_MASTERPLAN_ZONES.find(z => z.id === matchedKey);
+    }
+
+    return {
+        resort, // 'TPI' or 'TBR'
+        zoneId: matchedKey,
+        zoneName: matchedZone ? matchedZone.name : null,
+        zone: matchedZone,
+        isOffice: false,
+    };
+}

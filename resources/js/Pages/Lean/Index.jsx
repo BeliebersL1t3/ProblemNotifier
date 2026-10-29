@@ -42,6 +42,7 @@ import {
 import axios from 'axios';
 import { BotControlModal } from '@/Components/CampusFix/BotControlModal';
 import { LeanAnalyticsView } from '@/Components/CampusFix/LeanAnalyticsView';
+import { resolveIssueResortAndZone } from '@/constants/locations';
 
 
 
@@ -124,6 +125,29 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
     const [searchQuery, setSearchQuery] = useState('');
     const [showColumnModal, setShowColumnModal] = useState(false);
     const [activeAnalyticsTab, setActiveAnalyticsTab] = useState('executive');
+    const [focusMapRequest, setFocusMapRequest] = useState(null);
+    const [returnTicket, setReturnTicket] = useState(null);
+
+    const handleNavigateToMap = (issue) => {
+        if (!issue) return;
+        const res = resolveIssueResortAndZone(issue);
+        if (res.isOffice || !res.resort) return;
+
+        setReturnTicket({
+            issue,
+            previousViewMode: viewMode,
+        });
+        setSelectedDetailIssue(null);
+        setViewMode('analytics');
+        setActiveAnalyticsTab('executive');
+        setFocusMapRequest({
+            resort: res.resort,
+            zoneId: res.zoneId,
+            timestamp: Date.now(),
+            issueTitle: issue.title,
+            issueId: issue.id,
+        });
+    };
 
     // Quick Sort Mode: 'urgency' | 'newest' | 'oldest' | 'waiting_acc'
     const [sortBy, setSortBy] = useState(() => {
@@ -1073,6 +1097,7 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                         activeTab={activeAnalyticsTab}
                         onTabChange={setActiveAnalyticsTab}
                         onSelectIssue={setSelectedDetailIssue}
+                        focusMapRequest={focusMapRequest}
                     />
                 ) : filteredIssues.length === 0 ? (
                     <div className="py-16 text-center border-2 border-dashed border-slate-800 rounded-2xl p-6">
@@ -1969,15 +1994,42 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                         <div className="p-4 overflow-y-auto space-y-4 flex-1">
                             {/* Grid Informasi Utama */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                                {visibleColumns.location && (
-                                    <div className="p-2.5 rounded-xl bg-slate-800/80 border border-slate-700/80">
-                                        <span className="text-[10px] text-slate-400 font-medium block">Lokasi Masalah</span>
-                                        <span className="text-xs font-bold text-emerald-300 flex items-center gap-1 mt-0.5">
-                                            <MapPin className="w-3.5 h-3.5 text-emerald-400" />
-                                            {activeDetailIssue.location}
-                                        </span>
-                                    </div>
-                                )}
+                                {visibleColumns.location && (() => {
+                                    const locInfo = resolveIssueResortAndZone(activeDetailIssue);
+                                    const canNavigate = !locInfo.isOffice && (locInfo.resort === 'TBR' || locInfo.resort === 'TPI');
+
+                                    return (
+                                        <div
+                                            onClick={canNavigate ? () => handleNavigateToMap(activeDetailIssue) : undefined}
+                                            className={`p-2.5 rounded-xl border transition-all ${
+                                                canNavigate
+                                                    ? 'bg-slate-800/90 border-slate-700/80 hover:bg-slate-750 hover:border-emerald-500/60 cursor-pointer group shadow-sm hover:shadow-emerald-950/20'
+                                                    : 'bg-slate-800/80 border-slate-700/80'
+                                            }`}
+                                            title={
+                                                canNavigate
+                                                    ? `Klik untuk melihat titik lokasi pada Denah ${locInfo.resort}`
+                                                    : 'Lokasi Kantor / Office (Denah pulau tidak tersedia)'
+                                            }
+                                        >
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-[10px] text-slate-400 font-medium block">Lokasi Masalah</span>
+                                                {canNavigate ? (
+                                                    <span className="text-[9.5px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1 group-hover:bg-emerald-500 group-hover:text-slate-950 transition-colors">
+                                                        <span>Peta {locInfo.resort}</span>
+                                                        <ExternalLink className="w-2.5 h-2.5" />
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-[9.5px] text-slate-500">Kantor</span>
+                                                )}
+                                            </div>
+                                            <span className="text-xs font-bold text-emerald-300 flex items-center gap-1 mt-0.5 group-hover:text-emerald-200">
+                                                <MapPin className={`w-3.5 h-3.5 ${canNavigate ? 'text-emerald-400 group-hover:scale-110 transition-transform' : 'text-slate-400'}`} />
+                                                {activeDetailIssue.location}
+                                            </span>
+                                        </div>
+                                    );
+                                })()}
 
                                 {visibleColumns.time && (
                                     <div className="p-2.5 rounded-xl bg-slate-800/80 border border-slate-700/80">
@@ -2469,6 +2521,32 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                     </button>
                 </div>
             </nav>
+
+            {/* FLOATING QUICK-RETURN TO TICKET BUTTON */}
+            {returnTicket && viewMode === 'analytics' && (
+                <div className="fixed bottom-20 sm:bottom-6 right-4 sm:right-6 z-50 flex items-center gap-2 bg-slate-900/95 border border-sky-500/60 shadow-2xl shadow-sky-950/50 rounded-2xl p-2 pl-3.5 backdrop-blur-md animate-in slide-in-from-bottom-4 duration-200">
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setViewMode(returnTicket.previousViewMode || 'cards');
+                            setSelectedDetailIssue(returnTicket.issue);
+                            setReturnTicket(null);
+                        }}
+                        className="flex items-center gap-2 text-xs font-bold text-sky-300 hover:text-white transition-colors cursor-pointer"
+                    >
+                        <ArrowLeft className="w-4 h-4 text-sky-400 animate-pulse" />
+                        <span>Kembali ke Tiket #{returnTicket.issue.issue_code || returnTicket.issue.id}</span>
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setReturnTicket(null)}
+                        className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 text-xs ml-1 transition-colors cursor-pointer"
+                        title="Tutup tombol kembali"
+                    >
+                        <X className="w-3.5 h-3.5" />
+                    </button>
+                </div>
+            )}
         </div>
     );
 }

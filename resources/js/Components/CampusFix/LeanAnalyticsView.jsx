@@ -60,7 +60,7 @@ import {
     X,
     Maximize2,
 } from 'lucide-react';
-import { TPI_MASTERPLAN_ZONES, TBR_MASTERPLAN_ZONES } from '@/constants/locations';
+import { TPI_MASTERPLAN_ZONES, TBR_MASTERPLAN_ZONES, resolveIssueResortAndZone } from '@/constants/locations';
 
 const CATEGORY_COLORS = {
     'HVAC & Pendingin': '#38bdf8', // Sky
@@ -249,14 +249,58 @@ const CustomMttrTooltip = ({ active, payload }) => {
 };
 
 // --- Denah Arsitektural Masterplan TPI (Telunas Private Island) ---
-function TpiResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark' }) {
+function TpiResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark', spotlightTarget = null }) {
     const isDark = theme === 'dark';
     const [zoom, setZoom] = useState(1);
     const [filterMode, setFilterMode] = useState('all'); // 'all' (22 markers) | 'active' (issues only)
     const [hoveredZone, setHoveredZone] = useState(null);
     const [isFullscreen, setIsFullscreen] = useState(false);
+    const [activeSpotlight, setActiveSpotlight] = useState(null);
+    const [isSpotlightFading, setIsSpotlightFading] = useState(false);
     const scrollContainerRef = useRef(null);
     const modalScrollRef = useRef(null);
+
+    // Auto-centering and cinematic spotlight effect when a location is triggered from issue modal
+    useEffect(() => {
+        if (!spotlightTarget?.zoneId) return;
+        const target = zones.find(z => z.id === spotlightTarget.zoneId);
+        if (!target) return;
+
+        setActiveSpotlight(target);
+        setIsSpotlightFading(false);
+
+        // Auto-scroll the map container to center the target zone smoothly
+        const scrollTimer = setTimeout(() => {
+            if (scrollContainerRef.current) {
+                const container = scrollContainerRef.current;
+                const targetX = (target.x / 100) * container.scrollWidth - container.clientWidth / 2;
+                const targetY = (target.y / 100) * container.scrollHeight - container.clientHeight / 2;
+                container.scrollTo({
+                    left: Math.max(0, targetX),
+                    top: Math.max(0, targetY),
+                    behavior: 'smooth',
+                });
+                container.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }, 120);
+
+        // Initiate smooth fade-out at 2.5s
+        const fadeTimer = setTimeout(() => {
+            setIsSpotlightFading(true);
+        }, 2500);
+
+        // Clear spotlight state at 3.5s
+        const clearTimer = setTimeout(() => {
+            setActiveSpotlight(null);
+            setIsSpotlightFading(false);
+        }, 3500);
+
+        return () => {
+            clearTimeout(scrollTimer);
+            clearTimeout(fadeTimer);
+            clearTimeout(clearTimer);
+        };
+    }, [spotlightTarget?.timestamp, spotlightTarget?.zoneId, zones]);
 
     const handleZoomIn = () => setZoom((prev) => Math.min(Number((prev + 0.25).toFixed(2)), 3));
     const handleZoomOut = () => setZoom((prev) => Math.max(Number((prev - 0.25).toFixed(2)), 0.75));
@@ -292,6 +336,40 @@ function TpiResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                         style={{ imageRendering: '-webkit-optimize-contrast' }}
                         loading="eager"
                     />
+
+                    {/* Cinematic Spotlight Overlay with Radial Cutout & Beacon Waves */}
+                    {activeSpotlight && (
+                        <div
+                            className={`absolute inset-0 pointer-events-none z-30 transition-opacity duration-1000 ${
+                                isSpotlightFading ? 'opacity-0' : 'opacity-100'
+                            }`}
+                            style={{
+                                background: `radial-gradient(circle 85px at ${activeSpotlight.x}% ${activeSpotlight.y}%, transparent 0%, rgba(15, 23, 42, 0.45) 45%, rgba(15, 23, 42, 0.88) 100%)`,
+                            }}
+                        >
+                            {/* Animated Beacon Wave and Glow at Target Coordinates */}
+                            <div
+                                className="absolute transform -translate-x-1/2 -translate-y-1/2 pointer-events-none"
+                                style={{ left: `${activeSpotlight.x}%`, top: `${activeSpotlight.y}%` }}
+                            >
+                                {/* Outer expanding radar ring 1 */}
+                                <div className="absolute -inset-10 rounded-full border-2 border-amber-400/80 animate-ping" />
+                                {/* Outer expanding radar ring 2 */}
+                                <div className="absolute -inset-16 rounded-full border border-sky-400/60 animate-ping" style={{ animationDelay: '250ms' }} />
+                                {/* Glowing spotlight flare core */}
+                                <div className="absolute -inset-12 rounded-full bg-gradient-to-r from-amber-400/35 via-yellow-300/25 to-sky-400/35 blur-xl animate-pulse" />
+
+                                {/* Floating Spotlight Beacon Tag */}
+                                <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-8 z-50 flex flex-col items-center animate-bounce pointer-events-none">
+                                    <div className="px-3 py-1.5 rounded-full bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-black text-xs shadow-2xl border-2 border-white flex items-center gap-1.5 whitespace-nowrap">
+                                        <span className="w-2 h-2 rounded-full bg-white animate-ping" />
+                                        <span>📍 #{activeSpotlight.num} {activeSpotlight.name}</span>
+                                    </div>
+                                    <div className="w-2 h-2 rotate-45 bg-amber-600 -mt-1 shadow-md" />
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Interactive Compact Location Pins */}
                     {displayedZones.map((zone) => {
@@ -608,14 +686,58 @@ function TpiResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
 }
 
 // --- Denah Arsitektural Masterplan TBR (Telunas Beach Resort) ---
-function TbrResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark' }) {
+function TbrResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark', spotlightTarget = null }) {
     const isDark = theme === 'dark';
     const [zoom, setZoom] = useState(0.65); // Default 0.65x compact for square TBR layout
     const [filterMode, setFilterMode] = useState('all'); // 'all' (all facilities) | 'active' (issues only)
     const [hoveredZone, setHoveredZone] = useState(null);
     const [isFullscreen, setIsFullscreen] = useState(false);
+    const [activeSpotlight, setActiveSpotlight] = useState(null);
+    const [isSpotlightFading, setIsSpotlightFading] = useState(false);
     const scrollContainerRef = useRef(null);
     const modalScrollRef = useRef(null);
+
+    // Auto-centering and cinematic spotlight effect when a location is triggered from issue modal
+    useEffect(() => {
+        if (!spotlightTarget?.zoneId) return;
+        const target = zones.find(z => z.id === spotlightTarget.zoneId);
+        if (!target) return;
+
+        setActiveSpotlight(target);
+        setIsSpotlightFading(false);
+
+        // Auto-scroll the map container to center the target zone smoothly
+        const scrollTimer = setTimeout(() => {
+            if (scrollContainerRef.current) {
+                const container = scrollContainerRef.current;
+                const targetX = (target.x / 100) * container.scrollWidth - container.clientWidth / 2;
+                const targetY = (target.y / 100) * container.scrollHeight - container.clientHeight / 2;
+                container.scrollTo({
+                    left: Math.max(0, targetX),
+                    top: Math.max(0, targetY),
+                    behavior: 'smooth',
+                });
+                container.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }, 120);
+
+        // Initiate smooth fade-out at 2.5s
+        const fadeTimer = setTimeout(() => {
+            setIsSpotlightFading(true);
+        }, 2500);
+
+        // Clear spotlight state at 3.5s
+        const clearTimer = setTimeout(() => {
+            setActiveSpotlight(null);
+            setIsSpotlightFading(false);
+        }, 3500);
+
+        return () => {
+            clearTimeout(scrollTimer);
+            clearTimeout(fadeTimer);
+            clearTimeout(clearTimer);
+        };
+    }, [spotlightTarget?.timestamp, spotlightTarget?.zoneId, zones]);
 
     const handleZoomIn = () => setZoom((prev) => Math.min(Number((prev + 0.15).toFixed(2)), 2.5));
     const handleZoomOut = () => setZoom((prev) => Math.max(Number((prev - 0.15).toFixed(2)), 0.45));
@@ -650,6 +772,40 @@ function TbrResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                         style={{ imageRendering: '-webkit-optimize-contrast' }}
                         loading="eager"
                     />
+
+                    {/* Cinematic Spotlight Overlay with Radial Cutout & Beacon Waves */}
+                    {activeSpotlight && (
+                        <div
+                            className={`absolute inset-0 pointer-events-none z-30 transition-opacity duration-1000 ${
+                                isSpotlightFading ? 'opacity-0' : 'opacity-100'
+                            }`}
+                            style={{
+                                background: `radial-gradient(circle 85px at ${activeSpotlight.x}% ${activeSpotlight.y}%, transparent 0%, rgba(15, 23, 42, 0.45) 45%, rgba(15, 23, 42, 0.88) 100%)`,
+                            }}
+                        >
+                            {/* Animated Beacon Wave and Glow at Target Coordinates */}
+                            <div
+                                className="absolute transform -translate-x-1/2 -translate-y-1/2 pointer-events-none"
+                                style={{ left: `${activeSpotlight.x}%`, top: `${activeSpotlight.y}%` }}
+                            >
+                                {/* Outer expanding radar ring 1 */}
+                                <div className="absolute -inset-10 rounded-full border-2 border-amber-400/80 animate-ping" />
+                                {/* Outer expanding radar ring 2 */}
+                                <div className="absolute -inset-16 rounded-full border border-sky-400/60 animate-ping" style={{ animationDelay: '250ms' }} />
+                                {/* Glowing spotlight flare core */}
+                                <div className="absolute -inset-12 rounded-full bg-gradient-to-r from-amber-400/35 via-yellow-300/25 to-sky-400/35 blur-xl animate-pulse" />
+
+                                {/* Floating Spotlight Beacon Tag */}
+                                <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-8 z-50 flex flex-col items-center animate-bounce pointer-events-none">
+                                    <div className="px-3 py-1.5 rounded-full bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-black text-xs shadow-2xl border-2 border-white flex items-center gap-1.5 whitespace-nowrap">
+                                        <span className="w-2 h-2 rounded-full bg-white animate-ping" />
+                                        <span>📍 #{activeSpotlight.num} {activeSpotlight.name}</span>
+                                    </div>
+                                    <div className="w-2 h-2 rotate-45 bg-amber-600 -mt-1 shadow-md" />
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Interactive Compact Location Pins */}
                     {displayedZones.map((zone) => {
@@ -971,6 +1127,7 @@ export function LeanAnalyticsView({
     activeTab: propActiveTab,
     onTabChange,
     onSelectIssue,
+    focusMapRequest = null,
 }) {
     const isDark = theme === 'dark';
     const [expandedLocation, setExpandedLocation] = useState(null);
@@ -1514,90 +1671,12 @@ export function LeanAnalyticsView({
         const urgencyWeight = { 'Darurat': 4, 'Tinggi': 3, 'Sedang': 2, 'Rendah': 1 };
 
         filteredIssues.forEach((issue) => {
-            const loc = (issue.location || '').toLowerCase();
-            const title = (issue.title || '').toLowerCase();
-            const desc = (issue.description || '').toLowerCase();
-            const fullText = `${loc} ${title} ${desc}`;
-            const aiResort = issue.ai_analysis?.resort;
-            const aiZone = issue.ai_analysis?.zona_spasial;
+            const { resort, zoneId } = resolveIssueResortAndZone(issue);
+            if (!resort || resort === 'OFFICE' || !zoneId) return;
 
-            const isTbr = aiResort === 'TBR' || loc.includes('tbr') || loc.includes('beach resort');
-            const targetMap = isTbr ? tbrZones : tpiZones;
-
-            let matchedKey = null;
-            if (isTbr) {
-                if (loc.includes('3 bedroom') || loc.includes('3-bedroom') || loc.includes('3 br') || fullText.includes('loft') || fullText.includes('3 bedroom')) {
-                    matchedKey = 'tbr_bungalow_3br';
-                } else if (loc.includes('balcony') || loc.includes('balkon') || fullText.includes('bungalow with balcony') || loc.includes('chalet timur')) {
-                    matchedKey = 'tbr_bungalow_balcony';
-                } else if (loc.includes('new dining') || loc.includes('dining baru') || loc.includes('restoran baru')) {
-                    matchedKey = 'tbr_new_dining';
-                } else if (loc.includes('dining') || loc.includes('restoran') || loc.includes('lodge') || aiZone === 'Dining Room') {
-                    matchedKey = 'tbr_dining';
-                } else if (loc.includes('lounge') || loc.includes('deck')) {
-                    matchedKey = 'tbr_lounge';
-                } else if (loc.includes('meeting') || loc.includes('rapat') || loc.includes('serbaguna')) {
-                    matchedKey = 'tbr_meeting';
-                } else if (loc.includes('dorm') || loc.includes('asrama')) {
-                    matchedKey = 'tbr_dorm';
-                } else if (loc.includes('swimming') || loc.includes('renang') || loc.includes('laut') || loc.includes('lagoon')) {
-                    matchedKey = 'tbr_swimming';
-                } else if (loc.includes('chalet') || loc.includes('kamar') || loc.includes('room') || aiZone === 'Vila Terapung') {
-                    if (loc.includes('tengah') || loc.includes('inner')) {
-                        matchedKey = 'tbr_bungalow_inner';
-                    } else {
-                        matchedKey = 'tbr_rooms';
-                    }
-                } else {
-                    for (const zone of TBR_MASTERPLAN_ZONES) {
-                        const hasKeyword = zone.keywords.some(kw => fullText.includes(kw));
-                        if (hasKeyword) {
-                            matchedKey = zone.id;
-                            break;
-                        }
-                    }
-                    if (!matchedKey) {
-                        matchedKey = 'tbr_beach_front';
-                    }
-                }
-            } else {
-                // TPI matching against 22 official masterplan facilities
-                // 1. Check Hillside / Ridge Villas first
-                if (loc.includes('bukit') || fullText.includes('vila bukit') || fullText.includes('villa bukit') || fullText.includes('ridge')) {
-                    matchedKey = 'villas_ridge';
-                }
-                // 2. Check Overwater Villas 1-15
-                else if (loc.includes('villa') || loc.includes('kamar') || loc.includes('overwater') || aiZone === 'Vila Terapung') {
-                    matchedKey = 'villas_overwater';
-                }
-                // 3. Match against the 20 other specific facilities by registered keywords
-                else {
-                    for (const zone of TPI_MASTERPLAN_ZONES) {
-                        if (zone.id === 'villas_overwater' || zone.id === 'villas_ridge') continue;
-                        const hasKeyword = zone.keywords.some(kw => fullText.includes(kw));
-                        if (hasKeyword) {
-                            matchedKey = zone.id;
-                            break;
-                        }
-                    }
-                    // 4. AI zone fallbacks if keywords not directly found in text
-                    if (!matchedKey && aiZone) {
-                        if (aiZone.includes('Jetty') || aiZone.includes('Dermaga')) matchedKey = 'jetty_arrival';
-                        else if (aiZone.includes('Dining') || aiZone.includes('Restoran')) matchedKey = 'restaurant_office';
-                        else if (aiZone.includes('Clubhouse') || aiZone.includes('Lobby')) matchedKey = 'restaurant_office';
-                        else if (aiZone.includes('Spa')) matchedKey = 'spa';
-                        else if (aiZone.includes('Genset') || aiZone.includes('Utilitas')) matchedKey = 'genset_warehouse';
-                        else if (aiZone.includes('Mes') || aiZone.includes('Staf')) matchedKey = 'asrama_staff';
-                    }
-                    // 5. Default fallback to Restaurant & Main Office
-                    if (!matchedKey) {
-                        matchedKey = 'restaurant_office';
-                    }
-                }
-            }
-
-            if (matchedKey && targetMap[matchedKey]) {
-                const zone = targetMap[matchedKey];
+            const targetMap = resort === 'TBR' ? tbrZones : tpiZones;
+            if (targetMap[zoneId]) {
+                const zone = targetMap[zoneId];
                 zone.count += 1;
                 zone.issues.push(issue);
                 const urg = issue.ai_urgency || 'Sedang';
@@ -1609,6 +1688,38 @@ export function LeanAnalyticsView({
 
         return { tpiZones: Object.values(tpiZones), tbrZones: Object.values(tbrZones) };
     }, [filteredIssues]);
+
+    // Auto-focus to map from external request (e.g. clicking location in issue detail modal)
+    useEffect(() => {
+        if (!focusMapRequest?.resort || !focusMapRequest?.zoneId) return;
+
+        // Switch to executive tab where maps reside
+        if (activeTab !== 'executive') {
+            setActiveTab('executive');
+        }
+
+        const resortLower = focusMapRequest.resort.toLowerCase();
+        setHotspotTab(resortLower);
+
+        // Pre-select the zone in spatialHotspots
+        if (resortLower === 'tpi') {
+            const found = spatialHotspots.tpiZones.find(z => z.id === focusMapRequest.zoneId);
+            if (found) setSelectedTpiZone(found);
+        } else if (resortLower === 'tbr') {
+            const found = spatialHotspots.tbrZones.find(z => z.id === focusMapRequest.zoneId);
+            if (found) setSelectedTbrZone(found);
+        }
+    }, [focusMapRequest?.timestamp, focusMapRequest?.resort, focusMapRequest?.zoneId, activeTab, spatialHotspots]);
+
+    const currentSpotlightTarget = useMemo(() => {
+        if (!focusMapRequest?.zoneId) return null;
+        return {
+            zoneId: focusMapRequest.zoneId,
+            timestamp: focusMapRequest.timestamp,
+            resort: focusMapRequest.resort,
+            issueTitle: focusMapRequest.issueTitle,
+        };
+    }, [focusMapRequest]);
 
     // --- 7. Actionable Mitigation Feed (Audit Recommendations) ---
     const mitigationFeed = useMemo(() => {
@@ -2811,6 +2922,7 @@ export function LeanAnalyticsView({
                             onSelectZone={(zone) => setSelectedTpiZone(prev => prev?.id === zone.id ? null : zone)}
                             selectedZoneId={selectedTpiZone?.id}
                             theme={theme}
+                            spotlightTarget={hotspotTab === 'tpi' && currentSpotlightTarget?.resort === 'TPI' ? currentSpotlightTarget : null}
                         />
 
                         {/* Zone Detail Inspector if clicked */}
@@ -2933,6 +3045,7 @@ export function LeanAnalyticsView({
                             onSelectZone={(zone) => setSelectedTbrZone(prev => prev?.id === zone.id ? null : zone)}
                             selectedZoneId={selectedTbrZone?.id}
                             theme={theme}
+                            spotlightTarget={hotspotTab === 'tbr' && currentSpotlightTarget?.resort === 'TBR' ? currentSpotlightTarget : null}
                         />
 
                         {/* Zone Detail Inspector if clicked */}
