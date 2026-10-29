@@ -6,6 +6,7 @@ const express = require('express');
 const qrcode = require('qrcode-terminal');
 const QRCode = require('qrcode');
 const fs = require('fs');
+const path = require('path');
 
 const app = express();
 app.use(express.json());
@@ -829,6 +830,69 @@ async function syncCommunityGroups(sock) {
     }
 }
 
+// ─── Baileys Message Store & Retry Cache (Prevents Session Decrypt Errors) ──
+const recentMessageStore = new Map();
+const msgRetryCounterMap = new Map();
+
+const msgRetryCounterCache = {
+    get: (key) => msgRetryCounterMap.get(key),
+    set: (key, value) => {
+        msgRetryCounterMap.set(key, value);
+        if (msgRetryCounterMap.size > 1500) {
+            const oldest = msgRetryCounterMap.keys().next().value;
+            msgRetryCounterMap.delete(oldest);
+        }
+    },
+    del: (key) => msgRetryCounterMap.delete(key),
+};
+
+function clearCorruptedSession(sessionId) {
+    if (!sessionId) return 0;
+    const cleanId = String(sessionId).replace(/[^0-9_.]/g, '');
+    if (!cleanId || cleanId.length < 3) return 0;
+
+    const authDir = path.resolve(__dirname, 'auth_info_baileys');
+    if (!fs.existsSync(authDir)) return 0;
+
+    try {
+        const files = fs.readdirSync(authDir);
+        let removed = 0;
+        for (const file of files) {
+            if (file.includes(cleanId) && (
+                file.startsWith('session-') ||
+                file.startsWith('sender-key-') ||
+                file.startsWith('identity-key-') ||
+                file.startsWith('device-list-')
+            )) {
+                fs.unlinkSync(path.join(authDir, file));
+                removed++;
+            }
+        }
+        if (removed > 0) {
+            console.log(`[Auto-Repair] Cleared ${removed} stale/corrupted session keys for ID: ${cleanId}`);
+        }
+        return removed;
+    } catch (err) {
+        console.error(`[Auto-Repair] Error clearing session keys for ${cleanId}:`, err.message);
+        return 0;
+    }
+}
+
+process.on('uncaughtException', (err) => {
+    const errMsg = String(err?.message || err || '');
+    if (errMsg.includes('MessageCounterError') || errMsg.includes('Bad MAC') || errMsg.includes('Key used already')) {
+        console.warn('⚠️ [Auto-Repair Intercepted] Signal decryption error caught:', errMsg);
+        const stack = String(err?.stack || '');
+        const match = stack.match(/at\s+([0-9_.]+)\s+\[as awaitable\]/);
+        if (match && match[1]) {
+            const badId = match[1].split('_')[0];
+            clearCorruptedSession(badId);
+        }
+        return;
+    }
+    console.error('[Process UncaughtException]', err);
+});
+
 let globalSock = null;
 let staffSyncTimer = null;
 
@@ -839,7 +903,12 @@ async function startSock() {
     const sock = makeWASocket({
         auth: state,
         printQRInTerminal: true,
-        logger: pino({ level: 'silent' }) // suppress spam
+        logger: pino({ level: 'silent' }), // suppress spam
+        msgRetryCounterCache,
+        getMessage: async (key) => {
+            const cached = recentMessageStore.get(key.id);
+            return cached?.message || undefined;
+        }
     });
 
     globalSock = sock;
@@ -915,6 +984,15 @@ async function startSock() {
     }
 
     sock.ev.on('messages.upsert', async m => {
+        for (const msg of m.messages || []) {
+            if (msg.key?.id) {
+                recentMessageStore.set(msg.key.id, msg);
+                if (recentMessageStore.size > 2000) {
+                    const oldest = recentMessageStore.keys().next().value;
+                    recentMessageStore.delete(oldest);
+                }
+            }
+        }
         if (m.type !== 'notify') return;
 
         for (const msg of m.messages) {
