@@ -756,8 +756,62 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                 </div>
 
 
-                {/* ERP CONTROLS BAR: SEARCH, DEPT, SORT, VIEW MODE, STATUS CHECKLIST */}
-                <div className="space-y-2.5 mb-3">
+                {/* ERP CONTROLS BAR OR ANALYTICS SUB-TABS */}
+                {viewMode === 'analytics' ? (
+                    <div className="mb-4 flex items-center justify-center sm:justify-start">
+                        <div className={`flex items-center gap-1 p-1 rounded-xl border shrink-0 overflow-x-auto justify-center w-full sm:w-auto ${
+                            isDark ? 'bg-slate-800/90 border-slate-700' : 'bg-slate-100 border-slate-300 shadow-xs'
+                        }`}>
+                            <button
+                                type="button"
+                                onClick={() => setActiveAnalyticsTab('executive')}
+                                className={`flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex-1 sm:flex-initial ${
+                                    activeAnalyticsTab === 'executive'
+                                        ? 'bg-teal-500 text-slate-950 shadow-sm shadow-teal-500/30'
+                                        : isDark
+                                        ? 'text-slate-400 hover:text-white hover:bg-slate-800/80'
+                                        : 'text-slate-600 hover:text-slate-900 hover:bg-white'
+                                }`}
+                            >
+                                <Compass className="w-3.5 h-3.5 shrink-0" />
+                                <span><span className="hidden sm:inline">Ringkasan </span>Eksekutif</span>
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => setActiveAnalyticsTab('maintenance')}
+                                className={`flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex-1 sm:flex-initial ${
+                                    activeAnalyticsTab === 'maintenance'
+                                        ? 'bg-teal-500 text-slate-950 shadow-sm shadow-teal-500/30'
+                                        : isDark
+                                        ? 'text-slate-400 hover:text-white hover:bg-slate-800/80'
+                                        : 'text-slate-600 hover:text-slate-900 hover:bg-white'
+                                }`}
+                            >
+                                <Wrench className="w-3.5 h-3.5 shrink-0" />
+                                <span>Maintenance</span>
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => setActiveAnalyticsTab('sla_performance')}
+                                className={`flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex-1 sm:flex-initial ${
+                                    activeAnalyticsTab === 'sla_performance'
+                                        ? 'bg-teal-500 text-slate-950 shadow-sm shadow-teal-500/30'
+                                        : isDark
+                                        ? 'text-slate-400 hover:text-white hover:bg-slate-800/80'
+                                        : 'text-slate-600 hover:text-slate-900 hover:bg-white'
+                                }`}
+                            >
+                                <Clock className="w-3.5 h-3.5 shrink-0" />
+                                <span><span className="hidden sm:inline">Performa & </span>SLA</span>
+                            </button>
+                        </div>
+                    </div>
+                ) : (
+                    <>
+                        {/* ERP CONTROLS BAR: SEARCH, DEPT, SORT, VIEW MODE, STATUS CHECKLIST */}
+                        <div className="space-y-2.5 mb-3">
                     {/* Row 1: Search Bar Full Width */}
                     <div className="relative w-full">
                         <Search className={`w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 ${isDark ? 'text-slate-400' : 'text-slate-500'}`} />
@@ -824,83 +878,28 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                             </select>
                         </div>
 
-                        {/* Actions group: Analytics Sub-Tabs (in Analytics Mode) OR Column Customizer (in Table/Card Mode) */}
+                        {/* Actions group: Column Customizer */}
                         <div className="col-span-2 sm:col-span-1 sm:ml-auto flex items-center justify-between sm:justify-end gap-2">
-                            {/* Column Customizer Button (Table & Cards mode) */}
-                            {viewMode !== 'analytics' && (
-                                <button
-                                    type="button"
-                                    onClick={() => setShowColumnModal(true)}
-                                    className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all shadow-sm border ${
-                                        isDark
-                                            ? 'bg-slate-800/90 hover:bg-slate-700 border-slate-700 hover:border-emerald-500/50 text-slate-200'
-                                            : 'bg-white/95 hover:bg-slate-50 border-slate-300 hover:border-slate-400 text-slate-800 shadow-xs'
-                                    }`}
-                                    title="Pilih data/kolom apa saja yang ingin ditampilkan"
-                                >
-                                    <SlidersHorizontal className="w-3.5 h-3.5 text-emerald-500" />
-                                    <span>Tampilan</span>
-                                    <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded border ${
-                                        isDark
-                                            ? 'bg-emerald-950 text-emerald-300 border-emerald-800/60'
-                                            : 'bg-emerald-100 text-emerald-800 border-emerald-300'
-                                    }`}>
-                                        {activeColumnCount}/{COLUMN_DEFS.length}
-                                    </span>
-                                </button>
-                            )}
-
-                            {/* Analytics Sub-Tabs (Swapped here - only appears when viewMode === 'analytics') */}
-                            {viewMode === 'analytics' && (
-                                <div className={`flex items-center gap-1 p-1 rounded-xl border shrink-0 overflow-x-auto justify-center w-full sm:w-auto ${
-                                    isDark ? 'bg-slate-800/90 border-slate-700' : 'bg-slate-100 border-slate-300 shadow-xs'
+                            <button
+                                type="button"
+                                onClick={() => setShowColumnModal(true)}
+                                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all shadow-sm border ${
+                                    isDark
+                                        ? 'bg-slate-800/90 hover:bg-slate-700 border-slate-700 hover:border-emerald-500/50 text-slate-200'
+                                        : 'bg-white/95 hover:bg-slate-50 border-slate-300 hover:border-slate-400 text-slate-800 shadow-xs'
+                                }`}
+                                title="Pilih data/kolom apa saja yang ingin ditampilkan"
+                            >
+                                <SlidersHorizontal className="w-3.5 h-3.5 text-emerald-500" />
+                                <span>Tampilan</span>
+                                <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded border ${
+                                    isDark
+                                        ? 'bg-emerald-950 text-emerald-300 border-emerald-800/60'
+                                        : 'bg-emerald-100 text-emerald-800 border-emerald-300'
                                 }`}>
-                                    <button
-                                        type="button"
-                                        onClick={() => setActiveAnalyticsTab('executive')}
-                                        className={`flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex-1 sm:flex-initial ${
-                                            activeAnalyticsTab === 'executive'
-                                                ? 'bg-teal-500 text-slate-950 shadow-sm shadow-teal-500/30'
-                                                : isDark
-                                                ? 'text-slate-400 hover:text-white hover:bg-slate-800/80'
-                                                : 'text-slate-600 hover:text-slate-900 hover:bg-white'
-                                        }`}
-                                    >
-                                        <Compass className="w-3.5 h-3.5 shrink-0" />
-                                        <span><span className="hidden sm:inline">Ringkasan </span>Eksekutif</span>
-                                    </button>
-
-                                    <button
-                                        type="button"
-                                        onClick={() => setActiveAnalyticsTab('maintenance')}
-                                        className={`flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex-1 sm:flex-initial ${
-                                            activeAnalyticsTab === 'maintenance'
-                                                ? 'bg-teal-500 text-slate-950 shadow-sm shadow-teal-500/30'
-                                                : isDark
-                                                ? 'text-slate-400 hover:text-white hover:bg-slate-800/80'
-                                                : 'text-slate-600 hover:text-slate-900 hover:bg-white'
-                                        }`}
-                                    >
-                                        <Wrench className="w-3.5 h-3.5 shrink-0" />
-                                        <span>Maintenance</span>
-                                    </button>
-
-                                    <button
-                                        type="button"
-                                        onClick={() => setActiveAnalyticsTab('sla_performance')}
-                                        className={`flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex-1 sm:flex-initial ${
-                                            activeAnalyticsTab === 'sla_performance'
-                                                ? 'bg-teal-500 text-slate-950 shadow-sm shadow-teal-500/30'
-                                                : isDark
-                                                ? 'text-slate-400 hover:text-white hover:bg-slate-800/80'
-                                                : 'text-slate-600 hover:text-slate-900 hover:bg-white'
-                                        }`}
-                                    >
-                                        <Clock className="w-3.5 h-3.5 shrink-0" />
-                                        <span><span className="hidden sm:inline">Performa & </span>SLA</span>
-                                    </button>
-                                </div>
-                            )}
+                                    {activeColumnCount}/{COLUMN_DEFS.length}
+                                </span>
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -1059,6 +1058,8 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                         </button>
                     </div>
                 </div>
+                    </>
+                )}
 
                 {/* DATA PRESENTATION: ANALYTICS VIEW OR EMPTY STATE OR ERP TABLE / CARDS */}
                 {viewMode === 'analytics' ? (
