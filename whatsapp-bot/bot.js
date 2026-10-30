@@ -7,6 +7,7 @@ const qrcode = require('qrcode-terminal');
 const QRCode = require('qrcode');
 const fs = require('fs');
 const path = require('path');
+const { getAuthFolderStats, cleanAuthFolder, setupHousekeepingSchedule } = require('./housekeeping');
 
 const app = express();
 app.use(express.json());
@@ -895,6 +896,7 @@ process.on('uncaughtException', (err) => {
 
 let globalSock = null;
 let staffSyncTimer = null;
+let housekeepingScheduled = false;
 
 async function startSock() {
     botConnectionStatus = 'connecting';
@@ -955,6 +957,15 @@ async function startSock() {
             activePairingCode = null;
             activePairingPhone = null;
             console.log('Client is ready!');
+
+            if (!housekeepingScheduled) {
+                housekeepingScheduled = true;
+                setupHousekeepingSchedule();
+            }
+            setTimeout(() => {
+                console.log('[Housekeeping] Menjalankan pembersihan berkala awal saat bot online...');
+                cleanAuthFolder();
+            }, 10000);
 
             // Check if phone number changed or flagged for announcement
             const currentPhone = globalSock?.user?.id ? globalSock.user.id.split(':')[0] : null;
@@ -2664,6 +2675,24 @@ app.post(['/unlink', '/api/unlink'], async (req, res) => {
     } catch (err) {
         console.error('[Bot Unlink] Error:', err.message);
         return res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+app.get(['/cleanup-stats', '/api/cleanup-stats'], (req, res) => {
+    try {
+        const stats = getAuthFolderStats();
+        res.json({ success: true, stats });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+app.post(['/cleanup-auth', '/api/cleanup-auth'], (req, res) => {
+    try {
+        const result = cleanAuthFolder();
+        res.json(result);
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
     }
 });
 

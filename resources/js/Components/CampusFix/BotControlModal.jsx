@@ -15,7 +15,7 @@ import {
     MessageSquare, Play, Square, RefreshCw, Terminal, 
     CheckCircle2, AlertCircle, Loader2, Phone, Clock,
     QrCode, KeyRound, ExternalLink, Unlink, Copy, Check,
-    Info, ArrowRight
+    Info, ArrowRight, HardDrive, Trash2, Sparkles
 } from 'lucide-react';
 
 export function BotControlModal({ open, onOpenChange, botStatus, onRefreshStatus, initialTab = 'status', botVersion = 'v1' }) {
@@ -36,6 +36,9 @@ export function BotControlModal({ open, onOpenChange, botStatus, onRefreshStatus
     const [pairingLoading, setPairingLoading] = useState(false);
     const [unlinking, setUnlinking] = useState(false);
     const [copied, setCopied] = useState(false);
+    const [authStats, setAuthStats] = useState(null);
+    const [loadingStats, setLoadingStats] = useState(false);
+    const [cleaningAuth, setCleaningAuth] = useState(false);
     const pollIntervalRef = useRef(null);
 
     const isConnected = Boolean(botStatus?.connected || authState?.connected);
@@ -85,11 +88,57 @@ export function BotControlModal({ open, onOpenChange, botStatus, onRefreshStatus
         }
     }, [botVersion]);
 
+    const fetchAuthStats = useCallback(async () => {
+        try {
+            setLoadingStats(true);
+            const res = await axios.get('/api/bot/auth-stats');
+            if (res.data?.success && res.data?.stats) {
+                setAuthStats(res.data.stats);
+            }
+        } catch {
+            // Silently ignore
+        } finally {
+            setLoadingStats(false);
+        }
+    }, []);
+
+    const handleCleanupAuth = async () => {
+        setCleaningAuth(true);
+        setActionMsg(null);
+        try {
+            const res = await axios.post('/api/bot/cleanup');
+            if (res.data?.success) {
+                setActionMsg({
+                    type: 'success',
+                    text: res.data.message || (lang === 'id' ? 'File sampah sesi berhasil dibersihkan.' : 'Session junk cleaned.')
+                });
+                if (res.data.currentStats) {
+                    setAuthStats(res.data.currentStats);
+                } else {
+                    await fetchAuthStats();
+                }
+            } else {
+                setActionMsg({
+                    type: 'error',
+                    text: res.data?.message || 'Gagal membersihkan file sampah.'
+                });
+            }
+        } catch (err) {
+            setActionMsg({
+                type: 'error',
+                text: err.response?.data?.message || (lang === 'id' ? 'Gagal membersihkan file sampah sesi.' : 'Failed cleaning session junk.')
+            });
+        } finally {
+            setCleaningAuth(false);
+        }
+    };
+
     useEffect(() => {
         if (open) {
             setActionMsg(null);
             setActiveTab(initialTab);
             fetchAuthState();
+            fetchAuthStats();
             if (showLogs) fetchLogs();
 
             // Set up polling for connection updates while modal is open (relaxed to 5s)
@@ -462,6 +511,50 @@ export function BotControlModal({ open, onOpenChange, botStatus, onRefreshStatus
                                         </Button>
                                     </div>
                                 )}
+                            </div>
+
+                            {/* Storage & Auto-Cleanup Housekeeping Section */}
+                            <div className="p-3.5 rounded-xl bg-[#2A281E]/60 border border-border/60 space-y-2.5">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1.5">
+                                        <HardDrive className="w-3.5 h-3.5 text-sky-400" />
+                                        <span>{lang === 'id' ? 'Penyimpanan Sesi (Auth Baileys):' : 'Session Storage (Auth Baileys):'}</span>
+                                    </span>
+                                    {authStats && (
+                                        <span className="text-[10px] font-mono text-stone-400">
+                                            {authStats.totalFiles} file ({authStats.totalSizeKB} KB)
+                                        </span>
+                                    )}
+                                </div>
+
+                                <div className="p-2.5 rounded-lg bg-black/40 border border-white/5 flex items-center justify-between gap-3 text-xs">
+                                    <div className="space-y-0.5 min-w-0">
+                                        <p className="text-[11px] text-stone-300 flex items-center gap-1.5">
+                                            <Sparkles className="w-3 h-3 text-amber-400 shrink-0" />
+                                            <span>{lang === 'id' ? 'Auto-Cleanup Harian Aktif (03:00 AM)' : 'Daily Auto-Cleanup Active (03:00 AM)'}</span>
+                                        </p>
+                                        <p className="text-[10px] text-muted-foreground">
+                                            {lang === 'id' 
+                                                ? 'Merapikan pre-key & mapping usang. Sesi login (creds.json) selalu dibackup aman.' 
+                                                : 'Prunes stale pre-keys & mapping. Login session is always safely backed up.'}
+                                        </p>
+                                    </div>
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        disabled={cleaningAuth}
+                                        onClick={handleCleanupAuth}
+                                        className="h-8 px-2.5 bg-sky-600/80 hover:bg-sky-500 text-white font-bold text-xs shrink-0 gap-1.5 cursor-pointer shadow-xs"
+                                        title={lang === 'id' ? 'Bersihkan file sampah sesi sekarang' : 'Clean session junk now'}
+                                    >
+                                        {cleaningAuth ? (
+                                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                        ) : (
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                        )}
+                                        <span className="hidden sm:inline">{lang === 'id' ? 'Bersihkan' : 'Clean'}</span>
+                                    </Button>
+                                </div>
                             </div>
 
                             {/* Quick Action: Change Number Button */}

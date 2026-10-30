@@ -2726,6 +2726,117 @@ class IssueController extends Controller
         ]);
     }
 
+    public function getBotAuthStats(Request $request)
+    {
+        $user = $request->user();
+        if (!$user || (method_exists($user, 'isAdmin') && !$user->isAdmin() && $user->role !== 'admin')) {
+            return response()->json(['success' => false, 'message' => 'Hanya Admin yang dapat melihat statistik sesi bot.'], 403);
+        }
+
+        $port = env('BOT_PORT', 3000);
+        $apiKey = env('BOT_API_KEY', '');
+
+        // 1. Try fetching from running bot process
+        try {
+            $response = \Illuminate\Support\Facades\Http::timeout(3.0)
+                ->withHeaders(['X-Bot-Key' => $apiKey])
+                ->get("http://127.0.0.1:{$port}/cleanup-stats");
+            if ($response->successful()) {
+                return response()->json($response->json());
+            }
+        } catch (\Throwable $e) {
+            \Log::info('Bot service offline or not responding for cleanup-stats, falling back to disk inspection: ' . $e->getMessage());
+        }
+
+        // 2. Fallback: inspect directory directly on disk
+        $authDir = base_path('whatsapp-bot' . DIRECTORY_SEPARATOR . 'auth_info_baileys');
+        if (!file_exists($authDir)) {
+            return response()->json([
+                'success' => true,
+                'stats' => [
+                    'exists' => false,
+                    'totalFiles' => 0,
+                    'totalSizeKB' => 0,
+                    'totalSizeMB' => 0,
+                    'breakdown' => []
+                ]
+            ]);
+        }
+
+        $files = @scandir($authDir) ?: [];
+        $totalBytes = 0;
+        $fileCount = 0;
+        $breakdown = [];
+
+        foreach ($files as $file) {
+            if ($file === '.' || $file === '..') continue;
+            $fileCount++;
+            $parts = explode('-', $file);
+            $prefix = $parts[0] ?: 'other';
+            $breakdown[$prefix] = ($breakdown[$prefix] ?? 0) + 1;
+            $path = $authDir . DIRECTORY_SEPARATOR . $file;
+            $size = @filesize($path);
+            if ($size !== false) {
+                $totalBytes += $size;
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'stats' => [
+                'exists' => true,
+                'totalFiles' => $fileCount,
+                'totalSizeKB' => round($totalBytes / 1024),
+                'totalSizeMB' => round($totalBytes / (1024 * 1024), 2),
+                'breakdown' => $breakdown
+            ]
+        ]);
+    }
+
+    public function cleanupBotAuth(Request $request)
+    {
+        $user = $request->user();
+        if (!$user || (method_exists($user, 'isAdmin') && !$user->isAdmin() && $user->role !== 'admin')) {
+            return response()->json(['success' => false, 'message' => 'Hanya Admin yang dapat membersihkan file sesi bot.'], 403);
+        }
+
+        $port = env('BOT_PORT', 3000);
+        $apiKey = env('BOT_API_KEY', '');
+
+        // 1. Try running cleanup via running bot
+        try {
+            $response = \Illuminate\Support\Facades\Http::timeout(10.0)
+                ->withHeaders(['X-Bot-Key' => $apiKey])
+                ->post("http://127.0.0.1:{$port}/cleanup-auth");
+            if ($response->successful()) {
+                return response()->json($response->json());
+            }
+        } catch (\Throwable $e) {
+            \Log::info('Bot service offline or not responding for cleanup-auth, executing via Node runner: ' . $e->getMessage());
+        }
+
+        // 2. Fallback: run housekeeping directly via node script
+        $botDir = base_path('whatsapp-bot');
+        $scriptPath = $botDir . DIRECTORY_SEPARATOR . 'housekeeping.js';
+        if (file_exists($scriptPath)) {
+            $nodeCmd = "node -e \"const { cleanAuthFolder } = require('./housekeeping'); console.log(JSON.stringify(cleanAuthFolder()));\"";
+            $output = @shell_exec("cd " . escapeshellarg($botDir) . " && " . $nodeCmd);
+            if ($output) {
+                if (preg_match('/\{[\s\S]*\}/', $output, $matches)) {
+                    $json = json_decode($matches[0], true);
+                    if ($json) {
+                        return response()->json($json);
+                    }
+                }
+            }
+        }
+
+        return response()->json([
+            'success' => false,
+            'message' => 'Gagal menjalankan pembersihan file sesi bot.'
+        ], 500);
+    }
+
     public function markDuplicate(Request $request, $rowIndex)
     {
         $user = $request->user();

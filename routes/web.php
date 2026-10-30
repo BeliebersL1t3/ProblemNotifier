@@ -104,6 +104,8 @@ Route::middleware('auth')->group(function () {
     Route::post('/api/bot/restart', [IssueController::class, 'restartBot'])->middleware('throttle:60,1');
     Route::get('/api/bot/logs', [IssueController::class, 'getBotLogs'])->middleware('throttle:120,1');
     Route::get('/api/bot/auth-state', [IssueController::class, 'getBotAuthState'])->middleware('throttle:120,1');
+    Route::get('/api/bot/auth-stats', [IssueController::class, 'getBotAuthStats'])->middleware('throttle:120,1');
+    Route::post('/api/bot/cleanup', [IssueController::class, 'cleanupBotAuth'])->middleware('throttle:30,1');
     Route::post('/api/bot/pair-phone', [IssueController::class, 'pairBotPhone'])->middleware('throttle:30,1');
     Route::post('/api/bot/unlink', [IssueController::class, 'unlinkBot'])->middleware('throttle:30,1');
     Route::get('/api/bot/public-contact', [IssueController::class, 'getPublicBotContact'])->middleware('throttle:120,1');
