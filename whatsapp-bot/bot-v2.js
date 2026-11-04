@@ -226,6 +226,14 @@ async function resolveSenderPhone(sock, from, msg) {
     return cleanRaw;
 }
 
+// Helper: Check if user is authorized to change ticket status (Supervisor, Manager, Admin only)
+function isAuthorizedStatusChanger(user) {
+    if (!user || !user.role) return false;
+    const r = String(user.role).toLowerCase().trim();
+    return ['supervisor', 'spv', 'manager', 'mgr', 'mng', 'hod', 'head', 'admin'].includes(r) ||
+           r.includes('supervisor') || r.includes('manager') || r.includes('admin') || r.includes('hod');
+}
+
 async function syncStaffDirectory() {
     try {
         const res = await axios.get(`${BASE_URL}/api/staff-directory`, { timeout: 5000 });
@@ -486,6 +494,24 @@ async function startBot() {
             else if (msg.message.imageMessage?.caption) text = msg.message.imageMessage.caption;
             text = text.trim();
 
+            // Extract native WhatsApp Location Message (Send Location pin)
+            let locationPayload = null;
+            const rawLocMsg = msg.message?.locationMessage || msg.message?.liveLocationMessage;
+            if (rawLocMsg) {
+                const lat = rawLocMsg.degreesLatitude;
+                const lng = rawLocMsg.degreesLongitude;
+                const placeName = rawLocMsg.name || rawLocMsg.address || '';
+                locationPayload = {
+                    lat,
+                    lng,
+                    name: placeName,
+                    formatted: placeName ? `${placeName} (GPS: ${lat.toFixed(5)}, ${lng.toFixed(5)})` : `GPS (${lat.toFixed(5)}, ${lng.toFixed(5)})`
+                };
+                if (!text) {
+                    text = locationPayload.formatted;
+                }
+            }
+
             const lower = text.toLowerCase();
 
             // Reply helper
@@ -706,7 +732,7 @@ async function startBot() {
                     let deptList = `📋 *DAFTAR KODE & DEPARTEMEN TELUNAS* 📋\n` +
                                    `_TELUNAS DEPARTMENT CODES_\n\n`;
                     OFFICIAL_DEPARTMENTS.forEach(d => {
-                        deptList += `• *${d.code.padEnd(4, ' ')}* : ${d.name}\n`;
+                        deptList += `• ${d.code.padEnd(4, ' ')} : ${d.name}\n`;
                     });
                     deptList += `\n💡 _Format ID Isu: [KODE]-[TGLBLNTHN]-[NOMOR]_\n_Contoh: ENG-221026-105_`;
                     await reply(deptList);
@@ -758,6 +784,15 @@ async function startBot() {
                                 listMsg += `${idx + 1}. *#${item.id}* - ${item.title}\n`;
                                 listMsg += `   📍 Lokasi: ${item.location || '-'}\n`;
                                 if (item.taker) listMsg += `   👷 Pengerja: ${item.taker}\n`;
+                                if (statusType === 'pending') {
+                                    const pReason = item.fixDescription || 'Tidak ada alasan dicantumkan';
+                                    listMsg += `   ⏸️ Alasan Pending: ${pReason.replace(/^Pending:\s*/i, '')}\n`;
+                                }
+                                if (statusType === 'resolved') {
+                                    if (item.created_at) listMsg += `   🕒 Di-upload: ${item.created_at_human || item.created_at}\n`;
+                                    if (item.resolved_at) listMsg += `   ✅ Selesai: ${item.resolved_at}\n`;
+                                    if (item.solver) listMsg += `   👤 Diselesaikan: ${item.solver}\n`;
+                                }
                                 listMsg += `\n`;
                             });
                         }
@@ -776,6 +811,18 @@ async function startBot() {
                 if (lower.startsWith('ambil') || lower.startsWith('!ambil') || 
                     lower.startsWith('claim') || lower.startsWith('!claim') ||
                     lower.startsWith('take')  || lower.startsWith('!take')) {
+
+                    if (!isAuthorizedStatusChanger(registeredUser)) {
+                        await reply(
+                            `⚠️ *AKSES DITOLAK — KHUSUS SUPERVISOR / MANAGER*\n` +
+                            `_ACCESS DENIED — SUPERVISOR / MANAGER ONLY_\n\n` +
+                            `Pengambilan tugas dan pembaruan status hanya dapat dilakukan oleh *Supervisor (SPV)*, *Manager*, atau *Admin*.\n` +
+                            `Status peran Anda saat ini: *${registeredUser.role || 'Staf Biasa'}*.\n\n` +
+                            `Silakan koordinasikan dengan Supervisor atau Leader departemen Anda.`
+                        );
+                        continue;
+                    }
+
                     const words = text.split(/\s+/);
                     let targetId = words[1] || extractIssueId(text) || extractIssueId(quotedText);
 
@@ -797,7 +844,7 @@ async function startBot() {
                                 `• *ID Tiket:* #${targetId}\n` +
                                 `• *Pengerja:* ${registeredUser.name} (${registeredUser.department || 'Staf'})\n` +
                                 `• *Status:* 🟡 Sedang Dikerjakan (In Progress)\n\n` +
-                                `_Selamat bertugas! Ketik *selesai ${targetId}* (or *done ${targetId}*) bila pekerjaan telah rampung._`
+                                `_Selamat bertugas! Ketik *selesai ${targetId}* bila pekerjaan selesai, atau *pending ${targetId} [Alasan]* bila tertunda._`
                             );
                         } else {
                             await reply(`❌ Gagal mengambil tiket: ${claimRes.data.message || 'Error tidak diketahui'}`);
@@ -809,11 +856,91 @@ async function startBot() {
                     continue;
                 }
 
+                // 4.5 GROUP ACTION: PENDING / TUNDA (SPV & MGR ONLY)
+                if (lower.startsWith('pending') || lower.startsWith('!pending') || 
+                    lower.startsWith('tunda')   || lower.startsWith('!tunda')) {
+
+                    if (!isAuthorizedStatusChanger(registeredUser)) {
+                        await reply(
+                            `⚠️ *AKSES DITOLAK — KHUSUS SUPERVISOR / MANAGER*\n` +
+                            `_ACCESS DENIED — SUPERVISOR / MANAGER ONLY_\n\n` +
+                            `Penundaan status tiket hanya dapat dilakukan oleh *Supervisor (SPV)*, *Manager*, atau *Admin*.\n` +
+                            `Status peran Anda saat ini: *${registeredUser.role || 'Staf Biasa'}*.\n\n` +
+                            `Silakan koordinasikan dengan Supervisor atau Leader departemen Anda.`
+                        );
+                        continue;
+                    }
+
+                    let targetId = extractIssueId(text) || extractIssueId(quotedText);
+                    let reason = text.replace(/^(?:!pending|pending|!tunda|tunda)\s*/i, '');
+                    if (targetId) {
+                        reason = reason.replace(new RegExp('#?' + targetId, 'i'), '').trim();
+                    }
+                    reason = reason.trim();
+
+                    if (!targetId) {
+                        await reply(
+                            `⚠️ *Format Tidak Lengkap / Incomplete Format*\n\n` +
+                            `Ketik: *pending [ID_TIKET] [Alasan]*\n` +
+                            `Atau reply pesan tiket dengan kata *pending [Alasan]*.\n\n` +
+                            `_Contoh: pending #ENG-041126-104 Menunggu suku cadang dari Batam_`
+                        );
+                        continue;
+                    }
+
+                    if (!reason || reason.length < 3) {
+                        await reply(
+                            `⚠️ *Alasan Penundaan Wajib Diisi / Reason Required*\n\n` +
+                            `Sesuai SOP, mohon cantumkan alasan mengapa pekerjaan ditunda.\n` +
+                            `_Contoh: pending #${targetId} Menunggu kamar kosong / sparepart tiba._`
+                        );
+                        continue;
+                    }
+
+                    try {
+                        const pendingRes = await axios.post(`${BASE_URL}/api/lean/issues/${targetId}/pending`, {
+                            reason: reason,
+                            pending_by: registeredUser.name,
+                            pending_by_phone: senderPhone
+                        });
+
+                        if (pendingRes.data.success) {
+                            await reply(
+                                `⏸️ *TIKET DITANDAI PENDING / TERTUNDA* ⏸️\n` +
+                                `_TICKET MARKED AS PENDING_\n\n` +
+                                `• *ID Tiket:* #${targetId}\n` +
+                                `• *Status:* 🟠 Pending (Tertunda)\n` +
+                                `• *Oleh:* ${registeredUser.name} (${registeredUser.department || 'SPV/Mgr'})\n` +
+                                `• *Alasan:* ${reason}\n\n` +
+                                `_Catatan telah disimpan di sistem. Ketik *ambil ${targetId}* bila pekerjaan siap dilanjutkan._`
+                            );
+                        } else {
+                            await reply(`❌ Gagal menandai pending: ${pendingRes.data.message || 'Error tidak diketahui'}`);
+                        }
+                    } catch (e) {
+                        const msgErr = e.response?.data?.message || e.message;
+                        await reply(`❌ Gagal menandai pending: ${msgErr}`);
+                    }
+                    continue;
+                }
+
                 // 5. GROUP ACTION: SELESAI / DONE / SOLVE / RESOLVE
                 if (lower.startsWith('selesai') || lower.startsWith('!selesai') || 
                     lower.startsWith('solve')   || lower.startsWith('!solve')   ||
                     lower.startsWith('done')    || lower.startsWith('!done')    ||
                     lower.startsWith('finish')  || lower.startsWith('!finish')) {
+
+                    if (!isAuthorizedStatusChanger(registeredUser)) {
+                        await reply(
+                            `⚠️ *AKSES DITOLAK — KHUSUS SUPERVISOR / MANAGER*\n` +
+                            `_ACCESS DENIED — SUPERVISOR / MANAGER ONLY_\n\n` +
+                            `Penyelesaian tiket hanya dapat dilakukan oleh *Supervisor (SPV)*, *Manager*, atau *Admin*.\n` +
+                            `Status peran Anda saat ini: *${registeredUser.role || 'Staf Biasa'}*.\n\n` +
+                            `Silakan koordinasikan dengan Supervisor atau Leader departemen Anda.`
+                        );
+                        continue;
+                    }
+
                     const words = text.split(/\s+/);
                     let targetId = words[1] || extractIssueId(text) || extractIssueId(quotedText);
 
@@ -833,7 +960,7 @@ async function startBot() {
                                 `🎉 *TIKET TELAH SELESAI* 🎉\n` +
                                 `_TICKET RESOLVED SUCCESSFULLY_\n\n` +
                                 `• *ID Tiket:* #${targetId}\n` +
-                                `• *Diselesaikan oleh:* ${registeredUser.name} (${registeredUser.department || 'Staf'})\n` +
+                                `• *Diselesaikan oleh:* ${registeredUser.name} (${registeredUser.department || 'SPV/Mgr'})\n` +
                                 `• *Status:* 🟢 Selesai (Resolved)\n\n` +
                                 `_Terima kasih atas kerja keras tim! Tiket telah ditutup di sistem._`
                             );
@@ -849,6 +976,16 @@ async function startBot() {
 
                 // 6. GROUP ACTION: EDIT / TRANSFER
                 if (lower.startsWith('edit') || lower.startsWith('!edit') || lower.startsWith('transfer') || lower.startsWith('!transfer')) {
+                    if (!isAuthorizedStatusChanger(registeredUser)) {
+                        await reply(
+                            `⚠️ *AKSES DITOLAK — KHUSUS SUPERVISOR / MANAGER*\n` +
+                            `_ACCESS DENIED — SUPERVISOR / MANAGER ONLY_\n\n` +
+                            `Pengalihan tiket hanya dapat dilakukan oleh *Supervisor (SPV)*, *Manager*, atau *Admin*.\n` +
+                            `Status peran Anda saat ini: *${registeredUser.role || 'Staf Biasa'}*.\n\n` +
+                            `Silakan koordinasikan dengan Supervisor atau Leader departemen Anda.`
+                        );
+                        continue;
+                    }
                     let targetId = extractIssueId(text) || extractIssueId(quotedText);
 
                     // Check fast one-liner shortcut: edit [ID] ke [DEPT] [Alasan] or edit [ID] to [DEPT] [Reason]
@@ -953,7 +1090,7 @@ async function startBot() {
                         `Halo *${registeredUser.name}*, silakan pilih Departemen yang dituju:\n` +
                         `_Please select the target Department:_\n\n`;
                     OFFICIAL_DEPARTMENTS.forEach((d, idx) => {
-                        deptPrompt += `${idx + 1}. *${d.name}* (${d.code})\n`;
+                        deptPrompt += `${idx + 1}. ${d.name} (${d.code})\n`;
                     });
                     deptPrompt += `\nKetik angka (1-${OFFICIAL_DEPARTMENTS.length}) atau nama/kode departemen.\n` +
                                   `_Type number (1-${OFFICIAL_DEPARTMENTS.length}) or department code._\n\n` +
@@ -1002,7 +1139,7 @@ async function startBot() {
                 let deptList = `📋 *DAFTAR KODE & DEPARTEMEN TELUNAS* 📋\n` +
                                `_TELUNAS DEPARTMENT CODES_\n\n`;
                 OFFICIAL_DEPARTMENTS.forEach(d => {
-                    deptList += `• *${d.code.padEnd(4, ' ')}* : ${d.name}\n`;
+                    deptList += `• ${d.code.padEnd(4, ' ')} : ${d.name}\n`;
                 });
                 deptList += `\n💡 _Format ID Isu: [KODE]-[TGLBLNTHN]-[NOMOR]_\n_Contoh: ENG-221026-105_`;
                 await reply(deptList);
@@ -1051,6 +1188,15 @@ async function startBot() {
                             listMsg += `${idx + 1}. *#${item.id}* - ${item.title}\n`;
                             listMsg += `   📍 Lokasi: ${item.location || '-'}\n`;
                             if (item.taker) listMsg += `   👷 Pengerja: ${item.taker}\n`;
+                            if (statusType === 'pending') {
+                                const pReason = item.fixDescription || 'Tidak ada alasan dicantumkan';
+                                listMsg += `   ⏸️ Alasan Pending: ${pReason.replace(/^Pending:\s*/i, '')}\n`;
+                            }
+                            if (statusType === 'resolved') {
+                                if (item.created_at) listMsg += `   🕒 Di-upload: ${item.created_at_human || item.created_at}\n`;
+                                if (item.resolved_at) listMsg += `   ✅ Selesai: ${item.resolved_at}\n`;
+                                if (item.solver) listMsg += `   👤 Diselesaikan: ${item.solver}\n`;
+                            }
                             listMsg += `\n`;
                         });
                     }
@@ -1107,21 +1253,31 @@ async function startBot() {
                 await reply(
                     `📍 *Langkah 2/5:* Di mana lokasi kendala ini?\n` +
                     `_Step 2/5: Where is this issue located?_\n\n` +
-                    `Pilih angka atau ketik nama lokasi / _Choose number or type location_:\n` +
-                    `1. *TBR* (Telunas Beach Resort)\n` +
-                    `2. *TPC / TPI* (Telunas Private Island)\n` +
-                    `3. *Kantor Sekupang*\n` +
-                    `_Atau ketik lokasi spesifik, contoh: TBR - Villa 3_`
+                    `Pilih angka, ketik lokasi, atau bagikan Pin Lokasi WhatsApp (Send Location):\n` +
+                    `1. TBR (Telunas Beach Resort)\n` +
+                    `2. TPC / TPI (Telunas Private Island)\n` +
+                    `3. Kantor Sekupang\n` +
+                    `_Contoh teks: TBR - Villa 3 atau langsung kirim Pin Lokasi._`
                 );
                 continue;
             }
 
             // Step 2 -> Step 3: Description
             if (state.step === STEPS.AWAITING_LOCATION) {
-                let loc = text;
-                if (text === '1' || lower === 'tbr') loc = 'TBR';
-                else if (text === '2' || lower === 'tpc' || lower === 'tpi') loc = 'TPC';
-                else if (text === '3' || lower === 'kantor') loc = 'Kantor';
+                let loc = null;
+                if (locationPayload) {
+                    loc = locationPayload.formatted;
+                } else if (text) {
+                    if (text === '1' || lower === 'tbr') loc = 'TBR';
+                    else if (text === '2' || lower === 'tpc' || lower === 'tpi') loc = 'TPC';
+                    else if (text === '3' || lower === 'kantor') loc = 'Kantor';
+                    else loc = text.trim();
+                }
+
+                if (!loc) {
+                    await reply(`⚠️ Mohon pilih angka lokasi (1: TBR, 2: TPC/TPI, 3: Kantor), ketik lokasi spesifik, atau kirimkan Pin Lokasi WhatsApp.`);
+                    continue;
+                }
 
                 state.data.location = loc;
                 state.step = STEPS.AWAITING_DESC;
@@ -1180,7 +1336,7 @@ async function startBot() {
                 let deptPrompt = `🎯 *Langkah 5/5: Pilih 1 Departemen yang bertanggung jawab:*\n` +
                                  `_Step 5/5: Select 1 responsible Department:_\n\n`;
                 OFFICIAL_DEPARTMENTS.forEach((d, idx) => {
-                    deptPrompt += `${idx + 1}. *${d.name}* (${d.code})\n`;
+                    deptPrompt += `${idx + 1}. ${d.name} (${d.code})\n`;
                 });
                 deptPrompt += `\n_Ketik angka (1-11) atau nama/kode departemen tujuan._\n` +
                               `_Type number (1-11) or department code._`;

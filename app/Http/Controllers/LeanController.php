@@ -137,11 +137,7 @@ class LeanController extends Controller
             'ai_status'          => 'pending',
         ]);
 
-        // Failsafe real-time AI enrichment & Google Sheets sync
-        try {
-            app(\App\Services\GeminiIssueService::class)->analyzeIssue($issue);
-        } catch (\Throwable $e) {}
-
+        // Failsafe Google Sheets sync
         try {
             app(GoogleSheetsSyncService::class)->syncIssue($issue);
         } catch (\Throwable $e) {}
@@ -381,11 +377,13 @@ class LeanController extends Controller
                 'claimed_at'           => $item->claimed_at ? $item->claimed_at->toIso8601String() : null,
                 'solver'               => $item->resolved_by_name,
                 'resolved_by_dept'     => $item->resolved_by_dept,
-                'resolved_at'          => $item->resolved_at ? $item->resolved_at->toIso8601String() : null,
+                'resolved_at'          => $item->resolved_at ? $item->resolved_at->format('d/m/Y H:i') . ' WIB' : null,
+                'resolved_at_raw'      => $item->resolved_at ? $item->resolved_at->toIso8601String() : null,
                 'fixDescription'       => $item->resolution_note,
                 'proofImageUrl'        => $item->resolution_image_url,
                 'transfer_history'     => $item->transfer_history ?? [],
-                'created_at'           => $item->created_at ? $item->created_at->toIso8601String() : null,
+                'created_at'           => $item->created_at ? $item->created_at->format('d/m/Y H:i') . ' WIB' : null,
+                'created_at_raw'       => $item->created_at ? $item->created_at->toIso8601String() : null,
                 'created_at_human'     => $item->created_at ? $item->created_at->locale('id')->diffForHumans() : '',
             ];
         });
@@ -434,13 +432,12 @@ class LeanController extends Controller
                     'acc_at' => null,
                 ]
             ],
-            'ai_status'          => 'pending',
+            'ai_status'          => null,
         ]);
 
-        // Failsafe real-time AI enrichment for WhatsApp Bot V2
+        // Failsafe Google Sheets sync for WhatsApp Bot V2
         try {
-            app(\App\Services\GeminiIssueService::class)->analyzeIssue($issue);
-            $issue->refresh();
+            app(GoogleSheetsSyncService::class)->syncIssue($issue);
         } catch (\Throwable $e) {}
 
         $code = self::formatIssueCode($issue);
@@ -619,6 +616,10 @@ class LeanController extends Controller
         $issue->status = 'pending';
         $issue->resolution_note = "Pending: {$reason}";
         $issue->save();
+
+        try {
+            app(GoogleSheetsSyncService::class)->syncIssue($issue);
+        } catch (\Throwable $e) {}
 
         return response()->json([
             'success' => true,
