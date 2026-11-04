@@ -59,11 +59,27 @@ class GoogleSheetsSyncService
         $statusLabels = [
             'open' => 'Open',
             'in_progress' => 'In Progress',
+            'pending' => 'Pending',
             'resolved' => 'Resolved',
         ];
         $statusStr = $statusLabels[$issue->status] ?? ucfirst($issue->status ?: 'Open');
 
-        // AI details
+        // Month Tab (12 monthly tabs per year)
+        $monthNames = [
+            1 => 'Januari', 2 => 'Februari', 3 => 'Maret', 4 => 'April',
+            5 => 'Mei', 6 => 'Juni', 7 => 'Juli', 8 => 'Agustus',
+            9 => 'September', 10 => 'Oktober', 11 => 'November', 12 => 'Desember'
+        ];
+        $createdDate = $issue->created_at ?? now();
+        $monthTab = $monthNames[(int)$createdDate->format('n')] ?? $createdDate->format('F');
+        $year = $createdDate->format('Y');
+
+        $pendingReason = '';
+        if ($issue->status === 'pending') {
+            $pendingReason = preg_replace('/^Pending:\s*/i', '', $issue->resolution_note ?? '');
+        }
+
+        // AI details (Legacy fallback)
         $aiAnalysis = is_array($issue->ai_analysis) ? $issue->ai_analysis : [];
         $needSparepart = isset($aiAnalysis['perlu_sparepart'])
             ? ($aiAnalysis['perlu_sparepart'] ? 'YA' : 'TIDAK')
@@ -75,6 +91,9 @@ class GoogleSheetsSyncService
         return [
             // Standard English Keys (Matches Apps Script Code.gs)
             'issue_code'           => $code,
+            'month_tab'            => $monthTab,
+            'tab_name'             => $monthTab,
+            'year'                 => $year,
             'reported_at'          => $issue->created_at ? $issue->created_at->format('Y-m-d H:i') : '',
             'reporter_name'        => $issue->reporter_name ?: '-',
             'reporter_dept'        => $issue->reporter_dept ?: '-',
@@ -83,6 +102,7 @@ class GoogleSheetsSyncService
             'description'          => $issue->description ?: '-',
             'target_departments'   => $targetDeptsStr,
             'status'               => $statusStr,
+            'pending_reason'       => $pendingReason,
             'is_active'            => $isActive,
             'deleted_by'           => $deletedBy,
             'deleted_at'           => $deletedAt,
@@ -102,6 +122,8 @@ class GoogleSheetsSyncService
 
             // Indonesian Aliases for Backwards Compatibility
             'kode_tiket'           => $code,
+            'bulan_tab'            => $monthTab,
+            'tahun'                => $year,
             'waktu_lapor'          => $issue->created_at ? $issue->created_at->format('Y-m-d H:i') : '',
             'pelapor'              => $issue->reporter_name ?: '-',
             'dept_pelapor'         => $issue->reporter_dept ?: '-',
@@ -110,6 +132,7 @@ class GoogleSheetsSyncService
             'deskripsi_awal'       => $issue->description ?: '-',
             'departemen_dituju'    => $targetDeptsStr,
             'status_tiket'         => $statusStr,
+            'alasan_pending'       => $pendingReason,
             'aktif_di_dashboard'   => $isActive,
             'dihapus_oleh'         => $deletedBy,
             'waktu_dihapus'        => $deletedAt,
@@ -302,12 +325,61 @@ class GoogleSheetsSyncService
     }
 
     /**
+     * Sync verified active staff directory to "Data Karyawan" tab on Google Sheet.
+     */
+    public function syncStaffDirectory(): array
+    {
+        $webhookUrl = $this->getIssuesWebhookUrl();
+        if (!$webhookUrl) {
+            return ['success' => false, 'message' => 'Issues webhook URL is not configured.'];
+        }
+
+        $users = \App\Models\User::activeApproved()
+            ->whereNotNull('whatsapp_number')
+            ->select('id', 'name', 'staff_name', 'department', 'subdivision', 'role', 'whatsapp_number', 'is_hod')
+            ->get()
+            ->map(function ($u) {
+                return [
+                    'id'              => $u->id,
+                    'name'            => $u->staff_name ?: $u->name,
+                    'whatsapp_number' => $u->whatsapp_number,
+                    'department'      => $u->department ?: 'Umum',
+                    'subdivision'     => $u->subdivision ?: '-',
+                    'role'            => $u->role ?: 'staff',
+                    'is_hod'          => $u->is_hod ? 'Ya' : 'Tidak',
+                ];
+            })
+            ->toArray();
+
+        try {
+            $response = Http::asJson()
+                ->withoutVerifying()
+                ->withOptions(['allow_redirects' => true])
+                ->timeout(20)
+                ->post($webhookUrl, [
+                    'action' => 'sync_staff_directory',
+                    'sheet'  => 'Data Karyawan',
+                    'staff'  => $users,
+                    'items'  => $users,
+                ]);
+
+            return [
+                'success' => $response->successful(),
+                'count'   => count($users),
+                'message' => $response->successful() ? "Berhasil sinkron " . count($users) . " staf ke tab Data Karyawan." : "Gagal sinkron staf.",
+            ];
+        } catch (\Throwable $e) {
+            Log::error('Staff directory sync exception: ' . $e->getMessage());
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+    }
+
+    /**
      * Bulk sync all issues (including soft deleted) to Google Sheets.
      */
     public function syncAll(): array
     {
         $issuesWebhookUrl = $this->getIssuesWebhookUrl();
-        $locationsWebhookUrl = $this->getLocationsWebhookUrl();
 
         if (!$issuesWebhookUrl) {
             return [
@@ -339,15 +411,20 @@ class GoogleSheetsSyncService
             Log::error('Bulk Google Sheets sync exception: ' . $e->getMessage());
         }
 
+        // Sync Data Karyawan tab in the same Google Spreadsheet
+        $staffResult = $this->syncStaffDirectory();
+
+        // Gracefully attempt locations sync if configured
         $locationsSuccess = $this->syncLocationsSummary();
 
         return [
             'success' => $issuesSuccess,
             'total_issues' => count($items),
             'issues_synced' => $issuesSuccess,
+            'staff_synced' => $staffResult['success'] ?? false,
             'locations_synced' => $locationsSuccess,
             'message' => $issuesSuccess
-                ? "Berhasil menyinkronkan " . count($items) . " tiket ke Google Sheets."
+                ? "Berhasil menyinkronkan " . count($items) . " tiket ke tab bulanan dan data staf ke Google Sheets."
                 : "Gagal mengirim data ke Google Sheets Webhook. Pastikan URL Webhook aktif.",
         ];
     }

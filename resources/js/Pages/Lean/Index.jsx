@@ -57,7 +57,6 @@ const COLUMN_DEFS = [
     { id: 'id', label: 'ID Isu', icon: '#' },
     { id: 'photo', label: 'Foto Bukti', icon: '📷' },
     { id: 'title', label: 'Judul Masalah', icon: '📝' },
-    { id: 'category', label: 'Kategori AI', icon: '🤖' },
     { id: 'location', label: 'Lokasi', icon: '📍' },
     { id: 'dept', label: 'Departemen Tujuan', icon: '🏢' },
     { id: 'reporter', label: 'Nama Pelapor', icon: '👤' },
@@ -70,7 +69,6 @@ const DEFAULT_COLUMNS = {
     id: true,
     photo: true,
     title: true,
-    category: true,
     location: true,
     dept: true,
     reporter: true,
@@ -79,24 +77,16 @@ const DEFAULT_COLUMNS = {
     time: true,
 };
 
-export default function LeanIndex({ issues = [], departments = [], locations = ['TBR', 'TPI', 'Kantor'], currentUser = null, aiPendingCount = 0 }) {
+export default function LeanIndex({ issues = [], departments = [], locations = ['TBR', 'TPI', 'Kantor'], currentUser = null }) {
     // --- Supervisor Account Info (Universal for all supervisors) ---
     const myName = currentUser?.name || 'Supervisor';
     const myDept = 'Supervisor';
 
-    const [isRetryingAi, setIsRetryingAi] = useState(false);
-
-    const handleRetryAi = () => {
-        setIsRetryingAi(true);
-        router.post('/lapangan/ai/retry', {}, {
-            preserveScroll: true,
-            onFinish: () => setIsRetryingAi(false),
-        });
-    };
-
     // --- UI Filters & View Modes ---
     // Department Filter: 'all' | specific department
     const [selectedDeptFilter, setSelectedDeptFilter] = useState('all');
+    // Month Tab Switcher: 'all' | 1..12
+    const [selectedMonthFilter, setSelectedMonthFilter] = useState('all');
 
     // --- ERP Customization States ---
     const [visibleColumns, setVisibleColumns] = useState(() => {
@@ -268,7 +258,7 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
         const pollTimer = setInterval(() => {
             if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
                 router.reload({
-                    only: ['issues', 'aiPendingCount'],
+                    only: ['issues'],
                     preserveScroll: true,
                     preserveState: true,
                 });
@@ -459,6 +449,16 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
         };
 
         const result = issues.filter((item) => {
+            // Month tab switcher filter (12 tab bulanan Google Sheet)
+            if (selectedMonthFilter !== 'all') {
+                if (!item.created_at) return false;
+                const d = new Date(item.created_at);
+                if (isNaN(d.getTime())) return false;
+                if (d.getMonth() + 1 !== parseInt(selectedMonthFilter, 10)) {
+                    return false;
+                }
+            }
+
             // 1. Department filter (all vs 1 dept)
             if (selectedDeptFilter !== 'all') {
                 const targets = item.target_departments || [];
@@ -650,13 +650,10 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                                     ? 'text-slate-400 hover:text-slate-200'
                                     : 'text-slate-600 hover:text-slate-900 hover:bg-white'
                             }`}
-                            title="Analisa Audit & Mitigasi Kerusakan"
+                            title="Analisa Statistik Operasional & Peta Resort"
                         >
                             <BarChart3 className="w-3.5 h-3.5" />
-                            <span className="hidden sm:inline">Analitik AI</span>
-                            {aiPendingCount > 0 && (
-                                <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-                            )}
+                            <span className="hidden sm:inline">Statistik Operasional</span>
                         </button>
                     </div>
 
@@ -862,8 +859,36 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                         )}
                     </div>
 
-                    {/* Row 2: Balanced 2-Column Grid on Mobile for Dept & Sort, Flex on Desktop */}
+                    {/* Row 2: Balanced Grid on Mobile for Month, Dept & Sort, Flex on Desktop */}
                     <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2">
+                        {/* Month Tab Switcher (12 Tab Bulanan Google Sheet) */}
+                        <div className="w-full sm:w-auto">
+                            <select
+                                value={selectedMonthFilter}
+                                onChange={(e) => setSelectedMonthFilter(e.target.value)}
+                                className={`w-full sm:w-auto text-xs font-semibold rounded-xl px-3 py-2 focus:ring-1 focus:ring-emerald-500 cursor-pointer shadow-sm border truncate ${
+                                    isDark
+                                        ? 'bg-slate-800/90 border-slate-700 text-slate-200'
+                                        : 'bg-white/95 border-slate-300 text-slate-800 shadow-xs'
+                                }`}
+                                title="Pilih Tab Bulan (12 Tab Bulanan)"
+                            >
+                                <option value="all">📅 Semua Bulan (Semua Tab)</option>
+                                <option value="1">Januari</option>
+                                <option value="2">Februari</option>
+                                <option value="3">Maret</option>
+                                <option value="4">April</option>
+                                <option value="5">Mei</option>
+                                <option value="6">Juni</option>
+                                <option value="7">Juli</option>
+                                <option value="8">Agustus</option>
+                                <option value="9">September</option>
+                                <option value="10">Oktober</option>
+                                <option value="11">November</option>
+                                <option value="12">Desember</option>
+                            </select>
+                        </div>
+
                         {/* Department Filter */}
                         <div className="w-full sm:w-auto">
                             <select
@@ -895,9 +920,9 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                                 }`}
                                 title="Urutkan daftar tiket secara cepat"
                             >
-                                <option value="urgency">⚡ Urgensi AI</option>
                                 <option value="newest">🕒 Terbaru</option>
                                 <option value="oldest">⏳ Terlama</option>
+                                <option value="urgency">⚡ Tingkat Urgensi</option>
                                 <option value="waiting_acc">🚨 Menunggu ACC</option>
                             </select>
                         </div>
@@ -1090,9 +1115,6 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                     <LeanAnalyticsView
                         issues={issues}
                         departments={departments}
-                        aiPendingCount={aiPendingCount}
-                        onRetryAi={handleRetryAi}
-                        isRetrying={isRetryingAi}
                         theme={theme}
                         activeTab={activeAnalyticsTab}
                         onTabChange={setActiveAnalyticsTab}
@@ -1137,7 +1159,6 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                                         {visibleColumns.id && <th className="py-2 px-2 whitespace-nowrap">ID Isu</th>}
                                         {visibleColumns.photo && <th className="py-2 px-1 text-center whitespace-nowrap">Foto</th>}
                                         {visibleColumns.title && <th className="py-2 px-2 min-w-[110px] max-w-[160px]">Judul Masalah</th>}
-                                        {visibleColumns.category && <th className="py-2 px-2 whitespace-nowrap">Kategori AI</th>}
                                         {visibleColumns.location && <th className="py-2 px-2 whitespace-nowrap">Lokasi</th>}
                                         {visibleColumns.dept && <th className="py-2 px-2 whitespace-nowrap">Departemen</th>}
                                         {visibleColumns.reporter && <th className="py-2 px-2 whitespace-nowrap">Pelapor</th>}
@@ -1190,29 +1211,6 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                                                 {visibleColumns.title && (
                                                     <td className="py-2 px-2 text-white font-semibold leading-snug max-w-[160px] truncate" title={issue.title}>
                                                         {issue.title}
-                                                    </td>
-                                                )}
-
-                                                {/* KATEGORI AI */}
-                                                {visibleColumns.category && (
-                                                    <td className="py-2 px-2 whitespace-nowrap text-[11px]">
-                                                        {issue.ai_category ? (
-                                                            <div className="flex flex-col">
-                                                                <span className="font-semibold text-sky-300 flex items-center gap-1">
-                                                                    <Sparkles className="w-2.5 h-2.5 text-sky-400 shrink-0" />
-                                                                    {issue.ai_category}
-                                                                </span>
-                                                                {issue.ai_sub_category && (
-                                                                    <span className="text-[9px] text-slate-400 block truncate max-w-[130px]" title={issue.ai_sub_category}>
-                                                                        {issue.ai_sub_category}
-                                                                    </span>
-                                                                )}
-                                                            </div>
-                                                        ) : (
-                                                            <span className="text-slate-500 text-[10px] italic">
-                                                                {issue.ai_status === 'pending' ? '⏳ Antrean' : '-'}
-                                                            </span>
-                                                        )}
                                                     </td>
                                                 )}
 
@@ -1482,18 +1480,6 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                                                     }`}>
                                                         <MapPin className="w-3 h-3 text-emerald-400 shrink-0" />
                                                         <span className="truncate max-w-[150px]">{issue.location}</span>
-                                                    </span>
-                                                )}
-
-                                                {/* Kategori AI */}
-                                                {issue.ai_category && (
-                                                    <span className={`px-2 py-0.5 rounded-md font-semibold text-[10px] flex items-center gap-1 border ${
-                                                        isDark
-                                                            ? 'bg-sky-950/70 text-sky-300 border-sky-800/60'
-                                                            : 'bg-sky-50 text-sky-800 border-sky-200'
-                                                    }`}>
-                                                        <Sparkles className="w-2.5 h-2.5 text-sky-400 shrink-0" />
-                                                        <span className="truncate max-w-[130px]">{issue.ai_category}</span>
                                                     </span>
                                                 )}
                                             </div>
@@ -1958,18 +1944,6 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                                             )}
                                         </span>
                                     )}
-                                    {visibleColumns.category && activeDetailIssue.ai_urgency && (
-                                        <span
-                                            className="text-[10px] font-bold px-2 py-0.5 rounded-full border"
-                                            style={{
-                                                backgroundColor: `${URGENCY_COLORS[activeDetailIssue.ai_urgency] || '#facc15'}20`,
-                                                borderColor: `${URGENCY_COLORS[activeDetailIssue.ai_urgency] || '#facc15'}50`,
-                                                color: URGENCY_COLORS[activeDetailIssue.ai_urgency] || '#facc15',
-                                            }}
-                                        >
-                                            Urgensi: {activeDetailIssue.ai_urgency}
-                                        </span>
-                                    )}
                                 </div>
                                 {visibleColumns.title ? (
                                     <h3 className="font-bold text-base text-white leading-snug">
@@ -2047,16 +2021,6 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                                         <span className="text-xs font-semibold text-white flex items-center gap-1 mt-0.5">
                                             <User className="w-3.5 h-3.5 text-emerald-400" />
                                             {activeDetailIssue.reporter_name} <span className="text-slate-400 text-[11px]">({activeDetailIssue.reporter_dept || 'Staf'})</span>
-                                        </span>
-                                    </div>
-                                )}
-
-                                {visibleColumns.category && (
-                                    <div className="p-2.5 rounded-xl bg-slate-800/80 border border-slate-700/80">
-                                        <span className="text-[10px] text-slate-400 font-medium block">Kategori AI</span>
-                                        <span className="text-xs font-semibold text-sky-300 flex items-center gap-1 mt-0.5">
-                                            <Sparkles className="w-3.5 h-3.5 text-sky-400" />
-                                            {activeDetailIssue.ai_category || '-'} {activeDetailIssue.ai_sub_category && `• ${activeDetailIssue.ai_sub_category}`}
                                         </span>
                                     </div>
                                 )}
@@ -2145,32 +2109,6 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                                             </span>
                                         </div>
                                     </div>
-                                </div>
-                            )}
-
-                            {/* Analisa Cerdas AI / RCA & Mitigasi */}
-                            {visibleColumns.category && activeDetailIssue.ai_analysis && (
-                                <div className="p-3.5 rounded-xl bg-slate-950/80 border border-sky-900/50 space-y-2.5">
-                                    <div className="flex items-center gap-1.5 text-sky-400 font-bold text-xs">
-                                        <Sparkles className="w-3.5 h-3.5" />
-                                        Analisis Cerdas & Rekomendasi Audit (RCA)
-                                    </div>
-                                    {activeDetailIssue.ai_analysis.dugaan_akar_masalah && (
-                                        <div>
-                                            <span className="text-[10px] text-slate-400 font-semibold block">Dugaan Akar Masalah Teknis:</span>
-                                            <p className="text-xs text-slate-300 mt-0.5 leading-relaxed">
-                                                {activeDetailIssue.ai_analysis.dugaan_akar_masalah}
-                                            </p>
-                                        </div>
-                                    )}
-                                    {activeDetailIssue.ai_analysis.tindakan_mitigasi_pencegahan && (
-                                        <div className="pt-2 border-t border-slate-800">
-                                            <span className="text-[10px] text-emerald-400 font-semibold block">Rekomendasi Tindakan Pencegahan:</span>
-                                            <p className="text-xs text-emerald-200 mt-0.5 leading-relaxed">
-                                                {activeDetailIssue.ai_analysis.tindakan_mitigasi_pencegahan}
-                                            </p>
-                                        </div>
-                                    )}
                                 </div>
                             )}
 
@@ -2514,10 +2452,7 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                         }`}
                     >
                         <MapPin className="w-4 h-4" />
-                        <span>Peta & AI</span>
-                        {aiPendingCount > 0 && (
-                            <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse ml-0.5" />
-                        )}
+                        <span>Peta & Statistik</span>
                     </button>
                 </div>
             </nav>

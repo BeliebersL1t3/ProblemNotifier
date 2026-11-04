@@ -80,14 +80,11 @@ class LeanController extends Controller
             'is_admin'   => auth()->user()->role === 'admin',
         ] : null;
 
-        $aiPendingCount = LeanIssue::where('ai_status', 'pending')->count();
-
         return Inertia::render('Lean/Index', [
             'issues'         => $issues,
             'departments'    => self::DEPARTMENTS,
             'locations'      => self::MAIN_LOCATIONS,
             'currentUser'    => $currentUser,
-            'aiPendingCount' => $aiPendingCount,
         ]);
     }
 
