@@ -92,7 +92,11 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
     const [visibleColumns, setVisibleColumns] = useState(() => {
         try {
             const saved = localStorage.getItem('lean_erp_columns');
-            if (saved) return { ...DEFAULT_COLUMNS, ...JSON.parse(saved) };
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                delete parsed.category;
+                return { ...DEFAULT_COLUMNS, ...parsed };
+            }
         } catch (e) {}
         return DEFAULT_COLUMNS;
     });
@@ -1460,7 +1464,7 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                                             </div>
                                         </div>
 
-                                        {/* Title & Location / Category Meta */}
+                                        {/* Title & Location Meta */}
                                         <div className="space-y-1.5">
                                             {visibleColumns.title && (
                                                 <h4 className={`font-bold text-sm leading-snug line-clamp-2 group-hover:text-emerald-400 transition-colors ${

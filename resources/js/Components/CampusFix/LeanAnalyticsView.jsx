@@ -62,16 +62,22 @@ import {
 } from 'lucide-react';
 import { TPI_MASTERPLAN_ZONES, TBR_MASTERPLAN_ZONES, resolveIssueResortAndZone } from '@/constants/locations';
 
-const CATEGORY_COLORS = {
-    'HVAC & Pendingin': '#38bdf8', // Sky
-    'Kelistrikan': '#fbbf24',      // Amber
-    'Plumbing & Air': '#34d399',     // Emerald
-    'Struktur & Bangunan': '#f97316',// Orange
-    'Jaringan & IT': '#818cf8',      // Indigo
-    'Housekeeping & Linen': '#ec4899',// Pink
-    'Fasilitas Umum': '#a78bfa',    // Purple
-    'Lain-lain': '#94a3b8',         // Slate
+const DEPARTMENT_COLORS = {
+    'Engineer': '#38bdf8',          // Sky
+    'Housekeeping': '#ec4899',      // Pink
+    'Fasilitas': '#fbbf24',         // Amber
+    'Kitchen': '#f97316',           // Orange
+    'IT': '#818cf8',                // Indigo
+    'Guest Relations': '#34d399',   // Emerald
+    'HR': '#a78bfa',                // Purple
+    'Procurement': '#14b8a6',       // Teal
+    'Finance': '#06b6d4',           // Cyan
+    'Reservasi': '#e879f9',         // Fuchsia
+    'Operasional Eksekutif': '#f43f5e', // Rose
+    'Umum': '#94a3b8',              // Slate
 };
+
+const CATEGORY_COLORS = DEPARTMENT_COLORS;
 
 const URGENCY_COLORS = {
     'Darurat': '#f43f5e',   // Rose
@@ -1374,18 +1380,21 @@ export function LeanAnalyticsView({
         const needParts = filteredIssues.filter((i) => i.ai_analysis?.perlu_sparepart).length;
         const sparepartRatio = total > 0 ? Math.round((needParts / total) * 100) : 0;
 
-        // Top category
-        const catCounts = {};
+        // Top department
+        const deptCounts = {};
         filteredIssues.forEach((i) => {
-            const cat = i.ai_category || 'Lain-lain';
-            catCounts[cat] = (catCounts[cat] || 0) + 1;
+            const depts = i.target_departments || ['Umum'];
+            (Array.isArray(depts) ? depts : [depts]).forEach((d) => {
+                const name = d || 'Umum';
+                deptCounts[name] = (deptCounts[name] || 0) + 1;
+            });
         });
-        let topCat = '-';
-        let topCatCount = 0;
-        Object.entries(catCounts).forEach(([cat, count]) => {
-            if (count > topCatCount) {
-                topCatCount = count;
-                topCat = cat;
+        let topDept = '-';
+        let topDeptCount = 0;
+        Object.entries(deptCounts).forEach(([dept, count]) => {
+            if (count > topDeptCount) {
+                topDeptCount = count;
+                topDept = dept;
             }
         });
 
@@ -1409,20 +1418,22 @@ export function LeanAnalyticsView({
             analyzed,
             resolved,
             sparepartRatio,
-            topCat,
-            topCatCount,
+            topDept,
+            topDeptCount,
+            topCat: topDept,
+            topCatCount: topDeptCount,
             topLoc,
             topLocCount,
         };
     }, [filteredIssues]);
 
-    // --- 2. Pareto Chart Data (Top 7 Sub-Categories with 80/20 Cumulative Calculation) ---
+    // --- 2. Pareto Chart Data (Top Recurring Issue Titles with 80/20 Cumulative Calculation) ---
     const { paretoData, paretoSummary } = useMemo(() => {
         const counts = {};
         let totalCount = 0;
 
         filteredIssues.forEach((i) => {
-            const sub = i.ai_sub_category || i.title || 'Lain-lain';
+            const sub = i.title || 'Lain-lain';
             counts[sub] = (counts[sub] || 0) + 1;
             totalCount += 1;
         });
@@ -1473,18 +1484,21 @@ export function LeanAnalyticsView({
         };
     }, [filteredIssues]);
 
-    // --- 3. Category Distribution (Donut Chart) ---
+    // --- 3. Department Distribution (Donut Chart) ---
     const categoryData = useMemo(() => {
         const counts = {};
         filteredIssues.forEach((i) => {
-            const cat = i.ai_category || 'Lain-lain';
-            counts[cat] = (counts[cat] || 0) + 1;
+            const depts = i.target_departments || ['Umum'];
+            (Array.isArray(depts) ? depts : [depts]).forEach((d) => {
+                const name = d || 'Umum';
+                counts[name] = (counts[name] || 0) + 1;
+            });
         });
 
         return Object.entries(counts).map(([name, value]) => ({
             name,
             value,
-            color: CATEGORY_COLORS[name] || '#94a3b8',
+            color: DEPARTMENT_COLORS[name] || '#94a3b8',
         }));
     }, [filteredIssues]);
 
@@ -1728,7 +1742,8 @@ export function LeanAnalyticsView({
         return filteredIssues
             .filter((i) => {
                 if (selectedCategory !== 'all') {
-                    if ((i.ai_category || '').toLowerCase() !== selectedCategory.toLowerCase()) {
+                    const depts = (i.target_departments || []).map((d) => (d || '').toLowerCase());
+                    if (!depts.includes(selectedCategory.toLowerCase())) {
                         return false;
                     }
                 }
@@ -1911,28 +1926,31 @@ export function LeanAnalyticsView({
         };
     }, [filteredIssues, showAllMasterDepts, departments]);
 
-    // --- 9. Category Urgency Matrix ---
+    // --- 9. Department Urgency Matrix ---
     const urgencyMatrixData = useMemo(() => {
         const catMap = {};
         filteredIssues.forEach((i) => {
-            const cat = i.ai_category || 'Lain-lain';
-            if (!catMap[cat]) {
-                catMap[cat] = {
-                    category: cat,
-                    Darurat: 0,
-                    Tinggi: 0,
-                    Sedang: 0,
-                    Rendah: 0,
-                    total: 0,
-                };
-            }
-            const urg = i.ai_urgency || 'Sedang';
-            if (catMap[cat][urg] !== undefined) {
-                catMap[cat][urg]++;
-            } else {
-                catMap[cat]['Sedang']++;
-            }
-            catMap[cat].total++;
+            const depts = i.target_departments || ['Umum'];
+            (Array.isArray(depts) ? depts : [depts]).forEach((dept) => {
+                const name = dept || 'Umum';
+                if (!catMap[name]) {
+                    catMap[name] = {
+                        category: name,
+                        Darurat: 0,
+                        Tinggi: 0,
+                        Sedang: 0,
+                        Rendah: 0,
+                        total: 0,
+                    };
+                }
+                const urg = i.ai_urgency || 'Sedang';
+                if (catMap[name][urg] !== undefined) {
+                    catMap[name][urg]++;
+                } else {
+                    catMap[name]['Sedang']++;
+                }
+                catMap[name].total++;
+            });
         });
 
         return Object.values(catMap).sort((a, b) => b.total - a.total);
@@ -2186,7 +2204,7 @@ export function LeanAnalyticsView({
                                                     <label className={`flex items-center justify-between p-1.5 rounded-lg cursor-pointer transition-colors ${
                                                         isDark ? 'hover:bg-slate-800/80 text-slate-200' : 'hover:bg-slate-100 text-slate-800'
                                                     }`}>
-                                                        <span>Distribusi Kategori Fasilitas</span>
+                                                        <span>Distribusi per Departemen</span>
                                                         <input
                                                             type="checkbox"
                                                             checked={widgetVisibility.category_donut !== false}
@@ -2199,7 +2217,7 @@ export function LeanAnalyticsView({
                                                     <label className={`flex items-center justify-between p-1.5 rounded-lg cursor-pointer transition-colors ${
                                                         isDark ? 'hover:bg-slate-800/80 text-slate-200' : 'hover:bg-slate-100 text-slate-800'
                                                     }`}>
-                                                        <span>Matriks Urgensi per Kategori</span>
+                                                        <span>Matriks Urgensi per Departemen</span>
                                                         <input
                                                             type="checkbox"
                                                             checked={widgetVisibility.urgency_matrix !== false}
@@ -2348,23 +2366,23 @@ export function LeanAnalyticsView({
                                 </p>
                             </div>
 
-                            {/* Top Category */}
+                            {/* Top Department */}
                             <div className={`p-4 rounded-xl border shadow-sm relative overflow-hidden backdrop-blur-md transition-all ${
                                 isDark ? 'bg-slate-800/90 border-slate-700/80' : 'bg-white/95 border-slate-200/90 shadow-xs'
                             }`}>
                                 <div className="flex items-center justify-between">
-                                    <span className={`text-xs font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Kategori Dominan</span>
+                                    <span className={`text-xs font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Departemen Dominan</span>
                                     <div className="w-7 h-7 rounded-lg bg-sky-500/20 text-sky-500 flex items-center justify-center">
-                                        <Sparkles className="w-4 h-4" />
+                                        <Building2 className="w-4 h-4" />
                                     </div>
                                 </div>
                                 <div className="mt-2">
                                     <span className={`text-base font-bold truncate block ${isDark ? 'text-sky-300' : 'text-sky-700'}`}>
-                                        {stats.topCat}
+                                        {stats.topDept || stats.topCat}
                                     </span>
                                 </div>
                                 <p className={`text-[11px] mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                                    Menyumbang {stats.topCatCount} laporan ({stats.total > 0 ? Math.round((stats.topCatCount / stats.total) * 100) : 0}%)
+                                    Menyumbang {stats.topDeptCount || stats.topCatCount} laporan ({stats.total > 0 ? Math.round(((stats.topDeptCount || stats.topCatCount) / stats.total) * 100) : 0}%)
                                 </p>
                             </div>
 
@@ -3242,7 +3260,7 @@ export function LeanAnalyticsView({
 
                                 {paretoData.length === 0 ? (
                                     <div className="py-16 text-center text-xs text-slate-500">
-                                        Belum ada data sub-kategori untuk ditampilkan.
+                                        Belum ada data masalah untuk ditampilkan.
                                     </div>
                                 ) : widgetViewModes.pareto_chart === 'table' ? (
                                     <div className="overflow-x-auto mt-2">
@@ -3250,7 +3268,7 @@ export function LeanAnalyticsView({
                                             <thead className="bg-slate-900/80 text-[11px] text-slate-400 uppercase tracking-wider border-b border-slate-700">
                                                 <tr>
                                                     <th className="py-2.5 px-3">#</th>
-                                                    <th className="py-2.5 px-3">Sub-Kategori Masalah</th>
+                                                    <th className="py-2.5 px-3">Judul Masalah Lapangan</th>
                                                     <th className="py-2.5 px-3 text-right">Kasus</th>
                                                     <th className="py-2.5 px-3 text-right">Porsi</th>
                                                     <th className="py-2.5 px-3 text-right">Akumulasi</th>
@@ -3366,17 +3384,17 @@ export function LeanAnalyticsView({
                             </div>
                         )}
 
-                        {/* 2. CATEGORY DISTRIBUTION (DONUT / TABLE) */}
+                        {/* 2. DEPARTMENT DISTRIBUTION (DONUT / TABLE) */}
                         {widgetVisibility.category_donut !== false && (
                             <div className={`${widgetVisibility.pareto_chart === false ? 'lg:col-span-3' : 'lg:col-span-1'} p-4 rounded-xl bg-slate-800/90 border border-slate-700/80 shadow-sm flex flex-col space-y-3`}>
                                 <div className="flex items-center justify-between pb-2 border-b border-slate-700/60">
                                     <div>
                                         <h3 className="text-xs font-bold text-white flex items-center gap-1.5">
-                                            <Sparkles className="w-4 h-4 text-sky-400" />
-                                            Distribusi Kategori Fasilitas
+                                            <Building2 className="w-4 h-4 text-sky-400" />
+                                            Distribusi per Departemen
                                         </h3>
                                         <p className="text-[11px] text-slate-400 mt-0.5">
-                                            Proporsi beban pemeliharaan resort
+                                            Proporsi beban kerja tiket per departemen
                                         </p>
                                     </div>
                                     <div className="flex items-center gap-1">
@@ -3396,7 +3414,7 @@ export function LeanAnalyticsView({
                                             type="button"
                                             onClick={() => toggleWidgetVisibility('category_donut')}
                                             className="p-1.5 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-slate-700/50 transition-colors"
-                                            title="Sembunyikan Distribusi Kategori"
+                                            title="Sembunyikan Distribusi Departemen"
                                         >
                                             <EyeOff className="w-3.5 h-3.5" />
                                         </button>
@@ -3405,14 +3423,14 @@ export function LeanAnalyticsView({
 
                                 {categoryData.length === 0 ? (
                                     <div className="py-16 text-center text-xs text-slate-500">
-                                        Belum ada data kategori untuk ditampilkan.
+                                        Belum ada data departemen untuk ditampilkan.
                                     </div>
                                 ) : widgetViewModes.category_donut === 'table' ? (
                                     <div className="overflow-x-auto mt-2">
                                         <table className="w-full text-left text-xs text-slate-300">
                                             <thead className="bg-slate-900/80 text-[11px] text-slate-400 uppercase tracking-wider border-b border-slate-700">
                                                 <tr>
-                                                    <th className="py-2.5 px-3">Kategori</th>
+                                                    <th className="py-2.5 px-3">Departemen</th>
                                                     <th className="py-2.5 px-3 text-right">Kasus</th>
                                                     <th className="py-2.5 px-3 text-right">Porsi</th>
                                                 </tr>
@@ -3474,17 +3492,17 @@ export function LeanAnalyticsView({
                         )}
                     </div>
 
-                    {/* CHARTS ROW 2: CATEGORY URGENCY MATRIX */}
+                    {/* CHARTS ROW 2: DEPARTMENT URGENCY MATRIX */}
                     {widgetVisibility.urgency_matrix !== false && (
                         <div className="p-4 rounded-xl bg-slate-800/90 border border-slate-700/80 shadow-sm space-y-4">
                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-700/60">
                                 <div>
                                     <h3 className="text-xs font-bold text-white flex items-center gap-1.5">
                                         <Activity className="w-4 h-4 text-amber-400" />
-                                        Matriks Urgensi per Kategori Fasilitas
+                                        Matriks Urgensi per Departemen
                                     </h3>
                                     <p className="text-[11px] text-slate-400 mt-0.5">
-                                        Tingkat keparahan (Darurat / Tinggi / Sedang / Rendah) pada tiap kelompok fasilitas resort
+                                        Tingkat keparahan (Darurat / Tinggi / Sedang / Rendah) pada tiap departemen tujuan
                                     </p>
                                 </div>
                                 <div className="flex items-center gap-2">
@@ -3518,14 +3536,14 @@ export function LeanAnalyticsView({
 
                             {urgencyMatrixData.length === 0 ? (
                                 <div className="py-12 text-center text-xs text-slate-500">
-                                    Tidak ada data urgensi kategori pada periode ini.
+                                    Tidak ada data urgensi departemen pada periode ini.
                                 </div>
                             ) : widgetViewModes.urgency_matrix === 'table' ? (
                                 <div className="overflow-x-auto">
                                     <table className="w-full text-left text-xs text-slate-300">
                                         <thead className="bg-slate-900/80 text-[11px] text-slate-400 uppercase tracking-wider border-b border-slate-700">
                                             <tr>
-                                                <th className="py-2.5 px-3">Kategori</th>
+                                                <th className="py-2.5 px-3">Departemen</th>
                                                 <th className="py-2.5 px-3 text-center text-rose-400 font-bold">Darurat</th>
                                                 <th className="py-2.5 px-3 text-center text-orange-400 font-bold">Tinggi</th>
                                                 <th className="py-2.5 px-3 text-center text-yellow-400 font-bold">Sedang</th>
@@ -3585,10 +3603,10 @@ export function LeanAnalyticsView({
                                 <div>
                                     <h3 className="text-xs font-bold text-white flex items-center gap-1.5">
                                         <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                                        Feed Audit Akar Masalah & Rekomendasi Mitigasi Pencegahan
+                                        Feed Resolusi Lapangan & Tindak Lanjut
                                     </h3>
                                     <p className="text-[11px] text-slate-400 mt-0.5">
-                                        Rekomendasi teknis yang dihasilkan AI untuk supervisor agar masalah tidak terulang kembali
+                                        Catatan resolusi teknisi dan detail penanganan masalah di lokasi
                                     </p>
                                 </div>
 
@@ -3605,16 +3623,16 @@ export function LeanAnalyticsView({
                                         />
                                     </div>
 
-                                    {/* Category Dropdown */}
+                                    {/* Department Dropdown */}
                                     <select
                                         value={selectedCategory}
                                         onChange={(e) => setSelectedCategory(e.target.value)}
                                         className="bg-slate-900 border border-slate-700 text-xs rounded-lg px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-emerald-500"
                                     >
-                                        <option value="all">Semua Kategori</option>
-                                        {Object.keys(CATEGORY_COLORS).map((cat) => (
-                                            <option key={cat} value={cat}>
-                                                {cat}
+                                        <option value="all">Semua Departemen</option>
+                                        {Object.keys(DEPARTMENT_COLORS).map((dept) => (
+                                            <option key={dept} value={dept}>
+                                                {dept}
                                             </option>
                                         ))}
                                     </select>
@@ -3744,11 +3762,10 @@ export function LeanAnalyticsView({
                                         )}
                                     </div>
 
-                                    {/* Footer Info: Category & Sparepart Badge */}
+                                    {/* Footer Info: Department & Sparepart Badge */}
                                     <div className="pt-2 border-t border-slate-800 flex items-center justify-between text-[10px] text-slate-400">
                                         <span>
-                                            Kategori: <strong className="text-slate-300">{issue.ai_category || 'Lain-lain'}</strong>
-                                            {issue.ai_sub_category && ` (${issue.ai_sub_category})`}
+                                            Departemen: <strong className="text-slate-300">{(issue.target_departments || []).join(', ') || 'Umum'}</strong>
                                         </span>
                                         <span>
                                             {ai.perlu_sparepart ? (
