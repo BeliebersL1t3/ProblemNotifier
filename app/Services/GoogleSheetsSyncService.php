@@ -79,6 +79,21 @@ class GoogleSheetsSyncService
             $pendingReason = preg_replace('/^Pending:\s*/i', '', $issue->resolution_note ?? '');
         }
 
+        // Row & Status Colors for Google Spreadsheet Conditional Formatting
+        $statusColors = [
+            'open'        => '#f43f5e', // Rose/Red
+            'in_progress' => '#fb923c', // Orange
+            'pending'     => '#facc15', // Amber/Yellow
+            'resolved'    => '#10b981', // Emerald/Green
+        ];
+        $statusColor = $statusColors[strtolower($issue->status)] ?? '#94a3b8';
+
+        // Extract Google Maps URL if present in location
+        $mapsUrl = '';
+        if (preg_match('/https:\/\/maps\.google\.com\S+/', $issue->location ?? '', $match)) {
+            $mapsUrl = $match[0];
+        }
+
         // AI details (Legacy fallback)
         $aiAnalysis = is_array($issue->ai_analysis) ? $issue->ai_analysis : [];
         $needSparepart = isset($aiAnalysis['perlu_sparepart'])
@@ -102,6 +117,8 @@ class GoogleSheetsSyncService
             'description'          => $issue->description ?: '-',
             'target_departments'   => $targetDeptsStr,
             'status'               => $statusStr,
+            'status_color'         => $statusColor,
+            'maps_url'             => $mapsUrl,
             'pending_reason'       => $pendingReason,
             'is_active'            => $isActive,
             'deleted_by'           => $deletedBy,
@@ -132,6 +149,8 @@ class GoogleSheetsSyncService
             'deskripsi_awal'       => $issue->description ?: '-',
             'departemen_dituju'    => $targetDeptsStr,
             'status_tiket'         => $statusStr,
+            'warna_status'         => $statusColor,
+            'link_peta'            => $mapsUrl,
             'alasan_pending'       => $pendingReason,
             'aktif_di_dashboard'   => $isActive,
             'dihapus_oleh'         => $deletedBy,

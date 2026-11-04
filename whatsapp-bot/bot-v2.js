@@ -501,11 +501,15 @@ async function startBot() {
                 const lat = rawLocMsg.degreesLatitude;
                 const lng = rawLocMsg.degreesLongitude;
                 const placeName = rawLocMsg.name || rawLocMsg.address || '';
+                const mapsUrl = `https://maps.google.com/?q=${lat.toFixed(6)},${lng.toFixed(6)}`;
                 locationPayload = {
                     lat,
                     lng,
                     name: placeName,
-                    formatted: placeName ? `${placeName} (GPS: ${lat.toFixed(5)}, ${lng.toFixed(5)})` : `GPS (${lat.toFixed(5)}, ${lng.toFixed(5)})`
+                    mapsUrl,
+                    formatted: placeName 
+                        ? `${placeName} (GPS: ${lat.toFixed(5)}, ${lng.toFixed(5)}) - ${mapsUrl}` 
+                        : `GPS (${lat.toFixed(5)}, ${lng.toFixed(5)}) - ${mapsUrl}`
                 };
                 if (!text) {
                     text = locationPayload.formatted;

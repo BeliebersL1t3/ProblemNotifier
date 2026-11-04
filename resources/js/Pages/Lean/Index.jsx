@@ -2001,6 +2001,23 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                                                 <MapPin className={`w-3.5 h-3.5 ${canNavigate ? 'text-emerald-400 group-hover:scale-110 transition-transform' : 'text-slate-400'}`} />
                                                 {activeDetailIssue.location}
                                             </span>
+                                            {(() => {
+                                                const gmapMatch = activeDetailIssue.location?.match(/https:\/\/maps\.google\.com\S+/);
+                                                if (!gmapMatch) return null;
+                                                return (
+                                                    <a
+                                                        href={gmapMatch[0]}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        onClick={(e) => e.stopPropagation()}
+                                                        className="inline-flex items-center gap-1 text-[10px] font-bold text-sky-400 hover:text-sky-300 mt-1 underline"
+                                                        title="Buka titik koordinat di Google Maps"
+                                                    >
+                                                        <span>Buka Pin Google Maps</span>
+                                                        <ExternalLink className="w-2.5 h-2.5" />
+                                                    </a>
+                                                );
+                                            })()}
                                         </div>
                                     );
                                 })()}
