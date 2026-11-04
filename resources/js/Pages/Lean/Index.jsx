@@ -593,12 +593,12 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                         <div className="min-w-0">
                             <div className="flex items-center gap-1">
                                 <h1 className={`text-xs sm:text-sm font-bold tracking-tight truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                                    Mode Lapangan
+                                    Telunas Lean Tracker
                                 </h1>
                                 <span className={`text-[8.5px] sm:text-[10px] font-bold px-1.5 py-0.2 rounded-full border shrink-0 ${
-                                    isDark ? 'bg-amber-500/20 border-amber-500/40 text-amber-300' : 'bg-amber-50 border-amber-300 text-amber-800'
+                                    isDark ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300' : 'bg-emerald-50 border-emerald-300 text-emerald-800'
                                 }`}>
-                                    Sandbox
+                                    Operasional
                                 </span>
                             </div>
                             <p className={`text-[10px] sm:text-[11px] truncate hidden md:block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Telunas Resorts Tracker</p>
