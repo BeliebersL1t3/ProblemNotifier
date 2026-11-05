@@ -83,11 +83,12 @@ const DEPARTMENT_COLORS = {
 
 const CATEGORY_COLORS = DEPARTMENT_COLORS;
 
-const URGENCY_COLORS = {
-    'Darurat': '#f43f5e',   // Rose
-    'Tinggi': '#fb923c',    // Orange
-    'Sedang': '#facc15',    // Yellow
-    'Rendah': '#10b981',    // Emerald
+const PROGRESS_STATUS_COLORS = {
+    open: '#f43f5e',         // Rose / Merah (Belum Dikerjakan)
+    in_progress: '#0284c7',  // Sky / Biru (Sedang Dikerjakan)
+    pending: '#f59e0b',      // Amber / Kuning (Tertunda / Butuh Sparepart)
+    resolved: '#10b981',     // Emerald / Hijau (Semua Selesai)
+    none: '#94a3b8',         // Slate / Abu-abu (Tidak Ada Laporan)
 };
 
 // Custom Tooltip for Pareto: shows count, individual share, and cumulative share
@@ -384,8 +385,8 @@ function TpiResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                     {/* Interactive Compact Location Pins */}
                     {displayedZones.map((zone) => {
                         const count = zone.count || 0;
-                        const urgency = zone.highestUrgency;
-                        const color = urgency ? (URGENCY_COLORS[urgency] || '#facc15') : '#10b981';
+                        const status = zone.dominantStatus || 'none';
+                        const color = PROGRESS_STATUS_COLORS[status] || PROGRESS_STATUS_COLORS.none;
                         const isSelected = selectedZoneId === zone.id;
                         const isHovered = hoveredZone === zone.id;
 
@@ -419,6 +420,10 @@ function TpiResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                                             ? 'ring-3 ring-sky-400 bg-white text-slate-950 font-black shadow-lg'
                                             : count > 0
                                             ? 'text-white font-extrabold ring-1 ring-white/90 shadow-sm'
+                                            : zone.total > 0
+                                            ? isDark
+                                                ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-500/50 shadow-2xs hover:bg-emerald-900'
+                                                : 'bg-emerald-50 text-emerald-800 border border-emerald-300 shadow-2xs hover:bg-emerald-100'
                                             : isDark
                                             ? 'bg-slate-900/90 text-slate-200 border border-slate-700/80 hover:bg-slate-800 shadow-2xs'
                                             : 'bg-white/95 text-slate-800 border border-slate-300 shadow-2xs hover:bg-slate-100'
@@ -442,18 +447,38 @@ function TpiResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
 
                                 {/* Hover / Selected Tooltip Card */}
                                 {(isHovered || isSelected) && (
-                                    <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2.5 px-3 py-1.5 rounded-xl bg-slate-950/95 border border-slate-700 shadow-2xl text-[11px] whitespace-nowrap z-50 pointer-events-none backdrop-blur-md animate-in fade-in zoom-in-95 duration-150">
-                                        <div className="flex items-center gap-1.5 font-bold text-white">
-                                            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
-                                            <span>#{zone.num} {zone.name}</span>
-                                        </div>
-                                        <div className="text-[10px] text-slate-400 flex items-center justify-between gap-3 pt-0.5">
-                                            <span>{zone.enName || 'Fasilitas TPI'}</span>
-                                            <span className="font-semibold" style={{ color }}>
-                                                {count > 0 ? `${count} Isu Aktif (${urgency || 'Sedang'})` : 'Tidak Ada Isu'}
+                                    <div className={`absolute left-1/2 -translate-x-1/2 bottom-full mb-2.5 px-3 py-2 rounded-xl border text-[11px] whitespace-nowrap z-50 pointer-events-none backdrop-blur-md animate-in fade-in zoom-in-95 duration-150 ${
+                                        isDark
+                                            ? 'bg-slate-900/95 border-slate-700 text-white shadow-2xl'
+                                            : 'bg-white/98 border-slate-200 text-slate-900 shadow-xl'
+                                    }`}>
+                                        <div className="flex items-center gap-1.5 font-bold">
+                                            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                                            <span className={isDark ? 'text-white' : 'text-slate-900'}>
+                                                #{zone.num} {zone.name}
                                             </span>
                                         </div>
-                                        <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-slate-950" />
+                                        <div className="text-[10px] flex items-center justify-between gap-3 pt-1">
+                                            <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>
+                                                {zone.enName || 'Fasilitas TPI'}
+                                            </span>
+                                            <span className="font-semibold" style={{ color }}>
+                                                {count > 0 ? (
+                                                    `${count} Isu Aktif (${[
+                                                        zone.openCount > 0 ? `${zone.openCount} Open` : null,
+                                                        zone.progressCount > 0 ? `${zone.progressCount} Progress` : null,
+                                                        zone.pendingCount > 0 ? `${zone.pendingCount} Pending` : null,
+                                                    ].filter(Boolean).join(', ')})`
+                                                ) : zone.total > 0 ? (
+                                                    `Semua Selesai (${zone.total} Tiket)`
+                                                ) : (
+                                                    'Tidak Ada Laporan'
+                                                )}
+                                            </span>
+                                        </div>
+                                        <div className={`absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-x-4 border-x-transparent border-t-4 ${
+                                            isDark ? 'border-t-slate-900' : 'border-t-white'
+                                        }`} />
                                     </div>
                                 )}
                             </div>
@@ -590,24 +615,27 @@ function TpiResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
 
                 {/* Bottom Bar Info Legend */}
                 <div className={`px-4 py-2.5 border-t flex flex-wrap items-center justify-between text-xs gap-2 ${
-                    isDark ? 'bg-slate-900/95 border-slate-800 text-slate-400' : 'bg-white border-slate-200 text-slate-600'
+                    isDark ? 'bg-slate-900/95 border-slate-800 text-slate-400' : 'bg-white border-slate-200 text-slate-700'
                 }`}>
                     <div className="flex items-center gap-2">
-                        <span className={`font-semibold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>Denah Spasial Resmi Pulau Telunas</span>
-                        <span className={`text-[11px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>• 22 Titik Fasilitas Terpetakan</span>
+                        <span className={`font-semibold ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>Denah Spasial Resmi Pulau Telunas</span>
+                        <span className={`text-[11px] ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>• 22 Titik Fasilitas Terpetakan</span>
                     </div>
-                    <div className="flex items-center gap-3 text-[11px]">
+                    <div className="flex items-center gap-3 text-[11px] flex-wrap font-medium">
                         <span className="flex items-center gap-1.5">
-                            <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" /> Kritis (Darurat / Tinggi)
+                            <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" /> Open (Belum Dikerjakan)
                         </span>
                         <span className="flex items-center gap-1.5">
-                            <span className="w-2 h-2 rounded-full bg-amber-400" /> Sedang
+                            <span className="w-2 h-2 rounded-full bg-sky-600" /> Sedang Dikerjakan
                         </span>
                         <span className="flex items-center gap-1.5">
-                            <span className="w-2 h-2 rounded-full bg-emerald-500" /> Normal / Rendah
+                            <span className="w-2 h-2 rounded-full bg-amber-500" /> Tertunda (Pending)
                         </span>
                         <span className="flex items-center gap-1.5">
-                            <span className={`w-2 h-2 rounded-full ${isDark ? 'bg-slate-600' : 'bg-slate-400'}`} /> Tidak Ada Isu
+                            <span className="w-2 h-2 rounded-full bg-emerald-500" /> Semua Selesai
+                        </span>
+                        <span className="flex items-center gap-1.5">
+                            <span className={`w-2 h-2 rounded-full ${isDark ? 'bg-slate-600' : 'bg-slate-400'}`} /> Tidak Ada Laporan
                         </span>
                     </div>
                 </div>
@@ -820,8 +848,8 @@ function TbrResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                     {/* Interactive Compact Location Pins */}
                     {displayedZones.map((zone) => {
                         const count = zone.count || 0;
-                        const urgency = zone.highestUrgency;
-                        const color = urgency ? (URGENCY_COLORS[urgency] || '#facc15') : '#10b981';
+                        const status = zone.dominantStatus || 'none';
+                        const color = PROGRESS_STATUS_COLORS[status] || PROGRESS_STATUS_COLORS.none;
                         const isSelected = selectedZoneId === zone.id;
                         const isHovered = hoveredZone === zone.id;
 
@@ -855,6 +883,10 @@ function TbrResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                                             ? 'ring-3 ring-amber-400 bg-white text-slate-950 font-black shadow-lg'
                                             : count > 0
                                             ? 'text-white font-extrabold ring-1 ring-white/90 shadow-sm'
+                                            : zone.total > 0
+                                            ? isDark
+                                                ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-500/50 shadow-2xs hover:bg-emerald-900'
+                                                : 'bg-emerald-50 text-emerald-800 border border-emerald-300 shadow-2xs hover:bg-emerald-100'
                                             : isDark
                                             ? 'bg-slate-900/90 text-slate-200 border border-slate-700/80 hover:bg-slate-800 shadow-2xs'
                                             : 'bg-white/95 text-slate-800 border border-slate-300 shadow-2xs hover:bg-slate-100'
@@ -878,18 +910,38 @@ function TbrResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
 
                                 {/* Tooltip Card on Hover / Select */}
                                 {(isHovered || isSelected) && (
-                                    <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2.5 px-3 py-1.5 rounded-xl bg-slate-950/95 border border-slate-700 shadow-2xl text-[11px] whitespace-nowrap z-50 pointer-events-none backdrop-blur-md animate-in fade-in zoom-in-95 duration-150">
-                                        <div className="flex items-center gap-1.5 font-bold text-white">
-                                            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
-                                            <span>#{zone.num} {zone.name}</span>
-                                        </div>
-                                        <div className="text-[10px] text-slate-400 flex items-center justify-between gap-3 pt-0.5">
-                                            <span>{zone.enName || 'Fasilitas TBR'}</span>
-                                            <span className="font-semibold" style={{ color }}>
-                                                {count > 0 ? `${count} Isu Aktif (${urgency || 'Sedang'})` : 'Tidak Ada Isu'}
+                                    <div className={`absolute left-1/2 -translate-x-1/2 bottom-full mb-2.5 px-3 py-2 rounded-xl border text-[11px] whitespace-nowrap z-50 pointer-events-none backdrop-blur-md animate-in fade-in zoom-in-95 duration-150 ${
+                                        isDark
+                                            ? 'bg-slate-900/95 border-slate-700 text-white shadow-2xl'
+                                            : 'bg-white/98 border-slate-200 text-slate-900 shadow-xl'
+                                    }`}>
+                                        <div className="flex items-center gap-1.5 font-bold">
+                                            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                                            <span className={isDark ? 'text-white' : 'text-slate-900'}>
+                                                #{zone.num} {zone.name}
                                             </span>
                                         </div>
-                                        <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-slate-950" />
+                                        <div className="text-[10px] flex items-center justify-between gap-3 pt-1">
+                                            <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>
+                                                {zone.enName || 'Fasilitas TBR'}
+                                            </span>
+                                            <span className="font-semibold" style={{ color }}>
+                                                {count > 0 ? (
+                                                    `${count} Isu Aktif (${[
+                                                        zone.openCount > 0 ? `${zone.openCount} Open` : null,
+                                                        zone.progressCount > 0 ? `${zone.progressCount} Progress` : null,
+                                                        zone.pendingCount > 0 ? `${zone.pendingCount} Pending` : null,
+                                                    ].filter(Boolean).join(', ')})`
+                                                ) : zone.total > 0 ? (
+                                                    `Semua Selesai (${zone.total} Tiket)`
+                                                ) : (
+                                                    'Tidak Ada Laporan'
+                                                )}
+                                            </span>
+                                        </div>
+                                        <div className={`absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-x-4 border-x-transparent border-t-4 ${
+                                            isDark ? 'border-t-slate-900' : 'border-t-white'
+                                        }`} />
                                     </div>
                                 )}
                             </div>
@@ -1022,24 +1074,27 @@ function TbrResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
 
                 {/* Bottom Bar Info Legend */}
                 <div className={`px-4 py-2.5 border-t flex flex-wrap items-center justify-between text-xs gap-2 ${
-                    isDark ? 'bg-slate-900/95 border-slate-800 text-slate-400' : 'bg-white border-slate-200 text-slate-600'
+                    isDark ? 'bg-slate-900/95 border-slate-800 text-slate-400' : 'bg-white border-slate-200 text-slate-700'
                 }`}>
                     <div className="flex items-center gap-2">
-                        <span className={`font-bold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>Denah Arsitektural Telunas Beach Resort (TBR)</span>
+                        <span className={`font-bold ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>Denah Arsitektural Telunas Beach Resort (TBR)</span>
                         <span className={`text-[11px] ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>• Fasilitas Vila Terapung & Titian</span>
                     </div>
-                    <div className="flex items-center gap-3 text-[11px]">
+                    <div className="flex items-center gap-3 text-[11px] flex-wrap font-medium">
                         <span className="flex items-center gap-1.5">
-                            <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" /> Kritis (Darurat / Tinggi)
+                            <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" /> Open (Belum Dikerjakan)
                         </span>
                         <span className="flex items-center gap-1.5">
-                            <span className="w-2 h-2 rounded-full bg-amber-400" /> Sedang
+                            <span className="w-2 h-2 rounded-full bg-sky-600" /> Sedang Dikerjakan
                         </span>
                         <span className="flex items-center gap-1.5">
-                            <span className="w-2 h-2 rounded-full bg-emerald-500" /> Normal / Rendah
+                            <span className="w-2 h-2 rounded-full bg-amber-500" /> Tertunda (Pending)
                         </span>
                         <span className="flex items-center gap-1.5">
-                            <span className={`w-2 h-2 rounded-full ${isDark ? 'bg-slate-600' : 'bg-slate-400'}`} /> Tidak Ada Isu
+                            <span className="w-2 h-2 rounded-full bg-emerald-500" /> Semua Selesai
+                        </span>
+                        <span className="flex items-center gap-1.5">
+                            <span className={`w-2 h-2 rounded-full ${isDark ? 'bg-slate-600' : 'bg-slate-400'}`} /> Tidak Ada Laporan
                         </span>
                     </div>
                 </div>
@@ -1509,11 +1564,11 @@ export function LeanAnalyticsView({
         const tbrZones = {};
 
         TPI_MASTERPLAN_ZONES.forEach((z) => {
-            tpiZones[z.id] = { ...z, count: 0, total: 0, issues: [], highestUrgency: null };
+            tpiZones[z.id] = { ...z, count: 0, total: 0, issues: [], openCount: 0, progressCount: 0, pendingCount: 0, resolvedCount: 0, dominantStatus: 'none' };
         });
 
         TBR_MASTERPLAN_ZONES.forEach((z) => {
-            tbrZones[z.id] = { ...z, count: 0, total: 0, issues: [], highestUrgency: null };
+            tbrZones[z.id] = { ...z, count: 0, total: 0, issues: [], openCount: 0, progressCount: 0, pendingCount: 0, resolvedCount: 0, dominantStatus: 'none' };
         });
 
         filteredIssues.forEach((issue) => {
@@ -1525,21 +1580,41 @@ export function LeanAnalyticsView({
                 const zone = targetMap[zoneId];
                 zone.total += 1;
                 zone.issues.push(issue);
-                if (issue.status !== 'resolved') {
+                const s = issue.status || 'open';
+                if (s === 'open') {
                     zone.count += 1;
-                }
-                // Urgency / status color
-                if (zone.issues.some((i) => i.status === 'open')) {
-                    zone.highestUrgency = 'Darurat';
-                } else if (zone.issues.some((i) => i.status === 'pending')) {
-                    zone.highestUrgency = 'Sedang';
+                    zone.openCount += 1;
+                } else if (s === 'in_progress') {
+                    zone.count += 1;
+                    zone.progressCount += 1;
+                } else if (s === 'pending') {
+                    zone.count += 1;
+                    zone.pendingCount += 1;
+                } else if (s === 'resolved' || s === 'closed') {
+                    zone.resolvedCount += 1;
                 }
             }
         });
 
+        const finalizeZones = (map) => {
+            return Object.values(map).map((zone) => {
+                let dominantStatus = 'none';
+                if (zone.openCount > 0) {
+                    dominantStatus = 'open';
+                } else if (zone.progressCount > 0) {
+                    dominantStatus = 'in_progress';
+                } else if (zone.pendingCount > 0) {
+                    dominantStatus = 'pending';
+                } else if (zone.resolvedCount > 0) {
+                    dominantStatus = 'resolved';
+                }
+                return { ...zone, dominantStatus };
+            });
+        };
+
         return {
-            tpiZones: Object.values(tpiZones),
-            tbrZones: Object.values(tbrZones),
+            tpiZones: finalizeZones(tpiZones),
+            tbrZones: finalizeZones(tbrZones),
         };
     }, [filteredIssues]);
 
