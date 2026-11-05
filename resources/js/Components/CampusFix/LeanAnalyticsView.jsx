@@ -1370,7 +1370,7 @@ export function LeanAnalyticsView({
     theme = 'dark',
     onSelectIssue,
     focusMapRequest = null,
-    spreadsheetUrl = 'https://docs.google.com/spreadsheets/d/1O-jrcWtVAr3IObd8D2Bo6ygg4ppCghbo_6vQCjD2DUA/edit',
+    spreadsheetUrl = 'https://docs.google.com/spreadsheets/d/1hF2X6DrcWvOv4h77T_B4pmcNklO2-Zq2CzAiAR-UYIg/edit?usp=sharing',
 }) {
     const isDark = theme === 'dark';
 

@@ -38,6 +38,7 @@ return [
     'google' => [
         'credentials_path'        => env('GOOGLE_CREDENTIALS_PATH', 'app/google-credentials.json'),
         'spreadsheet_id'          => env('GOOGLE_SPREADSHEET_ID'),
+        'lean_spreadsheet_id'     => env('GOOGLE_LEAN_SPREADSHEET_ID', '1hF2X6DrcWvOv4h77T_B4pmcNklO2-Zq2CzAiAR-UYIg'),
         'ops_spreadsheet_id'      => env('GOOGLE_OPS_SPREADSHEET_ID'),
         'tickets_spreadsheet_id'  => env('GOOGLE_TICKETS_SPREADSHEET_ID'),
         'audit_spreadsheet_id'    => env('GOOGLE_AUDIT_SPREADSHEET_ID', '11FJllelJdd37tR9dUnCawgU1iycm6bQOLMgHM2t-z84'),
