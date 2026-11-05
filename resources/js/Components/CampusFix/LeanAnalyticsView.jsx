@@ -1653,410 +1653,204 @@ export function LeanAnalyticsView({
             </div>
 
             {/* ========================================================= */}
-            {/* 2. CORE KPI METRICS (TOTAL TIKET & BELUM SELESAI / BACKLOG)*/}
+            {/* 2. CORE KPI METRICS 4-GRID BAR                            */}
             {/* ========================================================= */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
                 {/* KPI 1: Total Tiket */}
-                <div className={`p-4 rounded-2xl border shadow-sm relative overflow-hidden backdrop-blur-md transition-all ${
+                <div className={`p-4 rounded-2xl border shadow-sm relative overflow-hidden backdrop-blur-md transition-all flex flex-col justify-between ${
                     isDark ? 'bg-slate-800/90 border-slate-700/80' : 'bg-white border-slate-200'
                 }`}>
-                    <div className="flex items-center justify-between">
-                        <span className={`text-xs font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                            Total Tiket Masuk
-                        </span>
-                        <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
-                            <Layers className="w-4 h-4" />
+                    <div>
+                        <div className="flex items-center justify-between">
+                            <span className={`text-xs font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                Total Tiket Masuk
+                            </span>
+                            <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                                <Layers className="w-4 h-4" />
+                            </div>
+                        </div>
+                        <div className="mt-2 flex items-baseline gap-2">
+                            <span className={`text-2xl font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                                {stats.total}
+                            </span>
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                                isDark ? 'bg-emerald-950/80 border-emerald-800/60 text-emerald-300' : 'bg-emerald-100 border-emerald-300 text-emerald-800'
+                            }`}>
+                                {stats.resolutionRate}% Selesai
+                            </span>
                         </div>
                     </div>
-                    <div className="mt-2 flex items-baseline gap-2">
-                        <span className={`text-2xl font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                            {stats.total}
-                        </span>
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                            isDark ? 'bg-emerald-950/80 border-emerald-800/60 text-emerald-300' : 'bg-emerald-100 border-emerald-300 text-emerald-800'
-                        }`}>
-                            {stats.resolutionRate}% Selesai
-                        </span>
-                    </div>
-                    <p className={`text-[11px] mt-1.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                        {stats.resolved} dari {stats.total} tiket telah dituntaskan oleh tim lapangan
+                    <p className={`text-[11px] mt-2 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                        {stats.resolved} dari {stats.total} tiket telah dituntaskan tim lapangan
                     </p>
                 </div>
 
                 {/* KPI 2: Tiket Belum Selesai (Backlog) */}
-                <div className={`p-4 rounded-2xl border shadow-sm relative overflow-hidden backdrop-blur-md transition-all ${
+                <div className={`p-4 rounded-2xl border shadow-sm relative overflow-hidden backdrop-blur-md transition-all flex flex-col justify-between ${
                     isDark ? 'bg-slate-800/90 border-slate-700/80' : 'bg-white border-slate-200'
                 }`}>
-                    <div className="flex items-center justify-between">
-                        <span className={`text-xs font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                            Tiket Belum Selesai (Backlog)
-                        </span>
-                        <div className="w-8 h-8 rounded-xl bg-rose-500/20 text-rose-400 flex items-center justify-center">
-                            <Clock className="w-4 h-4" />
+                    <div>
+                        <div className="flex items-center justify-between">
+                            <span className={`text-xs font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                Tiket Belum Selesai (Backlog)
+                            </span>
+                            <div className="w-8 h-8 rounded-xl bg-rose-500/20 text-rose-400 flex items-center justify-center">
+                                <Clock className="w-4 h-4" />
+                            </div>
+                        </div>
+                        <div className="mt-2 flex items-baseline gap-2">
+                            <span className={`text-2xl font-black ${isDark ? 'text-rose-400' : 'text-rose-600'}`}>
+                                {stats.activeCount}
+                            </span>
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                                isDark ? 'bg-rose-950/80 border-rose-800/60 text-rose-300' : 'bg-rose-100 border-rose-300 text-rose-800'
+                            }`}>
+                                {stats.activeRatio}% Backlog
+                            </span>
                         </div>
                     </div>
-                    <div className="mt-2 flex items-baseline gap-2">
-                        <span className={`text-2xl font-black ${isDark ? 'text-rose-400' : 'text-rose-600'}`}>
-                            {stats.activeCount}
-                        </span>
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                            isDark ? 'bg-rose-950/80 border-rose-800/60 text-rose-300' : 'bg-rose-100 border-rose-300 text-rose-800'
-                        }`}>
-                            {stats.activeRatio}% Backlog
-                        </span>
-                    </div>
-                    <p className={`text-[11px] mt-1.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                        Open: <strong className="text-rose-400">{stats.openCount}</strong> • Progress: <strong className="text-sky-400">{stats.inProgressCount}</strong> • Tertunda: <strong className="text-amber-400">{stats.pendingCount}</strong>
+                    <p className={`text-[11px] mt-2 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                        Open: <strong className={isDark ? 'text-rose-400' : 'text-rose-600'}>{stats.openCount}</strong> • Progress: <strong className={isDark ? 'text-sky-400' : 'text-sky-600'}>{stats.inProgressCount}</strong> • Tertunda: <strong className={isDark ? 'text-amber-400' : 'text-amber-600'}>{stats.pendingCount}</strong>
                     </p>
                 </div>
 
-                {/* KPI 3: Hotspot Utama #1 */}
+                {/* KPI 3: Departemen Terbanyak (Customizable 3 Modes Inside Card) */}
+                {(() => {
+                    let topDept = null;
+                    let rank2 = null;
+                    let rank3 = null;
+                    let badgeText = '';
+                    let badgeStyle = '';
+                    let bigValue = '';
+                    let subInfo = '';
+
+                    if (deptMode === 'target_issues') {
+                        topDept = deptMetrics.targetList[0];
+                        rank2 = deptMetrics.targetList[1];
+                        rank3 = deptMetrics.targetList[2];
+                        bigValue = topDept ? `${topDept.total} Isu` : '0 Isu';
+                        badgeText = topDept ? `${topDept.pct}% dari total` : '0%';
+                        badgeStyle = isDark ? 'bg-sky-950/80 border-sky-800/60 text-sky-300' : 'bg-sky-100 border-sky-300 text-sky-800';
+                        subInfo = (rank2 || rank3)
+                            ? `#2 ${rank2?.name || '-'}: ${rank2?.total || 0} • #3 ${rank3?.name || '-'}: ${rank3?.total || 0}`
+                            : 'Beban tugas laporan tertinggi';
+                    } else if (deptMode === 'reporters') {
+                        topDept = deptMetrics.reporterList[0];
+                        rank2 = deptMetrics.reporterList[1];
+                        rank3 = deptMetrics.reporterList[2];
+                        bigValue = topDept ? `${topDept.total} Laporan` : '0 Laporan';
+                        badgeText = topDept ? `${topDept.pct}% kontribusi` : '0%';
+                        badgeStyle = isDark ? 'bg-emerald-950/80 border-emerald-800/60 text-emerald-300' : 'bg-emerald-100 border-emerald-300 text-emerald-800';
+                        subInfo = (rank2 || rank3)
+                            ? `#2 ${rank2?.name || '-'}: ${rank2?.total || 0} • #3 ${rank3?.name || '-'}: ${rank3?.total || 0}`
+                            : 'Staf paling aktif melapor';
+                    } else { // backlog_ratio
+                        topDept = deptMetrics.backlogList[0];
+                        rank2 = deptMetrics.backlogList[1];
+                        rank3 = deptMetrics.backlogList[2];
+                        bigValue = topDept ? `${topDept.active} Belum Selesai` : '0 Belum Selesai';
+                        badgeText = topDept ? `${topDept.backlogRate}% Backlog` : '0%';
+                        badgeStyle = (topDept && topDept.active > 0)
+                            ? (isDark ? 'bg-rose-950/80 border-rose-800/60 text-rose-300' : 'bg-rose-100 border-rose-300 text-rose-800')
+                            : (isDark ? 'bg-emerald-950/80 border-emerald-800/60 text-emerald-300' : 'bg-emerald-100 border-emerald-300 text-emerald-800');
+                        subInfo = topDept
+                            ? `${topDept.resolved} selesai dari ${topDept.total} isu • #2 ${rank2?.name || '-'}: ${rank2?.active || 0}`
+                            : 'Belum ada data backlog';
+                    }
+
+                    return (
+                        <div className={`p-4 rounded-2xl border shadow-sm relative overflow-hidden backdrop-blur-md transition-all flex flex-col justify-between ${
+                            isDark ? 'bg-slate-800/90 border-slate-700/80' : 'bg-white border-slate-200'
+                        }`}>
+                            <div>
+                                <div className="flex items-center justify-between gap-1.5">
+                                    <span className={`text-xs font-semibold shrink-0 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                        Departemen Terbanyak
+                                    </span>
+                                    {/* Mini Switcher Selector */}
+                                    <select
+                                        value={deptMode}
+                                        onChange={(e) => setDeptMode(e.target.value)}
+                                        className={`text-[10px] font-bold rounded-lg px-2 py-0.5 border cursor-pointer transition-colors focus:ring-1 focus:ring-sky-500 max-w-[130px] truncate ${
+                                            isDark ? 'bg-slate-900 border-slate-700 text-slate-200' : 'bg-slate-100 border-slate-300 text-slate-800'
+                                        }`}
+                                        title="Pilih metrik departemen: Isu Terbanyak, Pelapor Terbanyak, atau Belum Selesai / Total"
+                                    >
+                                        <option value="target_issues">📋 Isu Terbanyak</option>
+                                        <option value="reporters">🙋‍♂️ Pelapor Terbanyak</option>
+                                        <option value="backlog_ratio">⏳ Belum Selesai / Total</option>
+                                    </select>
+                                </div>
+                                <div className="mt-2">
+                                    <span className={`text-base font-bold truncate block ${isDark ? 'text-sky-300' : 'text-sky-700'}`}>
+                                        {topDept ? `#1 ${topDept.name}` : '-'}
+                                    </span>
+                                    <div className="mt-1 flex items-baseline gap-2 flex-wrap">
+                                        <span className={`text-xl font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                                            {bigValue}
+                                        </span>
+                                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${badgeStyle}`}>
+                                            {badgeText}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                            <p className={`text-[11px] mt-2 truncate ${isDark ? 'text-slate-400' : 'text-slate-500'}`} title={subInfo}>
+                                {subInfo}
+                            </p>
+                        </div>
+                    );
+                })()}
+
+                {/* KPI 4: Lokasi Terbanyak yang Memiliki Laporan */}
                 <div
                     role="button"
                     tabIndex={0}
                     onClick={() => topHotspot && setSelectedLocationForModal(topHotspot)}
-                    className={`p-4 rounded-2xl border shadow-sm relative overflow-hidden backdrop-blur-md transition-all cursor-pointer group ${
+                    className={`p-4 rounded-2xl border shadow-sm relative overflow-hidden backdrop-blur-md transition-all cursor-pointer group flex flex-col justify-between ${
                         isDark ? 'bg-slate-800/90 border-slate-700/80 hover:border-amber-500/50' : 'bg-white border-slate-200 hover:border-amber-400'
                     }`}
                     title={topHotspot ? `Klik untuk rincian tiket di ${topHotspot.location}` : undefined}
                 >
-                    <div className="flex items-center justify-between">
-                        <span className={`text-xs font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                            Titik Hotspot Utama (#1)
-                        </span>
-                        <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center group-hover:scale-110 transition-transform">
-                            <Flame className="w-4 h-4" />
+                    <div>
+                        <div className="flex items-center justify-between">
+                            <span className={`text-xs font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                Lokasi Terbanyak
+                            </span>
+                            <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center group-hover:scale-110 transition-transform">
+                                <MapPin className="w-4 h-4" />
+                            </div>
+                        </div>
+                        <div className="mt-2">
+                            <span className={`text-base font-bold truncate block group-hover:underline ${isDark ? 'text-amber-300' : 'text-amber-700'}`}>
+                                {topHotspot ? `#1 ${topHotspot.location}` : '-'}
+                            </span>
+                            <div className="mt-1 flex items-baseline gap-2">
+                                <span className={`text-xl font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                                    {topHotspot ? `${topHotspot.total} Insiden` : '0 Insiden'}
+                                </span>
+                                {topHotspot && (
+                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${
+                                        topHotspot.resort === 'TBR'
+                                            ? isDark
+                                                ? 'bg-amber-950/70 border-amber-800/60 text-amber-300'
+                                                : 'bg-amber-100 border-amber-300 text-amber-800'
+                                            : isDark
+                                            ? 'bg-emerald-950/70 border-emerald-800/60 text-emerald-300'
+                                            : 'bg-emerald-100 border-emerald-300 text-emerald-800'
+                                    }`}>
+                                        {topHotspot.resort || 'Resort'}
+                                    </span>
+                                )}
+                            </div>
                         </div>
                     </div>
-                    <div className="mt-2">
-                        <span className={`text-base font-bold truncate block group-hover:underline ${isDark ? 'text-amber-300' : 'text-amber-700'}`}>
-                            {topHotspot ? topHotspot.location : '-'}
-                        </span>
-                    </div>
-                    <p className={`text-[11px] mt-1.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                    <p className={`text-[11px] mt-2 truncate ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                         {topHotspot
-                            ? `${topHotspot.total} insiden (${topHotspot.openCount} belum selesai)`
+                            ? `${topHotspot.openCount} belum selesai • ${topHotspot.total - topHotspot.openCount} selesai (Klik rincian)`
                             : 'Belum ada data insiden tercatat'}
                     </p>
                 </div>
-            </div>
-
-            {/* ========================================================= */}
-            {/* 3. WIDGET DEPARTEMEN TERBANYAK (CUSTOMIZABLE 3 MODES)      */}
-            {/* ========================================================= */}
-            <div className={`p-4 sm:p-5 rounded-2xl border shadow-sm space-y-4 backdrop-blur-md transition-all ${
-                isDark ? 'bg-slate-800/90 border-slate-700/80' : 'bg-white border-slate-200'
-            }`}>
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-700/50">
-                    <div>
-                        <h3 className={`text-sm font-bold flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                            <Building2 className="w-4 h-4 text-sky-400" />
-                            Analisis Departemen Terbanyak
-                        </h3>
-                        <p className={`text-[11px] mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                            Kustomisasi tampilan metrik departemen: beban tugas masuk, aktivitas pelapor, atau rasio backlog
-                        </p>
-                    </div>
-
-                    {/* 3-Mode Customizable Pills */}
-                    <div className={`flex items-center p-1 rounded-xl border shrink-0 overflow-x-auto ${
-                        isDark ? 'bg-slate-950/80 border-slate-800' : 'bg-slate-100 border-slate-200'
-                    }`}>
-                        <button
-                            type="button"
-                            onClick={() => setDeptMode('target_issues')}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                                deptMode === 'target_issues'
-                                    ? 'bg-emerald-600 text-white shadow-sm'
-                                    : isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'
-                            }`}
-                            title="Departemen yang menerima tugas laporan terbanyak"
-                        >
-                            <span>📋 Isu Terbanyak</span>
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setDeptMode('reporters')}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                                deptMode === 'reporters'
-                                    ? 'bg-emerald-600 text-white shadow-sm'
-                                    : isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'
-                            }`}
-                            title="Departemen asal pelapor yang paling aktif melapor"
-                        >
-                            <span>🙋‍♂️ Pelapor Terbanyak</span>
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setDeptMode('backlog_ratio')}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                                deptMode === 'backlog_ratio'
-                                    ? 'bg-emerald-600 text-white shadow-sm'
-                                    : isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'
-                            }`}
-                            title="Rasio perbandingan tiket belum selesai terhadap total tiket per departemen"
-                        >
-                            <span>⏳ Belum Selesai / Total</span>
-                        </button>
-                    </div>
-                </div>
-
-                {/* Display Content Based on Selected Dept Mode */}
-                {deptMode === 'target_issues' && (
-                    <div className="space-y-2.5">
-                        <div className="text-xs text-slate-400 mb-2 font-medium">
-                            Menampilkan departemen dengan beban penugasan terbanyak dari laporan WhatsApp:
-                        </div>
-                        {deptMetrics.targetList.length === 0 ? (
-                            <p className="text-xs text-slate-500 py-6 text-center">Belum ada data laporan pada periode ini.</p>
-                        ) : (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                                {deptMetrics.targetList.map((d, idx) => (
-                                    <div
-                                        key={d.name}
-                                        className={`p-3 rounded-xl border flex items-center justify-between gap-3 ${
-                                            isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-slate-50 border-slate-200'
-                                        }`}
-                                    >
-                                        <div className="flex items-center gap-2.5 min-w-0">
-                                            <span className={`w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center shrink-0 ${
-                                                isDark ? 'bg-slate-800 text-slate-400' : 'bg-slate-200 text-slate-700'
-                                            }`}>
-                                                #{idx + 1}
-                                            </span>
-                                            <div className="min-w-0">
-                                                <h4 className={`text-xs font-bold truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                                                    {d.name}
-                                                </h4>
-                                                <div className={`w-24 sm:w-36 h-1.5 rounded-full overflow-hidden mt-1.5 ${
-                                                    isDark ? 'bg-slate-800' : 'bg-slate-200'
-                                                }`}>
-                                                    <div
-                                                        className="h-full bg-sky-500 rounded-full"
-                                                        style={{ width: `${d.pct}%` }}
-                                                    />
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div className="text-right shrink-0">
-                                            <span className={`text-xs font-black ${isDark ? 'text-sky-300' : 'text-sky-700'}`}>
-                                                {d.total} Isu
-                                            </span>
-                                            <span className="text-[10px] text-slate-400 block">
-                                                {d.pct}% dari total
-                                            </span>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                )}
-
-                {deptMode === 'reporters' && (
-                    <div className="space-y-2.5">
-                        <div className="text-xs text-slate-400 mb-2 font-medium">
-                            Menampilkan departemen asal staf yang paling sering dan proaktif mengirim laporan:
-                        </div>
-                        {deptMetrics.reporterList.length === 0 ? (
-                            <p className="text-xs text-slate-500 py-6 text-center">Belum ada data pelapor pada periode ini.</p>
-                        ) : (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                                {deptMetrics.reporterList.map((d, idx) => (
-                                    <div
-                                        key={d.name}
-                                        className={`p-3 rounded-xl border flex items-center justify-between gap-3 ${
-                                            isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-slate-50 border-slate-200'
-                                        }`}
-                                    >
-                                        <div className="flex items-center gap-2.5 min-w-0">
-                                            <span className={`w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center shrink-0 ${
-                                                isDark ? 'bg-slate-800 text-slate-400' : 'bg-slate-200 text-slate-700'
-                                            }`}>
-                                                #{idx + 1}
-                                            </span>
-                                            <div className="min-w-0">
-                                                <h4 className={`text-xs font-bold truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                                                    {d.name}
-                                                </h4>
-                                                <div className={`w-24 sm:w-36 h-1.5 rounded-full overflow-hidden mt-1.5 ${
-                                                    isDark ? 'bg-slate-800' : 'bg-slate-200'
-                                                }`}>
-                                                    <div
-                                                        className="h-full bg-emerald-500 rounded-full"
-                                                        style={{ width: `${d.pct}%` }}
-                                                    />
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div className="text-right shrink-0">
-                                            <span className={`text-xs font-black ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>
-                                                {d.total} Laporan
-                                            </span>
-                                            <span className="text-[10px] text-slate-400 block">
-                                                {d.pct}% kontribusi
-                                            </span>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                )}
-
-                {deptMode === 'backlog_ratio' && (
-                    <div className="space-y-2.5">
-                        <div className="text-xs text-slate-400 mb-2 font-medium">
-                            Menampilkan rasio tiket belum selesai terhadap total tiket per departemen:
-                        </div>
-                        {deptMetrics.backlogList.length === 0 ? (
-                            <p className="text-xs text-slate-500 py-6 text-center">Belum ada data backlog pada periode ini.</p>
-                        ) : (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                                {deptMetrics.backlogList.map((d, idx) => (
-                                    <div
-                                        key={d.name}
-                                        className={`p-3 rounded-xl border flex flex-col justify-between gap-2 ${
-                                            isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-slate-50 border-slate-200'
-                                        }`}
-                                    >
-                                        <div className="flex items-center justify-between gap-2">
-                                            <div className="flex items-center gap-2">
-                                                <span className={`w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center shrink-0 ${
-                                                    isDark ? 'bg-slate-800 text-slate-400' : 'bg-slate-200 text-slate-700'
-                                                }`}>
-                                                    #{idx + 1}
-                                                </span>
-                                                <h4 className={`text-xs font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                                                    {d.name}
-                                                </h4>
-                                            </div>
-                                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                                                d.active > 0
-                                                    ? isDark
-                                                        ? 'bg-rose-950/80 border-rose-800/60 text-rose-300'
-                                                        : 'bg-rose-100 border-rose-300 text-rose-800'
-                                                    : isDark
-                                                    ? 'bg-emerald-950/80 border-emerald-800/60 text-emerald-300'
-                                                    : 'bg-emerald-100 border-emerald-300 text-emerald-800'
-                                            }`}>
-                                                {d.backlogRate}% Backlog
-                                            </span>
-                                        </div>
-
-                                        {/* Dual Progress Bar: Green (Resolved) vs Red (Active) */}
-                                        <div className={`w-full h-2 rounded-full overflow-hidden flex ${
-                                            isDark ? 'bg-slate-800' : 'bg-slate-200'
-                                        }`}>
-                                            <div
-                                                className="h-full bg-emerald-500"
-                                                style={{ width: `${100 - d.backlogRate}%` }}
-                                                title={`${d.resolved} Selesai`}
-                                            />
-                                            <div
-                                                className="h-full bg-rose-500"
-                                                style={{ width: `${d.backlogRate}%` }}
-                                                title={`${d.active} Belum Selesai`}
-                                            />
-                                        </div>
-
-                                        <div className={`flex items-center justify-between text-[11px] ${
-                                            isDark ? 'text-slate-400' : 'text-slate-600'
-                                        }`}>
-                                            <span>
-                                                Belum Selesai: <strong className={isDark ? 'text-rose-400' : 'text-rose-600'}>{d.active}</strong>
-                                            </span>
-                                            <span>
-                                                Selesai: <strong className={isDark ? 'text-emerald-400' : 'text-emerald-700'}>{d.resolved}</strong> / {d.total} Isu
-                                            </span>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                )}
-            </div>
-
-            {/* ========================================================= */}
-            {/* 4. WIDGET LOKASI TERBANYAK YANG MEMILIKI LAPORAN          */}
-            {/* ========================================================= */}
-            <div className={`p-4 sm:p-5 rounded-2xl border shadow-sm space-y-4 backdrop-blur-md transition-all ${
-                isDark ? 'bg-slate-800/90 border-slate-700/80' : 'bg-white border-slate-200'
-            }`}>
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-700/50">
-                    <div>
-                        <h3 className={`text-sm font-bold flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                            <MapPin className="w-4 h-4 text-rose-400" />
-                            Lokasi Terbanyak yang Memiliki Laporan
-                        </h3>
-                        <p className={`text-[11px] mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                            Leaderboard area / villa Telunas dengan insiden tertinggi (Klik lokasi untuk melihat daftar isu)
-                        </p>
-                    </div>
-                    <span className="text-[11px] font-semibold text-slate-400 self-start sm:self-auto">
-                        Top {Math.min(hotspotList.length, 10)} Area
-                    </span>
-                </div>
-
-                {hotspotList.length === 0 ? (
-                    <p className="text-xs text-slate-500 py-6 text-center">Belum ada data insiden pada lokasi mana pun.</p>
-                ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                        {hotspotList.slice(0, 9).map((item, idx) => (
-                            <div
-                                key={item.location}
-                                onClick={() => setSelectedLocationForModal(item)}
-                                className={`p-3.5 rounded-xl border transition-all cursor-pointer group flex flex-col justify-between ${
-                                    isDark
-                                        ? 'bg-slate-900/80 border-slate-800 hover:border-sky-500/60 hover:bg-slate-900'
-                                        : 'bg-slate-50 border-slate-200 hover:border-sky-400 hover:bg-white shadow-xs'
-                                }`}
-                            >
-                                <div>
-                                    <div className="flex items-center justify-between gap-2 mb-2">
-                                        <span className={`w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center shrink-0 ${
-                                            isDark ? 'bg-slate-800 text-slate-400' : 'bg-slate-200 text-slate-700'
-                                        }`}>
-                                            #{idx + 1}
-                                        </span>
-                                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${
-                                            item.resort === 'TBR'
-                                                ? isDark
-                                                    ? 'bg-amber-950/70 border-amber-800/60 text-amber-300'
-                                                    : 'bg-amber-100 border-amber-300 text-amber-800'
-                                                : isDark
-                                                ? 'bg-emerald-950/70 border-emerald-800/60 text-emerald-300'
-                                                : 'bg-emerald-100 border-emerald-300 text-emerald-800'
-                                        }`}>
-                                            {item.resort || 'Resort'}
-                                        </span>
-                                    </div>
-                                    <h4 className={`text-xs font-bold group-hover:text-sky-400 transition-colors truncate ${
-                                        isDark ? 'text-white' : 'text-slate-900'
-                                    }`}>
-                                        {item.location}
-                                    </h4>
-                                </div>
-
-                                <div className={`mt-3 pt-2.5 border-t flex items-center justify-between text-[11px] ${
-                                    isDark ? 'border-slate-800/70' : 'border-slate-200'
-                                }`}>
-                                    <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>
-                                        Total: <strong className={isDark ? 'text-white' : 'text-slate-900'}>{item.total}</strong>
-                                    </span>
-                                    <span className={`font-bold ${
-                                        item.openCount > 0
-                                            ? isDark ? 'text-rose-400' : 'text-rose-600'
-                                            : isDark ? 'text-emerald-400' : 'text-emerald-700'
-                                    }`}>
-                                        {item.openCount > 0 ? `${item.openCount} Belum Selesai` : 'Semua Selesai'}
-                                    </span>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                )}
             </div>
 
             {/* ========================================================= */}
