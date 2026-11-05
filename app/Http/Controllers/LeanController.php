@@ -76,6 +76,7 @@ class LeanController extends Controller
 
         $spreadsheetId = config('services.google.lean_spreadsheet_id') ?: env('GOOGLE_LEAN_SPREADSHEET_ID', '1hF2X6DrcWvOv4h77T_B4pmcNklO2-Zq2CzAiAR-UYIg');
         $spreadsheetUrl = "https://docs.google.com/spreadsheets/d/{$spreadsheetId}/edit?usp=sharing";
+        $monthGids = app(\App\Services\LeanSheetDirectService::class)->getMonthGids();
 
         return Inertia::render('Lean/Index', [
             'issues'         => $issues,
@@ -83,6 +84,7 @@ class LeanController extends Controller
             'locations'      => self::MAIN_LOCATIONS,
             'currentUser'    => $currentUser,
             'spreadsheetUrl' => $spreadsheetUrl,
+            'monthGids'      => $monthGids,
         ]);
     }
 
@@ -134,7 +136,10 @@ class LeanController extends Controller
         // Failsafe Google Sheets sync
         try {
             app(GoogleSheetsSyncService::class)->syncIssue($issue);
-        } catch (\Throwable $e) {}
+            app(\App\Services\LeanSheetDirectService::class)->syncSingleIssue($issue);
+        } catch (\Throwable $e) {
+            Log::error('Sheets sync error on store: ' . $e->getMessage());
+        }
 
         return redirect()->back()->with('success', 'Laporan berhasil dibuat!');
     }
@@ -164,7 +169,10 @@ class LeanController extends Controller
 
         try {
             app(GoogleSheetsSyncService::class)->syncIssue($issue);
-        } catch (\Throwable $e) {}
+            app(\App\Services\LeanSheetDirectService::class)->syncSingleIssue($issue);
+        } catch (\Throwable $e) {
+            Log::error('Sheets sync error on acc: ' . $e->getMessage());
+        }
 
         return redirect()->back()->with('success', "Departemen {$dept} berhasil ACC / Siap!");
     }
@@ -215,7 +223,10 @@ class LeanController extends Controller
 
         try {
             app(GoogleSheetsSyncService::class)->syncIssue($issue);
-        } catch (\Throwable $e) {}
+            app(\App\Services\LeanSheetDirectService::class)->syncSingleIssue($issue);
+        } catch (\Throwable $e) {
+            Log::error('Sheets sync error on acc: ' . $e->getMessage());
+        }
 
         return redirect()->back()->with('success', "Tugas berhasil diambil oleh {$staffName} ({$dept}).");
     }
@@ -252,7 +263,10 @@ class LeanController extends Controller
 
         try {
             app(GoogleSheetsSyncService::class)->syncIssue($issue);
-        } catch (\Throwable $e) {}
+            app(\App\Services\LeanSheetDirectService::class)->syncSingleIssue($issue);
+        } catch (\Throwable $e) {
+            Log::error('Sheets sync error on acc: ' . $e->getMessage());
+        }
 
         return redirect()->back()->with('success', 'Masalah berhasil ditandai selesai!');
     }
@@ -290,6 +304,12 @@ class LeanController extends Controller
     public function syncGoogleSheets(Request $request, GoogleSheetsSyncService $sheetsService)
     {
         $result = $sheetsService->syncAll();
+
+        try {
+            app(\App\Services\LeanSheetDirectService::class)->syncAllIssues();
+        } catch (\Throwable $e) {
+            Log::error('LeanSheetDirectService syncAll failed: ' . $e->getMessage());
+        }
 
         if ($request->wantsJson() || $request->ajax()) {
             return response()->json($result);
@@ -422,7 +442,10 @@ class LeanController extends Controller
         // Failsafe Google Sheets sync for WhatsApp Bot V2
         try {
             app(GoogleSheetsSyncService::class)->syncIssue($issue);
-        } catch (\Throwable $e) {}
+            app(\App\Services\LeanSheetDirectService::class)->syncSingleIssue($issue);
+        } catch (\Throwable $e) {
+            Log::error('Sheets sync error on acc: ' . $e->getMessage());
+        }
 
         $code = self::formatIssueCode($issue);
 
@@ -483,6 +506,13 @@ class LeanController extends Controller
         $issue->department_accs = $accs;
         $issue->save();
 
+        try {
+            app(GoogleSheetsSyncService::class)->syncIssue($issue);
+            app(\App\Services\LeanSheetDirectService::class)->syncSingleIssue($issue);
+        } catch (\Throwable $e) {
+            Log::error('Sheets sync error on apiClaim: ' . $e->getMessage());
+        }
+
         return response()->json([
             'success' => true,
             'message' => "Tiket berhasil diambil oleh {$taker}.",
@@ -512,6 +542,13 @@ class LeanController extends Controller
         $issue->resolved_at = Carbon::now('Asia/Jakarta');
         $issue->resolution_note = $fixDesc;
         $issue->save();
+
+        try {
+            app(GoogleSheetsSyncService::class)->syncIssue($issue);
+            app(\App\Services\LeanSheetDirectService::class)->syncSingleIssue($issue);
+        } catch (\Throwable $e) {
+            Log::error('Sheets sync error on apiClaim: ' . $e->getMessage());
+        }
 
         return response()->json([
             'success' => true,
@@ -566,6 +603,13 @@ class LeanController extends Controller
         $issue->transfer_history = $history;
         $issue->save();
 
+        try {
+            app(GoogleSheetsSyncService::class)->syncIssue($issue);
+            app(\App\Services\LeanSheetDirectService::class)->syncSingleIssue($issue);
+        } catch (\Throwable $e) {
+            Log::error('Sheets sync error on apiTransfer: ' . $e->getMessage());
+        }
+
         $code = self::formatIssueCode($issue);
 
         return response()->json([
@@ -603,7 +647,10 @@ class LeanController extends Controller
 
         try {
             app(GoogleSheetsSyncService::class)->syncIssue($issue);
-        } catch (\Throwable $e) {}
+            app(\App\Services\LeanSheetDirectService::class)->syncSingleIssue($issue);
+        } catch (\Throwable $e) {
+            Log::error('Sheets sync error on acc: ' . $e->getMessage());
+        }
 
         return response()->json([
             'success' => true,

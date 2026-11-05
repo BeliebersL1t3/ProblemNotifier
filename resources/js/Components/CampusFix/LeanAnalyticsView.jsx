@@ -1371,11 +1371,45 @@ export function LeanAnalyticsView({
     onSelectIssue,
     focusMapRequest = null,
     spreadsheetUrl = 'https://docs.google.com/spreadsheets/d/1hF2X6DrcWvOv4h77T_B4pmcNklO2-Zq2CzAiAR-UYIg/edit?usp=sharing',
+    monthGids = {},
 }) {
     const isDark = theme === 'dark';
 
     // 1. Time / Month Filter
     const [timeRange, setTimeRange] = useState('all');
+
+    // Map timeRange selection to Indonesian month name
+    const activeMonthName = useMemo(() => {
+        const monthMap = {
+            month_1: 'Januari',
+            month_2: 'Februari',
+            month_3: 'Maret',
+            month_4: 'April',
+            month_5: 'Mei',
+            month_6: 'Juni',
+            month_7: 'Juli',
+            month_8: 'Agustus',
+            month_9: 'September',
+            month_10: 'Oktober',
+            month_11: 'November',
+            month_12: 'Desember',
+        };
+        if (monthMap[timeRange]) {
+            return monthMap[timeRange];
+        }
+        const currentM = new Date().getMonth() + 1;
+        return monthMap[`month_${currentM}`] || 'November';
+    }, [timeRange]);
+
+    // Dynamic Google Sheet URL with #gid anchor to open the exact month tab
+    const dynamicSheetUrl = useMemo(() => {
+        const gid = monthGids?.[activeMonthName];
+        const baseUrl = (spreadsheetUrl || '').split('#')[0];
+        if (gid !== undefined && gid !== null && gid !== '') {
+            return `${baseUrl}#gid=${gid}`;
+        }
+        return spreadsheetUrl;
+    }, [activeMonthName, monthGids, spreadsheetUrl]);
     // 2. Customizable Department Mode: 'target_issues' | 'reporters' | 'backlog_ratio'
     const [deptMode, setDeptMode] = useState('target_issues');
     // 3. Spatial Map Tab: 'tpi' | 'tbr'
@@ -1700,16 +1734,16 @@ export function LeanAnalyticsView({
 
                     {/* Quick Actions Bar: Ke Sheet Utama & Download PDF */}
                     <div className="flex items-center gap-2 flex-wrap justify-end">
-                        {/* Tombol Ke Sheet Utama */}
+                        {/* Tombol Ke Sheet Utama (Dinamis per Tab Bulan) */}
                         <a
-                            href={spreadsheetUrl}
+                            href={dynamicSheetUrl}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white keep-white shadow-sm transition-all cursor-pointer group"
-                            title="Buka Google Spreadsheet Sheet Utama Telunas di tab baru"
+                            title={`Buka Google Sheet: Tab ${activeMonthName}`}
                         >
                             <FileSpreadsheet className="w-4 h-4 shrink-0 text-white" />
-                            <span className="text-white">Ke Sheet Utama</span>
+                            <span className="text-white">Ke Sheet ({activeMonthName})</span>
                             <ExternalLink className="w-3.5 h-3.5 opacity-90 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform text-white" />
                         </a>
 

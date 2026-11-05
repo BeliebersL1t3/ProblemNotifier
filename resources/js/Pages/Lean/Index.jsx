@@ -83,6 +83,7 @@ export default function LeanIndex({
     locations = ['TBR', 'TPI', 'Kantor'], 
     currentUser = null,
     spreadsheetUrl = 'https://docs.google.com/spreadsheets/d/1hF2X6DrcWvOv4h77T_B4pmcNklO2-Zq2CzAiAR-UYIg/edit?usp=sharing',
+    monthGids = {},
 }) {
     // --- Supervisor Account Info (Universal for all supervisors) ---
     const myName = currentUser?.name || 'Supervisor';
@@ -1080,6 +1081,7 @@ export default function LeanIndex({
                         onSelectIssue={setSelectedDetailIssue}
                         focusMapRequest={focusMapRequest}
                         spreadsheetUrl={spreadsheetUrl}
+                        monthGids={monthGids}
                     />
                 ) : filteredIssues.length === 0 ? (
                     <div className="py-16 text-center border-2 border-dashed border-slate-800 rounded-2xl p-6">
