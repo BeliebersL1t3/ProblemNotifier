@@ -1163,24 +1163,30 @@ export default function LeanIndex({
                     </div>
                 ) : viewMode === 'table' ? (
                     /* --- VIEW 1: ERP SPREADSHEET TABLE --- */
-                    <div className="bg-slate-800/90 border border-slate-700/80 rounded-2xl overflow-hidden shadow-xl">
+                    <div className={`rounded-2xl overflow-hidden border shadow-xl transition-all ${
+                        isDark ? 'bg-slate-800/90 border-slate-700/80' : 'bg-white border-slate-200 shadow-sm'
+                    }`}>
                         <div className="overflow-x-auto">
                             <table className="w-full text-left text-[11px] border-collapse">
                                 <thead>
-                                    <tr className="bg-slate-900/90 text-slate-300 font-bold border-b border-slate-700/80 uppercase tracking-wider text-[10px]">
-                                        {visibleColumns.id && <th className="py-2 px-2 whitespace-nowrap">ID Isu</th>}
-                                        {visibleColumns.photo && <th className="py-2 px-1 text-center whitespace-nowrap">Foto</th>}
-                                        {visibleColumns.title && <th className="py-2 px-2 min-w-[110px] max-w-[160px]">Judul Masalah</th>}
-                                        {visibleColumns.location && <th className="py-2 px-2 whitespace-nowrap">Lokasi</th>}
-                                        {visibleColumns.dept && <th className="py-2 px-2 whitespace-nowrap">Departemen</th>}
-                                        {visibleColumns.reporter && <th className="py-2 px-2 whitespace-nowrap">Pelapor</th>}
-                                        {visibleColumns.desc && <th className="py-2 px-2 min-w-[130px] max-w-[180px]">Deskripsi</th>}
-                                        {visibleColumns.status && <th className="py-2 px-2 whitespace-nowrap">Status</th>}
-                                        {visibleColumns.time && <th className="py-2 px-2 whitespace-nowrap">Waktu</th>}
-                                        <th className="py-2 px-1.5 text-center whitespace-nowrap">Aksi</th>
+                                    <tr className={`font-bold border-b uppercase tracking-wider text-[10px] ${
+                                        isDark ? 'bg-slate-900/90 text-slate-300 border-slate-700/80' : 'bg-slate-100 text-slate-700 border-slate-200'
+                                    }`}>
+                                        {visibleColumns.id && <th className="py-2.5 px-2 whitespace-nowrap">ID Isu</th>}
+                                        {visibleColumns.photo && <th className="py-2.5 px-1 text-center whitespace-nowrap">Foto</th>}
+                                        {visibleColumns.title && <th className="py-2.5 px-2 min-w-[110px] max-w-[160px]">Judul Masalah</th>}
+                                        {visibleColumns.location && <th className="py-2.5 px-2 whitespace-nowrap">Lokasi</th>}
+                                        {visibleColumns.dept && <th className="py-2.5 px-2 whitespace-nowrap">Departemen</th>}
+                                        {visibleColumns.reporter && <th className="py-2.5 px-2 whitespace-nowrap">Pelapor</th>}
+                                        {visibleColumns.desc && <th className="py-2.5 px-2 min-w-[130px] max-w-[180px]">Deskripsi</th>}
+                                        {visibleColumns.status && <th className="py-2.5 px-2 whitespace-nowrap">Status</th>}
+                                        {visibleColumns.time && <th className="py-2.5 px-2 whitespace-nowrap">Waktu</th>}
+                                        <th className="py-2.5 px-1.5 text-center whitespace-nowrap">Aksi</th>
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-slate-700/60 font-medium">
+                                <tbody className={`divide-y font-medium ${
+                                    isDark ? 'divide-slate-700/60' : 'divide-slate-200'
+                                }`}>
                                     {filteredIssues.map((issue) => {
                                         const accs = issue.department_accs || {};
 
@@ -1188,12 +1194,16 @@ export default function LeanIndex({
                                             <tr
                                                 key={issue.id}
                                                 onClick={() => setSelectedDetailIssue(issue)}
-                                                className="hover:bg-slate-700/50 cursor-pointer transition-colors group"
+                                                className={`cursor-pointer transition-colors group ${
+                                                    isDark ? 'hover:bg-slate-700/50' : 'hover:bg-slate-50'
+                                                }`}
                                                 title="Klik baris untuk melihat rincian lengkap isu"
                                             >
                                                 {/* ID ISU */}
                                                 {visibleColumns.id && (
-                                                    <td className="py-2 px-2 font-mono font-bold text-amber-300 whitespace-nowrap text-[11px]">
+                                                    <td className={`py-2 px-2 font-mono font-bold whitespace-nowrap text-[11px] ${
+                                                        isDark ? 'text-amber-300' : 'text-amber-700'
+                                                    }`}>
                                                         #{issue.issue_code || ('LEAN-' + issue.id)}
                                                     </td>
                                                 )}
@@ -1208,32 +1218,40 @@ export default function LeanIndex({
                                                                     e.stopPropagation();
                                                                     setLightboxImage(issue.image_url);
                                                                 }}
-                                                                className="w-8 h-8 rounded-md overflow-hidden border border-slate-700 hover:border-emerald-500 inline-block transition-all hover:scale-105"
+                                                                className={`w-8 h-8 rounded-md overflow-hidden border inline-block transition-all hover:scale-105 ${
+                                                                    isDark ? 'border-slate-700 hover:border-emerald-500' : 'border-slate-300 hover:border-emerald-500'
+                                                                }`}
                                                                 title="Klik untuk lihat foto"
                                                             >
                                                                 <img src={issue.image_url} alt="" className="w-full h-full object-cover" />
                                                             </button>
                                                         ) : (
-                                                            <span className="text-slate-600 text-[10px] italic">-</span>
+                                                            <span className="text-slate-400 text-[10px] italic">-</span>
                                                         )}
                                                     </td>
                                                 )}
 
                                                 {/* JUDUL MASALAH */}
                                                 {visibleColumns.title && (
-                                                    <td className="py-2 px-2 text-white font-semibold leading-snug max-w-[160px] truncate" title={issue.title}>
+                                                    <td className={`py-2 px-2 font-semibold leading-snug max-w-[160px] truncate ${
+                                                        isDark ? 'text-white' : 'text-slate-900'
+                                                    }`} title={issue.title}>
                                                         {issue.title}
                                                     </td>
                                                 )}
 
                                                 {/* LOKASI */}
                                                 {visibleColumns.location && (
-                                                    <td className="py-2 px-2 whitespace-nowrap text-slate-300">
+                                                    <td className="py-2 px-2 whitespace-nowrap">
                                                         <span
-                                                            className="inline-flex items-center gap-1 bg-emerald-950/80 text-emerald-300 border border-emerald-800/60 px-1.5 py-0.5 rounded font-bold text-[10px] max-w-[170px] truncate"
+                                                            className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded font-bold text-[10px] max-w-[170px] truncate border ${
+                                                                isDark
+                                                                    ? 'bg-emerald-950/80 text-emerald-300 border-emerald-800/60'
+                                                                    : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                                            }`}
                                                             title={issue.location}
                                                         >
-                                                            <MapPin className="w-2.5 h-2.5 text-emerald-400 shrink-0" />
+                                                            <MapPin className="w-2.5 h-2.5 text-emerald-500 shrink-0" />
                                                             <span className="truncate">{issue.location}</span>
                                                         </span>
                                                     </td>
@@ -1255,10 +1273,16 @@ export default function LeanIndex({
                                                                         key={dept}
                                                                         className={`px-1.5 py-0.5 rounded text-[9px] font-semibold border ${
                                                                             isWorking
-                                                                                ? 'bg-amber-950/80 border-amber-500 text-amber-200'
+                                                                                ? isDark
+                                                                                    ? 'bg-amber-950/80 border-amber-500 text-amber-200'
+                                                                                    : 'bg-amber-100 border-amber-400 text-amber-900'
                                                                                 : isThisAcc
-                                                                                ? 'bg-emerald-950/80 border-emerald-600 text-emerald-300'
-                                                                                : 'bg-slate-900 border-slate-700 text-slate-300'
+                                                                                ? isDark
+                                                                                    ? 'bg-emerald-950/80 border-emerald-600 text-emerald-300'
+                                                                                    : 'bg-emerald-100 border-emerald-400 text-emerald-800'
+                                                                                : isDark
+                                                                                ? 'bg-slate-900 border-slate-700 text-slate-300'
+                                                                                : 'bg-slate-100 border-slate-300 text-slate-700'
                                                                         }`}
                                                                     >
                                                                         {dept} {isWorking ? '🟡 Dikerjakan' : isThisAcc ? '✓' : ''}
@@ -1271,16 +1295,22 @@ export default function LeanIndex({
 
                                                 {/* NAMA PELAPOR */}
                                                 {visibleColumns.reporter && (
-                                                    <td className="py-2 px-2 whitespace-nowrap text-slate-300">
-                                                        <div className="font-semibold text-white leading-tight">{issue.reporter_name}</div>
-                                                        <div className="text-[9px] text-slate-400 leading-tight">{issue.reporter_dept || 'Staf'}</div>
+                                                    <td className="py-2 px-2 whitespace-nowrap">
+                                                        <div className={`font-semibold leading-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                                                            {issue.reporter_name}
+                                                        </div>
+                                                        <div className={`text-[9px] leading-tight ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                                            {issue.reporter_dept || 'Staf'}
+                                                        </div>
                                                     </td>
                                                 )}
 
                                                 {/* DESKRIPSI */}
                                                 {visibleColumns.desc && (
-                                                    <td className="py-2 px-2 text-slate-300 text-[11px] max-w-[180px] truncate" title={issue.description}>
-                                                        {issue.description || <span className="text-slate-600 italic">Tidak ada keterangan</span>}
+                                                    <td className={`py-2 px-2 text-[11px] max-w-[180px] truncate ${
+                                                        isDark ? 'text-slate-300' : 'text-slate-600'
+                                                    }`} title={issue.description}>
+                                                        {issue.description || <span className="text-slate-400 italic">Tidak ada keterangan</span>}
                                                     </td>
                                                 )}
 
@@ -1288,26 +1318,34 @@ export default function LeanIndex({
                                                 {visibleColumns.status && (
                                                     <td className="py-2 px-2 whitespace-nowrap">
                                                         {issue.status === 'open' && (
-                                                            <span className="px-1.5 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40 text-[10px] font-semibold inline-flex items-center gap-1">
-                                                                <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
+                                                            <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-semibold inline-flex items-center gap-1 border ${
+                                                                isDark ? 'bg-rose-500/20 text-rose-300 border-rose-500/40' : 'bg-rose-100 text-rose-800 border-rose-300'
+                                                            }`}>
+                                                                <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
                                                                 Open
                                                             </span>
                                                         )}
                                                         {issue.status === 'in_progress' && (
-                                                            <span className="px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[10px] font-semibold inline-flex items-center gap-1">
-                                                                <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                                                            <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-semibold inline-flex items-center gap-1 border ${
+                                                                isDark ? 'bg-amber-500/20 text-amber-300 border-amber-500/40' : 'bg-amber-100 text-amber-800 border-amber-300'
+                                                            }`}>
+                                                                <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
                                                                 Progress
                                                             </span>
                                                         )}
                                                         {issue.status === 'pending' && (
-                                                            <span className="px-1.5 py-0.5 rounded-full bg-orange-500/20 text-orange-300 border border-orange-500/40 text-[10px] font-semibold inline-flex items-center gap-1">
-                                                                <span className="w-1.5 h-1.5 rounded-full bg-orange-400" />
+                                                            <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-semibold inline-flex items-center gap-1 border ${
+                                                                isDark ? 'bg-orange-500/20 text-orange-300 border-orange-500/40' : 'bg-orange-100 text-orange-800 border-orange-300'
+                                                            }`}>
+                                                                <span className="w-1.5 h-1.5 rounded-full bg-orange-500" />
                                                                 Tertunda
                                                             </span>
                                                         )}
                                                         {issue.status === 'resolved' && (
-                                                            <span className="px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-semibold inline-flex items-center gap-1">
-                                                                <CheckCircle2 className="w-2.5 h-2.5 text-emerald-400" />
+                                                            <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-semibold inline-flex items-center gap-1 border ${
+                                                                isDark ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' : 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                                            }`}>
+                                                                <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600" />
                                                                 Selesai
                                                             </span>
                                                         )}
@@ -1316,7 +1354,9 @@ export default function LeanIndex({
 
                                                 {/* WAKTU PELAPORAN */}
                                                 {visibleColumns.time && (
-                                                    <td className="py-2 px-2 whitespace-nowrap text-[10px] text-slate-400">
+                                                    <td className={`py-2 px-2 whitespace-nowrap text-[10px] ${
+                                                        isDark ? 'text-slate-400' : 'text-slate-500'
+                                                    }`}>
                                                         {issue.created_at_human}
                                                     </td>
                                                 )}
@@ -1329,7 +1369,11 @@ export default function LeanIndex({
                                                             setIssueToDelete(issue);
                                                             setDeleteSupervisorName(myName || 'Supervisor');
                                                         }}
-                                                        className="p-1 rounded-md bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 hover:border-rose-500/60 transition"
+                                                        className={`p-1 rounded-md border transition ${
+                                                            isDark
+                                                                ? 'bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border-rose-500/30 hover:border-rose-500/60'
+                                                                : 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200'
+                                                        }`}
                                                         title="Hapus / Sembunyikan Tiket"
                                                     >
                                                         <Trash2 className="w-3 h-3" />
@@ -1903,47 +1947,61 @@ export default function LeanIndex({
             {/* MODAL: DETAIL ISU LENGKAP (SESUAI PREFERENSI KOLOM ERP) */}
             {activeDetailIssue && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
-                    <div className="w-full max-w-xl bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col animate-in zoom-in-95">
+                    <div className={`w-full max-w-xl rounded-2xl border shadow-2xl overflow-hidden max-h-[90vh] flex flex-col animate-in zoom-in-95 ${
+                        isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'
+                    }`}>
                         {/* Header Modal */}
-                        <div className="p-4 border-b border-slate-800 flex items-start justify-between gap-3 bg-slate-950/70">
+                        <div className={`p-4 border-b flex items-start justify-between gap-3 ${
+                            isDark ? 'border-slate-800 bg-slate-950/70' : 'border-slate-200 bg-slate-50'
+                        }`}>
                             <div className="space-y-1">
                                 <div className="flex items-center gap-2 flex-wrap">
                                     {visibleColumns.id && (
-                                        <span className="font-mono text-xs font-bold text-amber-300 bg-slate-800 px-2 py-0.5 rounded border border-slate-700">
+                                        <span className={`font-mono text-xs font-bold px-2 py-0.5 rounded border ${
+                                            isDark ? 'text-amber-300 bg-slate-800 border-slate-700' : 'text-amber-800 bg-amber-50 border-amber-300'
+                                        }`}>
                                             #{activeDetailIssue.issue_code || ('LEAN-' + activeDetailIssue.id)}
                                         </span>
                                     )}
                                     {visibleColumns.status && (
                                         <span className="text-[11px] font-bold">
                                             {activeDetailIssue.status === 'open' && (
-                                                <span className="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40 inline-flex items-center gap-1">
-                                                    <span className="w-1.5 h-1.5 rounded-full bg-rose-400" /> Open
+                                                <span className={`px-2 py-0.5 rounded-full inline-flex items-center gap-1 border ${
+                                                    isDark ? 'bg-rose-500/20 text-rose-300 border-rose-500/40' : 'bg-rose-100 text-rose-800 border-rose-300'
+                                                }`}>
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500" /> Open
                                                 </span>
                                             )}
                                             {activeDetailIssue.status === 'in_progress' && (
-                                                <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 inline-flex items-center gap-1">
-                                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400" /> Progress
+                                                <span className={`px-2 py-0.5 rounded-full inline-flex items-center gap-1 border ${
+                                                    isDark ? 'bg-amber-500/20 text-amber-300 border-amber-500/40' : 'bg-amber-100 text-amber-800 border-amber-300'
+                                                }`}>
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500" /> Progress
                                                 </span>
                                             )}
                                             {activeDetailIssue.status === 'pending' && (
-                                                <span className="px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-300 border border-orange-500/40 inline-flex items-center gap-1">
-                                                    <span className="w-1.5 h-1.5 rounded-full bg-orange-400" /> Tertunda
+                                                <span className={`px-2 py-0.5 rounded-full inline-flex items-center gap-1 border ${
+                                                    isDark ? 'bg-orange-500/20 text-orange-300 border-orange-500/40' : 'bg-orange-100 text-orange-800 border-orange-300'
+                                                }`}>
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-orange-500" /> Tertunda
                                                 </span>
                                             )}
                                             {activeDetailIssue.status === 'resolved' && (
-                                                <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 inline-flex items-center gap-1">
-                                                    <CheckCircle2 className="w-3 h-3 text-emerald-400" /> Selesai
+                                                <span className={`px-2 py-0.5 rounded-full inline-flex items-center gap-1 border ${
+                                                    isDark ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' : 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                                }`}>
+                                                    <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Selesai
                                                 </span>
                                             )}
                                         </span>
                                     )}
                                 </div>
                                 {visibleColumns.title ? (
-                                    <h3 className="font-bold text-base text-white leading-snug">
+                                    <h3 className={`font-bold text-base leading-snug ${isDark ? 'text-white' : 'text-slate-900'}`}>
                                         {activeDetailIssue.title}
                                     </h3>
                                 ) : (
-                                    <h3 className="font-bold text-sm text-slate-400 italic">
+                                    <h3 className={`font-bold text-sm italic ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                                         Detail Isu Lapangan
                                     </h3>
                                 )}
@@ -1951,7 +2009,9 @@ export default function LeanIndex({
                             <button
                                 type="button"
                                 onClick={() => setSelectedDetailIssue(null)}
-                                className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition-colors shrink-0"
+                                className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors shrink-0 ${
+                                    isDark ? 'bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-900'
+                                }`}
                             >
                                 <X className="w-4 h-4" />
                             </button>
@@ -1970,8 +2030,12 @@ export default function LeanIndex({
                                             onClick={canNavigate ? () => handleNavigateToMap(activeDetailIssue) : undefined}
                                             className={`p-2.5 rounded-xl border transition-all ${
                                                 canNavigate
-                                                    ? 'bg-slate-800/90 border-slate-700/80 hover:bg-slate-750 hover:border-emerald-500/60 cursor-pointer group shadow-sm hover:shadow-emerald-950/20'
-                                                    : 'bg-slate-800/80 border-slate-700/80'
+                                                    ? isDark
+                                                        ? 'bg-slate-800/90 border-slate-700/80 hover:bg-slate-750 hover:border-emerald-500/60 cursor-pointer group shadow-sm'
+                                                        : 'bg-slate-50 border-slate-200 hover:bg-emerald-50/50 hover:border-emerald-300 cursor-pointer group shadow-2xs'
+                                                    : isDark
+                                                    ? 'bg-slate-800/80 border-slate-700/80'
+                                                    : 'bg-slate-50 border-slate-200'
                                             }`}
                                             title={
                                                 canNavigate
@@ -1980,18 +2044,24 @@ export default function LeanIndex({
                                             }
                                         >
                                             <div className="flex items-center justify-between">
-                                                <span className="text-[10px] text-slate-400 font-medium block">Lokasi Masalah</span>
+                                                <span className={`text-[10px] font-medium block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Lokasi Masalah</span>
                                                 {canNavigate ? (
-                                                    <span className="text-[9.5px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1 group-hover:bg-emerald-500 group-hover:text-slate-950 transition-colors">
+                                                    <span className={`text-[9.5px] font-bold px-1.5 py-0.5 rounded border flex items-center gap-1 transition-colors ${
+                                                        isDark
+                                                            ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30 group-hover:bg-emerald-500 group-hover:text-slate-950'
+                                                            : 'bg-emerald-100 text-emerald-800 border-emerald-200 group-hover:bg-emerald-600 group-hover:text-white'
+                                                    }`}>
                                                         <span>Peta {locInfo.resort}</span>
                                                         <ExternalLink className="w-2.5 h-2.5" />
                                                     </span>
                                                 ) : (
-                                                    <span className="text-[9.5px] text-slate-500">Kantor</span>
+                                                    <span className={`text-[9.5px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Kantor</span>
                                                 )}
                                             </div>
-                                            <span className="text-xs font-bold text-emerald-300 flex items-center gap-1 mt-0.5 group-hover:text-emerald-200">
-                                                <MapPin className={`w-3.5 h-3.5 ${canNavigate ? 'text-emerald-400 group-hover:scale-110 transition-transform' : 'text-slate-400'}`} />
+                                            <span className={`text-xs font-bold flex items-center gap-1 mt-0.5 ${
+                                                isDark ? 'text-emerald-300 group-hover:text-emerald-200' : 'text-emerald-700 group-hover:text-emerald-800'
+                                            }`}>
+                                                <MapPin className={`w-3.5 h-3.5 ${canNavigate ? (isDark ? 'text-emerald-400 group-hover:scale-110' : 'text-emerald-600 group-hover:scale-110') : 'text-slate-400'} transition-transform`} />
                                                 {activeDetailIssue.location}
                                             </span>
                                             {(() => {
@@ -2003,7 +2073,9 @@ export default function LeanIndex({
                                                         target="_blank"
                                                         rel="noopener noreferrer"
                                                         onClick={(e) => e.stopPropagation()}
-                                                        className="inline-flex items-center gap-1 text-[10px] font-bold text-sky-400 hover:text-sky-300 mt-1 underline"
+                                                        className={`inline-flex items-center gap-1 text-[10px] font-bold mt-1 underline ${
+                                                            isDark ? 'text-sky-400 hover:text-sky-300' : 'text-sky-600 hover:text-sky-700'
+                                                        }`}
                                                         title="Buka titik koordinat di Google Maps"
                                                     >
                                                         <span>Buka Pin Google Maps</span>
@@ -2016,9 +2088,11 @@ export default function LeanIndex({
                                 })()}
 
                                 {visibleColumns.time && (
-                                    <div className="p-2.5 rounded-xl bg-slate-800/80 border border-slate-700/80">
-                                        <span className="text-[10px] text-slate-400 font-medium block">Waktu Pelaporan</span>
-                                        <span className="text-xs font-semibold text-slate-200 flex items-center gap-1 mt-0.5">
+                                    <div className={`p-2.5 rounded-xl border ${
+                                        isDark ? 'bg-slate-800/80 border-slate-700/80' : 'bg-slate-50 border-slate-200'
+                                    }`}>
+                                        <span className={`text-[10px] font-medium block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Waktu Pelaporan</span>
+                                        <span className={`text-xs font-semibold flex items-center gap-1 mt-0.5 ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
                                             <Clock className="w-3.5 h-3.5 text-slate-400" />
                                             {activeDetailIssue.created_at_human || activeDetailIssue.created_at}
                                         </span>
@@ -2026,11 +2100,13 @@ export default function LeanIndex({
                                 )}
 
                                 {visibleColumns.reporter && (
-                                    <div className="p-2.5 rounded-xl bg-slate-800/80 border border-slate-700/80">
-                                        <span className="text-[10px] text-slate-400 font-medium block">Pelapor</span>
-                                        <span className="text-xs font-semibold text-white flex items-center gap-1 mt-0.5">
-                                            <User className="w-3.5 h-3.5 text-emerald-400" />
-                                            {activeDetailIssue.reporter_name} <span className="text-slate-400 text-[11px]">({activeDetailIssue.reporter_dept || 'Staf'})</span>
+                                    <div className={`p-2.5 rounded-xl border ${
+                                        isDark ? 'bg-slate-800/80 border-slate-700/80' : 'bg-slate-50 border-slate-200'
+                                    }`}>
+                                        <span className={`text-[10px] font-medium block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Pelapor</span>
+                                        <span className={`text-xs font-semibold flex items-center gap-1 mt-0.5 ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                                            <User className={`w-3.5 h-3.5 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
+                                            {activeDetailIssue.reporter_name} <span className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>({activeDetailIssue.reporter_dept || 'Staf'})</span>
                                         </span>
                                     </div>
                                 )}
@@ -2038,8 +2114,10 @@ export default function LeanIndex({
 
                             {/* Departemen Dituju & ACC */}
                             {visibleColumns.dept && (
-                                <div className="p-3 rounded-xl bg-slate-800/60 border border-slate-700/80 space-y-1.5">
-                                    <span className="text-[10px] text-slate-400 font-semibold block">Departemen Dituju & Respon:</span>
+                                <div className={`p-3 rounded-xl border space-y-1.5 ${
+                                    isDark ? 'bg-slate-800/60 border-slate-700/80' : 'bg-slate-50 border-slate-200'
+                                }`}>
+                                    <span className={`text-[10px] font-semibold block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Departemen Dituju & Respon:</span>
                                     <div className="flex flex-wrap gap-1.5 items-center">
                                         {(activeDetailIssue.target_departments || []).map((dept) => {
                                             const isThisDeptClaimed = activeDetailIssue.claimed_by_dept && (
@@ -2054,32 +2132,42 @@ export default function LeanIndex({
                                                     key={dept}
                                                     className={`px-2 py-1 rounded-lg text-xs font-semibold border flex items-center gap-1.5 ${
                                                         isWorking
-                                                            ? 'bg-amber-950/80 border-amber-500 text-amber-200'
+                                                            ? isDark
+                                                                ? 'bg-amber-950/80 border-amber-500 text-amber-200'
+                                                                : 'bg-amber-100 border-amber-400 text-amber-900'
                                                             : isThisAcc
-                                                            ? 'bg-emerald-950/80 border-emerald-600 text-emerald-300'
+                                                            ? isDark
+                                                                ? 'bg-emerald-950/80 border-emerald-600 text-emerald-300'
+                                                                : 'bg-emerald-100 border-emerald-400 text-emerald-800'
                                                             : activeDetailIssue.status === 'in_progress'
-                                                            ? 'bg-slate-900 border-amber-800/40 text-slate-300'
-                                                            : 'bg-slate-900 border-slate-700 text-slate-300'
+                                                            ? isDark
+                                                                ? 'bg-slate-900 border-amber-800/40 text-slate-300'
+                                                                : 'bg-white border-amber-300 text-amber-900'
+                                                            : isDark
+                                                            ? 'bg-slate-900 border-slate-700 text-slate-300'
+                                                            : 'bg-white border-slate-300 text-slate-700'
                                                     }`}
                                                 >
                                                     <span>{dept}</span>
                                                     {isWorking ? (
-                                                        <span className="text-[10px] text-amber-300 font-bold">🟡 Dikerjakan ({activeDetailIssue.claimed_by_name})</span>
+                                                        <span className={`text-[10px] font-bold ${isDark ? 'text-amber-300' : 'text-amber-700'}`}>🟡 Dikerjakan ({activeDetailIssue.claimed_by_name})</span>
                                                     ) : isThisAcc ? (
-                                                        <span className="text-[10px] text-emerald-400 font-bold">✓ Diterima {accBy && `(${accBy})`}</span>
+                                                        <span className={`text-[10px] font-bold ${isDark ? 'text-emerald-400' : 'text-emerald-700'}`}>✓ Diterima {accBy && `(${accBy})`}</span>
                                                     ) : activeDetailIssue.status === 'in_progress' ? (
-                                                        <span className="text-[10px] text-amber-400/80">Diproses ({activeDetailIssue.claimed_by_name || 'Tim'})</span>
+                                                        <span className={`text-[10px] ${isDark ? 'text-amber-400/80' : 'text-amber-700'}`}>Diproses ({activeDetailIssue.claimed_by_name || 'Tim'})</span>
                                                     ) : (
-                                                        <span className="text-[10px] text-slate-500">Menunggu</span>
+                                                        <span className={`text-[10px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Menunggu</span>
                                                     )}
                                                 </span>
                                             );
                                         })}
                                         {/* Jika diambil oleh staf dari departemen lain (misal cross-department) */}
                                         {activeDetailIssue.claimed_by_dept && !(activeDetailIssue.target_departments || []).map(d => d.toLowerCase()).includes(activeDetailIssue.claimed_by_dept.toLowerCase()) && (
-                                            <span className="px-2 py-1 rounded-lg text-xs font-semibold border bg-amber-950/80 border-amber-500 text-amber-200 flex items-center gap-1.5">
+                                            <span className={`px-2 py-1 rounded-lg text-xs font-semibold border flex items-center gap-1.5 ${
+                                                isDark ? 'bg-amber-950/80 border-amber-500 text-amber-200' : 'bg-amber-100 border-amber-400 text-amber-900'
+                                            }`}>
                                                 <span>{activeDetailIssue.claimed_by_dept}</span>
-                                                <span className="text-[10px] text-amber-300 font-bold">🟡 Dikerjakan ({activeDetailIssue.claimed_by_name})</span>
+                                                <span className={`text-[10px] font-bold ${isDark ? 'text-amber-300' : 'text-amber-700'}`}>🟡 Dikerjakan ({activeDetailIssue.claimed_by_name})</span>
                                             </span>
                                         )}
                                     </div>
@@ -2089,9 +2177,11 @@ export default function LeanIndex({
                             {/* Deskripsi Lengkap */}
                             {visibleColumns.desc && (
                                 <div className="space-y-1">
-                                    <span className="text-xs font-bold text-slate-300">Deskripsi Lengkap Masalah:</span>
-                                    <div className="p-3 rounded-xl bg-slate-950/70 border border-slate-800 text-xs text-slate-200 leading-relaxed whitespace-pre-line">
-                                        {activeDetailIssue.description || <span className="italic text-slate-500">Tidak ada deskripsi tambahan yang dilampirkan.</span>}
+                                    <span className={`text-xs font-bold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Deskripsi Lengkap Masalah:</span>
+                                    <div className={`p-3 rounded-xl border text-xs leading-relaxed whitespace-pre-line ${
+                                        isDark ? 'bg-slate-950/70 border-slate-800 text-slate-200' : 'bg-slate-50 border-slate-200 text-slate-800'
+                                    }`}>
+                                        {activeDetailIssue.description || <span className={`italic ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Tidak ada deskripsi tambahan yang dilampirkan.</span>}
                                     </div>
                                 </div>
                             )}
@@ -2099,13 +2189,15 @@ export default function LeanIndex({
                             {/* Foto Bukti */}
                             {visibleColumns.photo && activeDetailIssue.image_url && (
                                 <div className="space-y-1.5">
-                                    <span className="text-xs font-bold text-slate-300 flex items-center gap-1">
-                                        <Camera className="w-3.5 h-3.5 text-emerald-400" />
+                                    <span className={`text-xs font-bold flex items-center gap-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                                        <Camera className={`w-3.5 h-3.5 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
                                         Lampiran Foto Masalah:
                                     </span>
                                     <div
                                         onClick={() => setLightboxImage(activeDetailIssue.image_url)}
-                                        className="relative rounded-xl overflow-hidden border border-slate-700 cursor-pointer group bg-black/40 max-h-56 flex items-center justify-center"
+                                        className={`relative rounded-xl overflow-hidden border cursor-pointer group max-h-56 flex items-center justify-center ${
+                                            isDark ? 'border-slate-700 bg-black/40' : 'border-slate-300 bg-slate-100'
+                                        }`}
                                         title="Klik untuk perbesar foto"
                                     >
                                         <img
@@ -2124,14 +2216,16 @@ export default function LeanIndex({
 
                             {/* Status Penugasan & Penyelesaian */}
                             {visibleColumns.status && (activeDetailIssue.claimed_by_name || activeDetailIssue.resolved_by_name) && (
-                                <div className="p-3 rounded-xl bg-slate-800/50 border border-slate-700/80 space-y-1 text-xs">
+                                <div className={`p-3 rounded-xl border space-y-1 text-xs ${
+                                    isDark ? 'bg-slate-800/50 border-slate-700/80' : 'bg-slate-50 border-slate-200'
+                                }`}>
                                     {activeDetailIssue.claimed_by_name && (
-                                        <p className="text-amber-300">
+                                        <p className={isDark ? 'text-amber-300' : 'text-amber-800 font-medium'}>
                                             Dikerjakan oleh: <strong>{activeDetailIssue.claimed_by_name}</strong> ({activeDetailIssue.claimed_by_dept})
                                         </p>
                                     )}
                                     {activeDetailIssue.resolved_by_name && (
-                                        <p className="text-emerald-300">
+                                        <p className={isDark ? 'text-emerald-300' : 'text-emerald-800 font-medium'}>
                                             Diselesaikan oleh: <strong>{activeDetailIssue.resolved_by_name}</strong> ({activeDetailIssue.resolved_by_dept})
                                             {activeDetailIssue.resolution_note && ` — "${activeDetailIssue.resolution_note}"`}
                                         </p>
@@ -2141,29 +2235,33 @@ export default function LeanIndex({
 
                             {/* Riwayat Pengalihan Departemen (Transfer History) */}
                             {activeDetailIssue.transfer_history && activeDetailIssue.transfer_history.length > 0 && (
-                                <div className="p-3 rounded-xl bg-slate-900/90 border border-amber-900/50 space-y-2 text-xs">
-                                    <div className="flex items-center gap-1.5 font-bold text-amber-400">
+                                <div className={`p-3 rounded-xl border space-y-2 text-xs ${
+                                    isDark ? 'bg-slate-900/90 border-amber-900/50' : 'bg-amber-50/70 border-amber-300'
+                                }`}>
+                                    <div className={`flex items-center gap-1.5 font-bold ${isDark ? 'text-amber-400' : 'text-amber-800'}`}>
                                         <RotateCcw className="w-3.5 h-3.5" />
                                         <span>Riwayat Pengalihan Departemen ({activeDetailIssue.transfer_history.length}x)</span>
                                     </div>
                                     <div className="space-y-1.5 pl-2 border-l-2 border-amber-500/40">
                                         {activeDetailIssue.transfer_history.map((hist, idx) => (
-                                            <div key={idx} className="bg-slate-950/60 p-2 rounded-lg border border-slate-800 space-y-0.5">
-                                                <div className="flex items-center justify-between text-[11px] font-semibold text-slate-200">
+                                            <div key={idx} className={`p-2 rounded-lg border space-y-0.5 ${
+                                                isDark ? 'bg-slate-950/60 border-slate-800' : 'bg-white border-amber-200 shadow-2xs'
+                                            }`}>
+                                                <div className={`flex items-center justify-between text-[11px] font-semibold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
                                                     <span>
-                                                        <span className="text-slate-400">{hist.from_department}</span>
-                                                        <span className="text-amber-400 mx-1.5">➔</span>
-                                                        <span className="text-emerald-400">{hist.to_department}</span>
+                                                        <span className={isDark ? 'text-slate-400' : 'text-slate-600'}>{hist.from_department}</span>
+                                                        <span className="text-amber-500 mx-1.5">➔</span>
+                                                        <span className={isDark ? 'text-emerald-400' : 'text-emerald-700'}>{hist.to_department}</span>
                                                     </span>
-                                                    <span className="text-[10px] text-slate-500 font-normal">
+                                                    <span className={`text-[10px] font-normal ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
                                                         {hist.transferred_at ? new Date(hist.transferred_at).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' }) : ''}
                                                     </span>
                                                 </div>
-                                                <p className="text-[11px] text-slate-300 italic">
+                                                <p className={`text-[11px] italic ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
                                                     "{hist.reason}"
                                                 </p>
-                                                <p className="text-[10px] text-slate-500">
-                                                    Oleh: <strong className="text-slate-400">{hist.transferred_by}</strong>
+                                                <p className={`text-[10px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                                                    Oleh: <strong className={isDark ? 'text-slate-400' : 'text-slate-600'}>{hist.transferred_by}</strong>
                                                 </p>
                                             </div>
                                         ))}
@@ -2173,12 +2271,16 @@ export default function LeanIndex({
                         </div>
 
                         {/* Footer Modal */}
-                        <div className="p-3 border-t border-slate-800 bg-slate-950/80 flex items-center justify-between gap-2 flex-wrap">
+                        <div className={`p-3 border-t flex items-center justify-between gap-2 flex-wrap ${
+                            isDark ? 'border-slate-800 bg-slate-950/80' : 'border-slate-200 bg-slate-50'
+                        }`}>
                             <div className="flex items-center gap-2">
                                 <button
                                     type="button"
                                     onClick={() => setShowColumnModal(true)}
-                                    className="text-[11px] text-slate-400 hover:text-emerald-400 flex items-center gap-1.5 transition-colors"
+                                    className={`text-[11px] flex items-center gap-1.5 transition-colors ${
+                                        isDark ? 'text-slate-400 hover:text-emerald-400' : 'text-slate-600 hover:text-emerald-700'
+                                    }`}
                                     title="Ubah kolom yang ditampilkan di modal & tabel"
                                 >
                                     <SlidersHorizontal className="w-3.5 h-3.5" />
@@ -2190,16 +2292,22 @@ export default function LeanIndex({
                                         setIssueToDelete(activeDetailIssue);
                                         setDeleteSupervisorName(myName || 'Supervisor');
                                     }}
-                                    className="px-2.5 py-1 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 text-[11px] font-semibold flex items-center gap-1 transition"
+                                    className={`px-2.5 py-1 rounded-lg border text-[11px] font-semibold flex items-center gap-1 transition ${
+                                        isDark
+                                            ? 'bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border-rose-500/30'
+                                            : 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200'
+                                    }`}
                                 >
-                                    <Trash2 className="w-3 h-3 text-rose-400" />
+                                    <Trash2 className="w-3 h-3 text-rose-500" />
                                     <span>Hapus Tiket</span>
                                 </button>
                             </div>
                             <button
                                 type="button"
                                 onClick={() => setSelectedDetailIssue(null)}
-                                className="px-4 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition-all"
+                                className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                                    isDark ? 'bg-slate-800 hover:bg-slate-700 text-slate-200' : 'bg-slate-200 hover:bg-slate-300 text-slate-800'
+                                }`}
                             >
                                 Tutup
                             </button>
@@ -2233,21 +2341,27 @@ export default function LeanIndex({
             {/* MODAL 5: ERP COLUMN CUSTOMIZER */}
             {showColumnModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
-                    <div className="w-full max-w-md bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+                    <div className={`w-full max-w-md rounded-2xl border shadow-2xl overflow-hidden flex flex-col ${
+                        isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'
+                    }`}>
                         {/* Header */}
-                        <div className="p-4 border-b border-slate-800 flex items-center justify-between">
+                        <div className={`p-4 border-b flex items-center justify-between ${
+                            isDark ? 'border-slate-800' : 'border-slate-200'
+                        }`}>
                             <div className="flex items-center gap-2.5">
                                 <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold">
                                     <SlidersHorizontal className="w-4 h-4" />
                                 </div>
                                 <div>
-                                    <h3 className="font-bold text-sm text-white">Kustomisasi Tampilan Data</h3>
-                                    <p className="text-[11px] text-slate-400">Pilih data yang ingin dimunculkan ({activeColumnCount} dari {COLUMN_DEFS.length} aktif)</p>
+                                    <h3 className={`font-bold text-sm ${isDark ? 'text-white' : 'text-slate-900'}`}>Kustomisasi Tampilan Data</h3>
+                                    <p className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Pilih data yang ingin dimunculkan ({activeColumnCount} dari {COLUMN_DEFS.length} aktif)</p>
                                 </div>
                             </div>
                             <button
                                 onClick={() => setShowColumnModal(false)}
-                                className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition-colors"
+                                className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
+                                    isDark ? 'bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-900'
+                                }`}
                             >
                                 <X className="w-4 h-4" />
                             </button>
@@ -2264,22 +2378,30 @@ export default function LeanIndex({
                                         onClick={() => toggleColumn(col.id)}
                                         className={`w-full flex items-center justify-between p-2.5 rounded-xl border text-xs font-semibold transition-all ${
                                             isVisible
-                                                ? 'bg-slate-800/90 border-emerald-500/50 text-white'
-                                                : 'bg-slate-900/60 border-slate-800 text-slate-500 hover:border-slate-700'
+                                                ? isDark
+                                                    ? 'bg-slate-800/90 border-emerald-500/50 text-white'
+                                                    : 'bg-emerald-50/70 border-emerald-300 text-slate-900'
+                                                : isDark
+                                                ? 'bg-slate-900/60 border-slate-800 text-slate-500 hover:border-slate-700'
+                                                : 'bg-slate-50 border-slate-200 text-slate-400 hover:border-slate-300'
                                         }`}
                                     >
                                         <div className="flex items-center gap-2.5">
                                             <span className="text-base">{col.icon}</span>
-                                            <span className={isVisible ? 'text-white' : 'text-slate-400'}>{col.label}</span>
+                                            <span className={isVisible ? (isDark ? 'text-white font-bold' : 'text-slate-900 font-bold') : (isDark ? 'text-slate-400' : 'text-slate-500')}>{col.label}</span>
                                         </div>
                                         <div className="flex items-center gap-1.5">
                                             {isVisible ? (
-                                                <span className="flex items-center gap-1 text-[11px] text-emerald-400 bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-800/60">
+                                                <span className={`flex items-center gap-1 text-[11px] px-2 py-0.5 rounded border ${
+                                                    isDark ? 'text-emerald-400 bg-emerald-950/80 border-emerald-800/60' : 'text-emerald-800 bg-emerald-100 border-emerald-300'
+                                                }`}>
                                                     <Eye className="w-3 h-3" />
                                                     Tampil
                                                 </span>
                                             ) : (
-                                                <span className="flex items-center gap-1 text-[11px] text-slate-500 bg-slate-800/60 px-2 py-0.5 rounded border border-slate-800">
+                                                <span className={`flex items-center gap-1 text-[11px] px-2 py-0.5 rounded border ${
+                                                    isDark ? 'text-slate-500 bg-slate-800/60 border-slate-800' : 'text-slate-500 bg-slate-200 border-slate-300'
+                                                }`}>
                                                     <EyeOff className="w-3 h-3" />
                                                     Disembunyikan
                                                 </span>
@@ -2291,19 +2413,25 @@ export default function LeanIndex({
                         </div>
 
                         {/* Actions Footer */}
-                        <div className="p-3 border-t border-slate-800 bg-slate-950/60 flex items-center justify-between gap-2">
+                        <div className={`p-3 border-t flex items-center justify-between gap-2 ${
+                            isDark ? 'border-slate-800 bg-slate-950/60' : 'border-slate-200 bg-slate-50'
+                        }`}>
                             <div className="flex items-center gap-1">
                                 <button
                                     type="button"
                                     onClick={() => setAllColumns(true)}
-                                    className="px-2.5 py-1.5 text-[11px] text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors"
+                                    className={`px-2.5 py-1.5 text-[11px] rounded-lg transition-colors ${
+                                        isDark ? 'text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700' : 'text-slate-700 hover:text-slate-900 bg-slate-200 hover:bg-slate-300'
+                                    }`}
                                 >
                                     Pilih Semua
                                 </button>
                                 <button
                                     type="button"
                                     onClick={resetColumns}
-                                    className="px-2.5 py-1.5 text-[11px] text-slate-400 hover:text-slate-200 bg-slate-800/60 hover:bg-slate-800 rounded-lg transition-colors flex items-center gap-1"
+                                    className={`px-2.5 py-1.5 text-[11px] rounded-lg transition-colors flex items-center gap-1 ${
+                                        isDark ? 'text-slate-400 hover:text-slate-200 bg-slate-800/60 hover:bg-slate-800' : 'text-slate-600 hover:text-slate-800 bg-slate-200 hover:bg-slate-300'
+                                    }`}
                                 >
                                     <RotateCcw className="w-3 h-3" />
                                     Reset

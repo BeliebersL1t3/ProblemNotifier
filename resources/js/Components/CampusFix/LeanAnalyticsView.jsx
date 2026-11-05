@@ -1819,14 +1819,18 @@ export function LeanAnalyticsView({
                                         }`}
                                     >
                                         <div className="flex items-center gap-2.5 min-w-0">
-                                            <span className="w-5 h-5 rounded-full bg-slate-800 text-slate-400 text-[10px] font-bold flex items-center justify-center shrink-0">
+                                            <span className={`w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center shrink-0 ${
+                                                isDark ? 'bg-slate-800 text-slate-400' : 'bg-slate-200 text-slate-700'
+                                            }`}>
                                                 #{idx + 1}
                                             </span>
                                             <div className="min-w-0">
                                                 <h4 className={`text-xs font-bold truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>
                                                     {d.name}
                                                 </h4>
-                                                <div className="w-24 sm:w-36 bg-slate-800 h-1.5 rounded-full overflow-hidden mt-1.5">
+                                                <div className={`w-24 sm:w-36 h-1.5 rounded-full overflow-hidden mt-1.5 ${
+                                                    isDark ? 'bg-slate-800' : 'bg-slate-200'
+                                                }`}>
                                                     <div
                                                         className="h-full bg-sky-500 rounded-full"
                                                         style={{ width: `${d.pct}%` }}
@@ -1866,14 +1870,18 @@ export function LeanAnalyticsView({
                                         }`}
                                     >
                                         <div className="flex items-center gap-2.5 min-w-0">
-                                            <span className="w-5 h-5 rounded-full bg-slate-800 text-slate-400 text-[10px] font-bold flex items-center justify-center shrink-0">
+                                            <span className={`w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center shrink-0 ${
+                                                isDark ? 'bg-slate-800 text-slate-400' : 'bg-slate-200 text-slate-700'
+                                            }`}>
                                                 #{idx + 1}
                                             </span>
                                             <div className="min-w-0">
                                                 <h4 className={`text-xs font-bold truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>
                                                     {d.name}
                                                 </h4>
-                                                <div className="w-24 sm:w-36 bg-slate-800 h-1.5 rounded-full overflow-hidden mt-1.5">
+                                                <div className={`w-24 sm:w-36 h-1.5 rounded-full overflow-hidden mt-1.5 ${
+                                                    isDark ? 'bg-slate-800' : 'bg-slate-200'
+                                                }`}>
                                                     <div
                                                         className="h-full bg-emerald-500 rounded-full"
                                                         style={{ width: `${d.pct}%` }}
@@ -1914,7 +1922,9 @@ export function LeanAnalyticsView({
                                     >
                                         <div className="flex items-center justify-between gap-2">
                                             <div className="flex items-center gap-2">
-                                                <span className="w-5 h-5 rounded-full bg-slate-800 text-slate-400 text-[10px] font-bold flex items-center justify-center shrink-0">
+                                                <span className={`w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center shrink-0 ${
+                                                    isDark ? 'bg-slate-800 text-slate-400' : 'bg-slate-200 text-slate-700'
+                                                }`}>
                                                     #{idx + 1}
                                                 </span>
                                                 <h4 className={`text-xs font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
@@ -1923,15 +1933,21 @@ export function LeanAnalyticsView({
                                             </div>
                                             <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
                                                 d.active > 0
-                                                    ? 'bg-rose-950/80 border-rose-800/60 text-rose-300'
-                                                    : 'bg-emerald-950/80 border-emerald-800/60 text-emerald-300'
+                                                    ? isDark
+                                                        ? 'bg-rose-950/80 border-rose-800/60 text-rose-300'
+                                                        : 'bg-rose-100 border-rose-300 text-rose-800'
+                                                    : isDark
+                                                    ? 'bg-emerald-950/80 border-emerald-800/60 text-emerald-300'
+                                                    : 'bg-emerald-100 border-emerald-300 text-emerald-800'
                                             }`}>
                                                 {d.backlogRate}% Backlog
                                             </span>
                                         </div>
 
                                         {/* Dual Progress Bar: Green (Resolved) vs Red (Active) */}
-                                        <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden flex">
+                                        <div className={`w-full h-2 rounded-full overflow-hidden flex ${
+                                            isDark ? 'bg-slate-800' : 'bg-slate-200'
+                                        }`}>
                                             <div
                                                 className="h-full bg-emerald-500"
                                                 style={{ width: `${100 - d.backlogRate}%` }}
@@ -1944,12 +1960,14 @@ export function LeanAnalyticsView({
                                             />
                                         </div>
 
-                                        <div className="flex items-center justify-between text-[11px] text-slate-400">
+                                        <div className={`flex items-center justify-between text-[11px] ${
+                                            isDark ? 'text-slate-400' : 'text-slate-600'
+                                        }`}>
                                             <span>
-                                                Belum Selesai: <strong className="text-rose-400">{d.active}</strong>
+                                                Belum Selesai: <strong className={isDark ? 'text-rose-400' : 'text-rose-600'}>{d.active}</strong>
                                             </span>
                                             <span>
-                                                Selesai: <strong className="text-emerald-400">{d.resolved}</strong> / {d.total} Isu
+                                                Selesai: <strong className={isDark ? 'text-emerald-400' : 'text-emerald-700'}>{d.resolved}</strong> / {d.total} Isu
                                             </span>
                                         </div>
                                     </div>
@@ -1997,13 +2015,19 @@ export function LeanAnalyticsView({
                             >
                                 <div>
                                     <div className="flex items-center justify-between gap-2 mb-2">
-                                        <span className="w-5 h-5 rounded-full bg-slate-800 text-slate-400 text-[10px] font-bold flex items-center justify-center shrink-0">
+                                        <span className={`w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center shrink-0 ${
+                                            isDark ? 'bg-slate-800 text-slate-400' : 'bg-slate-200 text-slate-700'
+                                        }`}>
                                             #{idx + 1}
                                         </span>
                                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${
                                             item.resort === 'TBR'
-                                                ? 'bg-amber-950/70 border-amber-800/60 text-amber-300'
-                                                : 'bg-emerald-950/70 border-emerald-800/60 text-emerald-300'
+                                                ? isDark
+                                                    ? 'bg-amber-950/70 border-amber-800/60 text-amber-300'
+                                                    : 'bg-amber-100 border-amber-300 text-amber-800'
+                                                : isDark
+                                                ? 'bg-emerald-950/70 border-emerald-800/60 text-emerald-300'
+                                                : 'bg-emerald-100 border-emerald-300 text-emerald-800'
                                         }`}>
                                             {item.resort || 'Resort'}
                                         </span>
@@ -2015,11 +2039,17 @@ export function LeanAnalyticsView({
                                     </h4>
                                 </div>
 
-                                <div className="mt-3 pt-2.5 border-t border-slate-800/70 flex items-center justify-between text-[11px]">
-                                    <span className="text-slate-400">
-                                        Total: <strong className="text-white">{item.total}</strong>
+                                <div className={`mt-3 pt-2.5 border-t flex items-center justify-between text-[11px] ${
+                                    isDark ? 'border-slate-800/70' : 'border-slate-200'
+                                }`}>
+                                    <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>
+                                        Total: <strong className={isDark ? 'text-white' : 'text-slate-900'}>{item.total}</strong>
                                     </span>
-                                    <span className={`font-bold ${item.openCount > 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                                    <span className={`font-bold ${
+                                        item.openCount > 0
+                                            ? isDark ? 'text-rose-400' : 'text-rose-600'
+                                            : isDark ? 'text-emerald-400' : 'text-emerald-700'
+                                    }`}>
                                         {item.openCount > 0 ? `${item.openCount} Belum Selesai` : 'Semua Selesai'}
                                     </span>
                                 </div>
@@ -2087,21 +2117,35 @@ export function LeanAnalyticsView({
 
                         {/* Zone Inspector TPI */}
                         {selectedTpiZone && (
-                            <div className="p-3.5 rounded-xl bg-slate-900 border border-emerald-500/40 shadow-lg animate-in fade-in duration-200 space-y-2">
+                            <div className={`p-3.5 rounded-xl border shadow-lg animate-in fade-in duration-200 space-y-2 ${
+                                isDark ? 'bg-slate-900 border-emerald-500/40 text-white' : 'bg-emerald-50/70 border-emerald-300 text-slate-900'
+                            }`}>
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-2">
-                                        <span className="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 font-bold text-xs flex items-center justify-center border border-emerald-500/40">
+                                        <span className={`w-6 h-6 rounded-full font-bold text-xs flex items-center justify-center border ${
+                                            isDark
+                                                ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                                                : 'bg-emerald-200/60 text-emerald-800 border-emerald-300'
+                                        }`}>
                                             #{selectedTpiZone.num}
                                         </span>
                                         <div>
-                                            <h4 className="font-bold text-sm text-white">{selectedTpiZone.name}</h4>
-                                            <p className="text-[11px] text-slate-400">{selectedTpiZone.enName} • Telunas Private Island</p>
+                                            <h4 className={`font-bold text-sm ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                                                {selectedTpiZone.name}
+                                            </h4>
+                                            <p className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                                                {selectedTpiZone.enName} • Telunas Private Island
+                                            </p>
                                         </div>
                                     </div>
                                     <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${
                                         (selectedTpiZone.count || 0) > 0
-                                            ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
-                                            : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                            ? isDark
+                                                ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                                                : 'bg-rose-100 text-rose-800 border border-rose-300'
+                                            : isDark
+                                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                            : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
                                     }`}>
                                         {selectedTpiZone.count || 0} Isu Aktif
                                     </span>
@@ -2113,20 +2157,30 @@ export function LeanAnalyticsView({
                                             <div
                                                 key={iss.id}
                                                 onClick={() => onSelectIssue && onSelectIssue(iss)}
-                                                className="p-2 rounded-lg bg-slate-950/70 border border-slate-800 text-xs space-y-1 hover:border-emerald-500/50 cursor-pointer"
+                                                className={`p-2 rounded-lg border text-xs space-y-1 cursor-pointer transition-colors ${
+                                                    isDark
+                                                        ? 'bg-slate-950/70 border-slate-800 hover:border-emerald-500/50'
+                                                        : 'bg-white border-emerald-200 shadow-2xs hover:border-emerald-400'
+                                                }`}
                                             >
                                                 <div className="flex items-center justify-between text-[10px]">
-                                                    <span className="font-mono text-amber-300 font-bold">#{iss.issue_code || iss.id}</span>
-                                                    <span className={iss.status === 'resolved' ? 'text-emerald-400' : 'text-rose-400'}>
+                                                    <span className={`font-mono font-bold ${isDark ? 'text-amber-300' : 'text-amber-700'}`}>
+                                                        #{iss.issue_code || iss.id}
+                                                    </span>
+                                                    <span className={
+                                                        iss.status === 'resolved'
+                                                            ? isDark ? 'text-emerald-400' : 'text-emerald-700'
+                                                            : isDark ? 'text-rose-400' : 'text-rose-600'
+                                                    }>
                                                         {iss.status}
                                                     </span>
                                                 </div>
-                                                <p className="text-white font-medium truncate">{iss.title}</p>
+                                                <p className={`font-medium truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>{iss.title}</p>
                                             </div>
                                         ))}
                                     </div>
                                 ) : (
-                                    <p className="text-[11px] text-slate-400 italic">Tidak ada insiden tercatat pada unit ini.</p>
+                                    <p className={`text-[11px] italic ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Tidak ada insiden tercatat pada unit ini.</p>
                                 )}
                             </div>
                         )}
@@ -2145,21 +2199,35 @@ export function LeanAnalyticsView({
 
                         {/* Zone Inspector TBR */}
                         {selectedTbrZone && (
-                            <div className="p-3.5 rounded-xl bg-slate-900 border border-amber-500/40 shadow-lg animate-in fade-in duration-200 space-y-2">
+                            <div className={`p-3.5 rounded-xl border shadow-lg animate-in fade-in duration-200 space-y-2 ${
+                                isDark ? 'bg-slate-900 border-amber-500/40 text-white' : 'bg-amber-50/70 border-amber-300 text-slate-900'
+                            }`}>
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-2">
-                                        <span className="w-6 h-6 rounded-full bg-amber-500/20 text-amber-400 font-bold text-xs flex items-center justify-center border border-amber-500/40">
+                                        <span className={`w-6 h-6 rounded-full font-bold text-xs flex items-center justify-center border ${
+                                            isDark
+                                                ? 'bg-amber-500/20 text-amber-400 border-amber-500/40'
+                                                : 'bg-amber-200/60 text-amber-800 border-amber-300'
+                                        }`}>
                                             #{selectedTbrZone.num}
                                         </span>
                                         <div>
-                                            <h4 className="font-bold text-sm text-white">{selectedTbrZone.name}</h4>
-                                            <p className="text-[11px] text-slate-400">{selectedTbrZone.enName} • Telunas Beach Resort</p>
+                                            <h4 className={`font-bold text-sm ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                                                {selectedTbrZone.name}
+                                            </h4>
+                                            <p className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                                                {selectedTbrZone.enName} • Telunas Beach Resort
+                                            </p>
                                         </div>
                                     </div>
                                     <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${
                                         (selectedTbrZone.count || 0) > 0
-                                            ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
-                                            : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                            ? isDark
+                                                ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                                                : 'bg-rose-100 text-rose-800 border border-rose-300'
+                                            : isDark
+                                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                            : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
                                     }`}>
                                         {selectedTbrZone.count || 0} Isu Aktif
                                     </span>
@@ -2171,20 +2239,30 @@ export function LeanAnalyticsView({
                                             <div
                                                 key={iss.id}
                                                 onClick={() => onSelectIssue && onSelectIssue(iss)}
-                                                className="p-2 rounded-lg bg-slate-950/70 border border-slate-800 text-xs space-y-1 hover:border-amber-500/50 cursor-pointer"
+                                                className={`p-2 rounded-lg border text-xs space-y-1 cursor-pointer transition-colors ${
+                                                    isDark
+                                                        ? 'bg-slate-950/70 border-slate-800 hover:border-amber-500/50'
+                                                        : 'bg-white border-amber-200 shadow-2xs hover:border-amber-400'
+                                                }`}
                                             >
                                                 <div className="flex items-center justify-between text-[10px]">
-                                                    <span className="font-mono text-amber-300 font-bold">#{iss.issue_code || iss.id}</span>
-                                                    <span className={iss.status === 'resolved' ? 'text-emerald-400' : 'text-rose-400'}>
+                                                    <span className={`font-mono font-bold ${isDark ? 'text-amber-300' : 'text-amber-700'}`}>
+                                                        #{iss.issue_code || iss.id}
+                                                    </span>
+                                                    <span className={
+                                                        iss.status === 'resolved'
+                                                            ? isDark ? 'text-emerald-400' : 'text-emerald-700'
+                                                            : isDark ? 'text-rose-400' : 'text-rose-600'
+                                                    }>
                                                         {iss.status}
                                                     </span>
                                                 </div>
-                                                <p className="text-white font-medium truncate">{iss.title}</p>
+                                                <p className={`font-medium truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>{iss.title}</p>
                                             </div>
                                         ))}
                                     </div>
                                 ) : (
-                                    <p className="text-[11px] text-slate-400 italic">Tidak ada insiden tercatat pada fasilitas ini.</p>
+                                    <p className={`text-[11px] italic ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Tidak ada insiden tercatat pada fasilitas ini.</p>
                                 )}
                             </div>
                         )}
@@ -2201,16 +2279,18 @@ export function LeanAnalyticsView({
                         isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
                     }`}>
                         {/* Modal Header */}
-                        <div className="p-4 border-b border-slate-700/60 flex items-center justify-between gap-3 bg-slate-950/50">
+                        <div className={`p-4 border-b flex items-center justify-between gap-3 ${
+                            isDark ? 'bg-slate-950/50 border-slate-700/60' : 'bg-slate-50 border-slate-200'
+                        }`}>
                             <div className="flex items-center gap-2">
                                 <div className="w-8 h-8 rounded-xl bg-rose-500/20 text-rose-400 flex items-center justify-center">
                                     <MapPin className="w-4 h-4" />
                                 </div>
                                 <div>
-                                    <h3 className="font-bold text-sm text-white">
+                                    <h3 className={`font-bold text-sm ${isDark ? 'text-white' : 'text-slate-900'}`}>
                                         Daftar Isu: {selectedLocationForModal.location}
                                     </h3>
-                                    <p className="text-[11px] text-slate-400">
+                                    <p className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                                         Total {selectedLocationForModal.total} insiden ({selectedLocationForModal.openCount} belum selesai)
                                     </p>
                                 </div>
@@ -2218,7 +2298,9 @@ export function LeanAnalyticsView({
                             <button
                                 type="button"
                                 onClick={() => setSelectedLocationForModal(null)}
-                                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                                className={`p-1.5 rounded-lg transition-colors ${
+                                    isDark ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-200'
+                                }`}
                             >
                                 <X className="w-5 h-5" />
                             </button>
@@ -2230,39 +2312,43 @@ export function LeanAnalyticsView({
                                 <div
                                     key={iss.id}
                                     className={`p-3.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-all ${
-                                        isDark ? 'bg-slate-800/80 border-slate-700/80' : 'bg-slate-50 border-slate-200'
+                                        isDark ? 'bg-slate-800/80 border-slate-700/80' : 'bg-slate-50 border-slate-200 shadow-2xs'
                                     }`}
                                 >
                                     <div className="space-y-1 min-w-0 flex-1">
                                         <div className="flex items-center gap-2 flex-wrap">
-                                            <span className="font-mono text-amber-300 text-[11px] font-bold bg-slate-900 px-1.5 py-0.5 rounded border border-slate-700">
+                                            <span className={`font-mono text-[11px] font-bold px-1.5 py-0.5 rounded border ${
+                                                isDark ? 'text-amber-300 bg-slate-900 border-slate-700' : 'text-amber-800 bg-amber-50 border-amber-300'
+                                            }`}>
                                                 #{iss.issue_code || iss.id}
                                             </span>
                                             <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
                                                 iss.status === 'open'
-                                                    ? 'bg-rose-500/20 border-rose-500/40 text-rose-300'
+                                                    ? isDark ? 'bg-rose-500/20 border-rose-500/40 text-rose-300' : 'bg-rose-100 border-rose-300 text-rose-800'
                                                     : iss.status === 'in_progress'
-                                                    ? 'bg-orange-500/20 border-orange-500/40 text-orange-300'
+                                                    ? isDark ? 'bg-orange-500/20 border-orange-500/40 text-orange-300' : 'bg-amber-100 border-amber-300 text-amber-800'
                                                     : iss.status === 'pending'
-                                                    ? 'bg-amber-500/20 border-amber-500/40 text-amber-300'
-                                                    : 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
+                                                    ? isDark ? 'bg-amber-500/20 border-amber-500/40 text-amber-300' : 'bg-orange-100 border-orange-300 text-orange-800'
+                                                    : isDark ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300' : 'bg-emerald-100 border-emerald-300 text-emerald-800'
                                             }`}>
                                                 {iss.status}
                                             </span>
-                                            <span className="text-[10px] text-slate-400">
+                                            <span className={`text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                                                 Dept: {(iss.target_departments || []).join(', ') || 'Umum'}
                                             </span>
                                         </div>
-                                        <h4 className="text-xs font-bold text-white truncate">
+                                        <h4 className={`text-xs font-bold truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>
                                             {iss.title}
                                         </h4>
                                         {iss.description && (
-                                            <p className="text-[11px] text-slate-300 line-clamp-2">
+                                            <p className={`text-[11px] line-clamp-2 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
                                                 {iss.description}
                                             </p>
                                         )}
                                         {iss.pending_reason && (
-                                            <p className="text-[10px] text-amber-300 bg-amber-950/40 border border-amber-800/50 p-1.5 rounded">
+                                            <p className={`text-[10px] p-1.5 rounded border ${
+                                                isDark ? 'text-amber-300 bg-amber-950/40 border-amber-800/50' : 'text-amber-900 bg-amber-50 border-amber-300'
+                                            }`}>
                                                 Alasan Pending: {iss.pending_reason}
                                             </p>
                                         )}
