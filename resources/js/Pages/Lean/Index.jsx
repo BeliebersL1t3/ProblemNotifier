@@ -788,61 +788,9 @@ export default function LeanIndex({
                 </div>
 
 
-                {/* ERP CONTROLS BAR OR ANALYTICS SUB-TABS */}
-                {viewMode === 'analytics' ? (
-                    <div className="mb-4 flex items-center justify-center sm:justify-start">
-                        <div className={`flex items-center gap-1 p-1 rounded-xl border shrink-0 overflow-x-auto justify-center w-full sm:w-auto ${
-                            isDark ? 'bg-slate-800/90 border-slate-700' : 'bg-slate-100 border-slate-300 shadow-xs'
-                        }`}>
-                            <button
-                                type="button"
-                                onClick={() => setActiveAnalyticsTab('executive')}
-                                className={`flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex-1 sm:flex-initial ${
-                                    activeAnalyticsTab === 'executive'
-                                        ? 'bg-teal-500 text-slate-950 shadow-sm shadow-teal-500/30'
-                                        : isDark
-                                        ? 'text-slate-400 hover:text-white hover:bg-slate-800/80'
-                                        : 'text-slate-600 hover:text-slate-900 hover:bg-white'
-                                }`}
-                            >
-                                <Compass className="w-3.5 h-3.5 shrink-0" />
-                                <span><span className="hidden sm:inline">Ringkasan </span>Eksekutif</span>
-                            </button>
-
-                            <button
-                                type="button"
-                                onClick={() => setActiveAnalyticsTab('maintenance')}
-                                className={`flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex-1 sm:flex-initial ${
-                                    activeAnalyticsTab === 'maintenance'
-                                        ? 'bg-teal-500 text-slate-950 shadow-sm shadow-teal-500/30'
-                                        : isDark
-                                        ? 'text-slate-400 hover:text-white hover:bg-slate-800/80'
-                                        : 'text-slate-600 hover:text-slate-900 hover:bg-white'
-                                }`}
-                            >
-                                <Wrench className="w-3.5 h-3.5 shrink-0" />
-                                <span>Maintenance</span>
-                            </button>
-
-                            <button
-                                type="button"
-                                onClick={() => setActiveAnalyticsTab('sla_performance')}
-                                className={`flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex-1 sm:flex-initial ${
-                                    activeAnalyticsTab === 'sla_performance'
-                                        ? 'bg-teal-500 text-slate-950 shadow-sm shadow-teal-500/30'
-                                        : isDark
-                                        ? 'text-slate-400 hover:text-white hover:bg-slate-800/80'
-                                        : 'text-slate-600 hover:text-slate-900 hover:bg-white'
-                                }`}
-                            >
-                                <Clock className="w-3.5 h-3.5 shrink-0" />
-                                <span><span className="hidden sm:inline">Performa & </span>SLA</span>
-                            </button>
-                        </div>
-                    </div>
-                ) : (
+                {/* ERP CONTROLS BAR: SEARCH, DEPT, SORT, VIEW MODE, STATUS CHECKLIST */}
+                {viewMode !== 'analytics' && (
                     <>
-                        {/* ERP CONTROLS BAR: SEARCH, DEPT, SORT, VIEW MODE, STATUS CHECKLIST */}
                         <div className="space-y-2.5 mb-3">
                     {/* Row 1: Search Bar Full Width */}
                     <div className="relative w-full">

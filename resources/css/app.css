@@ -513,16 +513,24 @@ input[type="range"]::-moz-range-thumb {
   color: #64748b !important;
 }
 
-/* Retain high-contrast colored text in buttons/badges */
-.lean-theme-light .text-white.keep-white,
+/* Retain high-contrast colored white text in solid buttons, links, and badges */
+.lean-theme-light .keep-white,
+.lean-theme-light .keep-white *,
+.lean-theme-light a.bg-emerald-600,
+.lean-theme-light a.bg-emerald-600 *,
 .lean-theme-light button.bg-emerald-600,
-.lean-theme-light button.bg-teal-500 {
+.lean-theme-light button.bg-emerald-600 *,
+.lean-theme-light a.bg-rose-600,
+.lean-theme-light a.bg-rose-600 *,
+.lean-theme-light button.bg-rose-600,
+.lean-theme-light button.bg-rose-600 *,
+.lean-theme-light a.bg-sky-600,
+.lean-theme-light a.bg-sky-600 *,
+.lean-theme-light button.bg-sky-600,
+.lean-theme-light button.bg-sky-600 *,
+.lean-theme-light .text-white.keep-white {
   color: #ffffff !important;
-}
-
-.lean-theme-light button.bg-teal-500 {
-  color: #042f2e !important;
-  font-weight: 700 !important;
+  fill: currentColor;
 }
 
 /* Status Badges in Light Mode */

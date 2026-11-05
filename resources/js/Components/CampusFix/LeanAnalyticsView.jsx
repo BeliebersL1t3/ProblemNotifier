@@ -1629,12 +1629,12 @@ export function LeanAnalyticsView({
                             href={spreadsheetUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm transition-all cursor-pointer group"
+                            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white keep-white shadow-sm transition-all cursor-pointer group"
                             title="Buka Google Spreadsheet Sheet Utama Telunas di tab baru"
                         >
-                            <FileSpreadsheet className="w-4 h-4 shrink-0" />
-                            <span>Ke Sheet Utama</span>
-                            <ExternalLink className="w-3.5 h-3.5 opacity-80 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+                            <FileSpreadsheet className="w-4 h-4 shrink-0 text-white" />
+                            <span className="text-white">Ke Sheet Utama</span>
+                            <ExternalLink className="w-3.5 h-3.5 opacity-90 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform text-white" />
                         </a>
 
                         {/* Tombol Download PDF */}
@@ -1642,11 +1642,11 @@ export function LeanAnalyticsView({
                             type="button"
                             onClick={handleDownloadPdf}
                             disabled={isDownloadingPdf}
-                            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white shadow-sm transition-all cursor-pointer disabled:opacity-50"
+                            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white keep-white shadow-sm transition-all cursor-pointer disabled:opacity-50"
                             title="Download Laporan Rekapitulasi Resmi Telunas (PDF Siap Cetak)"
                         >
-                            <Download className="w-4 h-4 shrink-0" />
-                            <span>{isDownloadingPdf ? 'Menyiapkan PDF...' : 'Download PDF'}</span>
+                            <Download className="w-4 h-4 shrink-0 text-white" />
+                            <span className="text-white">{isDownloadingPdf ? 'Menyiapkan PDF...' : 'Download PDF'}</span>
                         </button>
                     </div>
                 </div>
