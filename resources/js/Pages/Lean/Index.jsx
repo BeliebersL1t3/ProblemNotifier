@@ -1337,18 +1337,38 @@ export default function LeanIndex({
                         </div>
                     </div>
                 ) : (
-                    /* --- VIEW 2: VISUAL CARD VIEW (MODERN RESPONSIVE GRID) --- */
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5">
+                    /* --- VIEW 2: VISUAL CARD VIEW (MODERN RESPONSIVE GRID - OPTION 1 & 2) --- */
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-5">
                         {filteredIssues.map((issue) => {
                             const accs = issue.department_accs || {};
 
-                            // Status progress stripe border color on the left
-                            const borderLeftColor = {
-                                open: 'border-l-rose-500 hover:border-rose-500/60',
-                                pending: 'border-l-amber-400 hover:border-amber-400/60',
-                                in_progress: 'border-l-orange-500 hover:border-orange-500/60',
-                                resolved: 'border-l-emerald-500 hover:border-emerald-500/60',
-                            }[issue.status] || 'border-l-slate-400 hover:border-slate-400/60';
+                            // Status theme for Option 1 & 2 (Top Accent Bar, Left Stripe, and Subtly Tinted Plates)
+                            const statusTheme = {
+                                open: {
+                                    borderLeft: 'border-l-rose-500 hover:border-l-rose-600',
+                                    topBar: 'bg-rose-500',
+                                    headerBg: isDark ? 'bg-rose-950/20' : 'bg-rose-50/60',
+                                },
+                                in_progress: {
+                                    borderLeft: 'border-l-sky-500 hover:border-l-sky-600',
+                                    topBar: 'bg-sky-500',
+                                    headerBg: isDark ? 'bg-sky-950/20' : 'bg-sky-50/60',
+                                },
+                                pending: {
+                                    borderLeft: 'border-l-amber-500 hover:border-l-amber-600',
+                                    topBar: 'bg-amber-500',
+                                    headerBg: isDark ? 'bg-amber-950/20' : 'bg-amber-50/60',
+                                },
+                                resolved: {
+                                    borderLeft: 'border-l-emerald-500 hover:border-l-emerald-600',
+                                    topBar: 'bg-emerald-500',
+                                    headerBg: isDark ? 'bg-emerald-950/20' : 'bg-emerald-50/60',
+                                },
+                            }[issue.status] || {
+                                borderLeft: 'border-l-slate-400 hover:border-l-slate-500',
+                                topBar: 'bg-slate-400',
+                                headerBg: isDark ? 'bg-slate-900/30' : 'bg-slate-50/60',
+                            };
 
                             const isResolved = issue.status === 'resolved';
 
@@ -1356,209 +1376,218 @@ export default function LeanIndex({
                                 <div
                                     key={issue.id}
                                     onClick={() => setSelectedDetailIssue(issue)}
-                                    className={`rounded-xl border border-l-4 p-4 transition-all duration-200 cursor-pointer shadow-xs hover:-translate-y-1 hover:shadow-lg flex flex-col justify-between group ${borderLeftColor} ${
+                                    className={`relative rounded-2xl border-2 border-l-[6px] transition-all duration-200 cursor-pointer flex flex-col justify-between overflow-hidden group hover:-translate-y-1.5 ${statusTheme.borderLeft} ${
                                         isDark
-                                            ? 'bg-slate-800/85 border-slate-700/80 hover:bg-slate-800'
-                                            : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/50'
+                                            ? 'bg-slate-800/95 border-slate-700/90 hover:border-slate-600 shadow-lg hover:shadow-2xl ring-1 ring-white/5'
+                                            : 'bg-white border-slate-300/90 hover:border-slate-400 shadow-md hover:shadow-xl ring-1 ring-slate-900/5'
                                     }`}
                                     title="Klik kartu untuk melihat rincian lengkap isu"
                                 >
-                                    <div className="space-y-3">
-                                        {/* Card Header: Code, Badges, Time & Quick Action */}
-                                        <div className="flex items-start justify-between gap-2">
-                                            <div className="flex items-center gap-1.5 flex-wrap">
-                                                {/* ID Isu */}
-                                                {visibleColumns.id && (
-                                                    <span className={`px-2 py-0.5 rounded-md font-mono font-bold text-xs border ${
-                                                        isDark ? 'bg-slate-900 border-slate-700 text-amber-300' : 'bg-slate-100 border-slate-300 text-slate-800'
-                                                    }`}>
-                                                        #{issue.issue_code || ('LEAN-' + issue.id)}
-                                                    </span>
-                                                )}
+                                    {/* Option 2: Top Status Accent Bar */}
+                                    <div className={`h-1.5 w-full shrink-0 ${statusTheme.topBar}`} />
 
-                                                {/* Status Badge */}
-                                                {visibleColumns.status && (
-                                                    <>
-                                                        {issue.status === 'open' && (
-                                                            <span className="px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-400 border border-rose-500/30 text-[10px] font-semibold flex items-center gap-1">
-                                                                <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
-                                                                Open
-                                                            </span>
-                                                        )}
-                                                        {issue.status === 'in_progress' && (
-                                                            <span className="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 text-[10px] font-semibold flex items-center gap-1">
-                                                                <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-                                                                Progress
-                                                            </span>
-                                                        )}
-                                                        {issue.status === 'pending' && (
-                                                            <span className="px-2 py-0.5 rounded-full bg-orange-500/15 text-orange-300 border border-orange-500/30 text-[10px] font-semibold flex items-center gap-1">
-                                                                <span className="w-1.5 h-1.5 rounded-full bg-orange-400" />
-                                                                Tertunda
-                                                            </span>
-                                                        )}
-                                                        {issue.status === 'resolved' && (
-                                                            <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[10px] font-semibold flex items-center gap-1">
-                                                                <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-                                                                Selesai
-                                                            </span>
-                                                        )}
-                                                    </>
-                                                )}
-
-                                                {/* Transfer Badge */}
-                                                {issue.transfer_history && issue.transfer_history.length > 0 && (
-                                                    <span
-                                                        className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/30 flex items-center gap-1"
-                                                        title={`Dialihkan ${issue.transfer_history.length} kali`}
-                                                    >
-                                                        <RotateCcw className="w-2.5 h-2.5 text-amber-400" />
-                                                        <span>{issue.transfer_history.length}x Dialihkan</span>
-                                                    </span>
-                                                )}
-                                            </div>
-
-                                            {/* Time & Delete Action */}
-                                            <div className="flex items-center gap-1.5 shrink-0">
-                                                {visibleColumns.time && (
-                                                    <span className={`text-[10px] font-medium flex items-center gap-1 ${
-                                                        isDark ? 'text-slate-400' : 'text-slate-500'
-                                                    }`}>
-                                                        <Clock className="w-3 h-3" />
-                                                        {issue.created_at_human}
-                                                    </span>
-                                                )}
-                                                <button
-                                                    type="button"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setIssueToDelete(issue);
-                                                        setDeleteSupervisorName(myName || 'Supervisor');
-                                                    }}
-                                                    className={`opacity-0 group-hover:opacity-100 p-1 rounded-md transition-opacity ${
-                                                        isDark
-                                                            ? 'hover:bg-rose-950/80 text-slate-500 hover:text-rose-400 border border-transparent hover:border-rose-800'
-                                                            : 'hover:bg-rose-50 text-slate-400 hover:text-rose-600 border border-transparent hover:border-rose-200'
-                                                    }`}
-                                                    title="Hapus / Sembunyikan Tiket"
-                                                >
-                                                    <Trash2 className="w-3.5 h-3.5" />
-                                                </button>
-                                            </div>
-                                        </div>
-
-                                        {/* Title & Location Meta */}
-                                        <div className="space-y-1.5">
-                                            {visibleColumns.title && (
-                                                <h4 className={`font-bold text-sm leading-snug line-clamp-2 group-hover:text-emerald-400 transition-colors ${
-                                                    isDark ? 'text-white' : 'text-slate-900'
-                                                }`}>
-                                                    {issue.title}
-                                                </h4>
-                                            )}
-
-                                            <div className="flex items-center gap-1.5 flex-wrap">
-                                                {/* Lokasi */}
-                                                {visibleColumns.location && (
-                                                    <span className={`px-2 py-0.5 rounded-md font-bold text-[10px] flex items-center gap-1 border ${
-                                                        isDark
-                                                            ? 'bg-emerald-950/70 text-emerald-300 border-emerald-800/60'
-                                                            : 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                                                    }`}>
-                                                        <MapPin className="w-3 h-3 text-emerald-400 shrink-0" />
-                                                        <span className="truncate max-w-[150px]">{issue.location}</span>
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        {/* Description Snippet */}
-                                        {visibleColumns.desc && issue.description && (
-                                            <p className={`text-xs leading-relaxed line-clamp-2 p-2 rounded-lg border text-ellipsis ${
-                                                isDark
-                                                    ? 'bg-slate-900/50 text-slate-300 border-slate-700/40'
-                                                    : 'bg-slate-50 text-slate-600 border-slate-200/80'
-                                            }`}>
-                                                {issue.description}
-                                            </p>
-                                        )}
-
-                                        {/* Photo Thumbnail Preview (Landscape with View Badge) */}
-                                        {visibleColumns.photo && issue.image_url && (
-                                            <div className="pt-0.5">
-                                                <div
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setLightboxImage(issue.image_url);
-                                                    }}
-                                                    className="group/img relative rounded-lg overflow-hidden border border-slate-700/60 w-full h-32 bg-slate-950/50 block"
-                                                >
-                                                    <img
-                                                        src={issue.image_url}
-                                                        alt="Bukti Masalah"
-                                                        className="w-full h-full object-cover group-hover/img:scale-105 transition-transform duration-300"
-                                                    />
-                                                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent flex items-end justify-between p-2">
-                                                        <span className="text-[10px] text-white font-medium bg-black/60 px-2 py-0.5 rounded-md backdrop-blur-xs flex items-center gap-1">
-                                                            <Eye className="w-3 h-3" /> Foto Bukti
+                                    <div>
+                                        {/* Option 2: Card Header Plate with Divider */}
+                                        <div className={`p-3.5 sm:p-4 border-b transition-colors ${statusTheme.headerBg} ${
+                                            isDark ? 'border-slate-700/70' : 'border-slate-200/90'
+                                        }`}>
+                                            <div className="flex items-start justify-between gap-2">
+                                                <div className="flex items-center gap-1.5 flex-wrap">
+                                                    {/* ID Isu */}
+                                                    {visibleColumns.id && (
+                                                        <span className={`px-2 py-0.5 rounded-md font-mono font-bold text-xs border shadow-2xs ${
+                                                            isDark ? 'bg-slate-900 border-slate-700 text-amber-300' : 'bg-white border-slate-300 text-slate-800 font-extrabold'
+                                                        }`}>
+                                                            #{issue.issue_code || ('LEAN-' + issue.id)}
                                                         </span>
-                                                        <span className="text-[9px] text-slate-300 font-medium">Klik perbesar</span>
-                                                    </div>
+                                                    )}
+
+                                                    {/* Status Badge */}
+                                                    {visibleColumns.status && (
+                                                        <>
+                                                            {issue.status === 'open' && (
+                                                                <span className="px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-500 dark:text-rose-400 border border-rose-500/30 text-[10px] font-bold flex items-center gap-1">
+                                                                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                                                                    Open
+                                                                </span>
+                                                            )}
+                                                            {issue.status === 'in_progress' && (
+                                                                <span className="px-2 py-0.5 rounded-full bg-sky-500/15 text-sky-600 dark:text-sky-300 border border-sky-500/30 text-[10px] font-bold flex items-center gap-1">
+                                                                    <span className="w-1.5 h-1.5 rounded-full bg-sky-500" />
+                                                                    Progress
+                                                                </span>
+                                                            )}
+                                                            {issue.status === 'pending' && (
+                                                                <span className="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-300 border border-amber-500/30 text-[10px] font-bold flex items-center gap-1">
+                                                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                                                                    Tertunda
+                                                                </span>
+                                                            )}
+                                                            {issue.status === 'resolved' && (
+                                                                <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-[10px] font-bold flex items-center gap-1">
+                                                                    <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+                                                                    Selesai
+                                                                </span>
+                                                            )}
+                                                        </>
+                                                    )}
+
+                                                    {/* Transfer Badge */}
+                                                    {issue.transfer_history && issue.transfer_history.length > 0 && (
+                                                        <span
+                                                            className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 flex items-center gap-1"
+                                                            title={`Dialihkan ${issue.transfer_history.length} kali`}
+                                                        >
+                                                            <RotateCcw className="w-2.5 h-2.5 text-amber-500" />
+                                                            <span>{issue.transfer_history.length}x Dialihkan</span>
+                                                        </span>
+                                                    )}
+                                                </div>
+
+                                                {/* Time & Delete Action */}
+                                                <div className="flex items-center gap-1.5 shrink-0">
+                                                    {visibleColumns.time && (
+                                                        <span className={`text-[10px] font-semibold flex items-center gap-1 ${
+                                                            isDark ? 'text-slate-400' : 'text-slate-500'
+                                                        }`}>
+                                                            <Clock className="w-3 h-3" />
+                                                            {issue.created_at_human}
+                                                        </span>
+                                                    )}
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setIssueToDelete(issue);
+                                                            setDeleteSupervisorName(myName || 'Supervisor');
+                                                        }}
+                                                        className={`opacity-0 group-hover:opacity-100 p-1 rounded-md transition-opacity ${
+                                                            isDark
+                                                                ? 'hover:bg-rose-950/80 text-slate-500 hover:text-rose-400 border border-transparent hover:border-rose-800'
+                                                                : 'hover:bg-rose-50 text-slate-400 hover:text-rose-600 border border-transparent hover:border-rose-200'
+                                                        }`}
+                                                        title="Hapus / Sembunyikan Tiket"
+                                                    >
+                                                        <Trash2 className="w-3.5 h-3.5" />
+                                                    </button>
                                                 </div>
                                             </div>
-                                        )}
+                                        </div>
 
-                                        {/* Target Departments & ACC Badges */}
-                                        {visibleColumns.dept && (
-                                            <div className={`pt-2 border-t flex flex-wrap items-center gap-1.5 ${
-                                                isDark ? 'border-slate-700/60' : 'border-slate-200'
-                                            }`}>
-                                                <span className={`text-[10px] font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Tujuan:</span>
-                                                {(issue.target_departments || []).map((dept) => {
-                                                    const isThisDeptClaimed = issue.claimed_by_dept && (
-                                                        issue.claimed_by_dept.toLowerCase() === dept.toLowerCase()
-                                                    );
-                                                    const isThisAcc = accs[dept]?.is_acc || isThisDeptClaimed;
-                                                    const accBy = accs[dept]?.acc_by || (isThisDeptClaimed ? issue.claimed_by_name : null);
-                                                    const isWorking = issue.status === 'in_progress' && isThisDeptClaimed;
+                                        {/* Card Body Content */}
+                                        <div className="p-3.5 sm:p-4 space-y-3">
+                                            {/* Title & Location Meta */}
+                                            <div className="space-y-1.5">
+                                                {visibleColumns.title && (
+                                                    <h4 className={`font-bold text-sm leading-snug line-clamp-2 group-hover:text-emerald-500 transition-colors ${
+                                                        isDark ? 'text-white' : 'text-slate-900'
+                                                    }`}>
+                                                        {issue.title}
+                                                    </h4>
+                                                )}
 
-                                                    return (
-                                                        <div
-                                                            key={dept}
-                                                            className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] border transition-colors ${
-                                                                isWorking
-                                                                    ? (isDark ? 'bg-amber-950/80 border-amber-500/70 text-amber-200 font-semibold' : 'bg-amber-50 border-amber-300 text-amber-900 font-semibold')
-                                                                    : isThisAcc
-                                                                    ? (isDark ? 'bg-emerald-950/80 border-emerald-600/70 text-emerald-300 font-semibold' : 'bg-emerald-50 border-emerald-300 text-emerald-800 font-semibold')
-                                                                    : (isDark ? 'bg-slate-900 border-slate-700 text-slate-400' : 'bg-slate-100 border-slate-200 text-slate-600')
-                                                            }`}
-                                                        >
-                                                            {isWorking ? (
-                                                                <>
-                                                                    <Clock className="w-2.5 h-2.5 text-amber-400 shrink-0" />
-                                                                    <span>{dept}: Dikerjakan</span>
-                                                                </>
-                                                            ) : isThisAcc ? (
-                                                                <>
-                                                                    <Check className="w-2.5 h-2.5 text-emerald-400 shrink-0" />
-                                                                    <span>{dept}: ACC</span>
-                                                                </>
-                                                            ) : (
-                                                                <>
-                                                                    <Clock className="w-2.5 h-2.5 opacity-50 shrink-0" />
-                                                                    <span>{dept}</span>
-                                                                </>
-                                                            )}
-                                                        </div>
-                                                    );
-                                                })}
+                                                <div className="flex items-center gap-1.5 flex-wrap">
+                                                    {/* Lokasi */}
+                                                    {visibleColumns.location && (
+                                                        <span className={`px-2 py-0.5 rounded-md font-bold text-[10px] flex items-center gap-1 border shadow-2xs ${
+                                                            isDark
+                                                                ? 'bg-emerald-950/70 text-emerald-300 border-emerald-800/60'
+                                                                : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                                        }`}>
+                                                            <MapPin className="w-3 h-3 text-emerald-500 shrink-0" />
+                                                            <span className="truncate max-w-[150px]">{issue.location}</span>
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </div>
-                                        )}
+
+                                            {/* Description Snippet */}
+                                            {visibleColumns.desc && issue.description && (
+                                                <p className={`text-xs leading-relaxed line-clamp-2 p-2.5 rounded-lg border text-ellipsis ${
+                                                    isDark
+                                                        ? 'bg-slate-900/60 text-slate-300 border-slate-700/60'
+                                                        : 'bg-slate-50/80 text-slate-600 border-slate-200'
+                                                }`}>
+                                                    {issue.description}
+                                                </p>
+                                            )}
+
+                                            {/* Photo Thumbnail Preview (Landscape with View Badge) */}
+                                            {visibleColumns.photo && issue.image_url && (
+                                                <div className="pt-0.5">
+                                                    <div
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setLightboxImage(issue.image_url);
+                                                        }}
+                                                        className="group/img relative rounded-lg overflow-hidden border border-slate-300 dark:border-slate-700/60 w-full h-32 bg-slate-950/50 block shadow-xs"
+                                                    >
+                                                        <img
+                                                            src={issue.image_url}
+                                                            alt="Bukti Masalah"
+                                                            className="w-full h-full object-cover group-hover/img:scale-105 transition-transform duration-300"
+                                                        />
+                                                        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent flex items-end justify-between p-2">
+                                                            <span className="text-[10px] text-white font-medium bg-black/60 px-2 py-0.5 rounded-md backdrop-blur-xs flex items-center gap-1">
+                                                                <Eye className="w-3 h-3" /> Foto Bukti
+                                                            </span>
+                                                            <span className="text-[9px] text-slate-300 font-medium">Klik perbesar</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Target Departments & ACC Badges */}
+                                            {visibleColumns.dept && (
+                                                <div className={`pt-2 border-t flex flex-wrap items-center gap-1.5 ${
+                                                    isDark ? 'border-slate-700/60' : 'border-slate-200'
+                                                }`}>
+                                                    <span className={`text-[10px] font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Tujuan:</span>
+                                                    {(issue.target_departments || []).map((dept) => {
+                                                        const isThisDeptClaimed = issue.claimed_by_dept && (
+                                                            issue.claimed_by_dept.toLowerCase() === dept.toLowerCase()
+                                                        );
+                                                        const isThisAcc = accs[dept]?.is_acc || isThisDeptClaimed;
+                                                        const isWorking = issue.status === 'in_progress' && isThisDeptClaimed;
+
+                                                        return (
+                                                            <div
+                                                                key={dept}
+                                                                className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] border transition-colors shadow-2xs ${
+                                                                    isWorking
+                                                                        ? (isDark ? 'bg-amber-950/80 border-amber-500/70 text-amber-200 font-semibold' : 'bg-amber-50 border-amber-300 text-amber-900 font-semibold')
+                                                                        : isThisAcc
+                                                                        ? (isDark ? 'bg-emerald-950/80 border-emerald-600/70 text-emerald-300 font-semibold' : 'bg-emerald-50 border-emerald-300 text-emerald-800 font-semibold')
+                                                                        : (isDark ? 'bg-slate-900 border-slate-700 text-slate-400' : 'bg-slate-100 border-slate-200 text-slate-600')
+                                                                }`}
+                                                            >
+                                                                {isWorking ? (
+                                                                    <>
+                                                                        <Clock className="w-2.5 h-2.5 text-amber-400 shrink-0" />
+                                                                        <span>{dept}: Dikerjakan</span>
+                                                                    </>
+                                                                ) : isThisAcc ? (
+                                                                    <>
+                                                                        <Check className="w-2.5 h-2.5 text-emerald-400 shrink-0" />
+                                                                        <span>{dept}: ACC</span>
+                                                                    </>
+                                                                ) : (
+                                                                    <>
+                                                                        <Clock className="w-2.5 h-2.5 opacity-50 shrink-0" />
+                                                                        <span>{dept}</span>
+                                                                    </>
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
 
-                                    {/* Card Footer: Pelapor & Assignee Info */}
-                                    <div className={`mt-3 pt-2.5 border-t flex items-center justify-between gap-2 text-xs ${
-                                        isDark ? 'border-slate-700/60' : 'border-slate-200'
+                                    {/* Card Footer: Pelapor & Assignee Info with Subtle Tint */}
+                                    <div className={`p-3.5 sm:p-4 pt-2.5 border-t flex items-center justify-between gap-2 text-xs transition-colors ${
+                                        isDark ? 'bg-slate-900/40 border-slate-700/70' : 'bg-slate-50/70 border-slate-200/90'
                                     }`}>
                                         {/* Pelapor */}
                                         {visibleColumns.reporter ? (
