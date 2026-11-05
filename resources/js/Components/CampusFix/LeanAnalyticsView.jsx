@@ -340,7 +340,7 @@ function TpiResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                 {/* High-Resolution Masterplan Drawing Frame with High-Contrast Filter */}
                 <div className="relative rounded-xl overflow-hidden border border-slate-300/80 shadow-md bg-white w-full">
                     <img
-                        src="/images/maps/tpi_masterplan_v2.png?v=3"
+                        src="/images/maps/tpi_masterplan_v3.png?v=1"
                         alt="Denah Masterplan Telunas Private Island (TPI)"
                         className="w-full h-auto block select-none pointer-events-none filter contrast-[1.08] brightness-[0.98]"
                         style={{ imageRendering: '-webkit-optimize-contrast' }}
@@ -1334,7 +1334,7 @@ export function LeanAnalyticsView({
 
     // Preload resort maps
     useEffect(() => {
-        ['/images/maps/tpi_masterplan_v2.png?v=3', '/images/maps/tbr_masterplan.png'].forEach((src) => {
+        ['/images/maps/tpi_masterplan_v3.png?v=1', '/images/maps/tbr_masterplan.png'].forEach((src) => {
             const img = new Image();
             img.src = src;
         });
