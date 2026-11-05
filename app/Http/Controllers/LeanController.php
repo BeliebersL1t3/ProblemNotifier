@@ -74,11 +74,15 @@ class LeanController extends Controller
             'is_admin'   => auth()->user()->role === 'admin',
         ] : null;
 
+        $spreadsheetId = config('services.google.spreadsheet_id') ?: env('GOOGLE_SPREADSHEET_ID', '1O-jrcWtVAr3IObd8D2Bo6ygg4ppCghbo_6vQCjD2DUA');
+        $spreadsheetUrl = "https://docs.google.com/spreadsheets/d/{$spreadsheetId}/edit";
+
         return Inertia::render('Lean/Index', [
             'issues'         => $issues,
             'departments'    => self::DEPARTMENTS,
             'locations'      => self::MAIN_LOCATIONS,
             'currentUser'    => $currentUser,
+            'spreadsheetUrl' => $spreadsheetUrl,
         ]);
     }
 

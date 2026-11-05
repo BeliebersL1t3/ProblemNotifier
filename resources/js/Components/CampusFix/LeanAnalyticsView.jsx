@@ -1,4 +1,6 @@
 import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import {
     ResponsiveContainer,
     BarChart,
@@ -56,6 +58,7 @@ import {
     CheckSquare,
     Square,
     FileText,
+    Download,
     Ticket,
     X,
     Maximize2,
@@ -1123,559 +1126,394 @@ function TbrResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
     );
 }
 
+// =========================================================================
+// EXPORT PDF REKAP OPERASIONAL TELUNAS (100% Client-side via jsPDF & AutoTable)
+// =========================================================================
+export function exportTelunasPdfReport({
+    filteredIssues = [],
+    stats = {},
+    timeLabel = 'Semua Bulan',
+    deptTargetData = [],
+    hotspotList = [],
+}) {
+    const doc = new jsPDF('p', 'mm', 'a4');
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    // 1. Header Band Telunas
+    doc.setFillColor(15, 23, 42); // Slate-900
+    doc.rect(0, 0, pageWidth, 28, 'F');
+
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(15);
+    doc.text('TELUNAS RESORTS - LAPORAN OPERASIONAL ISU', 14, 12);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(203, 213, 225); // Slate-300
+    doc.text('Rekapitulasi Tiket & Analisis Lapangan (Pure WhatsApp Bot Input)', 14, 18);
+
+    doc.setFontSize(8);
+    doc.setTextColor(148, 163, 184); // Slate-400
+    const nowStr = new Date().toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' });
+    doc.text(`Waktu Cetak: ${nowStr} WIB | Filter Periode: ${timeLabel}`, 14, 24);
+
+    // 2. Summary KPI Cards (3 boxes)
+    const boxY = 32;
+    const boxWidth = (pageWidth - 28 - 8) / 3;
+    const boxHeight = 18;
+
+    // Total Tiket Box
+    doc.setFillColor(248, 250, 252);
+    doc.setDrawColor(226, 232, 240);
+    doc.roundedRect(14, boxY, boxWidth, boxHeight, 2, 2, 'FD');
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(100, 116, 139);
+    doc.text('TOTAL TIKET', 18, boxY + 6);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(13);
+    doc.setTextColor(15, 23, 42);
+    doc.text(String(stats.total || 0), 18, boxY + 14);
+
+    // Selesai Box
+    doc.setFillColor(240, 253, 244);
+    doc.setDrawColor(187, 247, 208);
+    doc.roundedRect(14 + boxWidth + 4, boxY, boxWidth, boxHeight, 2, 2, 'FD');
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(22, 101, 52);
+    doc.text('TIKET SELESAI', 18 + boxWidth + 4, boxY + 6);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(13);
+    doc.setTextColor(21, 128, 61);
+    doc.text(`${stats.resolved || 0} (${stats.resolutionRate || 0}%)`, 18 + boxWidth + 4, boxY + 14);
+
+    // Belum Selesai (Backlog) Box
+    doc.setFillColor(255, 241, 242);
+    doc.setDrawColor(254, 205, 211);
+    doc.roundedRect(14 + (boxWidth + 4) * 2, boxY, boxWidth, boxHeight, 2, 2, 'FD');
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(159, 18, 57);
+    doc.text('BELUM SELESAI (BACKLOG)', 18 + (boxWidth + 4) * 2, boxY + 6);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(13);
+    doc.setTextColor(225, 29, 72);
+    doc.text(`${stats.activeCount || 0} (${stats.activeRatio || 0}%)`, 18 + (boxWidth + 4) * 2, boxY + 14);
+
+    let startY = 55;
+
+    // 3. Table: Sebaran Beban per Departemen
+    const deptRows = deptTargetData.map((d, idx) => [
+        idx + 1,
+        d.name,
+        d.total,
+        d.resolved,
+        d.active,
+        `${d.backlogRate}%`,
+    ]);
+
+    autoTable(doc, {
+        startY: startY,
+        head: [['#', 'Departemen Dituju', 'Total Isu', 'Selesai', 'Belum Selesai', 'Rasio Backlog']],
+        body: deptRows,
+        theme: 'striped',
+        headStyles: { fillColor: [15, 23, 42], fontSize: 8, fontStyle: 'bold' },
+        bodyStyles: { fontSize: 8 },
+        columnStyles: {
+            0: { cellWidth: 10, halign: 'center' },
+            1: { cellWidth: 50 },
+            2: { halign: 'center' },
+            3: { halign: 'center', textColor: [21, 128, 61] },
+            4: { halign: 'center', textColor: [225, 29, 72] },
+            5: { halign: 'center', fontStyle: 'bold' },
+        },
+        margin: { left: 14, right: 14 },
+    });
+
+    startY = doc.lastAutoTable.finalY + 8;
+
+    // 4. Table: Hotspot Lokasi Terbanyak
+    const hotspotRows = hotspotList.slice(0, 8).map((h, idx) => [
+        idx + 1,
+        h.location,
+        h.resort || '-',
+        h.total,
+        h.openCount,
+        h.openCount > 0 ? 'Perlu Pengerjaan' : 'Tuntas',
+    ]);
+
+    autoTable(doc, {
+        startY: startY,
+        head: [['#', 'Lokasi / Unit', 'Resort', 'Total Insiden', 'Isu Belum Selesai', 'Status Area']],
+        body: hotspotRows,
+        theme: 'striped',
+        headStyles: { fillColor: [51, 65, 85], fontSize: 8, fontStyle: 'bold' },
+        bodyStyles: { fontSize: 8 },
+        columnStyles: {
+            0: { cellWidth: 10, halign: 'center' },
+            1: { cellWidth: 60 },
+            2: { cellWidth: 25, halign: 'center' },
+            3: { halign: 'center' },
+            4: { halign: 'center', textColor: [225, 29, 72], fontStyle: 'bold' },
+            5: { halign: 'center' },
+        },
+        margin: { left: 14, right: 14 },
+    });
+
+    startY = doc.lastAutoTable.finalY + 8;
+
+    // 5. Table: Daftar Isu Aktif Belum Selesai
+    const activeIssues = filteredIssues.filter(i => i.status !== 'resolved').slice(0, 15);
+    if (activeIssues.length > 0) {
+        if (startY > 220) {
+            doc.addPage();
+            startY = 18;
+        }
+
+        const activeRows = activeIssues.map(i => [
+            i.issue_code || ('#' + i.id),
+            i.location || '-',
+            (i.target_departments || []).join(', ') || 'Umum',
+            i.title || '-',
+            i.reporter_name || '-',
+            i.status === 'open' ? 'Open' : (i.status === 'pending' ? 'Tertunda' : 'Progress'),
+            i.pending_reason || '-',
+        ]);
+
+        autoTable(doc, {
+            startY: startY,
+            head: [['Kode', 'Lokasi', 'Dept Dituju', 'Judul Masalah', 'Pelapor', 'Status', 'Catatan Pending']],
+            body: activeRows,
+            theme: 'grid',
+            headStyles: { fillColor: [190, 18, 60], fontSize: 8, fontStyle: 'bold' },
+            bodyStyles: { fontSize: 7.5 },
+            columnStyles: {
+                0: { cellWidth: 24, fontStyle: 'bold' },
+                1: { cellWidth: 25 },
+                2: { cellWidth: 25 },
+                3: { cellWidth: 45 },
+                4: { cellWidth: 20 },
+                5: { cellWidth: 18, halign: 'center', fontStyle: 'bold' },
+                6: { cellWidth: 'auto' },
+            },
+            margin: { left: 14, right: 14 },
+        });
+    }
+
+    doc.save(`Laporan_Analisis_Telunas_${new Date().toISOString().slice(0, 10)}.pdf`);
+}
+
+// =========================================================================
+// MAIN COMPONENT: LEAN ANALYTICS VIEW
+// =========================================================================
 export function LeanAnalyticsView({
     issues = [],
     departments = [],
-    aiPendingCount = 0,
-    onRetryAi,
-    isRetrying = false,
     theme = 'dark',
-    activeTab: propActiveTab,
-    onTabChange,
     onSelectIssue,
     focusMapRequest = null,
+    spreadsheetUrl = 'https://docs.google.com/spreadsheets/d/1O-jrcWtVAr3IObd8D2Bo6ygg4ppCghbo_6vQCjD2DUA/edit',
 }) {
     const isDark = theme === 'dark';
-    const [expandedLocation, setExpandedLocation] = useState(null);
-    const [selectedCategory, setSelectedCategory] = useState('all');
-    const [searchFilter, setSearchFilter] = useState('');
-    const [hotspotTab, setHotspotTab] = useState('leaderboard'); // 'leaderboard' (default) | 'tpi' | 'tbr'
+
+    // 1. Time / Month Filter
+    const [timeRange, setTimeRange] = useState('all');
+    // 2. Customizable Department Mode: 'target_issues' | 'reporters' | 'backlog_ratio'
+    const [deptMode, setDeptMode] = useState('target_issues');
+    // 3. Spatial Map Tab: 'tpi' | 'tbr'
+    const [activeMapTab, setActiveMapTab] = useState('tpi');
+    // 4. Interactive Zone Selection
     const [selectedTpiZone, setSelectedTpiZone] = useState(null);
     const [selectedTbrZone, setSelectedTbrZone] = useState(null);
-    const [expandedDescriptions, setExpandedDescriptions] = useState({});
-    const [showAllMasterDepts, setShowAllMasterDepts] = useState(false);
+    // 5. Hotspot Location Modal
+    const [selectedLocationForModal, setSelectedLocationForModal] = useState(null);
+    const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
 
-    // Preload architectural resort map images in background so tabs render instantly
+    // Preload resort maps
     useEffect(() => {
         ['/images/maps/tpi_masterplan_v2.png?v=3', '/images/maps/tbr_masterplan.png'].forEach((src) => {
             const img = new Image();
             img.src = src;
         });
     }, []);
-    
-    // Time Range Filter states
-    const [timeRange, setTimeRange] = useState('all'); // 'all' | 'today' | '7d' | '30d' | '6m' | '1y' | 'custom'
-    const [startDate, setStartDate] = useState('');
-    const [endDate, setEndDate] = useState('');
-    
-    // --- 3-Tab ERP State & Widget Customization ---
-    const [internalActiveTab, setInternalActiveTab] = useState(() => {
-        try {
-            return localStorage.getItem('lean_erp_analytics_tab') || 'executive';
-        } catch {
-            return 'executive';
-        }
-    });
-    const activeTab = propActiveTab !== undefined ? propActiveTab : internalActiveTab;
-    const setActiveTab = (tab) => {
-        if (onTabChange) onTabChange(tab);
-        setInternalActiveTab(tab);
-        try {
-            localStorage.setItem('lean_erp_analytics_tab', tab);
-        } catch {}
-    };
 
-    const [widgetVisibility, setWidgetVisibility] = useState(() => {
-        const defaultVisibility = {
-            // Tab 1: Executive & Spasial
-            kpi_cards: true,
-            hotspot_matrix: true,
-            // Tab 2: Maintenance
-            pareto_chart: true,
-            category_donut: true,
-            urgency_matrix: true,
-            mitigation_feed: true,
-            // Tab 3: SLA & Operations
-            sla_kpi: true,
-            mttr_analytics: true,
-            dept_workload: true,
-        };
-        try {
-            const saved = localStorage.getItem('lean_erp_analytics_widgets');
-            if (saved) return { ...defaultVisibility, ...JSON.parse(saved) };
-        } catch {}
-        return defaultVisibility;
-    });
-
-    const [widgetViewModes, setWidgetViewModes] = useState(() => {
-        const defaultModes = {
-            pareto_chart: 'chart', // 'chart' | 'table'
-            category_donut: 'chart',
-            urgency_matrix: 'chart',
-            mttr_analytics: 'chart',
-            dept_workload: 'chart',
-        };
-        try {
-            const saved = localStorage.getItem('lean_erp_analytics_viewmodes');
-            if (saved) return { ...defaultModes, ...JSON.parse(saved) };
-        } catch {}
-        return defaultModes;
-    });
-
-    const [showWidgetModal, setShowWidgetModal] = useState(false);
-
-    // Persist activeTab to localStorage
+    // Respond to focusMapRequest from outside
     useEffect(() => {
-        try {
-            localStorage.setItem('lean_erp_analytics_tab', activeTab);
-        } catch {}
-    }, [activeTab]);
+        if (!focusMapRequest?.resort) return;
+        if (focusMapRequest.resort === 'TBR') setActiveMapTab('tbr');
+        else if (focusMapRequest.resort === 'TPI') setActiveMapTab('tpi');
+    }, [focusMapRequest]);
 
-    // Persist widgetVisibility to localStorage
-    useEffect(() => {
-        try {
-            localStorage.setItem('lean_erp_analytics_widgets', JSON.stringify(widgetVisibility));
-        } catch {}
-    }, [widgetVisibility]);
-
-    // Persist widgetViewModes to localStorage
-    useEffect(() => {
-        try {
-            localStorage.setItem('lean_erp_analytics_viewmodes', JSON.stringify(widgetViewModes));
-        } catch {}
-    }, [widgetViewModes]);
-
-    const toggleWidgetVisibility = (widgetKey) => {
-        setWidgetVisibility((prev) => ({
-            ...prev,
-            [widgetKey]: !prev[widgetKey],
-        }));
-    };
-
-    const toggleViewMode = (widgetKey) => {
-        setWidgetViewModes((prev) => ({
-            ...prev,
-            [widgetKey]: prev[widgetKey] === 'table' ? 'chart' : 'table',
-        }));
-    };
-
-    const resetWidgetSettings = () => {
-        const resetVisibility = {
-            kpi_cards: true,
-            hotspot_matrix: true,
-            pareto_chart: true,
-            category_donut: true,
-            urgency_matrix: true,
-            mitigation_feed: true,
-            sla_kpi: true,
-            mttr_analytics: true,
-            dept_workload: true,
-        };
-        const resetModes = {
-            pareto_chart: 'chart',
-            category_donut: 'chart',
-            urgency_matrix: 'chart',
-            mttr_analytics: 'chart',
-            dept_workload: 'chart',
-        };
-        setWidgetVisibility(resetVisibility);
-        setWidgetViewModes(resetModes);
-        try {
-            localStorage.setItem('lean_erp_analytics_widgets', JSON.stringify(resetVisibility));
-            localStorage.setItem('lean_erp_analytics_viewmodes', JSON.stringify(resetModes));
-        } catch {}
-    };
-
-    // Filter issues reactively by selected time range
+    // Filter issues by time
     const filteredIssues = useMemo(() => {
         if (timeRange === 'all') return issues;
 
-        let minDate = null;
-        let maxDate = new Date();
-        maxDate.setHours(23, 59, 59, 999);
-
-        if (timeRange === 'hari_ini' || timeRange === 'today') {
-            minDate = new Date();
-            minDate.setHours(0, 0, 0, 0);
-        } else if (timeRange === '7_hari' || timeRange === '7d') {
-            minDate = new Date();
-            minDate.setDate(minDate.getDate() - 7);
-            minDate.setHours(0, 0, 0, 0);
-        } else if (timeRange === '30_hari' || timeRange === '30d') {
-            minDate = new Date();
-            minDate.setDate(minDate.getDate() - 30);
-            minDate.setHours(0, 0, 0, 0);
-        } else if (timeRange === '6_bulan' || timeRange === '6m') {
-            minDate = new Date();
-            minDate.setMonth(minDate.getMonth() - 6);
-            minDate.setHours(0, 0, 0, 0);
-        } else if (timeRange === '1_tahun' || timeRange === '1y') {
-            minDate = new Date();
-            minDate.setFullYear(minDate.getFullYear() - 1);
-            minDate.setHours(0, 0, 0, 0);
-        } else if (timeRange === 'custom') {
-            if (startDate) {
-                minDate = new Date(startDate.includes('T') ? startDate : `${startDate}T00:00:00`);
-            }
-            if (endDate) {
-                maxDate = new Date(endDate.includes('T') ? endDate : `${endDate}T23:59:59.999`);
-            }
-        }
-
+        const now = new Date();
         return issues.filter((i) => {
             if (!i.created_at) return true;
             const issueDate = new Date(i.created_at);
             if (isNaN(issueDate.getTime())) return true;
-            if (minDate && issueDate < minDate) return false;
-            if (maxDate && issueDate > maxDate) return false;
+
+            if (timeRange === 'today') {
+                return issueDate.toDateString() === now.toDateString();
+            } else if (timeRange === '7d') {
+                const diffMs = now.getTime() - issueDate.getTime();
+                return diffMs <= 7 * 24 * 60 * 60 * 1000;
+            } else if (timeRange === '30d') {
+                const diffMs = now.getTime() - issueDate.getTime();
+                return diffMs <= 30 * 24 * 60 * 60 * 1000;
+            } else if (timeRange.startsWith('month_')) {
+                const mNum = parseInt(timeRange.replace('month_', ''), 10);
+                return issueDate.getMonth() + 1 === mNum;
+            }
             return true;
         });
-    }, [issues, timeRange, startDate, endDate]);
+    }, [issues, timeRange]);
 
-    // Google Sheets Auto-Sync & Manual Trigger
-    const [lastSyncedTime, setLastSyncedTime] = useState(null);
-    const [isSyncingSheets, setIsSyncingSheets] = useState(false);
-    const [syncFeedback, setSyncFeedback] = useState(null);
-
-    const triggerAutoSync = useCallback(async (isSilent = true) => {
-        if (isSyncingSheets) return;
-        setIsSyncingSheets(true);
-        if (!isSilent) setSyncFeedback(null);
-        try {
-            const res = await fetch('/lapangan/sync-sheets', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                    'Accept': 'application/json',
-                },
-            });
-            const data = await res.json();
-            setLastSyncedTime(new Date());
-            if (!isSilent) {
-                setSyncFeedback({
-                    type: data.success ? 'success' : 'error',
-                    message: data.message || (data.success ? 'Sinkronisasi berhasil!' : 'Sinkronisasi gagal.'),
-                });
-            }
-        } catch (err) {
-            if (!isSilent) {
-                setSyncFeedback({
-                    type: 'error',
-                    message: 'Gagal menghubungi server untuk sinkronisasi Google Sheets.',
-                });
-            }
-        } finally {
-            setIsSyncingSheets(false);
-            if (!isSilent) setTimeout(() => setSyncFeedback(null), 6000);
-        }
-    }, [isSyncingSheets]);
-
-    // Automatically sync on initial load and every 3 minutes (180,000 ms)
-    useEffect(() => {
-        triggerAutoSync(true);
-        const interval = setInterval(() => {
-            triggerAutoSync(true);
-        }, 180000);
-        return () => clearInterval(interval);
-    }, []);
-
-    const handleSyncSheets = () => triggerAutoSync(false);
-
-    // --- 1. Key Performance & Audit Metric Cards ---
+    // KPI Metrics calculation
     const stats = useMemo(() => {
         const total = filteredIssues.length;
         const resolved = filteredIssues.filter((i) => i.status === 'resolved').length;
+        const openCount = filteredIssues.filter((i) => i.status === 'open').length;
+        const inProgressCount = filteredIssues.filter((i) => i.status === 'in_progress').length;
+        const pendingCount = filteredIssues.filter((i) => i.status === 'pending').length;
         const activeCount = total - resolved;
-        const activeRatio = total > 0 ? Math.round((activeCount / total) * 100) : 0;
         const resolutionRate = total > 0 ? Math.round((resolved / total) * 100) : 0;
-
-        // Top department
-        const deptCounts = {};
-        filteredIssues.forEach((i) => {
-            const depts = i.target_departments || ['Umum'];
-            (Array.isArray(depts) ? depts : [depts]).forEach((d) => {
-                const name = d || 'Umum';
-                deptCounts[name] = (deptCounts[name] || 0) + 1;
-            });
-        });
-        let topDept = '-';
-        let topDeptCount = 0;
-        Object.entries(deptCounts).forEach(([dept, count]) => {
-            if (count > topDeptCount) {
-                topDeptCount = count;
-                topDept = dept;
-            }
-        });
-
-        // Top hotspot location
-        const locCounts = {};
-        filteredIssues.forEach((i) => {
-            const loc = i.location || 'Resort';
-            locCounts[loc] = (locCounts[loc] || 0) + 1;
-        });
-        let topLoc = '-';
-        let topLocCount = 0;
-        Object.entries(locCounts).forEach(([loc, count]) => {
-            if (count > topLocCount) {
-                topLocCount = count;
-                topLoc = loc;
-            }
-        });
+        const activeRatio = total > 0 ? Math.round((activeCount / total) * 100) : 0;
 
         return {
             total,
             resolved,
+            openCount,
+            inProgressCount,
+            pendingCount,
             activeCount,
-            activeRatio,
             resolutionRate,
-            topDept,
-            topDeptCount,
-            topCat: topDept,
-            topCatCount: topDeptCount,
-            topLoc,
-            topLocCount,
+            activeRatio,
         };
     }, [filteredIssues]);
 
-    // --- 2. Pareto Chart Data (Top Recurring Issue Titles with 80/20 Cumulative Calculation) ---
-    const { paretoData, paretoSummary } = useMemo(() => {
-        const counts = {};
-        let totalCount = 0;
+    // Departemen Terbanyak Data (3 Modes)
+    const deptMetrics = useMemo(() => {
+        const targetMap = {};
+        const reporterMap = {};
 
-        filteredIssues.forEach((i) => {
-            const sub = i.title || 'Lain-lain';
-            counts[sub] = (counts[sub] || 0) + 1;
-            totalCount += 1;
+        // Initialize with known master departments
+        (departments || []).forEach((d) => {
+            const name = (d || '').trim();
+            if (name) {
+                targetMap[name] = { name, total: 0, resolved: 0, active: 0 };
+                reporterMap[name] = { name, total: 0 };
+            }
         });
 
-        if (totalCount === 0) {
-            return { paretoData: [], paretoSummary: null };
-        }
+        filteredIssues.forEach((issue) => {
+            // Target departments
+            const depts = Array.isArray(issue.target_departments)
+                ? issue.target_departments
+                : [issue.target_departments || 'Umum'];
 
-        const sorted = Object.entries(counts)
-            .map(([name, count]) => ({
-                name,
-                fullName: name,
-                count,
+            depts.forEach((d) => {
+                const name = (d || 'Umum').trim() || 'Umum';
+                if (!targetMap[name]) {
+                    targetMap[name] = { name, total: 0, resolved: 0, active: 0 };
+                }
+                targetMap[name].total += 1;
+                if (issue.status === 'resolved') {
+                    targetMap[name].resolved += 1;
+                } else {
+                    targetMap[name].active += 1;
+                }
+            });
+
+            // Reporter department
+            const repDept = (issue.reporter_dept || 'Umum').trim() || 'Umum';
+            if (!reporterMap[repDept]) {
+                reporterMap[repDept] = { name: repDept, total: 0 };
+            }
+            reporterMap[repDept].total += 1;
+        });
+
+        // Mode 1: Isu Terbanyak (Beban Ditugaskan)
+        const targetList = Object.values(targetMap)
+            .filter((d) => d.total > 0)
+            .map((d) => ({
+                ...d,
+                pct: stats.total > 0 ? Math.round((d.total / stats.total) * 100) : 0,
+                backlogRate: d.total > 0 ? Math.round((d.active / d.total) * 100) : 0,
             }))
-            .sort((a, b) => b.count - a.count);
+            .sort((a, b) => b.total - a.total);
 
-        let runningCumulative = 0;
-        let vitalCount = 0;
+        // Mode 2: Pelapor Terbanyak (Dept Asal Pelapor)
+        const reporterList = Object.values(reporterMap)
+            .filter((d) => d.total > 0)
+            .map((d) => ({
+                ...d,
+                pct: stats.total > 0 ? Math.round((d.total / stats.total) * 100) : 0,
+            }))
+            .sort((a, b) => b.total - a.total);
 
-        const dataWithCumulative = sorted.slice(0, 7).map((item) => {
-            const prevCumulative = runningCumulative;
-            runningCumulative += item.count;
-            const percentage = Math.round((item.count / totalCount) * 100);
-            const cumulativePercentage = Math.min(100, Math.round((runningCumulative / totalCount) * 100));
-            // Belongs to the vital 80% contributors if prior cumulative was under 80%
-            const isVital = (prevCumulative / totalCount) < 0.8;
-            if (isVital) vitalCount++;
-
-            return {
-                ...item,
-                percentage,
-                cumulativePercentage,
-                isVital,
-            };
+        // Mode 3: Isu Belum Selesai / Total (Rasio Backlog)
+        const backlogList = [...targetList].sort((a, b) => {
+            if (b.active !== a.active) return b.active - a.active;
+            return b.backlogRate - a.backlogRate;
         });
-
-        const vitalTopPercentage = dataWithCumulative.length > 0
-            ? dataWithCumulative[Math.min(vitalCount - 1, dataWithCumulative.length - 1)]?.cumulativePercentage || 0
-            : 0;
 
         return {
-            paretoData: dataWithCumulative,
-            paretoSummary: {
-                vitalCount,
-                vitalTopPercentage,
-                totalCount,
-            },
+            targetList,
+            reporterList,
+            backlogList,
         };
-    }, [filteredIssues]);
+    }, [filteredIssues, departments, stats.total]);
 
-    // --- 3. Department Distribution (Donut Chart) ---
-    const categoryData = useMemo(() => {
-        const counts = {};
-        filteredIssues.forEach((i) => {
-            const depts = i.target_departments || ['Umum'];
-            (Array.isArray(depts) ? depts : [depts]).forEach((d) => {
-                const name = d || 'Umum';
-                counts[name] = (counts[name] || 0) + 1;
-            });
-        });
-
-        return Object.entries(counts).map(([name, value]) => ({
-            name,
-            value,
-            color: DEPARTMENT_COLORS[name] || '#94a3b8',
-        }));
-    }, [filteredIssues]);
-
-    // --- 4. Hotspot Location Risk Leaderboard & Breakdown ---
-    const { hotspotLeaderboardData } = useMemo(() => {
+    // Hotspot Lokasi Terbanyak
+    const hotspotList = useMemo(() => {
         const locMap = {};
-        const urgencyWeight = { 'Darurat': 1000, 'Tinggi': 100, 'Sedang': 10, 'Rendah': 1 };
 
-        filteredIssues.forEach((i) => {
-            const loc = (i.location || 'Lainnya').trim() || 'Lainnya';
+        filteredIssues.forEach((issue) => {
+            const loc = (issue.location || 'Lainnya').trim() || 'Lainnya';
             if (!locMap[loc]) {
+                const locInfo = resolveIssueResortAndZone(issue);
                 locMap[loc] = {
                     location: loc,
-                    Darurat: 0,
-                    Tinggi: 0,
-                    Sedang: 0,
-                    Rendah: 0,
+                    resort: locInfo.resort || (loc.toLowerCase().includes('tbr') ? 'TBR' : 'TPI'),
                     total: 0,
                     openCount: 0,
                     resolvedCount: 0,
-                    highestUrgency: 'Rendah',
-                    latestIssueTitle: i.title || '',
-                    latestIssueCode: i.issue_code || '',
-                    departments: new Set(),
                     issues: [],
                 };
             }
-            const urg = i.urgency || 'Sedang';
-            if (locMap[loc][urg] !== undefined) {
-                locMap[loc][urg] += 1;
-            } else {
-                locMap[loc]['Sedang'] += 1;
-            }
             locMap[loc].total += 1;
-
-            if (i.status === 'resolved') {
+            if (issue.status === 'resolved') {
                 locMap[loc].resolvedCount += 1;
             } else {
                 locMap[loc].openCount += 1;
             }
-
-            if ((urgencyWeight[urg] || 0) > (urgencyWeight[locMap[loc].highestUrgency] || 0)) {
-                locMap[loc].highestUrgency = urg;
-            }
-
-            if (Array.isArray(i.target_departments)) {
-                i.target_departments.forEach((d) => d && locMap[loc].departments.add(d));
-            }
-
-            locMap[loc].issues.push(i);
+            locMap[loc].issues.push(issue);
         });
 
-        // Sorted by Severity Weighted Score for Leaderboard
-        const leaderboard = Object.values(locMap)
-            .map((item) => {
-                const score = item.openCount * 10 + item.total;
-
-                // Sort issues within location: open before resolved -> newest first
-                const sortedIssues = [...item.issues].sort((a, b) => {
-                    if (a.status !== b.status) {
-                        if (a.status === 'resolved') return 1;
-                        if (b.status === 'resolved') return -1;
-                    }
-                    return (b.id || 0) - (a.id || 0);
-                });
-
-                return {
-                    ...item,
-                    departments: Array.from(item.departments),
-                    issues: sortedIssues,
-                    score,
-                };
-            })
-            .sort((a, b) => b.score - a.score || b.total - a.total);
-
-        return { hotspotLeaderboardData: leaderboard };
+        return Object.values(locMap).sort((a, b) => {
+            if (b.total !== a.total) return b.total - a.total;
+            return b.openCount - a.openCount;
+        });
     }, [filteredIssues]);
 
-    const topHotspotLocation = hotspotLeaderboardData && hotspotLeaderboardData.length > 0 ? hotspotLeaderboardData[0] : null;
+    const topHotspot = hotspotList[0] || null;
 
-    // --- 5. Department Workload Breakdown (Laporan per Departemen) ---
-    const departmentData = useMemo(() => {
-        const deptMap = {};
-
-        // If showAllMasterDepts is active, initialize all master resort departments with 0 counts
-        if (showAllMasterDepts && Array.isArray(departments)) {
-            departments.forEach((rawDept) => {
-                const dept = (rawDept || '').trim();
-                if (dept && !deptMap[dept]) {
-                    deptMap[dept] = {
-                        department: dept,
-                        name: dept,
-                        open: 0,
-                        in_progress: 0,
-                        resolved: 0,
-                        total: 0,
-                    };
-                }
-            });
-        }
-
-        filteredIssues.forEach((i) => {
-            let depts = i.target_departments;
-            if (typeof depts === 'string') {
-                try {
-                    depts = JSON.parse(depts);
-                } catch {
-                    depts = [depts];
-                }
-            }
-            if (!Array.isArray(depts) || depts.length === 0) {
-                depts = ['Umum'];
-            }
-
-            const status = i.status || 'open';
-            const statusKey = status === 'resolved' ? 'resolved' : (status === 'in_progress' ? 'in_progress' : 'open');
-
-            depts.forEach((rawDept) => {
-                const dept = (rawDept || 'Umum').trim() || 'Umum';
-                if (!deptMap[dept]) {
-                    deptMap[dept] = {
-                        department: dept,
-                        name: dept,
-                        open: 0,
-                        in_progress: 0,
-                        resolved: 0,
-                        total: 0,
-                    };
-                }
-                deptMap[dept][statusKey] += 1;
-                deptMap[dept].total += 1;
-            });
-        });
-
-        return Object.values(deptMap).sort((a, b) => b.total - a.total);
-    }, [filteredIssues, showAllMasterDepts, departments]);
-
-    const deptSummary = useMemo(() => {
-        let open = 0;
-        let in_progress = 0;
-        let resolved = 0;
-        departmentData.forEach((d) => {
-            open += d.open;
-            in_progress += d.in_progress;
-            resolved += d.resolved;
-        });
-        return { open, in_progress, resolved };
-    }, [departmentData]);
-
-    // --- 6. Spatial Hotspot Mapping for TPI & TBR ---
+    // Spatial Map Data for TPI & TBR
     const spatialHotspots = useMemo(() => {
-        // Initialize TPI zones from official 22 masterplan locations
         const tpiZones = {};
-        TPI_MASTERPLAN_ZONES.forEach(z => {
-            tpiZones[z.id] = {
-                ...z,
-                resort: 'TPI',
-                count: 0,
-                highestUrgency: null,
-                issues: [],
-            };
-        });
-
-        // Initialize TBR zones from official masterplan overwater locations
         const tbrZones = {};
-        TBR_MASTERPLAN_ZONES.forEach(z => {
-            tbrZones[z.id] = {
-                ...z,
-                resort: 'TBR',
-                count: 0,
-                highestUrgency: null,
-                issues: [],
-            };
+
+        TPI_MASTERPLAN_ZONES.forEach((z) => {
+            tpiZones[z.id] = { ...z, count: 0, total: 0, issues: [], highestUrgency: null };
         });
 
-        const urgencyWeight = { 'Darurat': 4, 'Tinggi': 3, 'Sedang': 2, 'Rendah': 1 };
+        TBR_MASTERPLAN_ZONES.forEach((z) => {
+            tbrZones[z.id] = { ...z, count: 0, total: 0, issues: [], highestUrgency: null };
+        });
 
         filteredIssues.forEach((issue) => {
             const { resort, zoneId } = resolveIssueResortAndZone(issue);
@@ -1684,1224 +1522,575 @@ export function LeanAnalyticsView({
             const targetMap = resort === 'TBR' ? tbrZones : tpiZones;
             if (targetMap[zoneId]) {
                 const zone = targetMap[zoneId];
-                zone.count += 1;
+                zone.total += 1;
                 zone.issues.push(issue);
-                const urg = issue.urgency || 'Sedang';
-                if (!zone.highestUrgency || (urgencyWeight[urg] || 0) > (urgencyWeight[zone.highestUrgency] || 0)) {
-                    zone.highestUrgency = urg;
+                if (issue.status !== 'resolved') {
+                    zone.count += 1;
+                }
+                // Urgency / status color
+                if (zone.issues.some((i) => i.status === 'open')) {
+                    zone.highestUrgency = 'Darurat';
+                } else if (zone.issues.some((i) => i.status === 'pending')) {
+                    zone.highestUrgency = 'Sedang';
                 }
             }
         });
-
-        return { tpiZones: Object.values(tpiZones), tbrZones: Object.values(tbrZones) };
-    }, [filteredIssues]);
-
-    // Auto-focus to map from external request (e.g. clicking location in issue detail modal)
-    useEffect(() => {
-        if (!focusMapRequest?.resort || !focusMapRequest?.zoneId) return;
-
-        // Switch to executive tab where maps reside
-        if (activeTab !== 'executive') {
-            setActiveTab('executive');
-        }
-
-        const resortLower = focusMapRequest.resort.toLowerCase();
-        setHotspotTab(resortLower);
-
-        // Pre-select the zone in spatialHotspots
-        if (resortLower === 'tpi') {
-            const found = spatialHotspots.tpiZones.find(z => z.id === focusMapRequest.zoneId);
-            if (found) setSelectedTpiZone(found);
-        } else if (resortLower === 'tbr') {
-            const found = spatialHotspots.tbrZones.find(z => z.id === focusMapRequest.zoneId);
-            if (found) setSelectedTbrZone(found);
-        }
-    }, [focusMapRequest?.timestamp, focusMapRequest?.resort, focusMapRequest?.zoneId, activeTab, spatialHotspots]);
-
-    const currentSpotlightTarget = useMemo(() => {
-        if (!focusMapRequest?.zoneId) return null;
-        return {
-            zoneId: focusMapRequest.zoneId,
-            timestamp: focusMapRequest.timestamp,
-            resort: focusMapRequest.resort,
-            issueTitle: focusMapRequest.issueTitle,
-        };
-    }, [focusMapRequest]);
-
-    // --- 7. Actionable Mitigation Feed (Audit Recommendations) ---
-    const mitigationFeed = useMemo(() => {
-        const q = searchFilter.trim().toLowerCase();
-
-        return filteredIssues
-            .filter((i) => {
-                if (selectedCategory !== 'all') {
-                    const depts = (i.target_departments || []).map((d) => (d || '').toLowerCase());
-                    if (!depts.includes(selectedCategory.toLowerCase())) {
-                        return false;
-                    }
-                }
-                if (q) {
-                    const title = (i.title || '').toLowerCase();
-                    const loc = (i.location || '').toLowerCase();
-                    const desc = (i.description || '').toLowerCase();
-                    const resNote = (i.resolution_note || i.fixDescription || '').toLowerCase();
-                    if (!title.includes(q) && !loc.includes(q) && !desc.includes(q) && !resNote.includes(q)) {
-                        return false;
-                    }
-                }
-                return true;
-            })
-            .slice(0, 15);
-    }, [filteredIssues, selectedCategory, searchFilter]);
-
-    // --- 8. MTTR & Response Time Analytics (Lifecycle & SLA) ---
-    const mttrData = useMemo(() => {
-        let totalTurnaroundHours = 0;
-        let resolvedWithTimeCount = 0;
-        let totalResponseHours = 0;
-        let claimedCount = 0;
-
-        let slaUnder2h = 0;
-        let slaUnder24h = 0;
-        let slaOver24h = 0;
-
-        const deptTimeMap = {};
-
-        // If showAllMasterDepts is active, initialize all master departments
-        if (showAllMasterDepts && Array.isArray(departments)) {
-            departments.forEach((rawDept) => {
-                const dName = (rawDept || '').trim();
-                if (dName && !deptTimeMap[dName]) {
-                    deptTimeMap[dName] = {
-                        department: dName,
-                        totalHours: 0,
-                        solvedCount: 0,
-                        pendingCount: 0,
-                        totalCount: 0,
-                    };
-                }
-            });
-        }
-
-        // First pass: register all departments appearing in filteredIssues (even if not yet resolved)
-        filteredIssues.forEach((issue) => {
-            let depts = issue.target_departments;
-            if (typeof depts === 'string') {
-                try { depts = JSON.parse(depts); } catch { depts = [depts]; }
-            }
-            if (!Array.isArray(depts) || depts.length === 0) depts = ['Umum'];
-
-            const hasPendingDelay = issue.status === 'pending' || 
-                Boolean(issue.pendingReason) || 
-                Boolean(issue.pending_reason);
-
-            depts.forEach((d) => {
-                const deptName = (d || 'Umum').trim() || 'Umum';
-                if (!deptTimeMap[deptName]) {
-                    deptTimeMap[deptName] = { 
-                        department: deptName, 
-                        totalHours: 0, 
-                        solvedCount: 0,
-                        pendingCount: 0,
-                        totalCount: 0,
-                    };
-                }
-                deptTimeMap[deptName].totalCount++;
-                if (hasPendingDelay) {
-                    deptTimeMap[deptName].pendingCount++;
-                }
-            });
-
-            // Calculate lifecycle turnaround and response times
-            const created = issue.created_at ? new Date(issue.created_at).getTime() : null;
-            const claimed = issue.claimed_at ? new Date(issue.claimed_at).getTime() : null;
-            const resolved = issue.resolved_at ? new Date(issue.resolved_at).getTime() : null;
-
-            if (created && claimed && claimed >= created) {
-                const resHours = (claimed - created) / (1000 * 60 * 60);
-                totalResponseHours += resHours;
-                claimedCount++;
-            }
-
-            if (created && resolved && resolved >= created) {
-                const turnHours = (resolved - created) / (1000 * 60 * 60);
-                totalTurnaroundHours += turnHours;
-                resolvedWithTimeCount++;
-
-                if (turnHours <= 2) slaUnder2h++;
-                else if (turnHours <= 24) slaUnder24h++;
-                else slaOver24h++;
-
-                depts.forEach((d) => {
-                    const deptName = (d || 'Umum').trim() || 'Umum';
-                    if (deptTimeMap[deptName]) {
-                        deptTimeMap[deptName].totalHours += turnHours;
-                        deptTimeMap[deptName].solvedCount++;
-                    }
-                });
-            }
-        });
-
-        const avgTurnaroundHours = resolvedWithTimeCount > 0 
-            ? parseFloat((totalTurnaroundHours / resolvedWithTimeCount).toFixed(1)) 
-            : 0;
-
-        const avgResponseHours = claimedCount > 0 
-            ? parseFloat((totalResponseHours / claimedCount).toFixed(1)) 
-            : 0;
-
-        const deptMttrList = Object.values(deptTimeMap)
-            .map((d) => {
-                if (d.solvedCount === 0) {
-                    return {
-                        department: d.department,
-                        avgHours: null,
-                        solvedCount: 0,
-                        pendingCount: d.pendingCount,
-                        speedStatus: d.totalCount > 0 ? 'Sedang Berjalan' : 'Belum Ada Isu',
-                        statusType: d.totalCount > 0 ? 'in_progress_only' : 'no_issues',
-                    };
-                }
-
-                const avgHours = parseFloat((d.totalHours / d.solvedCount).toFixed(1));
-                let speedStatus = 'Standar';
-                let statusType = 'normal'; // 'fast' | 'normal' | 'pending_delay' | 'needs_eval'
-
-                if (avgHours <= 6) {
-                    speedStatus = 'Sangat Cepat';
-                    statusType = 'fast';
-                } else if (avgHours <= 24) {
-                    speedStatus = 'Standar';
-                    statusType = 'normal';
-                } else {
-                    if (d.pendingCount > 0) {
-                        speedStatus = 'Tertunda Pending / Sparepart';
-                        statusType = 'pending_delay';
-                    } else {
-                        speedStatus = 'Perlu Evaluasi';
-                        statusType = 'needs_eval';
-                    }
-                }
-
-                return {
-                    department: d.department,
-                    avgHours,
-                    solvedCount: d.solvedCount,
-                    pendingCount: d.pendingCount,
-                    speedStatus,
-                    statusType,
-                };
-            })
-            .sort((a, b) => {
-                if (a.avgHours !== null && b.avgHours !== null) {
-                    return a.avgHours - b.avgHours;
-                }
-                if (a.avgHours !== null) return -1;
-                if (b.avgHours !== null) return 1;
-                return (b.solvedCount || 0) - (a.solvedCount || 0);
-            });
-
-        const slaRate24h = resolvedWithTimeCount > 0
-            ? Math.round(((slaUnder2h + slaUnder24h) / resolvedWithTimeCount) * 100)
-            : 0;
 
         return {
-            avgTurnaroundHours,
-            avgResponseHours,
-            resolvedWithTimeCount,
-            claimedCount,
-            slaUnder2h,
-            slaUnder24h,
-            slaOver24h,
-            slaRate24h,
-            deptMttrList,
+            tpiZones: Object.values(tpiZones),
+            tbrZones: Object.values(tbrZones),
         };
-    }, [filteredIssues, showAllMasterDepts, departments]);
-
-    // --- 9. Department Urgency Matrix ---
-    const urgencyMatrixData = useMemo(() => {
-        const catMap = {};
-        filteredIssues.forEach((i) => {
-            const depts = i.target_departments || ['Umum'];
-            (Array.isArray(depts) ? depts : [depts]).forEach((dept) => {
-                const name = dept || 'Umum';
-                if (!catMap[name]) {
-                    catMap[name] = {
-                        category: name,
-                        Darurat: 0,
-                        Tinggi: 0,
-                        Sedang: 0,
-                        Rendah: 0,
-                        total: 0,
-                    };
-                }
-                const urg = i.urgency || 'Sedang';
-                if (catMap[name][urg] !== undefined) {
-                    catMap[name][urg]++;
-                } else {
-                    catMap[name]['Sedang']++;
-                }
-                catMap[name].total++;
-            });
-        });
-
-        return Object.values(catMap).sort((a, b) => b.total - a.total);
     }, [filteredIssues]);
+
+    // Handle Download PDF
+    const handleDownloadPdf = () => {
+        setIsDownloadingPdf(true);
+        try {
+            const timeLabels = {
+                all: 'Semua Bulan (Semua Tab)',
+                today: 'Hari Ini',
+                '7d': '7 Hari Terakhir',
+                '30d': '30 Hari Terakhir',
+                month_1: 'Bulan Januari',
+                month_2: 'Bulan Februari',
+                month_3: 'Bulan Maret',
+                month_4: 'Bulan April',
+                month_5: 'Bulan Mei',
+                month_6: 'Bulan Juni',
+                month_7: 'Bulan Juli',
+                month_8: 'Bulan Agustus',
+                month_9: 'Bulan September',
+                month_10: 'Bulan Oktober',
+                month_11: 'Bulan November',
+                month_12: 'Bulan Desember',
+            };
+            exportTelunasPdfReport({
+                filteredIssues,
+                stats,
+                timeLabel: timeLabels[timeRange] || timeRange,
+                deptTargetData: deptMetrics.targetList,
+                hotspotList,
+            });
+        } catch (err) {
+            console.error('Error generating PDF:', err);
+            alert('Gagal membuat PDF: ' + err.message);
+        } finally {
+            setIsDownloadingPdf(false);
+        }
+    };
 
     return (
-        <div className="space-y-6 animate-in fade-in pb-12">
-            {/* FILTER & GOOGLE SHEETS CONTROL BAR */}
-            <div className={`border rounded-2xl p-4 backdrop-blur space-y-3.5 transition-all relative z-30 ${
-                isDark ? 'bg-slate-900/95 border-slate-700/80 shadow-xl' : 'bg-white/95 border-slate-200/90 shadow-sm'
+        <div className="space-y-6 animate-in fade-in pb-16">
+            {/* ========================================================= */}
+            {/* 1. TOP CONTROL BAR (TIME FILTER + QUICK ACTIONS)           */}
+            {/* ========================================================= */}
+            <div className={`border rounded-2xl p-3.5 sm:p-4 backdrop-blur transition-all ${
+                isDark ? 'bg-slate-900/95 border-slate-700/80 shadow-xl' : 'bg-white/95 border-slate-200 shadow-sm'
             }`}>
-                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-                    {/* Time Range Filter: Dropdown */}
-                    <div className="flex flex-wrap items-center gap-2">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                    {/* Time Filter Dropdown */}
+                    <div className="flex items-center gap-2 flex-wrap">
                         <span className={`text-xs font-semibold flex items-center gap-1.5 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-                            <Clock className="w-3.5 h-3.5 text-teal-500" />
-                            Periode:
+                            <Clock className="w-3.5 h-3.5 text-emerald-500" />
+                            Periode Laporan:
                         </span>
-                        <div className="relative">
-                            <select
-                                value={timeRange}
-                                onChange={(e) => setTimeRange(e.target.value)}
-                                className={`appearance-none px-3 py-1.5 pr-8 rounded-xl text-xs font-bold border transition cursor-pointer focus:outline-none focus:ring-1 focus:ring-teal-500 shadow-sm ${
-                                    isDark
-                                        ? 'bg-slate-800 border-slate-700 text-white'
-                                        : 'bg-white border-slate-300 text-slate-800 shadow-xs'
-                                }`}
-                            >
-                                <option value="hari_ini">Hari Ini</option>
-                                <option value="7_hari">7 Hari Terakhir</option>
-                                <option value="30_hari">30 Hari Terakhir</option>
-                                <option value="6_bulan">6 Bulan Terakhir</option>
-                                <option value="1_tahun">1 Tahun Terakhir</option>
-                                <option value="all">Semua Waktu</option>
-                                <option value="custom">Kustom Tanggal</option>
-                            </select>
-                            <ChevronDown className="w-3.5 h-3.5 pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                        </div>
-
-                        {timeRange === 'custom' && (
-                            <div className="flex flex-wrap items-center gap-1.5 ml-2">
-                                <span className={isDark ? 'text-slate-400' : 'text-slate-600'}>Dari:</span>
-                                <input
-                                    type="date"
-                                    value={startDate}
-                                    onChange={(e) => setStartDate(e.target.value)}
-                                    className={`border rounded px-2 py-1 text-xs focus:outline-none focus:border-teal-500 ${
-                                        isDark ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-800 shadow-xs'
-                                    }`}
-                                />
-                                <span className={isDark ? 'text-slate-400' : 'text-slate-600'}>Sampai:</span>
-                                <input
-                                    type="date"
-                                    value={endDate}
-                                    onChange={(e) => setEndDate(e.target.value)}
-                                    className={`border rounded px-2 py-1 text-xs focus:outline-none focus:border-teal-500 ${
-                                        isDark ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-800 shadow-xs'
-                                    }`}
-                                />
-                            </div>
-                        )}
+                        <select
+                            value={timeRange}
+                            onChange={(e) => setTimeRange(e.target.value)}
+                            className={`text-xs font-semibold rounded-xl px-3 py-2 border shadow-sm cursor-pointer transition-all focus:ring-1 focus:ring-emerald-500 ${
+                                isDark ? 'bg-slate-800 border-slate-700 text-slate-200' : 'bg-white border-slate-300 text-slate-800'
+                            }`}
+                        >
+                            <option value="all">📅 Semua Bulan (Semua Tab)</option>
+                            <option value="today">⚡ Hari Ini</option>
+                            <option value="7d">🕒 7 Hari Terakhir</option>
+                            <option value="30d">🗓️ 30 Hari Terakhir</option>
+                            <optgroup label="Tab Bulanan Spreadsheet">
+                                <option value="month_1">Bulan 01 - Januari</option>
+                                <option value="month_2">Bulan 02 - Februari</option>
+                                <option value="month_3">Bulan 03 - Maret</option>
+                                <option value="month_4">Bulan 04 - April</option>
+                                <option value="month_5">Bulan 05 - Mei</option>
+                                <option value="month_6">Bulan 06 - Juni</option>
+                                <option value="month_7">Bulan 07 - Juli</option>
+                                <option value="month_8">Bulan 08 - Agustus</option>
+                                <option value="month_9">Bulan 09 - September</option>
+                                <option value="month_10">Bulan 10 - Oktober</option>
+                                <option value="month_11">Bulan 11 - November</option>
+                                <option value="month_12">Bulan 12 - Desember</option>
+                            </optgroup>
+                        </select>
                     </div>
 
-                    {/* Google Sheets Actions & Widget Controls */}
-                    <div className="flex flex-wrap items-center gap-2">
-                        {/* Auto-Sync Google Sheets Indicator / Trigger */}
+                    {/* Quick Actions Bar: Ke Sheet Utama & Download PDF */}
+                    <div className="flex items-center gap-2 flex-wrap justify-end">
+                        {/* Tombol Ke Sheet Utama */}
+                        <a
+                            href={spreadsheetUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm transition-all cursor-pointer group"
+                            title="Buka Google Spreadsheet Sheet Utama Telunas di tab baru"
+                        >
+                            <FileSpreadsheet className="w-4 h-4 shrink-0" />
+                            <span>Ke Sheet Utama</span>
+                            <ExternalLink className="w-3.5 h-3.5 opacity-80 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+                        </a>
+
+                        {/* Tombol Download PDF */}
                         <button
                             type="button"
-                            onClick={() => triggerAutoSync(false)}
-                            disabled={isSyncingSheets}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition shadow-sm cursor-pointer ${
-                                isDark
-                                    ? 'bg-emerald-950/40 hover:bg-emerald-900/50 border-emerald-500/40 text-emerald-300'
-                                    : 'bg-emerald-50 hover:bg-emerald-100 border-emerald-300 text-emerald-800 shadow-xs'
-                            }`}
-                            title={`Google Sheets otomatis tersinkron tiap 3 menit.${lastSyncedTime ? ' Terakhir: ' + lastSyncedTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''} (Klik untuk sinkronkan manual sekarang)`}
+                            onClick={handleDownloadPdf}
+                            disabled={isDownloadingPdf}
+                            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white shadow-sm transition-all cursor-pointer disabled:opacity-50"
+                            title="Download Laporan Rekapitulasi Resmi Telunas (PDF Siap Cetak)"
                         >
-                            <span className="relative flex h-2 w-2">
-                                {isSyncingSheets ? (
-                                    <span className="animate-spin h-2 w-2 rounded-full border border-emerald-400 border-t-transparent" />
-                                ) : (
-                                    <>
-                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                                        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
-                                    </>
-                                )}
-                            </span>
-                            <FileSpreadsheet className={`w-3.5 h-3.5 text-emerald-500 ${isSyncingSheets ? 'animate-spin' : ''}`} />
-                            <span>{isSyncingSheets ? 'Menyinkronkan...' : 'Auto-Sync Aktif'}</span>
+                            <Download className="w-4 h-4 shrink-0" />
+                            <span>{isDownloadingPdf ? 'Menyiapkan PDF...' : 'Download PDF'}</span>
                         </button>
-
-                        {/* Sheet Tiket Button with Ticket Logo */}
-                        <a
-                            href="https://docs.google.com/spreadsheets/d/1o8SPuryJf__V1DJp6bm1MTRj60pkIsSX1GYr4-iJvhI/edit?usp=sharing"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition shadow-sm ${
-                                isDark
-                                    ? 'bg-slate-800 hover:bg-slate-700 text-amber-300 hover:text-white border-amber-500/30'
-                                    : 'bg-amber-50 hover:bg-amber-100 text-amber-900 border-amber-300 shadow-xs'
-                            }`}
-                            title="Buka Spreadsheet Log Tiket Masalah di Google Sheets"
-                        >
-                            <Ticket className="w-3.5 h-3.5 text-amber-400" />
-                            <span>Sheet Tiket</span>
-                            <ExternalLink className="w-3 h-3 opacity-60 ml-0.5" />
-                        </a>
-
-                        {/* Sheet Lokasi Button with MapPin Logo */}
-                        <a
-                            href="https://docs.google.com/spreadsheets/d/1-LiBd1vd8_YA4aTJsf0EiynuayX1_TE800Ylkr4BX5I/edit?usp=sharing"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition shadow-sm ${
-                                isDark
-                                    ? 'bg-slate-800 hover:bg-slate-700 text-emerald-300 hover:text-white border-emerald-500/30'
-                                    : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border-emerald-300 shadow-xs'
-                            }`}
-                            title="Buka Spreadsheet Master Lokasi Hotspot di Google Sheets"
-                        >
-                            <MapPin className="w-3.5 h-3.5 text-emerald-400" />
-                            <span>Sheet Lokasi</span>
-                            <ExternalLink className="w-3 h-3 opacity-60 ml-0.5" />
-                        </a>
-
-                        {/* ERP Widget Customization Controls */}
-                        <div className={`relative ${showWidgetModal ? 'z-50' : ''}`}>
-                            <button
-                                type="button"
-                                onClick={() => setShowWidgetModal(!showWidgetModal)}
-                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition shadow-sm cursor-pointer ${
-                                    isDark
-                                        ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border-slate-700'
-                                        : 'bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 border-slate-300 shadow-xs'
-                                }`}
-                            >
-                                <SlidersHorizontal className="w-3.5 h-3.5 text-teal-400" />
-                                <span>Atur Tampilan Widget</span>
-                                <ChevronDown className={`w-3 h-3 transition-transform ${showWidgetModal ? 'rotate-180' : ''}`} />
-                            </button>
-
-                            {showWidgetModal && (
-                                <>
-                                    <div
-                                        className="fixed inset-0 z-40"
-                                        onClick={() => setShowWidgetModal(false)}
-                                    />
-                                    <div className={`absolute right-0 top-full mt-2 w-72 rounded-xl p-3.5 shadow-2xl z-50 text-xs border animate-in fade-in zoom-in-95 duration-150 ${
-                                        isDark
-                                            ? 'bg-slate-900 border-slate-700 text-white shadow-black/90'
-                                            : 'bg-white border-slate-200 text-slate-800 shadow-2xl ring-1 ring-slate-900/10'
-                                    }`}>
-                                        <div className={`flex items-center justify-between pb-2 mb-2 border-b ${
-                                            isDark ? 'border-slate-800' : 'border-slate-200'
-                                        }`}>
-                                            <span className={`font-bold flex items-center gap-1.5 ${
-                                                isDark ? 'text-white' : 'text-slate-900'
-                                            }`}>
-                                                <SlidersHorizontal className="w-3.5 h-3.5 text-teal-500" />
-                                                Kustomisasi Widget
-                                            </span>
-                                            <button
-                                                type="button"
-                                                onClick={resetWidgetSettings}
-                                                className="text-[10px] text-teal-600 hover:underline flex items-center gap-1 font-semibold"
-                                            >
-                                                <RotateCcw className="w-3 h-3" />
-                                                Reset
-                                            </button>
-                                        </div>
-
-                                        <p className={`text-[10px] mb-2 font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                                            Atur visibilitas widget untuk tab aktif ({activeTab}):
-                                        </p>
-
-                                        <div className="space-y-1.5 max-h-60 overflow-y-auto pr-1">
-                                            {activeTab === 'executive' && (
-                                                <>
-                                                    <label className={`flex items-center justify-between p-1.5 rounded-lg cursor-pointer transition-colors ${
-                                                        isDark ? 'hover:bg-slate-800/80 text-slate-200' : 'hover:bg-slate-100 text-slate-800'
-                                                    }`}>
-                                                        <span>Kartu KPI Ringkasan</span>
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={widgetVisibility.kpi_cards !== false}
-                                                            onChange={() => toggleWidgetVisibility('kpi_cards')}
-                                                            className={`rounded text-teal-600 focus:ring-0 cursor-pointer ${
-                                                                isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-300'
-                                                            }`}
-                                                        />
-                                                    </label>
-                                                    <label className={`flex items-center justify-between p-1.5 rounded-lg cursor-pointer transition-colors ${
-                                                        isDark ? 'hover:bg-slate-800/80 text-slate-200' : 'hover:bg-slate-100 text-slate-800'
-                                                    }`}>
-                                                        <span>Matriks Hotspot & Denah</span>
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={widgetVisibility.hotspot_matrix !== false}
-                                                            onChange={() => toggleWidgetVisibility('hotspot_matrix')}
-                                                            className={`rounded text-teal-600 focus:ring-0 cursor-pointer ${
-                                                                isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-300'
-                                                            }`}
-                                                        />
-                                                    </label>
-                                                </>
-                                            )}
-
-                                            {activeTab === 'maintenance' && (
-                                                <>
-                                                    <label className={`flex items-center justify-between p-1.5 rounded-lg cursor-pointer transition-colors ${
-                                                        isDark ? 'hover:bg-slate-800/80 text-slate-200' : 'hover:bg-slate-100 text-slate-800'
-                                                    }`}>
-                                                        <span>Diagram Pareto (80/20)</span>
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={widgetVisibility.pareto_chart !== false}
-                                                            onChange={() => toggleWidgetVisibility('pareto_chart')}
-                                                            className={`rounded text-teal-600 focus:ring-0 cursor-pointer ${
-                                                                isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-300'
-                                                            }`}
-                                                        />
-                                                    </label>
-                                                    <label className={`flex items-center justify-between p-1.5 rounded-lg cursor-pointer transition-colors ${
-                                                        isDark ? 'hover:bg-slate-800/80 text-slate-200' : 'hover:bg-slate-100 text-slate-800'
-                                                    }`}>
-                                                        <span>Distribusi per Departemen</span>
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={widgetVisibility.category_donut !== false}
-                                                            onChange={() => toggleWidgetVisibility('category_donut')}
-                                                            className={`rounded text-teal-600 focus:ring-0 cursor-pointer ${
-                                                                isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-300'
-                                                            }`}
-                                                        />
-                                                    </label>
-                                                    <label className={`flex items-center justify-between p-1.5 rounded-lg cursor-pointer transition-colors ${
-                                                        isDark ? 'hover:bg-slate-800/80 text-slate-200' : 'hover:bg-slate-100 text-slate-800'
-                                                    }`}>
-                                                        <span>Matriks Urgensi per Departemen</span>
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={widgetVisibility.urgency_matrix !== false}
-                                                            onChange={() => toggleWidgetVisibility('urgency_matrix')}
-                                                            className={`rounded text-teal-600 focus:ring-0 cursor-pointer ${
-                                                                isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-300'
-                                                            }`}
-                                                        />
-                                                    </label>
-                                                    <label className={`flex items-center justify-between p-1.5 rounded-lg cursor-pointer transition-colors ${
-                                                        isDark ? 'hover:bg-slate-800/80 text-slate-200' : 'hover:bg-slate-100 text-slate-800'
-                                                    }`}>
-                                                        <span>Feed Resolusi Lapangan</span>
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={widgetVisibility.mitigation_feed !== false}
-                                                            onChange={() => toggleWidgetVisibility('mitigation_feed')}
-                                                            className={`rounded text-teal-600 focus:ring-0 cursor-pointer ${
-                                                                isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-300'
-                                                            }`}
-                                                        />
-                                                    </label>
-                                                </>
-                                            )}
-
-                                            {activeTab === 'sla_performance' && (
-                                                <>
-                                                    <label className={`flex items-center justify-between p-1.5 rounded-lg cursor-pointer transition-colors ${
-                                                        isDark ? 'hover:bg-slate-800/80 text-slate-200' : 'hover:bg-slate-100 text-slate-800'
-                                                    }`}>
-                                                        <span>Metrik Kecepatan & SLA</span>
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={widgetVisibility.sla_kpi !== false}
-                                                            onChange={() => toggleWidgetVisibility('sla_kpi')}
-                                                            className={`rounded text-teal-600 focus:ring-0 cursor-pointer ${
-                                                                isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-300'
-                                                            }`}
-                                                        />
-                                                    </label>
-                                                    <label className={`flex items-center justify-between p-1.5 rounded-lg cursor-pointer transition-colors ${
-                                                        isDark ? 'hover:bg-slate-800/80 text-slate-200' : 'hover:bg-slate-100 text-slate-800'
-                                                    }`}>
-                                                        <span>Kecepatan MTTR per Dept</span>
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={widgetVisibility.mttr_analytics !== false}
-                                                            onChange={() => toggleWidgetVisibility('mttr_analytics')}
-                                                            className={`rounded text-teal-600 focus:ring-0 cursor-pointer ${
-                                                                isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-300'
-                                                            }`}
-                                                        />
-                                                    </label>
-                                                    <label className={`flex items-center justify-between p-1.5 rounded-lg cursor-pointer transition-colors ${
-                                                        isDark ? 'hover:bg-slate-800/80 text-slate-200' : 'hover:bg-slate-100 text-slate-800'
-                                                    }`}>
-                                                        <span>Laporan Beban per Dept</span>
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={widgetVisibility.dept_workload !== false}
-                                                            onChange={() => toggleWidgetVisibility('dept_workload')}
-                                                            className={`rounded text-teal-600 focus:ring-0 cursor-pointer ${
-                                                                isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-300'
-                                                            }`}
-                                                        />
-                                                    </label>
-                                                </>
-                                            )}
-                                        </div>
-
-                                        <div className={`pt-2 mt-2 border-t text-[10px] text-center ${
-                                            isDark ? 'border-slate-800 text-slate-500' : 'border-slate-200 text-slate-500'
-                                        }`}>
-                                            Preferensi tersimpan di browser
-                                        </div>
-                                    </div>
-                                </>
-                            )}
-                        </div>
                     </div>
-                </div>
-
-                {/* Info row */}
-                <div className={`pt-2 border-t flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs ${
-                    isDark ? 'border-slate-800/80 text-slate-400' : 'border-slate-200 text-slate-600'
-                }`}>
-                    <div className={`flex items-center gap-1.5 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-                        <Calendar className={`w-3.5 h-3.5 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
-                        <span>Menampilkan <strong>{filteredIssues.length}</strong> dari <strong>{issues.length}</strong> total tiket</span>
-                    </div>
-
-                    {syncFeedback && (
-                        <div
-                            className={`px-3 py-1 rounded-md text-xs font-medium ${
-                                syncFeedback.type === 'success'
-                                    ? isDark ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-800/60' : 'bg-emerald-50 text-emerald-800 border border-emerald-300'
-                                    : isDark ? 'bg-rose-950/80 text-rose-300 border border-rose-800/60' : 'bg-rose-50 text-rose-800 border border-rose-300'
-                            }`}
-                        >
-                            {syncFeedback.message}
-                        </div>
-                    )}
                 </div>
             </div>
 
             {/* ========================================================= */}
-            {/* TAB 1: RINGKASAN EKSEKUTIF & SPASIAL                      */}
+            {/* 2. CORE KPI METRICS (TOTAL TIKET & BELUM SELESAI / BACKLOG)*/}
             {/* ========================================================= */}
-            {activeTab === 'executive' && (
-                <div className="space-y-6">
-                    {/* TOP KPI CARDS */}
-                    {widgetVisibility.kpi_cards !== false && (
-                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                            {/* Total & Status Coverage */}
-                            <div className={`p-4 rounded-xl border shadow-sm relative overflow-hidden group backdrop-blur-md transition-all ${
-                                isDark ? 'bg-slate-800/90 border-slate-700/80' : 'bg-white/95 border-slate-200/90 shadow-xs'
-                            }`}>
-                                <div className="flex items-center justify-between">
-                                    <span className={`text-xs font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Total Tiket Terekam</span>
-                                    <div className="flex items-center gap-1.5">
-                                        <button
-                                            type="button"
-                                            onClick={() => toggleWidgetVisibility('kpi_cards')}
-                                            className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-slate-500 hover:text-rose-400"
-                                            title="Sembunyikan Kartu KPI"
-                                        >
-                                            <EyeOff className="w-3 h-3" />
-                                        </button>
-                                        <div className="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-500 flex items-center justify-center">
-                                            <Layers className="w-4 h-4" />
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="mt-2 flex items-baseline gap-2">
-                                    <span className={`text-2xl font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>{stats.total}</span>
-                                    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${
-                                        isDark
-                                            ? 'text-emerald-400 bg-emerald-950/80 border-emerald-800/50'
-                                            : 'text-emerald-800 bg-emerald-100 border-emerald-300'
-                                    }`}>
-                                        {stats.resolutionRate}% Selesai
-                                    </span>
-                                </div>
-                                <p className={`text-[11px] mt-1 ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
-                                    {stats.resolved} tiket telah diselesaikan tim
-                                </p>
-                            </div>
-
-                            {/* Top Department */}
-                            <div className={`p-4 rounded-xl border shadow-sm relative overflow-hidden backdrop-blur-md transition-all ${
-                                isDark ? 'bg-slate-800/90 border-slate-700/80' : 'bg-white/95 border-slate-200/90 shadow-xs'
-                            }`}>
-                                <div className="flex items-center justify-between">
-                                    <span className={`text-xs font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Departemen Dominan</span>
-                                    <div className="w-7 h-7 rounded-lg bg-sky-500/20 text-sky-500 flex items-center justify-center">
-                                        <Building2 className="w-4 h-4" />
-                                    </div>
-                                </div>
-                                <div className="mt-2">
-                                    <span className={`text-base font-bold truncate block ${isDark ? 'text-sky-300' : 'text-sky-700'}`}>
-                                        {stats.topDept || stats.topCat}
-                                    </span>
-                                </div>
-                                <p className={`text-[11px] mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                                    Menyumbang {stats.topDeptCount || stats.topCatCount} laporan ({stats.total > 0 ? Math.round(((stats.topDeptCount || stats.topCatCount) / stats.total) * 100) : 0}%)
-                                </p>
-                            </div>
-
-                            {/* Hotspot Location (Rank #1 Severity Risk - Sesuai Leaderboard Peringkat Risiko) */}
-                            <div
-                                role="button"
-                                tabIndex={0}
-                                onClick={() => {
-                                    if (topHotspotLocation) {
-                                        setExpandedLocation(topHotspotLocation.location);
-                                    }
-                                }}
-                                className={`p-4 rounded-xl border shadow-sm relative overflow-hidden backdrop-blur-md transition-all cursor-pointer group ${
-                                    isDark ? 'bg-slate-800/90 border-slate-700/80 hover:border-rose-500/50' : 'bg-white/95 border-slate-200/90 shadow-xs hover:border-rose-300'
-                                }`}
-                                title={topHotspotLocation ? `Klik untuk membuka daftar isu di ${topHotspotLocation.location}` : undefined}
-                            >
-                                <div className="flex items-center justify-between">
-                                    <span className={`text-xs font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Titik Hotspot Masalah</span>
-                                    <div className="w-7 h-7 rounded-lg bg-rose-500/20 text-rose-500 flex items-center justify-center group-hover:scale-110 transition-transform">
-                                        <Flame className="w-4 h-4" />
-                                    </div>
-                                </div>
-                                <div className="mt-2">
-                                    <span className={`text-base font-bold truncate block group-hover:underline ${isDark ? 'text-rose-300' : 'text-rose-700'}`}>
-                                        {topHotspotLocation?.location || '-'}
-                                    </span>
-                                </div>
-                                <div className="mt-1 flex items-center gap-1.5 flex-wrap">
-                                    {topHotspotLocation ? (
-                                        <>
-                                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${
-                                                topHotspotLocation.highestUrgency === 'Darurat'
-                                                    ? (isDark ? 'bg-rose-500/20 text-rose-300 border-rose-500/40' : 'bg-rose-100 text-rose-800 border-rose-300 font-semibold')
-                                                    : topHotspotLocation.highestUrgency === 'Tinggi'
-                                                    ? (isDark ? 'bg-orange-500/20 text-orange-300 border-orange-500/40' : 'bg-orange-100 text-orange-800 border-orange-300 font-semibold')
-                                                    : (isDark ? 'bg-amber-500/20 text-amber-300 border-amber-500/40' : 'bg-amber-100 text-amber-800 border-amber-300 font-medium')
-                                            }`}>
-                                                Urgensi: {topHotspotLocation.highestUrgency}
-                                            </span>
-                                            <span className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                                                {topHotspotLocation.total} insiden ({topHotspotLocation.openCount} aktif)
-                                            </span>
-                                        </>
-                                    ) : (
-                                        <span className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                                            Belum ada data insiden
-                                        </span>
-                                    )}
-                                </div>
-                            </div>
-
-                            {/* Active Backlog */}
-                            <div className={`p-4 rounded-xl border shadow-sm relative overflow-hidden backdrop-blur-md transition-all ${
-                                isDark ? 'bg-slate-800/90 border-slate-700/80' : 'bg-white/95 border-slate-200/90 shadow-xs'
-                            }`}>
-                                <div className="flex items-center justify-between">
-                                    <span className={`text-xs font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Tiket Belum Selesai (Backlog)</span>
-                                    <div className="w-7 h-7 rounded-lg bg-amber-500/20 text-amber-500 flex items-center justify-center">
-                                        <Clock className="w-4 h-4" />
-                                    </div>
-                                </div>
-                                <div className="mt-2 flex items-baseline gap-1.5">
-                                    <span className={`text-2xl font-black ${isDark ? 'text-amber-300' : 'text-amber-700'}`}>{stats.activeCount}</span>
-                                    <span className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>tiket ({stats.activeRatio}%)</span>
-                                </div>
-                                <p className={`text-[11px] mt-1 ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
-                                    Menunggu tindakan & pengerjaan lapangan
-                                </p>
-                            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                {/* KPI 1: Total Tiket */}
+                <div className={`p-4 rounded-2xl border shadow-sm relative overflow-hidden backdrop-blur-md transition-all ${
+                    isDark ? 'bg-slate-800/90 border-slate-700/80' : 'bg-white border-slate-200'
+                }`}>
+                    <div className="flex items-center justify-between">
+                        <span className={`text-xs font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                            Total Tiket Masuk
+                        </span>
+                        <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                            <Layers className="w-4 h-4" />
                         </div>
-                    )}
-
-                    {/* CHARTS ROW 3: HOTSPOT LOKASI & DENAH RESORT (TABBED) */}
-                    {widgetVisibility.hotspot_matrix !== false && (
-                        <div className={`p-4 rounded-xl border shadow-sm space-y-4 backdrop-blur-md transition-all ${
-                            isDark ? 'bg-slate-800/90 border-slate-700/80' : 'bg-white/95 border-slate-200/90 shadow-xs'
+                    </div>
+                    <div className="mt-2 flex items-baseline gap-2">
+                        <span className={`text-2xl font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                            {stats.total}
+                        </span>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                            isDark ? 'bg-emerald-950/80 border-emerald-800/60 text-emerald-300' : 'bg-emerald-100 border-emerald-300 text-emerald-800'
                         }`}>
-                            <div className={`flex flex-col md:flex-row md:items-center justify-between gap-3 pb-2 border-b ${
-                                isDark ? 'border-slate-700/60' : 'border-slate-200'
-                            }`}>
-                                <div className="flex items-start justify-between w-full md:w-auto">
-                                    <div>
-                                        <h3 className={`text-xs font-bold flex items-center gap-1.5 ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                                            <MapPin className="w-4 h-4 text-rose-500" />
-                                            Matriks Hotspot Lokasi & Peta Denah Resort
-                                        </h3>
-                                        <p className={`text-[11px] mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                                            Visualisasi sebaran masalah pada unit/villa Telunas (Grafik analitik & denah spasial TPI/TBR)
-                                        </p>
-                                    </div>
+                            {stats.resolutionRate}% Selesai
+                        </span>
+                    </div>
+                    <p className={`text-[11px] mt-1.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                        {stats.resolved} dari {stats.total} tiket telah dituntaskan oleh tim lapangan
+                    </p>
+                </div>
 
-                                    {/* EyeOff Toggle Button (Mobile: Placed at top-right of header to save vertical space) */}
-                                    <button
-                                        type="button"
-                                        onClick={() => toggleWidgetVisibility('hotspot_matrix')}
-                                        className={`md:hidden p-1.5 rounded-lg transition-colors shrink-0 ml-2 ${
-                                            isDark ? 'text-slate-400 hover:text-rose-400 hover:bg-slate-700/50' : 'text-slate-500 hover:text-rose-600 hover:bg-slate-100'
-                                        }`}
-                                        title="Sembunyikan Matriks Hotspot"
-                                    >
-                                        <EyeOff className="w-3.5 h-3.5" />
-                                    </button>
-                                </div>
-
-                                <div className="flex items-center gap-2 self-start md:self-auto flex-wrap sm:flex-nowrap w-full md:w-auto justify-between md:justify-end">
-                                    {/* View Switcher Tabs: Slim layout with icon above text */}
-                                    <div className={`grid grid-cols-3 md:flex items-center gap-1 p-1 rounded-xl border w-full md:w-auto ${
-                                        isDark ? 'bg-slate-900/90 border-slate-700' : 'bg-slate-100 border-slate-300 shadow-xs'
-                                    }`}>
-                                        <button
-                                            type="button"
-                                            onClick={() => setHotspotTab('leaderboard')}
-                                            className={`flex flex-col items-center justify-center gap-0.5 py-1.5 px-2 rounded-lg text-[10px] sm:text-xs font-semibold transition-all ${
-                                                hotspotTab === 'leaderboard'
-                                                    ? 'bg-rose-500 text-white shadow-sm'
-                                                    : isDark
-                                                    ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
-                                                    : 'text-slate-600 hover:text-slate-900 hover:bg-white'
-                                            }`}
-                                        >
-                                            <Flame className="w-3.5 h-3.5 shrink-0" />
-                                            <span className="truncate">Peringkat</span>
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setHotspotTab('tpi')}
-                                            className={`flex flex-col items-center justify-center gap-0.5 py-1.5 px-2 rounded-lg text-[10px] sm:text-xs font-semibold transition-all ${
-                                                hotspotTab === 'tpi'
-                                                    ? 'bg-emerald-600 text-white shadow-sm'
-                                                    : isDark
-                                                    ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
-                                                    : 'text-slate-600 hover:text-slate-900 hover:bg-white'
-                                            }`}
-                                        >
-                                            <Compass className="w-3.5 h-3.5 shrink-0" />
-                                            <span className="truncate">TPI</span>
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setHotspotTab('tbr')}
-                                            className={`flex flex-col items-center justify-center gap-0.5 py-1.5 px-2 rounded-lg text-[10px] sm:text-xs font-semibold transition-all ${
-                                                hotspotTab === 'tbr'
-                                                    ? 'bg-amber-600 text-white shadow-sm'
-                                                    : isDark
-                                                    ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
-                                                    : 'text-slate-600 hover:text-slate-900 hover:bg-white'
-                                            }`}
-                                        >
-                                            <Map className="w-3.5 h-3.5 shrink-0" />
-                                            <span className="truncate">TBR</span>
-                                        </button>
-                                    </div>
-
-                                    {/* Desktop EyeOff Button */}
-                                    <button
-                                        type="button"
-                                        onClick={() => toggleWidgetVisibility('hotspot_matrix')}
-                                        className={`hidden md:flex p-1.5 rounded-lg transition-colors shrink-0 ${
-                                            isDark ? 'text-slate-400 hover:text-rose-400 hover:bg-slate-700/50' : 'text-slate-500 hover:text-rose-600 hover:bg-slate-100'
-                                        }`}
-                                        title="Sembunyikan Matriks Hotspot"
-                                    >
-                                        <EyeOff className="w-3.5 h-3.5" />
-                                    </button>
-                                </div>
-                            </div>
-
-                {/* TAB 1: PERINGKAT RISIKO LOKASI (LEADERBOARD - DEFAULT) */}
-                {hotspotTab === 'leaderboard' && (
-                    <div className="space-y-3">
-                        {/* Summary Bar: Prioritas Risiko Wilayah (Modern Badge Style) */}
-                        <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3 rounded-xl text-xs border transition-all ${
-                            isDark ? 'bg-slate-900/60 border-slate-700/60 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-700 shadow-xs'
-                        }`}>
-                            <div className="flex items-start sm:items-center gap-2.5">
-                                <span className="p-1.5 rounded-lg bg-rose-500/10 text-rose-500 border border-rose-500/20 shrink-0 mt-0.5 sm:mt-0">
-                                    <Flame className="w-4 h-4" />
-                                </span>
-                                <div>
-                                    <div className="flex items-center gap-1.5 flex-wrap">
-                                        <span className={`font-bold text-[11px] sm:text-xs ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                                            Prioritas Risiko Wilayah
-                                        </span>
-                                        <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded border ${
-                                            isDark ? 'bg-rose-950/80 text-rose-300 border-rose-800/60' : 'bg-rose-100 text-rose-800 border-rose-200'
-                                        }`}>
-                                            Darurat & Tinggi Teratas
-                                        </span>
-                                    </div>
-                                    <p className={`text-[10px] mt-0.5 leading-relaxed ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                                        Diurutkan otomatis berdasarkan skor keparahan & volume tiket aktif.
-                                    </p>
-                                </div>
-                            </div>
-
-                            {/* Urgency Legend */}
-                            <div className="flex items-center gap-2.5 flex-wrap text-[10px] pt-1.5 sm:pt-0 border-t sm:border-t-0 border-slate-700/40 shrink-0">
-                                <span className={`flex items-center gap-1 font-medium ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                                    <span className="w-2 h-2 rounded-full bg-rose-500" /> Darurat
-                                </span>
-                                <span className={`flex items-center gap-1 font-medium ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                                    <span className="w-2 h-2 rounded-full bg-orange-400" /> Tinggi
-                                </span>
-                                <span className={`flex items-center gap-1 font-medium ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                                    <span className="w-2 h-2 rounded-full bg-yellow-400" /> Sedang
-                                </span>
-                                <span className={`flex items-center gap-1 font-medium ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                                    <span className="w-2 h-2 rounded-full bg-emerald-500" /> Rendah
-                                </span>
-                            </div>
+                {/* KPI 2: Tiket Belum Selesai (Backlog) */}
+                <div className={`p-4 rounded-2xl border shadow-sm relative overflow-hidden backdrop-blur-md transition-all ${
+                    isDark ? 'bg-slate-800/90 border-slate-700/80' : 'bg-white border-slate-200'
+                }`}>
+                    <div className="flex items-center justify-between">
+                        <span className={`text-xs font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                            Tiket Belum Selesai (Backlog)
+                        </span>
+                        <div className="w-8 h-8 rounded-xl bg-rose-500/20 text-rose-400 flex items-center justify-center">
+                            <Clock className="w-4 h-4" />
                         </div>
+                    </div>
+                    <div className="mt-2 flex items-baseline gap-2">
+                        <span className={`text-2xl font-black ${isDark ? 'text-rose-400' : 'text-rose-600'}`}>
+                            {stats.activeCount}
+                        </span>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                            isDark ? 'bg-rose-950/80 border-rose-800/60 text-rose-300' : 'bg-rose-100 border-rose-300 text-rose-800'
+                        }`}>
+                            {stats.activeRatio}% Backlog
+                        </span>
+                    </div>
+                    <p className={`text-[11px] mt-1.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                        Open: <strong className="text-rose-400">{stats.openCount}</strong> • Progress: <strong className="text-sky-400">{stats.inProgressCount}</strong> • Tertunda: <strong className="text-amber-400">{stats.pendingCount}</strong>
+                    </p>
+                </div>
 
-                        {hotspotLeaderboardData.length === 0 ? (
-                            <div className="py-12 text-center text-xs text-slate-500">
-                                Belum ada data lokasi untuk dianalisa.
-                            </div>
+                {/* KPI 3: Hotspot Utama #1 */}
+                <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => topHotspot && setSelectedLocationForModal(topHotspot)}
+                    className={`p-4 rounded-2xl border shadow-sm relative overflow-hidden backdrop-blur-md transition-all cursor-pointer group ${
+                        isDark ? 'bg-slate-800/90 border-slate-700/80 hover:border-amber-500/50' : 'bg-white border-slate-200 hover:border-amber-400'
+                    }`}
+                    title={topHotspot ? `Klik untuk rincian tiket di ${topHotspot.location}` : undefined}
+                >
+                    <div className="flex items-center justify-between">
+                        <span className={`text-xs font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                            Titik Hotspot Utama (#1)
+                        </span>
+                        <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center group-hover:scale-110 transition-transform">
+                            <Flame className="w-4 h-4" />
+                        </div>
+                    </div>
+                    <div className="mt-2">
+                        <span className={`text-base font-bold truncate block group-hover:underline ${isDark ? 'text-amber-300' : 'text-amber-700'}`}>
+                            {topHotspot ? topHotspot.location : '-'}
+                        </span>
+                    </div>
+                    <p className={`text-[11px] mt-1.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                        {topHotspot
+                            ? `${topHotspot.total} insiden (${topHotspot.openCount} belum selesai)`
+                            : 'Belum ada data insiden tercatat'}
+                    </p>
+                </div>
+            </div>
+
+            {/* ========================================================= */}
+            {/* 3. WIDGET DEPARTEMEN TERBANYAK (CUSTOMIZABLE 3 MODES)      */}
+            {/* ========================================================= */}
+            <div className={`p-4 sm:p-5 rounded-2xl border shadow-sm space-y-4 backdrop-blur-md transition-all ${
+                isDark ? 'bg-slate-800/90 border-slate-700/80' : 'bg-white border-slate-200'
+            }`}>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-700/50">
+                    <div>
+                        <h3 className={`text-sm font-bold flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                            <Building2 className="w-4 h-4 text-sky-400" />
+                            Analisis Departemen Terbanyak
+                        </h3>
+                        <p className={`text-[11px] mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                            Kustomisasi tampilan metrik departemen: beban tugas masuk, aktivitas pelapor, atau rasio backlog
+                        </p>
+                    </div>
+
+                    {/* 3-Mode Customizable Pills */}
+                    <div className={`flex items-center p-1 rounded-xl border shrink-0 overflow-x-auto ${
+                        isDark ? 'bg-slate-950/80 border-slate-800' : 'bg-slate-100 border-slate-200'
+                    }`}>
+                        <button
+                            type="button"
+                            onClick={() => setDeptMode('target_issues')}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                deptMode === 'target_issues'
+                                    ? 'bg-emerald-600 text-white shadow-sm'
+                                    : isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'
+                            }`}
+                            title="Departemen yang menerima tugas laporan terbanyak"
+                        >
+                            <span>📋 Isu Terbanyak</span>
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setDeptMode('reporters')}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                deptMode === 'reporters'
+                                    ? 'bg-emerald-600 text-white shadow-sm'
+                                    : isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'
+                            }`}
+                            title="Departemen asal pelapor yang paling aktif melapor"
+                        >
+                            <span>🙋‍♂️ Pelapor Terbanyak</span>
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setDeptMode('backlog_ratio')}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                deptMode === 'backlog_ratio'
+                                    ? 'bg-emerald-600 text-white shadow-sm'
+                                    : isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'
+                            }`}
+                            title="Rasio perbandingan tiket belum selesai terhadap total tiket per departemen"
+                        >
+                            <span>⏳ Belum Selesai / Total</span>
+                        </button>
+                    </div>
+                </div>
+
+                {/* Display Content Based on Selected Dept Mode */}
+                {deptMode === 'target_issues' && (
+                    <div className="space-y-2.5">
+                        <div className="text-xs text-slate-400 mb-2 font-medium">
+                            Menampilkan departemen dengan beban penugasan terbanyak dari laporan WhatsApp:
+                        </div>
+                        {deptMetrics.targetList.length === 0 ? (
+                            <p className="text-xs text-slate-500 py-6 text-center">Belum ada data laporan pada periode ini.</p>
                         ) : (
-                            <div className="space-y-2">
-                                {hotspotLeaderboardData.map((item, idx) => {
-                                    const isRank1 = idx === 0;
-                                    const isRank2 = idx === 1;
-                                    const isRank3 = idx === 2;
-                                    const isExpanded = expandedLocation === item.location;
-
-                                    const urgencyBadge = {
-                                        Darurat: {
-                                            bg: isDark ? 'bg-rose-500/20 text-rose-300 border-rose-500/50' : 'bg-rose-100 text-rose-800 border-rose-300 font-semibold',
-                                            dot: 'bg-rose-500',
-                                        },
-                                        Tinggi: {
-                                            bg: isDark ? 'bg-orange-500/20 text-orange-300 border-orange-500/50' : 'bg-orange-100 text-orange-800 border-orange-300 font-semibold',
-                                            dot: 'bg-orange-500',
-                                        },
-                                        Sedang: {
-                                            bg: isDark ? 'bg-yellow-500/20 text-yellow-300 border-yellow-500/50' : 'bg-yellow-100 text-yellow-800 border-yellow-300 font-semibold',
-                                            dot: 'bg-yellow-500',
-                                        },
-                                        Rendah: {
-                                            bg: isDark ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50' : 'bg-emerald-100 text-emerald-800 border-emerald-300 font-semibold',
-                                            dot: 'bg-emerald-500',
-                                        },
-                                    }[item.highestUrgency] || {
-                                        bg: isDark ? 'bg-slate-700 text-slate-300 border-slate-600' : 'bg-slate-100 text-slate-700 border-slate-300 font-medium',
-                                        dot: 'bg-slate-400',
-                                    };
-
-                                    return (
-                                        <div
-                                            key={item.location}
-                                            className={`rounded-xl border transition-all overflow-hidden ${
-                                                item.highestUrgency === 'Darurat'
-                                                    ? isDark
-                                                        ? 'bg-rose-950/25 border-rose-500/40 hover:border-rose-500/70 shadow-sm'
-                                                        : 'bg-rose-50/90 border-rose-300 hover:border-rose-400 shadow-xs'
-                                                    : isDark
-                                                    ? 'bg-slate-900/60 border-slate-700/70 hover:border-slate-600'
-                                                    : 'bg-white/95 border-slate-200 hover:border-slate-300 shadow-xs'
-                                            } ${isExpanded ? (isDark ? 'ring-1 ring-sky-500/50 border-sky-500/50' : 'ring-1 ring-sky-400 border-sky-400') : ''}`}
-                                        >
-                                            {/* Summary Clickable Bar */}
-                                            <div
-                                                role="button"
-                                                tabIndex={0}
-                                                onClick={() => setExpandedLocation((prev) => (prev === item.location ? null : item.location))}
-                                                onKeyDown={(e) => {
-                                                    if (e.key === 'Enter' || e.key === ' ') {
-                                                        e.preventDefault();
-                                                        setExpandedLocation((prev) => (prev === item.location ? null : item.location));
-                                                    }
-                                                }}
-                                                className="p-3.5 flex flex-col md:flex-row md:items-center justify-between gap-3 cursor-pointer select-none transition-colors hover:bg-slate-500/5"
-                                            >
-                                                {/* Left: Rank & Location */}
-                                                <div className="flex items-start gap-3 min-w-[240px]">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                                {deptMetrics.targetList.map((d, idx) => (
+                                    <div
+                                        key={d.name}
+                                        className={`p-3 rounded-xl border flex items-center justify-between gap-3 ${
+                                            isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-slate-50 border-slate-200'
+                                        }`}
+                                    >
+                                        <div className="flex items-center gap-2.5 min-w-0">
+                                            <span className="w-5 h-5 rounded-full bg-slate-800 text-slate-400 text-[10px] font-bold flex items-center justify-center shrink-0">
+                                                #{idx + 1}
+                                            </span>
+                                            <div className="min-w-0">
+                                                <h4 className={`text-xs font-bold truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                                                    {d.name}
+                                                </h4>
+                                                <div className="w-24 sm:w-36 bg-slate-800 h-1.5 rounded-full overflow-hidden mt-1.5">
                                                     <div
-                                                        className={`w-7 h-7 rounded-lg shrink-0 flex items-center justify-center font-black text-xs border ${
-                                                            isRank1
-                                                                ? 'bg-gradient-to-br from-amber-400 to-rose-500 text-slate-950 border-amber-300 shadow-sm'
-                                                                : isRank2
-                                                                ? isDark
-                                                                    ? 'bg-slate-700 text-slate-100 border-slate-500'
-                                                                    : 'bg-slate-200 text-slate-800 border-slate-300'
-                                                                : isRank3
-                                                                ? isDark
-                                                                    ? 'bg-orange-950/60 text-orange-200 border-orange-700/60'
-                                                                    : 'bg-orange-100 text-orange-800 border-orange-300'
-                                                                : isDark
-                                                                ? 'bg-slate-800 text-slate-400 border-slate-700'
-                                                                : 'bg-slate-100 text-slate-700 border-slate-300 font-bold'
-                                                        }`}
-                                                    >
-                                                        #{idx + 1}
-                                                    </div>
-                                                    <div className="space-y-1">
-                                                        <div className="flex items-center gap-2 flex-wrap">
-                                                            <h4 className={`text-sm font-bold flex items-center gap-1.5 ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                                                                <MapPin className="w-3.5 h-3.5 text-rose-500 shrink-0" />
-                                                                {item.location}
-                                                            </h4>
-                                                            <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border ${urgencyBadge.bg}`}>
-                                                                <span className={`w-1.5 h-1.5 rounded-full ${urgencyBadge.dot}`} />
-                                                                Urgensi: {item.highestUrgency}
-                                                            </span>
-                                                            {item.departments && item.departments.length > 0 && (
-                                                                <span className={`text-[10px] px-1.5 py-0.5 rounded border font-medium ${
-                                                                    isDark
-                                                                        ? 'text-slate-400 bg-slate-800 border-slate-700'
-                                                                        : 'text-slate-700 bg-slate-100 border-slate-300'
-                                                                }`}>
-                                                                    {item.departments.join(', ')}
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                        {item.latestIssueTitle && (
-                                                            <p className={`text-xs line-clamp-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                                                                Laporan terbaru: <span className={`font-medium ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>"{item.latestIssueTitle}"</span>
-                                                            </p>
-                                                        )}
-                                                    </div>
-                                                </div>
-
-                                                {/* Middle / Right: Breakdown Bar & Stats + Accordion Arrow */}
-                                                <div className="flex flex-col sm:flex-row sm:items-center gap-4 md:gap-6 self-stretch md:self-auto justify-between md:justify-end">
-                                                    {/* Visual Urgency Proportion Mini Bar */}
-                                                    <div className="min-w-[140px] max-w-[200px] flex-1">
-                                                        <div className={`flex justify-between text-[10px] mb-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                                                            <span>Distribusi Kasus</span>
-                                                            <span className={`font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>{item.total} Total</span>
-                                                        </div>
-                                                        <div className={`w-full h-2 rounded-full overflow-hidden flex ${isDark ? 'bg-slate-800' : 'bg-slate-200'}`}>
-                                                            {item.Darurat > 0 && (
-                                                                <div
-                                                                    style={{ width: `${(item.Darurat / item.total) * 100}%` }}
-                                                                    className="bg-rose-500 h-full"
-                                                                    title={`Darurat: ${item.Darurat}`}
-                                                                />
-                                                            )}
-                                                            {item.Tinggi > 0 && (
-                                                                <div
-                                                                    style={{ width: `${(item.Tinggi / item.total) * 100}%` }}
-                                                                    className="bg-orange-400 h-full"
-                                                                    title={`Tinggi: ${item.Tinggi}`}
-                                                                />
-                                                            )}
-                                                            {item.Sedang > 0 && (
-                                                                <div
-                                                                    style={{ width: `${(item.Sedang / item.total) * 100}%` }}
-                                                                    className="bg-yellow-400 h-full"
-                                                                    title={`Sedang: ${item.Sedang}`}
-                                                                />
-                                                            )}
-                                                            {item.Rendah > 0 && (
-                                                                <div
-                                                                    style={{ width: `${(item.Rendah / item.total) * 100}%` }}
-                                                                    className="bg-emerald-500 h-full"
-                                                                    title={`Rendah: ${item.Rendah}`}
-                                                                />
-                                                            )}
-                                                        </div>
-                                                    </div>
-
-                                                    {/* Active vs Resolved Counters */}
-                                                    <div className="flex items-center gap-2 shrink-0">
-                                                        <div className={`px-2.5 py-1 rounded-lg border text-center min-w-[50px] ${
-                                                            isDark ? 'bg-slate-800 border-slate-700/80' : 'bg-white border-slate-200 shadow-xs'
-                                                        }`}>
-                                                            <div className={`text-[10px] font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Aktif</div>
-                                                            <div className={`text-xs font-black ${item.openCount > 0 ? (isDark ? 'text-rose-400' : 'text-rose-600') : (isDark ? 'text-slate-400' : 'text-slate-400')}`}>
-                                                                {item.openCount}
-                                                            </div>
-                                                        </div>
-                                                        <div className={`px-2.5 py-1 rounded-lg border text-center min-w-[50px] ${
-                                                            isDark ? 'bg-slate-800 border-slate-700/80' : 'bg-white border-slate-200 shadow-xs'
-                                                        }`}>
-                                                            <div className={`text-[10px] font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Selesai</div>
-                                                            <div className={`text-xs font-black ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>{item.resolvedCount}</div>
-                                                        </div>
-
-                                                        {/* Expand Chevron */}
-                                                        <div className={`p-1.5 rounded-lg border transition-all ${
-                                                            isExpanded
-                                                                ? (isDark ? 'bg-sky-500/20 text-sky-300 border-sky-500/50' : 'bg-sky-100 text-sky-700 border-sky-300')
-                                                                : (isDark ? 'bg-slate-800 text-slate-400 border-slate-700 hover:text-slate-200' : 'bg-slate-100 text-slate-600 border-slate-300 hover:text-slate-900')
-                                                        }`} title={isExpanded ? 'Tutup daftar isu' : 'Klik untuk melihat isu di lokasi ini'}>
-                                                            <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
-                                                        </div>
-                                                    </div>
+                                                        className="h-full bg-sky-500 rounded-full"
+                                                        style={{ width: `${d.pct}%` }}
+                                                    />
                                                 </div>
                                             </div>
-
-                                            {/* Expandable Accordion Drawer: Daftar Isu di Lokasi */}
-                                            {isExpanded && (
-                                                <div className={`border-t px-4 py-3.5 space-y-2.5 animate-in fade-in slide-in-from-top-1 duration-150 ${
-                                                    isDark ? 'bg-slate-950/60 border-slate-800/80' : 'bg-slate-50/90 border-slate-200/90'
-                                                }`}>
-                                                    {/* Header Accordion */}
-                                                    <div className="flex items-center justify-between gap-2 flex-wrap">
-                                                        <div className="flex items-center gap-2">
-                                                            <Ticket className="w-3.5 h-3.5 text-sky-400 shrink-0" />
-                                                            <span className={`text-xs font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                                                                Daftar Masalah di {item.location}
-                                                            </span>
-                                                            <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border ${
-                                                                isDark ? 'bg-slate-800 text-slate-300 border-slate-700' : 'bg-white text-slate-700 border-slate-300 shadow-2xs'
-                                                            }`}>
-                                                                {item.issues?.length || 0} Tiket
-                                                            </span>
-                                                        </div>
-                                                        <span className={`text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                                                            Klik tiket untuk membuka detail lengkap
-                                                        </span>
-                                                    </div>
-
-                                                    {/* List of Issues */}
-                                                    <div className="max-h-80 overflow-y-auto space-y-2 pr-1">
-                                                        {(!item.issues || item.issues.length === 0) ? (
-                                                            <div className="py-4 text-center text-xs text-slate-500 italic">
-                                                                Tidak ada catatan isu untuk lokasi ini.
-                                                            </div>
-                                                        ) : (
-                                                            item.issues.map((iss) => {
-                                                                const isResolved = iss.status === 'resolved';
-
-                                                                return (
-                                                                    <div
-                                                                        key={iss.id || iss.issue_code}
-                                                                        onClick={() => onSelectIssue && onSelectIssue(iss)}
-                                                                        className={`p-2.5 rounded-lg border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 cursor-pointer group ${
-                                                                            isDark
-                                                                                ? 'bg-slate-900/90 border-slate-800 hover:border-sky-500/60 hover:bg-slate-800/80'
-                                                                                : 'bg-white border-slate-200 hover:border-sky-400 hover:bg-sky-50/40 shadow-2xs'
-                                                                        }`}
-                                                                    >
-                                                                        <div className="space-y-1 min-w-0 flex-1">
-                                                                            <div className="flex items-center gap-2 flex-wrap">
-                                                                                <span className={`font-mono text-[11px] font-bold px-1.5 py-0.5 rounded border ${
-                                                                                    isDark ? 'bg-slate-800 text-amber-300 border-slate-700' : 'bg-slate-100 text-slate-800 border-slate-300'
-                                                                                }`}>
-                                                                                    #{iss.issue_code || ('LEAN-' + iss.id)}
-                                                                                </span>
-
-                                                                                {/* Status badge */}
-                                                                                {isResolved ? (
-                                                                                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
-                                                                                        <CheckCircle2 className="w-2.5 h-2.5" /> Selesai
-                                                                                    </span>
-                                                                                ) : iss.status === 'in_progress' ? (
-                                                                                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 flex items-center gap-1">
-                                                                                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400" /> Progress
-                                                                                    </span>
-                                                                                ) : iss.status === 'pending' ? (
-                                                                                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-orange-500/15 text-orange-300 border border-orange-500/30 flex items-center gap-1">
-                                                                                        <span className="w-1.5 h-1.5 rounded-full bg-orange-400" /> Tertunda
-                                                                                    </span>
-                                                                                ) : (
-                                                                                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-400 border border-rose-500/30 flex items-center gap-1">
-                                                                                        <span className="w-1.5 h-1.5 rounded-full bg-rose-400" /> Open
-                                                                                    </span>
-                                                                                )}
-
-                                                                                {iss.created_at_human && (
-                                                                                    <span className={`text-[10px] flex items-center gap-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                                                                                        <Clock className="w-2.5 h-2.5" /> {iss.created_at_human}
-                                                                                    </span>
-                                                                                )}
-                                                                            </div>
-
-                                                                            <h5 className={`text-xs font-bold leading-tight group-hover:text-sky-400 transition-colors ${
-                                                                                isDark ? 'text-slate-200' : 'text-slate-800'
-                                                                            }`}>
-                                                                                {iss.title}
-                                                                            </h5>
-
-                                                                            <div className={`flex items-center gap-3 text-[10px] flex-wrap ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                                                                                {iss.reporter_name && (
-                                                                                    <span className="flex items-center gap-1">
-                                                                                        <User className="w-3 h-3 text-emerald-400" />
-                                                                                        Pelapor: <strong className={isDark ? 'text-slate-300' : 'text-slate-700'}>{iss.reporter_name}</strong>
-                                                                                    </span>
-                                                                                )}
-                                                                                {iss.target_departments && iss.target_departments.length > 0 && (
-                                                                                    <span>
-                                                                                        Dept: <strong className={isDark ? 'text-slate-300' : 'text-slate-700'}>{iss.target_departments.join(', ')}</strong>
-                                                                                    </span>
-                                                                                )}
-                                                                                {iss.claimed_by_name && (
-                                                                                    <span className="text-amber-400 font-medium">
-                                                                                        Dikerjakan: {iss.claimed_by_name}
-                                                                                    </span>
-                                                                                )}
-                                                                            </div>
-                                                                        </div>
-
-                                                                        <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
-                                                                            <button
-                                                                                type="button"
-                                                                                onClick={(e) => {
-                                                                                    e.stopPropagation();
-                                                                                    if (onSelectIssue) onSelectIssue(iss);
-                                                                                }}
-                                                                                className={`px-2.5 py-1 rounded-md text-[11px] font-semibold border flex items-center gap-1 transition-all ${
-                                                                                    isDark
-                                                                                        ? 'bg-slate-800 hover:bg-sky-600 hover:text-white text-slate-300 border-slate-700 hover:border-sky-500'
-                                                                                        : 'bg-white hover:bg-sky-600 hover:text-white text-slate-700 border-slate-300 hover:border-sky-500 shadow-2xs'
-                                                                                }`}
-                                                                            >
-                                                                                <Eye className="w-3 h-3" />
-                                                                                <span>Detail</span>
-                                                                            </button>
-                                                                        </div>
-                                                                    </div>
-                                                                );
-                                                            })
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            )}
                                         </div>
-                                    );
-                                })}
+                                        <div className="text-right shrink-0">
+                                            <span className={`text-xs font-black ${isDark ? 'text-sky-300' : 'text-sky-700'}`}>
+                                                {d.total} Isu
+                                            </span>
+                                            <span className="text-[10px] text-slate-400 block">
+                                                {d.pct}% dari total
+                                            </span>
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
                         )}
                     </div>
                 )}
 
-                {/* TAB 2: DENAH TPI (SPATIAL OVERVIEW - PERSISTENT DOM FOR ZERO FLICKER) */}
-                <div className={hotspotTab === 'tpi' ? 'space-y-3' : 'hidden'}>
-                        <div className={`flex flex-col sm:flex-row sm:items-center justify-between text-xs gap-1 p-2.5 rounded-lg border ${
-                            isDark
-                                ? 'bg-slate-900/60 border-slate-700/60 text-slate-400'
-                                : 'bg-emerald-50/90 border-emerald-300/80 text-emerald-900 shadow-xs'
-                        }`}>
-                            <span className={`flex items-center gap-1.5 font-bold ${isDark ? 'text-emerald-300' : 'text-emerald-800'}`}>
-                                <Info className="w-3.5 h-3.5 shrink-0 text-emerald-500" />
-                                Peta Spasial Telunas Private Island (TPI)
-                            </span>
-                            <span className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-emerald-800/80'}`}>
-                                Visualisasi sebaran insiden berdasarkan lokasi unit / area laporan
-                            </span>
+                {deptMode === 'reporters' && (
+                    <div className="space-y-2.5">
+                        <div className="text-xs text-slate-400 mb-2 font-medium">
+                            Menampilkan departemen asal staf yang paling sering dan proaktif mengirim laporan:
                         </div>
+                        {deptMetrics.reporterList.length === 0 ? (
+                            <p className="text-xs text-slate-500 py-6 text-center">Belum ada data pelapor pada periode ini.</p>
+                        ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                                {deptMetrics.reporterList.map((d, idx) => (
+                                    <div
+                                        key={d.name}
+                                        className={`p-3 rounded-xl border flex items-center justify-between gap-3 ${
+                                            isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-slate-50 border-slate-200'
+                                        }`}
+                                    >
+                                        <div className="flex items-center gap-2.5 min-w-0">
+                                            <span className="w-5 h-5 rounded-full bg-slate-800 text-slate-400 text-[10px] font-bold flex items-center justify-center shrink-0">
+                                                #{idx + 1}
+                                            </span>
+                                            <div className="min-w-0">
+                                                <h4 className={`text-xs font-bold truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                                                    {d.name}
+                                                </h4>
+                                                <div className="w-24 sm:w-36 bg-slate-800 h-1.5 rounded-full overflow-hidden mt-1.5">
+                                                    <div
+                                                        className="h-full bg-emerald-500 rounded-full"
+                                                        style={{ width: `${d.pct}%` }}
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="text-right shrink-0">
+                                            <span className={`text-xs font-black ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>
+                                                {d.total} Laporan
+                                            </span>
+                                            <span className="text-[10px] text-slate-400 block">
+                                                {d.pct}% kontribusi
+                                            </span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {deptMode === 'backlog_ratio' && (
+                    <div className="space-y-2.5">
+                        <div className="text-xs text-slate-400 mb-2 font-medium">
+                            Menampilkan rasio tiket belum selesai terhadap total tiket per departemen:
+                        </div>
+                        {deptMetrics.backlogList.length === 0 ? (
+                            <p className="text-xs text-slate-500 py-6 text-center">Belum ada data backlog pada periode ini.</p>
+                        ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                                {deptMetrics.backlogList.map((d, idx) => (
+                                    <div
+                                        key={d.name}
+                                        className={`p-3 rounded-xl border flex flex-col justify-between gap-2 ${
+                                            isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-slate-50 border-slate-200'
+                                        }`}
+                                    >
+                                        <div className="flex items-center justify-between gap-2">
+                                            <div className="flex items-center gap-2">
+                                                <span className="w-5 h-5 rounded-full bg-slate-800 text-slate-400 text-[10px] font-bold flex items-center justify-center shrink-0">
+                                                    #{idx + 1}
+                                                </span>
+                                                <h4 className={`text-xs font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                                                    {d.name}
+                                                </h4>
+                                            </div>
+                                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                                                d.active > 0
+                                                    ? 'bg-rose-950/80 border-rose-800/60 text-rose-300'
+                                                    : 'bg-emerald-950/80 border-emerald-800/60 text-emerald-300'
+                                            }`}>
+                                                {d.backlogRate}% Backlog
+                                            </span>
+                                        </div>
+
+                                        {/* Dual Progress Bar: Green (Resolved) vs Red (Active) */}
+                                        <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden flex">
+                                            <div
+                                                className="h-full bg-emerald-500"
+                                                style={{ width: `${100 - d.backlogRate}%` }}
+                                                title={`${d.resolved} Selesai`}
+                                            />
+                                            <div
+                                                className="h-full bg-rose-500"
+                                                style={{ width: `${d.backlogRate}%` }}
+                                                title={`${d.active} Belum Selesai`}
+                                            />
+                                        </div>
+
+                                        <div className="flex items-center justify-between text-[11px] text-slate-400">
+                                            <span>
+                                                Belum Selesai: <strong className="text-rose-400">{d.active}</strong>
+                                            </span>
+                                            <span>
+                                                Selesai: <strong className="text-emerald-400">{d.resolved}</strong> / {d.total} Isu
+                                            </span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
+            </div>
+
+            {/* ========================================================= */}
+            {/* 4. WIDGET LOKASI TERBANYAK YANG MEMILIKI LAPORAN          */}
+            {/* ========================================================= */}
+            <div className={`p-4 sm:p-5 rounded-2xl border shadow-sm space-y-4 backdrop-blur-md transition-all ${
+                isDark ? 'bg-slate-800/90 border-slate-700/80' : 'bg-white border-slate-200'
+            }`}>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-700/50">
+                    <div>
+                        <h3 className={`text-sm font-bold flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                            <MapPin className="w-4 h-4 text-rose-400" />
+                            Lokasi Terbanyak yang Memiliki Laporan
+                        </h3>
+                        <p className={`text-[11px] mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                            Leaderboard area / villa Telunas dengan insiden tertinggi (Klik lokasi untuk melihat daftar isu)
+                        </p>
+                    </div>
+                    <span className="text-[11px] font-semibold text-slate-400 self-start sm:self-auto">
+                        Top {Math.min(hotspotList.length, 10)} Area
+                    </span>
+                </div>
+
+                {hotspotList.length === 0 ? (
+                    <p className="text-xs text-slate-500 py-6 text-center">Belum ada data insiden pada lokasi mana pun.</p>
+                ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {hotspotList.slice(0, 9).map((item, idx) => (
+                            <div
+                                key={item.location}
+                                onClick={() => setSelectedLocationForModal(item)}
+                                className={`p-3.5 rounded-xl border transition-all cursor-pointer group flex flex-col justify-between ${
+                                    isDark
+                                        ? 'bg-slate-900/80 border-slate-800 hover:border-sky-500/60 hover:bg-slate-900'
+                                        : 'bg-slate-50 border-slate-200 hover:border-sky-400 hover:bg-white shadow-xs'
+                                }`}
+                            >
+                                <div>
+                                    <div className="flex items-center justify-between gap-2 mb-2">
+                                        <span className="w-5 h-5 rounded-full bg-slate-800 text-slate-400 text-[10px] font-bold flex items-center justify-center shrink-0">
+                                            #{idx + 1}
+                                        </span>
+                                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${
+                                            item.resort === 'TBR'
+                                                ? 'bg-amber-950/70 border-amber-800/60 text-amber-300'
+                                                : 'bg-emerald-950/70 border-emerald-800/60 text-emerald-300'
+                                        }`}>
+                                            {item.resort || 'Resort'}
+                                        </span>
+                                    </div>
+                                    <h4 className={`text-xs font-bold group-hover:text-sky-400 transition-colors truncate ${
+                                        isDark ? 'text-white' : 'text-slate-900'
+                                    }`}>
+                                        {item.location}
+                                    </h4>
+                                </div>
+
+                                <div className="mt-3 pt-2.5 border-t border-slate-800/70 flex items-center justify-between text-[11px]">
+                                    <span className="text-slate-400">
+                                        Total: <strong className="text-white">{item.total}</strong>
+                                    </span>
+                                    <span className={`font-bold ${item.openCount > 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                                        {item.openCount > 0 ? `${item.openCount} Belum Selesai` : 'Semua Selesai'}
+                                    </span>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+
+            {/* ========================================================= */}
+            {/* 5. WIDGET MATRIKS DENAH LOKASI TBR DAN TPI                */}
+            {/* ========================================================= */}
+            <div className={`p-4 sm:p-5 rounded-2xl border shadow-sm space-y-4 backdrop-blur-md transition-all ${
+                isDark ? 'bg-slate-800/90 border-slate-700/80' : 'bg-white border-slate-200'
+            }`}>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-700/50">
+                    <div>
+                        <h3 className={`text-sm font-bold flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                            <Compass className="w-4 h-4 text-emerald-400" />
+                            Matriks Lokasi Denah Resort Telunas
+                        </h3>
+                        <p className={`text-[11px] mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                            Peta spasial interaktif denah arsitektur Telunas Private Island (TPI) dan Telunas Beach Resort (TBR)
+                        </p>
+                    </div>
+
+                    {/* Resort Map Tab Switcher */}
+                    <div className={`flex items-center p-1 rounded-xl border shrink-0 ${
+                        isDark ? 'bg-slate-950/80 border-slate-800' : 'bg-slate-100 border-slate-200'
+                    }`}>
+                        <button
+                            type="button"
+                            onClick={() => setActiveMapTab('tpi')}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                activeMapTab === 'tpi'
+                                    ? 'bg-emerald-600 text-white shadow-sm'
+                                    : isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'
+                            }`}
+                        >
+                            <span>🌴 Denah TPI (Private Island)</span>
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setActiveMapTab('tbr')}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                activeMapTab === 'tbr'
+                                    ? 'bg-emerald-600 text-white shadow-sm'
+                                    : isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'
+                            }`}
+                        >
+                            <span>🏖️ Denah TBR (Beach Resort)</span>
+                        </button>
+                    </div>
+                </div>
+
+                {/* Map Display: TPI */}
+                {activeMapTab === 'tpi' && (
+                    <div className="space-y-3">
                         <TpiResortMap
                             zones={spatialHotspots.tpiZones}
                             onSelectZone={(zone) => setSelectedTpiZone(prev => prev?.id === zone.id ? null : zone)}
                             selectedZoneId={selectedTpiZone?.id}
                             theme={theme}
-                            spotlightTarget={hotspotTab === 'tpi' && currentSpotlightTarget?.resort === 'TPI' ? currentSpotlightTarget : null}
                         />
 
-                        {/* Zone Detail Inspector if clicked */}
+                        {/* Zone Inspector TPI */}
                         {selectedTpiZone && (
-                            <div className="p-3.5 rounded-xl bg-slate-900 border border-sky-500/40 shadow-lg animate-in fade-in duration-200 space-y-2">
+                            <div className="p-3.5 rounded-xl bg-slate-900 border border-emerald-500/40 shadow-lg animate-in fade-in duration-200 space-y-2">
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-2">
-                                        <span className="w-6 h-6 rounded-full bg-sky-500/20 text-sky-400 font-bold text-xs flex items-center justify-center border border-sky-500/40">
+                                        <span className="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 font-bold text-xs flex items-center justify-center border border-emerald-500/40">
                                             #{selectedTpiZone.num}
                                         </span>
                                         <div>
@@ -2909,117 +2098,52 @@ export function LeanAnalyticsView({
                                             <p className="text-[11px] text-slate-400">{selectedTpiZone.enName} • Telunas Private Island</p>
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-2">
-                                        <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
-                                            (selectedTpiZone.count || 0) > 0
-                                                ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
-                                                : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                                        }`}>
-                                            {selectedTpiZone.count || 0} Isu Aktif
-                                        </span>
-                                        <button
-                                            type="button"
-                                            onClick={() => setSelectedTpiZone(null)}
-                                            className="text-xs text-slate-400 hover:text-white px-2 py-1 rounded bg-slate-800"
-                                        >
-                                            Tutup
-                                        </button>
-                                    </div>
+                                    <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                                        (selectedTpiZone.count || 0) > 0
+                                            ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                                            : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                    }`}>
+                                        {selectedTpiZone.count || 0} Isu Aktif
+                                    </span>
                                 </div>
 
                                 {selectedTpiZone.issues?.length > 0 ? (
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
                                         {selectedTpiZone.issues.map(iss => (
-                                            <div key={iss.id} className="p-2 rounded-lg bg-slate-950/70 border border-slate-800 text-xs space-y-1">
-                                                <div className="flex items-center justify-between gap-1">
-                                                    <span className="font-mono text-sky-400 font-semibold">#{iss.id}</span>
-                                                    <span className={`px-1.5 py-0.2 rounded text-[10px] font-semibold ${
-                                                        iss.urgency === 'Darurat' ? 'bg-rose-500/20 text-rose-300' :
-                                                        iss.urgency === 'Tinggi' ? 'bg-orange-500/20 text-orange-300' :
-                                                        'bg-slate-700 text-slate-300'
-                                                    }`}>
-                                                        {iss.urgency || 'Sedang'}
+                                            <div
+                                                key={iss.id}
+                                                onClick={() => onSelectIssue && onSelectIssue(iss)}
+                                                className="p-2 rounded-lg bg-slate-950/70 border border-slate-800 text-xs space-y-1 hover:border-emerald-500/50 cursor-pointer"
+                                            >
+                                                <div className="flex items-center justify-between text-[10px]">
+                                                    <span className="font-mono text-amber-300 font-bold">#{iss.issue_code || iss.id}</span>
+                                                    <span className={iss.status === 'resolved' ? 'text-emerald-400' : 'text-rose-400'}>
+                                                        {iss.status}
                                                     </span>
                                                 </div>
-                                                <p className="font-medium text-slate-200 line-clamp-1">{iss.title}</p>
-                                                <div className="text-[10px] text-slate-400 flex items-center justify-between">
-                                                    <span>📍 {iss.location || '-'}</span>
-                                                    <span>{iss.reported_at || iss.created_at?.slice(0, 10) || ''}</span>
-                                                </div>
+                                                <p className="text-white font-medium truncate">{iss.title}</p>
                                             </div>
                                         ))}
                                     </div>
                                 ) : (
-                                    <p className="text-xs text-emerald-400/90 italic pt-1">
-                                        ✓ Tidak ada laporan masalah aktif di fasilitas ini. Semua sistem berjalan normal.
-                                    </p>
+                                    <p className="text-[11px] text-slate-400 italic">Tidak ada insiden tercatat pada unit ini.</p>
                                 )}
                             </div>
                         )}
-
-                        {/* 22 Masterplan Facilities Quick Directory Grid */}
-                        <div className="rounded-xl bg-slate-900/60 border border-slate-800 p-3 space-y-2">
-                            <div className="flex items-center justify-between">
-                                <span className="text-xs font-semibold text-slate-300">Daftar 22 Fasilitas Resmi TPI</span>
-                                <span className="text-[11px] text-slate-500">Klik nama fasilitas untuk menyorot titik pada denah</span>
-                            </div>
-                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-1.5 pt-1">
-                                {spatialHotspots.tpiZones.map(zone => {
-                                    const count = zone.count || 0;
-                                    const isSelected = selectedTpiZone?.id === zone.id;
-                                    return (
-                                        <button
-                                            key={zone.id}
-                                            type="button"
-                                            onClick={() => setSelectedTpiZone(prev => prev?.id === zone.id ? null : zone)}
-                                            className={`flex items-center justify-between p-1.5 px-2 rounded-lg text-left text-[11px] transition-all border ${
-                                                isSelected
-                                                    ? 'bg-sky-500/20 text-sky-200 border-sky-500/50 shadow-sm'
-                                                    : count > 0
-                                                    ? 'bg-rose-500/10 text-rose-200 border-rose-500/30 hover:bg-rose-500/20'
-                                                    : 'bg-slate-950/40 text-slate-400 border-slate-800/80 hover:bg-slate-800 hover:text-slate-200'
-                                            }`}
-                                        >
-                                            <span className="truncate pr-1">
-                                                <span className="font-mono text-slate-500 text-[10px] mr-1">#{zone.num}</span>
-                                                {zone.name}
-                                            </span>
-                                            {count > 0 && (
-                                                <span className="px-1.5 py-0.2 rounded font-bold text-[9px] bg-rose-500 text-white shrink-0">
-                                                    {count}
-                                                </span>
-                                            )}
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        </div>
                     </div>
+                )}
 
-                {/* TAB 3: DENAH TBR (SPATIAL OVERVIEW - PERSISTENT DOM FOR ZERO FLICKER) */}
-                <div className={hotspotTab === 'tbr' ? 'space-y-3' : 'hidden'}>
-                        <div className={`flex flex-col sm:flex-row sm:items-center justify-between text-xs gap-1 p-2.5 rounded-lg border ${
-                            isDark
-                                ? 'bg-slate-900/60 border-slate-700/60 text-slate-400'
-                                : 'bg-amber-50/90 border-amber-300/80 text-amber-900 shadow-xs'
-                        }`}>
-                            <span className={`flex items-center gap-1.5 font-bold ${isDark ? 'text-amber-300' : 'text-amber-800'}`}>
-                                <Info className="w-3.5 h-3.5 shrink-0 text-amber-500" />
-                                Peta Spasial Telunas Beach Resort (TBR)
-                            </span>
-                            <span className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-amber-800/80'}`}>
-                                Visualisasi sebaran insiden berdasarkan lokasi fasilitas / villa laporan
-                            </span>
-                        </div>
+                {/* Map Display: TBR */}
+                {activeMapTab === 'tbr' && (
+                    <div className="space-y-3">
                         <TbrResortMap
                             zones={spatialHotspots.tbrZones}
                             onSelectZone={(zone) => setSelectedTbrZone(prev => prev?.id === zone.id ? null : zone)}
                             selectedZoneId={selectedTbrZone?.id}
                             theme={theme}
-                            spotlightTarget={hotspotTab === 'tbr' && currentSpotlightTarget?.resort === 'TBR' ? currentSpotlightTarget : null}
                         />
 
-                        {/* Zone Detail Inspector if clicked */}
+                        {/* Zone Inspector TBR */}
                         {selectedTbrZone && (
                             <div className="p-3.5 rounded-xl bg-slate-900 border border-amber-500/40 shadow-lg animate-in fade-in duration-200 space-y-2">
                                 <div className="flex items-center justify-between">
@@ -3032,1104 +2156,133 @@ export function LeanAnalyticsView({
                                             <p className="text-[11px] text-slate-400">{selectedTbrZone.enName} • Telunas Beach Resort</p>
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-2">
-                                        <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
-                                            (selectedTbrZone.count || 0) > 0
-                                                ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
-                                                : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                                        }`}>
-                                            {selectedTbrZone.count || 0} Isu Aktif
-                                        </span>
-                                        <button
-                                            type="button"
-                                            onClick={() => setSelectedTbrZone(null)}
-                                            className="text-xs text-slate-400 hover:text-white px-2 py-1 rounded bg-slate-800"
-                                        >
-                                            Tutup
-                                        </button>
-                                    </div>
+                                    <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                                        (selectedTbrZone.count || 0) > 0
+                                            ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                                            : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                    }`}>
+                                        {selectedTbrZone.count || 0} Isu Aktif
+                                    </span>
                                 </div>
 
                                 {selectedTbrZone.issues?.length > 0 ? (
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
                                         {selectedTbrZone.issues.map(iss => (
-                                            <div key={iss.id} className="p-2 rounded-lg bg-slate-950/70 border border-slate-800 text-xs space-y-1">
-                                                <div className="flex items-center justify-between gap-1">
-                                                    <span className="font-mono text-amber-400 font-semibold">#{iss.id}</span>
-                                                    <span className={`px-1.5 py-0.2 rounded text-[10px] font-semibold ${
-                                                        iss.urgency === 'Darurat' ? 'bg-rose-500/20 text-rose-300' :
-                                                        iss.urgency === 'Tinggi' ? 'bg-orange-500/20 text-orange-300' :
-                                                        'bg-slate-700 text-slate-300'
-                                                    }`}>
-                                                        {iss.urgency || 'Sedang'}
-                                                    </span>
-                                                </div>
-                                                <p className="font-medium text-slate-200 line-clamp-1">{iss.title}</p>
-                                                <div className="text-[10px] text-slate-400 flex items-center justify-between">
-                                                    <span>📍 {iss.location || '-'}</span>
-                                                    <span>{iss.reported_at || iss.created_at?.slice(0, 10) || ''}</span>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <p className="text-xs text-emerald-400/90 italic pt-1">
-                                        ✓ Tidak ada laporan masalah aktif di fasilitas ini. Semua sistem berjalan normal.
-                                    </p>
-                                )}
-                            </div>
-                        )}
-
-                        {/* TBR Overwater Facilities Quick Directory Grid */}
-                        <div className="rounded-xl bg-slate-900/60 border border-slate-800 p-3 space-y-2">
-                            <div className="flex items-center justify-between">
-                                <span className="text-xs font-semibold text-slate-300">Daftar Fasilitas Area Vila Terapung TBR</span>
-                                <span className="text-[11px] text-slate-500">Klik nama fasilitas untuk menyorot titik pada denah</span>
-                            </div>
-                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-1.5 pt-1">
-                                {spatialHotspots.tbrZones.map(zone => {
-                                    const count = zone.count || 0;
-                                    const isSelected = selectedTbrZone?.id === zone.id;
-                                    return (
-                                        <button
-                                            key={zone.id}
-                                            type="button"
-                                            onClick={() => setSelectedTbrZone(prev => prev?.id === zone.id ? null : zone)}
-                                            className={`flex items-center justify-between p-1.5 px-2 rounded-lg text-left text-[11px] transition-all border ${
-                                                isSelected
-                                                    ? 'bg-amber-500/20 text-amber-200 border-amber-500/50 shadow-sm'
-                                                    : count > 0
-                                                    ? 'bg-rose-500/10 text-rose-200 border-rose-500/30 hover:bg-rose-500/20'
-                                                    : 'bg-slate-950/40 text-slate-400 border-slate-800/80 hover:bg-slate-800 hover:text-slate-200'
-                                            }`}
-                                        >
-                                            <span className="truncate pr-1">
-                                                <span className="font-mono text-slate-500 text-[10px] mr-1">#{zone.num}</span>
-                                                {zone.name}
-                                            </span>
-                                            {count > 0 && (
-                                                <span className="px-1.5 py-0.2 rounded font-bold text-[9px] bg-rose-500 text-white shrink-0">
-                                                    {count}
-                                                </span>
-                                            )}
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    </div>
-                        </div>
-                    )}
-                </div>
-            )}
-
-            {/* ========================================================= */}
-            {/* TAB 2: AKAR MASALAH & ANALISA PARETO (MAINTENANCE)        */}
-            {/* ========================================================= */}
-            {activeTab === 'maintenance' && (
-                <div className="space-y-6">
-                    {/* CHARTS ROW 1: PARETO (TOP SUB-CATEGORIES) & CATEGORY DONUT */}
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
-                        {/* 1. PARETO DUAL-AXIS COMPOSED CHART */}
-                        {widgetVisibility.pareto_chart !== false && (
-                            <div className={`${widgetVisibility.category_donut === false ? 'lg:col-span-3' : 'lg:col-span-2'} p-4 rounded-xl bg-slate-800/90 border border-slate-700/80 shadow-sm flex flex-col space-y-3`}>
-                                <div>
-                                    <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-                                        <div>
-                                            <h3 className="text-xs font-bold text-white flex items-center gap-1.5">
-                                                <TrendingUp className="w-4 h-4 text-emerald-400" />
-                                                Analisa Pareto: Top Masalah Berulang (80/20 Rule)
-                                            </h3>
-                                            <p className="text-[11px] text-slate-400 mt-0.5">
-                                                Identifikasi 20% akar masalah yang menyumbang 80% insiden resort
-                                            </p>
-                                        </div>
-
-                                        <div className="flex items-center gap-2">
-                                            {paretoSummary && paretoSummary.vitalCount > 0 && (
-                                                <div className="px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-[11px] font-medium text-emerald-300 flex items-center gap-1.5 shadow-sm">
-                                                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
-                                                    <span>
-                                                        Top <strong>{paretoSummary.vitalCount}</strong> masalah menyumbang{' '}
-                                                        <strong className="text-emerald-200">{paretoSummary.vitalTopPercentage}%</strong> komplain
-                                                    </span>
-                                                </div>
-                                            )}
-
-                                            {/* Toggle View Mode & Hide */}
-                                            <div className="flex items-center gap-1">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => toggleViewMode('pareto_chart')}
-                                                    className="flex items-center gap-1 px-2.5 py-1 rounded bg-slate-900 border border-slate-700 text-[11px] text-slate-300 hover:text-white transition-colors"
-                                                    title={widgetViewModes.pareto_chart === 'table' ? 'Tampilkan Mode Grafik' : 'Tampilkan Mode ERP Tabel'}
-                                                >
-                                                    {widgetViewModes.pareto_chart === 'table' ? (
-                                                        <>
-                                                            <LayoutGrid className="w-3.5 h-3.5 text-teal-400" />
-                                                            <span className="hidden sm:inline">Grafik</span>
-                                                        </>
-                                                    ) : (
-                                                        <>
-                                                            <Table className="w-3.5 h-3.5 text-amber-400" />
-                                                            <span className="hidden sm:inline">Tabel ERP</span>
-                                                        </>
-                                                    )}
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => toggleWidgetVisibility('pareto_chart')}
-                                                    className="p-1.5 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-slate-700/50 transition-colors"
-                                                    title="Sembunyikan Diagram Pareto"
-                                                >
-                                                    <EyeOff className="w-3.5 h-3.5" />
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {widgetViewModes.pareto_chart !== 'table' && (
-                                        /* Visual Legend Bar */
-                                        <div className="flex flex-wrap items-center gap-3 sm:gap-4 px-1 py-1 mb-2 text-[10px] text-slate-400 border-y border-slate-750/50">
-                                            <div className="flex items-center gap-1.5">
-                                                <span className="w-2.5 h-2.5 rounded-sm bg-emerald-500 shrink-0" />
-                                                <span className="text-slate-200 font-medium">Vital Few (Prioritas 80%)</span>
-                                            </div>
-                                            <div className="flex items-center gap-1.5">
-                                                <span className="w-2.5 h-2.5 rounded-sm bg-slate-500 shrink-0" />
-                                                <span>Masalah Sekunder (&gt;80%)</span>
-                                            </div>
-                                            <div className="flex items-center gap-1.5">
-                                                <span className="w-3.5 h-0.5 bg-amber-400 shrink-0 inline-block" />
-                                                <span className="text-amber-400 font-medium">Garis Akumulasi (%)</span>
-                                            </div>
-                                            <div className="flex items-center gap-1.5 ml-auto">
-                                                <span className="w-3.5 h-0.5 border-b border-rose-500 border-dashed shrink-0 inline-block" />
-                                                <span className="text-rose-400 font-medium">Batas 80% Target</span>
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-
-                                {paretoData.length === 0 ? (
-                                    <div className="py-16 text-center text-xs text-slate-500">
-                                        Belum ada data masalah untuk ditampilkan.
-                                    </div>
-                                ) : widgetViewModes.pareto_chart === 'table' ? (
-                                    <div className="overflow-x-auto mt-2">
-                                        <table className="w-full text-left text-xs text-slate-300">
-                                            <thead className="bg-slate-900/80 text-[11px] text-slate-400 uppercase tracking-wider border-b border-slate-700">
-                                                <tr>
-                                                    <th className="py-2.5 px-3">#</th>
-                                                    <th className="py-2.5 px-3">Judul Masalah Lapangan</th>
-                                                    <th className="py-2.5 px-3 text-right">Kasus</th>
-                                                    <th className="py-2.5 px-3 text-right">Porsi</th>
-                                                    <th className="py-2.5 px-3 text-right">Akumulasi</th>
-                                                    <th className="py-2.5 px-3 text-center">Klasifikasi</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="divide-y divide-slate-800">
-                                                {paretoData.map((item, idx) => (
-                                                    <tr key={item.name} className="hover:bg-slate-750/40">
-                                                        <td className="py-2 px-3 font-mono text-slate-500">{idx + 1}</td>
-                                                        <td className="py-2 px-3 font-medium text-white">{item.name}</td>
-                                                        <td className="py-2 px-3 text-right font-bold text-slate-100">{item.count}</td>
-                                                        <td className="py-2 px-3 text-right text-emerald-400 font-semibold">{item.percentage}%</td>
-                                                        <td className="py-2 px-3 text-right text-amber-400 font-bold">{item.cumulativePercentage}%</td>
-                                                        <td className="py-2 px-3 text-center">
-                                                            {item.isVital ? (
-                                                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
-                                                                    Vital Few (80%)
-                                                                </span>
-                                                            ) : (
-                                                                <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-slate-800 text-slate-400 border border-slate-700">
-                                                                    Sekunder
-                                                                </span>
-                                                            )}
-                                                        </td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                ) : (
-                                    <div className="h-72 w-full mt-1">
-                                        <ResponsiveContainer width="100%" height="100%">
-                                            <ComposedChart
-                                                data={paretoData}
-                                                margin={{ top: 15, right: 25, left: -10, bottom: 40 }}
+                                            <div
+                                                key={iss.id}
+                                                onClick={() => onSelectIssue && onSelectIssue(iss)}
+                                                className="p-2 rounded-lg bg-slate-950/70 border border-slate-800 text-xs space-y-1 hover:border-amber-500/50 cursor-pointer"
                                             >
-                                                <CartesianGrid strokeDasharray="3 3" stroke={isDark ? "#334155" : "#e2e8f0"} vertical={false} />
-                                                <XAxis
-                                                    dataKey="name"
-                                                    stroke={isDark ? "#cbd5e1" : "#475569"}
-                                                    fontSize={10}
-                                                    interval={0}
-                                                    angle={-22}
-                                                    textAnchor="end"
-                                                    height={45}
-                                                    tickFormatter={(val) => (val && val.length > 15 ? val.substring(0, 14) + '…' : val)}
-                                                />
-                                                <YAxis
-                                                    yAxisId="left"
-                                                    type="number"
-                                                    stroke={isDark ? "#94a3b8" : "#64748b"}
-                                                    fontSize={10}
-                                                    allowDecimals={false}
-                                                    domain={[0, (dataMax) => Math.max(2, Math.ceil(dataMax * 1.25))]}
-                                                />
-                                                <YAxis
-                                                    yAxisId="right"
-                                                    orientation="right"
-                                                    type="number"
-                                                    stroke="#f59e0b"
-                                                    fontSize={10}
-                                                    domain={[0, 100]}
-                                                    unit="%"
-                                                    tickFormatter={(val) => `${val}%`}
-                                                />
-                                                <RechartsTooltip
-                                                    cursor={{ fill: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.04)' }}
-                                                    content={<CustomParetoTooltip />}
-                                                />
-                                                <ReferenceLine
-                                                    yAxisId="right"
-                                                    y={80}
-                                                    stroke="#f43f5e"
-                                                    strokeDasharray="4 4"
-                                                    strokeWidth={1.5}
-                                                />
-                                                <Bar
-                                                    yAxisId="left"
-                                                    dataKey="count"
-                                                    name="Jumlah Kasus"
-                                                    radius={[4, 4, 0, 0]}
-                                                >
-                                                    {paretoData.map((entry, index) => (
-                                                        <Cell
-                                                            key={`cell-${index}`}
-                                                            fill={entry.isVital ? '#10b981' : '#64748b'}
-                                                        />
-                                                    ))}
-                                                    <LabelList
-                                                        dataKey="count"
-                                                        position="top"
-                                                        fill={isDark ? "#ffffff" : "#0f172a"}
-                                                        fontSize={10}
-                                                        fontWeight={700}
-                                                        offset={5}
-                                                    />
-                                                </Bar>
-                                                <Line
-                                                    yAxisId="right"
-                                                    type="monotone"
-                                                    dataKey="cumulativePercentage"
-                                                    name="Akumulasi %"
-                                                    stroke="#f59e0b"
-                                                    strokeWidth={2.5}
-                                                    dot={{ r: 4, fill: '#f59e0b', stroke: '#0f172a', strokeWidth: 1.5 }}
-                                                    activeDot={{ r: 6, fill: '#fbbf24' }}
-                                                />
-                                            </ComposedChart>
-                                        </ResponsiveContainer>
-                                    </div>
-                                )}
-                            </div>
-                        )}
-
-                        {/* 2. DEPARTMENT DISTRIBUTION (DONUT / TABLE) */}
-                        {widgetVisibility.category_donut !== false && (
-                            <div className={`${widgetVisibility.pareto_chart === false ? 'lg:col-span-3' : 'lg:col-span-1'} p-4 rounded-xl bg-slate-800/90 border border-slate-700/80 shadow-sm flex flex-col space-y-3`}>
-                                <div className="flex items-center justify-between pb-2 border-b border-slate-700/60">
-                                    <div>
-                                        <h3 className="text-xs font-bold text-white flex items-center gap-1.5">
-                                            <Building2 className="w-4 h-4 text-sky-400" />
-                                            Distribusi per Departemen
-                                        </h3>
-                                        <p className="text-[11px] text-slate-400 mt-0.5">
-                                            Proporsi beban kerja tiket per departemen
-                                        </p>
-                                    </div>
-                                    <div className="flex items-center gap-1">
-                                        <button
-                                            type="button"
-                                            onClick={() => toggleViewMode('category_donut')}
-                                            className="p-1.5 text-slate-400 hover:text-white rounded bg-slate-900 border border-slate-700"
-                                            title={widgetViewModes.category_donut === 'table' ? 'Tampilkan Mode Grafik' : 'Tampilkan Mode ERP Tabel'}
-                                        >
-                                            {widgetViewModes.category_donut === 'table' ? (
-                                                <LayoutGrid className="w-3.5 h-3.5 text-teal-400" />
-                                            ) : (
-                                                <Table className="w-3.5 h-3.5 text-amber-400" />
-                                            )}
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => toggleWidgetVisibility('category_donut')}
-                                            className="p-1.5 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-slate-700/50 transition-colors"
-                                            title="Sembunyikan Distribusi Departemen"
-                                        >
-                                            <EyeOff className="w-3.5 h-3.5" />
-                                        </button>
-                                    </div>
-                                </div>
-
-                                {categoryData.length === 0 ? (
-                                    <div className="py-16 text-center text-xs text-slate-500">
-                                        Belum ada data departemen untuk ditampilkan.
-                                    </div>
-                                ) : widgetViewModes.category_donut === 'table' ? (
-                                    <div className="overflow-x-auto mt-2">
-                                        <table className="w-full text-left text-xs text-slate-300">
-                                            <thead className="bg-slate-900/80 text-[11px] text-slate-400 uppercase tracking-wider border-b border-slate-700">
-                                                <tr>
-                                                    <th className="py-2.5 px-3">Departemen</th>
-                                                    <th className="py-2.5 px-3 text-right">Kasus</th>
-                                                    <th className="py-2.5 px-3 text-right">Porsi</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="divide-y divide-slate-800">
-                                                {categoryData.map((item) => (
-                                                    <tr key={item.name} className="hover:bg-slate-750/40">
-                                                        <td className="py-2 px-3 flex items-center gap-1.5 font-medium text-white">
-                                                            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
-                                                            {item.name}
-                                                        </td>
-                                                        <td className="py-2 px-3 text-right font-bold text-slate-100">{item.value}</td>
-                                                        <td className="py-2 px-3 text-right text-sky-400 font-semibold">
-                                                            {stats.total > 0 ? Math.round((item.value / stats.total) * 100) : 0}%
-                                                        </td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
+                                                <div className="flex items-center justify-between text-[10px]">
+                                                    <span className="font-mono text-amber-300 font-bold">#{iss.issue_code || iss.id}</span>
+                                                    <span className={iss.status === 'resolved' ? 'text-emerald-400' : 'text-rose-400'}>
+                                                        {iss.status}
+                                                    </span>
+                                                </div>
+                                                <p className="text-white font-medium truncate">{iss.title}</p>
+                                            </div>
+                                        ))}
                                     </div>
                                 ) : (
-                                    <div className="h-72 sm:h-80 w-full mt-2">
-                                        <ResponsiveContainer width="100%" height="100%">
-                                            <PieChart>
-                                                <Pie
-                                                    data={categoryData}
-                                                    cx="50%"
-                                                    cy="50%"
-                                                    innerRadius={48}
-                                                    outerRadius={75}
-                                                    paddingAngle={3}
-                                                    dataKey="value"
-                                                >
-                                                    {categoryData.map((entry, index) => (
-                                                        <Cell key={`cell-${index}`} fill={entry.color} />
-                                                    ))}
-                                                </Pie>
-                                                <RechartsTooltip
-                                                    contentStyle={{
-                                                        backgroundColor: isDark ? '#0f172a' : '#ffffff',
-                                                        borderColor: isDark ? '#334155' : '#e2e8f0',
-                                                        color: isDark ? '#f8fafc' : '#0f172a',
-                                                        borderRadius: '8px',
-                                                        fontSize: '11px',
-                                                        boxShadow: isDark ? '0 10px 15px -3px rgba(0, 0, 0, 0.5)' : '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
-                                                    }}
-                                                />
-                                                <Legend
-                                                    layout="horizontal"
-                                                    verticalAlign="bottom"
-                                                    align="center"
-                                                    wrapperStyle={{ fontSize: '10px', paddingTop: '8px' }}
-                                                />
-                                            </PieChart>
-                                        </ResponsiveContainer>
-                                    </div>
+                                    <p className="text-[11px] text-slate-400 italic">Tidak ada insiden tercatat pada fasilitas ini.</p>
                                 )}
                             </div>
                         )}
-                    </div>
-
-                    {/* CHARTS ROW 2: DEPARTMENT URGENCY MATRIX */}
-                    {widgetVisibility.urgency_matrix !== false && (
-                        <div className="p-4 rounded-xl bg-slate-800/90 border border-slate-700/80 shadow-sm space-y-4">
-                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-700/60">
-                                <div>
-                                    <h3 className="text-xs font-bold text-white flex items-center gap-1.5">
-                                        <Activity className="w-4 h-4 text-amber-400" />
-                                        Matriks Urgensi per Departemen
-                                    </h3>
-                                    <p className="text-[11px] text-slate-400 mt-0.5">
-                                        Tingkat keparahan (Darurat / Tinggi / Sedang / Rendah) pada tiap departemen tujuan
-                                    </p>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <button
-                                        type="button"
-                                        onClick={() => toggleViewMode('urgency_matrix')}
-                                        className="flex items-center gap-1 px-2.5 py-1 rounded bg-slate-900 border border-slate-700 text-[11px] text-slate-300 hover:text-white transition-colors"
-                                    >
-                                        {widgetViewModes.urgency_matrix === 'table' ? (
-                                            <>
-                                                <LayoutGrid className="w-3.5 h-3.5 text-teal-400" />
-                                                <span>Mode Grafik</span>
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Table className="w-3.5 h-3.5 text-amber-400" />
-                                                <span>Mode ERP Tabel</span>
-                                            </>
-                                        )}
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => toggleWidgetVisibility('urgency_matrix')}
-                                        className="p-1.5 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-slate-700/50 transition-colors"
-                                        title="Sembunyikan Matriks Urgensi"
-                                    >
-                                        <EyeOff className="w-3.5 h-3.5" />
-                                    </button>
-                                </div>
-                            </div>
-
-                            {urgencyMatrixData.length === 0 ? (
-                                <div className="py-12 text-center text-xs text-slate-500">
-                                    Tidak ada data urgensi departemen pada periode ini.
-                                </div>
-                            ) : widgetViewModes.urgency_matrix === 'table' ? (
-                                <div className="overflow-x-auto">
-                                    <table className="w-full text-left text-xs text-slate-300">
-                                        <thead className="bg-slate-900/80 text-[11px] text-slate-400 uppercase tracking-wider border-b border-slate-700">
-                                            <tr>
-                                                <th className="py-2.5 px-3">Departemen</th>
-                                                <th className="py-2.5 px-3 text-center text-rose-400 font-bold">Darurat</th>
-                                                <th className="py-2.5 px-3 text-center text-orange-400 font-bold">Tinggi</th>
-                                                <th className="py-2.5 px-3 text-center text-yellow-400 font-bold">Sedang</th>
-                                                <th className="py-2.5 px-3 text-center text-emerald-400 font-bold">Rendah</th>
-                                                <th className="py-2.5 px-3 text-right">Total Insiden</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-800">
-                                            {urgencyMatrixData.map((item) => (
-                                                <tr key={item.category} className="hover:bg-slate-750/40">
-                                                    <td className="py-2.5 px-3 font-semibold text-white">{item.category}</td>
-                                                    <td className="py-2.5 px-3 text-center font-bold text-rose-400">{item.Darurat}</td>
-                                                    <td className="py-2.5 px-3 text-center font-bold text-orange-400">{item.Tinggi}</td>
-                                                    <td className="py-2.5 px-3 text-center font-bold text-yellow-400">{item.Sedang}</td>
-                                                    <td className="py-2.5 px-3 text-center font-bold text-emerald-400">{item.Rendah}</td>
-                                                    <td className="py-2.5 px-3 text-right font-bold text-slate-100">{item.total}</td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            ) : (
-                                <div className="h-72 w-full">
-                                    <ResponsiveContainer width="100%" height="100%">
-                                        <BarChart
-                                            data={urgencyMatrixData}
-                                            margin={{ top: 10, right: 20, left: -10, bottom: 25 }}
-                                        >
-                                            <CartesianGrid strokeDasharray="3 3" stroke={isDark ? "#334155" : "#e2e8f0"} vertical={false} />
-                                            <XAxis
-                                                dataKey="category"
-                                                stroke={isDark ? "#cbd5e1" : "#475569"}
-                                                fontSize={10}
-                                                interval={0}
-                                                angle={-15}
-                                                textAnchor="end"
-                                                height={40}
-                                            />
-                                            <YAxis stroke={isDark ? "#94a3b8" : "#64748b"} fontSize={10} allowDecimals={false} />
-                                            <RechartsTooltip content={<CustomUrgencyTooltip />} cursor={{ fill: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.04)' }} />
-                                            <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '6px' }} />
-                                            <Bar dataKey="Darurat" name="Darurat" stackId="a" fill="#f43f5e" />
-                                            <Bar dataKey="Tinggi" name="Tinggi" stackId="a" fill="#fb923c" />
-                                            <Bar dataKey="Sedang" name="Sedang" stackId="a" fill="#facc15" />
-                                            <Bar dataKey="Rendah" name="Rendah" stackId="a" fill="#10b981" radius={[4, 4, 0, 0]} />
-                                        </BarChart>
-                                    </ResponsiveContainer>
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    {/* CHARTS ROW 3: ACTIONABLE AUDIT & MITIGATION FEED */}
-                    {widgetVisibility.mitigation_feed !== false && (
-                        <div className="p-4 rounded-xl bg-slate-800/90 border border-slate-700/80 shadow-sm space-y-4">
-                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-700/80">
-                                <div>
-                                    <h3 className="text-xs font-bold text-white flex items-center gap-1.5">
-                                        <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                                        Feed Resolusi Lapangan & Tindak Lanjut
-                                    </h3>
-                                    <p className="text-[11px] text-slate-400 mt-0.5">
-                                        Catatan resolusi teknisi dan detail penanganan masalah di lokasi
-                                    </p>
-                                </div>
-
-                                <div className="flex items-center gap-2 flex-wrap">
-                                    {/* Search Filter */}
-                                    <div className="relative min-w-[180px]">
-                                        <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
-                                        <input
-                                            type="text"
-                                            value={searchFilter}
-                                            onChange={(e) => setSearchFilter(e.target.value)}
-                                            placeholder="Cari mitigasi / lokasi..."
-                                            className="w-full bg-slate-900 border border-slate-700 text-xs rounded-lg pl-8 pr-3 py-1.5 text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500"
-                                        />
-                                    </div>
-
-                                    {/* Department Dropdown */}
-                                    <select
-                                        value={selectedCategory}
-                                        onChange={(e) => setSelectedCategory(e.target.value)}
-                                        className="bg-slate-900 border border-slate-700 text-xs rounded-lg px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-emerald-500"
-                                    >
-                                        <option value="all">Semua Departemen</option>
-                                        {Object.keys(DEPARTMENT_COLORS).map((dept) => (
-                                            <option key={dept} value={dept}>
-                                                {dept}
-                                            </option>
-                                        ))}
-                                    </select>
-
-                                    <button
-                                        type="button"
-                                        onClick={() => toggleWidgetVisibility('mitigation_feed')}
-                                        className="p-1.5 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-slate-700/50 transition-colors"
-                                        title="Sembunyikan Feed Mitigasi"
-                                    >
-                                        <EyeOff className="w-3.5 h-3.5" />
-                                    </button>
-                                </div>
-                            </div>
-
-                {/* Audit Cards Grid */}
-                {mitigationFeed.length === 0 ? (
-                    <div className="py-12 text-center text-xs text-slate-500">
-                        Tidak ada catatan audit yang cocok dengan filter.
-                    </div>
-                ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {mitigationFeed.map((issue) => {
-                            return (
-                                <div
-                                    key={issue.id}
-                                    className="p-3.5 rounded-xl bg-slate-900/90 border border-slate-700/80 hover:border-slate-600 transition-all flex flex-col justify-between space-y-3"
-                                >
-                                    <div>
-                                        {/* Card Header: Location, Code, Status Badge */}
-                                        <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
-                                            <div className="flex items-center gap-1.5">
-                                                <span className="font-mono text-[11px] font-bold text-amber-300 bg-slate-800 px-1.5 py-0.5 rounded border border-slate-700">
-                                                    #{issue.issue_code || ('LEAN-' + issue.id)}
-                                                </span>
-                                                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-300 bg-emerald-950/70 border border-emerald-800/60 px-2 py-0.5 rounded">
-                                                    <MapPin className="w-3 h-3 text-emerald-400" />
-                                                    {issue.location}
-                                                </span>
-                                            </div>
-
-                                            <div className="flex items-center gap-1.5">
-                                                {issue.status === 'open' && (
-                                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40">
-                                                        ● Open
-                                                    </span>
-                                                )}
-                                                {issue.status === 'in_progress' && (
-                                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-300 border border-orange-500/40">
-                                                        ● Progress
-                                                    </span>
-                                                )}
-                                                {issue.status === 'pending' && (
-                                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40">
-                                                        ● Tertunda
-                                                    </span>
-                                                )}
-                                                {issue.status === 'resolved' && (
-                                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
-                                                        ● Selesai
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        {/* Issue Title */}
-                                        <h4 className="text-xs font-bold text-white mb-2">
-                                            {issue.title}
-                                        </h4>
-
-                                        {/* Laporan Lapangan Awal */}
-                                        <div className="p-2.5 rounded-lg bg-slate-950/70 border border-slate-800/90 mb-2">
-                                            <div className="flex items-center justify-between gap-1 mb-1">
-                                                <span className="text-[10px] font-bold text-sky-400 uppercase tracking-wider flex items-center gap-1.5">
-                                                    <FileText className="w-3 h-3 text-sky-400" />
-                                                    Deskripsi Laporan Awal (Staf / Pelapor):
-                                                </span>
-                                                {issue.reporter_name && (
-                                                    <span className="text-[10px] text-slate-400 truncate max-w-[140px]">
-                                                        Pelapor: {issue.reporter_name}
-                                                    </span>
-                                                )}
-                                            </div>
-                                            {issue.description ? (
-                                                <>
-                                                    <p className={`text-[11px] text-slate-300 leading-relaxed whitespace-pre-line ${!expandedDescriptions[issue.id] ? 'line-clamp-3' : ''}`}>
-                                                        {issue.description}
-                                                    </p>
-                                                    {issue.description.length > 130 && (
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => setExpandedDescriptions(prev => ({ ...prev, [issue.id]: !prev[issue.id] }))}
-                                                            className="mt-1 text-[10px] font-semibold text-sky-400 hover:text-sky-300 transition-colors inline-block"
-                                                        >
-                                                            {expandedDescriptions[issue.id] ? 'Tampilkan Lebih Sedikit' : 'Lihat Selengkapnya...'}
-                                                        </button>
-                                                    )}
-                                                </>
-                                            ) : (
-                                                <p className="text-[11px] text-slate-500 italic">
-                                                    (Hanya judul singkat, tidak ada rincian deskripsi tambahan dari pelapor)
-                                                </p>
-                                            )}
-                                        </div>
-
-                                        {/* Catatan Alasan Tertunda Lapangan */}
-                                        {(issue.pending_reason || issue.pendingReason) && (
-                                            <div className="p-2.5 rounded-lg bg-amber-950/40 border border-amber-800/60 mb-2">
-                                                <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider block mb-0.5">
-                                                    ⏳ Alasan Tertunda (Pending):
-                                                </span>
-                                                <p className="text-[11px] text-amber-200/90 leading-relaxed">
-                                                    {issue.pending_reason || issue.pendingReason}
-                                                </p>
-                                            </div>
-                                        )}
-
-                                        {/* Catatan Penyelesaian Nyata Lapangan */}
-                                        {(issue.resolution_note || issue.fixDescription) && (
-                                            <div className="p-2.5 rounded-lg bg-emerald-950/30 border border-emerald-800/50 mb-2">
-                                                <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider block mb-0.5">
-                                                    ✅ Catatan Resolusi Fisik (Teknisi):
-                                                </span>
-                                                <p className="text-[11px] text-emerald-200/90 leading-relaxed">
-                                                    {issue.resolution_note || issue.fixDescription}
-                                                </p>
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* Footer Info: Department & Petugas Lapangan */}
-                                    <div className="pt-2 border-t border-slate-800 flex items-center justify-between text-[10px] text-slate-400">
-                                        <span>
-                                            Departemen: <strong className="text-slate-300">{(issue.target_departments || []).join(', ') || 'Umum'}</strong>
-                                        </span>
-                                        <span>
-                                            Petugas: <strong className="text-slate-300">{issue.resolved_by_name || issue.claimed_by_name || '-'}</strong>
-                                        </span>
-                                    </div>
-                                </div>
-                            );
-                        })}
                     </div>
                 )}
             </div>
-        )}
-    </div>
-)}
 
             {/* ========================================================= */}
-            {/* TAB 3: KINERJA OPERASIONAL & SLA (OPERATIONS)             */}
+            {/* 6. MODAL DETAIL POPUP KETIKA LOKASI DI-KLIK               */}
             {/* ========================================================= */}
-            {activeTab === 'sla_performance' && (
-                <div className="space-y-6">
-                    {/* ROW 1: SLA & MTTR KPI METRICS */}
-                    {widgetVisibility.sla_kpi !== false && (
-                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                            {/* 1. MTTR Avg Hours */}
-                            <div className="p-4 rounded-xl bg-slate-800/90 border border-slate-700/80 shadow-sm relative overflow-hidden group">
-                                <div className="flex items-center justify-between">
-                                    <span className="text-xs font-semibold text-slate-400">Rata-rata Resolusi (MTTR)</span>
-                                    <div className="flex items-center gap-1.5">
-                                        <button
-                                            type="button"
-                                            onClick={() => toggleWidgetVisibility('sla_kpi')}
-                                            className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-slate-500 hover:text-rose-400"
-                                            title="Sembunyikan Kartu SLA"
-                                        >
-                                            <EyeOff className="w-3 h-3" />
-                                        </button>
-                                        <div className="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
-                                            <Clock className="w-4 h-4" />
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="mt-2 flex items-baseline gap-1.5">
-                                    <span className="text-2xl font-black text-emerald-300">{mttrData.avgTurnaroundHours}</span>
-                                    <span className="text-xs text-slate-400">Jam</span>
-                                </div>
-                                <p className="text-[11px] text-slate-500 mt-1">
-                                    {mttrData.resolvedWithTimeCount} tiket terselesaikan tercatat
-                                </p>
-                            </div>
-
-                            {/* 2. First Response Speed */}
-                            <div className="p-4 rounded-xl bg-slate-800/90 border border-slate-700/80 shadow-sm relative overflow-hidden">
-                                <div className="flex items-center justify-between">
-                                    <span className="text-xs font-semibold text-slate-400">Respon Pertama (Awal)</span>
-                                    <div className="w-7 h-7 rounded-lg bg-sky-500/20 text-sky-400 flex items-center justify-center">
-                                        <Activity className="w-4 h-4" />
-                                    </div>
-                                </div>
-                                <div className="mt-2 flex items-baseline gap-1.5">
-                                    <span className="text-2xl font-black text-sky-300">{mttrData.avgResponseHours}</span>
-                                    <span className="text-xs text-slate-400">Jam</span>
-                                </div>
-                                <p className="text-[11px] text-slate-500 mt-1">
-                                    Kecepatan tiket mulai diproses staf
-                                </p>
-                            </div>
-
-                            {/* 3. SLA Under 24h Rate */}
-                            <div className="p-4 rounded-xl bg-slate-800/90 border border-slate-700/80 shadow-sm relative overflow-hidden">
-                                <div className="flex items-center justify-between">
-                                    <span className="text-xs font-semibold text-slate-400">Kepatuhan SLA (&lt; 24 Jam)</span>
-                                    <div className="w-7 h-7 rounded-lg bg-teal-500/20 text-teal-400 flex items-center justify-center">
-                                        <ShieldCheck className="w-4 h-4" />
-                                    </div>
-                                </div>
-                                <div className="mt-2 flex items-baseline gap-1.5">
-                                    <span className="text-2xl font-black text-teal-300">{mttrData.slaRate24h}%</span>
-                                    <span className="text-xs text-slate-400">tuntas cepat</span>
-                                </div>
-                                <p className="text-[11px] text-slate-500 mt-1">
-                                    {mttrData.slaUnder2h + mttrData.slaUnder24h} tiket tuntas tanpa tertunda
-                                </p>
-                            </div>
-
-                            {/* 4. Complex / Delayed > 24h */}
-                            <div className="p-4 rounded-xl bg-slate-800/90 border border-slate-700/80 shadow-sm relative overflow-hidden">
-                                <div className="flex items-center justify-between">
-                                    <span className="text-xs font-semibold text-slate-400">Isu Tertunda (&gt; 24 Jam)</span>
-                                    <div className="w-7 h-7 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center">
-                                        <AlertTriangle className="w-4 h-4" />
-                                    </div>
-                                </div>
-                                <div className="mt-2 flex items-baseline gap-1.5">
-                                    <span className="text-2xl font-black text-amber-300">{mttrData.slaOver24h}</span>
-                                    <span className="text-xs text-slate-400">kasus kompleks</span>
-                                </div>
-                                <p className="text-[11px] text-slate-500 mt-1">
-                                    Membutuhkan sparepart / logistik pulau
-                                </p>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* ROW 2: MTTR PER DEPARTMENT & DEPARTMENT WORKLOAD */}
-                    <div className="space-y-3">
-                        {/* Scope Toolbar Filter for All Master Departments vs Active Departments */}
-                        <div className="flex items-center justify-between flex-wrap gap-2 px-1">
+            {selectedLocationForModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className={`w-full max-w-2xl max-h-[85vh] rounded-2xl border flex flex-col overflow-hidden shadow-2xl ${
+                        isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
+                    }`}>
+                        {/* Modal Header */}
+                        <div className="p-4 border-b border-slate-700/60 flex items-center justify-between gap-3 bg-slate-950/50">
                             <div className="flex items-center gap-2">
-                                <span className={`text-xs font-bold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                                    Cakupan Departemen:
-                                </span>
-                                <span className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                                    {showAllMasterDepts 
-                                        ? `Menampilkan seluruh ${departments.length || 11} divisi resmi resort`
-                                        : `Menampilkan ${departmentData.length} divisi yang memiliki aktivitas tiket`}
-                                </span>
+                                <div className="w-8 h-8 rounded-xl bg-rose-500/20 text-rose-400 flex items-center justify-center">
+                                    <MapPin className="w-4 h-4" />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-sm text-white">
+                                        Daftar Isu: {selectedLocationForModal.location}
+                                    </h3>
+                                    <p className="text-[11px] text-slate-400">
+                                        Total {selectedLocationForModal.total} insiden ({selectedLocationForModal.openCount} belum selesai)
+                                    </p>
+                                </div>
                             </div>
                             <button
                                 type="button"
-                                onClick={() => setShowAllMasterDepts(prev => !prev)}
-                                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-[11px] font-semibold border transition-all ${
-                                    showAllMasterDepts
-                                        ? isDark 
-                                            ? 'bg-sky-500/20 text-sky-300 border-sky-500/40 shadow-sm'
-                                            : 'bg-sky-100 text-sky-800 border-sky-300 shadow-sm'
-                                        : isDark
-                                            ? 'bg-slate-800/80 text-slate-400 border-slate-700 hover:text-white'
-                                            : 'bg-white text-slate-600 border-slate-300 hover:text-slate-900 shadow-sm'
-                                }`}
-                                title={showAllMasterDepts ? 'Klik untuk hanya melihat divisi dengan isu aktif' : 'Klik untuk melihat seluruh divisi resort'}
+                                onClick={() => setSelectedLocationForModal(null)}
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
                             >
-                                <Users className="w-3.5 h-3.5" />
-                                <span>{showAllMasterDepts ? 'Filter: Hanya Divisi Berisu' : 'Tampilkan Seluruh Divisi Resort'}</span>
+                                <X className="w-5 h-5" />
                             </button>
                         </div>
 
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
-                            {/* MTTR SPEED PER DEPT */}
-                            {widgetVisibility.mttr_analytics !== false && (
-                                <div className={`p-4 rounded-xl border shadow-sm flex flex-col space-y-3 ${
-                                    isDark ? 'bg-slate-800/90 border-slate-700/80' : 'bg-white border-slate-200'
-                                }`}>
-                                    <div className={`flex items-center justify-between pb-2 border-b ${
-                                        isDark ? 'border-slate-700/60' : 'border-slate-200'
-                                    }`}>
-                                        <div>
-                                            <h3 className={`text-xs font-bold flex items-center gap-1.5 ${
-                                                isDark ? 'text-white' : 'text-slate-900'
+                        {/* Modal Body */}
+                        <div className="p-4 overflow-y-auto space-y-3 flex-1">
+                            {selectedLocationForModal.issues.map((iss) => (
+                                <div
+                                    key={iss.id}
+                                    className={`p-3.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-all ${
+                                        isDark ? 'bg-slate-800/80 border-slate-700/80' : 'bg-slate-50 border-slate-200'
+                                    }`}
+                                >
+                                    <div className="space-y-1 min-w-0 flex-1">
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                            <span className="font-mono text-amber-300 text-[11px] font-bold bg-slate-900 px-1.5 py-0.5 rounded border border-slate-700">
+                                                #{iss.issue_code || iss.id}
+                                            </span>
+                                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                                                iss.status === 'open'
+                                                    ? 'bg-rose-500/20 border-rose-500/40 text-rose-300'
+                                                    : iss.status === 'in_progress'
+                                                    ? 'bg-orange-500/20 border-orange-500/40 text-orange-300'
+                                                    : iss.status === 'pending'
+                                                    ? 'bg-amber-500/20 border-amber-500/40 text-amber-300'
+                                                    : 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
                                             }`}>
-                                                <Clock className="w-4 h-4 text-sky-400" />
-                                                Kecepatan MTTR per Departemen
-                                            </h3>
-                                            <p className={`text-[11px] mt-0.5 ${
-                                                isDark ? 'text-slate-400' : 'text-slate-500'
-                                            }`}>
-                                                Rata-rata waktu penyelesaian tiket (jam) tiap divisi
+                                                {iss.status}
+                                            </span>
+                                            <span className="text-[10px] text-slate-400">
+                                                Dept: {(iss.target_departments || []).join(', ') || 'Umum'}
+                                            </span>
+                                        </div>
+                                        <h4 className="text-xs font-bold text-white truncate">
+                                            {iss.title}
+                                        </h4>
+                                        {iss.description && (
+                                            <p className="text-[11px] text-slate-300 line-clamp-2">
+                                                {iss.description}
                                             </p>
-                                        </div>
-                                        <div className="flex items-center gap-1">
-                                            <button
-                                                type="button"
-                                                onClick={() => toggleViewMode('mttr_analytics')}
-                                                className={`flex items-center gap-1 px-2.5 py-1 rounded border text-[11px] transition-colors ${
-                                                    isDark 
-                                                        ? 'bg-slate-900 border-slate-700 text-slate-300 hover:text-white' 
-                                                        : 'bg-slate-100 border-slate-300 text-slate-700 hover:text-slate-900'
-                                                }`}
-                                                title={widgetViewModes.mttr_analytics === 'table' ? 'Tampilkan Mode Grafik' : 'Tampilkan Mode ERP Tabel'}
-                                            >
-                                                {widgetViewModes.mttr_analytics === 'table' ? (
-                                                    <>
-                                                        <LayoutGrid className="w-3.5 h-3.5 text-teal-400" />
-                                                        <span className="hidden sm:inline">Grafik</span>
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <Table className="w-3.5 h-3.5 text-amber-400" />
-                                                        <span className="hidden sm:inline">Tabel ERP</span>
-                                                    </>
-                                                )}
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => toggleWidgetVisibility('mttr_analytics')}
-                                                className={`p-1.5 rounded-lg transition-colors ${
-                                                    isDark ? 'text-slate-400 hover:text-rose-400 hover:bg-slate-700/50' : 'text-slate-500 hover:text-rose-600 hover:bg-slate-100'
-                                                }`}
-                                                title="Sembunyikan Analisa MTTR"
-                                            >
-                                                <EyeOff className="w-3.5 h-3.5" />
-                                            </button>
-                                        </div>
+                                        )}
+                                        {iss.pending_reason && (
+                                            <p className="text-[10px] text-amber-300 bg-amber-950/40 border border-amber-800/50 p-1.5 rounded">
+                                                Alasan Pending: {iss.pending_reason}
+                                            </p>
+                                        )}
                                     </div>
 
-                                    {mttrData.deptMttrList.length === 0 ? (
-                                        <div className="py-16 text-center text-xs text-slate-500">
-                                            Belum ada data departemen pada periode ini.
-                                        </div>
-                                    ) : widgetViewModes.mttr_analytics === 'table' ? (
-                                        <div className="overflow-x-auto mt-2">
-                                            <table className="w-full text-left text-xs">
-                                                <thead className={`text-[11px] uppercase tracking-wider border-b ${
-                                                    isDark ? 'bg-slate-900/80 text-slate-400 border-slate-700' : 'bg-slate-100 text-slate-600 border-slate-200'
-                                                }`}>
-                                                    <tr>
-                                                        <th className="py-2.5 px-3">Departemen</th>
-                                                        <th className="py-2.5 px-3 text-right">Tiket Selesai</th>
-                                                        <th className="py-2.5 px-3 text-center">Pending / Sparepart</th>
-                                                        <th className="py-2.5 px-3 text-right">Rata-rata MTTR</th>
-                                                        <th className="py-2.5 px-3 text-center">Status Kecepatan</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody className={`divide-y ${isDark ? 'divide-slate-800 text-slate-300' : 'divide-slate-200 text-slate-700'}`}>
-                                                    {mttrData.deptMttrList.map((d) => (
-                                                        <tr key={d.department} className={isDark ? 'hover:bg-slate-750/40' : 'hover:bg-slate-50'}>
-                                                            <td className={`py-2 px-3 font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>{d.department}</td>
-                                                            <td className={`py-2 px-3 text-right font-medium ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>{d.solvedCount}</td>
-                                                            <td className="py-2 px-3 text-center">
-                                                                {d.pendingCount > 0 ? (
-                                                                    <span
-                                                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/40 shadow-sm"
-                                                                        title={`${d.pendingCount} tiket mengalami penundaan pending atau butuh suku cadang`}
-                                                                    >
-                                                                        ⏸️ {d.pendingCount} Tertunda
-                                                                    </span>
-                                                                ) : (
-                                                                    <span className={`text-[10px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                                                                        0 Kasus (Lancar)
-                                                                    </span>
-                                                                )}
-                                                            </td>
-                                                            <td className={`py-2 px-3 text-right font-bold ${
-                                                                d.avgHours !== null 
-                                                                    ? (isDark ? 'text-sky-400' : 'text-sky-600') 
-                                                                    : (isDark ? 'text-slate-500' : 'text-slate-400')
-                                                            }`}>
-                                                                {d.avgHours !== null ? `${d.avgHours} Jam` : '—'}
-                                                            </td>
-                                                            <td className="py-2 px-3 text-center">
-                                                                {d.statusType === 'fast' ? (
-                                                                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">
-                                                                        Sangat Cepat
-                                                                    </span>
-                                                                ) : d.statusType === 'normal' ? (
-                                                                    <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-sky-500/20 text-sky-400 border border-sky-500/40">
-                                                                        Standar
-                                                                    </span>
-                                                                ) : d.statusType === 'pending_delay' ? (
-                                                                    <div className="inline-flex flex-col items-center">
-                                                                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/40">
-                                                                            Tertunda Pending / Sparepart
-                                                                        </span>
-                                                                        <span className={`text-[9px] mt-0.5 font-normal ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                                                                            Wajar (Kendala logistik/part)
-                                                                        </span>
-                                                                    </div>
-                                                                ) : d.statusType === 'in_progress_only' ? (
-                                                                    <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
-                                                                        isDark ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/40' : 'bg-indigo-50 text-indigo-700 border border-indigo-200'
-                                                                    }`}>
-                                                                        Sedang Berjalan
-                                                                    </span>
-                                                                ) : d.statusType === 'no_issues' ? (
-                                                                    <span className={`px-2 py-0.5 rounded text-[10px] font-normal ${
-                                                                        isDark ? 'text-slate-400 bg-slate-900/60 border border-slate-700/60' : 'text-slate-500 bg-slate-100 border border-slate-200'
-                                                                    }`}>
-                                                                        Belum Ada Isu
-                                                                    </span>
-                                                                ) : (
-                                                                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-400 border border-rose-500/40">
-                                                                        Perlu Evaluasi
-                                                                    </span>
-                                                                )}
-                                                            </td>
-                                                        </tr>
-                                                    ))}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    ) : (
-                                        <div className="h-72 sm:h-80 w-full mt-2">
-                                            <ResponsiveContainer width="100%" height="100%">
-                                                <BarChart
-                                                    data={mttrData.deptMttrList.filter((d) => d.avgHours !== null)}
-                                                    layout="vertical"
-                                                    margin={{ top: 10, right: 25, left: 20, bottom: 5 }}
-                                                >
-                                                    <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#334155' : '#e2e8f0'} horizontal={false} />
-                                                    <XAxis type="number" stroke={isDark ? '#94a3b8' : '#64748b'} fontSize={10} unit="h" />
-                                                    <YAxis type="category" dataKey="department" stroke={isDark ? '#cbd5e1' : '#334155'} fontSize={11} width={80} />
-                                                    <RechartsTooltip content={<CustomMttrTooltip />} cursor={{ fill: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.03)' }} />
-                                                    <Bar dataKey="avgHours" name="Rata-rata Durasi (Jam)" fill="#38bdf8" radius={[0, 4, 4, 0]}>
-                                                        <LabelList dataKey="avgHours" position="right" fill={isDark ? '#93c5fd' : '#0284c7'} fontSize={10} fontWeight={600} formatter={(val) => `${val}h`} />
-                                                    </Bar>
-                                                </BarChart>
-                                            </ResponsiveContainer>
-                                        </div>
+                                    {onSelectIssue && (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setSelectedLocationForModal(null);
+                                                onSelectIssue(iss);
+                                            }}
+                                            className="shrink-0 px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs transition-all flex items-center gap-1 self-end sm:self-center"
+                                        >
+                                            <span>Rincian</span>
+                                            <ArrowUpRight className="w-3.5 h-3.5" />
+                                        </button>
                                     )}
                                 </div>
-                            )}
-
-                            {/* DEPARTMENT WORKLOAD */}
-                            {widgetVisibility.dept_workload !== false && (
-                                <div className={`p-4 rounded-xl border shadow-sm flex flex-col space-y-3 ${
-                                    isDark ? 'bg-slate-800/90 border-slate-700/80' : 'bg-white border-slate-200'
-                                }`}>
-                                    <div className={`flex items-center justify-between pb-2 border-b ${
-                                        isDark ? 'border-slate-700/60' : 'border-slate-200'
-                                    }`}>
-                                        <div>
-                                            <h3 className={`text-xs font-bold flex items-center gap-1.5 ${
-                                                isDark ? 'text-white' : 'text-slate-900'
-                                            }`}>
-                                                <Briefcase className="w-4 h-4 text-emerald-400" />
-                                                Laporan Beban per Departemen
-                                            </h3>
-                                            <p className={`text-[11px] mt-0.5 ${
-                                                isDark ? 'text-slate-400' : 'text-slate-500'
-                                            }`}>
-                                                Distribusi tiket aktif vs terselesaikan tiap divisi
-                                            </p>
-                                        </div>
-                                        <div className="flex items-center gap-1">
-                                            <button
-                                                type="button"
-                                                onClick={() => toggleViewMode('dept_workload')}
-                                                className={`flex items-center gap-1 px-2.5 py-1 rounded border text-[11px] transition-colors ${
-                                                    isDark 
-                                                        ? 'bg-slate-900 border-slate-700 text-slate-300 hover:text-white' 
-                                                        : 'bg-slate-100 border-slate-300 text-slate-700 hover:text-slate-900'
-                                                }`}
-                                                title={widgetViewModes.dept_workload === 'table' ? 'Tampilkan Mode Grafik' : 'Tampilkan Mode ERP Tabel'}
-                                            >
-                                                {widgetViewModes.dept_workload === 'table' ? (
-                                                    <>
-                                                        <LayoutGrid className="w-3.5 h-3.5 text-teal-400" />
-                                                        <span className="hidden sm:inline">Grafik</span>
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <Table className="w-3.5 h-3.5 text-amber-400" />
-                                                        <span className="hidden sm:inline">Tabel ERP</span>
-                                                    </>
-                                                )}
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => toggleWidgetVisibility('dept_workload')}
-                                                className={`p-1.5 rounded-lg transition-colors ${
-                                                    isDark ? 'text-slate-400 hover:text-rose-400 hover:bg-slate-700/50' : 'text-slate-500 hover:text-rose-600 hover:bg-slate-100'
-                                                }`}
-                                                title="Sembunyikan Beban Departemen"
-                                            >
-                                                <EyeOff className="w-3.5 h-3.5" />
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    {departmentData.length === 0 ? (
-                                        <div className="py-16 text-center text-xs text-slate-500">
-                                            Belum ada data tiket departemen pada periode ini.
-                                        </div>
-                                    ) : widgetViewModes.dept_workload === 'table' ? (
-                                        <div className="overflow-x-auto mt-2">
-                                            <table className="w-full text-left text-xs">
-                                                <thead className={`text-[11px] uppercase tracking-wider border-b ${
-                                                    isDark ? 'bg-slate-900/80 text-slate-400 border-slate-700' : 'bg-slate-100 text-slate-600 border-slate-200'
-                                                }`}>
-                                                    <tr>
-                                                        <th className="py-2.5 px-3">Departemen</th>
-                                                        <th className="py-2.5 px-3 text-center text-rose-500 font-bold">Open</th>
-                                                        <th className="py-2.5 px-3 text-center text-sky-500 font-bold">Diproses</th>
-                                                        <th className="py-2.5 px-3 text-center text-emerald-500 font-bold">Selesai</th>
-                                                        <th className="py-2.5 px-3 text-right">Total Beban</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody className={`divide-y ${isDark ? 'divide-slate-800 text-slate-300' : 'divide-slate-200 text-slate-700'}`}>
-                                                    {departmentData.map((d) => (
-                                                        <tr key={d.department} className={isDark ? 'hover:bg-slate-750/40' : 'hover:bg-slate-50'}>
-                                                            <td className={`py-2 px-3 font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>{d.department}</td>
-                                                            <td className="py-2 px-3 text-center font-bold text-rose-500">{d.open}</td>
-                                                            <td className="py-2 px-3 text-center font-bold text-sky-500">{d.in_progress}</td>
-                                                            <td className="py-2 px-3 text-center font-bold text-emerald-500">{d.resolved}</td>
-                                                            <td className={`py-2 px-3 text-right font-bold ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>{d.total}</td>
-                                                        </tr>
-                                                    ))}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    ) : (
-                                        <div className="h-72 sm:h-80 w-full mt-2">
-                                            <ResponsiveContainer width="100%" height="100%">
-                                                <BarChart
-                                                    data={departmentData}
-                                                    margin={{ top: 10, right: 10, left: -10, bottom: 20 }}
-                                                >
-                                                    <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#334155' : '#e2e8f0'} vertical={false} />
-                                                    <XAxis dataKey="department" stroke={isDark ? '#cbd5e1' : '#334155'} fontSize={11} interval={0} angle={-15} textAnchor="end" height={35} />
-                                                    <YAxis stroke={isDark ? '#94a3b8' : '#64748b'} fontSize={10} allowDecimals={false} />
-                                                    <RechartsTooltip content={<CustomDeptTooltip />} cursor={{ fill: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.03)' }} />
-                                                    <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '4px' }} />
-                                                    <Bar dataKey="open" name="Belum Selesai" stackId="a" fill="#f43f5e" />
-                                                    <Bar dataKey="in_progress" name="Sedang Diproses" stackId="a" fill="#38bdf8" />
-                                                    <Bar dataKey="resolved" name="Selesai" stackId="a" fill="#10b981" radius={[4, 4, 0, 0]} />
-                                                </BarChart>
-                                            </ResponsiveContainer>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
+                            ))}
                         </div>
                     </div>
                 </div>
