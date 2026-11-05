@@ -62,6 +62,7 @@ import {
     Ticket,
     X,
     Maximize2,
+    ArrowUpRight,
 } from 'lucide-react';
 import { TPI_MASTERPLAN_ZONES, TBR_MASTERPLAN_ZONES, resolveIssueResortAndZone } from '@/constants/locations';
 
