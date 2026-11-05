@@ -25,6 +25,7 @@ const QRCode = require('qrcode');
 const fs = require('fs');
 const path = require('path');
 const { getAuthFolderStats, cleanAuthFolder, setupHousekeepingSchedule } = require('./housekeeping');
+const { findNearestTelunasFacility } = require('./services/telunasGeofence');
 
 const app = express();
 app.use(express.json());
@@ -501,15 +502,17 @@ async function startBot() {
                 const lat = rawLocMsg.degreesLatitude;
                 const lng = rawLocMsg.degreesLongitude;
                 const placeName = rawLocMsg.name || rawLocMsg.address || '';
-                const mapsUrl = `https://maps.google.com/?q=${lat.toFixed(6)},${lng.toFixed(6)}`;
+                
+                // Snap GPS coordinates to nearest Telunas facility anchor (Geofencing)
+                const geoMatch = findNearestTelunasFacility(lat, lng, placeName);
+
                 locationPayload = {
                     lat,
                     lng,
                     name: placeName,
-                    mapsUrl,
-                    formatted: placeName 
-                        ? `${placeName} (GPS: ${lat.toFixed(5)}, ${lng.toFixed(5)}) - ${mapsUrl}` 
-                        : `GPS (${lat.toFixed(5)}, ${lng.toFixed(5)}) - ${mapsUrl}`
+                    mapsUrl: geoMatch.mapsUrl,
+                    formatted: geoMatch.formattedLocation,
+                    geoMatch: geoMatch,
                 };
                 if (!text) {
                     text = locationPayload.formatted;
@@ -1269,8 +1272,10 @@ async function startBot() {
             // Step 2 -> Step 3: Description
             if (state.step === STEPS.AWAITING_LOCATION) {
                 let loc = null;
+                let detectedGeo = null;
                 if (locationPayload) {
                     loc = locationPayload.formatted;
+                    detectedGeo = locationPayload.geoMatch;
                 } else if (text) {
                     if (text === '1' || lower === 'tbr') loc = 'TBR';
                     else if (text === '2' || lower === 'tpc' || lower === 'tpi') loc = 'TPC';
@@ -1287,7 +1292,19 @@ async function startBot() {
                 state.step = STEPS.AWAITING_DESC;
                 setUserState(senderPhone, state);
 
+                let geoFeedback = '';
+                if (detectedGeo && detectedGeo.facilityName) {
+                    const rName = detectedGeo.resort === 'TBR' 
+                        ? 'Telunas Beach Resort (TBR)' 
+                        : (detectedGeo.resort === 'OFFICE' ? 'Kantor Sekupang' : 'Telunas Private Island (TPI)');
+                    const numPrefix = detectedGeo.facilityNum ? `#${detectedGeo.facilityNum} ` : '';
+                    geoFeedback = `📍 *Lokasi Terdeteksi Otomatis (Geofencing):*\n` +
+                        `• *Resor:* ${rName}\n` +
+                        `• *Fasilitas:* ${numPrefix}${detectedGeo.facilityName} (~${detectedGeo.distanceMeters}m)\n\n`;
+                }
+
                 await reply(
+                    geoFeedback +
                     `📝 *Langkah 3/5:* Jelaskan deskripsi detail kendala atau kronologinya:\n` +
                     `_Step 3/5: Describe the issue details or chronology:_\n\n` +
                     `_(Contoh: Rembesan air mengenai meja kerja sejak tadi malam, tamu meminta dicek segera.)_`

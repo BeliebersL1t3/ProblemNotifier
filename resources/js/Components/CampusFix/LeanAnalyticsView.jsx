@@ -1932,8 +1932,11 @@ export function LeanAnalyticsView({
                             </div>
                         </div>
                         <div className="mt-2">
-                            <span className={`text-base font-bold truncate block group-hover:underline ${isDark ? 'text-amber-300' : 'text-amber-700'}`}>
-                                {topHotspot ? `#1 ${topHotspot.location}` : '-'}
+                            <span 
+                                title={topHotspot ? topHotspot.location : undefined}
+                                className={`text-sm sm:text-base font-bold line-clamp-2 leading-snug block group-hover:underline ${isDark ? 'text-amber-300' : 'text-amber-700'}`}
+                            >
+                                {topHotspot ? `#1 ${topHotspot.location.replace(/\s*\(GPS:.*$/i, '')}` : '-'}
                             </span>
                             <div className="mt-1 flex items-baseline gap-2">
                                 <span className={`text-xl font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>

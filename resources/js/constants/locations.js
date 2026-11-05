@@ -363,6 +363,25 @@ export function resolveIssueResortAndZone(issue) {
     let matchedKey = null;
     let matchedZone = null;
 
+    // Direct #num match (e.g. from WhatsApp geofence: "TPI - #2 Restoran & Kantor")
+    const numMatch = loc.match(/#(\d+)/);
+    if (numMatch) {
+        const targetNum = parseInt(numMatch[1], 10);
+        const candidateList = isTbr ? TBR_MASTERPLAN_ZONES : TPI_MASTERPLAN_ZONES;
+        const byNum = candidateList.find(z => z.num === targetNum);
+        if (byNum) {
+            matchedKey = byNum.id;
+            matchedZone = byNum;
+            return {
+                resort,
+                zoneId: matchedKey,
+                zoneName: matchedZone.name,
+                zone: matchedZone,
+                isOffice: false,
+            };
+        }
+    }
+
     if (isTbr) {
         if (loc.includes('3 bedroom') || loc.includes('3-bedroom') || loc.includes('3 br') || fullText.includes('loft') || fullText.includes('3 bedroom')) {
             matchedKey = 'tbr_bungalow_3br';
