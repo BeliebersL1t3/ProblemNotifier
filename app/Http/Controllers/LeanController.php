@@ -225,7 +225,7 @@ class LeanController extends Controller
             app(GoogleSheetsSyncService::class)->syncIssue($issue);
             app(\App\Services\LeanSheetDirectService::class)->syncSingleIssue($issue);
         } catch (\Throwable $e) {
-            Log::error('Sheets sync error on acc: ' . $e->getMessage());
+            Log::error('Sheets sync error on claim: ' . $e->getMessage());
         }
 
         return redirect()->back()->with('success', "Tugas berhasil diambil oleh {$staffName} ({$dept}).");
@@ -265,7 +265,7 @@ class LeanController extends Controller
             app(GoogleSheetsSyncService::class)->syncIssue($issue);
             app(\App\Services\LeanSheetDirectService::class)->syncSingleIssue($issue);
         } catch (\Throwable $e) {
-            Log::error('Sheets sync error on acc: ' . $e->getMessage());
+            Log::error('Sheets sync error on resolve: ' . $e->getMessage());
         }
 
         return redirect()->back()->with('success', 'Masalah berhasil ditandai selesai!');
@@ -444,7 +444,7 @@ class LeanController extends Controller
             app(GoogleSheetsSyncService::class)->syncIssue($issue);
             app(\App\Services\LeanSheetDirectService::class)->syncSingleIssue($issue);
         } catch (\Throwable $e) {
-            Log::error('Sheets sync error on acc: ' . $e->getMessage());
+            Log::error('Sheets sync error on apiStore: ' . $e->getMessage());
         }
 
         $code = self::formatIssueCode($issue);
@@ -649,7 +649,7 @@ class LeanController extends Controller
             app(GoogleSheetsSyncService::class)->syncIssue($issue);
             app(\App\Services\LeanSheetDirectService::class)->syncSingleIssue($issue);
         } catch (\Throwable $e) {
-            Log::error('Sheets sync error on acc: ' . $e->getMessage());
+            Log::error('Sheets sync error on apiPending: ' . $e->getMessage());
         }
 
         return response()->json([
