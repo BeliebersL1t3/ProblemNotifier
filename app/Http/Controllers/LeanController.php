@@ -64,12 +64,6 @@ class LeanController extends Controller
                 'resolution_image_url' => $resImageUrl,
                 'created_at'           => $item->created_at ? $item->created_at->toIso8601String() : null,
                 'created_at_human'     => $item->created_at ? $item->created_at->locale('id')->diffForHumans() : '',
-                'ai_status'            => $item->ai_status ?? 'pending',
-                'ai_category'          => $item->ai_category,
-                'ai_sub_category'      => $item->ai_sub_category,
-                'ai_urgency'           => $item->ai_urgency,
-                'ai_is_minimal'        => (bool)($item->ai_is_minimal ?? false),
-                'ai_analysis'          => $item->ai_analysis,
                 'transfer_history'     => $item->transfer_history ?? [],
             ];
         });
@@ -131,7 +125,6 @@ class LeanController extends Controller
             'image_url'          => $imageUrl,
             'status'             => 'open',
             'department_accs'    => $accs,
-            'ai_status'          => 'pending',
         ]);
 
         // Failsafe Google Sheets sync
@@ -314,15 +307,6 @@ class LeanController extends Controller
     }
 
     /**
-     * Retry AI analysis on pending offline queue issues.
-     */
-    public function retryAiQueue(\App\Services\GeminiIssueService $service)
-    {
-        $processed = $service->processPendingQueue(20);
-        return redirect()->back()->with('success', "Sinkronisasi AI selesai: {$processed} tiket berhasil dianalisis.");
-    }
-
-    /**
      * Helper to format human-readable issue codes like ENG-221026-1
      */
     public static function formatIssueCode($issue)
@@ -429,7 +413,6 @@ class LeanController extends Controller
                     'acc_at' => null,
                 ]
             ],
-            'ai_status'          => null,
         ]);
 
         // Failsafe Google Sheets sync for WhatsApp Bot V2

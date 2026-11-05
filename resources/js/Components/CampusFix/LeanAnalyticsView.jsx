@@ -1375,10 +1375,10 @@ export function LeanAnalyticsView({
     // --- 1. Key Performance & Audit Metric Cards ---
     const stats = useMemo(() => {
         const total = filteredIssues.length;
-        const analyzed = filteredIssues.filter((i) => i.ai_status === 'completed').length;
         const resolved = filteredIssues.filter((i) => i.status === 'resolved').length;
-        const needParts = filteredIssues.filter((i) => i.ai_analysis?.perlu_sparepart).length;
-        const sparepartRatio = total > 0 ? Math.round((needParts / total) * 100) : 0;
+        const activeCount = total - resolved;
+        const activeRatio = total > 0 ? Math.round((activeCount / total) * 100) : 0;
+        const resolutionRate = total > 0 ? Math.round((resolved / total) * 100) : 0;
 
         // Top department
         const deptCounts = {};
@@ -1415,9 +1415,10 @@ export function LeanAnalyticsView({
 
         return {
             total,
-            analyzed,
             resolved,
-            sparepartRatio,
+            activeCount,
+            activeRatio,
+            resolutionRate,
             topDept,
             topDeptCount,
             topCat: topDept,
@@ -1526,7 +1527,7 @@ export function LeanAnalyticsView({
                     issues: [],
                 };
             }
-            const urg = i.ai_urgency || 'Sedang';
+            const urg = i.urgency || 'Sedang';
             if (locMap[loc][urg] !== undefined) {
                 locMap[loc][urg] += 1;
             } else {
@@ -1554,18 +1555,10 @@ export function LeanAnalyticsView({
         // Sorted by Severity Weighted Score for Leaderboard
         const leaderboard = Object.values(locMap)
             .map((item) => {
-                const score =
-                    item.Darurat * 1000 +
-                    item.Tinggi * 100 +
-                    item.Sedang * 10 +
-                    item.Rendah * 1 +
-                    item.openCount * 5;
+                const score = item.openCount * 10 + item.total;
 
-                // Sort issues within location: urgency priority -> open before resolved -> newest
+                // Sort issues within location: open before resolved -> newest first
                 const sortedIssues = [...item.issues].sort((a, b) => {
-                    const weightA = urgencyWeight[a.ai_urgency] || 0;
-                    const weightB = urgencyWeight[b.ai_urgency] || 0;
-                    if (weightB !== weightA) return weightB - weightA;
                     if (a.status !== b.status) {
                         if (a.status === 'resolved') return 1;
                         if (b.status === 'resolved') return -1;
@@ -1693,7 +1686,7 @@ export function LeanAnalyticsView({
                 const zone = targetMap[zoneId];
                 zone.count += 1;
                 zone.issues.push(issue);
-                const urg = issue.ai_urgency || 'Sedang';
+                const urg = issue.urgency || 'Sedang';
                 if (!zone.highestUrgency || (urgencyWeight[urg] || 0) > (urgencyWeight[zone.highestUrgency] || 0)) {
                     zone.highestUrgency = urg;
                 }
@@ -1750,9 +1743,9 @@ export function LeanAnalyticsView({
                 if (q) {
                     const title = (i.title || '').toLowerCase();
                     const loc = (i.location || '').toLowerCase();
-                    const rootCause = (i.ai_analysis?.dugaan_akar_masalah || '').toLowerCase();
-                    const mitigation = (i.ai_analysis?.tindakan_mitigasi_pencegahan || '').toLowerCase();
-                    if (!title.includes(q) && !loc.includes(q) && !rootCause.includes(q) && !mitigation.includes(q)) {
+                    const desc = (i.description || '').toLowerCase();
+                    const resNote = (i.resolution_note || i.fixDescription || '').toLowerCase();
+                    if (!title.includes(q) && !loc.includes(q) && !desc.includes(q) && !resNote.includes(q)) {
                         return false;
                     }
                 }
@@ -1800,8 +1793,7 @@ export function LeanAnalyticsView({
 
             const hasPendingDelay = issue.status === 'pending' || 
                 Boolean(issue.pendingReason) || 
-                Boolean(issue.pending_reason) || 
-                Boolean(issue.ai_analysis?.perlu_sparepart);
+                Boolean(issue.pending_reason);
 
             depts.forEach((d) => {
                 const deptName = (d || 'Umum').trim() || 'Umum';
@@ -1943,7 +1935,7 @@ export function LeanAnalyticsView({
                         total: 0,
                     };
                 }
-                const urg = i.ai_urgency || 'Sedang';
+                const urg = i.urgency || 'Sedang';
                 if (catMap[name][urg] !== undefined) {
                     catMap[name][urg]++;
                 } else {
@@ -1958,34 +1950,6 @@ export function LeanAnalyticsView({
 
     return (
         <div className="space-y-6 animate-in fade-in pb-12">
-            {/* FAILSAFE BANNER (When offline queue has pending issues) */}
-            {aiPendingCount > 0 && (
-                <div className="p-4 rounded-xl bg-gradient-to-r from-amber-950/80 via-amber-900/40 to-slate-900 border border-amber-500/50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-lg">
-                    <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-lg bg-amber-500/20 text-amber-400 border border-amber-500/40 flex items-center justify-center shrink-0">
-                            <AlertTriangle className="w-5 h-5" />
-                        </div>
-                        <div>
-                            <h4 className="text-xs font-bold text-amber-300">
-                                Mode Failsafe: {aiPendingCount} Tiket Menunggu Analisis AI
-                            </h4>
-                            <p className="text-[11px] text-amber-200/80 mt-0.5">
-                                Tiket tetap tersimpan aman di database lokal. Klik tombol di kanan saat koneksi internet aktif untuk memproses antrean.
-                            </p>
-                        </div>
-                    </div>
-                    <button
-                        type="button"
-                        onClick={onRetryAi}
-                        disabled={isRetrying}
-                        className="shrink-0 flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs shadow-md transition-all disabled:opacity-50"
-                    >
-                        <RefreshCw className={`w-3.5 h-3.5 ${isRetrying ? 'animate-spin' : ''}`} />
-                        <span>{isRetrying ? 'Memproses Antrean...' : 'Sinkronkan Sekarang'}</span>
-                    </button>
-                </div>
-            )}
-
             {/* FILTER & GOOGLE SHEETS CONTROL BAR */}
             <div className={`border rounded-2xl p-4 backdrop-blur space-y-3.5 transition-all relative z-30 ${
                 isDark ? 'bg-slate-900/95 border-slate-700/80 shadow-xl' : 'bg-white/95 border-slate-200/90 shadow-sm'
@@ -2230,7 +2194,7 @@ export function LeanAnalyticsView({
                                                     <label className={`flex items-center justify-between p-1.5 rounded-lg cursor-pointer transition-colors ${
                                                         isDark ? 'hover:bg-slate-800/80 text-slate-200' : 'hover:bg-slate-100 text-slate-800'
                                                     }`}>
-                                                        <span>Feed Mitigasi AI</span>
+                                                        <span>Feed Resolusi Lapangan</span>
                                                         <input
                                                             type="checkbox"
                                                             checked={widgetVisibility.mitigation_feed !== false}
@@ -2331,7 +2295,7 @@ export function LeanAnalyticsView({
                     {/* TOP KPI CARDS */}
                     {widgetVisibility.kpi_cards !== false && (
                         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                            {/* Total & AI Coverage */}
+                            {/* Total & Status Coverage */}
                             <div className={`p-4 rounded-xl border shadow-sm relative overflow-hidden group backdrop-blur-md transition-all ${
                                 isDark ? 'bg-slate-800/90 border-slate-700/80' : 'bg-white/95 border-slate-200/90 shadow-xs'
                             }`}>
@@ -2358,7 +2322,7 @@ export function LeanAnalyticsView({
                                             ? 'text-emerald-400 bg-emerald-950/80 border-emerald-800/50'
                                             : 'text-emerald-800 bg-emerald-100 border-emerald-300'
                                     }`}>
-                                        {stats.analyzed} Dianalisis AI
+                                        {stats.resolutionRate}% Selesai
                                     </span>
                                 </div>
                                 <p className={`text-[11px] mt-1 ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
@@ -2435,22 +2399,22 @@ export function LeanAnalyticsView({
                                 </div>
                             </div>
 
-                            {/* Sparepart Dependency */}
+                            {/* Active Backlog */}
                             <div className={`p-4 rounded-xl border shadow-sm relative overflow-hidden backdrop-blur-md transition-all ${
                                 isDark ? 'bg-slate-800/90 border-slate-700/80' : 'bg-white/95 border-slate-200/90 shadow-xs'
                             }`}>
                                 <div className="flex items-center justify-between">
-                                    <span className={`text-xs font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Ketergantungan Suku Cadang</span>
+                                    <span className={`text-xs font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Tiket Belum Selesai (Backlog)</span>
                                     <div className="w-7 h-7 rounded-lg bg-amber-500/20 text-amber-500 flex items-center justify-center">
-                                        <Package className="w-4 h-4" />
+                                        <Clock className="w-4 h-4" />
                                     </div>
                                 </div>
                                 <div className="mt-2 flex items-baseline gap-1.5">
-                                    <span className={`text-2xl font-black ${isDark ? 'text-amber-300' : 'text-amber-700'}`}>{stats.sparepartRatio}%</span>
-                                    <span className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>kasus butuh part</span>
+                                    <span className={`text-2xl font-black ${isDark ? 'text-amber-300' : 'text-amber-700'}`}>{stats.activeCount}</span>
+                                    <span className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>tiket ({stats.activeRatio}%)</span>
                                 </div>
                                 <p className={`text-[11px] mt-1 ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
-                                    Audit kesiapan stok logistik pulau
+                                    Menunggu tindakan & pengerjaan lapangan
                                 </p>
                             </div>
                         </div>
@@ -2805,13 +2769,6 @@ export function LeanAnalyticsView({
                                                             </div>
                                                         ) : (
                                                             item.issues.map((iss) => {
-                                                                const urgStyle = {
-                                                                    Darurat: isDark ? 'bg-rose-500/20 text-rose-300 border-rose-500/40' : 'bg-rose-100 text-rose-800 border-rose-300',
-                                                                    Tinggi: isDark ? 'bg-orange-500/20 text-orange-300 border-orange-500/40' : 'bg-orange-100 text-orange-800 border-orange-300',
-                                                                    Sedang: isDark ? 'bg-yellow-500/20 text-yellow-300 border-yellow-500/40' : 'bg-yellow-100 text-yellow-800 border-yellow-300',
-                                                                    Rendah: isDark ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' : 'bg-emerald-100 text-emerald-800 border-emerald-300',
-                                                                }[iss.ai_urgency || 'Sedang'] || (isDark ? 'bg-slate-800 text-slate-300 border-slate-700' : 'bg-slate-100 text-slate-700 border-slate-300');
-
                                                                 const isResolved = iss.status === 'resolved';
 
                                                                 return (
@@ -2830,10 +2787,6 @@ export function LeanAnalyticsView({
                                                                                     isDark ? 'bg-slate-800 text-amber-300 border-slate-700' : 'bg-slate-100 text-slate-800 border-slate-300'
                                                                                 }`}>
                                                                                     #{iss.issue_code || ('LEAN-' + iss.id)}
-                                                                                </span>
-
-                                                                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${urgStyle}`}>
-                                                                                    {iss.ai_urgency || 'Sedang'}
                                                                                 </span>
 
                                                                                 {/* Status badge */}
@@ -2932,7 +2885,7 @@ export function LeanAnalyticsView({
                                 Peta Spasial Telunas Private Island (TPI)
                             </span>
                             <span className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-emerald-800/80'}`}>
-                                Lokasi dipetakan secara otomatis oleh AI berdasarkan isi laporan unit
+                                Visualisasi sebaran insiden berdasarkan lokasi unit / area laporan
                             </span>
                         </div>
                         <TpiResortMap
@@ -3055,7 +3008,7 @@ export function LeanAnalyticsView({
                                 Peta Spasial Telunas Beach Resort (TBR)
                             </span>
                             <span className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-amber-800/80'}`}>
-                                Lokasi dipetakan secara otomatis oleh AI berdasarkan isi laporan fasilitas
+                                Visualisasi sebaran insiden berdasarkan lokasi fasilitas / villa laporan
                             </span>
                         </div>
                         <TbrResortMap
@@ -3656,17 +3609,13 @@ export function LeanAnalyticsView({
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         {mitigationFeed.map((issue) => {
-                            const ai = issue.ai_analysis || {};
-                            const urgency = issue.ai_urgency || 'Sedang';
-                            const urgencyColor = URGENCY_COLORS[urgency] || '#facc15';
-
                             return (
                                 <div
                                     key={issue.id}
                                     className="p-3.5 rounded-xl bg-slate-900/90 border border-slate-700/80 hover:border-slate-600 transition-all flex flex-col justify-between space-y-3"
                                 >
                                     <div>
-                                        {/* Card Header: Location, Code, Urgency Badge */}
+                                        {/* Card Header: Location, Code, Status Badge */}
                                         <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
                                             <div className="flex items-center gap-1.5">
                                                 <span className="font-mono text-[11px] font-bold text-amber-300 bg-slate-800 px-1.5 py-0.5 rounded border border-slate-700">
@@ -3679,21 +3628,26 @@ export function LeanAnalyticsView({
                                             </div>
 
                                             <div className="flex items-center gap-1.5">
-                                                {issue.ai_is_minimal && (
-                                                    <span className="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded border border-slate-700">
-                                                        Laporan Minim
+                                                {issue.status === 'open' && (
+                                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40">
+                                                        ● Open
                                                     </span>
                                                 )}
-                                                <span
-                                                    className="text-[10px] font-bold px-2 py-0.5 rounded-full border"
-                                                    style={{
-                                                        backgroundColor: `${urgencyColor}20`,
-                                                        borderColor: `${urgencyColor}50`,
-                                                        color: urgencyColor,
-                                                    }}
-                                                >
-                                                    ● {urgency}
-                                                </span>
+                                                {issue.status === 'in_progress' && (
+                                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-300 border border-orange-500/40">
+                                                        ● Progress
+                                                    </span>
+                                                )}
+                                                {issue.status === 'pending' && (
+                                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                                                        ● Tertunda
+                                                    </span>
+                                                )}
+                                                {issue.status === 'resolved' && (
+                                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                                                        ● Selesai
+                                                    </span>
+                                                )}
                                             </div>
                                         </div>
 
@@ -3702,12 +3656,12 @@ export function LeanAnalyticsView({
                                             {issue.title}
                                         </h4>
 
-                                        {/* Laporan Lapangan Awal (Perbandingan dengan Analisis AI) */}
+                                        {/* Laporan Lapangan Awal */}
                                         <div className="p-2.5 rounded-lg bg-slate-950/70 border border-slate-800/90 mb-2">
                                             <div className="flex items-center justify-between gap-1 mb-1">
                                                 <span className="text-[10px] font-bold text-sky-400 uppercase tracking-wider flex items-center gap-1.5">
                                                     <FileText className="w-3 h-3 text-sky-400" />
-                                                    Deskripsi Laporan Awal (Staf / User):
+                                                    Deskripsi Laporan Awal (Staf / Pelapor):
                                                 </span>
                                                 {issue.reporter_name && (
                                                     <span className="text-[10px] text-slate-400 truncate max-w-[140px]">
@@ -3737,46 +3691,38 @@ export function LeanAnalyticsView({
                                             )}
                                         </div>
 
-                                        {/* AI Root Cause */}
-                                        {ai.dugaan_akar_masalah && (
-                                            <div className="p-2.5 rounded-lg bg-slate-800/60 border border-slate-700/60 mb-2">
-                                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">
-                                                    🔍 Dugaan Akar Masalah (RCA):
+                                        {/* Catatan Alasan Tertunda Lapangan */}
+                                        {(issue.pending_reason || issue.pendingReason) && (
+                                            <div className="p-2.5 rounded-lg bg-amber-950/40 border border-amber-800/60 mb-2">
+                                                <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider block mb-0.5">
+                                                    ⏳ Alasan Tertunda (Pending):
                                                 </span>
-                                                <p className="text-[11px] text-slate-300 leading-relaxed">
-                                                    {ai.dugaan_akar_masalah}
+                                                <p className="text-[11px] text-amber-200/90 leading-relaxed">
+                                                    {issue.pending_reason || issue.pendingReason}
                                                 </p>
                                             </div>
                                         )}
 
-                                        {/* AI Mitigation Recommendation */}
-                                        {ai.tindakan_mitigasi_pencegahan && (
-                                            <div className="p-2.5 rounded-lg bg-emerald-950/30 border border-emerald-800/50">
+                                        {/* Catatan Penyelesaian Nyata Lapangan */}
+                                        {(issue.resolution_note || issue.fixDescription) && (
+                                            <div className="p-2.5 rounded-lg bg-emerald-950/30 border border-emerald-800/50 mb-2">
                                                 <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider block mb-0.5">
-                                                    🛡️ Saran Tindakan Mitigasi Audit:
+                                                    ✅ Catatan Resolusi Fisik (Teknisi):
                                                 </span>
                                                 <p className="text-[11px] text-emerald-200/90 leading-relaxed">
-                                                    {ai.tindakan_mitigasi_pencegahan}
+                                                    {issue.resolution_note || issue.fixDescription}
                                                 </p>
                                             </div>
                                         )}
                                     </div>
 
-                                    {/* Footer Info: Department & Sparepart Badge */}
+                                    {/* Footer Info: Department & Petugas Lapangan */}
                                     <div className="pt-2 border-t border-slate-800 flex items-center justify-between text-[10px] text-slate-400">
                                         <span>
                                             Departemen: <strong className="text-slate-300">{(issue.target_departments || []).join(', ') || 'Umum'}</strong>
                                         </span>
                                         <span>
-                                            {ai.perlu_sparepart ? (
-                                                <span className="text-amber-400 font-semibold bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-800/50">
-                                                    Perlu Sparepart
-                                                </span>
-                                            ) : (
-                                                <span className="text-slate-500">
-                                                    Tanpa Sparepart
-                                                </span>
-                                            )}
+                                            Petugas: <strong className="text-slate-300">{issue.resolved_by_name || issue.claimed_by_name || '-'}</strong>
                                         </span>
                                     </div>
                                 </div>

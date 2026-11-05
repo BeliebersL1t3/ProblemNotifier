@@ -143,12 +143,12 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
         });
     };
 
-    // Quick Sort Mode: 'urgency' | 'newest' | 'oldest' | 'waiting_acc'
+    // Quick Sort Mode: 'status' | 'newest' | 'oldest' | 'waiting_acc'
     const [sortBy, setSortBy] = useState(() => {
         try {
-            return localStorage.getItem('telunas_field_sort_by') || 'urgency';
+            return localStorage.getItem('telunas_field_sort_by') || 'status';
         } catch (e) {
-            return 'urgency';
+            return 'status';
         }
     });
 
@@ -534,10 +534,11 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                 return new Date(b.created_at || 0) - new Date(a.created_at || 0);
             }
 
-            // Default: 'urgency' (AI Urgency Tertinggi duluan)
-            // Urgensi: Darurat (4) > Tinggi (3) > Sedang (2) > Rendah (1)
-            const weightA = urgencyWeight[a.ai_urgency] || 0;
-            const weightB = urgencyWeight[b.ai_urgency] || 0;
+            // Default: 'status' (Prioritas Status Terbuka / Sedang Dikerjakan)
+            // Urutan: Open (4) > Pending (3) > In Progress (2) > Resolved (1)
+            const statusWeight = { open: 4, pending: 3, in_progress: 2, resolved: 1 };
+            const weightA = statusWeight[a.status] || 0;
+            const weightB = statusWeight[b.status] || 0;
 
             if (weightB !== weightA) {
                 return weightB - weightA;
@@ -926,7 +927,7 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                             >
                                 <option value="newest">🕒 Terbaru</option>
                                 <option value="oldest">⏳ Terlama</option>
-                                <option value="urgency">⚡ Tingkat Urgensi</option>
+                                <option value="status">📊 Status Progres</option>
                                 <option value="waiting_acc">🚨 Menunggu ACC</option>
                             </select>
                         </div>
@@ -1339,23 +1340,14 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5">
                         {filteredIssues.map((issue) => {
                             const accs = issue.department_accs || {};
-                            const urgency = issue.ai_urgency || 'Sedang';
 
-                            // Severity stripe border color on the left
+                            // Status progress stripe border color on the left
                             const borderLeftColor = {
-                                Darurat: 'border-l-rose-500 hover:border-rose-500/60',
-                                Tinggi: 'border-l-orange-500 hover:border-orange-500/60',
-                                Sedang: 'border-l-amber-400 hover:border-amber-400/60',
-                                Rendah: 'border-l-emerald-500 hover:border-emerald-500/60',
-                            }[urgency] || 'border-l-slate-400 hover:border-slate-400/60';
-
-                            // Urgency badge styling
-                            const urgencyBadge = {
-                                Darurat: isDark ? 'bg-rose-500/20 text-rose-300 border-rose-500/40' : 'bg-rose-100 text-rose-800 border-rose-300',
-                                Tinggi: isDark ? 'bg-orange-500/20 text-orange-300 border-orange-500/40' : 'bg-orange-100 text-orange-800 border-orange-300',
-                                Sedang: isDark ? 'bg-yellow-500/20 text-yellow-300 border-yellow-500/40' : 'bg-yellow-100 text-yellow-800 border-yellow-300',
-                                Rendah: isDark ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' : 'bg-emerald-100 text-emerald-800 border-emerald-300',
-                            }[urgency] || (isDark ? 'bg-slate-800 text-slate-300 border-slate-700' : 'bg-slate-100 text-slate-700 border-slate-300');
+                                open: 'border-l-rose-500 hover:border-rose-500/60',
+                                pending: 'border-l-amber-400 hover:border-amber-400/60',
+                                in_progress: 'border-l-orange-500 hover:border-orange-500/60',
+                                resolved: 'border-l-emerald-500 hover:border-emerald-500/60',
+                            }[issue.status] || 'border-l-slate-400 hover:border-slate-400/60';
 
                             const isResolved = issue.status === 'resolved';
 
@@ -1382,16 +1374,6 @@ export default function LeanIndex({ issues = [], departments = [], locations = [
                                                         #{issue.issue_code || ('LEAN-' + issue.id)}
                                                     </span>
                                                 )}
-
-                                                {/* AI Urgency Badge */}
-                                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border flex items-center gap-1 ${urgencyBadge}`}>
-                                                    <span className={`w-1.5 h-1.5 rounded-full ${
-                                                        urgency === 'Darurat' ? 'bg-rose-500 animate-pulse' :
-                                                        urgency === 'Tinggi' ? 'bg-orange-500' :
-                                                        urgency === 'Sedang' ? 'bg-yellow-400' : 'bg-emerald-500'
-                                                    }`} />
-                                                    {urgency}
-                                                </span>
 
                                                 {/* Status Badge */}
                                                 {visibleColumns.status && (

@@ -206,7 +206,6 @@ Route::post('/lapangan/issues/{issue}/acc', [\App\Http\Controllers\LeanControlle
 Route::post('/lapangan/issues/{issue}/claim', [\App\Http\Controllers\LeanController::class, 'claim'])->name('lean.claim');
 Route::post('/lapangan/issues/{issue}/resolve', [\App\Http\Controllers\LeanController::class, 'resolve'])->name('lean.resolve');
 Route::post('/lapangan/reset', [\App\Http\Controllers\LeanController::class, 'reset'])->name('lean.reset');
-Route::post('/lapangan/ai/retry', [\App\Http\Controllers\LeanController::class, 'retryAiQueue'])->name('lean.ai.retry');
 Route::delete('/lapangan/issues/{issue}', [\App\Http\Controllers\LeanController::class, 'destroy'])->name('lean.destroy');
 Route::post('/lapangan/sync-sheets', [\App\Http\Controllers\LeanController::class, 'syncGoogleSheets'])->name('lean.sync.sheets');
 

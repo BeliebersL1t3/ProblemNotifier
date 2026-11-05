@@ -94,15 +94,6 @@ class GoogleSheetsSyncService
             $mapsUrl = $match[0];
         }
 
-        // AI details (Legacy fallback)
-        $aiAnalysis = is_array($issue->ai_analysis) ? $issue->ai_analysis : [];
-        $needSparepart = isset($aiAnalysis['perlu_sparepart'])
-            ? ($aiAnalysis['perlu_sparepart'] ? 'YA' : 'TIDAK')
-            : ($issue->ai_analysis && str_contains(json_encode($issue->ai_analysis), 'true') ? 'YA' : 'TIDAK');
-
-        $rootCause = $aiAnalysis['dugaan_akar_masalah'] ?? '';
-        $mitigation = $aiAnalysis['tindakan_mitigasi_pencegahan'] ?? '';
-
         return [
             // Standard English Keys (Matches Apps Script Code.gs)
             'issue_code'           => $code,
@@ -130,12 +121,12 @@ class GoogleSheetsSyncService
             'resolved_at'          => $issue->resolved_at ? $issue->resolved_at->format('Y-m-d H:i') : '',
             'resolution_note'      => $issue->resolution_note ?: '',
             'proof_image_url'      => '', // Foto ditiadakan di spreadsheet sesuai permintaan
-            'ai_category'          => $issue->ai_category ?: '',
-            'ai_sub_category'      => $issue->ai_sub_category ?: '',
-            'ai_urgency'           => $issue->ai_urgency ?: 'Sedang',
-            'ai_sparepart_needed'  => $needSparepart,
-            'ai_root_cause'        => $rootCause,
-            'ai_mitigation'        => $mitigation,
+            'ai_category'          => '',
+            'ai_sub_category'      => '',
+            'ai_urgency'           => '',
+            'ai_sparepart_needed'  => '',
+            'ai_root_cause'        => '',
+            'ai_mitigation'        => '',
 
             // Indonesian Aliases for Backwards Compatibility
             'kode_tiket'           => $code,
@@ -162,12 +153,12 @@ class GoogleSheetsSyncService
             'waktu_selesai'        => $issue->resolved_at ? $issue->resolved_at->format('Y-m-d H:i') : '',
             'catatan_penyelesaian' => $issue->resolution_note ?: '',
             'foto_selesai_url'     => '',
-            'ai_kategori'          => $issue->ai_category ?: '',
-            'ai_sub_kategori'      => $issue->ai_sub_category ?: '',
-            'ai_urgensi'           => $issue->ai_urgency ?: 'Sedang',
-            'ai_butuh_sparepart'   => $needSparepart,
-            'ai_akar_masalah'      => $rootCause,
-            'ai_mitigasi'          => $mitigation,
+            'ai_kategori'          => '',
+            'ai_sub_kategori'      => '',
+            'ai_urgensi'           => '',
+            'ai_butuh_sparepart'   => '',
+            'ai_akar_masalah'      => '',
+            'ai_mitigasi'          => '',
         ];
     }
 
@@ -230,9 +221,10 @@ class GoogleSheetsSyncService
         foreach ($issues as $issue) {
             $loc = trim($issue->location ?: 'Lainnya');
             if (!isset($locMap[$loc])) {
-                $aiAnalysis = is_array($issue->ai_analysis) ? $issue->ai_analysis : [];
-                $resort = $aiAnalysis['resort'] ?? (stripos($loc, 'tbr') !== false ? 'TBR' : (stripos($loc, 'tpi') !== false ? 'TPI' : 'TPI'));
-                $zona = $aiAnalysis['zona_spasial'] ?? 'Umum';
+                $isTbr = stripos($loc, 'tbr') !== false || stripos($loc, 'beach resort') !== false;
+                $isOffice = stripos($loc, 'kantor') !== false || stripos($loc, 'office') !== false;
+                $resort = $isOffice ? 'OFFICE' : ($isTbr ? 'TBR' : 'TPI');
+                $zona = 'Umum';
 
                 $locMap[$loc] = [
                     'nama_lokasi'             => $loc,
@@ -259,7 +251,7 @@ class GoogleSheetsSyncService
                 $locMap[$loc]['insiden_aktif'] += 1;
             }
 
-            $urg = $issue->ai_urgency ?: 'Sedang';
+            $urg = $issue->urgency ?: 'Sedang';
             if (isset($locMap[$loc][strtolower($urg)])) {
                 $locMap[$loc][strtolower($urg)] += 1;
             } else {
