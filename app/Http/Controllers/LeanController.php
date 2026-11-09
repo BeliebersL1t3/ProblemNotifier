@@ -94,7 +94,7 @@ class LeanController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'location'           => 'required|string|max:100',
+            'location'           => 'required|string|max:255',
             'title'              => 'required|string|max:255',
             'description'        => 'nullable|string|max:5000',
             'target_departments' => 'required|array|min:1',
@@ -139,6 +139,14 @@ class LeanController extends Controller
             app(\App\Services\LeanSheetDirectService::class)->syncSingleIssue($issue);
         } catch (\Throwable $e) {
             Log::error('Sheets sync error on store: ' . $e->getMessage());
+        }
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Laporan berhasil dibuat!',
+                'issue'   => $issue,
+            ]);
         }
 
         return redirect()->back()->with('success', 'Laporan berhasil dibuat!');

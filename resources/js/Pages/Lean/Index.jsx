@@ -37,12 +37,26 @@ import {
     Moon,
     Compass,
     Wrench,
-    LayoutDashboard
+    LayoutDashboard,
+    Wifi,
+    WifiOff,
+    CloudUpload,
+    Send,
+    HardDrive
 } from 'lucide-react';
 import axios from 'axios';
 import { BotControlModal } from '@/Components/CampusFix/BotControlModal';
 import { LeanAnalyticsView } from '@/Components/CampusFix/LeanAnalyticsView';
 import { resolveIssueResortAndZone } from '@/constants/locations';
+import { compressImage } from '@/services/imageCompressor';
+import {
+    addToOutbox,
+    getOutboxCount,
+    getOutboxTickets,
+    removeOutboxTicket,
+    syncAllOutboxTickets,
+    registerOutboxAutoSync
+} from '@/services/offlineOutbox';
 
 
 
@@ -305,6 +319,105 @@ export default function LeanIndex({
     const [formImagePreview, setFormImagePreview] = useState(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
+    // --- Mobile & Offline Outbox State ---
+    const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
+    const [outboxCount, setOutboxCount] = useState(0);
+    const [outboxTickets, setOutboxTickets] = useState([]);
+    const [showOutboxModal, setShowOutboxModal] = useState(false);
+    const [isSyncingOutbox, setIsSyncingOutbox] = useState(false);
+    const [assistedReporting, setAssistedReporting] = useState(false);
+    const [staffReporterName, setStaffReporterName] = useState('');
+    const [staffReporterPhone, setStaffReporterPhone] = useState('');
+
+    // Fetch outbox tickets & status
+    const refreshOutbox = async () => {
+        try {
+            const count = await getOutboxCount();
+            setOutboxCount(count);
+            if (showOutboxModal) {
+                const tickets = await getOutboxTickets();
+                setOutboxTickets(tickets);
+            }
+        } catch (err) {
+            console.error('[Index] Error fetching outbox count:', err);
+        }
+    };
+
+    useEffect(() => {
+        refreshOutbox();
+
+        const cleanupAutoSync = registerOutboxAutoSync(({ isOnline: online, outboxCount: count }) => {
+            setIsOnline(online);
+            setOutboxCount(count);
+        });
+
+        const handleOutboxUpdate = (e) => {
+            if (e.detail?.count !== undefined) {
+                setOutboxCount(e.detail.count);
+            } else {
+                refreshOutbox();
+            }
+        };
+
+        const handleOutboxSynced = (e) => {
+            refreshOutbox();
+            router.reload({ only: ['issues'], preserveScroll: true, preserveState: true });
+        };
+
+        window.addEventListener('telunas:outbox-updated', handleOutboxUpdate);
+        window.addEventListener('telunas:outbox-synced', handleOutboxSynced);
+
+        return () => {
+            cleanupAutoSync();
+            window.removeEventListener('telunas:outbox-updated', handleOutboxUpdate);
+            window.removeEventListener('telunas:outbox-synced', handleOutboxSynced);
+        };
+    }, [showOutboxModal]);
+
+    // Manual Outbox Sync
+    const handleManualSync = async () => {
+        if (!navigator.onLine) {
+            alert('Perangkat Anda saat ini masih offline (belum terhubung ke internet/Wi-Fi). Silakan hubungkan internet terlebih dahulu.');
+            return;
+        }
+
+        setIsSyncingOutbox(true);
+        try {
+            const result = await syncAllOutboxTickets();
+            await refreshOutbox();
+            const tickets = await getOutboxTickets();
+            setOutboxTickets(tickets);
+
+            if (result.synced > 0) {
+                router.reload({ only: ['issues'], preserveScroll: true, preserveState: true });
+                alert(`✅ Berhasil menyinkronkan ${result.synced} laporan ke server & Google Sheets!`);
+            } else if (result.failed > 0) {
+                alert(`⚠️ Ada ${result.failed} laporan yang gagal terkirim. Silakan periksa koneksi dan coba lagi.`);
+            }
+        } catch (err) {
+            console.error('[Index] Manual sync error:', err);
+            alert(`Gagal menyinkronkan antrean: ${err.message}`);
+        } finally {
+            setIsSyncingOutbox(false);
+        }
+    };
+
+    // Delete single outbox item
+    const handleDeleteOutboxItem = async (id) => {
+        if (!confirm('Apakah Anda yakin ingin menghapus draf laporan ini dari antrean HP?')) {
+            return;
+        }
+        try {
+            await removeOutboxTicket(id);
+            const tickets = await getOutboxTickets();
+            setOutboxTickets(tickets);
+            setOutboxCount(tickets.length);
+        } catch (err) {
+            console.error('[Index] Error deleting outbox item:', err);
+            alert(`Gagal menghapus draf: ${err.message}`);
+        }
+    };
+
     // --- Resolve Form State ---
     const [resolveNote, setResolveNote] = useState('');
     const [resolveImage, setResolveImage] = useState(null);
@@ -339,8 +452,8 @@ export default function LeanIndex({
         }
     };
 
-    // Submit Report
-    const handleReportSubmit = (e) => {
+    // Submit Report (Offline-First Store & Forward with Client-Side Compression)
+    const handleReportSubmit = async (e) => {
         e.preventDefault();
         if (!formTitle.trim() || formTargetDepts.length === 0) {
             alert('Mohon isi judul masalah dan departemen tujuan.');
@@ -351,30 +464,114 @@ export default function LeanIndex({
             ? `${formMainLoc} - ${formDetailLoc.trim()}`
             : formMainLoc;
 
-        setIsSubmitting(true);
-        const data = new FormData();
-        data.append('location', fullLocation);
-        data.append('title', formTitle.trim());
-        data.append('description', formDescription);
-        formTargetDepts.forEach((d) => data.append('target_departments[]', d));
-        data.append('reporter_name', myName);
-        data.append('reporter_dept', myDept);
-        if (formImage) {
-            data.append('image', formImage);
-        }
+        const actualReporter = assistedReporting && staffReporterName.trim()
+            ? `${staffReporterName.trim()} (via ${myName})`
+            : myName;
 
-        router.post('/lapangan/issues', data, {
-            onSuccess: () => {
+        setIsSubmitting(true);
+
+        try {
+            // Compress image client-side if attached
+            let compressed = null;
+            if (formImage) {
+                try {
+                    compressed = await compressImage(formImage);
+                } catch (cErr) {
+                    console.warn('[ReportSubmit] Compression fallback to raw file:', cErr);
+                }
+            }
+
+            // Offline mode: store directly in IndexedDB outbox
+            if (!navigator.onLine) {
+                await addToOutbox({
+                    title: formTitle.trim(),
+                    description: formDescription,
+                    location: fullLocation,
+                    target_departments: formTargetDepts,
+                    reporter_name: actualReporter,
+                    reporter_dept: myDept,
+                    reporter_phone: staffReporterPhone.trim(),
+                    imageBlob: compressed?.blob || formImage || null,
+                    imageName: compressed?.file?.name || formImage?.name || 'offline_photo.jpg',
+                    imagePreview: compressed?.dataUrl || formImagePreview,
+                });
+
+                alert('📱 Mode Offline: Laporan & foto telah tersimpan aman di HP Anda! Laporan akan otomatis terkirim begitu HP Anda kembali terhubung ke sinyal Wi-Fi / Starlink.');
                 setShowReportModal(false);
                 setFormDetailLoc('');
                 setFormTitle('');
                 setFormDescription('');
                 setFormImage(null);
                 setFormImagePreview(null);
+                setAssistedReporting(false);
+                setStaffReporterName('');
+                setStaffReporterPhone('');
                 setIsSubmitting(false);
-            },
-            onError: () => setIsSubmitting(false),
-        });
+                await refreshOutbox();
+                return;
+            }
+
+            // Online mode: submit to backend
+            const data = new FormData();
+            data.append('location', fullLocation);
+            data.append('title', formTitle.trim());
+            data.append('description', formDescription);
+            formTargetDepts.forEach((d) => data.append('target_departments[]', d));
+            data.append('reporter_name', actualReporter);
+            data.append('reporter_dept', myDept);
+            if (staffReporterPhone.trim()) {
+                data.append('reporter_phone', staffReporterPhone.trim());
+            }
+            if (compressed?.file) {
+                data.append('image', compressed.file);
+            } else if (formImage) {
+                data.append('image', formImage);
+            }
+
+            router.post('/lapangan/issues', data, {
+                onSuccess: () => {
+                    setShowReportModal(false);
+                    setFormDetailLoc('');
+                    setFormTitle('');
+                    setFormDescription('');
+                    setFormImage(null);
+                    setFormImagePreview(null);
+                    setAssistedReporting(false);
+                    setStaffReporterName('');
+                    setStaffReporterPhone('');
+                    setIsSubmitting(false);
+                },
+                onError: async (err) => {
+                    console.error('[ReportSubmit] Online submission error:', err);
+                    if (!navigator.onLine) {
+                        try {
+                            await addToOutbox({
+                                title: formTitle.trim(),
+                                description: formDescription,
+                                location: fullLocation,
+                                target_departments: formTargetDepts,
+                                reporter_name: actualReporter,
+                                reporter_dept: myDept,
+                                reporter_phone: staffReporterPhone.trim(),
+                                imageBlob: compressed?.blob || formImage || null,
+                                imageName: compressed?.file?.name || formImage?.name || 'offline_photo.jpg',
+                                imagePreview: compressed?.dataUrl || formImagePreview,
+                            });
+                            alert('⚠️ Koneksi terputus saat pengiriman. Laporan telah diamankan di antrean offline HP Anda.');
+                            setShowReportModal(false);
+                            await refreshOutbox();
+                        } catch (saveErr) {
+                            console.error('[ReportSubmit] Failed fallback to outbox:', saveErr);
+                        }
+                    }
+                    setIsSubmitting(false);
+                },
+            });
+        } catch (submitErr) {
+            console.error('[ReportSubmit] Unexpected error:', submitErr);
+            alert(`Gagal memproses laporan: ${submitErr.message || 'Kesalahan sistem'}`);
+            setIsSubmitting(false);
+        }
     };
 
     // Trigger ACC for a department
@@ -671,6 +868,47 @@ export default function LeanIndex({
 
                     {/* Profile & Navigation Switcher & Bot Controls (Right - Fixed 1-Line Sleek App Bar) */}
                     <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+                        {/* Offline / Outbox Status Pill */}
+                        <button
+                            type="button"
+                            onClick={async () => {
+                                const tickets = await getOutboxTickets();
+                                setOutboxTickets(tickets);
+                                setShowOutboxModal(true);
+                            }}
+                            className={`h-7.5 sm:h-8.5 flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 rounded-lg border text-xs font-bold transition-all shadow-xs cursor-pointer shrink-0 ${
+                                outboxCount > 0
+                                    ? 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border-amber-500/60 animate-pulse'
+                                    : isOnline
+                                    ? (isDark ? 'bg-slate-800/90 text-emerald-400 border-slate-700' : 'bg-white text-emerald-700 border-slate-200')
+                                    : 'bg-rose-950/70 text-rose-300 border-rose-600/50'
+                            }`}
+                            title={
+                                outboxCount > 0
+                                    ? `${outboxCount} tiket tersimpan di HP. Klik untuk melihat / sinkronkan.`
+                                    : isOnline
+                                    ? 'Online (Terhubung ke Internet)'
+                                    : 'Offline (0 Bar / Tanpa Sinyal)'
+                            }
+                        >
+                            {outboxCount > 0 ? (
+                                <>
+                                    <CloudUpload className="w-3.5 h-3.5 text-amber-400" />
+                                    <span className="text-[10px] sm:text-xs text-amber-300 font-extrabold">{outboxCount} di HP</span>
+                                </>
+                            ) : isOnline ? (
+                                <>
+                                    <Wifi className="w-3.5 h-3.5 text-emerald-500" />
+                                    <span className="text-[10px] sm:text-xs hidden md:inline">Online</span>
+                                </>
+                            ) : (
+                                <>
+                                    <WifiOff className="w-3.5 h-3.5 text-rose-400" />
+                                    <span className="text-[10px] sm:text-xs">Offline</span>
+                                </>
+                            )}
+                        </button>
+
                         {/* Quick Theme Toggle (Icon Only) */}
                         <button
                             type="button"
@@ -788,6 +1026,68 @@ export default function LeanIndex({
                     )}
                 </div>
 
+                {/* OUTBOX BANNER: TICKETS QUEUED IN PHONE STORAGE */}
+                {outboxCount > 0 && (
+                    <div className={`mb-4 p-3.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-md transition-all ${
+                        isDark
+                            ? 'bg-gradient-to-r from-amber-950/70 via-slate-900/90 to-amber-950/50 border-amber-500/60 text-amber-200'
+                            : 'bg-amber-50/95 border-amber-300 text-amber-950 shadow-sm'
+                    }`}>
+                        <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
+                                <CloudUpload className="w-4 h-4 animate-bounce" />
+                            </div>
+                            <div className="min-w-0">
+                                <p className="font-bold text-xs truncate">
+                                    Ada {outboxCount} Laporan Tersimpan di HP (Offline Outbox)
+                                </p>
+                                <p className={`text-[11px] mt-0.5 leading-relaxed truncate ${isDark ? 'text-amber-300/80' : 'text-amber-800'}`}>
+                                    {isOnline
+                                        ? 'Sinyal pulih! Tiket siap disinkronkan ke server Cloud & Google Sheets.'
+                                        : 'Perangkat sedang offline (0 bar). Tiket tersimpan aman di memori HP.'}
+                                </p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+                            <button
+                                type="button"
+                                onClick={handleManualSync}
+                                disabled={!isOnline || isSyncingOutbox}
+                                className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white font-bold rounded-lg text-xs shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+                            >
+                                {isSyncingOutbox ? (
+                                    <>
+                                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                        <span>Mengirim...</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Send className="w-3.5 h-3.5" />
+                                        <span>Kirim Sekarang</span>
+                                    </>
+                                )}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={async () => {
+                                    const tickets = await getOutboxTickets();
+                                    setOutboxTickets(tickets);
+                                    setShowOutboxModal(true);
+                                }}
+                                className={`px-2.5 py-1.5 rounded-lg border text-xs font-semibold flex items-center gap-1 transition-colors ${
+                                    isDark
+                                        ? 'border-amber-600/50 hover:bg-amber-900/40 text-amber-300'
+                                        : 'border-amber-300 hover:bg-amber-100 text-amber-900'
+                                }`}
+                                title="Buka daftar antrean"
+                            >
+                                <Eye className="w-3.5 h-3.5" />
+                                <span>Detail</span>
+                            </button>
+                        </div>
+                    </div>
+                )}
+
 
                 {/* ERP CONTROLS BAR: SEARCH, DEPT, SORT, VIEW MODE, STATUS CHECKLIST */}
                 {viewMode !== 'analytics' && (
@@ -887,8 +1187,17 @@ export default function LeanIndex({
                             </select>
                         </div>
 
-                        {/* Actions group: Column Customizer */}
+                        {/* Actions group: Column Customizer & New Report */}
                         <div className="col-span-2 sm:col-span-1 sm:ml-auto flex items-center justify-between sm:justify-end gap-2">
+                            <button
+                                type="button"
+                                onClick={() => setShowReportModal(true)}
+                                className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-md hover:shadow-emerald-600/30 transition-all cursor-pointer shrink-0"
+                                title="Laporkan Masalah Baru"
+                            >
+                                <Plus className="w-3.5 h-3.5" />
+                                <span>+ Lapor Baru</span>
+                            </button>
                             <button
                                 type="button"
                                 onClick={() => setShowColumnModal(true)}
@@ -1774,23 +2083,90 @@ export default function LeanIndex({
                                 )}
                             </div>
 
-                            {/* 6. PELAPOR */}
+                            {/* 6. BANTU LAPORKAN UNTUK STAF LAIN (LEAD-ASSISTED) */}
+                            <div className="p-3 rounded-xl bg-slate-800/80 border border-slate-700/80 space-y-2.5">
+                                <label className="flex items-center gap-2 cursor-pointer select-none">
+                                    <input
+                                        type="checkbox"
+                                        checked={assistedReporting}
+                                        onChange={(e) => setAssistedReporting(e.target.checked)}
+                                        className="w-4 h-4 rounded text-emerald-600 bg-slate-700 border-slate-600 focus:ring-emerald-500 cursor-pointer"
+                                    />
+                                    <span className="text-xs font-bold text-slate-200">
+                                        Bantu Laporkan untuk Staf / Teman Lapangan
+                                    </span>
+                                </label>
+                                <p className="text-[10px] text-slate-400 pl-6 leading-tight">
+                                    Centang jika Anda sebagai Leader mencatat masalah yang dilaporkan oleh staf operasional.
+                                </p>
+
+                                {assistedReporting && (
+                                    <div className="pl-6 space-y-2 pt-2 border-t border-slate-700/60">
+                                        <div>
+                                            <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                                                Nama Staf yang Melapor *
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={staffReporterName}
+                                                onChange={(e) => setStaffReporterName(e.target.value)}
+                                                placeholder="Contoh: Pak Budi (Housekeeping)"
+                                                className="w-full text-xs bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                                                required={assistedReporting}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                                                No. WhatsApp Staf (Opsional untuk info status)
+                                            </label>
+                                            <input
+                                                type="tel"
+                                                value={staffReporterPhone}
+                                                onChange={(e) => setStaffReporterPhone(e.target.value)}
+                                                placeholder="Contoh: 08123456789"
+                                                className="w-full text-xs bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* 7. PELAPOR */}
                             <div className="p-2.5 rounded-lg bg-slate-800/60 border border-slate-700 text-xs flex items-center justify-between">
                                 <div>
-                                    <span className="text-[11px] text-slate-400">6. Pelapor:</span>
+                                    <span className="text-[11px] text-slate-400">7. Leader Pencatat:</span>
                                     <p className="font-bold text-slate-200">{myName} (Supervisor)</p>
                                 </div>
                             </div>
+
+                            {/* Offline Notice if connection dropped */}
+                            {!isOnline && (
+                                <div className="p-2.5 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-300 text-xs flex items-center gap-2">
+                                    <WifiOff className="w-4 h-4 shrink-0 text-amber-400" />
+                                    <span className="text-[11px] leading-tight">
+                                        Perangkat sedang offline (0 bar). Laporan & foto akan disimpan di memori HP dan otomatis di-upload saat mendapatkan sinyal.
+                                    </span>
+                                </div>
+                            )}
 
                             {/* Submit Button */}
                             <div className="pt-2">
                                 <button
                                     type="submit"
                                     disabled={isSubmitting}
-                                    className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                                    className={`w-full py-3 rounded-xl font-bold text-sm shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer ${
+                                        !isOnline
+                                            ? 'bg-amber-600 hover:bg-amber-500 text-white shadow-amber-900/40'
+                                            : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-900/40'
+                                    }`}
                                 >
                                     {isSubmitting ? (
-                                        <span>Mengirim Laporan...</span>
+                                        <span>Memproses Laporan...</span>
+                                    ) : !isOnline ? (
+                                        <>
+                                            <HardDrive className="w-4 h-4" />
+                                            <span>Simpan ke Antrean HP (Offline)</span>
+                                        </>
                                     ) : (
                                         <>
                                             <CheckCircle2 className="w-4 h-4" />
@@ -2589,6 +2965,152 @@ export default function LeanIndex({
                     </button>
                 </div>
             </nav>
+
+            {/* FLOATING ACTION BUTTON (+ Lapor Baru) FOR FAST FIELD REPORTING */}
+            {viewMode !== 'analytics' && (
+                <button
+                    type="button"
+                    onClick={() => setShowReportModal(true)}
+                    className="fixed bottom-20 sm:bottom-6 right-4 sm:right-6 z-40 bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-3 sm:px-5 sm:py-3.5 rounded-full shadow-2xl hover:shadow-emerald-500/40 flex items-center gap-2 hover:scale-105 active:scale-95 transition-all border border-emerald-400/40 cursor-pointer"
+                    title="Laporkan Masalah Baru"
+                >
+                    <Plus className="w-5 h-5 text-white" />
+                    <span className="text-xs sm:text-sm tracking-wide">Lapor Masalah</span>
+                </button>
+            )}
+
+            {/* MODAL 6: OFFLINE OUTBOX MODAL (HP LOCAL STORAGE QUEUE) */}
+            {showOutboxModal && (
+                <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
+                    <div className={`w-full max-w-lg border rounded-t-2xl sm:rounded-2xl shadow-2xl overflow-hidden max-h-[85vh] flex flex-col ${
+                        isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'
+                    }`}>
+                        {/* Header */}
+                        <div className={`p-4 border-b flex items-center justify-between ${
+                            isDark ? 'border-slate-800 bg-slate-950/60' : 'border-slate-200 bg-slate-50'
+                        }`}>
+                            <div className="flex items-center gap-2.5">
+                                <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-500 flex items-center justify-center">
+                                    <CloudUpload className="w-4 h-4" />
+                                </div>
+                                <div>
+                                    <h3 className={`font-bold text-sm ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                                        Antrean Offline HP (Outbox)
+                                    </h3>
+                                    <p className="text-[11px] text-slate-400">
+                                        {outboxTickets.length} tiket tersimpan di memori perangkat
+                                    </p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setShowOutboxModal(false)}
+                                className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
+                            >
+                                <X className="w-4 h-4" />
+                            </button>
+                        </div>
+
+                        {/* Outbox Content List */}
+                        <div className="p-4 overflow-y-auto space-y-3 flex-1">
+                            {outboxTickets.length === 0 ? (
+                                <div className="text-center py-8 text-slate-400">
+                                    <CheckCircle2 className="w-10 h-10 mx-auto text-emerald-500 mb-2 opacity-80" />
+                                    <p className="font-bold text-xs">Antrean Bersih / Kosong</p>
+                                    <p className="text-[11px] mt-0.5 max-w-xs mx-auto">
+                                        Semua laporan dari HP ini telah berhasil dikirim ke server Cloud dan disinkronkan ke Google Sheets.
+                                    </p>
+                                </div>
+                            ) : (
+                                outboxTickets.map((item) => (
+                                    <div
+                                        key={item.id}
+                                        className={`p-3 rounded-xl border flex gap-3 items-start justify-between transition-all ${
+                                            isDark ? 'bg-slate-800/80 border-slate-700' : 'bg-slate-50 border-slate-200 shadow-xs'
+                                        }`}
+                                    >
+                                        {/* Photo thumbnail */}
+                                        <div className="w-14 h-14 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center overflow-hidden shrink-0">
+                                            {item.imagePreview ? (
+                                                <img src={item.imagePreview} alt="Foto" className="w-full h-full object-cover" />
+                                            ) : (
+                                                <ImageIcon className="w-5 h-5 text-slate-500" />
+                                            )}
+                                        </div>
+
+                                        {/* Ticket Details */}
+                                        <div className="min-w-0 flex-1">
+                                            <h4 className={`font-bold text-xs truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                                                {item.title}
+                                            </h4>
+                                            <div className="flex items-center gap-1.5 text-[10.5px] text-slate-400 mt-0.5">
+                                                <MapPin className="w-3 h-3 text-emerald-400 shrink-0" />
+                                                <span className="truncate">{item.location}</span>
+                                            </div>
+                                            <div className="flex flex-wrap items-center gap-1 mt-1.5">
+                                                {item.target_departments?.map((d) => (
+                                                    <span key={d} className="text-[9.5px] px-1.5 py-0.2 rounded bg-indigo-500/20 text-indigo-300 font-semibold border border-indigo-500/30">
+                                                        {d}
+                                                    </span>
+                                                ))}
+                                                <span className="text-[9.5px] text-slate-500 ml-auto">
+                                                    {new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                </span>
+                                            </div>
+                                            {item.errorMessage && (
+                                                <p className="text-[10px] text-rose-400 mt-1 bg-rose-950/40 px-2 py-0.5 rounded border border-rose-800/40 truncate">
+                                                    Gagal: {item.errorMessage}
+                                                </p>
+                                            )}
+                                        </div>
+
+                                        {/* Delete Action */}
+                                        <button
+                                            type="button"
+                                            onClick={() => handleDeleteOutboxItem(item.id)}
+                                            className="p-1.5 rounded-lg hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 transition-colors shrink-0 cursor-pointer"
+                                            title="Batalkan dan hapus draf ini"
+                                        >
+                                            <Trash2 className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+
+                        {/* Footer */}
+                        <div className={`p-3.5 border-t flex items-center justify-between gap-3 ${
+                            isDark ? 'border-slate-800 bg-slate-950/60' : 'border-slate-200 bg-slate-50'
+                        }`}>
+                            <div className="flex items-center gap-2">
+                                <span className={`w-2 h-2 rounded-full ${isOnline ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                                <span className={`text-[11px] font-semibold ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+                                    {isOnline ? 'Online (Siap Kirim)' : 'Offline (Menunggu Sinyal)'}
+                                </span>
+                            </div>
+                            {outboxTickets.length > 0 && (
+                                <button
+                                    type="button"
+                                    onClick={handleManualSync}
+                                    disabled={!isOnline || isSyncingOutbox}
+                                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
+                                >
+                                    {isSyncingOutbox ? (
+                                        <>
+                                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                            <span>Mengirim...</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <CloudUpload className="w-3.5 h-3.5" />
+                                            <span>Kirim Semua ({outboxTickets.length})</span>
+                                        </>
+                                    )}
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* FLOATING QUICK-RETURN TO TICKET BUTTON */}
             {returnTicket && viewMode === 'analytics' && (
