@@ -361,3 +361,4 @@ export function registerOutboxAutoSync(onStatusChange = null) {
         window.removeEventListener('offline', handleNetworkChange);
     };
 }
+
