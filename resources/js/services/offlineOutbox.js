@@ -221,6 +221,9 @@ export async function syncSingleTicket(ticket) {
     if (ticket.reporter_phone) {
         formData.append('reporter_phone', ticket.reporter_phone);
     }
+    if (ticket.createdAt) {
+        formData.append('reported_at', ticket.createdAt);
+    }
 
     if (Array.isArray(ticket.target_departments)) {
         ticket.target_departments.forEach((dept) => {

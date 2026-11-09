@@ -102,6 +102,7 @@ class LeanController extends Controller
             'reporter_name'      => 'required|string|max:100',
             'reporter_dept'      => 'nullable|string|max:100',
             'image'              => 'nullable|image|max:10240',
+            'reported_at'        => 'nullable|date',
         ]);
 
         $imageUrl = null;
@@ -121,7 +122,7 @@ class LeanController extends Controller
             ];
         }
 
-        $issue = LeanIssue::create([
+        $issue = new LeanIssue([
             'location'           => $validated['location'],
             'title'              => $validated['title'],
             'description'        => $validated['description'] ?? null,
@@ -132,6 +133,16 @@ class LeanController extends Controller
             'status'             => 'open',
             'department_accs'    => $accs,
         ]);
+
+        if (!empty($validated['reported_at'])) {
+            try {
+                $issue->created_at = \Carbon\Carbon::parse($validated['reported_at']);
+            } catch (\Throwable $t) {
+                Log::warning('Failed parsing reported_at for LeanIssue: ' . $t->getMessage());
+            }
+        }
+
+        $issue->save();
 
         // Failsafe Google Sheets sync
         try {
