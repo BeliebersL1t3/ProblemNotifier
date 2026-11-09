@@ -134,25 +134,40 @@ class LeanController extends Controller
         }
 
         $currentUser = auth()->user();
-        $leaderName = $currentUser ? ($currentUser->staff_name ?: $currentUser->name) : 'Leader Lapangan';
-        $leaderDept = $currentUser && !empty($currentUser->department)
+        $receiverName = $currentUser ? ($currentUser->staff_name ?: $currentUser->name) : 'Leader Lapangan';
+        $receiverDept = $currentUser && !empty($currentUser->department)
             ? $currentUser->department
-            : ($validated['reporter_dept'] ?? 'Umum');
+            : 'Umum';
 
         $targetDepts = !empty($validated['target_departments'])
             ? $validated['target_departments']
-            : [$leaderDept];
+            : [$receiverDept];
+
+        $startInProgress = filter_var($request->input('start_in_progress', false), FILTER_VALIDATE_BOOLEAN);
+
+        // Assigned workers resolution (multi-select array or comma-separated string)
+        $rawWorkers = $request->input('assigned_workers');
+        $workerNames = null;
+        if ($startInProgress) {
+            if (is_array($rawWorkers)) {
+                $workerNames = implode(', ', array_filter(array_map('trim', $rawWorkers)));
+            } elseif (is_string($rawWorkers) && trim($rawWorkers) !== '') {
+                $workerNames = trim($rawWorkers);
+            }
+            if (empty($workerNames)) {
+                $workerNames = $receiverName;
+            }
+        }
 
         $accs = [];
         foreach ($targetDepts as $dept) {
+            $isReceiverDept = strcasecmp($dept, $receiverDept) === 0;
             $accs[$dept] = [
-                'is_acc' => false,
-                'acc_by' => null,
-                'acc_at' => null,
+                'is_acc' => $isReceiverDept,
+                'acc_by' => $isReceiverDept ? $receiverName : null,
+                'acc_at' => $isReceiverDept ? Carbon::now('Asia/Jakarta')->toIso8601String() : null,
             ];
         }
-
-        $startInProgress = filter_var($request->input('start_in_progress', false), FILTER_VALIDATE_BOOLEAN);
 
         $issue = new LeanIssue([
             'location'           => $validated['location'],
@@ -160,13 +175,13 @@ class LeanController extends Controller
             'description'        => $validated['description'] ?? null,
             'target_departments' => $targetDepts,
             'reporter_name'      => $validated['reporter_name'],
-            'reporter_dept'      => $validated['reporter_dept'] ?? $leaderDept,
+            'reporter_dept'      => !empty($validated['reporter_dept']) ? $validated['reporter_dept'] : null,
             'reporter_phone'     => $validated['reporter_phone'] ?? null,
             'image_url'          => $imageUrl,
             'status'             => $startInProgress ? 'in_progress' : 'open',
             'department_accs'    => $accs,
-            'claimed_by_name'    => $startInProgress ? $leaderName : null,
-            'claimed_by_dept'    => $startInProgress ? $leaderDept : null,
+            'claimed_by_name'    => $workerNames,
+            'claimed_by_dept'    => $startInProgress ? $receiverDept : null,
             'claimed_at'         => $startInProgress ? Carbon::now('Asia/Jakarta') : null,
         ]);
 
@@ -181,7 +196,7 @@ class LeanController extends Controller
         $issue->save();
 
         // Dispatch automated WhatsApp confirmation to the reporting staff
-        $this->notifyReporterCreated($issue, $leaderName, $leaderDept);
+        $this->notifyReporterCreated($issue, $receiverName, $receiverDept, $workerNames);
 
         // Failsafe Google Sheets sync
         try {
@@ -736,7 +751,7 @@ class LeanController extends Controller
     /**
      * Dispatch WhatsApp notification to the reporting staff upon issue registration.
      */
-    protected function notifyReporterCreated(LeanIssue $issue, string $leadName, string $leadDept): void
+    protected function notifyReporterCreated(LeanIssue $issue, string $receiverName, string $receiverDept, ?string $assignedWorkers = null): void
     {
         if (empty($issue->reporter_phone)) {
             return;
@@ -747,14 +762,19 @@ class LeanController extends Controller
             ? "⚡ *Sedang Langsung Dikerjakan*"
             : "🕒 *Masuk Antrean Penanganan*";
 
+        $workerLine = !empty($assignedWorkers)
+            ? "🔧 *Ditugaskan Kepada:* {$assignedWorkers}\n"
+            : "";
+
         $message = "📋 *Laporan Diterima - Telunas Tracker*\n\n"
                  . "Halo *{$issue->reporter_name}*,\n"
-                 . "Laporan Anda telah berhasil dicatat ke sistem:\n\n"
+                 . "Laporan perbaikan Anda telah resmi dicatat ke sistem:\n\n"
                  . "📌 *Masalah:* {$issue->title}\n"
                  . "📍 *Lokasi:* {$issue->location}\n"
                  . "🏷️ *Kode Tiket:* #{$issueCode}\n"
-                 . "🏢 *Departemen Penanggung Jawab:* {$leadDept}\n"
-                 . "👤 *Dicatat Oleh:* {$leadName}\n"
+                 . "🏢 *Departemen Penangan:* {$receiverDept}\n"
+                 . "👤 *Penerima Laporan:* {$receiverName}\n"
+                 . $workerLine
                  . "📊 *Status Awal:* {$statusText}\n\n"
                  . "Kami akan mengabari Anda kembali melalui WhatsApp ini begitu perbaikan selesai. Terima kasih!";
 

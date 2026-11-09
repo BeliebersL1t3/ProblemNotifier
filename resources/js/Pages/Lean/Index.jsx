@@ -367,9 +367,70 @@ export default function LeanIndex({
     const [isSyncingOutbox, setIsSyncingOutbox] = useState(false);
     const [startInProgress, setStartInProgress] = useState(false);
     const [staffReporterName, setStaffReporterName] = useState('');
+    const [staffReporterDept, setStaffReporterDept] = useState('');
     const [staffReporterPhone, setStaffReporterPhone] = useState('');
     const [staffSearchQuery, setStaffSearchQuery] = useState('');
     const [showStaffDropdown, setShowStaffDropdown] = useState(false);
+    const [assignedWorkers, setAssignedWorkers] = useState([]);
+    const [customWorkerInput, setCustomWorkerInput] = useState('');
+
+    // Coworkers in the recording leader's department for assigning
+    const myDeptTeammates = useMemo(() => {
+        const set = new Set();
+        const list = [];
+
+        // 1. Current user always included first
+        if (myName && myName !== 'Supervisor') {
+            set.add(myName.toLowerCase());
+            list.push(myName);
+        }
+
+        // 2. Teammates from staffDirectory matching myDept
+        (staffDirectory || []).forEach(u => {
+            const name = u.name;
+            if (name && u.department && myDept && u.department.toLowerCase() === myDept.toLowerCase()) {
+                if (!set.has(name.toLowerCase())) {
+                    set.add(name.toLowerCase());
+                    list.push(name);
+                }
+            }
+        });
+
+        // 3. Fallback static roster for myDept from DEPARTMENT_STAFF
+        if (DEPARTMENT_STAFF && myDept && DEPARTMENT_STAFF[myDept]) {
+            DEPARTMENT_STAFF[myDept].forEach(name => {
+                if (!set.has(name.toLowerCase())) {
+                    set.add(name.toLowerCase());
+                    list.push(name);
+                }
+            });
+        }
+
+        if (list.length === 0 && myName) {
+            list.push(myName);
+        }
+
+        return list;
+    }, [staffDirectory, myDept, myName]);
+
+    // Toggle multi-select worker
+    const toggleAssignedWorker = (name) => {
+        setAssignedWorkers(prev => {
+            if (prev.includes(name)) {
+                return prev.filter(n => n !== name);
+            }
+            return [...prev, name];
+        });
+    };
+
+    // Add custom worker name
+    const handleAddCustomWorker = () => {
+        const trimmed = customWorkerInput.trim();
+        if (trimmed && !assignedWorkers.includes(trimmed)) {
+            setAssignedWorkers(prev => [...prev, trimmed]);
+            setCustomWorkerInput('');
+        }
+    };
 
     // Filter staff suggestions by name, department, or phone
     const filteredStaff = useMemo(() => {
@@ -385,6 +446,7 @@ export default function LeanIndex({
     const handleSelectStaff = (staff) => {
         setStaffReporterName(staff.name);
         setStaffSearchQuery(staff.name);
+        setStaffReporterDept(staff.department || '');
         if (staff.phone) {
             setStaffReporterPhone(staff.phone);
         }
@@ -526,15 +588,19 @@ export default function LeanIndex({
             ? `${formMainLoc} - ${formDetailLoc.trim()}`
             : formMainLoc;
 
-        // Reporter is the staff who came to discuss; fallback to leader name if not specified
+        // Reporter is the staff who came to discuss; clean name without "(via ...)"
         const staffNameTrimmed = (staffReporterName || staffSearchQuery).trim();
-        const actualReporter = staffNameTrimmed
-            ? `${staffNameTrimmed} (via ${myName})`
-            : myName;
+        const actualReporter = staffNameTrimmed || myName;
+        const actualReporterDept = staffReporterDept || null;
 
         // Responsible department: locked to the recording leader's department
         const resolvedDept = (myDept && myDept !== 'Supervisor') ? myDept : (formTargetDepts[0] || 'Engineer');
         const targetDepts = [resolvedDept];
+
+        // Assigned workers string
+        const workersStr = startInProgress
+            ? (assignedWorkers.length > 0 ? assignedWorkers.join(', ') : myName)
+            : null;
 
         setIsSubmitting(true);
 
@@ -557,9 +623,10 @@ export default function LeanIndex({
                     location: fullLocation,
                     target_departments: targetDepts,
                     reporter_name: actualReporter,
-                    reporter_dept: resolvedDept,
+                    reporter_dept: actualReporterDept,
                     reporter_phone: staffReporterPhone.trim(),
                     start_in_progress: startInProgress,
+                    assigned_workers: workersStr,
                     imageBlob: compressed?.blob || formImage || null,
                     imageName: compressed?.file?.name || formImage?.name || 'offline_photo.jpg',
                     imagePreview: compressed?.dataUrl || formImagePreview,
@@ -573,8 +640,11 @@ export default function LeanIndex({
                 setFormImage(null);
                 setFormImagePreview(null);
                 setStaffReporterName('');
+                setStaffReporterDept('');
                 setStaffReporterPhone('');
                 setStaffSearchQuery('');
+                setAssignedWorkers([]);
+                setCustomWorkerInput('');
                 setStartInProgress(false);
                 setShowStaffDropdown(false);
                 setIsSubmitting(false);
@@ -589,12 +659,17 @@ export default function LeanIndex({
             data.append('description', formDescription);
             targetDepts.forEach((d) => data.append('target_departments[]', d));
             data.append('reporter_name', actualReporter);
-            data.append('reporter_dept', resolvedDept);
+            if (actualReporterDept) {
+                data.append('reporter_dept', actualReporterDept);
+            }
             if (staffReporterPhone.trim()) {
                 data.append('reporter_phone', staffReporterPhone.trim());
             }
             if (startInProgress) {
                 data.append('start_in_progress', '1');
+                if (workersStr) {
+                    data.append('assigned_workers', workersStr);
+                }
             }
             if (compressed?.file) {
                 data.append('image', compressed.file);
@@ -611,8 +686,11 @@ export default function LeanIndex({
                     setFormImage(null);
                     setFormImagePreview(null);
                     setStaffReporterName('');
+                    setStaffReporterDept('');
                     setStaffReporterPhone('');
                     setStaffSearchQuery('');
+                    setAssignedWorkers([]);
+                    setCustomWorkerInput('');
                     setStartInProgress(false);
                     setShowStaffDropdown(false);
                     setIsSubmitting(false);
@@ -627,9 +705,10 @@ export default function LeanIndex({
                                 location: fullLocation,
                                 target_departments: targetDepts,
                                 reporter_name: actualReporter,
-                                reporter_dept: resolvedDept,
+                                reporter_dept: actualReporterDept,
                                 reporter_phone: staffReporterPhone.trim(),
                                 start_in_progress: startInProgress,
+                                assigned_workers: workersStr,
                                 imageBlob: compressed?.blob || formImage || null,
                                 imageName: compressed?.file?.name || formImage?.name || 'offline_photo.jpg',
                                 imagePreview: compressed?.dataUrl || formImagePreview,
@@ -1986,7 +2065,9 @@ export default function LeanIndex({
                                                 </div>
                                                 <span className={`text-[11px] truncate ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
                                                     <strong className={isDark ? 'text-white' : 'text-slate-900'}>{issue.reporter_name}</strong>
-                                                    <span className={`text-[10px] ml-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>({issue.reporter_dept || 'Staf'})</span>
+                                                    {issue.reporter_dept && (
+                                                        <span className={`text-[10px] ml-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>({issue.reporter_dept})</span>
+                                                    )}
                                                 </span>
                                             </div>
                                         ) : <div />}
@@ -1996,8 +2077,8 @@ export default function LeanIndex({
                                             {issue.claimed_by_name && (
                                                 <span className={`text-[10px] font-semibold px-2 py-0.5 rounded border flex items-center gap-1 ${
                                                     isDark ? 'bg-amber-950/60 text-amber-300 border-amber-800/40' : 'bg-amber-50 text-amber-800 border-amber-200'
-                                                }`}>
-                                                    <User className="w-2.5 h-2.5" /> {issue.claimed_by_name}
+                                                }`} title={`Dikerjakan oleh: ${issue.claimed_by_name}`}>
+                                                    <User className="w-2.5 h-2.5" /> Dikerjakan: {issue.claimed_by_name}
                                                 </span>
                                             )}
                                             {isResolved && (
@@ -2247,13 +2328,19 @@ export default function LeanIndex({
                                 )}
                             </div>
 
-                            {/* 6. TOGGLE LANGSUNG DIKERJAKAN (IN PROGRESS) */}
-                            <div className="p-3 rounded-xl bg-slate-800/80 border border-slate-700 hover:border-slate-600 transition-colors">
+                            {/* 6. TOGGLE LANGSUNG DIKERJAKAN (IN PROGRESS) & PENUGASAN MULTI-TEKNISI */}
+                            <div className="p-3 rounded-xl bg-slate-800/80 border border-slate-700 hover:border-slate-600 transition-colors space-y-3">
                                 <label className="flex items-start gap-3 cursor-pointer select-none">
                                     <input
                                         type="checkbox"
                                         checked={startInProgress}
-                                        onChange={(e) => setStartInProgress(e.target.checked)}
+                                        onChange={(e) => {
+                                            const checked = e.target.checked;
+                                            setStartInProgress(checked);
+                                            if (checked && assignedWorkers.length === 0 && myName) {
+                                                setAssignedWorkers([myName]);
+                                            }
+                                        }}
                                         className="w-4 h-4 mt-0.5 rounded text-amber-500 bg-slate-700 border-slate-600 focus:ring-amber-500 cursor-pointer"
                                     />
                                     <div>
@@ -2265,6 +2352,64 @@ export default function LeanIndex({
                                         </p>
                                     </div>
                                 </label>
+
+                                {startInProgress && (
+                                    <div className="pt-2 border-t border-slate-700/80 space-y-2">
+                                        <label className="block text-[11px] font-bold text-slate-300">
+                                            Ditugaskan / Dikerjakan oleh siapa? (Pilih satu atau lebih):
+                                        </label>
+                                        <div className="flex flex-wrap gap-1.5">
+                                            {myDeptTeammates.map((workerName) => {
+                                                const isAssigned = assignedWorkers.includes(workerName);
+                                                return (
+                                                    <button
+                                                        type="button"
+                                                        key={workerName}
+                                                        onClick={() => toggleAssignedWorker(workerName)}
+                                                        className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold border flex items-center gap-1.5 transition-all cursor-pointer ${
+                                                            isAssigned
+                                                                ? 'bg-amber-600 text-white border-amber-500 shadow-sm'
+                                                                : 'bg-slate-900/80 text-slate-400 border-slate-700 hover:text-slate-200'
+                                                        }`}
+                                                    >
+                                                        <span>{workerName}</span>
+                                                        {isAssigned && <Check className="w-3 h-3 text-white shrink-0" />}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+
+                                        {/* Input nama teknisi tambahan jika belum ada di list */}
+                                        <div className="flex items-center gap-2 pt-1">
+                                            <input
+                                                type="text"
+                                                value={customWorkerInput}
+                                                onChange={(e) => setCustomWorkerInput(e.target.value)}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter') {
+                                                        e.preventDefault();
+                                                        handleAddCustomWorker();
+                                                    }
+                                                }}
+                                                placeholder="Tambah nama teknisi lain..."
+                                                className="flex-1 text-xs bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={handleAddCustomWorker}
+                                                className="px-2.5 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-xs font-semibold text-slate-200 transition-colors cursor-pointer"
+                                            >
+                                                + Tambah
+                                            </button>
+                                        </div>
+
+                                        {assignedWorkers.length > 0 && (
+                                            <p className="text-[10px] text-amber-300/90 font-medium">
+                                                Ditugaskan: <span className="font-bold text-white">{assignedWorkers.join(', ')}</span>
+                                            </p>
+                                        )}
+                                    </div>
+                                )}
                             </div>
 
                             {/* Offline Notice if connection dropped */}
@@ -2599,18 +2744,23 @@ export default function LeanIndex({
                                         <span className={`text-[10px] font-medium block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Pelapor</span>
                                         <span className={`text-xs font-semibold flex items-center gap-1 mt-0.5 ${isDark ? 'text-white' : 'text-slate-900'}`}>
                                             <User className={`w-3.5 h-3.5 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
-                                            {activeDetailIssue.reporter_name} <span className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>({activeDetailIssue.reporter_dept || 'Staf'})</span>
+                                            {activeDetailIssue.reporter_name}
+                                            {activeDetailIssue.reporter_dept && (
+                                                <span className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                                    ({activeDetailIssue.reporter_dept})
+                                                </span>
+                                            )}
                                         </span>
                                     </div>
                                 )}
                             </div>
 
-                            {/* Departemen Dituju & ACC */}
+                            {/* Departemen Dituju & Penerima */}
                             {visibleColumns.dept && (
                                 <div className={`p-3 rounded-xl border space-y-1.5 ${
                                     isDark ? 'bg-slate-800/60 border-slate-700/80' : 'bg-slate-50 border-slate-200'
                                 }`}>
-                                    <span className={`text-[10px] font-semibold block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Departemen Dituju & Respon:</span>
+                                    <span className={`text-[10px] font-semibold block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Departemen Dituju & Penerima Isu:</span>
                                     <div className="flex flex-wrap gap-1.5 items-center">
                                         {(activeDetailIssue.target_departments || []).map((dept) => {
                                             const isThisDeptClaimed = activeDetailIssue.claimed_by_dept && (

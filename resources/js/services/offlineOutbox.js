@@ -227,6 +227,9 @@ export async function syncSingleTicket(ticket) {
     if (ticket.start_in_progress) {
         formData.append('start_in_progress', '1');
     }
+    if (ticket.assigned_workers) {
+        formData.append('assigned_workers', ticket.assigned_workers);
+    }
 
     if (Array.isArray(ticket.target_departments)) {
         ticket.target_departments.forEach((dept) => {
