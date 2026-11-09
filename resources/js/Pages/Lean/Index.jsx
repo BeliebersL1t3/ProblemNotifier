@@ -782,18 +782,18 @@ export default function LeanIndex({
     }, [issues, selectedDeptFilter]);
 
     return (
-        <div className={`lean-root ${isDark ? 'lean-theme-dark text-slate-100' : 'lean-theme-light text-slate-800'} flex flex-col font-sans pb-24 md:pb-12 transition-colors duration-300`}>
+        <div className={`lean-root ${isDark ? 'lean-theme-dark text-slate-100' : 'lean-theme-light text-slate-800'} flex flex-col font-sans pb-24 md:pb-12 transition-colors duration-300 w-full max-w-full overflow-x-hidden min-h-screen`}>
             <Head title="Mode Lapangan (Sandbox) — Telunas Issue Tracker" />
 
             {/* TOP HEADER */}
-            <header className={`sticky top-0 z-30 backdrop-blur-md border-b px-3 sm:px-6 lg:px-8 py-2 sm:py-2.5 shadow-xs transition-colors duration-200 ${
+            <header className={`sticky top-0 z-30 backdrop-blur-md border-b px-2.5 sm:px-6 lg:px-8 py-2 sm:py-2.5 shadow-xs transition-colors duration-200 w-full max-w-full overflow-hidden ${
                 isDark
                     ? 'bg-slate-900/95 border-slate-800 shadow-slate-950/40'
                     : 'bg-white/95 border-slate-200 shadow-slate-200/50'
             }`}>
                 <div className="w-full flex items-center justify-between gap-1.5 sm:gap-3">
                     {/* Brand & Sandbox Pill (Left) */}
-                    <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0 shrink-0">
+                    <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0 shrink">
                         <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center font-bold text-xs sm:text-sm border shadow-xs shrink-0 ${
                             isDark ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' : 'bg-emerald-50 text-emerald-700 border-emerald-200'
                         }`}>
@@ -802,9 +802,10 @@ export default function LeanIndex({
                         <div className="min-w-0">
                             <div className="flex items-center gap-1">
                                 <h1 className={`text-xs sm:text-sm font-bold tracking-tight truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                                    Telunas Lean Tracker
+                                    <span className="sm:hidden">Telunas Fix</span>
+                                    <span className="hidden sm:inline">Telunas Lean Tracker</span>
                                 </h1>
-                                <span className={`text-[8.5px] sm:text-[10px] font-bold px-1.5 py-0.2 rounded-full border shrink-0 ${
+                                <span className={`text-[8px] sm:text-[10px] font-bold px-1 sm:px-1.5 py-0.2 rounded-full border shrink-0 hidden xs:inline ${
                                     isDark ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300' : 'bg-emerald-50 border-emerald-300 text-emerald-800'
                                 }`}>
                                     Operasional
@@ -814,8 +815,8 @@ export default function LeanIndex({
                         </div>
                     </div>
 
-                    {/* View Mode Switcher (Tabel ERP / Kartu / Analisis) */}
-                    <div className={`flex items-center p-0.5 sm:p-1 rounded-xl border shrink-0 ${
+                    {/* View Mode Switcher (Tabel ERP / Kartu / Analisis) - Hidden on Mobile (Handled by Mobile Bottom Bar) */}
+                    <div className={`hidden md:flex items-center p-0.5 sm:p-1 rounded-xl border shrink-0 ${
                         isDark ? 'bg-slate-950/80 border-slate-800' : 'bg-slate-100 border-slate-200 shadow-xs'
                     }`}>
                         <button
@@ -867,7 +868,7 @@ export default function LeanIndex({
                     </div>
 
                     {/* Profile & Navigation Switcher & Bot Controls (Right - Fixed 1-Line Sleek App Bar) */}
-                    <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+                    <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 ml-auto">
                         {/* Offline / Outbox Status Pill */}
                         <button
                             type="button"
@@ -876,7 +877,7 @@ export default function LeanIndex({
                                 setOutboxTickets(tickets);
                                 setShowOutboxModal(true);
                             }}
-                            className={`h-7.5 sm:h-8.5 flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 rounded-lg border text-xs font-bold transition-all shadow-xs cursor-pointer shrink-0 ${
+                            className={`h-7.5 sm:h-8.5 flex items-center gap-1 px-1.5 sm:px-2.5 rounded-lg border text-xs font-bold transition-all shadow-xs cursor-pointer shrink-0 ${
                                 outboxCount > 0
                                     ? 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border-amber-500/60 animate-pulse'
                                     : isOnline
@@ -893,17 +894,17 @@ export default function LeanIndex({
                         >
                             {outboxCount > 0 ? (
                                 <>
-                                    <CloudUpload className="w-3.5 h-3.5 text-amber-400" />
+                                    <CloudUpload className="w-3.5 h-3.5 text-amber-400 shrink-0" />
                                     <span className="text-[10px] sm:text-xs text-amber-300 font-extrabold">{outboxCount} di HP</span>
                                 </>
                             ) : isOnline ? (
                                 <>
-                                    <Wifi className="w-3.5 h-3.5 text-emerald-500" />
-                                    <span className="text-[10px] sm:text-xs hidden md:inline">Online</span>
+                                    <Wifi className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                                    <span className="text-[10px] sm:text-xs hidden sm:inline">Online</span>
                                 </>
                             ) : (
                                 <>
-                                    <WifiOff className="w-3.5 h-3.5 text-rose-400" />
+                                    <WifiOff className="w-3.5 h-3.5 text-rose-400 shrink-0" />
                                     <span className="text-[10px] sm:text-xs">Offline</span>
                                 </>
                             )}
@@ -922,17 +923,17 @@ export default function LeanIndex({
                             aria-label="Toggle Tema"
                         >
                             {isDark ? (
-                                <Sun className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400" />
+                                <Sun className="w-3.5 h-3.5 text-amber-400" />
                             ) : (
-                                <Moon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-600" />
+                                <Moon className="w-3.5 h-3.5 text-slate-600" />
                             )}
                         </button>
 
-                        {/* WhatsApp Bot V2 Status & Control Button */}
+                        {/* WhatsApp Bot V2 Status & Control Button (Hidden on tiny mobile screens, visible on sm+) */}
                         <button
                             type="button"
                             onClick={() => setBotControlModalOpen(true)}
-                            className={`h-7.5 sm:h-8.5 flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 rounded-lg border text-xs font-bold transition-all shadow-xs cursor-pointer shrink-0 ${
+                            className={`h-7.5 sm:h-8.5 hidden sm:flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 rounded-lg border text-xs font-bold transition-all shadow-xs cursor-pointer shrink-0 ${
                                 botStatus?.connected
                                     ? (isDark ? 'bg-emerald-950/70 hover:bg-emerald-900/80 border-emerald-600/50 text-emerald-300' : 'bg-emerald-50 hover:bg-emerald-100 border-emerald-200 text-emerald-800')
                                     : (isDark ? 'bg-rose-950/70 hover:bg-rose-900/80 border-rose-600/50 text-rose-300' : 'bg-rose-50 hover:bg-rose-100 border-rose-200 text-rose-800')
@@ -946,14 +947,14 @@ export default function LeanIndex({
 
                         {/* Supervisor Account Profile Pill */}
                         <div
-                            className={`h-7.5 sm:h-8.5 flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2.5 rounded-lg border text-xs shadow-xs shrink-0 ${
+                            className={`h-7.5 sm:h-8.5 flex items-center gap-1 px-1.5 sm:px-2.5 rounded-lg border text-xs shadow-xs shrink-0 ${
                                 isDark ? 'bg-slate-800/90 border-slate-700 text-slate-200' : 'bg-white border-slate-200 text-slate-800'
                             }`}
                             title={currentUser ? `Login sebagai ${myName} (${currentUser.department || 'Supervisor'})` : 'Mode Tamu / Belum Login'}
                         >
                             <span className={`w-2 h-2 rounded-full shrink-0 ${currentUser ? 'bg-emerald-500' : 'bg-slate-400'}`} />
-                            <span className="font-bold truncate max-w-[50px] sm:max-w-[120px] text-[10.5px] sm:text-xs">{myName}</span>
-                            <span className={`text-[9px] sm:text-[10px] font-bold px-1 sm:px-1.5 py-0.2 rounded border hidden sm:inline ${
+                            <span className="font-bold truncate max-w-[42px] sm:max-w-[120px] text-[10px] sm:text-xs">{myName}</span>
+                            <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded border hidden lg:inline ${
                                 isDark ? 'text-emerald-400 bg-emerald-950/80 border-emerald-800/60' : 'text-emerald-800 bg-emerald-100 border-emerald-200'
                             }`}>
                                 {currentUser?.is_admin ? 'Admin' : 'Supervisor'}
@@ -972,19 +973,19 @@ export default function LeanIndex({
                                 title="Kembali ke Dashboard Utama (Mode Kantor)"
                                 aria-label="Kembali ke Dashboard Utama"
                             >
-                                <LayoutDashboard className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                                <LayoutDashboard className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300" />
                             </Link>
                         ) : (
                             <Link
                                 href={route('login')}
-                                className={`h-7.5 sm:h-8.5 flex items-center gap-1 px-2 sm:px-2.5 rounded-lg border text-xs font-bold transition-all shadow-xs shrink-0 ${
+                                className={`h-7.5 sm:h-8.5 flex items-center gap-1 px-2 rounded-lg border text-xs font-bold transition-all shadow-xs shrink-0 ${
                                     isDark
                                         ? 'bg-amber-950/60 hover:bg-amber-900/80 border-amber-500/50 text-amber-300'
                                         : 'bg-amber-50 hover:bg-amber-100 border-amber-200 text-amber-800'
                                 }`}
                                 title="Masuk ke Akun Anda"
                             >
-                                <LogIn className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                                <LogIn className="w-3 h-3 text-amber-600" />
                                 <span className="text-[10px] sm:text-xs">Masuk</span>
                             </Link>
                         )}

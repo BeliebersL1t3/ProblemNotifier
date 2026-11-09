@@ -2,7 +2,7 @@
   "name": "Telunas Issue Tracker",
   "short_name": "Telunas Fix",
   "description": "Telunas Resorts Community Facility & Issue Tracker",
-  "start_url": "/dashboard",
+  "start_url": "/lapangan",
   "display": "standalone",
   "background_color": "#E3D1AA",
   "theme_color": "#E3D1AA",
