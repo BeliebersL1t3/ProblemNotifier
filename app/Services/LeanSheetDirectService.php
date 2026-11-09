@@ -78,6 +78,9 @@ class LeanSheetDirectService
             'Diselesaikan Oleh',
             'Waktu Selesai',
             'Catatan Penyelesaian',
+            'Aktif di Dashboard',
+            'Dihapus Oleh',
+            'Waktu Dihapus',
         ];
     }
 
@@ -149,6 +152,12 @@ class LeanSheetDirectService
             $pendingReason = preg_replace('/^Pending:\s*/i', '', $issue->resolution_note ?? '');
         }
 
+        $isActive = $issue->trashed() ? 0 : 1;
+        $deletedBy = $issue->trashed() ? ($issue->deleted_by_name ?: 'Supervisor') : '';
+        $deletedAt = ($issue->trashed() && $issue->deleted_at)
+            ? Carbon::parse($issue->deleted_at)->setTimezone('Asia/Jakarta')->format('Y-m-d H:i')
+            : '';
+
         return [
             $code,
             $issue->created_at ? $issue->created_at->setTimezone('Asia/Jakarta')->format('Y-m-d H:i') : '',
@@ -165,6 +174,9 @@ class LeanSheetDirectService
             $issue->resolved_by_name ?: '',
             $issue->resolved_at ? Carbon::parse($issue->resolved_at)->setTimezone('Asia/Jakarta')->format('Y-m-d H:i') : '',
             $issue->resolution_note ?: '',
+            $isActive,
+            $deletedBy,
+            $deletedAt,
         ];
     }
 
@@ -184,11 +196,11 @@ class LeanSheetDirectService
             }
             $sheetId = $gids[$monthName];
 
-            // 1. Update header values A1:O1
+            // 1. Update header values A1:R1
             $body = new ValueRange(['values' => $headers]);
             $service->spreadsheets_values->update(
                 $this->spreadsheetId,
-                "{$monthName}!A1:O1",
+                "{$monthName}!A1:R1",
                 $body,
                 ['valueInputOption' => 'USER_ENTERED']
             );
@@ -201,7 +213,7 @@ class LeanSheetDirectService
                         'startRowIndex' => 0,
                         'endRowIndex' => 1,
                         'startColumnIndex' => 0,
-                        'endColumnIndex' => 15,
+                        'endColumnIndex' => 18,
                     ],
                     'cell' => [
                         'userEnteredFormat' => [
@@ -286,7 +298,7 @@ class LeanSheetDirectService
             try {
                 $service->spreadsheets_values->clear(
                     $this->spreadsheetId,
-                    "{$monthName}!A2:O500",
+                    "{$monthName}!A2:R1000",
                     new \Google\Service\Sheets\ClearValuesRequest()
                 );
             } catch (\Throwable $e) {
@@ -298,7 +310,7 @@ class LeanSheetDirectService
                 $body = new ValueRange(['values' => $rows]);
                 $service->spreadsheets_values->update(
                     $this->spreadsheetId,
-                    "{$monthName}!A2:O{$endRow}",
+                    "{$monthName}!A2:R{$endRow}",
                     $body,
                     ['valueInputOption' => 'USER_ENTERED']
                 );
@@ -343,7 +355,7 @@ class LeanSheetDirectService
                 $body = new ValueRange(['values' => [$row]]);
                 $service->spreadsheets_values->update(
                     $this->spreadsheetId,
-                    "{$monthName}!A{$foundRowIndex}:O{$foundRowIndex}",
+                    "{$monthName}!A{$foundRowIndex}:R{$foundRowIndex}",
                     $body,
                     ['valueInputOption' => 'USER_ENTERED']
                 );
@@ -352,7 +364,7 @@ class LeanSheetDirectService
                 $body = new ValueRange(['values' => [$row]]);
                 $service->spreadsheets_values->append(
                     $this->spreadsheetId,
-                    "{$monthName}!A:O",
+                    "{$monthName}!A:R",
                     $body,
                     ['valueInputOption' => 'USER_ENTERED']
                 );
@@ -361,6 +373,85 @@ class LeanSheetDirectService
             return true;
         } catch (\Throwable $e) {
             Log::error("Failed to sync single issue #{$issue->id} to Lean Sheet: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Mark single issue as inactive (0) in Google Sheets when deleted from issue detail modal.
+     */
+    public function deleteSingleIssue(LeanIssue $issue, string $deletedBy = 'Supervisor'): bool
+    {
+        try {
+            $service = $this->getSheetsService();
+            $monthName = self::getMonthNameForDate($issue->created_at);
+            $code = \App\Services\GoogleSheetsSyncService::formatIssueCode($issue);
+
+            // Search row index by ticket code in Column A
+            $existing = $service->spreadsheets_values->get($this->spreadsheetId, "{$monthName}!A:A");
+            $values = $existing->getValues() ?: [];
+
+            $foundRowIndex = null;
+            foreach ($values as $idx => $r) {
+                if (!empty($r[0]) && trim($r[0]) === $code) {
+                    $foundRowIndex = $idx + 1; // 1-based index
+                    break;
+                }
+            }
+
+            $deletedAt = Carbon::now('Asia/Jakarta')->format('Y-m-d H:i');
+
+            if ($foundRowIndex !== null) {
+                // Update columns P, Q, R (Aktif di Dashboard, Dihapus Oleh, Waktu Dihapus)
+                $body = new ValueRange(['values' => [[0, $deletedBy, $deletedAt]]]);
+                $service->spreadsheets_values->update(
+                    $this->spreadsheetId,
+                    "{$monthName}!P{$foundRowIndex}:R{$foundRowIndex}",
+                    $body,
+                    ['valueInputOption' => 'USER_ENTERED']
+                );
+            } else {
+                // If not found in sheet yet, sync entire row with trashed status
+                $this->syncSingleIssue($issue);
+            }
+
+            return true;
+        } catch (\Throwable $e) {
+            Log::error("Failed to mark issue #{$issue->id} as deleted in Lean Sheet: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Clear all monthly data rows (A2:R1000) across all 12 tabs for sandbox reset.
+     */
+    public function clearAllMonthlyData(): bool
+    {
+        try {
+            $service = $this->getSheetsService();
+            $gids = $this->getMonthGids();
+
+            foreach (self::MONTH_NAMES as $monthName) {
+                if (!isset($gids[$monthName])) {
+                    continue;
+                }
+                try {
+                    $service->spreadsheets_values->clear(
+                        $this->spreadsheetId,
+                        "{$monthName}!A2:R1000",
+                        new \Google\Service\Sheets\ClearValuesRequest()
+                    );
+                } catch (\Throwable $e) {
+                    Log::warning("Could not clear month {$monthName} in Lean Sheet: " . $e->getMessage());
+                }
+            }
+
+            // Ensure 18-column headers and teal formatting are present on all 12 tabs
+            $this->setupHeadersAndFormatting();
+
+            return true;
+        } catch (\Throwable $e) {
+            Log::error("Failed to clear monthly data in Lean Sheet: " . $e->getMessage());
             return false;
         }
     }

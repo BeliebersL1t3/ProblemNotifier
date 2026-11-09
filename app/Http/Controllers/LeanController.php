@@ -360,6 +360,7 @@ class LeanController extends Controller
 
         try {
             $sheetsService->syncIssue($issue, true, $deletedBy);
+            app(\App\Services\LeanSheetDirectService::class)->deleteSingleIssue($issue, $deletedBy);
         } catch (\Throwable $e) {
             Log::error('Google Sheets sync on destroy failed: ' . $e->getMessage());
         }
@@ -403,7 +404,14 @@ class LeanController extends Controller
     public function reset()
     {
         LeanIssue::truncate();
-        return redirect()->back()->with('success', 'Seluruh data simulasi pengujian berhasil direset.');
+
+        try {
+            app(\App\Services\LeanSheetDirectService::class)->clearAllMonthlyData();
+        } catch (\Throwable $e) {
+            Log::error('LeanSheetDirectService clearAllMonthlyData failed on reset: ' . $e->getMessage());
+        }
+
+        return redirect()->back()->with('success', 'Seluruh data simulasi pengujian berhasil direset dan lembar kerja Google Sheets telah dibersihkan.');
     }
 
     /**
