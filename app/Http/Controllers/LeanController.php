@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\LeanIssue;
+use App\Models\User;
 use App\Services\GoogleSheetsSyncService;
+use App\Services\TicketNotificationService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -51,6 +53,7 @@ class LeanController extends Controller
                 'target_departments'   => $item->target_departments ?? [],
                 'reporter_name'        => $item->reporter_name,
                 'reporter_dept'        => $item->reporter_dept,
+                'reporter_phone'       => $item->reporter_phone,
                 'image_url'            => $imageUrl,
                 'status'               => $item->status,
                 'department_accs'      => $item->department_accs ?? [],
@@ -78,11 +81,26 @@ class LeanController extends Controller
         $spreadsheetUrl = "https://docs.google.com/spreadsheets/d/{$spreadsheetId}/edit?usp=sharing";
         $monthGids = app(\App\Services\LeanSheetDirectService::class)->getMonthGids();
 
+        $staffDirectory = User::activeApproved()
+            ->select('id', 'name', 'staff_name', 'department', 'subdivision', 'whatsapp_number')
+            ->orderBy('name')
+            ->get()
+            ->map(function ($u) {
+                return [
+                    'id'              => $u->id,
+                    'name'            => $u->staff_name ?: $u->name,
+                    'department'      => $u->department,
+                    'subdivision'     => $u->subdivision,
+                    'whatsapp_number' => $u->whatsapp_number,
+                ];
+            });
+
         return Inertia::render('Lean/Index', [
             'issues'         => $issues,
             'departments'    => self::DEPARTMENTS,
             'locations'      => self::MAIN_LOCATIONS,
             'currentUser'    => $currentUser,
+            'staffDirectory' => $staffDirectory,
             'spreadsheetUrl' => $spreadsheetUrl,
             'monthGids'      => $monthGids,
         ]);
@@ -97,12 +115,14 @@ class LeanController extends Controller
             'location'           => 'required|string|max:255',
             'title'              => 'required|string|max:255',
             'description'        => 'nullable|string|max:5000',
-            'target_departments' => 'required|array|min:1',
+            'target_departments' => 'nullable|array',
             'target_departments.*' => 'string|max:50',
             'reporter_name'      => 'required|string|max:100',
             'reporter_dept'      => 'nullable|string|max:100',
+            'reporter_phone'     => 'nullable|string|max:30',
             'image'              => 'nullable|image|max:10240',
             'reported_at'        => 'nullable|date',
+            'start_in_progress'  => 'nullable',
         ]);
 
         $imageUrl = null;
@@ -113,8 +133,18 @@ class LeanController extends Controller
             $imageUrl = '/uploads/' . $filename;
         }
 
+        $currentUser = auth()->user();
+        $leaderName = $currentUser ? ($currentUser->staff_name ?: $currentUser->name) : 'Leader Lapangan';
+        $leaderDept = $currentUser && !empty($currentUser->department)
+            ? $currentUser->department
+            : ($validated['reporter_dept'] ?? 'Umum');
+
+        $targetDepts = !empty($validated['target_departments'])
+            ? $validated['target_departments']
+            : [$leaderDept];
+
         $accs = [];
-        foreach ($validated['target_departments'] as $dept) {
+        foreach ($targetDepts as $dept) {
             $accs[$dept] = [
                 'is_acc' => false,
                 'acc_by' => null,
@@ -122,16 +152,22 @@ class LeanController extends Controller
             ];
         }
 
+        $startInProgress = filter_var($request->input('start_in_progress', false), FILTER_VALIDATE_BOOLEAN);
+
         $issue = new LeanIssue([
             'location'           => $validated['location'],
             'title'              => $validated['title'],
             'description'        => $validated['description'] ?? null,
-            'target_departments' => $validated['target_departments'],
+            'target_departments' => $targetDepts,
             'reporter_name'      => $validated['reporter_name'],
-            'reporter_dept'      => $validated['reporter_dept'] ?? 'Umum',
+            'reporter_dept'      => $validated['reporter_dept'] ?? $leaderDept,
+            'reporter_phone'     => $validated['reporter_phone'] ?? null,
             'image_url'          => $imageUrl,
-            'status'             => 'open',
+            'status'             => $startInProgress ? 'in_progress' : 'open',
             'department_accs'    => $accs,
+            'claimed_by_name'    => $startInProgress ? $leaderName : null,
+            'claimed_by_dept'    => $startInProgress ? $leaderDept : null,
+            'claimed_at'         => $startInProgress ? Carbon::now('Asia/Jakarta') : null,
         ]);
 
         if (!empty($validated['reported_at'])) {
@@ -143,6 +179,9 @@ class LeanController extends Controller
         }
 
         $issue->save();
+
+        // Dispatch automated WhatsApp confirmation to the reporting staff
+        $this->notifyReporterCreated($issue, $leaderName, $leaderDept);
 
         // Failsafe Google Sheets sync
         try {
@@ -279,6 +318,9 @@ class LeanController extends Controller
             $issue->resolution_image_url = $resolutionImageUrl;
         }
         $issue->save();
+
+        // Dispatch automated WhatsApp completion notification to the reporting staff
+        $this->notifyReporterResolved($issue, $issue->resolved_by_name, $issue->resolved_by_dept, $issue->resolution_note);
 
         try {
             app(GoogleSheetsSyncService::class)->syncIssue($issue);
@@ -424,12 +466,13 @@ class LeanController extends Controller
     public function apiStore(Request $request)
     {
         $validated = $request->validate([
-            'title'       => 'required|string|max:255',
-            'description' => 'nullable|string|max:5000',
-            'location'    => 'required|string|max:255',
-            'department'  => 'required|string|max:100',
-            'reporter'    => 'required|string|max:255',
-            'image'       => 'nullable|image|max:10240',
+            'title'          => 'required|string|max:255',
+            'description'    => 'nullable|string|max:5000',
+            'location'       => 'required|string|max:255',
+            'department'     => 'required|string|max:100',
+            'reporter'       => 'required|string|max:255',
+            'reporter_phone' => 'nullable|string|max:30',
+            'image'          => 'nullable|image|max:10240',
         ]);
 
         $imageUrl = null;
@@ -447,6 +490,7 @@ class LeanController extends Controller
             'target_departments' => [$validated['department']],
             'reporter_name'      => $validated['reporter'],
             'reporter_dept'      => $request->input('reporter_dept', 'Umum'),
+            'reporter_phone'     => $validated['reporter_phone'] ?? null,
             'image_url'          => $imageUrl,
             'status'             => 'open',
             'department_accs'    => [
@@ -457,6 +501,9 @@ class LeanController extends Controller
                 ]
             ],
         ]);
+
+        // Dispatch automated WhatsApp confirmation to the reporting staff
+        $this->notifyReporterCreated($issue, 'WhatsApp Bot', $validated['department']);
 
         // Failsafe Google Sheets sync for WhatsApp Bot V2
         try {
@@ -561,6 +608,10 @@ class LeanController extends Controller
         $issue->resolved_at = Carbon::now('Asia/Jakarta');
         $issue->resolution_note = $fixDesc;
         $issue->save();
+
+        // Dispatch automated WhatsApp completion notification to the reporting staff
+        $targetDept = !empty($issue->target_departments) ? $issue->target_departments[0] : 'Resort';
+        $this->notifyReporterResolved($issue, $solver, $targetDept, $fixDesc);
 
         try {
             app(GoogleSheetsSyncService::class)->syncIssue($issue);
@@ -680,5 +731,67 @@ class LeanController extends Controller
                 'reason' => $reason,
             ]
         ]);
+    }
+
+    /**
+     * Dispatch WhatsApp notification to the reporting staff upon issue registration.
+     */
+    protected function notifyReporterCreated(LeanIssue $issue, string $leadName, string $leadDept): void
+    {
+        if (empty($issue->reporter_phone)) {
+            return;
+        }
+
+        $issueCode = self::formatIssueCode($issue);
+        $statusText = $issue->status === 'in_progress'
+            ? "⚡ *Sedang Langsung Dikerjakan*"
+            : "🕒 *Masuk Antrean Penanganan*";
+
+        $message = "📋 *Laporan Diterima - Telunas Tracker*\n\n"
+                 . "Halo *{$issue->reporter_name}*,\n"
+                 . "Laporan Anda telah berhasil dicatat ke sistem:\n\n"
+                 . "📌 *Masalah:* {$issue->title}\n"
+                 . "📍 *Lokasi:* {$issue->location}\n"
+                 . "🏷️ *Kode Tiket:* #{$issueCode}\n"
+                 . "🏢 *Departemen Penanggung Jawab:* {$leadDept}\n"
+                 . "👤 *Dicatat Oleh:* {$leadName}\n"
+                 . "📊 *Status Awal:* {$statusText}\n\n"
+                 . "Kami akan mengabari Anda kembali melalui WhatsApp ini begitu perbaikan selesai. Terima kasih!";
+
+        try {
+            TicketNotificationService::sendWhatsApp($issue->reporter_phone, $message);
+        } catch (\Throwable $t) {
+            Log::warning("Failed to send WhatsApp creation notice: " . $t->getMessage());
+        }
+    }
+
+    /**
+     * Dispatch WhatsApp notification to the reporting staff upon issue resolution.
+     */
+    protected function notifyReporterResolved(LeanIssue $issue, ?string $solverName, ?string $solverDept, ?string $note = null): void
+    {
+        if (empty($issue->reporter_phone)) {
+            return;
+        }
+
+        $issueCode = self::formatIssueCode($issue);
+        $solverDisplay = $solverName ?: 'Tim Departemen';
+        $deptDisplay = $solverDept ?: 'Resort';
+        $noteText = !empty($note) ? "\n📝 *Catatan:* {$note}" : "";
+
+        $message = "✅ *Laporan Selesai Ditangani - Telunas Tracker*\n\n"
+                 . "Halo *{$issue->reporter_name}*,\n"
+                 . "Laporan perbaikan Anda telah *SELESAI* dikerjakan:\n\n"
+                 . "📌 *Masalah:* {$issue->title}\n"
+                 . "📍 *Lokasi:* {$issue->location}\n"
+                 . "🏷️ *Kode Tiket:* #{$issueCode}\n"
+                 . "🔧 *Diselesaikan Oleh:* {$solverDisplay} ({$deptDisplay}){$noteText}\n\n"
+                 . "Terima kasih atas bantuan Anda dalam menjaga kenyamanan Telunas Resorts!";
+
+        try {
+            TicketNotificationService::sendWhatsApp($issue->reporter_phone, $message);
+        } catch (\Throwable $t) {
+            Log::warning("Failed to send WhatsApp resolution notice: " . $t->getMessage());
+        }
     }
 }

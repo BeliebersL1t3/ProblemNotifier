@@ -19,6 +19,7 @@ class LeanIssue extends Model
         'target_departments',
         'reporter_name',
         'reporter_dept',
+        'reporter_phone',
         'image_url',
         'status',
         'department_accs',
