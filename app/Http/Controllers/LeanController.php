@@ -191,7 +191,7 @@ class LeanController extends Controller
             Log::error('Sheets sync error on store: ' . $e->getMessage());
         }
 
-        if ($request->wantsJson() || $request->ajax()) {
+        if (!$request->header('X-Inertia') && ($request->wantsJson() || $request->ajax())) {
             return response()->json([
                 'success' => true,
                 'message' => 'Laporan berhasil dibuat!',
@@ -349,7 +349,7 @@ class LeanController extends Controller
             Log::error('Google Sheets sync on destroy failed: ' . $e->getMessage());
         }
 
-        if ($request->wantsJson() || $request->ajax()) {
+        if (!$request->header('X-Inertia') && ($request->wantsJson() || $request->ajax())) {
             return response()->json([
                 'success' => true,
                 'message' => 'Tiket berhasil dihapus dari dashboard.',
@@ -372,7 +372,7 @@ class LeanController extends Controller
             Log::error('LeanSheetDirectService syncAll failed: ' . $e->getMessage());
         }
 
-        if ($request->wantsJson() || $request->ajax()) {
+        if (!$request->header('X-Inertia') && ($request->wantsJson() || $request->ajax())) {
             return response()->json($result);
         }
 
