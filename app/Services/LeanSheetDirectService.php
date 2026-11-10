@@ -73,11 +73,15 @@ class LeanSheetDirectService
             'Departemen Dituju',
             'Status',
             'Alasan Pending',
-            'Diambil Oleh',
+            'Diambil Oleh (Pekerja Awal)',
             'Waktu Diambil',
+            'Pekerja Selama Progress',
             'Diselesaikan Oleh',
             'Waktu Selesai',
             'Catatan Penyelesaian',
+            'Seluruh Kontributor (Evaluasi)',
+            'Riwayat Komentar & Log',
+            'Riwayat Pengalihan Dept',
             'Aktif di Dashboard',
             'Dihapus Oleh',
             'Waktu Dihapus',
@@ -121,7 +125,7 @@ class LeanSheetDirectService
     }
 
     /**
-     * Format a LeanIssue model into a 15-column array matching the header.
+     * Format a LeanIssue model into a 22-column array matching the Option 4B header.
      */
     public function formatIssueRow(LeanIssue $issue): array
     {
@@ -147,10 +151,64 @@ class LeanSheetDirectService
         ];
         $statusStr = $statusLabels[strtolower($issue->status)] ?? ucfirst($issue->status ?: 'Open');
 
-        $pendingReason = '';
-        if ($issue->status === 'pending') {
+        $pendingReason = $issue->pending_reason ?: '';
+        if ($pendingReason === '' && $issue->status === 'pending') {
             $pendingReason = preg_replace('/^Pending:\s*/i', '', $issue->resolution_note ?? '');
         }
+
+        $initialWorkersList = !empty($issue->initial_workers)
+            ? $issue->initial_workers
+            : LeanIssue::normalizeWorkerList($issue->claimed_by_name);
+        $initialWorkersStr = implode(', ', $initialWorkersList);
+
+        $progressWorkersList = !empty($issue->progress_workers)
+            ? $issue->progress_workers
+            : (!empty($issue->active_workers) ? $issue->active_workers : $initialWorkersList);
+        $progressWorkersStr = implode(', ', $progressWorkersList);
+
+        $allContributorsList = !empty($issue->contributors)
+            ? $issue->contributors
+            : LeanIssue::mergeUniqueNames(
+                $initialWorkersList,
+                array_merge($progressWorkersList, LeanIssue::normalizeWorkerList($issue->resolved_by_name))
+            );
+        $allContributorsStr = implode(', ', $allContributorsList);
+
+        // Chronological progress & comment logs
+        $logLines = [];
+        foreach (($issue->progress_logs ?? []) as $log) {
+            if (!is_array($log)) {
+                continue;
+            }
+            $ts = !empty($log['created_at'])
+                ? Carbon::parse($log['created_at'])->setTimezone('Asia/Jakarta')->format('d/m H:i')
+                : '';
+            $actor = $log['actor'] ?? 'Sistem';
+            $typeLabel = strtoupper($log['type'] ?? 'LOG');
+            $msg = trim((string) ($log['message'] ?? ''));
+            $workersNote = !empty($log['workers']) && is_array($log['workers'])
+                ? ' [Tim: ' . implode(', ', $log['workers']) . ']'
+                : '';
+            $logLines[] = "[{$ts} | {$typeLabel}] {$actor}: {$msg}{$workersNote}";
+        }
+        $progressLogsStr = implode("\n", $logLines);
+
+        // Transfer history summary
+        $transferLines = [];
+        foreach (($issue->transfer_history ?? []) as $tr) {
+            if (!is_array($tr)) {
+                continue;
+            }
+            $ts = !empty($tr['transferred_at'])
+                ? Carbon::parse($tr['transferred_at'])->setTimezone('Asia/Jakarta')->format('d/m H:i')
+                : '';
+            $from = $tr['from_department'] ?? '-';
+            $to = $tr['to_department'] ?? '-';
+            $by = $tr['transferred_by'] ?? '-';
+            $reason = $tr['reason'] ?? '-';
+            $transferLines[] = "[{$ts}] {$from} -> {$to} ({$by}): {$reason}";
+        }
+        $transferHistoryStr = implode("\n", $transferLines);
 
         $isActive = $issue->trashed() ? 0 : 1;
         $deletedBy = $issue->trashed() ? ($issue->deleted_by_name ?: 'Supervisor') : '';
@@ -169,11 +227,15 @@ class LeanSheetDirectService
             $targetDeptsStr,
             $statusStr,
             $pendingReason,
-            $issue->claimed_by_name ?: '',
+            $initialWorkersStr,
             $issue->claimed_at ? Carbon::parse($issue->claimed_at)->setTimezone('Asia/Jakarta')->format('Y-m-d H:i') : '',
+            $progressWorkersStr,
             $issue->resolved_by_name ?: '',
             $issue->resolved_at ? Carbon::parse($issue->resolved_at)->setTimezone('Asia/Jakarta')->format('Y-m-d H:i') : '',
             $issue->resolution_note ?: '',
+            $allContributorsStr,
+            $progressLogsStr,
+            $transferHistoryStr,
             $isActive,
             $deletedBy,
             $deletedAt,
@@ -196,11 +258,11 @@ class LeanSheetDirectService
             }
             $sheetId = $gids[$monthName];
 
-            // 1. Update header values A1:R1
+            // 1. Update header values A1:V1
             $body = new ValueRange(['values' => $headers]);
             $service->spreadsheets_values->update(
                 $this->spreadsheetId,
-                "{$monthName}!A1:R1",
+                "{$monthName}!A1:V1",
                 $body,
                 ['valueInputOption' => 'USER_ENTERED']
             );
@@ -213,7 +275,7 @@ class LeanSheetDirectService
                         'startRowIndex' => 0,
                         'endRowIndex' => 1,
                         'startColumnIndex' => 0,
-                        'endColumnIndex' => 18,
+                        'endColumnIndex' => 22,
                     ],
                     'cell' => [
                         'userEnteredFormat' => [
@@ -301,7 +363,7 @@ class LeanSheetDirectService
             // Clear existing rows below header
             $service->spreadsheets_values->clear(
                 $this->spreadsheetId,
-                "{$monthName}!A2:R1000",
+                "{$monthName}!A2:V1000",
                 new \Google\Service\Sheets\ClearValuesRequest()
             );
 
@@ -310,7 +372,7 @@ class LeanSheetDirectService
                 $body = new ValueRange(['values' => $rows]);
                 $service->spreadsheets_values->update(
                     $this->spreadsheetId,
-                    "{$monthName}!A2:R{$endRow}",
+                    "{$monthName}!A2:V{$endRow}",
                     $body,
                     ['valueInputOption' => 'USER_ENTERED']
                 );
@@ -363,7 +425,7 @@ class LeanSheetDirectService
                 $body = new ValueRange(['values' => [$row]]);
                 $service->spreadsheets_values->update(
                     $this->spreadsheetId,
-                    "{$monthName}!A{$foundRowIndex}:R{$foundRowIndex}",
+                    "{$monthName}!A{$foundRowIndex}:V{$foundRowIndex}",
                     $body,
                     ['valueInputOption' => 'USER_ENTERED']
                 );
@@ -372,7 +434,7 @@ class LeanSheetDirectService
                 $body = new ValueRange(['values' => [$row]]);
                 $service->spreadsheets_values->append(
                     $this->spreadsheetId,
-                    "{$monthName}!A:R",
+                    "{$monthName}!A:V",
                     $body,
                     ['valueInputOption' => 'USER_ENTERED']
                 );
@@ -414,11 +476,11 @@ class LeanSheetDirectService
                 : Carbon::now('Asia/Jakarta')->format('Y-m-d H:i');
 
             if ($foundRowIndex !== null) {
-                // Update columns P, Q, R (Aktif di Dashboard, Dihapus Oleh, Waktu Dihapus)
+                // Update columns T, U, V (Aktif di Dashboard, Dihapus Oleh, Waktu Dihapus)
                 $body = new ValueRange(['values' => [[0, $deletedBy, $deletedAt]]]);
                 $service->spreadsheets_values->update(
                     $this->spreadsheetId,
-                    "{$monthName}!P{$foundRowIndex}:R{$foundRowIndex}",
+                    "{$monthName}!T{$foundRowIndex}:V{$foundRowIndex}",
                     $body,
                     ['valueInputOption' => 'USER_ENTERED']
                 );
@@ -436,7 +498,7 @@ class LeanSheetDirectService
     }
 
     /**
-     * Clear all monthly data rows (A2:R1000) across all 12 tabs for sandbox reset.
+     * Clear all monthly data rows (A2:V1000) across all 12 tabs for sandbox reset.
      */
     public function clearAllMonthlyData(): bool
     {
@@ -454,12 +516,12 @@ class LeanSheetDirectService
                 }
                 $service->spreadsheets_values->clear(
                     $this->spreadsheetId,
-                    "{$monthName}!A2:R1000",
+                    "{$monthName}!A2:V1000",
                     new \Google\Service\Sheets\ClearValuesRequest()
                 );
             }
 
-            // Ensure 18-column headers and teal formatting are present on all 12 tabs
+            // Ensure 22-column headers and teal formatting are present on all 12 tabs
             $this->setupHeadersAndFormatting();
             Cache::forget('lean_sheets_pending_clear');
 

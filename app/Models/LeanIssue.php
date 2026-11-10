@@ -40,6 +40,13 @@ class LeanIssue extends Model
         'ai_processed_at',
         'deleted_by_name',
         'transfer_history',
+        'initial_workers',
+        'progress_workers',
+        'active_workers',
+        'contributors',
+        'progress_logs',
+        'pending_reason',
+        'pending_since',
         'needs_sheets_sync',
         'sheets_synced_at',
         'sheets_sync_error',
@@ -49,12 +56,18 @@ class LeanIssue extends Model
         'target_departments' => 'array',
         'department_accs'    => 'array',
         'transfer_history'   => 'array',
+        'initial_workers'    => 'array',
+        'progress_workers'   => 'array',
+        'active_workers'     => 'array',
+        'contributors'       => 'array',
+        'progress_logs'      => 'array',
         'ai_analysis'        => 'array',
         'ai_is_minimal'      => 'boolean',
         'needs_sheets_sync'  => 'boolean',
         'claimed_at'         => 'datetime',
         'resolved_at'        => 'datetime',
         'ai_processed_at'    => 'datetime',
+        'pending_since'      => 'datetime',
         'sheets_synced_at'   => 'datetime',
     ];
 
@@ -117,4 +130,60 @@ class LeanIssue extends Model
             ]);
         }
     }
+
+    /**
+     * Normalize incoming workers (array or comma-separated string) into deduplicated names.
+     */
+    public static function normalizeWorkerList($workers): array
+    {
+        if (is_string($workers)) {
+            $workers = explode(',', $workers);
+        }
+        if (!is_array($workers)) {
+            return [];
+        }
+
+        $result = [];
+        $seen = [];
+        foreach ($workers as $w) {
+            $trimmed = trim((string) $w);
+            if ($trimmed === '') {
+                continue;
+            }
+            $lower = mb_strtolower($trimmed);
+            if (!isset($seen[$lower])) {
+                $seen[$lower] = true;
+                $result[] = $trimmed;
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * Merge incoming contributor names into an existing array without duplicates.
+     */
+    public static function mergeUniqueNames(?array $existing, array $incoming): array
+    {
+        return self::normalizeWorkerList(array_merge($existing ?? [], $incoming));
+    }
+
+    /**
+     * Append a structured entry to the issue's activity & progress timeline.
+     */
+    public function addProgressLog(string $type, string $actor, ?string $actorDept = null, ?string $message = null, array $meta = []): void
+    {
+        $logs = $this->progress_logs ?? [];
+        $logs[] = array_merge([
+            'id'         => uniqid('log_', true),
+            'type'       => $type, // claim | progress | pending | transfer | resolved
+            'actor'      => $actor,
+            'actor_dept' => $actorDept,
+            'message'    => $message,
+            'created_at' => now('Asia/Jakarta')->toIso8601String(),
+        ], $meta);
+
+        $this->progress_logs = $logs;
+    }
 }
+

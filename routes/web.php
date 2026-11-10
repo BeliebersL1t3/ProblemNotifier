@@ -204,7 +204,10 @@ Route::get('/lapangan', [\App\Http\Controllers\LeanController::class, 'index'])-
 Route::post('/lapangan/issues', [\App\Http\Controllers\LeanController::class, 'store'])->name('lean.store');
 Route::post('/lapangan/issues/{issue}/acc', [\App\Http\Controllers\LeanController::class, 'acc'])->name('lean.acc');
 Route::post('/lapangan/issues/{issue}/claim', [\App\Http\Controllers\LeanController::class, 'claim'])->name('lean.claim');
+Route::post('/lapangan/issues/{issue}/progress', [\App\Http\Controllers\LeanController::class, 'updateProgress'])->name('lean.progress');
+Route::post('/lapangan/issues/{issue}/pending', [\App\Http\Controllers\LeanController::class, 'pending'])->name('lean.pending');
 Route::post('/lapangan/issues/{issue}/resolve', [\App\Http\Controllers\LeanController::class, 'resolve'])->name('lean.resolve');
+Route::post('/lapangan/issues/{issue}/transfer', [\App\Http\Controllers\LeanController::class, 'transfer'])->name('lean.transfer');
 Route::post('/lapangan/reset', [\App\Http\Controllers\LeanController::class, 'reset'])->name('lean.reset');
 Route::delete('/lapangan/issues/{issue}', [\App\Http\Controllers\LeanController::class, 'destroy'])->name('lean.destroy');
 Route::post('/lapangan/sync-sheets', [\App\Http\Controllers\LeanController::class, 'syncGoogleSheets'])->name('lean.sync.sheets');

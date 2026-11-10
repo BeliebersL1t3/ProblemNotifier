@@ -10,6 +10,7 @@ use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 
 class LeanController extends Controller
@@ -35,11 +36,115 @@ class LeanController extends Controller
     ];
 
     /**
+     * Normalize department names across UI, database accounts, and tests (e.g. Engineering -> Engineer).
+     */
+    public static function normalizeDepartment(?string $dept): string
+    {
+        if (empty($dept)) {
+            return '';
+        }
+
+        $clean = mb_strtolower(trim($dept));
+        $aliases = [
+            'engineer'        => 'Engineer',
+            'engineering'     => 'Engineer',
+            'maintenance'     => 'Engineer',
+            'hk'              => 'HK',
+            'housekeeping'    => 'HK',
+            'pest control'    => 'HK',
+            'pestcontrol'     => 'HK',
+            'fasilitas'       => 'Fasilitas',
+            'facility'        => 'Fasilitas',
+            'facilities'      => 'Fasilitas',
+            'security'        => 'Fasilitas',
+            'kitchen'         => 'Kitchen',
+            'f&b'             => 'Kitchen',
+            'fnb'             => 'Kitchen',
+            'food & beverage' => 'Kitchen',
+            'gr'              => 'GR',
+            'gre'             => 'GR',
+            'guest relations' => 'GR',
+            'service'         => 'GR',
+            'bar'             => 'GR',
+            'spa'             => 'GR',
+            'tirek'           => 'GR',
+            'it'              => 'IT',
+            'oe'              => 'OE',
+            'procurement'     => 'Procurement',
+            'finance'         => 'Finance',
+            'reservasi'       => 'Reservasi',
+            'reservation'     => 'Reservasi',
+            'sales'           => 'Reservasi',
+            'marketing'       => 'Reservasi',
+            'hr'              => 'HR',
+            'human resources' => 'HR',
+            'legal'           => 'HR',
+            'lnd'             => 'HR',
+            'transportasi'    => 'HR',
+            'tekong'          => 'HR',
+        ];
+
+        return $aliases[$clean] ?? trim($dept);
+    }
+
+    /**
+     * Determine whether a user is allowed to mutate an issue's status/workflow.
+     * Everyone can view all issues, but only Admin or accounts in target_departments can manage status.
+     */
+    public static function canUserManageIssue(?User $user, LeanIssue $issue): bool
+    {
+        if (!$user) {
+            return false;
+        }
+
+        if ($user->isAdmin()) {
+            return true;
+        }
+
+        $userDept = self::normalizeDepartment($user->department);
+        if ($userDept === '') {
+            return false;
+        }
+
+        $targets = is_array($issue->target_departments)
+            ? $issue->target_departments
+            : (json_decode((string) $issue->target_departments, true) ?: []);
+
+        foreach ($targets as $target) {
+            if (strcasecmp(self::normalizeDepartment((string) $target), $userDept) === 0) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Enforce department ownership authorization on status-changing endpoints.
+     */
+    protected function authorizeDepartmentAction(LeanIssue $issue): User
+    {
+        $user = auth()->user();
+        if (!$user) {
+            abort(403, 'Silakan login terlebih dahulu untuk mengubah status isu.');
+        }
+
+        if (!self::canUserManageIssue($user, $issue)) {
+            $targetsStr = implode(', ', is_array($issue->target_departments) ? $issue->target_departments : []);
+            abort(403, "Akses ditolak: Hanya akun dari departemen tujuan ({$targetsStr}) atau Admin yang dapat mengubah status isu ini.");
+        }
+
+        return $user;
+    }
+
+    /**
      * Display the mobile-first lean dashboard.
      */
     public function index(Request $request)
     {
-        $issues = LeanIssue::orderBy('created_at', 'desc')->get()->map(function ($item) {
+        $authUser = auth()->user();
+
+        $issues = LeanIssue::orderBy('created_at', 'desc')->get()->map(function ($item) use ($authUser) {
             $code = self::formatIssueCode($item);
             $imageUrl = $item->image_url ? (parse_url($item->image_url, PHP_URL_PATH) ?: $item->image_url) : null;
             $resImageUrl = $item->resolution_image_url ? (parse_url($item->resolution_image_url, PHP_URL_PATH) ?: $item->resolution_image_url) : null;
@@ -60,6 +165,13 @@ class LeanController extends Controller
                 'claimed_by_name'      => $item->claimed_by_name,
                 'claimed_by_dept'      => $item->claimed_by_dept,
                 'claimed_at'           => $item->claimed_at ? $item->claimed_at->toIso8601String() : null,
+                'initial_workers'      => $item->initial_workers ?? [],
+                'progress_workers'     => $item->progress_workers ?? [],
+                'active_workers'       => $item->active_workers ?? [],
+                'contributors'         => $item->contributors ?? [],
+                'progress_logs'        => $item->progress_logs ?? [],
+                'pending_reason'       => $item->pending_reason,
+                'pending_since'        => $item->pending_since ? $item->pending_since->toIso8601String() : null,
                 'resolved_by_name'     => $item->resolved_by_name,
                 'resolved_by_dept'     => $item->resolved_by_dept,
                 'resolved_at'          => $item->resolved_at ? $item->resolved_at->toIso8601String() : null,
@@ -68,13 +180,16 @@ class LeanController extends Controller
                 'created_at'           => $item->created_at ? $item->created_at->toIso8601String() : null,
                 'created_at_human'     => $item->created_at ? $item->created_at->locale('id')->diffForHumans() : '',
                 'transfer_history'     => $item->transfer_history ?? [],
+                'can_manage'           => self::canUserManageIssue($authUser, $item),
             ];
         });
 
-        $currentUser = auth()->check() ? [
-            'name'       => auth()->user()->name,
-            'department' => auth()->user()->department,
-            'is_admin'   => auth()->user()->role === 'admin',
+        $currentUser = $authUser ? [
+            'id'         => $authUser->id,
+            'name'       => $authUser->name,
+            'staff_name' => $authUser->staff_name ?: $authUser->name,
+            'department' => $authUser->department,
+            'is_admin'   => $authUser->role === 'admin',
         ] : null;
 
         $spreadsheetId = config('services.google.lean_spreadsheet_id') ?: env('GOOGLE_LEAN_SPREADSHEET_ID', '1hF2X6DrcWvOv4h77T_B4pmcNklO2-Zq2CzAiAR-UYIg');
@@ -151,21 +266,19 @@ class LeanController extends Controller
 
         // Assigned workers resolution (multi-select array or comma-separated string)
         $rawWorkers = $request->input('assigned_workers');
+        $workersList = [];
         $workerNames = null;
         if ($startInProgress) {
-            if (is_array($rawWorkers)) {
-                $workerNames = implode(', ', array_filter(array_map('trim', $rawWorkers)));
-            } elseif (is_string($rawWorkers) && trim($rawWorkers) !== '') {
-                $workerNames = trim($rawWorkers);
+            $workersList = LeanIssue::normalizeWorkerList($rawWorkers);
+            if (empty($workersList)) {
+                $workersList = [$receiverName];
             }
-            if (empty($workerNames)) {
-                $workerNames = $receiverName;
-            }
+            $workerNames = implode(', ', $workersList);
         }
 
         $accs = [];
         foreach ($targetDepts as $dept) {
-            $isReceiverDept = strcasecmp($dept, $receiverDept) === 0;
+            $isReceiverDept = strcasecmp(self::normalizeDepartment($dept), self::normalizeDepartment($receiverDept)) === 0;
             $accs[$dept] = [
                 'is_acc' => $isReceiverDept,
                 'acc_by' => $isReceiverDept ? $receiverName : null,
@@ -187,7 +300,21 @@ class LeanController extends Controller
             'claimed_by_name'    => $workerNames,
             'claimed_by_dept'    => $startInProgress ? $receiverDept : null,
             'claimed_at'         => $startInProgress ? Carbon::now('Asia/Jakarta') : null,
+            'initial_workers'    => $startInProgress ? $workersList : [],
+            'progress_workers'   => $startInProgress ? $workersList : [],
+            'active_workers'     => $startInProgress ? $workersList : [],
+            'contributors'       => $startInProgress ? $workersList : [],
         ]);
+
+        if ($startInProgress) {
+            $issue->addProgressLog(
+                'claim',
+                $receiverName,
+                $receiverDept,
+                'Langsung mulai dikerjakan saat laporan dicatat.',
+                ['workers' => $workersList, 'active_workers' => $workersList]
+            );
+        }
 
         if (!empty($validated['reported_at'])) {
             try {
@@ -226,10 +353,15 @@ class LeanController extends Controller
      */
     public function acc(Request $request, LeanIssue $issue)
     {
-        $request->validate([
+        $this->authorizeDepartmentAction($issue);
+
+        $validator = Validator::make($request->all(), [
             'dept'       => 'required|string|max:50',
             'staff_name' => 'required|string|max:100',
         ]);
+        if ($validator->fails()) {
+            return $this->actionErrorResponse($request, $validator->errors()->first(), 422, $validator->errors()->toArray());
+        }
 
         $accs = $issue->department_accs ?? [];
         $dept = $request->input('dept');
@@ -244,81 +376,286 @@ class LeanController extends Controller
         $issue->department_accs = $accs;
         $issue->save();
 
-        try {
-            app(GoogleSheetsSyncService::class)->syncIssue($issue);
-            app(\App\Services\LeanSheetDirectService::class)->syncSingleIssue($issue);
-        } catch (\Throwable $e) {
-            Log::error('Sheets sync error on acc: ' . $e->getMessage());
-        }
+        $this->syncIssueToSheets($issue, 'acc');
 
-        return redirect()->back()->with('success', "Departemen {$dept} berhasil ACC / Siap!");
+        return $this->actionSuccessResponse($request, $issue, "Departemen {$dept} berhasil ACC / Siap!");
     }
 
     /**
-     * Claim / Start working on an issue (Non-blocking: any ready dept can claim).
+     * Claim / Start (or resume from Pending) working on an issue with multi-select workers.
      */
     public function claim(Request $request, LeanIssue $issue)
     {
-        $request->validate([
-            'dept'       => 'required|string|max:50',
-            'staff_name' => 'required|string|max:100',
+        $user = $this->authorizeDepartmentAction($issue);
+
+        if ($issue->status === 'resolved') {
+            return $this->actionErrorResponse($request, 'Isu yang sudah selesai tidak dapat diambil ulang.', 422);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'workers'    => 'nullable|array|min:1',
+            'workers.*'  => 'string|max:100',
+            'staff_name' => 'nullable|string|max:255',
+            'dept'       => 'nullable|string|max:50',
+            'note'       => 'nullable|string|max:1000',
+        ], [
+            'workers.min' => 'Pilih minimal 1 pekerja yang mengerjakan.',
         ]);
-
-        $dept = $request->input('dept');
-        $staffName = $request->input('staff_name');
-
-        // Rule Check: Pelapor tidak boleh mengerjakan tugasnya sendiri
-        if (
-            strcasecmp($issue->reporter_name, $staffName) === 0 ||
-            strcasecmp($issue->reporter_dept ?? '', $dept) === 0
-        ) {
-            return redirect()->back()->with('error', 'Pelapor tidak dapat mengambil atau mengerjakan tugasnya sendiri.');
+        if ($validator->fails()) {
+            return $this->actionErrorResponse($request, $validator->errors()->first(), 422, $validator->errors()->toArray());
         }
 
-        // Rule Check: Hanya departemen tujuan yang berhak mengambil tugas
-        $targetDepts = array_map('strtolower', $issue->target_departments ?? []);
-        if (!empty($targetDepts) && !in_array(strtolower($dept), $targetDepts)) {
-            return redirect()->back()->with('error', 'Hanya staf dari departemen tujuan yang dapat mengambil tugas ini.');
-        }
+        $actorName = $user->staff_name ?: $user->name;
+        $rawDept = $user->isAdmin() && $request->filled('dept')
+            ? $request->input('dept')
+            : ($user->department ?: ($request->input('dept') ?: ($issue->target_departments[0] ?? 'Umum')));
+        $dept = self::normalizeDepartment($rawDept) ?: ($issue->target_departments[0] ?? 'Umum');
 
-        // Automatically set ACC for this department if it was a target
+        $rawWorkers = $request->input('workers');
+        if (empty($rawWorkers) && $request->filled('staff_name')) {
+            $rawWorkers = $request->input('staff_name');
+        }
+        $workersList = LeanIssue::normalizeWorkerList($rawWorkers);
+        if (empty($workersList)) {
+            $workersList = [$actorName];
+        }
+        $workersStr = implode(', ', $workersList);
+
+        $wasPending = $issue->status === 'pending';
+        $note = trim((string) $request->input('note', ''));
+
+        // Record initial workers only on first claim so evaluation retains who took the issue initially
+        if (empty($issue->initial_workers)) {
+            $issue->initial_workers = $workersList;
+        }
+        $issue->active_workers = $workersList;
+        $issue->progress_workers = LeanIssue::mergeUniqueNames($issue->progress_workers, $workersList);
+        $issue->contributors = LeanIssue::mergeUniqueNames($issue->contributors, $workersList);
+
+        // Automatically set ACC for this department
         $accs = $issue->department_accs ?? [];
-        if (isset($accs[$dept])) {
-            $accs[$dept] = [
-                'is_acc' => true,
-                'acc_by' => $staffName,
-                'acc_at' => Carbon::now('Asia/Jakarta')->toIso8601String(),
-            ];
-            $issue->department_accs = $accs;
+        $matchedKey = null;
+        foreach ($accs as $d => $val) {
+            if (strcasecmp(self::normalizeDepartment((string) $d), $dept) === 0) {
+                $matchedKey = $d;
+                break;
+            }
         }
+        $accKey = $matchedKey ?: $dept;
+        $accs[$accKey] = [
+            'is_acc' => true,
+            'acc_by' => $workersStr,
+            'acc_at' => Carbon::now('Asia/Jakarta')->toIso8601String(),
+        ];
+        $issue->department_accs = $accs;
 
         $issue->status = 'in_progress';
-        $issue->claimed_by_name = $staffName;
+        $issue->claimed_by_name = $workersStr;
         $issue->claimed_by_dept = $dept;
-        $issue->claimed_at = Carbon::now('Asia/Jakarta');
+        if (!$issue->claimed_at) {
+            $issue->claimed_at = Carbon::now('Asia/Jakarta');
+        }
+        $issue->pending_reason = null;
+        $issue->pending_since = null;
+
+        $logMsg = $note !== ''
+            ? $note
+            : ($wasPending ? 'Melanjutkan kembali pengerjaan dari status Pending.' : 'Mulai dikerjakan.');
+
+        $issue->addProgressLog('claim', $actorName, $dept, $logMsg, [
+            'workers'        => $workersList,
+            'active_workers' => $workersList,
+        ]);
+
         $issue->save();
 
-        try {
-            app(GoogleSheetsSyncService::class)->syncIssue($issue);
-            app(\App\Services\LeanSheetDirectService::class)->syncSingleIssue($issue);
-        } catch (\Throwable $e) {
-            Log::error('Sheets sync error on claim: ' . $e->getMessage());
-        }
+        $this->notifyReporterClaimed($issue, $workersStr, $dept, $wasPending, $note);
+        $this->syncIssueToSheets($issue, 'claim');
 
-        return redirect()->back()->with('success', "Tugas berhasil diambil oleh {$staffName} ({$dept}).");
+        return $this->actionSuccessResponse($request, $issue, "Isu mulai dikerjakan oleh {$workersStr} ({$dept}).");
     }
 
     /**
-     * Mark an issue as solved / resolved.
+     * Add progress comment and/or add/remove active workers while In Progress.
+     */
+    public function updateProgress(Request $request, LeanIssue $issue)
+    {
+        $user = $this->authorizeDepartmentAction($issue);
+
+        if ($issue->status !== 'in_progress') {
+            return $this->actionErrorResponse($request, 'Komentar progress & perubahan tim hanya dapat dilakukan saat status In Progress.', 422);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'comment'         => 'nullable|string|max:2000',
+            'workers'         => 'nullable|array',
+            'workers.*'       => 'string|max:100',
+            'notify_reporter' => 'nullable',
+        ]);
+        if ($validator->fails()) {
+            return $this->actionErrorResponse($request, $validator->errors()->first(), 422, $validator->errors()->toArray());
+        }
+
+        $comment = trim((string) $request->input('comment', ''));
+        $notifyReporter = $request->has('notify_reporter')
+            ? filter_var($request->input('notify_reporter'), FILTER_VALIDATE_BOOLEAN)
+            : true;
+
+        $previousWorkers = !empty($issue->active_workers)
+            ? $issue->active_workers
+            : LeanIssue::normalizeWorkerList($issue->claimed_by_name);
+
+        if ($request->has('workers')) {
+            $newWorkers = LeanIssue::normalizeWorkerList($request->input('workers', []));
+            if (empty($newWorkers)) {
+                return $this->actionErrorResponse($request, 'Minimal harus ada 1 pekerja aktif saat status In Progress.', 422, [
+                    'workers' => 'Minimal pilih 1 pekerja aktif.',
+                ]);
+            }
+        } else {
+            $newWorkers = $previousWorkers;
+        }
+
+        $prevLower = array_map('mb_strtolower', $previousWorkers);
+        $newLower = array_map('mb_strtolower', $newWorkers);
+
+        $addedWorkers = array_values(array_filter($newWorkers, fn ($w) => !in_array(mb_strtolower($w), $prevLower, true)));
+        $removedWorkers = array_values(array_filter($previousWorkers, fn ($w) => !in_array(mb_strtolower($w), $newLower, true)));
+
+        if ($comment === '' && empty($addedWorkers) && empty($removedWorkers)) {
+            return $this->actionErrorResponse($request, 'Mohon isi komentar perkembangan atau ubah daftar pekerja aktif.', 422, [
+                'comment' => 'Isi komentar atau ubah tim pekerja.',
+            ]);
+        }
+
+        $actorName = $user->staff_name ?: $user->name;
+        $actorDept = self::normalizeDepartment($user->department) ?: ($issue->target_departments[0] ?? 'Umum');
+
+        $issue->active_workers = $newWorkers;
+        if (!empty($newWorkers)) {
+            $issue->claimed_by_name = implode(', ', $newWorkers);
+        }
+        // Accumulate into historical progress & contributor rosters (do not remove past workers)
+        $issue->progress_workers = LeanIssue::mergeUniqueNames($issue->progress_workers, $newWorkers);
+        $issue->contributors = LeanIssue::mergeUniqueNames($issue->contributors, $newWorkers);
+
+        $diffParts = [];
+        if (!empty($addedWorkers)) {
+            $diffParts[] = 'Ditambah: ' . implode(', ', $addedWorkers);
+        }
+        if (!empty($removedWorkers)) {
+            $diffParts[] = 'Dikurangi: ' . implode(', ', $removedWorkers);
+        }
+        $diffText = implode(' | ', $diffParts);
+        $fullMessage = $comment !== ''
+            ? ($diffText !== '' ? "{$comment} ({$diffText})" : $comment)
+            : "Perubahan tim pelaksana ({$diffText})";
+
+        $issue->addProgressLog('progress', $actorName, $actorDept, $fullMessage, [
+            'workers'         => $newWorkers,
+            'added_workers'   => $addedWorkers,
+            'removed_workers' => $removedWorkers,
+            'notified_wa'     => $notifyReporter,
+        ]);
+
+        $issue->save();
+
+        if ($notifyReporter) {
+            $this->notifyReporterProgress($issue, $actorName, $actorDept, $comment, $newWorkers, $addedWorkers, $removedWorkers);
+        }
+
+        $this->syncIssueToSheets($issue, 'progress');
+
+        return $this->actionSuccessResponse($request, $issue, 'Update progress dan tim pekerja berhasil disimpan!');
+    }
+
+    /**
+     * Mark issue as Pending (from open, in_progress, or pending again) with a mandatory reason.
+     */
+    public function pending(Request $request, LeanIssue $issue)
+    {
+        $user = $this->authorizeDepartmentAction($issue);
+
+        if ($issue->status === 'resolved') {
+            return $this->actionErrorResponse($request, 'Isu yang sudah selesai tidak dapat diubah menjadi Pending.', 422);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'reason' => 'required|string|max:1000',
+        ], [
+            'reason.required' => 'Alasan pending wajib diisi.',
+        ]);
+        if ($validator->fails()) {
+            return $this->actionErrorResponse($request, $validator->errors()->first(), 422, $validator->errors()->toArray());
+        }
+        $validated = $validator->validated();
+
+        $reason = trim($validated['reason']);
+        if ($reason === '') {
+            return $this->actionErrorResponse($request, 'Alasan pending wajib diisi.', 422, [
+                'reason' => 'Alasan pending wajib diisi.',
+            ]);
+        }
+
+        $actorName = $user->staff_name ?: $user->name;
+        $actorDept = self::normalizeDepartment($user->department) ?: ($issue->target_departments[0] ?? 'Umum');
+        $isUpdatePending = $issue->status === 'pending';
+
+        $issue->status = 'pending';
+        $issue->pending_reason = $reason;
+        $issue->resolution_note = "Pending: {$reason}";
+        if (!$issue->pending_since) {
+            $issue->pending_since = Carbon::now('Asia/Jakarta');
+        }
+
+        $issue->addProgressLog(
+            'pending',
+            $actorName,
+            $actorDept,
+            ($isUpdatePending ? 'Update alasan pending: ' : 'Ditunda (Pending): ') . $reason,
+            ['pending_reason' => $reason]
+        );
+
+        $issue->save();
+
+        $this->notifyReporterPending($issue, $actorName, $actorDept, $reason, $isUpdatePending);
+        $this->syncIssueToSheets($issue, 'pending');
+
+        return $this->actionSuccessResponse($request, $issue, $isUpdatePending ? 'Alasan pending berhasil diperbarui.' : 'Isu berhasil ditandai Pending.');
+    }
+
+    /**
+     * Mark an issue as solved / resolved (required note, optional photo, cumulative contributors).
      */
     public function resolve(Request $request, LeanIssue $issue)
     {
-        $request->validate([
-            'dept'            => 'required|string|max:50',
-            'staff_name'      => 'required|string|max:100',
-            'note'            => 'nullable|string|max:2000',
+        $user = $this->authorizeDepartmentAction($issue);
+
+        if ($issue->status === 'resolved') {
+            return $this->actionErrorResponse($request, 'Isu ini sudah ditandai selesai sebelumnya.', 422);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'note'            => 'required|string|max:2000',
             'proof_image'     => 'nullable|image|max:10240',
+            'final_workers'   => 'nullable|array',
+            'final_workers.*' => 'string|max:100',
+            'staff_name'      => 'nullable|string|max:255',
+            'dept'            => 'nullable|string|max:50',
+        ], [
+            'note.required' => 'Deskripsi penyelesaian wajib diisi.',
         ]);
+        if ($validator->fails()) {
+            return $this->actionErrorResponse($request, $validator->errors()->first(), 422, $validator->errors()->toArray());
+        }
+        $validated = $validator->validated();
+
+        $note = trim($validated['note']);
+        if ($note === '') {
+            return $this->actionErrorResponse($request, 'Deskripsi penyelesaian wajib diisi.', 422, [
+                'note' => 'Deskripsi penyelesaian wajib diisi.',
+            ]);
+        }
 
         $resolutionImageUrl = null;
         if ($request->hasFile('proof_image')) {
@@ -328,27 +665,170 @@ class LeanController extends Controller
             $resolutionImageUrl = '/uploads/' . $filename;
         }
 
+        $actorName = $user->staff_name ?: $user->name;
+        $rawDept = $user->isAdmin() && $request->filled('dept')
+            ? $request->input('dept')
+            : ($user->department ?: ($request->input('dept') ?: ($issue->target_departments[0] ?? 'Umum')));
+        $dept = self::normalizeDepartment($rawDept) ?: 'Umum';
+
+        $finalWorkers = LeanIssue::normalizeWorkerList($request->input('final_workers'));
+        if (empty($finalWorkers) && $request->filled('staff_name')) {
+            $finalWorkers = LeanIssue::normalizeWorkerList($request->input('staff_name'));
+        }
+        if (empty($finalWorkers)) {
+            $finalWorkers = !empty($issue->active_workers)
+                ? $issue->active_workers
+                : [$actorName];
+        }
+        $finalWorkersStr = implode(', ', $finalWorkers);
+
         $issue->status = 'resolved';
-        $issue->resolved_by_name = $request->input('staff_name');
-        $issue->resolved_by_dept = $request->input('dept');
+        $issue->resolved_by_name = $finalWorkersStr;
+        $issue->resolved_by_dept = $dept;
         $issue->resolved_at = Carbon::now('Asia/Jakarta');
-        $issue->resolution_note = $request->input('note');
+        $issue->resolution_note = $note;
         if ($resolutionImageUrl) {
             $issue->resolution_image_url = $resolutionImageUrl;
         }
+        $issue->pending_reason = null;
+        $issue->pending_since = null;
+        $issue->active_workers = [];
+        $issue->contributors = LeanIssue::mergeUniqueNames($issue->contributors, $finalWorkers);
+
+        $issue->addProgressLog('resolved', $actorName, $dept, $note, [
+            'workers'      => $finalWorkers,
+            'contributors' => $issue->contributors,
+            'has_photo'    => (bool) $resolutionImageUrl,
+        ]);
+
         $issue->save();
 
         // Dispatch automated WhatsApp completion notification to the reporting staff
-        $this->notifyReporterResolved($issue, $issue->resolved_by_name, $issue->resolved_by_dept, $issue->resolution_note);
+        $this->notifyReporterResolved($issue, $finalWorkersStr, $dept, $note);
+        $this->syncIssueToSheets($issue, 'resolve');
 
+        return $this->actionSuccessResponse($request, $issue, 'Masalah berhasil ditandai selesai!');
+    }
+
+    /**
+     * Transfer / redirect an issue to another department ("Alihkan ke Dept Lain") with mandatory reason.
+     */
+    public function transfer(Request $request, LeanIssue $issue)
+    {
+        $user = $this->authorizeDepartmentAction($issue);
+
+        if ($issue->status === 'resolved') {
+            return $this->actionErrorResponse($request, 'Isu yang sudah selesai tidak dapat dialihkan ke departemen lain.', 422);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'to_department' => 'required|string|max:100',
+            'reason'        => 'required|string|max:1000',
+        ], [
+            'to_department.required' => 'Departemen tujuan baru wajib dipilih.',
+            'reason.required'        => 'Alasan pengalihan departemen wajib diisi.',
+        ]);
+        if ($validator->fails()) {
+            return $this->actionErrorResponse($request, $validator->errors()->first(), 422, $validator->errors()->toArray());
+        }
+        $validated = $validator->validated();
+
+        $toDept = self::normalizeDepartment($validated['to_department']) ?: trim($validated['to_department']);
+        $reason = trim($validated['reason']);
+        $oldDepts = is_array($issue->target_departments) ? $issue->target_departments : [];
+        $oldDept = $oldDepts[0] ?? 'Umum';
+
+        if (count($oldDepts) === 1 && strcasecmp(self::normalizeDepartment((string) $oldDept), $toDept) === 0) {
+            return $this->actionErrorResponse($request, "Isu ini sudah ditujukan ke departemen {$toDept}. Pilih departemen tujuan lain.", 422, [
+                'to_department' => 'Pilih departemen lain yang berbeda dari departemen saat ini.',
+            ]);
+        }
+
+        $actorName = $user->staff_name ?: $user->name;
+        $actorDept = self::normalizeDepartment($user->department) ?: $oldDept;
+
+        $history = $issue->transfer_history ?? [];
+        $history[] = [
+            'from_department'      => implode(', ', $oldDepts) ?: $oldDept,
+            'to_department'        => $toDept,
+            'reason'               => $reason,
+            'transferred_by'       => $actorName,
+            'transferred_by_dept'  => $actorDept,
+            'transferred_by_phone' => $user->whatsapp_number ?? '',
+            'transferred_at'       => Carbon::now('Asia/Jakarta')->toIso8601String(),
+        ];
+
+        $issue->target_departments = [$toDept];
+        $issue->status = 'open';
+        $issue->active_workers = [];
+        $issue->claimed_by_name = null;
+        $issue->claimed_by_dept = null;
+        $issue->claimed_at = null;
+        $issue->pending_reason = null;
+        $issue->pending_since = null;
+        $issue->department_accs = [
+            $toDept => [
+                'is_acc' => false,
+                'acc_by' => null,
+                'acc_at' => null,
+            ],
+        ];
+        $issue->transfer_history = $history;
+
+        $issue->addProgressLog(
+            'transfer',
+            $actorName,
+            $actorDept,
+            "Dialihkan dari {$oldDept} ke {$toDept}: {$reason}",
+            [
+                'from_department' => $oldDept,
+                'to_department'   => $toDept,
+                'reason'          => $reason,
+            ]
+        );
+
+        $issue->save();
+
+        $this->notifyReporterTransferred($issue, $oldDept, $toDept, $actorName, $reason);
+        $this->syncIssueToSheets($issue, 'transfer');
+
+        return $this->actionSuccessResponse($request, $issue, "Isu berhasil dialihkan ke departemen {$toDept}.");
+    }
+
+    protected function syncIssueToSheets(LeanIssue $issue, string $context): void
+    {
         try {
             app(GoogleSheetsSyncService::class)->syncIssue($issue);
             app(\App\Services\LeanSheetDirectService::class)->syncSingleIssue($issue);
         } catch (\Throwable $e) {
-            Log::error('Sheets sync error on resolve: ' . $e->getMessage());
+            Log::error("Sheets sync error on {$context}: " . $e->getMessage());
+        }
+    }
+
+    protected function actionSuccessResponse(Request $request, LeanIssue $issue, string $message)
+    {
+        if (!$request->header('X-Inertia') && ($request->wantsJson() || $request->ajax())) {
+            return response()->json([
+                'success' => true,
+                'message' => $message,
+                'issue'   => $issue->fresh(),
+            ]);
         }
 
-        return redirect()->back()->with('success', 'Masalah berhasil ditandai selesai!');
+        return redirect()->back()->with('success', $message);
+    }
+
+    protected function actionErrorResponse(Request $request, string $message, int $status = 422, array $errors = [])
+    {
+        if (!$request->header('X-Inertia') && ($request->wantsJson() || $request->ajax())) {
+            return response()->json([
+                'success' => false,
+                'message' => $message,
+                'errors'  => $errors ?: ['error' => [$message]],
+            ], $status);
+        }
+
+        return redirect()->back()->with('error', $message)->withErrors($errors);
     }
 
     /**
@@ -478,6 +958,13 @@ class LeanController extends Controller
                 'taker'                => $item->claimed_by_name,
                 'claimed_by_dept'      => $item->claimed_by_dept,
                 'claimed_at'           => $item->claimed_at ? $item->claimed_at->toIso8601String() : null,
+                'initial_workers'      => $item->initial_workers ?? [],
+                'progress_workers'     => $item->progress_workers ?? [],
+                'active_workers'       => $item->active_workers ?? [],
+                'contributors'         => $item->contributors ?? [],
+                'progress_logs'        => $item->progress_logs ?? [],
+                'pending_reason'       => $item->pending_reason,
+                'pending_since'        => $item->pending_since ? $item->pending_since->toIso8601String() : null,
                 'solver'               => $item->resolved_by_name,
                 'resolved_by_dept'     => $item->resolved_by_dept,
                 'resolved_at'          => $item->resolved_at ? $item->resolved_at->format('d/m/Y H:i') . ' WIB' : null,
@@ -602,11 +1089,22 @@ class LeanController extends Controller
             ];
         }
 
+        $workersList = LeanIssue::normalizeWorkerList($taker) ?: [$taker];
+        if (empty($issue->initial_workers)) {
+            $issue->initial_workers = $workersList;
+        }
+        $issue->active_workers = $workersList;
+        $issue->progress_workers = LeanIssue::mergeUniqueNames($issue->progress_workers, $workersList);
+        $issue->contributors = LeanIssue::mergeUniqueNames($issue->contributors, $workersList);
+
         $issue->status = 'in_progress';
         $issue->claimed_by_name = $taker;
         $issue->claimed_by_dept = $dept;
-        $issue->claimed_at = Carbon::now('Asia/Jakarta');
+        $issue->claimed_at = $issue->claimed_at ?: Carbon::now('Asia/Jakarta');
+        $issue->pending_reason = null;
+        $issue->pending_since = null;
         $issue->department_accs = $accs;
+        $issue->addProgressLog('claim', $taker, $dept, 'Mulai dikerjakan via WhatsApp.', ['workers' => $workersList]);
         $issue->save();
 
         try {
@@ -639,22 +1137,29 @@ class LeanController extends Controller
 
         $solver = $request->input('solver', 'Staf WhatsApp');
         $fixDesc = $request->input('fixDescription', 'Diselesaikan via WhatsApp Bot V2');
+        $targetDept = !empty($issue->target_departments) ? $issue->target_departments[0] : 'Resort';
+        $finalWorkers = LeanIssue::normalizeWorkerList($solver) ?: [$solver];
 
         $issue->status = 'resolved';
         $issue->resolved_by_name = $solver;
+        $issue->resolved_by_dept = $targetDept;
         $issue->resolved_at = Carbon::now('Asia/Jakarta');
         $issue->resolution_note = $fixDesc;
+        $issue->pending_reason = null;
+        $issue->pending_since = null;
+        $issue->active_workers = [];
+        $issue->contributors = LeanIssue::mergeUniqueNames($issue->contributors, $finalWorkers);
+        $issue->addProgressLog('resolved', $solver, $targetDept, $fixDesc, ['workers' => $finalWorkers]);
         $issue->save();
 
         // Dispatch automated WhatsApp completion notification to the reporting staff
-        $targetDept = !empty($issue->target_departments) ? $issue->target_departments[0] : 'Resort';
         $this->notifyReporterResolved($issue, $solver, $targetDept, $fixDesc);
 
         try {
             app(GoogleSheetsSyncService::class)->syncIssue($issue);
             app(\App\Services\LeanSheetDirectService::class)->syncSingleIssue($issue);
         } catch (\Throwable $e) {
-            Log::error('Sheets sync error on apiClaim: ' . $e->getMessage());
+            Log::error('Sheets sync error on apiResolve: ' . $e->getMessage());
         }
 
         return response()->json([
@@ -704,10 +1209,14 @@ class LeanController extends Controller
         // Update LeanIssue
         $issue->target_departments = [$newDept];
         $issue->status = 'open';
+        $issue->active_workers = [];
         $issue->claimed_by_name = null;
         $issue->claimed_by_dept = null;
         $issue->claimed_at = null;
+        $issue->pending_reason = null;
+        $issue->pending_since = null;
         $issue->transfer_history = $history;
+        $issue->addProgressLog('transfer', $transferredBy, $oldDept, "Dialihkan dari {$oldDept} ke {$newDept}: {$reason}");
         $issue->save();
 
         try {
@@ -748,8 +1257,14 @@ class LeanController extends Controller
         }
 
         $reason = $request->input('reason', 'Tertunda');
+        $actor = $request->input('actor', 'Staf WhatsApp');
+        $dept = !empty($issue->target_departments) ? $issue->target_departments[0] : 'Umum';
+
         $issue->status = 'pending';
+        $issue->pending_reason = $reason;
+        $issue->pending_since = $issue->pending_since ?: Carbon::now('Asia/Jakarta');
         $issue->resolution_note = "Pending: {$reason}";
+        $issue->addProgressLog('pending', $actor, $dept, "Ditunda (Pending): {$reason}", ['pending_reason' => $reason]);
         $issue->save();
 
         try {
@@ -836,4 +1351,144 @@ class LeanController extends Controller
             Log::warning("Failed to send WhatsApp resolution notice: " . $t->getMessage());
         }
     }
+
+    /**
+     * Dispatch WhatsApp notification when an issue is claimed / started (or resumed from pending).
+     */
+    protected function notifyReporterClaimed(LeanIssue $issue, string $workersStr, string $dept, bool $wasPending = false, string $note = ''): void
+    {
+        if (empty($issue->reporter_phone)) {
+            return;
+        }
+
+        $issueCode = self::formatIssueCode($issue);
+        $titleHeader = $wasPending
+            ? "🔄 *Laporan Kembali Dikerjakan - Telunas Tracker*"
+            : "⚡ *Laporan Mulai Dikerjakan - Telunas Tracker*";
+        $noteLine = $note !== '' ? "\n📝 *Catatan:* {$note}" : '';
+
+        $message = "{$titleHeader}\n\n"
+                 . "Halo *{$issue->reporter_name}*,\n"
+                 . "Isu Anda kini berstatus *In Progress*:\n\n"
+                 . "📌 *Masalah:* {$issue->title}\n"
+                 . "📍 *Lokasi:* {$issue->location}\n"
+                 . "🏷️ *Kode Tiket:* #{$issueCode}\n"
+                 . "🏢 *Departemen:* {$dept}\n"
+                 . "👷 *Dikerjakan Oleh:* {$workersStr}{$noteLine}\n\n"
+                 . "Kami akan terus mengabari perkembangan penanganannya melalui WhatsApp ini.";
+
+        try {
+            TicketNotificationService::sendWhatsApp($issue->reporter_phone, $message);
+        } catch (\Throwable $t) {
+            Log::warning("Failed to send WhatsApp claim notice: " . $t->getMessage());
+        }
+    }
+
+    /**
+     * Dispatch WhatsApp progress comment / team update to the reporting staff.
+     */
+    protected function notifyReporterProgress(
+        LeanIssue $issue,
+        string $actorName,
+        string $dept,
+        string $comment,
+        array $activeWorkers,
+        array $addedWorkers = [],
+        array $removedWorkers = []
+    ): void {
+        if (empty($issue->reporter_phone)) {
+            return;
+        }
+
+        $issueCode = self::formatIssueCode($issue);
+        $workersText = !empty($activeWorkers) ? implode(', ', $activeWorkers) : '-';
+        $commentLine = $comment !== '' ? "\n💬 *Update Progress:* {$comment}" : '';
+        $changeParts = [];
+        if (!empty($addedWorkers)) {
+            $changeParts[] = '+Ditambah: ' . implode(', ', $addedWorkers);
+        }
+        if (!empty($removedWorkers)) {
+            $changeParts[] = '-Dikurangi: ' . implode(', ', $removedWorkers);
+        }
+        $teamChangeLine = !empty($changeParts) ? "\n🔄 *Perubahan Tim:* " . implode(' | ', $changeParts) : '';
+
+        $message = "🔧 *Update Progress Laporan - Telunas Tracker*\n\n"
+                 . "Halo *{$issue->reporter_name}*,\n"
+                 . "Berikut informasi terbaru dari tim yang menangani laporan Anda:\n\n"
+                 . "📌 *Masalah:* {$issue->title}\n"
+                 . "📍 *Lokasi:* {$issue->location}\n"
+                 . "🏷️ *Kode Tiket:* #{$issueCode}\n"
+                 . "👷 *Tim Aktif ({$dept}):* {$workersText}"
+                 . $commentLine
+                 . $teamChangeLine . "\n"
+                 . "👤 *Diperbarui Oleh:* {$actorName}";
+
+        try {
+            TicketNotificationService::sendWhatsApp($issue->reporter_phone, $message);
+        } catch (\Throwable $t) {
+            Log::warning("Failed to send WhatsApp progress notice: " . $t->getMessage());
+        }
+    }
+
+    /**
+     * Dispatch WhatsApp notification when an issue is marked Pending.
+     */
+    protected function notifyReporterPending(LeanIssue $issue, string $actorName, string $dept, string $reason, bool $isUpdatePending = false): void
+    {
+        if (empty($issue->reporter_phone)) {
+            return;
+        }
+
+        $issueCode = self::formatIssueCode($issue);
+        $heading = $isUpdatePending
+            ? "⏳ *Update Alasan Pending - Telunas Tracker*"
+            : "⏳ *Laporan Ditunda Sementara (Pending) - Telunas Tracker*";
+
+        $message = "{$heading}\n\n"
+                 . "Halo *{$issue->reporter_name}*,\n"
+                 . "Penanganan laporan Anda saat ini berstatus *Pending*:\n\n"
+                 . "📌 *Masalah:* {$issue->title}\n"
+                 . "📍 *Lokasi:* {$issue->location}\n"
+                 . "🏷️ *Kode Tiket:* #{$issueCode}\n"
+                 . "🏢 *Departemen:* {$dept}\n"
+                 . "📝 *Alasan Pending:* {$reason}\n"
+                 . "👤 *Dicatat Oleh:* {$actorName}\n\n"
+                 . "Tim akan kembali melanjutkan pengerjaan begitu kendala di atas teratasi.";
+
+        try {
+            TicketNotificationService::sendWhatsApp($issue->reporter_phone, $message);
+        } catch (\Throwable $t) {
+            Log::warning("Failed to send WhatsApp pending notice: " . $t->getMessage());
+        }
+    }
+
+    /**
+     * Dispatch WhatsApp notification when an issue is transferred to another department.
+     */
+    protected function notifyReporterTransferred(LeanIssue $issue, string $fromDept, string $toDept, string $actorName, string $reason): void
+    {
+        if (empty($issue->reporter_phone)) {
+            return;
+        }
+
+        $issueCode = self::formatIssueCode($issue);
+
+        $message = "🔀 *Pengalihan Departemen Penangan - Telunas Tracker*\n\n"
+                 . "Halo *{$issue->reporter_name}*,\n"
+                 . "Laporan Anda telah dialihkan ke departemen yang lebih sesuai untuk ditindaklanjuti:\n\n"
+                 . "📌 *Masalah:* {$issue->title}\n"
+                 . "📍 *Lokasi:* {$issue->location}\n"
+                 . "🏷️ *Kode Tiket:* #{$issueCode}\n"
+                 . "➡️ *Dialihkan:* {$fromDept} ➔ *{$toDept}*\n"
+                 . "📝 *Alasan Pengalihan:* {$reason}\n"
+                 . "👤 *Oleh:* {$actorName}\n\n"
+                 . "Status tiket kembali *Open* untuk departemen *{$toDept}*.";
+
+        try {
+            TicketNotificationService::sendWhatsApp($issue->reporter_phone, $message);
+        } catch (\Throwable $t) {
+            Log::warning("Failed to send WhatsApp transfer notice: " . $t->getMessage());
+        }
+    }
 }
+

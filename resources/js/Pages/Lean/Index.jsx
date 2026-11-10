@@ -42,13 +42,20 @@ import {
     WifiOff,
     CloudUpload,
     Send,
-    HardDrive
+    HardDrive,
+    Users,
+    PauseCircle,
+    Play,
+    ArrowRightLeft,
+    History,
+    Lock,
+    Award
 } from 'lucide-react';
 import axios from 'axios';
 import { BotControlModal } from '@/Components/CampusFix/BotControlModal';
 import { LeanAnalyticsView } from '@/Components/CampusFix/LeanAnalyticsView';
 import { resolveIssueResortAndZone } from '@/constants/locations';
-import { DEPARTMENT_STAFF } from '@/constants/staff';
+import { DEPARTMENT_STAFF, normalizeDepartment } from '@/constants/staff';
 import { compressImage } from '@/services/imageCompressor';
 import {
     addToOutbox,
@@ -338,11 +345,107 @@ export default function LeanIndex({
     const [selectedDetailIssue, setSelectedDetailIssue] = useState(null);
     const [showReportModal, setShowReportModal] = useState(false);
     const [showResolveModal, setShowResolveModal] = useState(null); // issue object
+    const [showClaimModal, setShowClaimModal] = useState(null);
+    const [showProgressModal, setShowProgressModal] = useState(null);
+    const [showPendingModal, setShowPendingModal] = useState(null);
+    const [showTransferModal, setShowTransferModal] = useState(null);
     const [showResetConfirm, setShowResetConfirm] = useState(false);
     const [lightboxImage, setLightboxImage] = useState(null);
     const [issueToDelete, setIssueToDelete] = useState(null);
     const [deleteSupervisorName, setDeleteSupervisorName] = useState(myName || 'Supervisor');
     const [isDeleting, setIsDeleting] = useState(false);
+    const [actionNotice, setActionNotice] = useState(null);
+
+    const showNotice = (type, text) => {
+        setActionNotice({ type, text, id: Date.now() });
+    };
+
+    useEffect(() => {
+        if (!actionNotice) return;
+        const t = setTimeout(() => setActionNotice(null), 5000);
+        return () => clearTimeout(t);
+    }, [actionNotice]);
+
+    // Check if logged-in account is Admin or belongs to the issue's target department(s)
+    const canManageIssue = (issue) => {
+        if (!issue || !currentUser) return false;
+        if (typeof issue.can_manage === 'boolean') return issue.can_manage;
+        if (currentUser.is_admin) return true;
+        const userDept = normalizeDepartment(currentUser.department).toLowerCase();
+        if (!userDept) return false;
+        const targets = Array.isArray(issue.target_departments) ? issue.target_departments : [];
+        return targets.some((d) => normalizeDepartment(d).toLowerCase() === userDept);
+    };
+
+    // Unified candidate worker list for multi-select worker pickers per issue
+    const getWorkersPoolForIssue = (issue) => {
+        const seen = new Set();
+        const result = [];
+        const addName = (raw) => {
+            const name = String(raw || '').trim();
+            if (!name) return;
+            const key = name.toLowerCase();
+            if (!seen.has(key)) {
+                seen.add(key);
+                result.push(name);
+            }
+        };
+
+        // 1. Existing workers on this issue first
+        if (issue) {
+            (issue.active_workers || []).forEach(addName);
+            (issue.initial_workers || []).forEach(addName);
+            (issue.progress_workers || []).forEach(addName);
+            (issue.contributors || []).forEach(addName);
+        }
+
+        // 2. Current user (if matched dept or non-admin dept user)
+        if (currentUser && (currentUser.staff_name || currentUser.name)) {
+            const uName = currentUser.staff_name || currentUser.name;
+            if (!currentUser.is_admin) {
+                addName(uName);
+            }
+        }
+
+        // 3. Matching staff from live database directory & static roster for issue target_departments
+        const targetDeptsNorm = (issue?.target_departments || []).map((d) =>
+            normalizeDepartment(d).toLowerCase()
+        );
+        if (targetDeptsNorm.length === 0 && myDept && myDept !== 'Supervisor') {
+            targetDeptsNorm.push(normalizeDepartment(myDept).toLowerCase());
+        }
+
+        (staffDirectory || []).forEach((u) => {
+            const uDeptNorm = normalizeDepartment(u.department || '').toLowerCase();
+            if (u.name && uDeptNorm && targetDeptsNorm.includes(uDeptNorm)) {
+                addName(u.name);
+            }
+        });
+
+        if (DEPARTMENT_STAFF) {
+            Object.entries(DEPARTMENT_STAFF).forEach(([deptKey, roster]) => {
+                if (targetDeptsNorm.includes(normalizeDepartment(deptKey).toLowerCase()) && Array.isArray(roster)) {
+                    roster.forEach(addName);
+                }
+            });
+        }
+
+        return result;
+    };
+
+    const formatDateTimeId = (isoStr) => {
+        if (!isoStr) return '';
+        try {
+            return new Date(isoStr).toLocaleString('id-ID', {
+                day: '2-digit',
+                month: 'short',
+                hour: '2-digit',
+                minute: '2-digit',
+            });
+        } catch (e) {
+            return isoStr;
+        }
+    };
 
     // Keep activeDetailIssue reactively in sync with fresh issues from polling
     const activeDetailIssue = useMemo(() => {
@@ -568,10 +671,26 @@ export default function LeanIndex({
         }
     };
 
-    // --- Resolve Form State ---
+    // --- Workflow Action Form States ---
     const [resolveNote, setResolveNote] = useState('');
     const [resolveImage, setResolveImage] = useState(null);
     const [resolveImagePreview, setResolveImagePreview] = useState(null);
+    const [resolveWorkers, setResolveWorkers] = useState([]);
+    const [resolveCustomWorker, setResolveCustomWorker] = useState('');
+
+    const [claimWorkers, setClaimWorkers] = useState([]);
+    const [claimCustomWorker, setClaimCustomWorker] = useState('');
+    const [claimNote, setClaimNote] = useState('');
+
+    const [progressComment, setProgressComment] = useState('');
+    const [progressWorkers, setProgressWorkers] = useState([]);
+    const [progressCustomWorker, setProgressCustomWorker] = useState('');
+    const [progressNotifyReporter, setProgressNotifyReporter] = useState(true);
+
+    const [pendingReason, setPendingReason] = useState('');
+
+    const [transferTargetDept, setTransferTargetDept] = useState('');
+    const [transferReason, setTransferReason] = useState('');
 
     // Toggle target department in form
     const toggleTargetDept = (dept) => {
@@ -764,37 +883,272 @@ export default function LeanIndex({
         }, { preserveScroll: true });
     };
 
-    // Trigger Claim
-    const handleClaim = (issueId) => {
-        router.post(`/lapangan/issues/${issueId}/claim`, {
-            dept: myDept,
-            staff_name: myName,
-        }, { preserveScroll: true });
+    const toggleListWorker = (setter, name) => {
+        const lower = String(name).toLowerCase().trim();
+        setter((prev) => {
+            const exists = prev.some((n) => String(n).toLowerCase().trim() === lower);
+            return exists
+                ? prev.filter((n) => String(n).toLowerCase().trim() !== lower)
+                : [...prev, name];
+        });
     };
 
-    // Trigger Resolve
-    const handleResolveSubmit = (e) => {
+    const addCustomListWorker = (inputVal, setInputVal, list, setList) => {
+        const trimmed = inputVal.trim();
+        if (!trimmed) return;
+        const exists = list.some((w) => w.toLowerCase() === trimmed.toLowerCase());
+        if (!exists) {
+            setList((prev) => [...prev, trimmed]);
+        }
+        setInputVal('');
+    };
+
+    const extractErrorMsg = (errors, fallback) => {
+        if (!errors) return fallback;
+        if (typeof errors === 'string') return errors;
+        const firstKey = Object.keys(errors)[0];
+        if (firstKey && errors[firstKey]) {
+            return Array.isArray(errors[firstKey]) ? errors[firstKey][0] : errors[firstKey];
+        }
+        return fallback;
+    };
+
+    // Open & Submit Claim / Start Working Modal
+    const openClaimModal = (issue) => {
+        if (!issue) return;
+        const existingActive = Array.isArray(issue.active_workers) && issue.active_workers.length > 0
+            ? issue.active_workers
+            : (issue.claimed_by_name ? issue.claimed_by_name.split(',').map((s) => s.trim()).filter(Boolean) : []);
+        const defaultWorkers = existingActive.length > 0
+            ? existingActive
+            : (!currentUser?.is_admin && (currentUser?.staff_name || currentUser?.name) ? [currentUser.staff_name || currentUser.name] : []);
+        setClaimWorkers(defaultWorkers);
+        setClaimCustomWorker('');
+        setClaimNote('');
+        setShowClaimModal(issue);
+    };
+
+    const handleClaimSubmit = (e) => {
+        e.preventDefault();
+        if (!showClaimModal) return;
+        if (claimWorkers.length === 0) {
+            alert('Pilih minimal 1 pekerja yang ditugaskan.');
+            return;
+        }
+        setIsSubmitting(true);
+        router.post(`/lapangan/issues/${showClaimModal.id}/claim`, {
+            workers: claimWorkers,
+            note: claimNote.trim(),
+            dept: (myDept && myDept !== 'Supervisor') ? myDept : (showClaimModal.target_departments?.[0] || ''),
+        }, {
+            preserveScroll: true,
+            onSuccess: () => {
+                setShowClaimModal(null);
+                setClaimWorkers([]);
+                setClaimCustomWorker('');
+                setClaimNote('');
+                setIsSubmitting(false);
+                showNotice('success', 'Isu mulai dikerjakan (In Progress).');
+            },
+            onError: (errors) => {
+                setIsSubmitting(false);
+                showNotice('error', extractErrorMsg(errors, 'Gagal mengambil pekerjaan. Pastikan hak akses departemen sesuai.'));
+            },
+        });
+    };
+
+    // Open & Submit Progress Comment + Team Update Modal
+    const openProgressModal = (issue) => {
+        if (!issue) return;
+        const currentActive = Array.isArray(issue.active_workers) && issue.active_workers.length > 0
+            ? issue.active_workers
+            : (issue.claimed_by_name ? issue.claimed_by_name.split(',').map((s) => s.trim()).filter(Boolean) : []);
+        setProgressWorkers(currentActive);
+        setProgressCustomWorker('');
+        setProgressComment('');
+        setProgressNotifyReporter(true);
+        setShowProgressModal(issue);
+    };
+
+    const handleProgressSubmit = (e) => {
+        e.preventDefault();
+        if (!showProgressModal) return;
+        if (progressWorkers.length === 0) {
+            alert('Minimal harus ada 1 pekerja aktif saat status In Progress.');
+            return;
+        }
+        setIsSubmitting(true);
+        router.post(`/lapangan/issues/${showProgressModal.id}/progress`, {
+            comment: progressComment.trim(),
+            workers: progressWorkers,
+            notify_reporter: progressNotifyReporter,
+        }, {
+            preserveScroll: true,
+            onSuccess: () => {
+                setShowProgressModal(null);
+                setProgressComment('');
+                setProgressWorkers([]);
+                setProgressCustomWorker('');
+                setIsSubmitting(false);
+                showNotice('success', progressNotifyReporter
+                    ? 'Progress & tim disimpan, info WA dikirim ke pelapor.'
+                    : 'Progress & tim berhasil diperbarui.'
+                );
+            },
+            onError: (errors) => {
+                setIsSubmitting(false);
+                showNotice('error', extractErrorMsg(errors, 'Gagal menyimpan update progress.'));
+            },
+        });
+    };
+
+    // Open & Submit Pending Modal
+    const openPendingModal = (issue) => {
+        if (!issue) return;
+        setPendingReason(issue.status === 'pending' ? (issue.pending_reason || '') : '');
+        setShowPendingModal(issue);
+    };
+
+    const handlePendingSubmit = (e) => {
+        e.preventDefault();
+        if (!showPendingModal) return;
+        if (!pendingReason.trim()) {
+            alert('Alasan pending wajib diisi.');
+            return;
+        }
+        setIsSubmitting(true);
+        router.post(`/lapangan/issues/${showPendingModal.id}/pending`, {
+            reason: pendingReason.trim(),
+        }, {
+            preserveScroll: true,
+            onSuccess: () => {
+                setShowPendingModal(null);
+                setPendingReason('');
+                setIsSubmitting(false);
+                showNotice('success', 'Status isu diperbarui menjadi Pending & pelapor dikabari.');
+            },
+            onError: (errors) => {
+                setIsSubmitting(false);
+                showNotice('error', extractErrorMsg(errors, 'Gagal mengubah status ke Pending.'));
+            },
+        });
+    };
+
+    // Open & Submit Resolve Modal (Mandatory note, Optional photo, Cumulative final_workers)
+    const openResolveModal = (issue) => {
+        if (!issue) return;
+        const currentActive = Array.isArray(issue.active_workers) && issue.active_workers.length > 0
+            ? issue.active_workers
+            : (issue.claimed_by_name ? issue.claimed_by_name.split(',').map((s) => s.trim()).filter(Boolean) : []);
+        const fallbackWorker = (!currentUser?.is_admin && (currentUser?.staff_name || currentUser?.name))
+            ? [currentUser.staff_name || currentUser.name]
+            : [];
+        setResolveWorkers(currentActive.length > 0 ? currentActive : fallbackWorker);
+        setResolveCustomWorker('');
+        setResolveNote('');
+        setResolveImage(null);
+        setResolveImagePreview(null);
+        setShowResolveModal(issue);
+    };
+
+    const handleResolveSubmit = async (e) => {
         e.preventDefault();
         if (!showResolveModal) return;
-
-        setIsSubmitting(true);
-        const data = new FormData();
-        data.append('dept', myDept);
-        data.append('staff_name', myName);
-        data.append('note', resolveNote);
-        if (resolveImage) {
-            data.append('proof_image', resolveImage);
+        if (!resolveNote.trim()) {
+            alert('Deskripsi / catatan penyelesaian wajib diisi.');
+            return;
+        }
+        if (resolveWorkers.length === 0) {
+            alert('Pilih minimal 1 pekerja yang menyelesaikan / berkontribusi.');
+            return;
         }
 
-        router.post(`/lapangan/issues/${showResolveModal.id}/resolve`, data, {
+        setIsSubmitting(true);
+        try {
+            let compressed = null;
+            if (resolveImage) {
+                try {
+                    compressed = await compressImage(resolveImage);
+                } catch (cErr) {
+                    console.warn('[ResolveSubmit] Compression fallback:', cErr);
+                }
+            }
+
+            const data = new FormData();
+            data.append('dept', (myDept && myDept !== 'Supervisor') ? myDept : (showResolveModal.target_departments?.[0] || ''));
+            data.append('staff_name', resolveWorkers.join(', '));
+            resolveWorkers.forEach((w) => data.append('final_workers[]', w));
+            data.append('note', resolveNote.trim());
+            if (compressed?.file) {
+                data.append('proof_image', compressed.file);
+            } else if (resolveImage) {
+                data.append('proof_image', resolveImage);
+            }
+
+            router.post(`/lapangan/issues/${showResolveModal.id}/resolve`, data, {
+                preserveScroll: true,
+                onSuccess: () => {
+                    setShowResolveModal(null);
+                    setResolveNote('');
+                    setResolveImage(null);
+                    setResolveImagePreview(null);
+                    setResolveWorkers([]);
+                    setResolveCustomWorker('');
+                    setIsSubmitting(false);
+                    showNotice('success', 'Isu berhasil ditandai Selesai & daftar kontributor tercatat!');
+                },
+                onError: (errors) => {
+                    setIsSubmitting(false);
+                    showNotice('error', extractErrorMsg(errors, 'Gagal menandai isu selesai.'));
+                },
+            });
+        } catch (err) {
+            console.error('[ResolveSubmit] Unexpected error:', err);
+            setIsSubmitting(false);
+            showNotice('error', `Gagal memproses penyelesaian: ${err.message}`);
+        }
+    };
+
+    // Open & Submit Transfer Modal (Alihkan ke Dept Lain)
+    const openTransferModal = (issue) => {
+        if (!issue) return;
+        const currentTargets = (issue.target_departments || []).map((d) => normalizeDepartment(d).toLowerCase());
+        const candidates = (departments || []).filter((d) =>
+            currentTargets.length !== 1 || normalizeDepartment(d).toLowerCase() !== currentTargets[0]
+        );
+        setTransferTargetDept(candidates[0] || departments?.[0] || '');
+        setTransferReason('');
+        setShowTransferModal(issue);
+    };
+
+    const handleTransferSubmit = (e) => {
+        e.preventDefault();
+        if (!showTransferModal) return;
+        if (!transferTargetDept) {
+            alert('Pilih departemen tujuan baru.');
+            return;
+        }
+        if (!transferReason.trim()) {
+            alert('Alasan pengalihan departemen wajib diisi.');
+            return;
+        }
+        setIsSubmitting(true);
+        router.post(`/lapangan/issues/${showTransferModal.id}/transfer`, {
+            to_department: transferTargetDept,
+            reason: transferReason.trim(),
+        }, {
+            preserveScroll: true,
             onSuccess: () => {
-                setShowResolveModal(null);
-                setResolveNote('');
-                setResolveImage(null);
-                setResolveImagePreview(null);
+                setShowTransferModal(null);
+                setTransferTargetDept('');
+                setTransferReason('');
                 setIsSubmitting(false);
+                showNotice('success', `Isu berhasil dialihkan ke departemen ${transferTargetDept}.`);
             },
-            onError: () => setIsSubmitting(false),
+            onError: (errors) => {
+                setIsSubmitting(false);
+                showNotice('error', extractErrorMsg(errors, 'Gagal mengalihkan departemen.'));
+            },
         });
     };
 
@@ -2099,19 +2453,30 @@ export default function LeanIndex({
                                         ) : <div />}
 
                                         {/* Status / Worker Badge */}
-                                        <div className="shrink-0">
-                                            {issue.claimed_by_name && (
-                                                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded border flex items-center gap-1 ${
+                                        <div className="shrink-0 flex items-center gap-1 flex-wrap justify-end">
+                                            {issue.status === 'pending' && issue.pending_reason && (
+                                                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded border max-w-[170px] truncate ${
+                                                    isDark ? 'bg-orange-950/60 text-orange-300 border-orange-800/50' : 'bg-orange-50 text-orange-800 border-orange-200'
+                                                }`} title={`Pending: ${issue.pending_reason}`}>
+                                                    ⏳ {issue.pending_reason}
+                                                </span>
+                                            )}
+                                            {((Array.isArray(issue.active_workers) && issue.active_workers.length > 0) || issue.claimed_by_name) && (
+                                                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded border flex items-center gap-1 max-w-[180px] truncate ${
                                                     isDark ? 'bg-amber-950/60 text-amber-300 border-amber-800/40' : 'bg-amber-50 text-amber-800 border-amber-200'
-                                                }`} title={`Dikerjakan oleh: ${issue.claimed_by_name}`}>
-                                                    <User className="w-2.5 h-2.5" /> Dikerjakan: {issue.claimed_by_name}
+                                                }`} title={`Tim: ${(issue.active_workers?.length ? issue.active_workers.join(', ') : issue.claimed_by_name)}`}>
+                                                    <Users className="w-2.5 h-2.5 shrink-0" />
+                                                    <span className="truncate">{issue.active_workers?.length ? issue.active_workers.join(', ') : issue.claimed_by_name}</span>
                                                 </span>
                                             )}
                                             {isResolved && (
                                                 <span className={`text-[10px] font-semibold px-2 py-0.5 rounded border flex items-center gap-1 ${
                                                     isDark ? 'bg-emerald-950/60 text-emerald-300 border-emerald-800/40' : 'bg-emerald-50 text-emerald-800 border-emerald-200'
                                                 }`}>
-                                                    <CheckCircle2 className="w-2.5 h-2.5" /> Selesai
+                                                    <CheckCircle2 className="w-2.5 h-2.5" />
+                                                    {Array.isArray(issue.contributors) && issue.contributors.length > 0
+                                                        ? `Selesai (${issue.contributors.length} Tim)`
+                                                        : 'Selesai'}
                                                 </span>
                                             )}
                                         </div>
@@ -2490,76 +2855,475 @@ export default function LeanIndex({
             )}
 
             {/* MODAL 2: RESOLVE / TANDAI SELESAI */}
-            {showResolveModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+            {showResolveModal && (() => {
+                const pool = getWorkersPoolForIssue(showResolveModal);
+                const chipMap = new Map();
+                [...pool, ...resolveWorkers].forEach((n) => {
+                    const key = String(n).toLowerCase().trim();
+                    if (key && !chipMap.has(key)) chipMap.set(key, String(n).trim());
+                });
+                const workerChips = Array.from(chipMap.values());
+
+                return (
+                    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+                        <div className="w-full max-w-md bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-5 space-y-4 max-h-[90vh] overflow-y-auto">
+                            <div className="flex items-start justify-between">
+                                <div>
+                                    <h3 className="font-bold text-base text-white flex items-center gap-1.5">
+                                        <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                                        Tandai Masalah Selesai
+                                    </h3>
+                                    <p className="text-xs text-slate-400 mt-0.5">
+                                        #{showResolveModal.issue_code || showResolveModal.id} &bull; {showResolveModal.location} — {showResolveModal.title}
+                                    </p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowResolveModal(null)}
+                                    className="text-slate-400 hover:text-white"
+                                >
+                                    <X className="w-4 h-4" />
+                                </button>
+                            </div>
+
+                            <form onSubmit={handleResolveSubmit} className="space-y-3.5">
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-200 mb-1">
+                                        Deskripsi / Catatan Penyelesaian <span className="text-rose-400">* (Wajib)</span>
+                                    </label>
+                                    <textarea
+                                        value={resolveNote}
+                                        onChange={(e) => setResolveNote(e.target.value)}
+                                        placeholder="Jelaskan tindakan perbaikan yang dilakukan (Contoh: Pipa telah diganti seal baru, sudah dites tidak bocor)"
+                                        rows={3}
+                                        required
+                                        className="w-full text-xs bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-200 mb-1 flex items-center gap-1">
+                                        <Camera className="w-3.5 h-3.5 text-emerald-400" />
+                                        Foto Bukti Selesai <span className="text-[10px] font-normal text-slate-400">(Opsional — sebisa mungkin dilampirkan sesuai SOP)</span>
+                                    </label>
+                                    {resolveImagePreview ? (
+                                        <div className="relative rounded-lg overflow-hidden border border-slate-700 max-h-36 bg-black/40 flex items-center justify-center">
+                                            <img src={resolveImagePreview} alt="Preview" className="max-h-36 object-contain" />
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setResolveImage(null);
+                                                    setResolveImagePreview(null);
+                                                }}
+                                                className="absolute top-2 right-2 p-1 rounded-full bg-black/70 text-white"
+                                            >
+                                                <X className="w-3 h-3" />
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <label className="flex items-center justify-center gap-2 p-3 border border-dashed border-slate-700 hover:border-slate-600 rounded-lg cursor-pointer bg-slate-800/40 text-xs text-slate-300">
+                                            <Camera className="w-4 h-4 text-slate-400" />
+                                            <span>Ambil Foto Hasil Perbaikan (Opsional)</span>
+                                            <input
+                                                type="file"
+                                                accept="image/*"
+                                                capture="environment"
+                                                onChange={handleResolveImageChange}
+                                                className="hidden"
+                                            />
+                                        </label>
+                                    )}
+                                </div>
+
+                                {/* Tim Penyelesai / Kontributor Final */}
+                                <div className="p-3 rounded-xl bg-slate-800/70 border border-slate-700 space-y-2">
+                                    <label className="block text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                                        <Users className="w-3.5 h-3.5 text-emerald-400" />
+                                        Tim yang Menyelesaikan / Berkontribusi Akhir *
+                                    </label>
+                                    {Array.isArray(showResolveModal.contributors) && showResolveModal.contributors.length > 0 && (
+                                        <p className="text-[10px] text-emerald-300/80">
+                                            Kontributor tercatat sebelumnya: <span className="font-semibold">{showResolveModal.contributors.join(', ')}</span> (akan tetap terakumulasi untuk evaluasi).
+                                        </p>
+                                    )}
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {workerChips.map((workerName) => {
+                                            const selected = resolveWorkers.some((w) => String(w).toLowerCase().trim() === workerName.toLowerCase());
+                                            return (
+                                                <button
+                                                    type="button"
+                                                    key={workerName}
+                                                    onClick={() => toggleListWorker(setResolveWorkers, workerName)}
+                                                    className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border flex items-center gap-1 transition-all cursor-pointer ${
+                                                        selected
+                                                            ? 'bg-emerald-600 text-white border-emerald-500 shadow-xs'
+                                                            : 'bg-slate-900 text-slate-400 border-slate-700 hover:text-slate-200'
+                                                    }`}
+                                                >
+                                                    <span>{workerName}</span>
+                                                    {selected && <Check className="w-3 h-3 text-white shrink-0" />}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                    <div className="flex items-center gap-2 pt-1">
+                                        <input
+                                            type="text"
+                                            value={resolveCustomWorker}
+                                            onChange={(e) => setResolveCustomWorker(e.target.value)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') {
+                                                    e.preventDefault();
+                                                    addCustomListWorker(resolveCustomWorker, setResolveCustomWorker, resolveWorkers, setResolveWorkers);
+                                                }
+                                            }}
+                                            placeholder="Tambah nama pekerja lain..."
+                                            className="flex-1 text-xs bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => addCustomListWorker(resolveCustomWorker, setResolveCustomWorker, resolveWorkers, setResolveWorkers)}
+                                            className="px-2.5 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-xs font-semibold text-slate-200 cursor-pointer"
+                                        >
+                                            + Tambah
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="pt-2 flex items-center gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowResolveModal(null)}
+                                        className="flex-1 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold"
+                                    >
+                                        Batal
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        disabled={isSubmitting}
+                                        className="flex-1 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-bold shadow-md cursor-pointer"
+                                    >
+                                        {isSubmitting ? 'Menyimpan...' : 'Konfirmasi Selesai'}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                );
+            })()}
+
+            {/* MODAL 2B: CLAIM / MULAI KERJAKAN */}
+            {showClaimModal && (() => {
+                const pool = getWorkersPoolForIssue(showClaimModal);
+                const chipMap = new Map();
+                [...pool, ...claimWorkers].forEach((n) => {
+                    const key = String(n).toLowerCase().trim();
+                    if (key && !chipMap.has(key)) chipMap.set(key, String(n).trim());
+                });
+                const workerChips = Array.from(chipMap.values());
+                const isResuming = showClaimModal.status === 'pending';
+
+                return (
+                    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+                        <div className="w-full max-w-md bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-5 space-y-4 max-h-[90vh] overflow-y-auto">
+                            <div className="flex items-start justify-between">
+                                <div>
+                                    <h3 className="font-bold text-base text-white flex items-center gap-1.5">
+                                        <Play className="w-4 h-4 text-amber-400" />
+                                        {isResuming ? 'Lanjutkan Pekerjaan (In Progress)' : 'Mulai Kerjakan Isu (Claim)'}
+                                    </h3>
+                                    <p className="text-xs text-slate-400 mt-0.5">
+                                        #{showClaimModal.issue_code || showClaimModal.id} &bull; {showClaimModal.title}
+                                    </p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowClaimModal(null)}
+                                    className="text-slate-400 hover:text-white"
+                                >
+                                    <X className="w-4 h-4" />
+                                </button>
+                            </div>
+
+                            <form onSubmit={handleClaimSubmit} className="space-y-3.5">
+                                <div className="p-3 rounded-xl bg-slate-800/70 border border-slate-700 space-y-2">
+                                    <label className="block text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                                        <Users className="w-3.5 h-3.5 text-amber-400" />
+                                        Pilih Pekerja yang Mengerjakan * (Bisa lebih dari 1)
+                                    </label>
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {workerChips.map((workerName) => {
+                                            const selected = claimWorkers.some((w) => String(w).toLowerCase().trim() === workerName.toLowerCase());
+                                            return (
+                                                <button
+                                                    type="button"
+                                                    key={workerName}
+                                                    onClick={() => toggleListWorker(setClaimWorkers, workerName)}
+                                                    className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border flex items-center gap-1 transition-all cursor-pointer ${
+                                                        selected
+                                                            ? 'bg-amber-600 text-white border-amber-500 shadow-xs'
+                                                            : 'bg-slate-900 text-slate-400 border-slate-700 hover:text-slate-200'
+                                                    }`}
+                                                >
+                                                    <span>{workerName}</span>
+                                                    {selected && <Check className="w-3 h-3 text-white shrink-0" />}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                    <div className="flex items-center gap-2 pt-1">
+                                        <input
+                                            type="text"
+                                            value={claimCustomWorker}
+                                            onChange={(e) => setClaimCustomWorker(e.target.value)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') {
+                                                    e.preventDefault();
+                                                    addCustomListWorker(claimCustomWorker, setClaimCustomWorker, claimWorkers, setClaimWorkers);
+                                                }
+                                            }}
+                                            placeholder="Tambah nama pekerja lain..."
+                                            className="flex-1 text-xs bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => addCustomListWorker(claimCustomWorker, setClaimCustomWorker, claimWorkers, setClaimWorkers)}
+                                            className="px-2.5 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-xs font-semibold text-slate-200 cursor-pointer"
+                                        >
+                                            + Tambah
+                                        </button>
+                                    </div>
+                                    {claimWorkers.length > 0 && (
+                                        <p className="text-[11px] text-amber-300">
+                                            Terpilih ({claimWorkers.length}): <strong className="text-white">{claimWorkers.join(', ')}</strong>
+                                        </p>
+                                    )}
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-300 mb-1">
+                                        Catatan Awal Pengerjaan (Opsional)
+                                    </label>
+                                    <textarea
+                                        value={claimNote}
+                                        onChange={(e) => setClaimNote(e.target.value)}
+                                        placeholder="Contoh: Tim membawa peralatan menuju lokasi sekarang"
+                                        rows={2}
+                                        className="w-full text-xs bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
+                                    />
+                                </div>
+
+                                <div className="pt-2 flex items-center gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowClaimModal(null)}
+                                        className="flex-1 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold"
+                                    >
+                                        Batal
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        disabled={isSubmitting || claimWorkers.length === 0}
+                                        className="flex-1 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white text-xs font-bold shadow-md cursor-pointer"
+                                    >
+                                        {isSubmitting ? 'Menyimpan...' : (isResuming ? 'Lanjutkan Kerjakan' : 'Mulai Kerjakan')}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                );
+            })()}
+
+            {/* MODAL 2C: UPDATE PROGRESS & TIM */}
+            {showProgressModal && (() => {
+                const pool = getWorkersPoolForIssue(showProgressModal);
+                const chipMap = new Map();
+                [...pool, ...progressWorkers].forEach((n) => {
+                    const key = String(n).toLowerCase().trim();
+                    if (key && !chipMap.has(key)) chipMap.set(key, String(n).trim());
+                });
+                const workerChips = Array.from(chipMap.values());
+
+                return (
+                    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+                        <div className="w-full max-w-md bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-5 space-y-4 max-h-[90vh] overflow-y-auto">
+                            <div className="flex items-start justify-between">
+                                <div>
+                                    <h3 className="font-bold text-base text-white flex items-center gap-1.5">
+                                        <MessageSquare className="w-4 h-4 text-sky-400" />
+                                        Update Progress &amp; Tim Pelaksana
+                                    </h3>
+                                    <p className="text-xs text-slate-400 mt-0.5">
+                                        #{showProgressModal.issue_code || showProgressModal.id} &bull; {showProgressModal.title}
+                                    </p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowProgressModal(null)}
+                                    className="text-slate-400 hover:text-white"
+                                >
+                                    <X className="w-4 h-4" />
+                                </button>
+                            </div>
+
+                            <form onSubmit={handleProgressSubmit} className="space-y-3.5">
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-200 mb-1">
+                                        Komentar Perkembangan Pekerjaan
+                                    </label>
+                                    <textarea
+                                        value={progressComment}
+                                        onChange={(e) => setProgressComment(e.target.value)}
+                                        placeholder="Contoh: Jalur pipa sudah dibongkar, menunggu pengeringan lem dan penggantian elbow..."
+                                        rows={3}
+                                        className="w-full text-xs bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-sky-500"
+                                    />
+                                </div>
+
+                                <div className="p-3 rounded-xl bg-slate-800/70 border border-slate-700 space-y-2">
+                                    <label className="block text-xs font-bold text-slate-200 flex items-center justify-between">
+                                        <span className="flex items-center gap-1.5">
+                                            <Users className="w-3.5 h-3.5 text-sky-400" />
+                                            Pekerja Aktif Sekarang (Tambah / Kurangi)
+                                        </span>
+                                        <span className="text-[10px] font-normal text-slate-400">Min. 1 pekerja</span>
+                                    </label>
+                                    <p className="text-[10px] text-slate-400 leading-snug">
+                                        Klik nama untuk menambah atau mengeluarkan dari tim aktif. Pekerja yang dikurangi tetap tersimpan dalam data kontributor evaluasi.
+                                    </p>
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {workerChips.map((workerName) => {
+                                            const selected = progressWorkers.some((w) => String(w).toLowerCase().trim() === workerName.toLowerCase());
+                                            return (
+                                                <button
+                                                    type="button"
+                                                    key={workerName}
+                                                    onClick={() => toggleListWorker(setProgressWorkers, workerName)}
+                                                    className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border flex items-center gap-1 transition-all cursor-pointer ${
+                                                        selected
+                                                            ? 'bg-sky-600 text-white border-sky-500 shadow-xs'
+                                                            : 'bg-slate-900 text-slate-400 border-slate-700 hover:text-slate-200'
+                                                    }`}
+                                                >
+                                                    <span>{workerName}</span>
+                                                    {selected && <Check className="w-3 h-3 text-white shrink-0" />}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                    <div className="flex items-center gap-2 pt-1">
+                                        <input
+                                            type="text"
+                                            value={progressCustomWorker}
+                                            onChange={(e) => setProgressCustomWorker(e.target.value)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') {
+                                                    e.preventDefault();
+                                                    addCustomListWorker(progressCustomWorker, setProgressCustomWorker, progressWorkers, setProgressWorkers);
+                                                }
+                                            }}
+                                            placeholder="Tambah nama pekerja baru..."
+                                            className="flex-1 text-xs bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white placeholder-slate-500 focus:outline-none focus:border-sky-500"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => addCustomListWorker(progressCustomWorker, setProgressCustomWorker, progressWorkers, setProgressWorkers)}
+                                            className="px-2.5 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-xs font-semibold text-slate-200 cursor-pointer"
+                                        >
+                                            + Tambah
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* WA Notify Toggle (Checked by default) */}
+                                <label className="p-3 rounded-xl bg-emerald-950/30 border border-emerald-700/40 flex items-start gap-2.5 cursor-pointer select-none">
+                                    <input
+                                        type="checkbox"
+                                        checked={progressNotifyReporter}
+                                        onChange={(e) => setProgressNotifyReporter(e.target.checked)}
+                                        className="w-4 h-4 mt-0.5 rounded text-emerald-500 bg-slate-700 border-slate-600 focus:ring-emerald-500 cursor-pointer"
+                                    />
+                                    <div>
+                                        <span className="text-xs font-bold text-emerald-300 block">
+                                            Kirim info progress ini ke WhatsApp pelapor
+                                        </span>
+                                        <span className="text-[10px] text-slate-400">
+                                            {showProgressModal.reporter_phone
+                                                ? `Dikirim otomatis ke ${showProgressModal.reporter_name} (${showProgressModal.reporter_phone}).`
+                                                : `Aktif secara default (No. WA pelapor belum tercatat di tiket ini).`}
+                                        </span>
+                                    </div>
+                                </label>
+
+                                <div className="pt-2 flex items-center gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowProgressModal(null)}
+                                        className="flex-1 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold"
+                                    >
+                                        Batal
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        disabled={isSubmitting || progressWorkers.length === 0}
+                                        className="flex-1 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white text-xs font-bold shadow-md cursor-pointer"
+                                    >
+                                        {isSubmitting ? 'Menyimpan...' : 'Simpan Update'}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                );
+            })()}
+
+            {/* MODAL 2D: PENDING / TUNDA */}
+            {showPendingModal && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
                     <div className="w-full max-w-md bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-5 space-y-4">
                         <div className="flex items-start justify-between">
                             <div>
-                                <h3 className="font-bold text-base text-white">Tandai Masalah Selesai</h3>
-                                <p className="text-xs text-slate-400">
-                                    {showResolveModal.location} — {showResolveModal.title}
+                                <h3 className="font-bold text-base text-white flex items-center gap-1.5">
+                                    <PauseCircle className="w-4 h-4 text-orange-400" />
+                                    {showPendingModal.status === 'pending' ? 'Update Alasan Pending' : 'Tunda Isu (Pending)'}
+                                </h3>
+                                <p className="text-xs text-slate-400 mt-0.5">
+                                    #{showPendingModal.issue_code || showPendingModal.id} &bull; {showPendingModal.title}
                                 </p>
                             </div>
                             <button
-                                onClick={() => setShowResolveModal(null)}
+                                type="button"
+                                onClick={() => setShowPendingModal(null)}
                                 className="text-slate-400 hover:text-white"
                             >
                                 <X className="w-4 h-4" />
                             </button>
                         </div>
 
-                        <form onSubmit={handleResolveSubmit} className="space-y-3">
-                            <div>
-                                <label className="block text-xs font-bold text-slate-300 mb-1">
-                                    Catatan Penyelesaian (Opsional)
-                                </label>
-                                <textarea
-                                    value={resolveNote}
-                                    onChange={(e) => setResolveNote(e.target.value)}
-                                    placeholder="Contoh: Pipa telah diganti seal baru, sudah dites tidak bocor lagi"
-                                    rows={2}
-                                    className="w-full text-xs bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
-                                />
+                        <form onSubmit={handlePendingSubmit} className="space-y-3.5">
+                            <div className="p-2.5 rounded-lg bg-orange-950/30 border border-orange-500/30 text-[11px] text-orange-200 leading-relaxed">
+                                Status tiket akan diubah ke <strong>Pending</strong> dan pelapor akan otomatis mendapatkan pemberitahuan beserta alasan penundaan melalui WhatsApp.
                             </div>
 
                             <div>
-                                <label className="block text-xs font-bold text-slate-300 mb-1 flex items-center gap-1">
-                                    <Camera className="w-3.5 h-3.5 text-emerald-400" />
-                                    Foto Bukti Selesai (Opsional)
+                                <label className="block text-xs font-bold text-slate-200 mb-1">
+                                    Alasan Pending / Kendala <span className="text-rose-400">* (Wajib)</span>
                                 </label>
-                                {resolveImagePreview ? (
-                                    <div className="relative rounded-lg overflow-hidden border border-slate-700 max-h-36 bg-black/40 flex items-center justify-center">
-                                        <img src={resolveImagePreview} alt="Preview" className="max-h-36 object-contain" />
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                setResolveImage(null);
-                                                setResolveImagePreview(null);
-                                            }}
-                                            className="absolute top-2 right-2 p-1 rounded-full bg-black/70 text-white"
-                                        >
-                                            <X className="w-3 h-3" />
-                                        </button>
-                                    </div>
-                                ) : (
-                                    <label className="flex items-center justify-center gap-2 p-3 border border-dashed border-slate-700 hover:border-slate-600 rounded-lg cursor-pointer bg-slate-800/40 text-xs text-slate-300">
-                                        <Camera className="w-4 h-4 text-slate-400" />
-                                        <span>Ambil Foto Hasil Perbaikan</span>
-                                        <input
-                                            type="file"
-                                            accept="image/*"
-                                            capture="environment"
-                                            onChange={handleResolveImageChange}
-                                            className="hidden"
-                                        />
-                                    </label>
-                                )}
+                                <textarea
+                                    value={pendingReason}
+                                    onChange={(e) => setPendingReason(e.target.value)}
+                                    placeholder="Contoh: Menunggu sparepart valve tiba dari Batam besok pagi / Menunggu kamar tamu check-out jam 12:00"
+                                    rows={3}
+                                    required
+                                    className="w-full text-xs bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-orange-500"
+                                />
                             </div>
 
                             <div className="pt-2 flex items-center gap-2">
                                 <button
                                     type="button"
-                                    onClick={() => setShowResolveModal(null)}
+                                    onClick={() => setShowPendingModal(null)}
                                     className="flex-1 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold"
                                 >
                                     Batal
@@ -2567,15 +3331,103 @@ export default function LeanIndex({
                                 <button
                                     type="submit"
                                     disabled={isSubmitting}
-                                    className="flex-1 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md"
+                                    className="flex-1 py-2 rounded-lg bg-orange-600 hover:bg-orange-500 disabled:opacity-50 text-white text-xs font-bold shadow-md cursor-pointer"
                                 >
-                                    {isSubmitting ? 'Menyimpan...' : 'Konfirmasi Selesai'}
+                                    {isSubmitting ? 'Menyimpan...' : 'Simpan Status Pending'}
                                 </button>
                             </div>
                         </form>
                     </div>
                 </div>
             )}
+
+            {/* MODAL 2E: ALIHKAN KE DEPARTEMEN LAIN */}
+            {showTransferModal && (() => {
+                const currentTargets = (showTransferModal.target_departments || []).map((d) =>
+                    normalizeDepartment(d).toLowerCase()
+                );
+                const availableDepts = (departments || []).filter((d) =>
+                    currentTargets.length !== 1 || normalizeDepartment(d).toLowerCase() !== currentTargets[0]
+                );
+
+                return (
+                    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+                        <div className="w-full max-w-md bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-5 space-y-4">
+                            <div className="flex items-start justify-between">
+                                <div>
+                                    <h3 className="font-bold text-base text-white flex items-center gap-1.5">
+                                        <ArrowRightLeft className="w-4 h-4 text-indigo-400" />
+                                        Alihkan ke Departemen Lain
+                                    </h3>
+                                    <p className="text-xs text-slate-400 mt-0.5">
+                                        #{showTransferModal.issue_code || showTransferModal.id} &bull; Dari {(showTransferModal.target_departments || []).join(', ')}
+                                    </p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowTransferModal(null)}
+                                    className="text-slate-400 hover:text-white"
+                                >
+                                    <X className="w-4 h-4" />
+                                </button>
+                            </div>
+
+                            <form onSubmit={handleTransferSubmit} className="space-y-3.5">
+                                <div className="p-2.5 rounded-lg bg-indigo-950/30 border border-indigo-500/30 text-[11px] text-indigo-200 leading-relaxed">
+                                    Isu akan dikembalikan ke status <strong>Open</strong> untuk departemen tujuan baru, tim aktif saat ini dikosongkan, riwayat kontributor tetap aman, dan pelapor dikabari via WA.
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-200 mb-1">
+                                        Departemen Tujuan Baru <span className="text-rose-400">*</span>
+                                    </label>
+                                    <select
+                                        value={transferTargetDept}
+                                        onChange={(e) => setTransferTargetDept(e.target.value)}
+                                        required
+                                        className="w-full text-xs bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-indigo-500"
+                                    >
+                                        {availableDepts.map((dept) => (
+                                            <option key={dept} value={dept}>{dept}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-200 mb-1">
+                                        Alasan Pengalihan <span className="text-rose-400">* (Wajib)</span>
+                                    </label>
+                                    <textarea
+                                        value={transferReason}
+                                        onChange={(e) => setTransferReason(e.target.value)}
+                                        placeholder="Contoh: Setelah dicek di lokasi, kendala berada pada jaringan Wi-Fi Access Point yang menjadi wewenang tim IT."
+                                        rows={3}
+                                        required
+                                        className="w-full text-xs bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                                    />
+                                </div>
+
+                                <div className="pt-2 flex items-center gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowTransferModal(null)}
+                                        className="flex-1 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold"
+                                    >
+                                        Batal
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        disabled={isSubmitting}
+                                        className="flex-1 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-bold shadow-md cursor-pointer"
+                                    >
+                                        {isSubmitting ? 'Mengalihkan...' : 'Konfirmasi Pengalihan'}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                );
+            })()}
 
 
 
@@ -2683,6 +3535,119 @@ export default function LeanIndex({
 
                         {/* Body Modal (Scrollable) */}
                         <div className="p-4 overflow-y-auto space-y-4 flex-1">
+                            {/* PANEL AKSI STATUS & HAK AKSES DEPARTEMEN */}
+                            {activeDetailIssue.status !== 'resolved' && (
+                                canManageIssue(activeDetailIssue) ? (
+                                    <div className={`p-3 rounded-xl border space-y-2 ${
+                                        isDark ? 'bg-slate-800/70 border-emerald-500/30' : 'bg-emerald-50/60 border-emerald-200'
+                                    }`}>
+                                        <div className="flex items-center justify-between gap-2">
+                                            <span className={`text-[11px] font-bold flex items-center gap-1.5 ${
+                                                isDark ? 'text-emerald-300' : 'text-emerald-800'
+                                            }`}>
+                                                <Wrench className="w-3.5 h-3.5" />
+                                                Kelola Status &amp; Progress Isu
+                                            </span>
+                                            <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold border ${
+                                                isDark ? 'bg-emerald-950/60 border-emerald-700 text-emerald-300' : 'bg-white border-emerald-300 text-emerald-700'
+                                            }`}>
+                                                {currentUser?.is_admin ? 'Akses Admin' : `Dept: ${myDept}`}
+                                            </span>
+                                        </div>
+                                        <div className="flex flex-wrap gap-2">
+                                            {(activeDetailIssue.status === 'open' || activeDetailIssue.status === 'pending') && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => openClaimModal(activeDetailIssue)}
+                                                    className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition cursor-pointer"
+                                                >
+                                                    <Play className="w-3.5 h-3.5" />
+                                                    <span>{activeDetailIssue.status === 'pending' ? 'Lanjutkan Kerjakan' : 'Mulai Kerjakan'}</span>
+                                                </button>
+                                            )}
+
+                                            {activeDetailIssue.status === 'in_progress' && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => openProgressModal(activeDetailIssue)}
+                                                    className="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition cursor-pointer"
+                                                >
+                                                    <MessageSquare className="w-3.5 h-3.5" />
+                                                    <span>Update Progress &amp; Tim</span>
+                                                </button>
+                                            )}
+
+                                            <button
+                                                type="button"
+                                                onClick={() => openPendingModal(activeDetailIssue)}
+                                                className="px-3 py-1.5 rounded-lg bg-orange-600 hover:bg-orange-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition cursor-pointer"
+                                            >
+                                                <PauseCircle className="w-3.5 h-3.5" />
+                                                <span>{activeDetailIssue.status === 'pending' ? 'Update Alasan Pending' : 'Tunda / Pending'}</span>
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                onClick={() => openResolveModal(activeDetailIssue)}
+                                                className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition cursor-pointer"
+                                            >
+                                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                                <span>Tandai Selesai</span>
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                onClick={() => openTransferModal(activeDetailIssue)}
+                                                className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 border transition cursor-pointer ${
+                                                    isDark
+                                                        ? 'bg-indigo-950/60 hover:bg-indigo-900/80 border-indigo-500/40 text-indigo-300'
+                                                        : 'bg-indigo-50 hover:bg-indigo-100 border-indigo-300 text-indigo-700'
+                                                }`}
+                                            >
+                                                <ArrowRightLeft className="w-3.5 h-3.5" />
+                                                <span>Alihkan ke Dept Lain</span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className={`p-3 rounded-xl border flex items-start gap-2.5 text-xs ${
+                                        isDark ? 'bg-slate-800/50 border-slate-700 text-slate-300' : 'bg-slate-100 border-slate-300 text-slate-700'
+                                    }`}>
+                                        <Lock className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
+                                        <div>
+                                            <p className="font-bold">Mode Lihat Saja</p>
+                                            <p className={`text-[11px] mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                                                {!currentUser
+                                                    ? 'Silakan login terlebih dahulu menggunakan akun departemen penangan untuk mengubah status isu.'
+                                                    : `Anda masuk sebagai ${myName} (${myDept}). Hanya pemilik departemen tujuan (${(activeDetailIssue.target_departments || []).join(', ')}) atau Admin yang dapat mengubah status isu ini.`}
+                                            </p>
+                                        </div>
+                                    </div>
+                                )
+                            )}
+
+                            {/* Callout Alasan Pending Aktif */}
+                            {activeDetailIssue.status === 'pending' && activeDetailIssue.pending_reason && (
+                                <div className={`p-3 rounded-xl border space-y-1 text-xs ${
+                                    isDark ? 'bg-orange-950/40 border-orange-500/40 text-orange-200' : 'bg-orange-50 border-orange-300 text-orange-900'
+                                }`}>
+                                    <div className="flex items-center justify-between gap-2 font-bold">
+                                        <span className="flex items-center gap-1.5">
+                                            <PauseCircle className="w-4 h-4 text-orange-500" />
+                                            Status Pending / Tertunda
+                                        </span>
+                                        {activeDetailIssue.pending_since && (
+                                            <span className="text-[10px] font-medium opacity-80">
+                                                Sejak: {formatDateTimeId(activeDetailIssue.pending_since)}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <p className="text-xs leading-relaxed">
+                                        Alasan: <strong>{activeDetailIssue.pending_reason}</strong>
+                                    </p>
+                                </div>
+                            )}
+
                             {/* Grid Informasi Utama */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                                 {visibleColumns.location && (() => {
@@ -2883,22 +3848,167 @@ export default function LeanIndex({
                                 </div>
                             )}
 
-                            {/* Status Penugasan & Penyelesaian */}
-                            {visibleColumns.status && (activeDetailIssue.claimed_by_name || activeDetailIssue.resolved_by_name) && (
-                                <div className={`p-3 rounded-xl border space-y-1 text-xs ${
+                            {/* Status Penugasan, Kontributor & Penyelesaian */}
+                            {visibleColumns.status && (
+                                activeDetailIssue.claimed_by_name ||
+                                activeDetailIssue.resolved_by_name ||
+                                (activeDetailIssue.active_workers && activeDetailIssue.active_workers.length > 0) ||
+                                (activeDetailIssue.contributors && activeDetailIssue.contributors.length > 0)
+                            ) && (
+                                <div className={`p-3 rounded-xl border space-y-2 text-xs ${
                                     isDark ? 'bg-slate-800/50 border-slate-700/80' : 'bg-slate-50 border-slate-200'
                                 }`}>
-                                    {activeDetailIssue.claimed_by_name && (
+                                    <div className={`font-bold flex items-center gap-1.5 ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
+                                        <Award className="w-3.5 h-3.5 text-emerald-500" />
+                                        <span>Tim Pelaksana &amp; Kontributor Evaluasi</span>
+                                    </div>
+
+                                    {activeDetailIssue.active_workers && activeDetailIssue.active_workers.length > 0 && activeDetailIssue.status !== 'resolved' && (
+                                        <div className="flex flex-wrap items-center gap-1.5">
+                                            <span className={`text-[11px] ${isDark ? 'text-amber-300' : 'text-amber-800 font-semibold'}`}>Pekerja Aktif:</span>
+                                            {activeDetailIssue.active_workers.map((w) => (
+                                                <span key={w} className={`px-2 py-0.5 rounded-md text-[11px] font-bold border ${
+                                                    isDark ? 'bg-amber-950/70 border-amber-500/40 text-amber-200' : 'bg-amber-100 border-amber-300 text-amber-900'
+                                                }`}>
+                                                    {w}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    {activeDetailIssue.initial_workers && activeDetailIssue.initial_workers.length > 0 && (
+                                        <p className={`text-[11px] ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                                            Pekerja Awal (Claim): <strong>{activeDetailIssue.initial_workers.join(', ')}</strong>
+                                        </p>
+                                    )}
+
+                                    {activeDetailIssue.claimed_by_name && (!activeDetailIssue.active_workers || activeDetailIssue.active_workers.length === 0) && activeDetailIssue.status !== 'resolved' && (
                                         <p className={isDark ? 'text-amber-300' : 'text-amber-800 font-medium'}>
                                             Dikerjakan oleh: <strong>{activeDetailIssue.claimed_by_name}</strong> ({activeDetailIssue.claimed_by_dept})
                                         </p>
                                     )}
+
                                     {activeDetailIssue.resolved_by_name && (
-                                        <p className={isDark ? 'text-emerald-300' : 'text-emerald-800 font-medium'}>
-                                            Diselesaikan oleh: <strong>{activeDetailIssue.resolved_by_name}</strong> ({activeDetailIssue.resolved_by_dept})
-                                            {activeDetailIssue.resolution_note && ` — "${activeDetailIssue.resolution_note}"`}
-                                        </p>
+                                        <div className={`p-2.5 rounded-lg border space-y-2 ${
+                                            isDark ? 'bg-emerald-950/30 border-emerald-700/40 text-emerald-200' : 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                                        }`}>
+                                            <p>
+                                                Diselesaikan oleh: <strong>{activeDetailIssue.resolved_by_name}</strong> ({activeDetailIssue.resolved_by_dept})
+                                            </p>
+                                            {activeDetailIssue.resolution_note && (
+                                                <p className="text-[11px] italic">"{activeDetailIssue.resolution_note}"</p>
+                                            )}
+                                            {activeDetailIssue.resolution_image_url && (
+                                                <div
+                                                    onClick={() => setLightboxImage(activeDetailIssue.resolution_image_url)}
+                                                    className="relative rounded-lg overflow-hidden border border-emerald-500/30 cursor-pointer max-h-40 flex items-center justify-center bg-black/40"
+                                                    title="Klik untuk perbesar foto bukti selesai"
+                                                >
+                                                    <img
+                                                        src={activeDetailIssue.resolution_image_url}
+                                                        alt="Bukti Penyelesaian"
+                                                        className="max-h-40 w-full object-cover"
+                                                    />
+                                                </div>
+                                            )}
+                                        </div>
                                     )}
+
+                                    {activeDetailIssue.contributors && activeDetailIssue.contributors.length > 0 && (
+                                        <div className={`pt-1.5 border-t flex flex-wrap items-center gap-1.5 ${
+                                            isDark ? 'border-slate-700/60' : 'border-slate-200'
+                                        }`}>
+                                            <span className={`text-[11px] font-semibold ${isDark ? 'text-emerald-300' : 'text-emerald-800'}`}>
+                                                Seluruh Kontributor ({activeDetailIssue.contributors.length}):
+                                            </span>
+                                            {activeDetailIssue.contributors.map((c) => (
+                                                <span key={c} className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                                                    isDark ? 'bg-emerald-950/70 border-emerald-700/60 text-emerald-300' : 'bg-emerald-100 border-emerald-300 text-emerald-800'
+                                                }`}>
+                                                    {c}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Timeline Komentar Progress & Aktivitas */}
+                            {activeDetailIssue.progress_logs && activeDetailIssue.progress_logs.length > 0 && (
+                                <div className={`p-3 rounded-xl border space-y-2 text-xs ${
+                                    isDark ? 'bg-slate-900/90 border-sky-900/50' : 'bg-sky-50/60 border-sky-200'
+                                }`}>
+                                    <div className={`flex items-center gap-1.5 font-bold ${isDark ? 'text-sky-400' : 'text-sky-800'}`}>
+                                        <History className="w-3.5 h-3.5" />
+                                        <span>Timeline Komentar &amp; Aktivitas ({activeDetailIssue.progress_logs.length})</span>
+                                    </div>
+                                    <div className="space-y-1.5 pl-2.5 border-l-2 border-sky-500/40">
+                                        {activeDetailIssue.progress_logs.map((log, idx) => {
+                                            const badgeStyles = isDark ? ({
+                                                claim: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
+                                                progress: 'bg-sky-500/20 text-sky-300 border-sky-500/30',
+                                                pending: 'bg-orange-500/20 text-orange-300 border-orange-500/30',
+                                                transfer: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30',
+                                                resolved: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
+                                            }[log.type] || 'bg-slate-500/20 text-slate-300 border-slate-500/30') : ({
+                                                claim: 'bg-amber-100 text-amber-800 border-amber-300',
+                                                progress: 'bg-sky-100 text-sky-800 border-sky-300',
+                                                pending: 'bg-orange-100 text-orange-800 border-orange-300',
+                                                transfer: 'bg-indigo-100 text-indigo-800 border-indigo-300',
+                                                resolved: 'bg-emerald-100 text-emerald-800 border-emerald-300',
+                                            }[log.type] || 'bg-slate-100 text-slate-700 border-slate-300');
+
+                                            const typeText = {
+                                                claim: 'Claim / Kerja',
+                                                progress: 'Progress',
+                                                pending: 'Pending',
+                                                transfer: 'Dialihkan',
+                                                resolved: 'Selesai',
+                                            }[log.type] || log.type;
+
+                                            return (
+                                                <div key={log.id || idx} className={`p-2 rounded-lg border space-y-1 ${
+                                                    isDark ? 'bg-slate-950/60 border-slate-800' : 'bg-white border-sky-200 shadow-2xs'
+                                                }`}>
+                                                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                                                        <div className="flex items-center gap-1.5">
+                                                            <span className={`px-1.5 py-0.2 rounded text-[9.5px] font-bold border ${badgeStyles}`}>
+                                                                {typeText}
+                                                            </span>
+                                                            <span className={`font-bold text-[11px] ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
+                                                                {log.actor}
+                                                            </span>
+                                                            {log.actor_dept && (
+                                                                <span className={`text-[10px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                                                                    ({log.actor_dept})
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <span className={`text-[10px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                                                            {formatDateTimeId(log.created_at)}
+                                                        </span>
+                                                    </div>
+                                                    {log.message && (
+                                                        <p className={`text-[11px] leading-snug ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                                                            {log.message}
+                                                        </p>
+                                                    )}
+                                                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                                                        {Array.isArray(log.workers) && log.workers.length > 0 && (
+                                                            <span className={`text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                                                Tim: <strong className={isDark ? 'text-slate-300' : 'text-slate-700'}>{log.workers.join(', ')}</strong>
+                                                            </span>
+                                                        )}
+                                                        {log.notified_wa && (
+                                                            <span className="text-[9.5px] text-emerald-400 font-semibold ml-auto">
+                                                                WA Pelapor Terkirim ✓
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
                                 </div>
                             )}
 
@@ -2989,7 +4099,7 @@ export default function LeanIndex({
             {lightboxImage && (
                 <div
                     onClick={() => setLightboxImage(null)}
-                    className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4 cursor-pointer animate-in fade-in"
+                    className="fixed inset-0 z-[70] bg-black/95 flex items-center justify-center p-4 cursor-pointer animate-in fade-in"
                 >
                     <div className="relative max-w-3xl max-h-[90vh]">
                         <img
@@ -3002,6 +4112,31 @@ export default function LeanIndex({
                             className="absolute -top-10 right-0 text-white text-xs font-semibold bg-white/20 hover:bg-white/30 px-3 py-1 rounded-full"
                         >
                             Tutup [X]
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* TOAST FEEDBACK NOTIFICATION */}
+            {actionNotice && (
+                <div className="fixed top-16 right-4 z-[80] max-w-sm animate-in slide-in-from-top-3 fade-in">
+                    <div className={`px-4 py-3 rounded-xl border shadow-2xl flex items-start gap-2.5 text-xs backdrop-blur-md ${
+                        actionNotice.type === 'error'
+                            ? 'bg-rose-950/95 border-rose-500/60 text-rose-200'
+                            : 'bg-emerald-950/95 border-emerald-500/60 text-emerald-200'
+                    }`}>
+                        {actionNotice.type === 'error' ? (
+                            <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                        ) : (
+                            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                        )}
+                        <span className="font-semibold leading-snug">{actionNotice.text}</span>
+                        <button
+                            type="button"
+                            onClick={() => setActionNotice(null)}
+                            className="ml-2 text-slate-400 hover:text-white shrink-0"
+                        >
+                            <X className="w-3.5 h-3.5" />
                         </button>
                     </div>
                 </div>
