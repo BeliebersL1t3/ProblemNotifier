@@ -20,6 +20,7 @@ const pino = require('pino');
 const axios = require('axios');
 const FormData = require('form-data');
 const express = require('express');
+const crypto = require('crypto');
 const qrcode = require('qrcode-terminal');
 const QRCode = require('qrcode');
 const fs = require('fs');
@@ -31,39 +32,41 @@ const app = express();
 app.use(express.json());
 
 // ─── Environment & Base URL Configuration ─────────────────────────────────────
-let envBaseUrl = process.env.BASE_URL || process.env.APP_URL;
-if (!envBaseUrl && fs.existsSync('.env')) {
-    try {
-        const envContent = fs.readFileSync('.env', 'utf8');
-        const match = envContent.match(/^BASE_URL=([^\r\n]+)$/m) || envContent.match(/^APP_URL=([^\r\n]+)$/m);
-        if (match) envBaseUrl = match[1].trim();
-    } catch (e) {}
+function readEnvVar(keys) {
+    for (const key of keys) {
+        if (process.env[key]) {
+            return String(process.env[key]).trim().replace(/^(['"])(.*)\1$/, '$2');
+        }
+    }
+    for (const envPath of ['.env', '../.env']) {
+        if (fs.existsSync(envPath)) {
+            try {
+                const envContent = fs.readFileSync(envPath, 'utf8');
+                for (const key of keys) {
+                    const regex = new RegExp(`^${key}=([^\\r\\n]+)$`, 'm');
+                    const match = envContent.match(regex);
+                    if (match && match[1]) {
+                        return match[1].trim().replace(/^(['"])(.*)\1$/, '$2');
+                    }
+                }
+            } catch (e) {
+                console.warn(`[Env] Gagal membaca ${envPath}:`, e.message);
+            }
+        }
+    }
+    return '';
 }
-if (!envBaseUrl && fs.existsSync('../.env')) {
-    try {
-        const envContent = fs.readFileSync('../.env', 'utf8');
-        const match = envContent.match(/^BASE_URL=([^\r\n]+)$/m) || envContent.match(/^APP_URL=([^\r\n]+)$/m);
-        if (match) envBaseUrl = match[1].trim();
-    } catch (e) {}
-}
-const BASE_URL = envBaseUrl || 'http://TelunasIssueTracker.test';
 
-let botApiKey = process.env.BOT_API_KEY;
-if (!botApiKey && fs.existsSync('.env')) {
-    try {
-        const envContent = fs.readFileSync('.env', 'utf8');
-        const match = envContent.match(/^BOT_API_KEY=([^\r\n]+)$/m);
-        if (match) botApiKey = match[1].trim();
-    } catch (e) {}
+const BASE_URL = readEnvVar(['BASE_URL', 'APP_URL']) || 'http://TelunasIssueTracker.test';
+const BOT_API_KEY = readEnvVar(['BOT_API_KEY']);
+const BOT_PORT = (() => {
+    const p = Number(readEnvVar(['BOT_PORT']));
+    return Number.isInteger(p) && p > 0 && p <= 65535 ? p : 3000;
+})();
+
+if (!BOT_API_KEY) {
+    console.warn('[Security Warning] BOT_API_KEY is not set in .env! Endpoint sensitif akan menolak akses dan sinkronisasi CSRF Laravel dapat gagal.');
 }
-if (!botApiKey && fs.existsSync('../.env')) {
-    try {
-        const envContent = fs.readFileSync('../.env', 'utf8');
-        const match = envContent.match(/^BOT_API_KEY=([^\r\n]+)$/m);
-        if (match) botApiKey = match[1].trim();
-    } catch (e) {}
-}
-const BOT_API_KEY = botApiKey || '';
 axios.defaults.headers.common['X-Bot-Key'] = BOT_API_KEY;
 
 // ─── Constants: Department Catalog & Abbreviations ────────────────────────────
@@ -82,16 +85,16 @@ const OFFICIAL_DEPARTMENTS = [
 ];
 
 const SUBDEPARTMENT_TO_MAIN = {
-    'hr': 'hr', 'legal': 'hr', 'lnd': 'hr', 'transportasi': 'hr', 'tekong': 'hr',
+    'hr': 'hr', 'legal': 'hr', 'lnd': 'hr', 'transportasi': 'hr', 'tekong': 'hr', 'human resources': 'hr',
     'gr': 'gr', 'gre': 'gr', 'guest relations': 'gr', 'service': 'gr', 'bar': 'gr', 'spa': 'gr', 'tirek': 'gr',
-    'kitchen': 'kitchen', 'f&b': 'kitchen', 'fnb': 'kitchen',
-    'hk': 'hk', 'housekeeping': 'hk', 'pest control': 'hk',
-    'engineer': 'engineer', 'engineering': 'engineer',
-    'fasilitas': 'fasilitas', 'facilities': 'fasilitas', 'security': 'fasilitas',
+    'kitchen': 'kitchen', 'f&b': 'kitchen', 'fnb': 'kitchen', 'food & beverage': 'kitchen',
+    'hk': 'hk', 'housekeeping': 'hk', 'pest control': 'hk', 'pestcontrol': 'hk',
+    'engineer': 'engineer', 'engineering': 'engineer', 'maintenance': 'engineer',
+    'fasilitas': 'fasilitas', 'facilities': 'fasilitas', 'facility': 'fasilitas', 'security': 'fasilitas',
     'it': 'it', 'edp': 'it',
     'procurement': 'procurement', 'purchasing': 'procurement', 'logistic': 'procurement', 'logistik': 'procurement',
     'finance': 'finance', 'accounting': 'finance',
-    'reservasi': 'reservasi', 'reservation': 'reservasi', 'sales': 'reservasi', 'marketing': 'reservasi',
+    'reservasi': 'reservasi', 'reservation': 'reservasi', 'sales': 'reservasi', 'marketing': 'reservasi', 'sales/marketing': 'reservasi',
     'oe': 'oe', 'operational excellence': 'oe'
 };
 
@@ -119,7 +122,12 @@ function loadConfig() {
         if (fs.existsSync('config.json')) {
             const raw = JSON.parse(fs.readFileSync('config.json', 'utf8'));
             botConfig.generalGroupId = raw.generalGroupId || null;
-            botConfig.locationGroups = raw.locationGroups || botConfig.locationGroups;
+            botConfig.locationGroups = {
+                tbr: null,
+                tpc: null,
+                kantor: null,
+                ...(raw.locationGroups || {})
+            };
             botConfig.departmentGroups = raw.departmentGroups || {};
             botConfig.lastKnownBotPhone = raw.lastKnownBotPhone || null;
         }
@@ -127,7 +135,26 @@ function loadConfig() {
         console.error('[Config] Error loading config.json:', e.message);
     }
 }
+
+function saveConfig() {
+    try {
+        fs.writeFileSync('config.json', JSON.stringify(botConfig, null, 2), 'utf8');
+    } catch (e) {
+        console.error('[Config] Error saving config.json:', e.message);
+    }
+}
 loadConfig();
+
+// Real-time Pairing & Connection State for Dashboard Control
+let globalSock = null;
+let latestQrString = null;
+let latestQrDataUrl = null;
+let activePairingCode = null;
+let activePairingPhone = null;
+let botConnectionStatus = 'offline'; // 'offline' | 'connecting' | 'qr_ready' | 'pairing_ready' | 'connected'
+let announceNumberChangeOnConnect = false;
+let staffSyncTimer = null;
+let housekeepingScheduled = false;
 
 // ─── Staff Phone Directory & Verification ─────────────────────────────────────
 let staffPhones = {};
@@ -137,6 +164,8 @@ function normalizePhoneNumber(phone) {
     let clean = String(phone).replace(/[^0-9]/g, '');
     if (clean.startsWith('0')) {
         clean = '62' + clean.substring(1);
+    } else if (clean.startsWith('8')) {
+        clean = '62' + clean;
     }
     return clean;
 }
@@ -146,7 +175,17 @@ function loadStaffPhones() {
         if (fs.existsSync('staff_phones.json')) {
             staffPhones = JSON.parse(fs.readFileSync('staff_phones.json', 'utf8'));
         }
-    } catch (e) {}
+    } catch (e) {
+        console.error('[Staff] Error loading staff_phones.json:', e.message);
+    }
+}
+
+function saveStaffPhones() {
+    try {
+        fs.writeFileSync('staff_phones.json', JSON.stringify(staffPhones, null, 2), 'utf8');
+    } catch (e) {
+        console.error('[Staff] Error saving staff_phones.json:', e.message);
+    }
 }
 loadStaffPhones();
 
@@ -158,13 +197,16 @@ function loadDeviceMappings() {
             deviceMappings = JSON.parse(fs.readFileSync('device_mappings.json', 'utf8'));
         }
     } catch (e) {
+        console.error('[DeviceMappings] Error loading device_mappings.json:', e.message);
         deviceMappings = {};
     }
 }
 function saveDeviceMappings() {
     try {
         fs.writeFileSync('device_mappings.json', JSON.stringify(deviceMappings, null, 2), 'utf8');
-    } catch (e) {}
+    } catch (e) {
+        console.error('[DeviceMappings] Error saving device_mappings.json:', e.message);
+    }
 }
 loadDeviceMappings();
 
@@ -221,7 +263,9 @@ async function resolveSenderPhone(sock, from, msg) {
                     }
                 }
             }
-        } catch (e) {}
+        } catch (e) {
+            console.warn('[ResolveSenderPhone] Gagal memindai grup WhatsApp:', e.message);
+        }
     }
 
     return cleanRaw;
@@ -273,7 +317,7 @@ async function syncStaffDirectory() {
             }
 
             staffPhones = newStaff;
-            fs.writeFileSync('staff_phones.json', JSON.stringify(staffPhones, null, 2), 'utf8');
+            saveStaffPhones();
             console.log(`[Staff Sync] Loaded ${res.data.data.length} staff records from Telunas DB.`);
             return true;
         }
@@ -410,17 +454,113 @@ process.on('uncaughtException', (err) => {
     console.error('[Process UncaughtException]', err);
 });
 
+// ─── Group Auto-Discovery & Number Migration Helpers ──────────────────────────
+async function syncCommunityGroups(sock) {
+    try {
+        const allGroups = await sock.groupFetchAllParticipating();
+        const groupList = Object.values(allGroups);
+        const matched = [];
+
+        for (const group of groupList) {
+            const subject = (group.subject || '').trim();
+            const lowerSubject = subject.toLowerCase();
+
+            // Auto-index participants LIDs <-> Phone numbers
+            if (Array.isArray(group.participants)) {
+                for (const p of group.participants) {
+                    const pPhone = String(p.id || '').replace(/[^0-9]/g, '');
+                    const pLid = p.lid ? String(p.lid).replace(/[^0-9]/g, '') : null;
+                    if (pLid && pPhone) {
+                        lidToPhoneCache.set(pLid, pPhone);
+                        deviceMappings[pLid] = pPhone;
+                    }
+                }
+            }
+
+            // 1. Broadcast / General Group
+            if (
+                lowerSubject === 'issue broadcast' ||
+                lowerSubject.includes('issue broadcast') ||
+                lowerSubject.includes('broadcast') ||
+                lowerSubject === 'general' ||
+                lowerSubject.includes('pengumuman') ||
+                lowerSubject === 'telunas resort issue report'
+            ) {
+                botConfig.generalGroupId = group.id;
+                matched.push(`Broadcast: "${subject}"`);
+                continue;
+            }
+
+            // 2. Official Department Groups
+            let matchedDept = false;
+            for (const dept of OFFICIAL_DEPARTMENTS) {
+                const deptKey = dept.key.toLowerCase();
+                const deptName = dept.name.toLowerCase();
+                const deptCode = dept.code.toLowerCase();
+                if (
+                    lowerSubject === deptKey ||
+                    lowerSubject === deptName ||
+                    lowerSubject === deptCode ||
+                    lowerSubject.includes(deptKey) ||
+                    lowerSubject.includes(deptName)
+                ) {
+                    botConfig.departmentGroups[dept.key] = group.id;
+                    matched.push(`${dept.name}: "${subject}"`);
+                    matchedDept = true;
+                    break;
+                }
+            }
+            if (matchedDept) continue;
+
+            // 3. Dedicated Location Groups (only when NOT a department group)
+            if (lowerSubject === 'tbr' || lowerSubject.includes('telunas beach') || lowerSubject.includes('lokasi tbr') || lowerSubject.includes('info tbr')) {
+                botConfig.locationGroups.tbr = group.id;
+                matched.push(`Location TBR: "${subject}"`);
+            } else if (lowerSubject === 'tpc' || lowerSubject === 'tpi' || lowerSubject.includes('private island') || lowerSubject.includes('lokasi tpc') || lowerSubject.includes('lokasi tpi') || lowerSubject.includes('info tpi')) {
+                botConfig.locationGroups.tpc = group.id;
+                matched.push(`Location TPC/TPI: "${subject}"`);
+            } else if (lowerSubject === 'kantor' || lowerSubject.includes('sekupang') || lowerSubject.includes('lokasi kantor')) {
+                botConfig.locationGroups.kantor = group.id;
+                matched.push(`Location Kantor: "${subject}"`);
+            }
+        }
+
+        saveDeviceMappings();
+        saveConfig();
+        return { success: true, count: matched.length, summary: matched.join('\n') };
+    } catch (err) {
+        console.error('[Group Sync Error]', err.message);
+        return { success: false, error: err.message };
+    }
+}
+
+async function broadcastNewBotNumber(newPhone, previousPhone) {
+    if (!globalSock || !globalSock.user) return;
+    const textMsg =
+        `📢 *PEMBERITAHUAN NOMOR BOT WHATSAPP TELUNAS* 📢\n\n` +
+        `Halo Tim Telunas! WhatsApp Bot V2 kini aktif menggunakan nomor:\n` +
+        `📱 *+${newPhone}*\n` +
+        (previousPhone && previousPhone !== newPhone ? `_(Sebelumnya: +${previousPhone})_\n\n` : '\n') +
+        `Mohon simpan nomor ini agar notifikasi & perintah bot berjalan lancar.`;
+
+    const targets = new Set();
+    if (botConfig.generalGroupId) targets.add(botConfig.generalGroupId);
+    Object.values(botConfig.departmentGroups || {}).forEach((gid) => {
+        if (gid) targets.add(gid);
+    });
+
+    for (const gid of targets) {
+        try {
+            await globalSock.sendMessage(gid, { text: textMsg });
+        } catch (err) {
+            console.warn(`[Bot Migration] Gagal broadcast nomor baru ke ${gid}:`, err.message);
+        }
+    }
+}
+
 // ─── Baileys Connection Setup ─────────────────────────────────────────────────
-let globalSock = null;
-let housekeepingScheduled = false;
-
-async function startBot() {
-    console.log('====================================================');
-    console.log('       Telunas CampusFix WhatsApp Bot V2 Starting    ');
-    console.log('====================================================');
-
-    await syncStaffDirectory();
-
+async function startSock() {
+    botConnectionStatus = 'connecting';
     const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
 
     const sock = makeWASocket({
@@ -439,20 +579,52 @@ async function startBot() {
 
     sock.ev.on('creds.update', saveCreds);
 
-    sock.ev.on('connection.update', (update) => {
+    sock.ev.on('connection.update', async (update) => {
         const { connection, lastDisconnect, qr } = update;
         if (qr) {
+            latestQrString = qr;
+            botConnectionStatus = 'qr_ready';
+            try {
+                latestQrDataUrl = await QRCode.toDataURL(qr, { margin: 2, scale: 6 });
+            } catch (qrErr) {
+                console.error('[QR Error] Gagal menghasilkan QR data URL:', qrErr.message);
+            }
             console.log('\n[WhatsApp Bot V2] Scan this QR code with WhatsApp:');
             qrcode.generate(qr, { small: true });
         }
         if (connection === 'close') {
-            const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
-            console.log('[WhatsApp Bot V2] Connection closed. Reconnecting...', shouldReconnect);
-            if (shouldReconnect) {
-                setTimeout(startBot, 3000);
+            botConnectionStatus = 'offline';
+            const statusCode = lastDisconnect?.error?.output?.statusCode;
+            const isLoggedOut = statusCode === DisconnectReason.loggedOut;
+            console.log(`[WhatsApp Bot V2] Connection closed (Status: ${statusCode || 'unknown'}). Reconnecting...`, !isLoggedOut);
+
+            if (isLoggedOut) {
+                console.log('[WhatsApp Bot V2] Session logged out. Resetting auth_info_baileys for fresh QR/Pairing...');
+                latestQrDataUrl = null;
+                latestQrString = null;
+                activePairingCode = null;
+                activePairingPhone = null;
+                try {
+                    fs.rmSync('auth_info_baileys', { recursive: true, force: true });
+                } catch (e) {
+                    console.error('[Session Reset Error]', e.message);
+                }
+                setTimeout(() => {
+                    startSock().catch((err) => console.error('[Reconnect Socket Error]', err.message));
+                }, 2000);
+            } else {
+                setTimeout(() => {
+                    startSock().catch((err) => console.error('[Reconnect Socket Error]', err.message));
+                }, 3000);
             }
         } else if (connection === 'open') {
+            botConnectionStatus = 'connected';
+            latestQrDataUrl = null;
+            latestQrString = null;
+            activePairingCode = null;
+            activePairingPhone = null;
             console.log('✅ [WhatsApp Bot V2] Connected successfully to WhatsApp!');
+
             if (!housekeepingScheduled) {
                 housekeepingScheduled = true;
                 setupHousekeepingSchedule();
@@ -461,8 +633,33 @@ async function startBot() {
                 console.log('[Housekeeping] Menjalankan pembersihan berkala awal saat bot online...');
                 cleanAuthFolder();
             }, 10000);
+
+            const currentPhone = globalSock?.user?.id ? globalSock.user.id.split(':')[0] : null;
+            const previousPhone = botConfig.lastKnownBotPhone;
+            if (currentPhone && (announceNumberChangeOnConnect || (previousPhone && currentPhone !== previousPhone))) {
+                console.log(`[Bot Migration] Connected with phone +${currentPhone} (prev: ${previousPhone || 'none'})`);
+                setTimeout(() => {
+                    broadcastNewBotNumber(currentPhone, previousPhone);
+                }, 3000);
+                announceNumberChangeOnConnect = false;
+            }
+            if (currentPhone && botConfig.lastKnownBotPhone !== currentPhone) {
+                botConfig.lastKnownBotPhone = currentPhone;
+                saveConfig();
+            }
+
+            syncCommunityGroups(sock).then((res) => {
+                if (res.success) {
+                    console.log(`[Group Sync] Auto-synced ${res.count} community groups.`);
+                }
+            });
+            syncStaffDirectory();
         }
     });
+
+    if (!staffSyncTimer) {
+        staffSyncTimer = setInterval(syncStaffDirectory, 5 * 60 * 1000);
+    }
 
     // ─── Incoming Message Handler ─────────────────────────────────────────────
     sock.ev.on('messages.upsert', async ({ messages, type }) => {
@@ -678,23 +875,13 @@ async function startBot() {
                                 `• *Deskripsi Asal:* ${updated.description || '-'}\n\n` +
                                 `👉 _Ketik *ambil ${targetId}* (atau *take ${targetId}*) atau reply pesan ini untuk mengambil tugas._`;
                             
-                            await sock.sendMessage(newGroupJid, { text: newDeptMsg });
-                        }
-
-                        // 3. Notify Reporter's DM if phone is mapped
-                        const reporterPhone = updated.reporter_phone || null;
-                        if (reporterPhone) {
-                            const repDmJid = `${reporterPhone}@s.whatsapp.net`;
                             try {
-                                await sock.sendMessage(repDmJid, {
-                                    text: `ℹ️ *UPDATE STATUS LAPORAN ANDA / STATUS UPDATE*\n\n` +
-                                          `Laporan Anda *#${targetId}* (${updated.title}) telah dialihkan pengerjaannya dari *${oldDeptName}* ke *${newDeptName}*.\n` +
-                                          `_Your report has been transferred from ${oldDeptName} to ${newDeptName}._\n\n` +
-                                          `*Alasan / Reason:* ${transferReason}\n\n` +
-                                          `Tim ${newDeptName} akan segera menindaklanjuti laporan Anda.`
-                                });
-                            } catch (e) {}
+                                await sock.sendMessage(newGroupJid, { text: newDeptMsg });
+                            } catch (groupErr) {
+                                console.error(`[Transfer Wizard] Gagal mengirim notifikasi ke grup baru ${newGroupJid}:`, groupErr.message);
+                            }
                         }
+                        // DM notifikasi pelapor ditangani terpusat oleh Laravel (LeanController::apiTransfer) agar tidak duplikat.
                     } else {
                         await reply(`❌ Gagal mengalihkan tiket: ${transferRes.data.message || 'Error'}`);
                     }
@@ -1046,22 +1233,13 @@ async function startBot() {
                                         `• *Deskripsi Asal:* ${updated.description || '-'}\n\n` +
                                         `👉 _Ketik *ambil ${targetId}* (atau *take ${targetId}*) atau reply pesan ini untuk mengambil tugas._`;
                                     
-                                    await sock.sendMessage(newGroupJid, { text: newDeptMsg });
-                                }
-
-                                const reporterPhone = updated.reporter_phone || null;
-                                if (reporterPhone) {
-                                    const repDmJid = `${reporterPhone}@s.whatsapp.net`;
                                     try {
-                                        await sock.sendMessage(repDmJid, {
-                                            text: `ℹ️ *UPDATE STATUS LAPORAN ANDA / STATUS UPDATE*\n\n` +
-                                                  `Laporan Anda *#${targetId}* (${updated.title}) telah dialihkan pengerjaannya dari *${oldDeptName}* ke *${newDeptName}*.\n` +
-                                                  `_Your report has been transferred from ${oldDeptName} to ${newDeptName}._\n\n` +
-                                                  `*Alasan / Reason:* ${transferReason}\n\n` +
-                                                  `Tim ${newDeptName} akan segera menindaklanjuti laporan Anda.`
-                                        });
-                                    } catch (e) {}
+                                        await sock.sendMessage(newGroupJid, { text: newDeptMsg });
+                                    } catch (groupErr) {
+                                        console.error(`[Edit/Transfer] Gagal mengirim notifikasi ke grup baru ${newGroupJid}:`, groupErr.message);
+                                    }
                                 }
+                                // DM notifikasi pelapor ditangani terpusat oleh Laravel (LeanController::apiTransfer) agar tidak duplikat.
                             } else {
                                 await reply(`❌ Gagal mengalihkan tiket: ${transferRes.data.message || 'Error'}`);
                             }
@@ -1222,7 +1400,7 @@ async function startBot() {
                     state.step = STEPS.AWAITING_TITLE;
                     state.data = {
                         reporter: registeredUser.name,
-                        reporter_phone: senderPhone,
+                        reporter_phone: registeredUser.realPhone || registeredUser.phone || senderPhone,
                         reporter_dept: registeredUser.department || ''
                     };
                     setUserState(senderPhone, state);
@@ -1392,6 +1570,9 @@ async function startBot() {
                     formData.append('location', state.data.location);
                     formData.append('department', state.data.department);
                     formData.append('reporter', state.data.reporter);
+                    formData.append('reporter_phone', state.data.reporter_phone || registeredUser.realPhone || registeredUser.phone || senderPhone || '');
+                    formData.append('reporter_dept', state.data.reporter_dept || registeredUser.department || 'Umum');
+                    formData.append('source', 'whatsapp_bot');
 
                     if (state.data.photoBuffer) {
                         formData.append('image', state.data.photoBuffer, { filename: 'issue.jpg', contentType: 'image/jpeg' });
@@ -1406,7 +1587,7 @@ async function startBot() {
                         const issueId = createdData.id || 'TERCATAT';
                         const accurateLocation = createdData.location || state.data.location;
 
-                        // Confirmation to Reporter
+                        // Confirmation to Reporter (source='whatsapp_bot' skips redundant DM from Laravel)
                         await reply(
                             `✅ *LAPORAN BERHASIL DIBUAT!* ✅\n\n` +
                             `• *ID Isu:* #${issueId}\n` +
@@ -1414,7 +1595,7 @@ async function startBot() {
                             `• *Lokasi:* ${accurateLocation}\n` +
                             `• *Departemen Dituju:* ${state.data.department}\n` +
                             `• *Pelapor:* ${state.data.reporter}\n\n` +
-                            `Laporan telah diteruskan ke grup terkait. Terima kasih!`
+                            `Laporan telah diteruskan ke grup terkait. Pembaruan status (*dikerjakan, progress, pending, pengalihan,* hingga *selesai*) akan dikirim otomatis ke WhatsApp ini. Terima kasih!`
                         );
 
                         // Broadcast message content
@@ -1438,22 +1619,30 @@ async function startBot() {
 
                         if (targetLocGid) {
                             const fyiMsg = broadcastText + `ℹ️ _Pemberitahuan operasional lokasi._`;
-                            if (state.data.photoBuffer) {
-                                await sock.sendMessage(targetLocGid, { image: state.data.photoBuffer, caption: fyiMsg });
-                            } else {
-                                await sock.sendMessage(targetLocGid, { text: fyiMsg });
+                            try {
+                                if (state.data.photoBuffer) {
+                                    await sock.sendMessage(targetLocGid, { image: state.data.photoBuffer, caption: fyiMsg });
+                                } else {
+                                    await sock.sendMessage(targetLocGid, { text: fyiMsg });
+                                }
+                            } catch (locSendErr) {
+                                console.error(`[Lapor V2] Gagal mengirim ke grup lokasi ${targetLocGid}:`, locSendErr.message);
                             }
                         }
 
                         // 2. Send to Department Group (Actionable)
                         const deptKey = selectedDept.key;
                         const deptGroupJid = botConfig.departmentGroups[deptKey];
-                        if (deptGroupJid) {
+                        if (deptGroupJid && deptGroupJid !== targetLocGid) {
                             const actionMsg = broadcastText + `👉 _Ketik *ambil ${issueId}* atau reply pesan ini dengan kata *ambil* untuk mengambil tugas._`;
-                            if (state.data.photoBuffer) {
-                                await sock.sendMessage(deptGroupJid, { image: state.data.photoBuffer, caption: actionMsg });
-                            } else {
-                                await sock.sendMessage(deptGroupJid, { text: actionMsg });
+                            try {
+                                if (state.data.photoBuffer) {
+                                    await sock.sendMessage(deptGroupJid, { image: state.data.photoBuffer, caption: actionMsg });
+                                } else {
+                                    await sock.sendMessage(deptGroupJid, { text: actionMsg });
+                                }
+                            } catch (deptSendErr) {
+                                console.error(`[Lapor V2] Gagal mengirim ke grup departemen ${deptGroupJid}:`, deptSendErr.message);
                             }
                         }
 
@@ -1470,99 +1659,478 @@ async function startBot() {
             }
         }
     });
+}
 
-    // ─── Express HTTP Server for Webhook Notifications ───────────────────────
-    const PORT = process.env.BOT_PORT || 3000;
+// ─── Webhook Security & Media Helpers ─────────────────────────────────────────
+function resolveSafeMediaPayload(imageUrl) {
+    if (!imageUrl || typeof imageUrl !== 'string') return null;
+    const trimmed = imageUrl.trim();
+    if (!trimmed) return null;
 
-    app.get(['/status', '/health', '/api/status'], (req, res) => {
-        const isConnected = Boolean(globalSock && globalSock.user);
-        const phone = globalSock?.user?.id ? globalSock.user.id.split(':')[0] : (botConfig.lastKnownBotPhone || '628117700554');
-        res.json({
-            success: true,
-            bot: 'Telunas CampusFix V2',
-            connected: isConnected,
-            status: isConnected ? 'connected' : 'connecting',
-            phone: phone,
-            uptime: Math.floor(process.uptime())
-        });
-    });
+    if (trimmed.startsWith('/uploads/') || trimmed.startsWith('uploads/')) {
+        const uploadsBaseDir = path.resolve(__dirname, '..', 'public', 'uploads');
+        const cleanRelative = trimmed.split('?')[0].split('#')[0].replace(/^\/?uploads\//, '');
+        const resolvedFile = path.resolve(uploadsBaseDir, cleanRelative);
 
-    app.post('/shutdown', (req, res) => {
-        res.json({ success: true, message: 'Bot V2 shutting down...' });
-        setTimeout(() => process.exit(0), 500);
-    });
+        if (!resolvedFile.startsWith(uploadsBaseDir + path.sep)) {
+            console.warn(`[Notify Media Blocked] Canonical path traversal rejected: ${trimmed}`);
+            return null;
+        }
 
-    app.post(['/notify', '/api/notify'], async (req, res) => {
         try {
-            const { message, imageUrl, department } = req.body;
-            if (!globalSock) return res.status(500).json({ error: 'Socket not ready' });
+            if (fs.existsSync(resolvedFile) && fs.statSync(resolvedFile).isFile()) {
+                return { image: fs.readFileSync(resolvedFile) };
+            }
+            console.warn(`[Notify Media] File lokal tidak ditemukan: ${resolvedFile}`);
+        } catch (err) {
+            console.error(`[Notify Media] Gagal membaca file ${resolvedFile}:`, err.message);
+        }
+        return null;
+    }
 
-            if (botConfig.generalGroupId) {
-                if (imageUrl) {
-                    await globalSock.sendMessage(botConfig.generalGroupId, { image: { url: imageUrl }, caption: message });
-                } else {
-                    await globalSock.sendMessage(botConfig.generalGroupId, { text: message });
+    if (/^https?:\/\//i.test(trimmed)) {
+        try {
+            const parsed = new URL(trimmed);
+            const host = (parsed.hostname || '').toLowerCase();
+            if (host === '169.254.169.254' || host === 'metadata.google.internal') {
+                console.warn(`[Notify Media Blocked] Metadata host rejected: ${host}`);
+                return null;
+            }
+            return { image: { url: trimmed } };
+        } catch (err) {
+            console.warn(`[Notify Media] URL tidak valid (${trimmed}):`, err.message);
+            return null;
+        }
+    }
+
+    console.warn(`[Notify Media] Skema URL tidak didukung diabaikan: ${trimmed}`);
+    return null;
+}
+
+const authenticateInbound = (req, res, next) => {
+    const authHeader = req.headers['authorization'] || '';
+    const bearerKey = authHeader.toLowerCase().startsWith('bearer ') ? authHeader.slice(7).trim() : '';
+    const inboundKey = req.headers['x-bot-key'] || bearerKey;
+
+    if (!BOT_API_KEY || !inboundKey) {
+        return res.status(401).json({ success: false, error: 'Unauthorized: Missing or invalid bot security key.' });
+    }
+
+    const expectedBuf = Buffer.from(String(BOT_API_KEY), 'utf8');
+    const providedBuf = Buffer.from(String(inboundKey), 'utf8');
+    if (expectedBuf.length !== providedBuf.length || !crypto.timingSafeEqual(expectedBuf, providedBuf)) {
+        return res.status(401).json({ success: false, error: 'Unauthorized: Missing or invalid bot security key.' });
+    }
+
+    return next();
+};
+
+// ─── Express HTTP Server (Registered Once Outside startSock) ───────────────────
+app.get(['/status', '/health', '/api/status'], (req, res) => {
+    const isConnected = Boolean(globalSock && globalSock.user);
+    const phone = globalSock?.user?.id ? globalSock.user.id.split(':')[0] : (botConfig.lastKnownBotPhone || null);
+    res.json({
+        success: true,
+        bot: 'Telunas CampusFix V2',
+        connected: isConnected,
+        status: isConnected ? 'connected' : (activePairingCode ? 'pairing_ready' : (latestQrDataUrl ? 'qr_ready' : botConnectionStatus)),
+        phone: phone,
+        name: globalSock?.user?.name || null,
+        uptime: Math.floor(process.uptime())
+    });
+});
+
+app.use([
+    '/auth-state', '/api/auth-state',
+    '/request-pairing-code', '/api/request-pairing-code',
+    '/unlink', '/api/unlink',
+    '/sync-staff', '/api/sync-staff',
+    '/check-number', '/api/check-number',
+    '/notify-direct', '/api/notify-direct',
+    '/notify', '/api/notify',
+    '/shutdown', '/api/shutdown',
+    '/repair-sessions', '/api/repair-sessions',
+    '/cleanup-stats', '/api/cleanup-stats',
+    '/cleanup-auth', '/api/cleanup-auth'
+], authenticateInbound);
+
+app.get(['/auth-state', '/api/auth-state'], (req, res) => {
+    const isConnected = Boolean(globalSock && globalSock.user);
+    const phone = globalSock?.user?.id ? globalSock.user.id.split(':')[0] : (botConfig.lastKnownBotPhone || null);
+    res.json({
+        success: true,
+        bot: 'Telunas CampusFix V2',
+        connected: isConnected,
+        phone: phone,
+        name: globalSock?.user?.name || null,
+        status: isConnected ? 'connected' : (activePairingCode ? 'pairing_ready' : (latestQrDataUrl ? 'qr_ready' : botConnectionStatus)),
+        qr: latestQrDataUrl,
+        pairingCode: activePairingCode,
+        pairingPhone: activePairingPhone,
+        uptime: Math.floor(process.uptime())
+    });
+});
+
+app.post(['/request-pairing-code', '/api/request-pairing-code'], async (req, res) => {
+    try {
+        const { phone } = req.body || {};
+        if (!phone) {
+            return res.status(400).json({ success: false, error: 'Nomor telepon WhatsApp wajib diisi.' });
+        }
+        const cleanPhone = normalizePhoneNumber(phone);
+        if (!cleanPhone || cleanPhone.length < 8) {
+            return res.status(400).json({ success: false, error: 'Format nomor telepon tidak valid.' });
+        }
+
+        console.log(`[Pairing V2] Menerima permintaan pairing code untuk nomor: +${cleanPhone}`);
+
+        if (globalSock && globalSock.authState?.creds?.registered) {
+            console.log('[Pairing V2] Me-reset sesi lama untuk pairing nomor baru...');
+            announceNumberChangeOnConnect = true;
+            try {
+                await globalSock.end(new Error('Admin requested pairing new number'));
+            } catch (endErr) {
+                console.warn('[Pairing V2] Peringatan saat menutup socket lama:', endErr.message);
+            }
+            globalSock = null;
+            await new Promise((r) => setTimeout(r, 600));
+            try {
+                fs.rmSync('auth_info_baileys', { recursive: true, force: true });
+            } catch (rmErr) {
+                console.warn('[Pairing V2] Peringatan saat menghapus folder sesi:', rmErr.message);
+            }
+            await startSock();
+            await new Promise((r) => setTimeout(r, 1200));
+        } else if (!globalSock) {
+            await startSock();
+            await new Promise((r) => setTimeout(r, 1200));
+        }
+
+        if (!globalSock) {
+            return res.status(500).json({ success: false, error: 'Socket bot WhatsApp gagal diinisialisasi.' });
+        }
+
+        announceNumberChangeOnConnect = true;
+        const rawCode = await globalSock.requestPairingCode(cleanPhone);
+        let formattedCode = String(rawCode || '').trim();
+        if (formattedCode.length === 8 && !formattedCode.includes('-')) {
+            formattedCode = `${formattedCode.slice(0, 4)}-${formattedCode.slice(4)}`;
+        }
+
+        activePairingCode = formattedCode;
+        activePairingPhone = cleanPhone;
+        botConnectionStatus = 'pairing_ready';
+
+        return res.json({
+            success: true,
+            pairingCode: formattedCode,
+            phone: cleanPhone,
+            message: 'Kode pairing berhasil dibuat.'
+        });
+    } catch (err) {
+        console.error('[Pairing V2 Error]', err.message);
+        return res.status(500).json({ success: false, error: err.message || 'Gagal membuat kode pairing.' });
+    }
+});
+
+app.post(['/unlink', '/api/unlink'], async (req, res) => {
+    try {
+        console.log('[Bot Unlink V2] Permintaan putuskan sesi diterima.');
+        announceNumberChangeOnConnect = true;
+        latestQrDataUrl = null;
+        latestQrString = null;
+        activePairingCode = null;
+        activePairingPhone = null;
+        botConnectionStatus = 'offline';
+
+        if (globalSock) {
+            try {
+                await globalSock.end(new Error('Admin unlinked bot'));
+            } catch (endErr) {
+                console.warn('[Bot Unlink V2] Peringatan saat menutup socket:', endErr.message);
+            }
+            globalSock = null;
+        }
+
+        await new Promise((r) => setTimeout(r, 800));
+        try {
+            fs.rmSync('auth_info_baileys', { recursive: true, force: true });
+        } catch (rmErr) {
+            console.warn('[Bot Unlink V2] Peringatan saat membersihkan auth_info_baileys:', rmErr.message);
+        }
+
+        startSock().catch((err) => console.error('[Bot Unlink V2] Gagal restart socket:', err.message));
+
+        return res.json({
+            success: true,
+            message: 'Sesi bot berhasil diputuskan. Silakan masukkan nomor baru atau scan QR code.'
+        });
+    } catch (err) {
+        console.error('[Bot Unlink V2 Error]', err.message);
+        return res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+app.post(['/sync-staff', '/api/sync-staff'], async (req, res) => {
+    const ok = await syncStaffDirectory();
+    res.json({ success: ok });
+});
+
+app.get(['/sync-staff', '/api/sync-staff'], async (req, res) => {
+    const ok = await syncStaffDirectory();
+    res.json({ success: ok });
+});
+
+app.post(['/check-number', '/api/check-number'], async (req, res) => {
+    try {
+        const { phone } = req.body || {};
+        if (!phone) {
+            return res.status(400).json({ success: false, error: 'Phone number is required.' });
+        }
+        if (!globalSock || !globalSock.user) {
+            return res.json({
+                success: true,
+                botOnline: false,
+                exists: null,
+                message: 'Bot is offline or not paired with WhatsApp.'
+            });
+        }
+        const cleanPhone = normalizePhoneNumber(phone);
+        const jid = `${cleanPhone}@s.whatsapp.net`;
+        const results = await globalSock.onWhatsApp(jid);
+        const match = Array.isArray(results) && results.length > 0 ? results[0] : null;
+        const exists = Boolean(match && match.exists);
+
+        return res.json({
+            success: true,
+            botOnline: true,
+            exists: exists,
+            jid: match?.jid || jid,
+            message: exists ? 'Nomor terdaftar di WhatsApp.' : 'Nomor tidak terdaftar di WhatsApp.'
+        });
+    } catch (err) {
+        console.error('[CheckNumber V2 Error]', err.message);
+        return res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+app.post(['/notify-direct', '/api/notify-direct'], async (req, res) => {
+    try {
+        const { phone, message } = req.body || {};
+        if (!globalSock || !globalSock.user) {
+            return res.status(503).json({ success: false, error: 'WhatsApp socket not connected.' });
+        }
+        if (!phone || !message) {
+            return res.status(400).json({ success: false, error: 'Phone and message are required.' });
+        }
+
+        const cleanPhone = normalizePhoneNumber(phone);
+        if (!cleanPhone || cleanPhone.length < 8) {
+            return res.status(400).json({ success: false, error: 'Invalid phone number format.' });
+        }
+
+        const jid = `${cleanPhone}@s.whatsapp.net`;
+        await globalSock.sendMessage(jid, { text: String(message) });
+        console.log(`[Notify-Direct V2] Terkirim ke +${cleanPhone}`);
+        return res.json({ success: true });
+    } catch (err) {
+        console.error('[Notify-Direct V2 Error]', err.message);
+        return res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+app.post(['/notify', '/api/notify'], async (req, res) => {
+    try {
+        const {
+            message,
+            imageUrl,
+            department,
+            departments,
+            assignedDepartments,
+            taggedDepartments,
+            location,
+            includeGeneral,
+            includeLocation,
+            departmentOnly
+        } = req.body || {};
+
+        if (!globalSock || !globalSock.user) {
+            return res.status(503).json({ success: false, error: 'WhatsApp socket not connected.' });
+        }
+        if (!message || String(message).trim() === '') {
+            return res.status(400).json({ success: false, error: 'Message is required.' });
+        }
+
+        const isDeptOnly = Boolean(departmentOnly);
+        const targetGroupIds = new Set();
+
+        const addDeptTarget = (deptInput) => {
+            if (!deptInput) return;
+            const matched = normalizeDept(deptInput);
+            if (matched && botConfig.departmentGroups?.[matched.key]) {
+                targetGroupIds.add(botConfig.departmentGroups[matched.key]);
+                return;
+            }
+            const rawKey = String(deptInput).trim().toLowerCase();
+            if (botConfig.departmentGroups?.[rawKey]) {
+                targetGroupIds.add(botConfig.departmentGroups[rawKey]);
+            }
+        };
+
+        if (department) addDeptTarget(department);
+        const listFields = [departments, assignedDepartments, taggedDepartments];
+        for (const field of listFields) {
+            if (!field) continue;
+            const items = Array.isArray(field) ? field : String(field).split(',');
+            items.forEach((d) => addDeptTarget(d));
+        }
+
+        if (!isDeptOnly) {
+            let locMatchedGid = null;
+            if (includeLocation && location) {
+                const locLower = String(location).toLowerCase();
+                if (locLower.includes('tbr')) {
+                    locMatchedGid = botConfig.locationGroups?.tbr || null;
+                } else if (locLower.includes('tpc') || locLower.includes('tpi')) {
+                    locMatchedGid = botConfig.locationGroups?.tpc || null;
+                } else if (locLower.includes('kantor') || locLower.includes('office')) {
+                    locMatchedGid = botConfig.locationGroups?.kantor || null;
                 }
             }
-            res.json({ success: true });
-        } catch (e) {
-            res.status(500).json({ error: e.message });
-        }
-    });
 
-    app.post(['/repair-sessions', '/api/repair-sessions'], (req, res) => {
+            if (locMatchedGid) {
+                targetGroupIds.add(locMatchedGid);
+            } else if ((includeGeneral !== false || includeLocation) && botConfig.generalGroupId) {
+                targetGroupIds.add(botConfig.generalGroupId);
+            }
+
+            if (includeGeneral === true && botConfig.generalGroupId) {
+                targetGroupIds.add(botConfig.generalGroupId);
+            }
+        }
+
+        if (targetGroupIds.size === 0) {
+            console.warn('[Notify V2] Tidak ada grup tujuan yang cocok untuk payload.');
+            return res.json({ success: true, sentToCount: 0, warning: 'No target group mapped.' });
+        }
+
+        const mediaPayload = resolveSafeMediaPayload(imageUrl);
+        let sentCount = 0;
+        const failures = [];
+
+        for (const gid of targetGroupIds) {
+            try {
+                if (mediaPayload) {
+                    try {
+                        await globalSock.sendMessage(gid, { ...mediaPayload, caption: String(message) });
+                    } catch (mediaErr) {
+                        console.error(`[Notify V2 Media Fallback] Gagal kirim foto ke ${gid}, mengirim teks saja:`, mediaErr.message);
+                        await globalSock.sendMessage(gid, { text: String(message) });
+                    }
+                } else {
+                    await globalSock.sendMessage(gid, { text: String(message) });
+                }
+                sentCount++;
+            } catch (sendErr) {
+                console.error(`[Notify V2 Error] Gagal kirim ke grup ${gid}:`, sendErr.message);
+                failures.push({ gid, error: sendErr.message });
+            }
+        }
+
+        if (sentCount === 0 && failures.length > 0) {
+            return res.status(500).json({
+                success: false,
+                sentToCount: 0,
+                failures,
+                error: failures[0].error
+            });
+        }
+
+        return res.json({ success: true, sentToCount: sentCount, failures });
+    } catch (e) {
+        console.error('[Notify V2 Fatal Error]', e.message);
+        return res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+app.post(['/shutdown', '/api/shutdown'], (req, res) => {
+    console.log('[Bot Shutdown V2] Permintaan shutdown diterima.');
+    res.json({ success: true, message: 'Bot V2 shutting down gracefully.' });
+    setTimeout(async () => {
         try {
-            const { targetId } = req.body || {};
-            let removed = 0;
-            if (targetId) {
-                removed = clearCorruptedSession(targetId);
-            } else {
-                const authDir = path.resolve(__dirname, 'auth_info_baileys');
-                if (fs.existsSync(authDir)) {
-                    const files = fs.readdirSync(authDir);
-                    for (const f of files) {
-                        if (f.startsWith('session-') || f.startsWith('sender-key-')) {
-                            const p = path.join(authDir, f);
-                            try {
-                                const st = fs.statSync(p);
-                                if (st.size === 0) {
-                                    fs.unlinkSync(p);
-                                    removed++;
-                                }
-                            } catch (_) {}
+            if (globalSock) {
+                await globalSock.end(new Error('Dashboard requested shutdown'));
+            }
+        } catch (endErr) {
+            console.warn('[Bot Shutdown V2] Error saat menutup socket:', endErr.message);
+        }
+        process.exit(0);
+    }, 500);
+});
+
+app.post(['/repair-sessions', '/api/repair-sessions'], (req, res) => {
+    try {
+        const { targetId } = req.body || {};
+        let removed = 0;
+        if (targetId) {
+            removed = clearCorruptedSession(targetId);
+        } else {
+            const authDir = path.resolve(__dirname, 'auth_info_baileys');
+            if (fs.existsSync(authDir)) {
+                const files = fs.readdirSync(authDir);
+                for (const f of files) {
+                    if (f.startsWith('session-') || f.startsWith('sender-key-')) {
+                        const p = path.join(authDir, f);
+                        try {
+                            const st = fs.statSync(p);
+                            if (st.size === 0) {
+                                fs.unlinkSync(p);
+                                removed++;
+                            }
+                        } catch (fileErr) {
+                            console.warn(`[RepairSessions V2] Gagal memeriksa/menghapus ${f}:`, fileErr.message);
                         }
                     }
                 }
             }
-            res.json({ success: true, message: `Session repair completed. Removed ${removed} files.` });
-        } catch (e) {
-            res.status(500).json({ success: false, error: e.message });
         }
+        res.json({ success: true, message: `Session repair completed. Removed ${removed} files.` });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+app.get(['/cleanup-stats', '/api/cleanup-stats'], (req, res) => {
+    try {
+        const stats = getAuthFolderStats();
+        res.json({ success: true, stats });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+app.post(['/cleanup-auth', '/api/cleanup-auth'], (req, res) => {
+    try {
+        const result = cleanAuthFolder();
+        res.json(result);
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+async function startBot() {
+    console.log('====================================================');
+    console.log('       Telunas CampusFix WhatsApp Bot V2 Starting    ');
+    console.log('====================================================');
+
+    app.listen(BOT_PORT, () => {
+        console.log(`[HTTP Server V2] Listening on port ${BOT_PORT}`);
     });
 
-    app.get(['/cleanup-stats', '/api/cleanup-stats'], (req, res) => {
-        try {
-            const stats = getAuthFolderStats();
-            res.json({ success: true, stats });
-        } catch (e) {
-            res.status(500).json({ success: false, error: e.message });
-        }
-    });
-
-    app.post(['/cleanup-auth', '/api/cleanup-auth'], (req, res) => {
-        try {
-            const result = cleanAuthFolder();
-            res.json(result);
-        } catch (e) {
-            res.status(500).json({ success: false, error: e.message });
-        }
-    });
-
-    app.listen(PORT, () => {
-        console.log(`[HTTP Server V2] Listening on port ${PORT}`);
-    });
+    await syncStaffDirectory();
+    await startSock();
 }
 
-startBot().catch(err => {
+startBot().catch((err) => {
     console.error('[Bot Fatal Error]', err);
 });

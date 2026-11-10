@@ -50,6 +50,7 @@ return [
 
     'bot' => [
         'api_key' => env('BOT_API_KEY'),
+        'port'    => env('BOT_PORT', 3000),
     ],
 
     'webpush' => [

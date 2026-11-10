@@ -11,6 +11,19 @@ use Illuminate\Support\Facades\Log;
 class TicketNotificationService
 {
     /**
+     * Resolve configured WhatsApp Bot HTTP base URL.
+     */
+    protected static function botBaseUrl(): string
+    {
+        $port = (int) config('services.bot.port', 3000);
+        if ($port <= 0 || $port > 65535) {
+            $port = 3000;
+        }
+
+        return "http://localhost:{$port}";
+    }
+
+    /**
      * Send direct WhatsApp message via bot
      */
     public static function sendWhatsApp(string $phone, string $message): bool
@@ -29,14 +42,47 @@ class TicketNotificationService
         try {
             $response = Http::withHeaders([
                 'X-Bot-Key' => config('services.bot.api_key'),
-            ])->connectTimeout(2)->timeout(3)->post('http://localhost:3000/notify-direct', [
-                'phone' => $cleanPhone,
+            ])->connectTimeout(2)->timeout(3)->post(self::botBaseUrl() . '/notify-direct', [
+                'phone'   => $cleanPhone,
                 'message' => $message,
             ]);
 
-            return $response->successful();
+            if (!$response->successful()) {
+                Log::warning("WhatsApp direct notification failed (HTTP {$response->status()}): " . mb_substr($response->body(), 0, 300));
+                return false;
+            }
+
+            return true;
         } catch (\Throwable $e) {
-            Log::info("WhatsApp ticket notification skipped (bot offline): " . $e->getMessage());
+            Log::warning("WhatsApp direct notification skipped (bot offline / unreachable): " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Send group WhatsApp notification via bot (/notify endpoint).
+     * Supports targeting departments, location groups, and broadcast generalGroupId fallback.
+     */
+    public static function sendWhatsAppGroup(array $payload): bool
+    {
+        $message = trim((string) ($payload['message'] ?? ''));
+        if ($message === '') {
+            return false;
+        }
+
+        try {
+            $response = Http::withHeaders([
+                'X-Bot-Key' => config('services.bot.api_key'),
+            ])->connectTimeout(2)->timeout(4)->post(self::botBaseUrl() . '/notify', $payload);
+
+            if (!$response->successful()) {
+                Log::warning("WhatsApp group notification failed (HTTP {$response->status()}): " . mb_substr($response->body(), 0, 300));
+                return false;
+            }
+
+            return true;
+        } catch (\Throwable $e) {
+            Log::warning("WhatsApp group notification skipped (bot offline / unreachable): " . $e->getMessage());
             return false;
         }
     }
@@ -88,7 +134,7 @@ class TicketNotificationService
         try {
             $response = Http::withHeaders([
                 'X-Bot-Key' => config('services.bot.api_key'),
-            ])->connectTimeout(2)->timeout(3)->post('http://localhost:3000/api/check-number', [
+            ])->connectTimeout(2)->timeout(3)->post(self::botBaseUrl() . '/api/check-number', [
                 'phone' => $cleanPhone,
             ]);
 

@@ -22,6 +22,8 @@ class LeanDashboardWorkflowTest extends TestCase
         parent::setUp();
         Config::set('cache.default', 'array');
         Config::set('session.driver', 'array');
+        Config::set('services.bot.api_key', 'test-bot-secret');
+        Config::set('services.bot.port', 3000);
         Cache::flush();
 
         // Mock Google Sheets calls during workflow tests
@@ -358,5 +360,317 @@ class LeanDashboardWorkflowTest extends TestCase
         $this->assertEquals(['Andi', 'Budi'], $issue->contributors);
         $this->assertCount(1, $issue->progress_logs);
         $this->assertEquals('claim', $issue->progress_logs[0]['type']);
+    }
+
+    public function test_dashboard_actions_dispatch_reporter_dms_and_group_notifications_accurately(): void
+    {
+        $engUser = $this->makeUser('department', 'Engineer', 'Spv Budi');
+
+        // 1. Dashboard Store -> DM to reporter AND /notify group (Dept + Location + Broadcast)
+        $this->actingAs($engUser)
+            ->withServerVariables(['REMOTE_ADDR' => '127.0.0.1'])
+            ->postJson('/lapangan/issues', [
+                'location'           => 'TBR - Villa 08',
+                'title'              => 'AC Villa 08 tidak dingin',
+                'description'        => 'Kompresor outdoor berisik dan angin hangat',
+                'target_departments' => ['Engineer'],
+                'reporter_name'      => 'Nadya',
+                'reporter_dept'      => 'GR',
+                'reporter_phone'     => '081234567890',
+            ])
+            ->assertStatus(200);
+
+        $issue = LeanIssue::latest('id')->firstOrFail();
+
+        Http::assertSent(fn ($req) => $req->hasHeader('X-Bot-Key', 'test-bot-secret')
+            && str_ends_with($req->url(), '/notify-direct')
+            && ($req['phone'] ?? '') === '6281234567890'
+            && str_contains($req['message'] ?? '', 'Laporan Diterima'));
+
+        Http::assertSent(fn ($req) => $req->hasHeader('X-Bot-Key', 'test-bot-secret')
+            && str_ends_with($req->url(), '/notify')
+            && ($req['departments'] ?? []) === ['Engineer']
+            && ($req['location'] ?? '') === 'TBR - Villa 08'
+            && ($req['includeLocation'] ?? false) === true
+            && ($req['includeGeneral'] ?? false) === true
+            && ($req['departmentOnly'] ?? true) === false);
+
+        // 2. Dashboard Claim -> DM to reporter AND /notify group (Dept ONLY)
+        $this->actingAs($engUser)
+            ->withServerVariables(['REMOTE_ADDR' => '127.0.0.1'])
+            ->postJson("/lapangan/issues/{$issue->id}/claim", [
+                'workers' => ['Andi', 'Budi'],
+                'note'    => 'Bawa manifold gauge',
+            ])
+            ->assertStatus(200);
+
+        Http::assertSent(fn ($req) => str_ends_with($req->url(), '/notify')
+            && ($req['departments'] ?? []) === ['Engineer']
+            && ($req['departmentOnly'] ?? false) === true
+            && str_contains($req['message'] ?? '', 'TIKET MULAI DIKERJAKAN'));
+
+        // 3. Dashboard Progress with notify_reporter = false -> skips DM, STILL sends /notify group (Dept ONLY)
+        $this->actingAs($engUser)
+            ->withServerVariables(['REMOTE_ADDR' => '127.0.0.1'])
+            ->postJson("/lapangan/issues/{$issue->id}/progress", [
+                'comment'         => 'Pembersihan evaporator internal',
+                'workers'         => ['Andi', 'Budi', 'Citra'],
+                'notify_reporter' => false,
+            ])
+            ->assertStatus(200);
+
+        Http::assertNotSent(fn ($req) => str_ends_with($req->url(), '/notify-direct')
+            && str_contains($req['message'] ?? '', 'Pembersihan evaporator internal'));
+
+        Http::assertSent(fn ($req) => str_ends_with($req->url(), '/notify')
+            && ($req['departments'] ?? []) === ['Engineer']
+            && ($req['departmentOnly'] ?? false) === true
+            && str_contains($req['message'] ?? '', 'Pembersihan evaporator internal'));
+
+        // 4. Dashboard Pending -> DM + /notify group (Dept ONLY)
+        $this->actingAs($engUser)
+            ->withServerVariables(['REMOTE_ADDR' => '127.0.0.1'])
+            ->postJson("/lapangan/issues/{$issue->id}/pending", [
+                'reason' => 'Menunggu freon R32 dari gudang',
+            ])
+            ->assertStatus(200);
+
+        Http::assertSent(fn ($req) => str_ends_with($req->url(), '/notify-direct')
+            && str_contains($req['message'] ?? '', 'Menunggu freon R32 dari gudang'));
+
+        Http::assertSent(fn ($req) => str_ends_with($req->url(), '/notify')
+            && ($req['departmentOnly'] ?? false) === true
+            && str_contains($req['message'] ?? '', 'Menunggu freon R32 dari gudang'));
+
+        // 5. Dashboard Resolve -> DM + /notify group (Dept + Location + Broadcast with contributors)
+        $this->actingAs($engUser)
+            ->withServerVariables(['REMOTE_ADDR' => '127.0.0.1'])
+            ->postJson("/lapangan/issues/{$issue->id}/resolve", [
+                'note'          => 'Freon ditambah, suhu keluar normal 18C',
+                'final_workers' => ['Budi', 'Citra', 'Doni'],
+            ])
+            ->assertStatus(200);
+
+        Http::assertSent(fn ($req) => str_ends_with($req->url(), '/notify-direct')
+            && str_contains($req['message'] ?? '', 'SELESAI'));
+
+        Http::assertSent(fn ($req) => str_ends_with($req->url(), '/notify')
+            && ($req['departments'] ?? []) === ['Engineer']
+            && ($req['includeLocation'] ?? false) === true
+            && ($req['includeGeneral'] ?? false) === true
+            && ($req['departmentOnly'] ?? true) === false
+            && str_contains($req['message'] ?? '', 'Andi, Budi, Citra, Doni'));
+
+        // 6. Transfer on a second open issue -> DM + TWO separate /notify group calls (Old dept released, New dept incoming)
+        $transferIssue = $this->makeEngineerIssue([
+            'title' => 'Panel kontrol router hang',
+        ]);
+
+        $this->actingAs($engUser)
+            ->withServerVariables(['REMOTE_ADDR' => '127.0.0.1'])
+            ->postJson("/lapangan/issues/{$transferIssue->id}/transfer", [
+                'to_department' => 'IT',
+                'reason'        => 'Perlu konfigurasi IP router oleh tim IT',
+            ])
+            ->assertStatus(200);
+
+        Http::assertSent(fn ($req) => str_ends_with($req->url(), '/notify-direct')
+            && str_contains($req['message'] ?? '', 'Pengalihan Departemen Penangan'));
+
+        Http::assertSent(fn ($req) => str_ends_with($req->url(), '/notify')
+            && ($req['departments'] ?? []) === ['Engineer']
+            && ($req['departmentOnly'] ?? false) === true
+            && str_contains($req['message'] ?? '', 'TIKET DIALIHKAN KE DEPARTEMEN LAIN'));
+
+        Http::assertSent(fn ($req) => str_ends_with($req->url(), '/notify')
+            && ($req['departments'] ?? []) === ['IT']
+            && ($req['departmentOnly'] ?? false) === true
+            && str_contains($req['message'] ?? '', 'TIKET MASUK (DIALIHKAN DARI Engineer)'));
+    }
+
+    public function test_store_and_legacy_notifications_resolve_missing_reporter_phone_from_staff_directory(): void
+    {
+        $engUser = $this->makeUser('department', 'Engineer', 'Spv Budi');
+
+        User::factory()->create([
+            'name'            => 'Nadya Pratiwi',
+            'staff_name'      => 'Nadya Pratiwi',
+            'role'            => 'department',
+            'department'      => 'HR',
+            'whatsapp_number' => '081299988877',
+            'approval_status' => 'approved',
+            'is_active'       => true,
+        ]);
+
+        User::factory()->create([
+            'name'            => 'Budi Santoso',
+            'staff_name'      => 'Budi Santoso',
+            'role'            => 'department',
+            'department'      => 'Engineer',
+            'whatsapp_number' => '081111111111',
+            'approval_status' => 'approved',
+            'is_active'       => true,
+        ]);
+
+        User::factory()->create([
+            'name'            => 'Budi Santoso',
+            'staff_name'      => 'Budi Santoso',
+            'role'            => 'department',
+            'department'      => 'Finance',
+            'whatsapp_number' => '082222222222',
+            'approval_status' => 'approved',
+            'is_active'       => true,
+        ]);
+
+        // Case A: Exact single-staff fallback on store() when reporter_phone is empty
+        $this->actingAs($engUser)
+            ->withServerVariables(['REMOTE_ADDR' => '127.0.0.1'])
+            ->postJson('/lapangan/issues', [
+                'location'           => 'Kantor',
+                'title'              => 'AC ruang rapat kurang dingin',
+                'description'        => 'Suhu stabil di 27 derajat',
+                'target_departments' => ['Engineer'],
+                'reporter_name'      => 'Nadya Pratiwi',
+                'reporter_dept'      => 'HR',
+                'reporter_phone'     => '',
+            ])
+            ->assertStatus(200);
+
+        $nadyaIssue = LeanIssue::where('reporter_name', 'Nadya Pratiwi')->firstOrFail();
+        $this->assertEquals('081299988877', $nadyaIssue->reporter_phone);
+
+        Http::assertSent(fn ($req) => str_ends_with($req->url(), '/notify-direct')
+            && ($req['phone'] ?? '') === '6281299988877'
+            && str_contains($req['message'] ?? '', 'AC ruang rapat kurang dingin'));
+
+        // Case B: Duplicate-name disambiguation by reporter_dept
+        $this->actingAs($engUser)
+            ->withServerVariables(['REMOTE_ADDR' => '127.0.0.1'])
+            ->postJson('/lapangan/issues', [
+                'location'           => 'Kantor',
+                'title'              => 'Printer Finance macet',
+                'description'        => 'Paper jam pada tray 1',
+                'target_departments' => ['Engineer'],
+                'reporter_name'      => 'Budi Santoso',
+                'reporter_dept'      => 'Finance',
+            ])
+            ->assertStatus(200);
+
+        $budiIssue = LeanIssue::where('reporter_name', 'Budi Santoso')->firstOrFail();
+        $this->assertEquals('082222222222', $budiIssue->reporter_phone);
+
+        // Case C: Legacy issue already stored in DB without reporter_phone still gets DM fallback on claim
+        $legacyIssue = LeanIssue::create([
+            'location'           => 'TBR - Staff House',
+            'title'              => 'Pintu Staff House macet',
+            'description'        => 'Engsel pintu berkarat',
+            'target_departments' => ['Engineer'],
+            'reporter_name'      => 'Nadya Pratiwi',
+            'reporter_dept'      => 'HR',
+            'reporter_phone'     => null,
+            'status'             => 'open',
+        ]);
+
+        $this->actingAs($engUser)
+            ->withServerVariables(['REMOTE_ADDR' => '127.0.0.1'])
+            ->postJson("/lapangan/issues/{$legacyIssue->id}/claim", [
+                'workers' => ['Andi'],
+            ])
+            ->assertStatus(200);
+
+        Http::assertSent(fn ($req) => str_ends_with($req->url(), '/notify-direct')
+            && ($req['phone'] ?? '') === '6281299988877'
+            && str_contains($req['message'] ?? '', 'Pintu Staff House macet'));
+    }
+
+    public function test_whatsapp_bot_v2_api_endpoints_prevent_duplicate_group_and_dm_notifications(): void
+    {
+        // 1. apiStore with source='whatsapp_bot' normalizes dept, stores phone, and triggers ZERO HTTP notifications
+        $storeRes = $this->postJson('/api/lean/issues', [
+            'title'          => 'Handuk vila kurang bersih',
+            'description'    => 'Perlu penggantian 2 handuk mandi',
+            'location'       => 'TBR - Villa 02',
+            'department'     => 'Housekeeping',
+            'reporter'       => 'Siti',
+            'reporter_dept'  => 'GR',
+            'reporter_phone' => '6281377788899',
+            'source'         => 'whatsapp_bot',
+        ]);
+
+        $storeRes->assertStatus(200)
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.department', 'HK')
+            ->assertJsonPath('data.reporter_phone', '6281377788899');
+
+        $issueCode = $storeRes->json('data.id');
+        $issue = LeanIssue::latest('id')->firstOrFail();
+        $this->assertEquals(['HK'], $issue->target_departments);
+        $this->assertEquals('6281377788899', $issue->reporter_phone);
+
+        Http::assertNothingSent();
+
+        // Reset fake recorder between steps by re-faking Http cleanly
+        Http::fake([
+            'http://localhost:3000/*' => Http::response(['success' => true], 200),
+            '*'                       => Http::response(['success' => true], 200),
+        ]);
+
+        // 2. apiClaim sends centralized DM to reporter, ZERO /notify group spam
+        $this->postJson("/api/lean/issues/{$issueCode}/claim", [
+            'taker'      => 'Rina HK',
+            'department' => 'Housekeeping',
+        ])->assertStatus(200);
+
+        Http::assertSent(fn ($req) => str_ends_with($req->url(), '/notify-direct')
+            && ($req['phone'] ?? '') === '6281377788899'
+            && str_contains($req['message'] ?? '', 'Rina HK'));
+        Http::assertNotSent(fn ($req) => str_ends_with($req->url(), '/notify'));
+
+        // 3. apiPending accepts Bot V2 'pending_by' key, sends centralized DM, ZERO /notify group spam
+        $this->postJson("/api/lean/issues/{$issueCode}/pending", [
+            'reason'     => 'Menunggu stok handuk dari laundry utama',
+            'pending_by' => 'Spv Rina',
+        ])->assertStatus(200);
+
+        $issue->refresh();
+        $this->assertEquals('pending', $issue->status);
+        $this->assertEquals('Spv Rina', $issue->progress_logs[1]['actor']);
+
+        Http::assertSent(fn ($req) => str_ends_with($req->url(), '/notify-direct')
+            && ($req['phone'] ?? '') === '6281377788899'
+            && str_contains($req['message'] ?? '', 'Spv Rina'));
+        Http::assertNotSent(fn ($req) => str_ends_with($req->url(), '/notify'));
+
+        // 4. apiTransfer normalizes 'Engineering' -> 'Engineer', resets ACCs, returns reporter_phone, sends DM only
+        $transferRes = $this->postJson("/api/lean/issues/{$issueCode}/transfer", [
+            'to_department'  => 'Engineering',
+            'reason'         => 'Mesin pemanas kamar mandi juga bermasalah',
+            'transferred_by' => 'Spv Rina',
+        ]);
+
+        $transferRes->assertStatus(200)
+            ->assertJsonPath('data.to_department', 'Engineer')
+            ->assertJsonPath('data.reporter_phone', '6281377788899');
+
+        $issue->refresh();
+        $this->assertEquals(['Engineer'], $issue->target_departments);
+        $this->assertArrayHasKey('Engineer', $issue->department_accs);
+        $this->assertArrayNotHasKey('HK', $issue->department_accs);
+
+        Http::assertSent(fn ($req) => str_ends_with($req->url(), '/notify-direct')
+            && ($req['phone'] ?? '') === '6281377788899'
+            && str_contains($req['message'] ?? '', 'Pengalihan Departemen Penangan'));
+        Http::assertNotSent(fn ($req) => str_ends_with($req->url(), '/notify'));
+
+        // 5. apiResolve sends DM only, ZERO /notify group spam
+        $this->postJson("/api/lean/issues/{$issueCode}/resolve", [
+            'solver'         => 'Andi Eng',
+            'fixDescription' => 'Pemanas diganti dan area dibersihkan',
+        ])->assertStatus(200);
+
+        Http::assertSent(fn ($req) => str_ends_with($req->url(), '/notify-direct')
+            && ($req['phone'] ?? '') === '6281377788899'
+            && str_contains($req['message'] ?? '', 'Andi Eng'));
+        Http::assertNotSent(fn ($req) => str_ends_with($req->url(), '/notify'));
     }
 }

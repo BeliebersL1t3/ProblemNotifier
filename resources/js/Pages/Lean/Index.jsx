@@ -1544,7 +1544,7 @@ export default function LeanIndex({
                         <div>
                             <p className={`font-bold ${isDark ? 'text-amber-300' : 'text-amber-900'}`}>Lingkungan Uji Coba Terisolasi (Sandbox)</p>
                             <p className={`text-[11px] mt-0.5 leading-relaxed ${isDark ? 'text-amber-200/80' : 'text-amber-800'}`}>
-                                Laporan di sini tidak masuk ke dashboard resmi dan tidak mengirim notifikasi WhatsApp. Bebas dipakai untuk simulasi.
+                                Laporan di sini terpisah dari dashboard tahunan resmi, namun terhubung dengan notifikasi WhatsApp Bot V2 ke pelapor dan grup terkait saat bot aktif.
                             </p>
                         </div>
                     </div>
@@ -2617,7 +2617,7 @@ export default function LeanIndex({
                                         />
                                     </div>
                                     <p className="text-[10px] text-slate-500 mt-0.5">
-                                        Bot WA akan mengirimkan konfirmasi pendaftaran tiket dan info saat selesai ke nomor ini.
+                                        Bot WA akan mengirimkan konfirmasi tiket, update progress/pending/pengalihan, hingga info selesai ke nomor ini.
                                     </p>
                                 </div>
                             </div>

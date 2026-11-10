@@ -138,6 +138,62 @@ class LeanController extends Controller
     }
 
     /**
+     * Resolve reporter WhatsApp number from active approved staff records when phone input is left blank.
+     */
+    protected function resolveReporterPhoneFallback(?string $submittedPhone, string $reporterName, ?string $reporterDept = null): ?string
+    {
+        $cleanSubmitted = trim((string) $submittedPhone);
+        if ($cleanSubmitted !== '') {
+            return $cleanSubmitted;
+        }
+
+        $targetName = mb_strtolower(trim($reporterName));
+        if ($targetName === '') {
+            return null;
+        }
+
+        $matches = User::activeApproved()
+            ->whereNotNull('whatsapp_number')
+            ->where('whatsapp_number', '!=', '')
+            ->get(['id', 'name', 'staff_name', 'department', 'whatsapp_number'])
+            ->filter(function (User $u) use ($targetName) {
+                $staffLower = mb_strtolower(trim((string) $u->staff_name));
+                $nameLower = mb_strtolower(trim((string) $u->name));
+                return $staffLower === $targetName || $nameLower === $targetName;
+            })
+            ->values();
+
+        if ($matches->count() === 1) {
+            return trim((string) $matches->first()->whatsapp_number) ?: null;
+        }
+
+        if ($matches->count() > 1 && !empty($reporterDept)) {
+            $normDept = self::normalizeDepartment($reporterDept);
+            $deptMatches = $matches->filter(function (User $u) use ($normDept) {
+                return strcasecmp(self::normalizeDepartment((string) $u->department), $normDept) === 0;
+            })->values();
+
+            if ($deptMatches->count() === 1) {
+                return trim((string) $deptMatches->first()->whatsapp_number) ?: null;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Resolve reporter WhatsApp number for an existing issue, falling back to staff directory lookup.
+     */
+    protected function resolveIssueReporterPhone(LeanIssue $issue): ?string
+    {
+        return $this->resolveReporterPhoneFallback(
+            $issue->reporter_phone,
+            (string) $issue->reporter_name,
+            $issue->reporter_dept
+        );
+    }
+
+    /**
      * Display the mobile-first lean dashboard.
      */
     public function index(Request $request)
@@ -286,6 +342,12 @@ class LeanController extends Controller
             ];
         }
 
+        $resolvedReporterPhone = $this->resolveReporterPhoneFallback(
+            $validated['reporter_phone'] ?? null,
+            $validated['reporter_name'],
+            $validated['reporter_dept'] ?? null
+        );
+
         $issue = new LeanIssue([
             'location'           => $validated['location'],
             'title'              => $validated['title'],
@@ -293,7 +355,7 @@ class LeanController extends Controller
             'target_departments' => $targetDepts,
             'reporter_name'      => $validated['reporter_name'],
             'reporter_dept'      => !empty($validated['reporter_dept']) ? $validated['reporter_dept'] : null,
-            'reporter_phone'     => $validated['reporter_phone'] ?? null,
+            'reporter_phone'     => $resolvedReporterPhone,
             'image_url'          => $imageUrl,
             'status'             => $startInProgress ? 'in_progress' : 'open',
             'department_accs'    => $accs,
@@ -326,8 +388,9 @@ class LeanController extends Controller
 
         $issue->save();
 
-        // Dispatch automated WhatsApp confirmation to the reporting staff
+        // Dispatch automated WhatsApp notifications (reporter DM + target groups)
         $this->notifyReporterCreated($issue, $receiverName, $receiverDept, $workerNames);
+        $this->notifyGroupsCreated($issue, $receiverName, $receiverDept, $workerNames);
 
         // Failsafe Google Sheets sync
         try {
@@ -470,6 +533,7 @@ class LeanController extends Controller
         $issue->save();
 
         $this->notifyReporterClaimed($issue, $workersStr, $dept, $wasPending, $note);
+        $this->notifyGroupsClaimed($issue, $workersStr, $dept, $wasPending, $note);
         $this->syncIssueToSheets($issue, 'claim');
 
         return $this->actionSuccessResponse($request, $issue, "Isu mulai dikerjakan oleh {$workersStr} ({$dept}).");
@@ -563,6 +627,7 @@ class LeanController extends Controller
         if ($notifyReporter) {
             $this->notifyReporterProgress($issue, $actorName, $actorDept, $comment, $newWorkers, $addedWorkers, $removedWorkers);
         }
+        $this->notifyGroupsProgress($issue, $actorName, $actorDept, $comment, $newWorkers, $addedWorkers, $removedWorkers);
 
         $this->syncIssueToSheets($issue, 'progress');
 
@@ -619,6 +684,7 @@ class LeanController extends Controller
         $issue->save();
 
         $this->notifyReporterPending($issue, $actorName, $actorDept, $reason, $isUpdatePending);
+        $this->notifyGroupsPending($issue, $actorName, $actorDept, $reason, $isUpdatePending);
         $this->syncIssueToSheets($issue, 'pending');
 
         return $this->actionSuccessResponse($request, $issue, $isUpdatePending ? 'Alasan pending berhasil diperbarui.' : 'Isu berhasil ditandai Pending.');
@@ -703,8 +769,9 @@ class LeanController extends Controller
 
         $issue->save();
 
-        // Dispatch automated WhatsApp completion notification to the reporting staff
+        // Dispatch automated WhatsApp completion notifications (reporter DM + target groups)
         $this->notifyReporterResolved($issue, $finalWorkersStr, $dept, $note);
+        $this->notifyGroupsResolved($issue, $finalWorkersStr, $dept, $note);
         $this->syncIssueToSheets($issue, 'resolve');
 
         return $this->actionSuccessResponse($request, $issue, 'Masalah berhasil ditandai selesai!');
@@ -790,6 +857,7 @@ class LeanController extends Controller
         $issue->save();
 
         $this->notifyReporterTransferred($issue, $oldDept, $toDept, $actorName, $reason);
+        $this->notifyGroupsTransferred($issue, $oldDepts, $oldDept, $toDept, $actorName, $reason);
         $this->syncIssueToSheets($issue, 'transfer');
 
         return $this->actionSuccessResponse($request, $issue, "Isu berhasil dialihkan ke departemen {$toDept}.");
@@ -995,7 +1063,9 @@ class LeanController extends Controller
             'location'       => 'required|string|max:255',
             'department'     => 'required|string|max:100',
             'reporter'       => 'required|string|max:255',
+            'reporter_dept'  => 'nullable|string|max:100',
             'reporter_phone' => 'nullable|string|max:30',
+            'source'         => 'nullable|string|max:50',
             'image'          => 'nullable|image|max:10240',
         ]);
 
@@ -1007,18 +1077,26 @@ class LeanController extends Controller
             $imageUrl = '/uploads/' . $filename;
         }
 
+        $targetDept = self::normalizeDepartment($validated['department']) ?: trim($validated['department']);
+        $reporterDept = trim((string) ($validated['reporter_dept'] ?? $request->input('reporter_dept', 'Umum'))) ?: 'Umum';
+        $resolvedReporterPhone = $this->resolveReporterPhoneFallback(
+            $validated['reporter_phone'] ?? null,
+            $validated['reporter'],
+            $reporterDept
+        );
+
         $issue = LeanIssue::create([
             'location'           => $validated['location'],
             'title'              => $validated['title'],
             'description'        => $validated['description'] ?? null,
-            'target_departments' => [$validated['department']],
+            'target_departments' => [$targetDept],
             'reporter_name'      => $validated['reporter'],
-            'reporter_dept'      => $request->input('reporter_dept', 'Umum'),
-            'reporter_phone'     => $validated['reporter_phone'] ?? null,
+            'reporter_dept'      => $reporterDept,
+            'reporter_phone'     => $resolvedReporterPhone,
             'image_url'          => $imageUrl,
             'status'             => 'open',
             'department_accs'    => [
-                $validated['department'] => [
+                $targetDept => [
                     'is_acc' => false,
                     'acc_by' => null,
                     'acc_at' => null,
@@ -1026,8 +1104,10 @@ class LeanController extends Controller
             ],
         ]);
 
-        // Dispatch automated WhatsApp confirmation to the reporting staff
-        $this->notifyReporterCreated($issue, 'WhatsApp Bot', $validated['department']);
+        // Skip DM confirmation when submitted directly from WhatsApp Bot V2 (bot replies immediately in DM chat)
+        if (($validated['source'] ?? '') !== 'whatsapp_bot') {
+            $this->notifyReporterCreated($issue, 'WhatsApp Bot', $targetDept);
+        }
 
         // Failsafe Google Sheets sync for WhatsApp Bot V2
         try {
@@ -1043,14 +1123,15 @@ class LeanController extends Controller
             'success' => true,
             'message' => 'Laporan Lean berhasil dibuat!',
             'data'    => [
-                'id'          => $code,
-                'raw_id'      => $issue->id,
-                'title'       => $issue->title,
-                'location'    => $issue->location,
-                'department'  => $validated['department'],
-                'reporter'    => $issue->reporter_name,
-                'status'      => 'open',
-                'imageUrl'    => $imageUrl,
+                'id'             => $code,
+                'raw_id'         => $issue->id,
+                'title'          => $issue->title,
+                'location'       => $issue->location,
+                'department'     => $targetDept,
+                'reporter'       => $issue->reporter_name,
+                'reporter_phone' => $issue->reporter_phone,
+                'status'         => 'open',
+                'imageUrl'       => $imageUrl,
             ],
         ]);
     }
@@ -1066,13 +1147,15 @@ class LeanController extends Controller
         }
 
         $taker = $request->input('taker', 'Staf WhatsApp');
-        $dept = $request->input('department', is_array($issue->target_departments) ? ($issue->target_departments[0] ?? '') : '');
+        $rawDept = $request->input('department', is_array($issue->target_departments) ? ($issue->target_departments[0] ?? '') : '');
+        $dept = self::normalizeDepartment((string) $rawDept) ?: trim((string) $rawDept);
+        $wasPending = $issue->status === 'pending';
 
         // Automatically set ACC / readiness response for this department
         $accs = $issue->department_accs ?? [];
         $found = false;
         foreach ($accs as $d => $val) {
-            if (strcasecmp($d, $dept) === 0 || empty($dept)) {
+            if (strcasecmp(self::normalizeDepartment((string) $d), $dept) === 0 || empty($dept)) {
                 $accs[$d] = [
                     'is_acc' => true,
                     'acc_by' => $taker,
@@ -1106,6 +1189,10 @@ class LeanController extends Controller
         $issue->department_accs = $accs;
         $issue->addProgressLog('claim', $taker, $dept, 'Mulai dikerjakan via WhatsApp.', ['workers' => $workersList]);
         $issue->save();
+
+        // Notify reporting staff DM centrally (bot replies directly in originating group)
+        $targetDeptDisplay = !empty($issue->target_departments) ? $issue->target_departments[0] : ($dept ?: 'Resort');
+        $this->notifyReporterClaimed($issue, $taker, $targetDeptDisplay, $wasPending);
 
         try {
             app(GoogleSheetsSyncService::class)->syncIssue($issue);
@@ -1189,16 +1276,24 @@ class LeanController extends Controller
             'transferred_by' => 'required|string|max:255',
         ]);
 
-        $oldDept = is_array($issue->target_departments) ? ($issue->target_departments[0] ?? 'General') : ($issue->target_departments ?? 'General');
-        $newDept = trim($request->input('to_department'));
+        $oldDepts = is_array($issue->target_departments) ? $issue->target_departments : [];
+        $oldDept = $oldDepts[0] ?? 'General';
+        $newDept = self::normalizeDepartment($request->input('to_department')) ?: trim((string) $request->input('to_department'));
         $reason = trim($request->input('reason'));
         $transferredBy = trim($request->input('transferred_by'));
         $transferredByPhone = trim($request->input('transferred_by_phone', ''));
 
+        if (count($oldDepts) === 1 && strcasecmp(self::normalizeDepartment((string) $oldDept), $newDept) === 0) {
+            return response()->json([
+                'success' => false,
+                'message' => "Isu ini sudah ditujukan ke departemen {$newDept}. Pilih departemen tujuan lain.",
+            ], 422);
+        }
+
         // Record transfer history (unlimited audit trail)
         $history = $issue->transfer_history ?? [];
         $history[] = [
-            'from_department'      => $oldDept,
+            'from_department'      => implode(', ', $oldDepts) ?: $oldDept,
             'to_department'        => $newDept,
             'reason'               => $reason,
             'transferred_by'       => $transferredBy,
@@ -1206,7 +1301,7 @@ class LeanController extends Controller
             'transferred_at'       => Carbon::now('Asia/Jakarta')->toIso8601String(),
         ];
 
-        // Update LeanIssue
+        // Update LeanIssue & reset ACC readiness for new department
         $issue->target_departments = [$newDept];
         $issue->status = 'open';
         $issue->active_workers = [];
@@ -1215,9 +1310,19 @@ class LeanController extends Controller
         $issue->claimed_at = null;
         $issue->pending_reason = null;
         $issue->pending_since = null;
+        $issue->department_accs = [
+            $newDept => [
+                'is_acc' => false,
+                'acc_by' => null,
+                'acc_at' => null,
+            ],
+        ];
         $issue->transfer_history = $history;
         $issue->addProgressLog('transfer', $transferredBy, $oldDept, "Dialihkan dari {$oldDept} ke {$newDept}: {$reason}");
         $issue->save();
+
+        // Dispatch centralized reporter DM notification (bot handles group replies directly)
+        $this->notifyReporterTransferred($issue, $oldDept, $newDept, $transferredBy, $reason);
 
         try {
             app(GoogleSheetsSyncService::class)->syncIssue($issue);
@@ -1239,6 +1344,7 @@ class LeanController extends Controller
                 'from_department'  => $oldDept,
                 'to_department'    => $newDept,
                 'transferred_by'   => $transferredBy,
+                'reporter_phone'   => $issue->reporter_phone,
                 'reason'           => $reason,
                 'status'           => 'open',
                 'transfer_history' => $history,
@@ -1256,9 +1362,10 @@ class LeanController extends Controller
             return response()->json(['success' => false, 'message' => 'Isu tidak ditemukan.'], 404);
         }
 
-        $reason = $request->input('reason', 'Tertunda');
-        $actor = $request->input('actor', 'Staf WhatsApp');
+        $reason = trim((string) $request->input('reason', 'Tertunda')) ?: 'Tertunda';
+        $actor = trim((string) ($request->input('actor') ?: $request->input('pending_by', 'Staf WhatsApp'))) ?: 'Staf WhatsApp';
         $dept = !empty($issue->target_departments) ? $issue->target_departments[0] : 'Umum';
+        $wasPending = $issue->status === 'pending';
 
         $issue->status = 'pending';
         $issue->pending_reason = $reason;
@@ -1266,6 +1373,9 @@ class LeanController extends Controller
         $issue->resolution_note = "Pending: {$reason}";
         $issue->addProgressLog('pending', $actor, $dept, "Ditunda (Pending): {$reason}", ['pending_reason' => $reason]);
         $issue->save();
+
+        // Dispatch centralized reporter DM notification (bot handles group replies directly)
+        $this->notifyReporterPending($issue, $actor, $dept, $reason, $wasPending);
 
         try {
             app(GoogleSheetsSyncService::class)->syncIssue($issue);
@@ -1290,7 +1400,8 @@ class LeanController extends Controller
      */
     protected function notifyReporterCreated(LeanIssue $issue, string $receiverName, string $receiverDept, ?string $assignedWorkers = null): void
     {
-        if (empty($issue->reporter_phone)) {
+        $reporterPhone = $this->resolveIssueReporterPhone($issue);
+        if (empty($reporterPhone)) {
             return;
         }
 
@@ -1313,10 +1424,10 @@ class LeanController extends Controller
                  . "👤 *Penerima Laporan:* {$receiverName}\n"
                  . $workerLine
                  . "📊 *Status Awal:* {$statusText}\n\n"
-                 . "Kami akan mengabari Anda kembali melalui WhatsApp ini begitu perbaikan selesai. Terima kasih!";
+                 . "Kami akan terus mengabari perkembangan status laporan Anda (*dikerjakan, progress, pending, pengalihan,* hingga *selesai*) melalui WhatsApp ini. Terima kasih!";
 
         try {
-            TicketNotificationService::sendWhatsApp($issue->reporter_phone, $message);
+            TicketNotificationService::sendWhatsApp($reporterPhone, $message);
         } catch (\Throwable $t) {
             Log::warning("Failed to send WhatsApp creation notice: " . $t->getMessage());
         }
@@ -1327,7 +1438,8 @@ class LeanController extends Controller
      */
     protected function notifyReporterResolved(LeanIssue $issue, ?string $solverName, ?string $solverDept, ?string $note = null): void
     {
-        if (empty($issue->reporter_phone)) {
+        $reporterPhone = $this->resolveIssueReporterPhone($issue);
+        if (empty($reporterPhone)) {
             return;
         }
 
@@ -1346,7 +1458,7 @@ class LeanController extends Controller
                  . "Terima kasih atas bantuan Anda dalam menjaga kenyamanan Telunas Resorts!";
 
         try {
-            TicketNotificationService::sendWhatsApp($issue->reporter_phone, $message);
+            TicketNotificationService::sendWhatsApp($reporterPhone, $message);
         } catch (\Throwable $t) {
             Log::warning("Failed to send WhatsApp resolution notice: " . $t->getMessage());
         }
@@ -1357,7 +1469,8 @@ class LeanController extends Controller
      */
     protected function notifyReporterClaimed(LeanIssue $issue, string $workersStr, string $dept, bool $wasPending = false, string $note = ''): void
     {
-        if (empty($issue->reporter_phone)) {
+        $reporterPhone = $this->resolveIssueReporterPhone($issue);
+        if (empty($reporterPhone)) {
             return;
         }
 
@@ -1378,7 +1491,7 @@ class LeanController extends Controller
                  . "Kami akan terus mengabari perkembangan penanganannya melalui WhatsApp ini.";
 
         try {
-            TicketNotificationService::sendWhatsApp($issue->reporter_phone, $message);
+            TicketNotificationService::sendWhatsApp($reporterPhone, $message);
         } catch (\Throwable $t) {
             Log::warning("Failed to send WhatsApp claim notice: " . $t->getMessage());
         }
@@ -1396,7 +1509,8 @@ class LeanController extends Controller
         array $addedWorkers = [],
         array $removedWorkers = []
     ): void {
-        if (empty($issue->reporter_phone)) {
+        $reporterPhone = $this->resolveIssueReporterPhone($issue);
+        if (empty($reporterPhone)) {
             return;
         }
 
@@ -1424,7 +1538,7 @@ class LeanController extends Controller
                  . "👤 *Diperbarui Oleh:* {$actorName}";
 
         try {
-            TicketNotificationService::sendWhatsApp($issue->reporter_phone, $message);
+            TicketNotificationService::sendWhatsApp($reporterPhone, $message);
         } catch (\Throwable $t) {
             Log::warning("Failed to send WhatsApp progress notice: " . $t->getMessage());
         }
@@ -1435,7 +1549,8 @@ class LeanController extends Controller
      */
     protected function notifyReporterPending(LeanIssue $issue, string $actorName, string $dept, string $reason, bool $isUpdatePending = false): void
     {
-        if (empty($issue->reporter_phone)) {
+        $reporterPhone = $this->resolveIssueReporterPhone($issue);
+        if (empty($reporterPhone)) {
             return;
         }
 
@@ -1456,7 +1571,7 @@ class LeanController extends Controller
                  . "Tim akan kembali melanjutkan pengerjaan begitu kendala di atas teratasi.";
 
         try {
-            TicketNotificationService::sendWhatsApp($issue->reporter_phone, $message);
+            TicketNotificationService::sendWhatsApp($reporterPhone, $message);
         } catch (\Throwable $t) {
             Log::warning("Failed to send WhatsApp pending notice: " . $t->getMessage());
         }
@@ -1467,7 +1582,8 @@ class LeanController extends Controller
      */
     protected function notifyReporterTransferred(LeanIssue $issue, string $fromDept, string $toDept, string $actorName, string $reason): void
     {
-        if (empty($issue->reporter_phone)) {
+        $reporterPhone = $this->resolveIssueReporterPhone($issue);
+        if (empty($reporterPhone)) {
             return;
         }
 
@@ -1485,9 +1601,254 @@ class LeanController extends Controller
                  . "Status tiket kembali *Open* untuk departemen *{$toDept}*.";
 
         try {
-            TicketNotificationService::sendWhatsApp($issue->reporter_phone, $message);
+            TicketNotificationService::sendWhatsApp($reporterPhone, $message);
         } catch (\Throwable $t) {
             Log::warning("Failed to send WhatsApp transfer notice: " . $t->getMessage());
+        }
+    }
+
+    // ─── Group Notifications (Triggered ONLY on Dashboard /lapangan actions) ─
+
+    protected function notifyGroupsCreated(LeanIssue $issue, string $receiverName, string $receiverDept, ?string $assignedWorkers = null): void
+    {
+        $issueCode = self::formatIssueCode($issue);
+        $targetDepts = is_array($issue->target_departments) ? $issue->target_departments : [$receiverDept];
+        $deptDisplay = implode(', ', $targetDepts) ?: $receiverDept;
+        $reporterDeptDisplay = $issue->reporter_dept ? " ({$issue->reporter_dept})" : '';
+        $descText = trim((string) $issue->description) !== '' ? trim((string) $issue->description) : '-';
+        $statusText = $issue->status === 'in_progress'
+            ? "⚡ *Langsung Dikerjakan* oleh {$assignedWorkers}"
+            : "🕒 *Open (Menunggu Penanganan)*";
+        $actionHint = $issue->status === 'open'
+            ? "\n👉 _Ketik *ambil {$issueCode}* atau reply pesan ini dengan kata *ambil* untuk mengambil tugas._"
+            : '';
+
+        $message = "📢 *LAPORAN MASALAH BARU (DASHBOARD)* 📢\n\n"
+                 . "• *ID Tiket:* #{$issueCode}\n"
+                 . "• *Masalah:* {$issue->title}\n"
+                 . "• *Lokasi:* {$issue->location}\n"
+                 . "• *Departemen Tujuan:* {$deptDisplay}\n"
+                 . "• *Pelapor:* {$issue->reporter_name}{$reporterDeptDisplay}\n"
+                 . "• *Dicatat Oleh:* {$receiverName}\n"
+                 . "• *Status Awal:* {$statusText}\n"
+                 . "• *Deskripsi:* {$descText}"
+                 . $actionHint;
+
+        try {
+            TicketNotificationService::sendWhatsAppGroup([
+                'message'         => $message,
+                'imageUrl'        => $issue->image_url,
+                'departments'     => $targetDepts,
+                'location'        => $issue->location,
+                'includeLocation' => true,
+                'includeGeneral'  => true,
+                'departmentOnly'  => false,
+            ]);
+        } catch (\Throwable $t) {
+            Log::warning("Failed to send WhatsApp group creation notice: " . $t->getMessage());
+        }
+    }
+
+    protected function notifyGroupsClaimed(LeanIssue $issue, string $workersStr, string $dept, bool $wasPending = false, string $note = ''): void
+    {
+        $issueCode = self::formatIssueCode($issue);
+        $targetDepts = is_array($issue->target_departments) && !empty($issue->target_departments)
+            ? $issue->target_departments
+            : [$dept];
+        $heading = $wasPending
+            ? "🔄 *TIKET DILANJUTKAN DARI PENDING* 🔄"
+            : "⚡ *TIKET MULAI DIKERJAKAN* ⚡";
+        $noteLine = $note !== '' ? "\n• *Catatan:* {$note}" : '';
+
+        $message = "{$heading}\n\n"
+                 . "• *ID Tiket:* #{$issueCode}\n"
+                 . "• *Masalah:* {$issue->title}\n"
+                 . "• *Lokasi:* {$issue->location}\n"
+                 . "• *Dikerjakan Oleh:* {$workersStr} ({$dept})\n"
+                 . "• *Status:* 🟡 In Progress{$noteLine}\n\n"
+                 . "_Ketik *selesai {$issueCode}* bila selesai atau *pending {$issueCode} [Alasan]* bila tertunda._";
+
+        try {
+            TicketNotificationService::sendWhatsAppGroup([
+                'message'        => $message,
+                'departments'    => $targetDepts,
+                'departmentOnly' => true,
+            ]);
+        } catch (\Throwable $t) {
+            Log::warning("Failed to send WhatsApp group claim notice: " . $t->getMessage());
+        }
+    }
+
+    protected function notifyGroupsProgress(
+        LeanIssue $issue,
+        string $actorName,
+        string $dept,
+        string $comment,
+        array $activeWorkers,
+        array $addedWorkers = [],
+        array $removedWorkers = []
+    ): void {
+        $issueCode = self::formatIssueCode($issue);
+        $targetDepts = is_array($issue->target_departments) && !empty($issue->target_departments)
+            ? $issue->target_departments
+            : [$dept];
+        $workersText = !empty($activeWorkers) ? implode(', ', $activeWorkers) : '-';
+        $commentLine = $comment !== '' ? "\n• *Catatan Progress:* {$comment}" : '';
+        $changeParts = [];
+        if (!empty($addedWorkers)) {
+            $changeParts[] = '+Ditambah: ' . implode(', ', $addedWorkers);
+        }
+        if (!empty($removedWorkers)) {
+            $changeParts[] = '-Dikurangi: ' . implode(', ', $removedWorkers);
+        }
+        $teamChangeLine = !empty($changeParts) ? "\n• *Perubahan Tim:* " . implode(' | ', $changeParts) : '';
+
+        $message = "🔧 *UPDATE PROGRESS PEKERJAAN* 🔧\n\n"
+                 . "• *ID Tiket:* #{$issueCode}\n"
+                 . "• *Masalah:* {$issue->title}\n"
+                 . "• *Lokasi:* {$issue->location}\n"
+                 . "• *Tim Aktif ({$dept}):* {$workersText}"
+                 . $commentLine
+                 . $teamChangeLine . "\n"
+                 . "• *Diperbarui Oleh:* {$actorName}";
+
+        try {
+            TicketNotificationService::sendWhatsAppGroup([
+                'message'        => $message,
+                'departments'    => $targetDepts,
+                'departmentOnly' => true,
+            ]);
+        } catch (\Throwable $t) {
+            Log::warning("Failed to send WhatsApp group progress notice: " . $t->getMessage());
+        }
+    }
+
+    protected function notifyGroupsPending(LeanIssue $issue, string $actorName, string $dept, string $reason, bool $isUpdatePending = false): void
+    {
+        $issueCode = self::formatIssueCode($issue);
+        $targetDepts = is_array($issue->target_departments) && !empty($issue->target_departments)
+            ? $issue->target_departments
+            : [$dept];
+        $heading = $isUpdatePending
+            ? "⏸️ *UPDATE ALASAN PENDING TIKET* ⏸️"
+            : "⏸️ *TIKET DITANDAI PENDING / TERTUNDA* ⏸️";
+
+        $message = "{$heading}\n\n"
+                 . "• *ID Tiket:* #{$issueCode}\n"
+                 . "• *Masalah:* {$issue->title}\n"
+                 . "• *Lokasi:* {$issue->location}\n"
+                 . "• *Departemen:* {$dept}\n"
+                 . "• *Alasan Pending:* {$reason}\n"
+                 . "• *Dicatat Oleh:* {$actorName}\n\n"
+                 . "_Ketik *ambil {$issueCode}* bila pekerjaan siap dilanjutkan kembali._";
+
+        try {
+            TicketNotificationService::sendWhatsAppGroup([
+                'message'        => $message,
+                'departments'    => $targetDepts,
+                'departmentOnly' => true,
+            ]);
+        } catch (\Throwable $t) {
+            Log::warning("Failed to send WhatsApp group pending notice: " . $t->getMessage());
+        }
+    }
+
+    protected function notifyGroupsResolved(LeanIssue $issue, ?string $solverName, ?string $solverDept, ?string $note = null): void
+    {
+        $issueCode = self::formatIssueCode($issue);
+        $targetDepts = is_array($issue->target_departments) && !empty($issue->target_departments)
+            ? $issue->target_departments
+            : [$solverDept ?: 'Resort'];
+        $solverDisplay = $solverName ?: 'Tim Departemen';
+        $deptDisplay = $solverDept ?: 'Resort';
+        $contributorsList = is_array($issue->contributors) && !empty($issue->contributors)
+            ? implode(', ', $issue->contributors)
+            : $solverDisplay;
+        $noteLine = trim((string) $note) !== '' ? "\n• *Deskripsi Penyelesaian:* " . trim((string) $note) : '';
+
+        $message = "✅ *TIKET TELAH SELESAI DITANGANI* ✅\n\n"
+                 . "• *ID Tiket:* #{$issueCode}\n"
+                 . "• *Masalah:* {$issue->title}\n"
+                 . "• *Lokasi:* {$issue->location}\n"
+                 . "• *Departemen:* {$deptDisplay}\n"
+                 . "• *Diselesaikan Oleh:* {$solverDisplay}\n"
+                 . "• *Seluruh Kontributor:* {$contributorsList}{$noteLine}\n"
+                 . "• *Status:* 🟢 Selesai (Resolved)";
+
+        try {
+            TicketNotificationService::sendWhatsAppGroup([
+                'message'         => $message,
+                'imageUrl'        => $issue->resolution_image_url,
+                'departments'     => $targetDepts,
+                'location'        => $issue->location,
+                'includeLocation' => true,
+                'includeGeneral'  => true,
+                'departmentOnly'  => false,
+            ]);
+        } catch (\Throwable $t) {
+            Log::warning("Failed to send WhatsApp group resolution notice: " . $t->getMessage());
+        }
+    }
+
+    protected function notifyGroupsTransferred(
+        LeanIssue $issue,
+        array $oldDepts,
+        string $oldDept,
+        string $newDept,
+        string $actorName,
+        string $reason
+    ): void {
+        $issueCode = self::formatIssueCode($issue);
+
+        $filteredOldDepts = array_values(array_filter($oldDepts, function ($d) use ($newDept) {
+            return strcasecmp(self::normalizeDepartment((string) $d), $newDept) !== 0;
+        }));
+        if (empty($filteredOldDepts) && strcasecmp(self::normalizeDepartment($oldDept), $newDept) !== 0) {
+            $filteredOldDepts = [$oldDept];
+        }
+
+        // 1. Notify old department group(s): ticket released
+        if (!empty($filteredOldDepts)) {
+            $oldDeptMsg = "🔄 *TIKET DIALIHKAN KE DEPARTEMEN LAIN* 🔄\n\n"
+                        . "• *ID Tiket:* #{$issueCode}\n"
+                        . "• *Masalah:* {$issue->title}\n"
+                        . "• *Lokasi:* {$issue->location}\n"
+                        . "• *Dialihkan:* {$oldDept} ➔ *{$newDept}*\n"
+                        . "• *Oleh:* {$actorName}\n"
+                        . "• *Alasan:* {$reason}\n\n"
+                        . "_Tiket telah dilepaskan dari antrean {$oldDept} dan diteruskan ke grup {$newDept}._";
+
+            try {
+                TicketNotificationService::sendWhatsAppGroup([
+                    'message'        => $oldDeptMsg,
+                    'departments'    => $filteredOldDepts,
+                    'departmentOnly' => true,
+                ]);
+            } catch (\Throwable $t) {
+                Log::warning("Failed to send WhatsApp group transfer notice (old dept): " . $t->getMessage());
+            }
+        }
+
+        // 2. Notify new target department group: incoming ticket
+        $descText = trim((string) $issue->description) !== '' ? trim((string) $issue->description) : '-';
+        $newDeptMsg = "📥 *TIKET MASUK (DIALIHKAN DARI {$oldDept})* 📥\n\n"
+                    . "• *ID Tiket:* #{$issueCode}\n"
+                    . "• *Masalah:* {$issue->title}\n"
+                    . "• *Lokasi:* {$issue->location}\n"
+                    . "• *Dialihkan Dari:* {$oldDept}\n"
+                    . "• *Dialihkan Oleh:* {$actorName}\n"
+                    . "• *Alasan Pengalihan:* {$reason}\n"
+                    . "• *Deskripsi Asal:* {$descText}\n\n"
+                    . "👉 _Ketik *ambil {$issueCode}* atau reply pesan ini dengan kata *ambil* untuk mengambil tugas._";
+
+        try {
+            TicketNotificationService::sendWhatsAppGroup([
+                'message'        => $newDeptMsg,
+                'departments'    => [$newDept],
+                'departmentOnly' => true,
+            ]);
+        } catch (\Throwable $t) {
+            Log::warning("Failed to send WhatsApp group transfer notice (new dept): " . $t->getMessage());
         }
     }
 }
