@@ -456,11 +456,12 @@ class LeanController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'workers'    => 'nullable|array|min:1',
-            'workers.*'  => 'string|max:100',
-            'staff_name' => 'nullable|string|max:255',
-            'dept'       => 'nullable|string|max:50',
-            'note'       => 'nullable|string|max:1000',
+            'workers'         => 'nullable|array|min:1',
+            'workers.*'       => 'string|max:100',
+            'staff_name'      => 'nullable|string|max:255',
+            'dept'            => 'nullable|string|max:50',
+            'note'            => 'nullable|string|max:1000',
+            'notify_reporter' => 'nullable',
         ], [
             'workers.min' => 'Pilih minimal 1 pekerja yang mengerjakan.',
         ]);
@@ -486,6 +487,9 @@ class LeanController extends Controller
 
         $wasPending = $issue->status === 'pending';
         $note = trim((string) $request->input('note', ''));
+        $notifyReporter = $request->has('notify_reporter')
+            ? filter_var($request->input('notify_reporter'), FILTER_VALIDATE_BOOLEAN)
+            : true;
 
         // Record initial workers only on first claim so evaluation retains who took the issue initially
         if (empty($issue->initial_workers)) {
@@ -521,22 +525,41 @@ class LeanController extends Controller
         $issue->pending_reason = null;
         $issue->pending_since = null;
 
+        $logType = $wasPending ? 'progress' : 'claim';
         $logMsg = $note !== ''
             ? $note
-            : ($wasPending ? 'Melanjutkan kembali pengerjaan dari status Pending.' : 'Mulai dikerjakan.');
+            : ($wasPending ? 'Melanjutkan kembali ke tahap Progress.' : 'Mulai dikerjakan.');
 
-        $issue->addProgressLog('claim', $actorName, $dept, $logMsg, [
+        $issue->addProgressLog($logType, $actorName, $dept, $logMsg, [
             'workers'        => $workersList,
             'active_workers' => $workersList,
+            'notified_wa'    => false,
         ]);
 
         $issue->save();
 
-        $this->notifyReporterClaimed($issue, $workersStr, $dept, $wasPending, $note);
+        $waSent = false;
+        if (!$wasPending || $notifyReporter) {
+            $waSent = $this->notifyReporterClaimed($issue, $workersStr, $dept, $wasPending, $note);
+        }
+
+        if ($wasPending && $waSent) {
+            $logs = $issue->progress_logs ?? [];
+            if (!empty($logs)) {
+                $logs[count($logs) - 1]['notified_wa'] = true;
+                $issue->progress_logs = $logs;
+                $issue->save();
+            }
+        }
+
         $this->notifyGroupsClaimed($issue, $workersStr, $dept, $wasPending, $note);
         $this->syncIssueToSheets($issue, 'claim');
 
-        return $this->actionSuccessResponse($request, $issue, "Isu mulai dikerjakan oleh {$workersStr} ({$dept}).");
+        $successText = $wasPending
+            ? "Isu dilanjutkan ke tahap Progress oleh {$workersStr} ({$dept})."
+            : "Isu mulai dikerjakan oleh {$workersStr} ({$dept}).";
+
+        return $this->actionSuccessResponse($request, $issue, $successText);
     }
 
     /**
@@ -1187,7 +1210,9 @@ class LeanController extends Controller
         $issue->pending_reason = null;
         $issue->pending_since = null;
         $issue->department_accs = $accs;
-        $issue->addProgressLog('claim', $taker, $dept, 'Mulai dikerjakan via WhatsApp.', ['workers' => $workersList]);
+        $logType = $wasPending ? 'progress' : 'claim';
+        $logMsg = $wasPending ? 'Melanjutkan kembali ke tahap Progress via WhatsApp.' : 'Mulai dikerjakan via WhatsApp.';
+        $issue->addProgressLog($logType, $taker, $dept, $logMsg, ['workers' => $workersList]);
         $issue->save();
 
         // Notify reporting staff DM centrally (bot replies directly in originating group)
@@ -1465,24 +1490,27 @@ class LeanController extends Controller
     }
 
     /**
-     * Dispatch WhatsApp notification when an issue is claimed / started (or resumed from pending).
+     * Dispatch WhatsApp notification when an issue is claimed / started (or resumed to Progress from pending).
      */
-    protected function notifyReporterClaimed(LeanIssue $issue, string $workersStr, string $dept, bool $wasPending = false, string $note = ''): void
+    protected function notifyReporterClaimed(LeanIssue $issue, string $workersStr, string $dept, bool $wasPending = false, string $note = ''): bool
     {
         $reporterPhone = $this->resolveIssueReporterPhone($issue);
         if (empty($reporterPhone)) {
-            return;
+            return false;
         }
 
         $issueCode = self::formatIssueCode($issue);
         $titleHeader = $wasPending
-            ? "🔄 *Laporan Kembali Dikerjakan - Telunas Tracker*"
+            ? "🔄 *Laporan Dilanjutkan ke Tahap Progress - Telunas Tracker*"
             : "⚡ *Laporan Mulai Dikerjakan - Telunas Tracker*";
+        $statusLine = $wasPending
+            ? "Laporan Anda kini kembali dalam tahap *Progress*:"
+            : "Isu Anda kini berstatus *In Progress*:";
         $noteLine = $note !== '' ? "\n📝 *Catatan:* {$note}" : '';
 
         $message = "{$titleHeader}\n\n"
                  . "Halo *{$issue->reporter_name}*,\n"
-                 . "Isu Anda kini berstatus *In Progress*:\n\n"
+                 . "{$statusLine}\n\n"
                  . "📌 *Masalah:* {$issue->title}\n"
                  . "📍 *Lokasi:* {$issue->location}\n"
                  . "🏷️ *Kode Tiket:* #{$issueCode}\n"
@@ -1491,9 +1519,10 @@ class LeanController extends Controller
                  . "Kami akan terus mengabari perkembangan penanganannya melalui WhatsApp ini.";
 
         try {
-            TicketNotificationService::sendWhatsApp($reporterPhone, $message);
+            return TicketNotificationService::sendWhatsApp($reporterPhone, $message);
         } catch (\Throwable $t) {
             Log::warning("Failed to send WhatsApp claim notice: " . $t->getMessage());
+            return false;
         }
     }
 
@@ -1619,9 +1648,6 @@ class LeanController extends Controller
         $statusText = $issue->status === 'in_progress'
             ? "⚡ *Langsung Dikerjakan* oleh {$assignedWorkers}"
             : "🕒 *Open (Menunggu Penanganan)*";
-        $actionHint = $issue->status === 'open'
-            ? "\n👉 _Ketik *ambil {$issueCode}* atau reply pesan ini dengan kata *ambil* untuk mengambil tugas._"
-            : '';
 
         $message = "📢 *LAPORAN MASALAH BARU (DASHBOARD)* 📢\n\n"
                  . "• *ID Tiket:* #{$issueCode}\n"
@@ -1631,8 +1657,7 @@ class LeanController extends Controller
                  . "• *Pelapor:* {$issue->reporter_name}{$reporterDeptDisplay}\n"
                  . "• *Dicatat Oleh:* {$receiverName}\n"
                  . "• *Status Awal:* {$statusText}\n"
-                 . "• *Deskripsi:* {$descText}"
-                 . $actionHint;
+                 . "• *Deskripsi:* {$descText}";
 
         try {
             TicketNotificationService::sendWhatsAppGroup([
@@ -1656,8 +1681,9 @@ class LeanController extends Controller
             ? $issue->target_departments
             : [$dept];
         $heading = $wasPending
-            ? "🔄 *TIKET DILANJUTKAN DARI PENDING* 🔄"
+            ? "🔄 *TIKET DILANJUTKAN KE PROGRESS* 🔄"
             : "⚡ *TIKET MULAI DIKERJAKAN* ⚡";
+        $statusLabel = $wasPending ? 'Progress' : 'In Progress';
         $noteLine = $note !== '' ? "\n• *Catatan:* {$note}" : '';
 
         $message = "{$heading}\n\n"
@@ -1665,8 +1691,7 @@ class LeanController extends Controller
                  . "• *Masalah:* {$issue->title}\n"
                  . "• *Lokasi:* {$issue->location}\n"
                  . "• *Dikerjakan Oleh:* {$workersStr} ({$dept})\n"
-                 . "• *Status:* 🟡 In Progress{$noteLine}\n\n"
-                 . "_Ketik *selesai {$issueCode}* bila selesai atau *pending {$issueCode} [Alasan]* bila tertunda._";
+                 . "• *Status:* 🟡 {$statusLabel}{$noteLine}";
 
         try {
             TicketNotificationService::sendWhatsAppGroup([
@@ -1739,8 +1764,7 @@ class LeanController extends Controller
                  . "• *Lokasi:* {$issue->location}\n"
                  . "• *Departemen:* {$dept}\n"
                  . "• *Alasan Pending:* {$reason}\n"
-                 . "• *Dicatat Oleh:* {$actorName}\n\n"
-                 . "_Ketik *ambil {$issueCode}* bila pekerjaan siap dilanjutkan kembali._";
+                 . "• *Dicatat Oleh:* {$actorName}";
 
         try {
             TicketNotificationService::sendWhatsAppGroup([
@@ -1838,8 +1862,7 @@ class LeanController extends Controller
                     . "• *Dialihkan Dari:* {$oldDept}\n"
                     . "• *Dialihkan Oleh:* {$actorName}\n"
                     . "• *Alasan Pengalihan:* {$reason}\n"
-                    . "• *Deskripsi Asal:* {$descText}\n\n"
-                    . "👉 _Ketik *ambil {$issueCode}* atau reply pesan ini dengan kata *ambil* untuk mengambil tugas._";
+                    . "• *Deskripsi Asal:* {$descText}";
 
         try {
             TicketNotificationService::sendWhatsAppGroup([

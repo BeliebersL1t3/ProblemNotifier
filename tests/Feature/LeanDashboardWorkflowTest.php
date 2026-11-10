@@ -284,13 +284,17 @@ class LeanDashboardWorkflowTest extends TestCase
         $issue->refresh();
         $this->assertEquals('pending', $issue->status);
 
-        // Claim adds contributor before transfer
+        // Claim from Pending resumes as Progress & adds contributor before transfer
         $this->actingAs($engUser)
             ->withServerVariables(['REMOTE_ADDR' => '127.0.0.1'])
             ->postJson("/lapangan/issues/{$issue->id}/claim", [
                 'workers' => ['Hendra'],
             ])
             ->assertStatus(200);
+
+        $issue->refresh();
+        $this->assertEquals('progress', $issue->progress_logs[1]['type']);
+        $this->assertTrue($issue->progress_logs[1]['notified_wa']);
 
         // Cannot transfer to same single department
         $this->actingAs($engUser)
@@ -486,6 +490,15 @@ class LeanDashboardWorkflowTest extends TestCase
             && ($req['departments'] ?? []) === ['IT']
             && ($req['departmentOnly'] ?? false) === true
             && str_contains($req['message'] ?? '', 'TIKET MASUK (DIALIHKAN DARI Engineer)'));
+
+        // Info-Only WA rule: NO group/DM message should contain command hints
+        Http::assertNotSent(function ($req) {
+            $msg = strtolower((string) ($req['message'] ?? ''));
+            return str_contains($msg, 'ketik ambil')
+                || str_contains($msg, 'ketik selesai')
+                || str_contains($msg, 'ketik pending')
+                || str_contains($msg, 'reply pesan ini');
+        });
     }
 
     public function test_store_and_legacy_notifications_resolve_missing_reporter_phone_from_staff_directory(): void
@@ -671,6 +684,131 @@ class LeanDashboardWorkflowTest extends TestCase
         Http::assertSent(fn ($req) => str_ends_with($req->url(), '/notify-direct')
             && ($req['phone'] ?? '') === '6281377788899'
             && str_contains($req['message'] ?? '', 'Andi Eng'));
+        Http::assertNotSent(fn ($req) => str_ends_with($req->url(), '/notify'));
+    }
+
+    public function test_resuming_pending_issue_logs_progress_and_respects_wa_notify_toggle(): void
+    {
+        $engUser = $this->makeUser('department', 'Engineer', 'Spv Budi');
+        $issue = $this->makeEngineerIssue([
+            'status'          => 'pending',
+            'pending_reason'  => 'Menunggu valve dari vendor',
+            'pending_since'   => now(),
+            'active_workers'  => ['Andi Eng'],
+            'claimed_by_name' => 'Andi Eng',
+            'claimed_by_dept' => 'Engineer',
+        ]);
+
+        // 1. Resume from Pending (default notify_reporter = true, empty note -> Progress label & WA sent)
+        $res1 = $this->actingAs($engUser)
+            ->withServerVariables(['REMOTE_ADDR' => '127.0.0.1'])
+            ->postJson("/lapangan/issues/{$issue->id}/claim", [
+                'workers' => ['Andi Eng', 'Citra Eng'],
+            ]);
+
+        $res1->assertStatus(200)
+            ->assertJsonPath('message', 'Isu dilanjutkan ke tahap Progress oleh Andi Eng, Citra Eng (Engineer).');
+
+        $issue->refresh();
+        $this->assertEquals('in_progress', $issue->status);
+        $this->assertEquals('progress', $issue->progress_logs[0]['type']);
+        $this->assertEquals('Melanjutkan kembali ke tahap Progress.', $issue->progress_logs[0]['message']);
+        $this->assertTrue($issue->progress_logs[0]['notified_wa']);
+
+        Http::assertSent(fn ($req) => str_ends_with($req->url(), '/notify-direct')
+            && str_contains($req['message'] ?? '', 'Laporan Dilanjutkan ke Tahap Progress')
+            && str_contains($req['message'] ?? '', '*Progress*'));
+
+        Http::assertSent(fn ($req) => str_ends_with($req->url(), '/notify')
+            && ($req['departmentOnly'] ?? false) === true
+            && str_contains($req['message'] ?? '', 'TIKET DILANJUTKAN KE PROGRESS')
+            && str_contains($req['message'] ?? '', 'Progress')
+            && !str_contains(strtolower($req['message'] ?? ''), 'ketik '));
+
+        // Put back into Pending, then resume with notify_reporter = false and custom note
+        $this->actingAs($engUser)
+            ->withServerVariables(['REMOTE_ADDR' => '127.0.0.1'])
+            ->postJson("/lapangan/issues/{$issue->id}/pending", [
+                'reason' => 'Tunggu tekanan pipa turun',
+            ])
+            ->assertStatus(200);
+
+        Http::fake([
+            'http://localhost:3000/*' => Http::response(['success' => true], 200),
+            '*'                       => Http::response(['success' => true], 200),
+        ]);
+
+        // 2. Resume with notify_reporter = false skips DM, notifies group, and records notified_wa = false
+        $this->actingAs($engUser)
+            ->withServerVariables(['REMOTE_ADDR' => '127.0.0.1'])
+            ->postJson("/lapangan/issues/{$issue->id}/claim", [
+                'workers'         => ['Andi Eng', 'Citra Eng'],
+                'note'            => 'Tekanan normal, lanjut pasang valve baru',
+                'notify_reporter' => false,
+            ])
+            ->assertStatus(200);
+
+        $issue->refresh();
+        $latestLog = $issue->progress_logs[count($issue->progress_logs) - 1];
+        $this->assertEquals('progress', $latestLog['type']);
+        $this->assertEquals('Tekanan normal, lanjut pasang valve baru', $latestLog['message']);
+        $this->assertFalse($latestLog['notified_wa']);
+
+        Http::assertNotSent(fn ($req) => str_ends_with($req->url(), '/notify-direct'));
+        Http::assertSent(fn ($req) => str_ends_with($req->url(), '/notify')
+            && str_contains($req['message'] ?? '', 'TIKET DILANJUTKAN KE PROGRESS')
+            && str_contains($req['message'] ?? '', 'Tekanan normal, lanjut pasang valve baru'));
+
+        // 3. When bot /notify-direct fails (503), notified_wa stays false
+        $this->actingAs($engUser)
+            ->withServerVariables(['REMOTE_ADDR' => '127.0.0.1'])
+            ->postJson("/lapangan/issues/{$issue->id}/pending", [
+                'reason' => 'Pending untuk tes offline WA',
+            ])
+            ->assertStatus(200);
+
+        Http::swap(new \Illuminate\Http\Client\Factory());
+        Http::fake([
+            'http://localhost:3000/notify-direct' => Http::response(['success' => false], 503),
+            'http://localhost:3000/notify'        => Http::response(['success' => true], 200),
+            '*'                                   => Http::response(['success' => true], 200),
+        ]);
+
+        $this->actingAs($engUser)
+            ->withServerVariables(['REMOTE_ADDR' => '127.0.0.1'])
+            ->postJson("/lapangan/issues/{$issue->id}/claim", [
+                'workers'         => ['Andi Eng'],
+                'note'            => 'Lanjut saat bot WA offline',
+                'notify_reporter' => true,
+            ])
+            ->assertStatus(200);
+
+        $issue->refresh();
+        $offlineLog = $issue->progress_logs[count($issue->progress_logs) - 1];
+        $this->assertEquals('progress', $offlineLog['type']);
+        $this->assertFalse($offlineLog['notified_wa']);
+
+        // 4. API claim on pending issue also records type='progress'
+        $issue->update(['status' => 'pending', 'pending_reason' => 'Cek via API']);
+        Http::swap(new \Illuminate\Http\Client\Factory());
+        Http::fake([
+            'http://localhost:3000/*' => Http::response(['success' => true], 200),
+            '*'                       => Http::response(['success' => true], 200),
+        ]);
+
+        $issueCode = \App\Http\Controllers\LeanController::formatIssueCode($issue);
+        $this->postJson("/api/lean/issues/{$issueCode}/claim", [
+            'taker'      => 'Budi API',
+            'department' => 'Engineer',
+        ])->assertStatus(200);
+
+        $issue->refresh();
+        $apiLog = $issue->progress_logs[count($issue->progress_logs) - 1];
+        $this->assertEquals('progress', $apiLog['type']);
+        $this->assertEquals('Melanjutkan kembali ke tahap Progress via WhatsApp.', $apiLog['message']);
+
+        Http::assertSent(fn ($req) => str_ends_with($req->url(), '/notify-direct')
+            && str_contains($req['message'] ?? '', 'Tahap Progress'));
         Http::assertNotSent(fn ($req) => str_ends_with($req->url(), '/notify'));
     }
 }

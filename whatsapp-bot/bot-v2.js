@@ -271,14 +271,6 @@ async function resolveSenderPhone(sock, from, msg) {
     return cleanRaw;
 }
 
-// Helper: Check if user is authorized to change ticket status (Supervisor, Manager, Admin only)
-function isAuthorizedStatusChanger(user) {
-    if (!user || !user.role) return false;
-    const r = String(user.role).toLowerCase().trim();
-    return ['supervisor', 'spv', 'manager', 'mgr', 'mng', 'hod', 'head', 'admin'].includes(r) ||
-           r.includes('supervisor') || r.includes('manager') || r.includes('admin') || r.includes('hod');
-}
-
 async function syncStaffDirectory() {
     try {
         const res = await axios.get(`${BASE_URL}/api/staff-directory`, { timeout: 5000 });
@@ -363,9 +355,7 @@ const STEPS = {
     AWAITING_LOCATION: 2,
     AWAITING_DESC: 3,
     AWAITING_PHOTO: 4,
-    AWAITING_DEPARTMENT: 5,
-    TRANSFER_AWAITING_DEPT: 6,
-    TRANSFER_AWAITING_REASON: 7
+    AWAITING_DEPARTMENT: 5
 };
 
 const userStates = new Map(); // key: senderPhone -> { step, data, timestamp }
@@ -727,20 +717,6 @@ async function startSock() {
                 }
             };
 
-            // Detect quoted message for ID lookup
-            const quotedText = msg.message.extendedTextMessage?.contextInfo?.quotedMessage?.conversation ||
-                               msg.message.extendedTextMessage?.contextInfo?.quotedMessage?.extendedTextMessage?.text ||
-                               msg.message.extendedTextMessage?.contextInfo?.quotedMessage?.imageMessage?.caption || '';
-
-            const extractIssueId = (rawInput) => {
-                // Matches format like ENG-221026-105 or #ENG-221026-105 or generic alphanumeric with hyphen
-                const match = rawInput.match(/#?([A-Za-z]{2,5}-\d{5,8}-\d{1,4})/i) ||
-                              rawInput.match(/#?([A-Za-z]{2,5}-\d+)/i) ||
-                              rawInput.match(/(?:ID|Tiket|Issue):\s*#?([^\s\n]+)/i);
-                if (match) return match[1].replace('#', '').trim();
-                return null;
-            };
-
             // Staff Verification
             let registeredUser = getStaffByPhone(senderPhone) || getStaffByPhone(rawSenderPhone);
             if (!registeredUser) {
@@ -763,159 +739,31 @@ async function startSock() {
                 continue;
             }
 
-            // ─────────────────────────────────────────────────────────────────
-            // 0. GLOBAL INTERACTIVE TRANSFER WIZARD (Works in Group & DM)
-            // ─────────────────────────────────────────────────────────────────
             let state = getUserState(senderPhone);
 
-            // Handle Cancel globally (in group or DM)
-            if (state && ['batal', 'cancel', 'reset', '!batal', '!cancel'].includes(lower)) {
-                const wasTransfer = state.step === STEPS.TRANSFER_AWAITING_DEPT || state.step === STEPS.TRANSFER_AWAITING_REASON;
+            // Handle Cancel for DM Reporting Wizard
+            if (!isGroup && state && ['batal', 'cancel', 'reset', '!batal', '!cancel'].includes(lower)) {
                 clearUserState(senderPhone);
-                if (wasTransfer) {
-                    await reply(`🔄 Proses pengalihan tiket telah dibatalkan / Ticket transfer cancelled.`);
-                } else {
-                    await reply(`🔄 Proses pelaporan telah dibatalkan / Reporting cancelled. Ketik *lapor* / *report* kapan saja untuk membuat laporan baru.`);
-                }
-                continue;
-            }
-
-            // Step 1 of Transfer Wizard: Department Selection
-            if (state && state.step === STEPS.TRANSFER_AWAITING_DEPT) {
-                let selectedDept = null;
-                const num = parseInt(text.trim(), 10);
-                if (!isNaN(num) && num >= 1 && num <= OFFICIAL_DEPARTMENTS.length) {
-                    selectedDept = OFFICIAL_DEPARTMENTS[num - 1];
-                } else {
-                    selectedDept = normalizeDept(text.trim());
-                }
-
-                if (!selectedDept) {
-                    await reply(
-                        `⚠️ Pilihan departemen tidak valid / Invalid department.\n\n` +
-                        `Silakan ketik angka 1-${OFFICIAL_DEPARTMENTS.length} atau kode departemen (contoh: HK / ENG).\n` +
-                        `_Type number 1-${OFFICIAL_DEPARTMENTS.length} or department code._\n\n` +
-                        `💡 _Ketik *batal* / *cancel* untuk membatalkan._`
-                    );
-                    continue;
-                }
-
-                state.step = STEPS.TRANSFER_AWAITING_REASON;
-                state.data.toDept = selectedDept.name;
-                state.data.toDeptCode = selectedDept.code;
-                state.data.toDeptKey = selectedDept.key;
-                setUserState(senderPhone, state);
-
-                await reply(
-                    `📝 *PENGALIHAN DEPARTEMEN TIKET #${state.data.targetId} (2/2)* 📝\n` +
-                    `_REASSIGN DEPARTMENT REASON_\n\n` +
-                    `Departemen Tujuan / Target: *${selectedDept.name} (${selectedDept.code})*\n\n` +
-                    `Silakan tuliskan alasan pengalihan tiket ini:\n` +
-                    `_Please write the reason for transferring this issue:_\n\n` +
-                    `_(Contoh: Plafon bernoda butuh dibersihkan HK terlebih dahulu)_\n` +
-                    `💡 _Ketik *batal* / *cancel* untuk membatalkan._`
-                );
-                continue;
-            }
-
-            // Step 2 of Transfer Wizard: Reason Input & Submission
-            if (state && state.step === STEPS.TRANSFER_AWAITING_REASON) {
-                if (!text || text.trim().length < 3) {
-                    await reply(
-                        `⚠️ Mohon tuliskan alasan pengalihan dengan jelas (minimal 3 karakter).\n` +
-                        `_Please write a clear reason (min 3 chars)._\n` +
-                        `_Ketik *batal* / *cancel* untuk membatalkan._`
-                    );
-                    continue;
-                }
-
-                const transferReason = text.trim();
-                const targetId = state.data.targetId;
-                const newDeptName = state.data.toDept;
-                const newDeptKey = state.data.toDeptKey;
-
-                await reply(`⏳ *Mengalihkan tiket #${targetId} ke ${newDeptName}... Mohon tunggu sebentar / Please wait.*`);
-
-                try {
-                    const transferRes = await axios.post(`${BASE_URL}/api/lean/issues/${targetId}/transfer`, {
-                        to_department: newDeptName,
-                        reason: transferReason,
-                        transferred_by: registeredUser.name,
-                        transferred_by_phone: senderPhone
-                    });
-
-                    if (transferRes.data.success) {
-                        const updated = transferRes.data.data;
-                        const oldDeptName = updated.from_department || registeredUser.department || 'Departemen Asal';
-
-                        // 1. Announce in current group / chat
-                        await reply(
-                            `🔄 *TIKET BERHASIL DIALIHKAN KE DEPARTEMEN LAIN* 🔄\n` +
-                            `_TICKET REASSIGNED SUCCESSFULLY_\n\n` +
-                            `• *ID Tiket:* #${targetId}\n` +
-                            `• *Masalah:* ${updated.title || '-'}\n` +
-                            `• *Dari / From:* ${oldDeptName}\n` +
-                            `• *Dialihkan ke / To:* ${newDeptName}\n` +
-                            `• *Dialihkan oleh / By:* ${registeredUser.name}\n` +
-                            `• *Alasan / Reason:* ${transferReason}\n\n` +
-                            `_Tiket telah dilepaskan dari antrean ${oldDeptName} dan diteruskan ke grup ${newDeptName}._`
-                        );
-
-                        // 2. Broadcast to New Department Group
-                        const newGroupJid = botConfig.departmentGroups[newDeptKey];
-                        if (newGroupJid) {
-                            const newDeptMsg = 
-                                `📥 *TIKET MASUK (DIALIHKAN) / INCOMING TICKET* 📥\n\n` +
-                                `• *ID Tiket:* #${targetId}\n` +
-                                `• *Masalah:* ${updated.title || '-'}\n` +
-                                `• *Lokasi:* ${updated.location || '-'}\n` +
-                                `• *Dialihkan dari:* ${oldDeptName}\n` +
-                                `• *Dialihkan oleh:* ${registeredUser.name}\n` +
-                                `• *Alasan Pengalihan:* ${transferReason}\n` +
-                                `• *Deskripsi Asal:* ${updated.description || '-'}\n\n` +
-                                `👉 _Ketik *ambil ${targetId}* (atau *take ${targetId}*) atau reply pesan ini untuk mengambil tugas._`;
-                            
-                            try {
-                                await sock.sendMessage(newGroupJid, { text: newDeptMsg });
-                            } catch (groupErr) {
-                                console.error(`[Transfer Wizard] Gagal mengirim notifikasi ke grup baru ${newGroupJid}:`, groupErr.message);
-                            }
-                        }
-                        // DM notifikasi pelapor ditangani terpusat oleh Laravel (LeanController::apiTransfer) agar tidak duplikat.
-                    } else {
-                        await reply(`❌ Gagal mengalihkan tiket: ${transferRes.data.message || 'Error'}`);
-                    }
-                } catch (e) {
-                    const errMsg = e.response?.data?.message || e.message;
-                    await reply(`❌ Gagal mengalihkan tiket: ${errMsg}`);
-                }
-
-                clearUserState(senderPhone);
+                await reply(`🔄 Proses pelaporan telah dibatalkan / Reporting cancelled. Ketik *lapor* / *report* kapan saja untuk membuat laporan baru.`);
                 continue;
             }
 
             // ═════════════════════════════════════════════════════════════════
-            // A. COMMANDS IN GROUP (Action-Only: ambil, selesai, edit, list forwarding)
+            // A. COMMANDS IN GROUP (Info-Only Broadcasts + Read-only List)
             // ═════════════════════════════════════════════════════════════════
             if (isGroup) {
-                // 1. HELP in Group (Bilingual)
+                // 1. HELP in Group (Bilingual Info-Only)
                 if (['help', '!help', 'bantuan'].includes(lower)) {
                     await reply(
-                        `🛠️ *TELUNAS CAMPUSFIX - PERINTAH GRUP / GROUP COMMANDS* 🛠️\n\n` +
-                        `Grup ini khusus digunakan untuk eksekusi tindakan penanganan isu:\n` +
-                        `_This group is for executing issue actions:_\n\n` +
-                        `👉 *ambil [ID]* / *take [ID]* / *claim [ID]* :\n` +
-                        `   Mulai pengerjaan isu (atau reply tiket dengan kata *ambil* / *take*).\n` +
-                        `   _Claim & start working on the issue._\n\n` +
-                        `👉 *selesai [ID]* / *done [ID]* / *finish [ID]* / *solve [ID]* :\n` +
-                        `   Selesaikan tiket (atau reply tiket dengan kata *selesai* / *done*).\n` +
-                        `   _Complete and resolve the ticket._\n\n` +
-                        `👉 *edit* / *transfer* :\n` +
-                        `   Reply tiket dengan kata *edit* untuk memulai alur pengalihan departemen interaktif.\n` +
-                        `   _Reply to ticket with 'edit' to start interactive department transfer wizard._\n\n` +
+                        `ℹ️ *TELUNAS TRACKER - GRUP INFORMASI (INFO-ONLY)* ℹ️\n\n` +
+                        `Grup WhatsApp ini bersifat *Informasi & Pemberitahuan*.\n` +
+                        `Seluruh perubahan status (*Progress*, *Pending*, *Selesai*, dan *Alihkan Dept*) dilakukan melalui *Web Dashboard Telunas (/lapangan)*.\n\n` +
+                        `Perintah baca yang masih tersedia:\n` +
+                        `👉 *list menunggu / progress / pending / selesai* :\n` +
+                        `   Mengirim daftar isu departemen ke Chat Pribadi (DM) Anda.\n` +
                         `👉 *list departemen* / *list department* :\n` +
-                        `   Melihat daftar kode & nama departemen / _View department codes._\n\n` +
-                        `💡 _Perintah *lapor* / *report* dan pengecekan *list status* dilakukan melalui Chat Pribadi (DM) ke bot._`
+                        `   Melihat daftar kode & nama departemen.\n\n` +
+                        `💡 _Pelaporan isu via WA tetap dapat dilakukan melalui Chat Pribadi (DM) ke bot dengan mengetik *lapor*._`
                     );
                     continue;
                 }
@@ -1001,287 +849,26 @@ async function startSock() {
                     continue;
                 }
 
-                // 4. GROUP ACTION: AMBIL / TAKE / CLAIM
-                if (lower.startsWith('ambil') || lower.startsWith('!ambil') || 
+                // 4. DISABLED GROUP MUTATION COMMANDS (WhatsApp Group is Info-Only; status changes happen on Dashboard)
+                if (
+                    lower.startsWith('ambil') || lower.startsWith('!ambil') ||
                     lower.startsWith('claim') || lower.startsWith('!claim') ||
-                    lower.startsWith('take')  || lower.startsWith('!take')) {
-
-                    if (!isAuthorizedStatusChanger(registeredUser)) {
-                        await reply(
-                            `⚠️ *AKSES DITOLAK — KHUSUS SUPERVISOR / MANAGER*\n` +
-                            `_ACCESS DENIED — SUPERVISOR / MANAGER ONLY_\n\n` +
-                            `Pengambilan tugas dan pembaruan status hanya dapat dilakukan oleh *Supervisor (SPV)*, *Manager*, atau *Admin*.\n` +
-                            `Status peran Anda saat ini: *${registeredUser.role || 'Staf Biasa'}*.\n\n` +
-                            `Silakan koordinasikan dengan Supervisor atau Leader departemen Anda.`
-                        );
-                        continue;
-                    }
-
-                    const words = text.split(/\s+/);
-                    let targetId = words[1] || extractIssueId(text) || extractIssueId(quotedText);
-
-                    if (!targetId) {
-                        await reply(`⚠️ *Format Tidak Lengkap / Incomplete Format*\n\nKetik: *ambil [ID_ISU]* atau *take [ID_ISU]*\nAtau reply pesan tiket dengan kata *ambil* / *take*.`);
-                        continue;
-                    }
-
-                    try {
-                        const claimRes = await axios.post(`${BASE_URL}/api/lean/issues/${targetId}/claim`, {
-                            taker: registeredUser.name,
-                            department: registeredUser.department || ''
-                        });
-
-                        if (claimRes.data.success) {
-                            await reply(
-                                `✅ *TIKET BERHASIL DIAMBIL* ✅\n` +
-                                `_TICKET CLAIMED SUCCESSFULLY_\n\n` +
-                                `• *ID Tiket:* #${targetId}\n` +
-                                `• *Pengerja:* ${registeredUser.name} (${registeredUser.department || 'Staf'})\n` +
-                                `• *Status:* 🟡 Sedang Dikerjakan (In Progress)\n\n` +
-                                `_Selamat bertugas! Ketik *selesai ${targetId}* bila pekerjaan selesai, atau *pending ${targetId} [Alasan]* bila tertunda._`
-                            );
-                        } else {
-                            await reply(`❌ Gagal mengambil tiket: ${claimRes.data.message || 'Error tidak diketahui'}`);
-                        }
-                    } catch (e) {
-                        const msgErr = e.response?.data?.message || e.message;
-                        await reply(`❌ Gagal mengambil tiket: ${msgErr}`);
-                    }
-                    continue;
-                }
-
-                // 4.5 GROUP ACTION: PENDING / TUNDA (SPV & MGR ONLY)
-                if (lower.startsWith('pending') || lower.startsWith('!pending') || 
-                    lower.startsWith('tunda')   || lower.startsWith('!tunda')) {
-
-                    if (!isAuthorizedStatusChanger(registeredUser)) {
-                        await reply(
-                            `⚠️ *AKSES DITOLAK — KHUSUS SUPERVISOR / MANAGER*\n` +
-                            `_ACCESS DENIED — SUPERVISOR / MANAGER ONLY_\n\n` +
-                            `Penundaan status tiket hanya dapat dilakukan oleh *Supervisor (SPV)*, *Manager*, atau *Admin*.\n` +
-                            `Status peran Anda saat ini: *${registeredUser.role || 'Staf Biasa'}*.\n\n` +
-                            `Silakan koordinasikan dengan Supervisor atau Leader departemen Anda.`
-                        );
-                        continue;
-                    }
-
-                    let targetId = extractIssueId(text) || extractIssueId(quotedText);
-                    let reason = text.replace(/^(?:!pending|pending|!tunda|tunda)\s*/i, '');
-                    if (targetId) {
-                        reason = reason.replace(new RegExp('#?' + targetId, 'i'), '').trim();
-                    }
-                    reason = reason.trim();
-
-                    if (!targetId) {
-                        await reply(
-                            `⚠️ *Format Tidak Lengkap / Incomplete Format*\n\n` +
-                            `Ketik: *pending [ID_TIKET] [Alasan]*\n` +
-                            `Atau reply pesan tiket dengan kata *pending [Alasan]*.\n\n` +
-                            `_Contoh: pending #ENG-041126-104 Menunggu suku cadang dari Batam_`
-                        );
-                        continue;
-                    }
-
-                    if (!reason || reason.length < 3) {
-                        await reply(
-                            `⚠️ *Alasan Penundaan Wajib Diisi / Reason Required*\n\n` +
-                            `Sesuai SOP, mohon cantumkan alasan mengapa pekerjaan ditunda.\n` +
-                            `_Contoh: pending #${targetId} Menunggu kamar kosong / sparepart tiba._`
-                        );
-                        continue;
-                    }
-
-                    try {
-                        const pendingRes = await axios.post(`${BASE_URL}/api/lean/issues/${targetId}/pending`, {
-                            reason: reason,
-                            pending_by: registeredUser.name,
-                            pending_by_phone: senderPhone
-                        });
-
-                        if (pendingRes.data.success) {
-                            await reply(
-                                `⏸️ *TIKET DITANDAI PENDING / TERTUNDA* ⏸️\n` +
-                                `_TICKET MARKED AS PENDING_\n\n` +
-                                `• *ID Tiket:* #${targetId}\n` +
-                                `• *Status:* 🟠 Pending (Tertunda)\n` +
-                                `• *Oleh:* ${registeredUser.name} (${registeredUser.department || 'SPV/Mgr'})\n` +
-                                `• *Alasan:* ${reason}\n\n` +
-                                `_Catatan telah disimpan di sistem. Ketik *ambil ${targetId}* bila pekerjaan siap dilanjutkan._`
-                            );
-                        } else {
-                            await reply(`❌ Gagal menandai pending: ${pendingRes.data.message || 'Error tidak diketahui'}`);
-                        }
-                    } catch (e) {
-                        const msgErr = e.response?.data?.message || e.message;
-                        await reply(`❌ Gagal menandai pending: ${msgErr}`);
-                    }
-                    continue;
-                }
-
-                // 5. GROUP ACTION: SELESAI / DONE / SOLVE / RESOLVE
-                if (lower.startsWith('selesai') || lower.startsWith('!selesai') || 
+                    lower.startsWith('take')  || lower.startsWith('!take')  ||
+                    lower.startsWith('pending') || lower.startsWith('!pending') ||
+                    lower.startsWith('tunda')   || lower.startsWith('!tunda')   ||
+                    lower.startsWith('selesai') || lower.startsWith('!selesai') ||
                     lower.startsWith('solve')   || lower.startsWith('!solve')   ||
                     lower.startsWith('done')    || lower.startsWith('!done')    ||
-                    lower.startsWith('finish')  || lower.startsWith('!finish')) {
-
-                    if (!isAuthorizedStatusChanger(registeredUser)) {
-                        await reply(
-                            `⚠️ *AKSES DITOLAK — KHUSUS SUPERVISOR / MANAGER*\n` +
-                            `_ACCESS DENIED — SUPERVISOR / MANAGER ONLY_\n\n` +
-                            `Penyelesaian tiket hanya dapat dilakukan oleh *Supervisor (SPV)*, *Manager*, atau *Admin*.\n` +
-                            `Status peran Anda saat ini: *${registeredUser.role || 'Staf Biasa'}*.\n\n` +
-                            `Silakan koordinasikan dengan Supervisor atau Leader departemen Anda.`
-                        );
-                        continue;
-                    }
-
-                    const words = text.split(/\s+/);
-                    let targetId = words[1] || extractIssueId(text) || extractIssueId(quotedText);
-
-                    if (!targetId) {
-                        await reply(`⚠️ *Format Tidak Lengkap / Incomplete Format*\n\nKetik: *selesai [ID_ISU]* atau *done [ID_ISU]*\nAtau reply pesan tiket dengan kata *selesai* / *done*.`);
-                        continue;
-                    }
-
-                    try {
-                        const solveRes = await axios.post(`${BASE_URL}/api/lean/issues/${targetId}/resolve`, {
-                            solver: registeredUser.name,
-                            fixDescription: 'Diselesaikan via WhatsApp Grup Telunas V2'
-                        });
-
-                        if (solveRes.data.success) {
-                            await reply(
-                                `🎉 *TIKET TELAH SELESAI* 🎉\n` +
-                                `_TICKET RESOLVED SUCCESSFULLY_\n\n` +
-                                `• *ID Tiket:* #${targetId}\n` +
-                                `• *Diselesaikan oleh:* ${registeredUser.name} (${registeredUser.department || 'SPV/Mgr'})\n` +
-                                `• *Status:* 🟢 Selesai (Resolved)\n\n` +
-                                `_Terima kasih atas kerja keras tim! Tiket telah ditutup di sistem._`
-                            );
-                        } else {
-                            await reply(`❌ Gagal menyelesaikan tiket: ${solveRes.data.message || 'Error tidak diketahui'}`);
-                        }
-                    } catch (e) {
-                        const msgErr = e.response?.data?.message || e.message;
-                        await reply(`❌ Gagal menyelesaikan tiket: ${msgErr}`);
-                    }
-                    continue;
-                }
-
-                // 6. GROUP ACTION: EDIT / TRANSFER
-                if (lower.startsWith('edit') || lower.startsWith('!edit') || lower.startsWith('transfer') || lower.startsWith('!transfer')) {
-                    if (!isAuthorizedStatusChanger(registeredUser)) {
-                        await reply(
-                            `⚠️ *AKSES DITOLAK — KHUSUS SUPERVISOR / MANAGER*\n` +
-                            `_ACCESS DENIED — SUPERVISOR / MANAGER ONLY_\n\n` +
-                            `Pengalihan tiket hanya dapat dilakukan oleh *Supervisor (SPV)*, *Manager*, atau *Admin*.\n` +
-                            `Status peran Anda saat ini: *${registeredUser.role || 'Staf Biasa'}*.\n\n` +
-                            `Silakan koordinasikan dengan Supervisor atau Leader departemen Anda.`
-                        );
-                        continue;
-                    }
-                    let targetId = extractIssueId(text) || extractIssueId(quotedText);
-
-                    // Check fast one-liner shortcut: edit [ID] ke [DEPT] [Alasan] or edit [ID] to [DEPT] [Reason]
-                    let remaining = text.replace(/^(?:!edit|edit|!transfer|transfer)\s*/i, '');
-                    if (targetId) {
-                        remaining = remaining.replace(new RegExp('#?' + targetId, 'i'), '').trim();
-                    }
-                    remaining = remaining.replace(/^(?:ke|to)\s+/i, '').trim();
-
-                    const matchDept = remaining.match(/^([A-Za-z]+)\s*(.*)$/);
-                    let targetDeptRaw = matchDept ? matchDept[1] : '';
-                    let transferReason = matchDept ? matchDept[2].trim() : '';
-                    const validDept = normalizeDept(targetDeptRaw);
-
-                    // If fast one-liner provided all parameters, execute directly!
-                    if (targetId && validDept && transferReason) {
-                        try {
-                            const transferRes = await axios.post(`${BASE_URL}/api/lean/issues/${targetId}/transfer`, {
-                                to_department: validDept.name,
-                                reason: transferReason,
-                                transferred_by: registeredUser.name,
-                                transferred_by_phone: senderPhone
-                            });
-
-                            if (transferRes.data.success) {
-                                const updated = transferRes.data.data;
-                                const oldDeptName = updated.from_department || registeredUser.department || 'Departemen Asal';
-                                const newDeptName = validDept.name;
-
-                                await reply(
-                                    `🔄 *TIKET DIALIHKAN KE DEPARTEMEN LAIN* 🔄\n` +
-                                    `_TICKET REASSIGNED_\n\n` +
-                                    `• *ID Tiket:* #${targetId}\n` +
-                                    `• *Dialihkan ke:* ${newDeptName}\n` +
-                                    `• *Dialihkan oleh:* ${registeredUser.name}\n` +
-                                    `• *Alasan / Reason:* ${transferReason}\n\n` +
-                                    `_Tiket telah dilepaskan dari antrean ${oldDeptName} dan diteruskan ke grup ${newDeptName}._`
-                                );
-
-                                const newDeptKey = validDept.key;
-                                const newGroupJid = botConfig.departmentGroups[newDeptKey];
-                                if (newGroupJid) {
-                                    const newDeptMsg = 
-                                        `📥 *TIKET MASUK (DIALIHKAN) / INCOMING TICKET* 📥\n\n` +
-                                        `• *ID Tiket:* #${targetId}\n` +
-                                        `• *Masalah:* ${updated.title || '-'}\n` +
-                                        `• *Lokasi:* ${updated.location || '-'}\n` +
-                                        `• *Dialihkan dari:* ${oldDeptName}\n` +
-                                        `• *Dialihkan oleh:* ${registeredUser.name}\n` +
-                                        `• *Alasan Pengalihan:* ${transferReason}\n` +
-                                        `• *Deskripsi Asal:* ${updated.description || '-'}\n\n` +
-                                        `👉 _Ketik *ambil ${targetId}* (atau *take ${targetId}*) atau reply pesan ini untuk mengambil tugas._`;
-                                    
-                                    try {
-                                        await sock.sendMessage(newGroupJid, { text: newDeptMsg });
-                                    } catch (groupErr) {
-                                        console.error(`[Edit/Transfer] Gagal mengirim notifikasi ke grup baru ${newGroupJid}:`, groupErr.message);
-                                    }
-                                }
-                                // DM notifikasi pelapor ditangani terpusat oleh Laravel (LeanController::apiTransfer) agar tidak duplikat.
-                            } else {
-                                await reply(`❌ Gagal mengalihkan tiket: ${transferRes.data.message || 'Error'}`);
-                            }
-                        } catch (e) {
-                            const errMsg = e.response?.data?.message || e.message;
-                            await reply(`❌ Gagal mengalihkan tiket: ${errMsg}`);
-                        }
-                        continue;
-                    }
-
-                    // Otherwise, start Interactive Edit Wizard if targetId is found!
-                    if (!targetId) {
-                        await reply(
-                            `⚠️ *Format Perintah Edit / Reassign:*\n\n` +
-                            `Ketik *edit [ID_TIKET]* atau reply pesan tiket dengan kata *edit* / *transfer*.\n` +
-                            `_Type edit [TICKET_ID] or reply to ticket notification with 'edit' or 'transfer'._`
-                        );
-                        continue;
-                    }
-
-                    // Initiate Step 1: Ask for target department
-                    setUserState(senderPhone, {
-                        step: STEPS.TRANSFER_AWAITING_DEPT,
-                        data: {
-                            targetId: targetId,
-                            groupJid: from
-                        }
-                    });
-
-                    let deptPrompt = 
-                        `🔄 *PENGALIHAN DEPARTEMEN TIKET #${targetId} (1/2)* 🔄\n` +
-                        `_REASSIGN DEPARTMENT_\n\n` +
-                        `Halo *${registeredUser.name}*, silakan pilih Departemen yang dituju:\n` +
-                        `_Please select the target Department:_\n\n`;
-                    OFFICIAL_DEPARTMENTS.forEach((d, idx) => {
-                        deptPrompt += `${idx + 1}. ${d.name} (${d.code})\n`;
-                    });
-                    deptPrompt += `\nKetik angka (1-${OFFICIAL_DEPARTMENTS.length}) atau nama/kode departemen.\n` +
-                                  `_Type number (1-${OFFICIAL_DEPARTMENTS.length}) or department code._\n\n` +
-                                  `💡 _Ketik *batal* / *cancel* untuk membatalkan._`;
-
-                    await reply(deptPrompt);
+                    lower.startsWith('finish')  || lower.startsWith('!finish')  ||
+                    lower.startsWith('edit')    || lower.startsWith('!edit')    ||
+                    lower.startsWith('transfer') || lower.startsWith('!transfer')
+                ) {
+                    await reply(
+                        `ℹ️ *WhatsApp Bot Bersifat Informasi (Info-Only)*\n` +
+                        `_WhatsApp Group Is Notification-Only_\n\n` +
+                        `Pembaruan status (*Mulai Kerja / Progress / Pending / Selesai*) serta pengalihan departemen dilakukan melalui *Web Dashboard Telunas (/lapangan)* agar tim pelaksana, komentar progress, dan foto bukti tercatat rapi.\n` +
+                        `_Please update ticket status directly via the Web Dashboard (/lapangan)._`
+                    );
                     continue;
                 }
 
@@ -1630,11 +1217,11 @@ async function startSock() {
                             }
                         }
 
-                        // 2. Send to Department Group (Actionable)
+                        // 2. Send to Department Group (Info-Only)
                         const deptKey = selectedDept.key;
                         const deptGroupJid = botConfig.departmentGroups[deptKey];
                         if (deptGroupJid && deptGroupJid !== targetLocGid) {
-                            const actionMsg = broadcastText + `👉 _Ketik *ambil ${issueId}* atau reply pesan ini dengan kata *ambil* untuk mengambil tugas._`;
+                            const actionMsg = broadcastText + `ℹ️ _Pemberitahuan otomatis untuk departemen penangan (tindak lanjut dilakukan via Web Dashboard /lapangan)._`;
                             try {
                                 if (state.data.photoBuffer) {
                                     await sock.sendMessage(deptGroupJid, { image: state.data.photoBuffer, caption: actionMsg });

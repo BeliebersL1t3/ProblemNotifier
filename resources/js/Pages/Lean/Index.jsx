@@ -681,6 +681,7 @@ export default function LeanIndex({
     const [claimWorkers, setClaimWorkers] = useState([]);
     const [claimCustomWorker, setClaimCustomWorker] = useState('');
     const [claimNote, setClaimNote] = useState('');
+    const [claimNotifyReporter, setClaimNotifyReporter] = useState(true);
 
     const [progressComment, setProgressComment] = useState('');
     const [progressWorkers, setProgressWorkers] = useState([]);
@@ -913,7 +914,7 @@ export default function LeanIndex({
         return fallback;
     };
 
-    // Open & Submit Claim / Start Working Modal
+    // Open & Submit Claim / Start Working (or Resume Pending -> Progress) Modal
     const openClaimModal = (issue) => {
         if (!issue) return;
         const existingActive = Array.isArray(issue.active_workers) && issue.active_workers.length > 0
@@ -925,6 +926,7 @@ export default function LeanIndex({
         setClaimWorkers(defaultWorkers);
         setClaimCustomWorker('');
         setClaimNote('');
+        setClaimNotifyReporter(true);
         setShowClaimModal(issue);
     };
 
@@ -935,11 +937,14 @@ export default function LeanIndex({
             alert('Pilih minimal 1 pekerja yang ditugaskan.');
             return;
         }
+        const isResuming = showClaimModal.status === 'pending';
+        const notifyOnResume = claimNotifyReporter;
         setIsSubmitting(true);
         router.post(`/lapangan/issues/${showClaimModal.id}/claim`, {
             workers: claimWorkers,
             note: claimNote.trim(),
             dept: (myDept && myDept !== 'Supervisor') ? myDept : (showClaimModal.target_departments?.[0] || ''),
+            notify_reporter: isResuming ? notifyOnResume : true,
         }, {
             preserveScroll: true,
             onSuccess: () => {
@@ -947,12 +952,25 @@ export default function LeanIndex({
                 setClaimWorkers([]);
                 setClaimCustomWorker('');
                 setClaimNote('');
+                setClaimNotifyReporter(true);
                 setIsSubmitting(false);
-                showNotice('success', 'Isu mulai dikerjakan (In Progress).');
+                showNotice(
+                    'success',
+                    isResuming
+                        ? (notifyOnResume
+                            ? 'Isu dilanjutkan ke tahap Progress & pelapor dikabari via WA.'
+                            : 'Isu dilanjutkan ke tahap Progress.')
+                        : 'Isu mulai dikerjakan (In Progress).'
+                );
             },
             onError: (errors) => {
                 setIsSubmitting(false);
-                showNotice('error', extractErrorMsg(errors, 'Gagal mengambil pekerjaan. Pastikan hak akses departemen sesuai.'));
+                showNotice('error', extractErrorMsg(
+                    errors,
+                    isResuming
+                        ? 'Gagal melanjutkan isu ke tahap Progress. Pastikan hak akses departemen sesuai.'
+                        : 'Gagal mengambil pekerjaan. Pastikan hak akses departemen sesuai.'
+                ));
             },
         });
     };
@@ -3029,8 +3047,8 @@ export default function LeanIndex({
                             <div className="flex items-start justify-between">
                                 <div>
                                     <h3 className="font-bold text-base text-white flex items-center gap-1.5">
-                                        <Play className="w-4 h-4 text-amber-400" />
-                                        {isResuming ? 'Lanjutkan Pekerjaan (In Progress)' : 'Mulai Kerjakan Isu (Claim)'}
+                                        <Play className={`w-4 h-4 ${isResuming ? 'text-sky-400' : 'text-amber-400'}`} />
+                                        {isResuming ? 'Lanjutkan ke Progress' : 'Mulai Kerjakan Isu (Claim)'}
                                     </h3>
                                     <p className="text-xs text-slate-400 mt-0.5">
                                         #{showClaimModal.issue_code || showClaimModal.id} &bull; {showClaimModal.title}
@@ -3048,7 +3066,7 @@ export default function LeanIndex({
                             <form onSubmit={handleClaimSubmit} className="space-y-3.5">
                                 <div className="p-3 rounded-xl bg-slate-800/70 border border-slate-700 space-y-2">
                                     <label className="block text-xs font-bold text-slate-200 flex items-center gap-1.5">
-                                        <Users className="w-3.5 h-3.5 text-amber-400" />
+                                        <Users className={`w-3.5 h-3.5 ${isResuming ? 'text-sky-400' : 'text-amber-400'}`} />
                                         Pilih Pekerja yang Mengerjakan * (Bisa lebih dari 1)
                                     </label>
                                     <div className="flex flex-wrap gap-1.5">
@@ -3061,7 +3079,9 @@ export default function LeanIndex({
                                                     onClick={() => toggleListWorker(setClaimWorkers, workerName)}
                                                     className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border flex items-center gap-1 transition-all cursor-pointer ${
                                                         selected
-                                                            ? 'bg-amber-600 text-white border-amber-500 shadow-xs'
+                                                            ? (isResuming
+                                                                ? 'bg-sky-600 text-white border-sky-500 shadow-xs'
+                                                                : 'bg-amber-600 text-white border-amber-500 shadow-xs')
                                                             : 'bg-slate-900 text-slate-400 border-slate-700 hover:text-slate-200'
                                                     }`}
                                                 >
@@ -3083,7 +3103,7 @@ export default function LeanIndex({
                                                 }
                                             }}
                                             placeholder="Tambah nama pekerja lain..."
-                                            className="flex-1 text-xs bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
+                                            className={`flex-1 text-xs bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white placeholder-slate-500 focus:outline-none ${isResuming ? 'focus:border-sky-500' : 'focus:border-amber-500'}`}
                                         />
                                         <button
                                             type="button"
@@ -3094,7 +3114,7 @@ export default function LeanIndex({
                                         </button>
                                     </div>
                                     {claimWorkers.length > 0 && (
-                                        <p className="text-[11px] text-amber-300">
+                                        <p className={`text-[11px] ${isResuming ? 'text-sky-300' : 'text-amber-300'}`}>
                                             Terpilih ({claimWorkers.length}): <strong className="text-white">{claimWorkers.join(', ')}</strong>
                                         </p>
                                     )}
@@ -3102,16 +3122,39 @@ export default function LeanIndex({
 
                                 <div>
                                     <label className="block text-xs font-bold text-slate-300 mb-1">
-                                        Catatan Awal Pengerjaan (Opsional)
+                                        {isResuming ? 'Catatan Lanjut Progress (Opsional)' : 'Catatan Awal Pengerjaan (Opsional)'}
                                     </label>
                                     <textarea
                                         value={claimNote}
                                         onChange={(e) => setClaimNote(e.target.value)}
-                                        placeholder="Contoh: Tim membawa peralatan menuju lokasi sekarang"
+                                        placeholder={isResuming
+                                            ? 'Contoh: Material sparepart sudah tiba, lanjut pemasangan di lokasi'
+                                            : 'Contoh: Tim membawa peralatan menuju lokasi sekarang'}
                                         rows={2}
-                                        className="w-full text-xs bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
+                                        className={`w-full text-xs bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white placeholder-slate-500 focus:outline-none ${isResuming ? 'focus:border-sky-500' : 'focus:border-amber-500'}`}
                                     />
                                 </div>
+
+                                {isResuming && (
+                                    <label className="p-3 rounded-xl bg-emerald-950/30 border border-emerald-700/40 flex items-start gap-2.5 cursor-pointer select-none">
+                                        <input
+                                            type="checkbox"
+                                            checked={claimNotifyReporter}
+                                            onChange={(e) => setClaimNotifyReporter(e.target.checked)}
+                                            className="w-4 h-4 mt-0.5 rounded text-emerald-500 bg-slate-700 border-slate-600 focus:ring-emerald-500 cursor-pointer"
+                                        />
+                                        <div>
+                                            <span className="text-xs font-bold text-emerald-300 block">
+                                                Kirim info progress ini ke WhatsApp pelapor
+                                            </span>
+                                            <span className="text-[10px] text-slate-400">
+                                                {showClaimModal.reporter_phone
+                                                    ? `Dikirim otomatis ke ${showClaimModal.reporter_name} (${showClaimModal.reporter_phone}).`
+                                                    : `Aktif secara default (No. WA pelapor belum tercatat di tiket ini).`}
+                                            </span>
+                                        </div>
+                                    </label>
+                                )}
 
                                 <div className="pt-2 flex items-center gap-2">
                                     <button
@@ -3124,9 +3167,13 @@ export default function LeanIndex({
                                     <button
                                         type="submit"
                                         disabled={isSubmitting || claimWorkers.length === 0}
-                                        className="flex-1 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white text-xs font-bold shadow-md cursor-pointer"
+                                        className={`flex-1 py-2 rounded-lg ${
+                                            isResuming
+                                                ? 'bg-sky-600 hover:bg-sky-500'
+                                                : 'bg-amber-600 hover:bg-amber-500'
+                                        } disabled:opacity-50 text-white text-xs font-bold shadow-md cursor-pointer`}
                                     >
-                                        {isSubmitting ? 'Menyimpan...' : (isResuming ? 'Lanjutkan Kerjakan' : 'Mulai Kerjakan')}
+                                        {isSubmitting ? 'Menyimpan...' : (isResuming ? 'Lanjutkan Progress' : 'Mulai Kerjakan')}
                                     </button>
                                 </div>
                             </form>
@@ -3559,10 +3606,14 @@ export default function LeanIndex({
                                                 <button
                                                     type="button"
                                                     onClick={() => openClaimModal(activeDetailIssue)}
-                                                    className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition cursor-pointer"
+                                                    className={`px-3 py-1.5 rounded-lg text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition cursor-pointer ${
+                                                        activeDetailIssue.status === 'pending'
+                                                            ? 'bg-sky-600 hover:bg-sky-500'
+                                                            : 'bg-amber-600 hover:bg-amber-500'
+                                                    }`}
                                                 >
                                                     <Play className="w-3.5 h-3.5" />
-                                                    <span>{activeDetailIssue.status === 'pending' ? 'Lanjutkan Kerjakan' : 'Mulai Kerjakan'}</span>
+                                                    <span>{activeDetailIssue.status === 'pending' ? 'Lanjutkan Progress' : 'Mulai Kerjakan'}</span>
                                                 </button>
                                             )}
 
@@ -3944,19 +3995,26 @@ export default function LeanIndex({
                                     </div>
                                     <div className="space-y-1.5 pl-2.5 border-l-2 border-sky-500/40">
                                         {activeDetailIssue.progress_logs.map((log, idx) => {
+                                            const prevLog = idx > 0 ? activeDetailIssue.progress_logs[idx - 1] : null;
+                                            const isResumedFromPendingLog = log.type === 'claim' && (
+                                                prevLog?.type === 'pending' ||
+                                                String(log.message || '').toLowerCase().includes('dari status pending')
+                                            );
+                                            const effectiveLogType = isResumedFromPendingLog ? 'progress' : log.type;
+
                                             const badgeStyles = isDark ? ({
                                                 claim: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
                                                 progress: 'bg-sky-500/20 text-sky-300 border-sky-500/30',
                                                 pending: 'bg-orange-500/20 text-orange-300 border-orange-500/30',
                                                 transfer: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30',
                                                 resolved: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
-                                            }[log.type] || 'bg-slate-500/20 text-slate-300 border-slate-500/30') : ({
+                                            }[effectiveLogType] || 'bg-slate-500/20 text-slate-300 border-slate-500/30') : ({
                                                 claim: 'bg-amber-100 text-amber-800 border-amber-300',
                                                 progress: 'bg-sky-100 text-sky-800 border-sky-300',
                                                 pending: 'bg-orange-100 text-orange-800 border-orange-300',
                                                 transfer: 'bg-indigo-100 text-indigo-800 border-indigo-300',
                                                 resolved: 'bg-emerald-100 text-emerald-800 border-emerald-300',
-                                            }[log.type] || 'bg-slate-100 text-slate-700 border-slate-300');
+                                            }[effectiveLogType] || 'bg-slate-100 text-slate-700 border-slate-300');
 
                                             const typeText = {
                                                 claim: 'Claim / Kerja',
@@ -3964,7 +4022,7 @@ export default function LeanIndex({
                                                 pending: 'Pending',
                                                 transfer: 'Dialihkan',
                                                 resolved: 'Selesai',
-                                            }[log.type] || log.type;
+                                            }[effectiveLogType] || effectiveLogType;
 
                                             return (
                                                 <div key={log.id || idx} className={`p-2 rounded-lg border space-y-1 ${
