@@ -271,6 +271,10 @@ class LeanSheetDirectService
         $this->setupHeadersAndFormatting();
         $gids = $this->getMonthGids();
 
+        if (empty($gids)) {
+            throw new \RuntimeException('Gagal mengambil daftar tab Google Sheets (koneksi atau kredensial bermasalah).');
+        }
+
         $allIssues = LeanIssue::withTrashed()->orderBy('id', 'asc')->get();
 
         // Group issues by month
@@ -295,15 +299,11 @@ class LeanSheetDirectService
             }
 
             // Clear existing rows below header
-            try {
-                $service->spreadsheets_values->clear(
-                    $this->spreadsheetId,
-                    "{$monthName}!A2:R1000",
-                    new \Google\Service\Sheets\ClearValuesRequest()
-                );
-            } catch (\Throwable $e) {
-                // Ignore clear error if already empty
-            }
+            $service->spreadsheets_values->clear(
+                $this->spreadsheetId,
+                "{$monthName}!A2:R1000",
+                new \Google\Service\Sheets\ClearValuesRequest()
+            );
 
             if (!empty($rows)) {
                 $endRow = count($rows) + 1;
@@ -318,6 +318,14 @@ class LeanSheetDirectService
 
             $syncedCounts[$monthName] = count($rows);
         }
+
+        $now = now();
+        LeanIssue::withTrashed()->update([
+            'needs_sheets_sync' => false,
+            'sheets_synced_at'  => $now,
+            'sheets_sync_error' => null,
+        ]);
+        Cache::forget('lean_sheets_pending_clear');
 
         return [
             'success' => true,
@@ -370,8 +378,10 @@ class LeanSheetDirectService
                 );
             }
 
+            $issue->markSheetsSynced();
             return true;
         } catch (\Throwable $e) {
+            $issue->markSheetsSyncFailed($e->getMessage());
             Log::error("Failed to sync single issue #{$issue->id} to Lean Sheet: " . $e->getMessage());
             return false;
         }
@@ -399,7 +409,9 @@ class LeanSheetDirectService
                 }
             }
 
-            $deletedAt = Carbon::now('Asia/Jakarta')->format('Y-m-d H:i');
+            $deletedAt = $issue->deleted_at
+                ? Carbon::parse($issue->deleted_at)->setTimezone('Asia/Jakarta')->format('Y-m-d H:i')
+                : Carbon::now('Asia/Jakarta')->format('Y-m-d H:i');
 
             if ($foundRowIndex !== null) {
                 // Update columns P, Q, R (Aktif di Dashboard, Dihapus Oleh, Waktu Dihapus)
@@ -410,13 +422,14 @@ class LeanSheetDirectService
                     $body,
                     ['valueInputOption' => 'USER_ENTERED']
                 );
-            } else {
-                // If not found in sheet yet, sync entire row with trashed status
-                $this->syncSingleIssue($issue);
+                $issue->markSheetsSynced();
+                return true;
             }
 
-            return true;
+            // If not found in sheet yet, sync entire row with trashed status
+            return $this->syncSingleIssue($issue);
         } catch (\Throwable $e) {
+            $issue->markSheetsSyncFailed($e->getMessage());
             Log::error("Failed to mark issue #{$issue->id} as deleted in Lean Sheet: " . $e->getMessage());
             return false;
         }
@@ -429,30 +442,103 @@ class LeanSheetDirectService
     {
         try {
             $service = $this->getSheetsService();
-            $gids = $this->getMonthGids();
+            $gids = $this->getMonthGids(true);
+
+            if (empty($gids)) {
+                throw new \RuntimeException('Gagal mengambil metadata tab Google Sheets saat membersihkan data.');
+            }
 
             foreach (self::MONTH_NAMES as $monthName) {
                 if (!isset($gids[$monthName])) {
                     continue;
                 }
-                try {
-                    $service->spreadsheets_values->clear(
-                        $this->spreadsheetId,
-                        "{$monthName}!A2:R1000",
-                        new \Google\Service\Sheets\ClearValuesRequest()
-                    );
-                } catch (\Throwable $e) {
-                    Log::warning("Could not clear month {$monthName} in Lean Sheet: " . $e->getMessage());
-                }
+                $service->spreadsheets_values->clear(
+                    $this->spreadsheetId,
+                    "{$monthName}!A2:R1000",
+                    new \Google\Service\Sheets\ClearValuesRequest()
+                );
             }
 
             // Ensure 18-column headers and teal formatting are present on all 12 tabs
             $this->setupHeadersAndFormatting();
+            Cache::forget('lean_sheets_pending_clear');
 
             return true;
         } catch (\Throwable $e) {
             Log::error("Failed to clear monthly data in Lean Sheet: " . $e->getMessage());
             return false;
+        }
+    }
+
+    public static function markPendingClear(): void
+    {
+        Cache::forever('lean_sheets_pending_clear', true);
+    }
+
+    public static function hasPendingClear(): bool
+    {
+        return (bool) Cache::get('lean_sheets_pending_clear', false);
+    }
+
+    /**
+     * Self-healing background reconciliation for any pending SQL-to-Sheets changes.
+     */
+    public function reconcilePendingIssues(int $limit = 30): array
+    {
+        $lock = Cache::lock('lean_sheets_reconcile_lock', 30);
+        if (!$lock->get()) {
+            return [
+                'success' => true,
+                'skipped' => true,
+                'reason'  => 'Reconciliation already in progress.',
+                'synced'  => 0,
+                'failed'  => 0,
+                'remaining' => LeanIssue::withTrashed()->where('needs_sheets_sync', true)->count(),
+            ];
+        }
+
+        try {
+            if (self::hasPendingClear()) {
+                $cleared = $this->clearAllMonthlyData();
+                if (!$cleared) {
+                    return [
+                        'success'   => false,
+                        'skipped'   => false,
+                        'synced'    => 0,
+                        'failed'    => 1,
+                        'remaining' => LeanIssue::withTrashed()->where('needs_sheets_sync', true)->count(),
+                    ];
+                }
+            }
+
+            $pendingIssues = LeanIssue::withTrashed()
+                ->where('needs_sheets_sync', true)
+                ->orderBy('id', 'asc')
+                ->limit($limit)
+                ->get();
+
+            $synced = 0;
+            $failed = 0;
+
+            foreach ($pendingIssues as $issue) {
+                if ($this->syncSingleIssue($issue)) {
+                    $synced++;
+                } else {
+                    $failed++;
+                }
+            }
+
+            $remaining = LeanIssue::withTrashed()->where('needs_sheets_sync', true)->count();
+
+            return [
+                'success'   => $failed === 0 && !self::hasPendingClear(),
+                'skipped'   => false,
+                'synced'    => $synced,
+                'failed'    => $failed,
+                'remaining' => $remaining,
+            ];
+        } finally {
+            $lock->release();
         }
     }
 }

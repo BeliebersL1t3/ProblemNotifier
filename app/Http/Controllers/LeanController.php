@@ -95,14 +95,18 @@ class LeanController extends Controller
                 ];
             });
 
+        $pendingSyncCount = LeanIssue::withTrashed()->where('needs_sheets_sync', true)->count();
+        $needsAutoReconcile = $pendingSyncCount > 0 || \App\Services\LeanSheetDirectService::hasPendingClear();
+
         return Inertia::render('Lean/Index', [
-            'issues'         => $issues,
-            'departments'    => self::DEPARTMENTS,
-            'locations'      => self::MAIN_LOCATIONS,
-            'currentUser'    => $currentUser,
-            'staffDirectory' => $staffDirectory,
-            'spreadsheetUrl' => $spreadsheetUrl,
-            'monthGids'      => $monthGids,
+            'issues'             => $issues,
+            'departments'        => self::DEPARTMENTS,
+            'locations'          => self::MAIN_LOCATIONS,
+            'currentUser'        => $currentUser,
+            'staffDirectory'     => $staffDirectory,
+            'spreadsheetUrl'     => $spreadsheetUrl,
+            'monthGids'          => $monthGids,
+            'needsAutoReconcile' => $needsAutoReconcile,
         ]);
     }
 
@@ -399,11 +403,21 @@ class LeanController extends Controller
     }
 
     /**
+     * Silent self-healing reconciliation endpoint for pending SQL-to-Sheets changes.
+     */
+    public function autoSyncSheets()
+    {
+        $result = app(\App\Services\LeanSheetDirectService::class)->reconcilePendingIssues();
+        return response()->json($result);
+    }
+
+    /**
      * Reset / purge all sandbox testing data.
      */
     public function reset()
     {
         LeanIssue::truncate();
+        \App\Services\LeanSheetDirectService::markPendingClear();
 
         try {
             app(\App\Services\LeanSheetDirectService::class)->clearAllMonthlyData();

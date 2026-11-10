@@ -208,6 +208,7 @@ Route::post('/lapangan/issues/{issue}/resolve', [\App\Http\Controllers\LeanContr
 Route::post('/lapangan/reset', [\App\Http\Controllers\LeanController::class, 'reset'])->name('lean.reset');
 Route::delete('/lapangan/issues/{issue}', [\App\Http\Controllers\LeanController::class, 'destroy'])->name('lean.destroy');
 Route::post('/lapangan/sync-sheets', [\App\Http\Controllers\LeanController::class, 'syncGoogleSheets'])->name('lean.sync.sheets');
+Route::post('/lapangan/auto-sync', [\App\Http\Controllers\LeanController::class, 'autoSyncSheets'])->name('lean.auto.sync');
 
 // Dedicated Lean API endpoints for WhatsApp Bot V2 testing
 Route::get('/api/lean/issues', [\App\Http\Controllers\LeanController::class, 'apiIndex'])->name('lean.api.index');

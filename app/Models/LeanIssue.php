@@ -40,6 +40,9 @@ class LeanIssue extends Model
         'ai_processed_at',
         'deleted_by_name',
         'transfer_history',
+        'needs_sheets_sync',
+        'sheets_synced_at',
+        'sheets_sync_error',
     ];
 
     protected $casts = [
@@ -48,8 +51,70 @@ class LeanIssue extends Model
         'transfer_history'   => 'array',
         'ai_analysis'        => 'array',
         'ai_is_minimal'      => 'boolean',
+        'needs_sheets_sync'  => 'boolean',
         'claimed_at'         => 'datetime',
         'resolved_at'        => 'datetime',
         'ai_processed_at'    => 'datetime',
+        'sheets_synced_at'   => 'datetime',
     ];
+
+    protected static function booted(): void
+    {
+        static::saving(function (LeanIssue $issue) {
+            $syncColumns = ['needs_sheets_sync', 'sheets_synced_at', 'sheets_sync_error'];
+            $dirtyNonSyncKeys = array_diff(array_keys($issue->getDirty()), $syncColumns);
+
+            if (!$issue->exists || !empty($dirtyNonSyncKeys)) {
+                $issue->needs_sheets_sync = true;
+            }
+        });
+
+        static::deleted(function (LeanIssue $issue) {
+            if ($issue->exists && !$issue->isForceDeleting()) {
+                $issue->needs_sheets_sync = true;
+                static::withTrashed()->where('id', $issue->id)->update([
+                    'needs_sheets_sync' => true,
+                ]);
+            }
+        });
+
+        static::restored(function (LeanIssue $issue) {
+            if ($issue->exists) {
+                $issue->needs_sheets_sync = true;
+                static::withTrashed()->where('id', $issue->id)->update([
+                    'needs_sheets_sync' => true,
+                ]);
+            }
+        });
+    }
+
+    public function markSheetsSynced(): void
+    {
+        $now = now();
+        $this->needs_sheets_sync = false;
+        $this->sheets_synced_at = $now;
+        $this->sheets_sync_error = null;
+
+        if ($this->exists) {
+            static::withTrashed()->where('id', $this->id)->update([
+                'needs_sheets_sync' => false,
+                'sheets_synced_at'  => $now,
+                'sheets_sync_error' => null,
+            ]);
+        }
+    }
+
+    public function markSheetsSyncFailed(string $error): void
+    {
+        $truncatedError = mb_substr($error, 0, 1000);
+        $this->needs_sheets_sync = true;
+        $this->sheets_sync_error = $truncatedError;
+
+        if ($this->exists) {
+            static::withTrashed()->where('id', $this->id)->update([
+                'needs_sheets_sync' => true,
+                'sheets_sync_error' => $truncatedError,
+            ]);
+        }
+    }
 }

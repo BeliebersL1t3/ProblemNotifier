@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Head, Link, router } from '@inertiajs/react';
 import { 
     AlertTriangle, 
@@ -100,6 +100,7 @@ export default function LeanIndex({
     staffDirectory = [],
     spreadsheetUrl = 'https://docs.google.com/spreadsheets/d/1hF2X6DrcWvOv4h77T_B4pmcNklO2-Zq2CzAiAR-UYIg/edit?usp=sharing',
     monthGids = {},
+    needsAutoReconcile = false,
 }) {
     // --- Supervisor / Department Account Info ---
     const myName = currentUser?.name || 'Supervisor';
@@ -497,6 +498,31 @@ export default function LeanIndex({
             window.removeEventListener('telunas:outbox-synced', handleOutboxSynced);
         };
     }, [showOutboxModal]);
+
+    // Silent self-healing reconciliation when SQL has unsynced changes for Google Sheets
+    const autoSyncAttemptedRef = useRef(false);
+    useEffect(() => {
+        if (!needsAutoReconcile || !isOnline) {
+            autoSyncAttemptedRef.current = false;
+            return;
+        }
+        if (autoSyncAttemptedRef.current) return;
+        autoSyncAttemptedRef.current = true;
+
+        axios
+            .post('/lapangan/auto-sync')
+            .then((res) => {
+                const data = res?.data;
+                if (data?.remaining > 0) {
+                    autoSyncAttemptedRef.current = false;
+                } else if (data?.synced > 0) {
+                    router.reload({ only: ['needsAutoReconcile'], preserveScroll: true, preserveState: true });
+                }
+            })
+            .catch((err) => {
+                console.warn('[AutoSyncSheets] Background reconcile deferred:', err);
+            });
+    }, [needsAutoReconcile, isOnline]);
 
     // Manual Outbox Sync
     const handleManualSync = async () => {
