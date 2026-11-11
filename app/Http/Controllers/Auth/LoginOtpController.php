@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Services\TicketNotificationService;
+use App\Services\WhatsAppBotLauncher;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -16,6 +18,7 @@ use Inertia\Response;
 class LoginOtpController extends Controller
 {
     public const SESSION_KEY = 'login_otp_challenge';
+    public const BOT_RECOVERY_SESSION_KEY = 'admin_bot_recovery';
 
     /**
      * Create and dispatch a fresh OTP challenge for the given user, returning true on delivery.
@@ -57,6 +60,7 @@ class LoginOtpController extends Controller
             'user_id'             => $user->id,
             'remember'            => $remember,
             'otp_hash'            => $otpHash,
+            'issued_at'           => $nowTs,
             'expires_at'          => $nowTs + ($ttlMinutes * 60),
             'resend_available_at' => $nowTs + $cooldownSeconds,
             'attempts'            => 0,
@@ -256,9 +260,263 @@ class LoginOtpController extends Controller
      */
     public function cancel(Request $request): RedirectResponse
     {
-        $request->session()->forget(self::SESSION_KEY);
+        $request->session()->forget([self::SESSION_KEY, self::BOT_RECOVERY_SESSION_KEY]);
 
         return redirect()->route('login');
+    }
+
+    /**
+     * Store a short-lived, session-bound bot recovery authorization for a credential-verified Admin.
+     */
+    public static function initiateAdminBotRecovery(Request $request, User $user, bool $remember = false): void
+    {
+        if (!$user->isAdmin()) {
+            $request->session()->forget(self::BOT_RECOVERY_SESSION_KEY);
+            return;
+        }
+
+        $ttlSeconds = max(30, (int) config('telunas.admin_bot_recovery_ttl_seconds', 180));
+
+        $request->session()->put(self::BOT_RECOVERY_SESSION_KEY, [
+            'user_id'       => $user->id,
+            'remember'      => $remember,
+            'expires_at'    => now()->timestamp + $ttlSeconds,
+            'last_start_at' => 0,
+        ]);
+    }
+
+    /**
+     * Return safe recovery metadata for the login view if a valid Admin recovery session exists.
+     *
+     * @return array{expires_at: int}|null
+     */
+    public static function getValidBotRecoveryMeta(Request $request): ?array
+    {
+        $recovery = $request->session()->get(self::BOT_RECOVERY_SESSION_KEY);
+        if (!is_array($recovery) || empty($recovery['user_id']) || empty($recovery['expires_at'])) {
+            return null;
+        }
+
+        $nowTs = now()->timestamp;
+        if ($nowTs > (int) $recovery['expires_at']) {
+            $request->session()->forget(self::BOT_RECOVERY_SESSION_KEY);
+            return null;
+        }
+
+        $user = User::find((int) $recovery['user_id']);
+        if (!$user || !$user->isAdmin() || !$user->is_active || $user->isRejected() || $user->isPendingApproval()) {
+            $request->session()->forget(self::BOT_RECOVERY_SESSION_KEY);
+            return null;
+        }
+
+        return [
+            'expires_at' => (int) $recovery['expires_at'],
+        ];
+    }
+
+    /**
+     * Start the WhatsApp bot on behalf of a credential-verified Admin stuck at login because the bot is offline.
+     */
+    public function startBotForRecovery(Request $request, WhatsAppBotLauncher $launcher): JsonResponse
+    {
+        $resolved = $this->resolveAuthorizedRecoveryContext($request);
+        if ($resolved instanceof JsonResponse) {
+            return $resolved;
+        }
+
+        /** @var User $user */
+        $user = $resolved['user'];
+        $recovery = $resolved['recovery'];
+
+        $status = $launcher->inspectStatus();
+
+        if ($status['connected']) {
+            return $this->completeBotRecoveryWithOtp($request, $user, (bool) ($recovery['remember'] ?? false));
+        }
+
+        if ($status['state'] === 'needs_pairing') {
+            return response()->json([
+                'status'  => 'needs_pairing',
+                'state'   => 'needs_pairing',
+                'message' => 'Bot sudah menyala, namun sesi WhatsApp sedang terputus atau belum ter-pair. Pulihkan sesi bot via CLI server (node bot-v2.js) atau ubah LOGIN_OTP_ENABLED=false di .env untuk pemulihan darurat.',
+            ]);
+        }
+
+        $nowTs = now()->timestamp;
+        $cooldown = max(2, (int) config('telunas.bot_recovery_cooldown_seconds', 8));
+        $lastStartAt = (int) ($recovery['last_start_at'] ?? 0);
+
+        if ($status['state'] === 'booting' || ($lastStartAt > 0 && ($nowTs - $lastStartAt) < $cooldown)) {
+            return response()->json([
+                'status'  => 'booting',
+                'state'   => 'booting',
+                'message' => 'Bot WhatsApp sedang booting dan menghubungkan koneksi WhatsApp...',
+            ]);
+        }
+
+        try {
+            $launchResult = $launcher->start();
+            $recovery['last_start_at'] = $nowTs;
+            $request->session()->put(self::BOT_RECOVERY_SESSION_KEY, $recovery);
+
+            if ($launchResult['state'] === 'connected') {
+                return $this->completeBotRecoveryWithOtp($request, $user, (bool) ($recovery['remember'] ?? false));
+            }
+
+            if ($launchResult['state'] === 'needs_pairing') {
+                return response()->json([
+                    'status'  => 'needs_pairing',
+                    'state'   => 'needs_pairing',
+                    'message' => 'Bot sudah menyala, namun sesi WhatsApp sedang terputus atau belum ter-pair. Pulihkan sesi bot via CLI server (node bot-v2.js) atau ubah LOGIN_OTP_ENABLED=false di .env untuk pemulihan darurat.',
+                ]);
+            }
+
+            Log::info('[LoginBotRecovery] Admin triggered WhatsApp bot start prior to OTP.', [
+                'user_id' => $user->id,
+                'email'   => $user->email,
+                'version' => $launchResult['version'],
+            ]);
+
+            return response()->json([
+                'status'  => 'booting',
+                'state'   => 'booting',
+                'version' => $launchResult['version'],
+                'message' => $launchResult['message'],
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('[LoginBotRecovery] Failed starting WhatsApp bot during Admin login recovery.', [
+                'user_id' => $user->id,
+                'email'   => $user->email,
+                'error'   => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'status'  => 'error',
+                'state'   => 'offline',
+                'message' => 'Gagal menyalakan Bot WhatsApp di server: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Poll bot connection readiness during Admin recovery and automatically dispatch OTP once connected.
+     */
+    public function botRecoveryStatus(Request $request, WhatsAppBotLauncher $launcher): JsonResponse
+    {
+        $resolved = $this->resolveAuthorizedRecoveryContext($request);
+        if ($resolved instanceof JsonResponse) {
+            return $resolved;
+        }
+
+        /** @var User $user */
+        $user = $resolved['user'];
+        $recovery = $resolved['recovery'];
+
+        $status = $launcher->inspectStatus();
+
+        if ($status['connected']) {
+            return $this->completeBotRecoveryWithOtp($request, $user, (bool) ($recovery['remember'] ?? false));
+        }
+
+        if ($status['state'] === 'needs_pairing') {
+            return response()->json([
+                'status'  => 'needs_pairing',
+                'state'   => 'needs_pairing',
+                'message' => 'Bot sudah menyala, namun sesi WhatsApp sedang terputus atau belum ter-pair. Pulihkan sesi bot via CLI server (node bot-v2.js) atau ubah LOGIN_OTP_ENABLED=false di .env untuk pemulihan darurat.',
+            ]);
+        }
+
+        return response()->json([
+            'status'  => $status['state'],
+            'state'   => $status['state'],
+            'message' => $status['message'],
+        ]);
+    }
+
+    /**
+     * Validate the session-bound Admin recovery authorization and re-check database state.
+     *
+     * @return array{user: User, recovery: array<string, mixed>}|JsonResponse
+     */
+    protected function resolveAuthorizedRecoveryContext(Request $request): array|JsonResponse
+    {
+        $recovery = $request->session()->get(self::BOT_RECOVERY_SESSION_KEY);
+        if (!is_array($recovery) || empty($recovery['user_id']) || empty($recovery['expires_at'])) {
+            $request->session()->forget(self::BOT_RECOVERY_SESSION_KEY);
+            return response()->json([
+                'status'  => 'unauthorized',
+                'message' => 'Sesi pemulihan bot khusus Admin tidak ditemukan atau sudah berakhir. Silakan masukkan kembali email & password Admin.',
+            ], 403);
+        }
+
+        if (now()->timestamp > (int) $recovery['expires_at']) {
+            $request->session()->forget(self::BOT_RECOVERY_SESSION_KEY);
+            return response()->json([
+                'status'  => 'expired',
+                'message' => 'Waktu sesi pemulihan bot telah habis. Silakan masukkan kembali email & password Admin.',
+            ], 403);
+        }
+
+        $user = User::find((int) $recovery['user_id']);
+        if (!$user || !$user->isAdmin() || !$user->is_active || $user->isRejected() || $user->isPendingApproval()) {
+            $request->session()->forget(self::BOT_RECOVERY_SESSION_KEY);
+            return response()->json([
+                'status'  => 'unauthorized',
+                'message' => 'Hanya akun Administrator aktif yang diizinkan menggunakan fitur pemulihan bot.',
+            ], 403);
+        }
+
+        return [
+            'user'     => $user,
+            'recovery' => $recovery,
+        ];
+    }
+
+    /**
+     * Dispatch the login OTP once the bot becomes connected and clear the recovery session.
+     */
+    protected function completeBotRecoveryWithOtp(Request $request, User $user, bool $remember): JsonResponse
+    {
+        $existingChallenge = $request->session()->get(self::SESSION_KEY);
+        $nowTs = now()->timestamp;
+
+        if (
+            is_array($existingChallenge)
+            && (int) ($existingChallenge['user_id'] ?? 0) === $user->id
+            && ($nowTs - (int) ($existingChallenge['issued_at'] ?? 0)) <= 15
+        ) {
+            $request->session()->forget(self::BOT_RECOVERY_SESSION_KEY);
+
+            return response()->json([
+                'status'   => 'otp_sent',
+                'state'    => 'connected',
+                'redirect' => route('login.otp', absolute: false),
+                'message'  => 'Bot WhatsApp sudah aktif dan kode OTP sudah dikirim. Mengalihkan ke halaman verifikasi...',
+            ]);
+        }
+
+        $sent = self::initiateChallenge($request, $user, $remember);
+        if (!$sent) {
+            return response()->json([
+                'status'  => 'error',
+                'state'   => 'booting',
+                'message' => 'Bot terhubung, tetapi pengiriman kode OTP ke WhatsApp belum berhasil. Silakan coba sesaat lagi.',
+            ], 503);
+        }
+
+        $request->session()->forget(self::BOT_RECOVERY_SESSION_KEY);
+
+        Log::info('[LoginBotRecovery] Bot connected and Admin OTP dispatched automatically.', [
+            'user_id' => $user->id,
+            'email'   => $user->email,
+        ]);
+
+        return response()->json([
+            'status'   => 'otp_sent',
+            'state'    => 'connected',
+            'redirect' => route('login.otp', absolute: false),
+            'message'  => 'Bot WhatsApp berhasil diaktifkan dan kode OTP telah dikirim ke WhatsApp Anda.',
+        ]);
     }
 }
 

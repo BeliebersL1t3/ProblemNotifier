@@ -1,6 +1,6 @@
 import { Link } from '@inertiajs/react';
 
-export default function GuestLayout({ children }) {
+export default function GuestLayout({ children, leftBottomAction = null }) {
     return (
         <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden py-12 px-4 sm:px-6 lg:px-8">
             {/* Background Image with blur and darken */}
@@ -17,7 +17,7 @@ export default function GuestLayout({ children }) {
             <div className="relative z-10 flex w-full max-w-4xl flex-col md:flex-row overflow-hidden rounded-2xl bg-white/95 text-gray-900 shadow-[0_20px_50px_rgba(0,0,0,0.3)] backdrop-blur-md">
                 
                 {/* Left Side: Branding */}
-                <div className="flex flex-col items-center justify-center bg-gray-50/50 p-10 md:w-1/2 border-b md:border-b-0 md:border-r border-gray-200">
+                <div className="relative flex flex-col items-center justify-center bg-gray-50/50 p-10 md:w-1/2 border-b md:border-b-0 md:border-r border-gray-200">
                     <img 
                         src="/logo.png" 
                         alt="Telunas Resorts" 
@@ -27,6 +27,12 @@ export default function GuestLayout({ children }) {
                     <p className="mt-3 text-center text-sm text-gray-500 leading-relaxed">
                         Welcome to the official Telunas Resorts maintenance and issue management system.
                     </p>
+
+                    {leftBottomAction && (
+                        <div className="mt-6 self-start md:mt-0 md:absolute md:bottom-3.5 md:left-3.5 z-20">
+                            {leftBottomAction}
+                        </div>
+                    )}
                 </div>
 
                 {/* Right Side: Form Content */}

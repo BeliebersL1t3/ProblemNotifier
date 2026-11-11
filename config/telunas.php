@@ -55,6 +55,10 @@ return [
 
     'login_otp_resend_cooldown_seconds' => (int) env('LOGIN_OTP_RESEND_COOLDOWN_SECONDS', 60),
 
+    'admin_bot_recovery_ttl_seconds' => (int) env('ADMIN_BOT_RECOVERY_TTL_SECONDS', 180),
+
+    'bot_recovery_cooldown_seconds' => (int) env('BOT_RECOVERY_COOLDOWN_SECONDS', 8),
+
     'registration_enabled' => env('REGISTRATION_ENABLED', false),
 
     /*

@@ -28,6 +28,14 @@ Route::middleware('guest')->group(function () {
     Route::post('login', [AuthenticatedSessionController::class, 'store'])
         ->middleware('throttle:10,1');
 
+    Route::post('login/bot-start', [LoginOtpController::class, 'startBotForRecovery'])
+        ->middleware('throttle:6,1')
+        ->name('login.bot.start');
+
+    Route::get('login/bot-status', [LoginOtpController::class, 'botRecoveryStatus'])
+        ->middleware('throttle:30,1')
+        ->name('login.bot.status');
+
     Route::get('login/otp', [LoginOtpController::class, 'show'])
         ->name('login.otp');
 

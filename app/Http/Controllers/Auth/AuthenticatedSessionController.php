@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
 use App\Services\TicketNotificationService;
+use App\Services\WhatsAppBotLauncher;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -18,12 +19,21 @@ class AuthenticatedSessionController extends Controller
     /**
      * Display the login view.
      */
-    public function create(): Response
+    public function create(Request $request): Response
     {
+        $recoveryMeta = LoginOtpController::getValidBotRecoveryMeta($request);
+        $botRecoveryState = $recoveryMeta !== null
+            ? app(WhatsAppBotLauncher::class)->inspectStatus()['state']
+            : null;
+
         return Inertia::render('Auth/Login', [
-            'canResetPassword' => Route::has('password.request'),
-            'canRegister'      => filter_var(config('telunas.registration_enabled', false), FILTER_VALIDATE_BOOLEAN),
-            'status'           => session('status'),
+            'canResetPassword'     => Route::has('password.request'),
+            'canRegister'          => filter_var(config('telunas.registration_enabled', false), FILTER_VALIDATE_BOOLEAN),
+            'status'               => session('status'),
+            'canRecoverBot'        => $recoveryMeta !== null,
+            'botRecoveryState'     => $botRecoveryState,
+            'botRecoveryExpiresAt' => $recoveryMeta['expires_at'] ?? 0,
+            'serverNow'            => now()->timestamp,
         ]);
     }
 
@@ -34,6 +44,8 @@ class AuthenticatedSessionController extends Controller
      */
     public function store(LoginRequest $request): RedirectResponse
     {
+        $request->session()->forget(LoginOtpController::BOT_RECOVERY_SESSION_KEY);
+
         $user = $request->validateCredentialsWithoutLogin();
         $remember = $request->boolean('remember');
 
@@ -73,6 +85,19 @@ class AuthenticatedSessionController extends Controller
         $sent = LoginOtpController::initiateChallenge($request, $user, $remember);
         if (!$sent) {
             $request->session()->forget(LoginOtpController::SESSION_KEY);
+
+            if ($user->isAdmin()) {
+                LoginOtpController::initiateAdminBotRecovery($request, $user, $remember);
+                $botState = app(WhatsAppBotLauncher::class)->inspectStatus()['state'];
+
+                $errorMessage = ($botState === 'needs_pairing')
+                    ? 'Bot WhatsApp menyala tetapi sesi WhatsApp terputus atau belum ter-pair. Lihat opsi pemulihan di pojok kiri bawah atau pulihkan lewat CLI / .env.'
+                    : 'Bot WhatsApp sedang offline sehingga kode OTP belum dapat dikirim. Silakan klik tombol "Aktifkan Bot" di pojok kiri bawah untuk menyalakan bot dan mengirim OTP.';
+
+                throw ValidationException::withMessages([
+                    'email' => $errorMessage,
+                ]);
+            }
 
             throw ValidationException::withMessages([
                 'email' => 'Gagal mengirim kode OTP ke WhatsApp (Bot WhatsApp sedang offline atau tidak dapat dijangkau). Silakan hubungi Administrator.',

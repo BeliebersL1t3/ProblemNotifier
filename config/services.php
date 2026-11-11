@@ -49,8 +49,9 @@ return [
     ],
 
     'bot' => [
-        'api_key' => env('BOT_API_KEY'),
-        'port'    => env('BOT_PORT', 3000),
+        'api_key'         => env('BOT_API_KEY'),
+        'port'            => (int) env('BOT_PORT', 3000),
+        'default_version' => env('BOT_DEFAULT_VERSION', 'v2'),
     ],
 
     'webpush' => [

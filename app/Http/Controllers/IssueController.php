@@ -2446,7 +2446,8 @@ class IssueController extends Controller
 
     public function startBot(Request $request)
     {
-        $version = $request->input('version', 'v1');
+        $defaultVersion = (string) config('services.bot.default_version', 'v2');
+        $version = $request->input('version', $defaultVersion);
         $user = $request->user();
         $isAdmin = $user && (method_exists($user, 'isAdmin') ? $user->isAdmin() : ($user->role === 'admin'));
 
@@ -2454,35 +2455,22 @@ class IssueController extends Controller
             return response()->json(['success' => false, 'message' => 'Hanya Admin yang dapat menyalakan bot.'], 403);
         }
 
-        $port = env('BOT_PORT', 3000);
-        // Check if bot is already responding
         try {
-            $check = \Illuminate\Support\Facades\Http::timeout(1.0)->get("http://127.0.0.1:{$port}/status");
-            if ($check->successful()) {
-                return response()->json(['success' => true, 'message' => 'Bot sudah aktif dan berjalan.']);
-            }
-        } catch (\Throwable $e) {}
+            $result = app(\App\Services\WhatsAppBotLauncher::class)->start(
+                is_string($version) ? $version : $defaultVersion
+            );
 
-        $botDir = base_path('whatsapp-bot');
-        $script = ($version === 'v2') ? 'bot-v2.js' : 'bot.js';
-        $logFile = $botDir . DIRECTORY_SEPARATOR . ($version === 'v2' ? 'bot_v2_runtime.log' : 'bot_runtime.log');
-
-        if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
-            // Windows detached background launch
-            $cmd = "start /B cmd /C \"cd /D " . escapeshellarg($botDir) . " && node {$script} >> " . escapeshellarg($logFile) . " 2>&1\"";
-            pclose(popen($cmd, "r"));
-        } else {
-            // Linux/macOS detached background launch
-            $cmd = "cd " . escapeshellarg($botDir) . " && node {$script} >> " . escapeshellarg($logFile) . " 2>&1 &";
-            exec($cmd);
+            return response()->json([
+                'success' => true,
+                'message' => $result['message'],
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('IssueController::startBot failed: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal menyalakan bot WhatsApp: ' . $e->getMessage(),
+            ], 500);
         }
-
-        return response()->json([
-            'success' => true,
-            'message' => ($version === 'v2')
-                ? 'Perintah menyalakan Bot WA V2 berhasil dikirim. Bot sedang booting di background.'
-                : 'Perintah menyalakan bot berhasil dikirim. Bot sedang booting di background.'
-        ]);
     }
 
     public function stopBot(Request $request)
