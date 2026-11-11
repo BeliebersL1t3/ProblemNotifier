@@ -392,6 +392,138 @@ function useDragToPan(containerRef, enabled = true) {
     };
 }
 
+// Reusable adaptive pin marker for TPI & TBR masterplan maps:
+// Compact on mobile (<640px) when unzoomed (<=1x inline) and full-size on zoom >1x, fullscreen, or desktop (>=640px).
+function ResortZonePin({
+    zone,
+    isSelected,
+    isHovered,
+    isCompactMobile,
+    isDark,
+    selectedRingClass,
+    fallbackLabel,
+    onSelectZone,
+    onHoverStart,
+    onHoverEnd,
+}) {
+    const count = zone.count || 0;
+    const status = zone.dominantStatus || 'none';
+    const color = PROGRESS_STATUS_COLORS[status] || PROGRESS_STATUS_COLORS.none;
+
+    // Clamping koordinat aman agar tidak terpotong separuh di tepi kanvas
+    const safeX = Math.max(3.5, Math.min(96.5, zone.x));
+    const safeY = Math.max(4.5, Math.min(95.5, zone.y));
+
+    return (
+        <div
+            onClick={() => onSelectZone && onSelectZone(zone)}
+            onMouseEnter={() => onHoverStart(zone.id)}
+            onMouseLeave={onHoverEnd}
+            className={`absolute transform -translate-x-1/2 -translate-y-1/2 cursor-pointer transition-all duration-150 ${
+                isCompactMobile ? 'p-0.5 sm:p-0' : ''
+            } ${
+                isSelected ? 'z-40 scale-125' : isHovered ? 'z-30 scale-[1.15]' : count > 0 ? 'z-20' : 'z-10'
+            }`}
+            style={{ left: `${safeX}%`, top: `${safeY}%` }}
+        >
+            <div className="relative">
+                {/* Micro ping ring for active issues (ringan dan tidak menutupi pulau) */}
+                {count > 0 && !isSelected && (
+                    <span
+                        className={`absolute rounded-full animate-ping opacity-60 pointer-events-none ${
+                            isCompactMobile ? '-inset-0.5 sm:-inset-1' : '-inset-1'
+                        }`}
+                        style={{ backgroundColor: color }}
+                    />
+                )}
+
+                {/* Adaptive Pin Marker (~13px compact on mobile 1x Fit, 20px standard on zoom/fullscreen/desktop) */}
+                <div
+                    className={`relative flex items-center justify-center rounded-full transition-all select-none ${
+                        isCompactMobile ? 'w-[13px] h-[13px] sm:w-5 sm:h-5' : 'w-5 h-5'
+                    } ${
+                        isSelected
+                            ? `${selectedRingClass} bg-white text-slate-950 font-black shadow-lg`
+                            : count > 0
+                            ? 'text-white font-extrabold ring-1 ring-white/90 shadow-sm'
+                            : zone.total > 0
+                            ? isDark
+                                ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-500/50 shadow-sm hover:bg-emerald-900'
+                                : 'bg-emerald-50 text-emerald-800 border border-emerald-300 shadow-sm hover:bg-emerald-100'
+                            : isDark
+                            ? 'bg-slate-900/90 text-slate-200 border border-slate-700/80 hover:bg-slate-800 shadow-sm'
+                            : 'bg-white/95 text-slate-800 border border-slate-300 shadow-sm hover:bg-slate-100'
+                    }`}
+                    style={{
+                        backgroundColor: isSelected ? undefined : count > 0 ? color : undefined,
+                    }}
+                >
+                    {/* Number */}
+                    <span
+                        className={`font-black leading-none ${
+                            isCompactMobile
+                                ? 'text-[7px] tracking-tighter sm:text-[10px] sm:tracking-normal'
+                                : 'text-[9px] sm:text-[10px]'
+                        }`}
+                    >
+                        {zone.num}
+                    </span>
+
+                    {/* Micro Notification Badge for issue count (Top-Right) */}
+                    {count > 0 && (
+                        <span
+                            className={`absolute rounded-full bg-slate-950 text-white border border-white font-black leading-none flex items-center justify-center shadow-sm ${
+                                isCompactMobile
+                                    ? '-top-1 -right-1 min-w-[9px] h-[9px] px-[2px] text-[5.5px] sm:-top-1.5 sm:-right-1.5 sm:min-w-[13px] sm:h-[13px] sm:px-0.5 sm:text-[7.5px]'
+                                    : '-top-1.5 -right-1.5 min-w-[13px] h-[13px] px-0.5 text-[7.5px]'
+                            }`}
+                        >
+                            {count}
+                        </span>
+                    )}
+                </div>
+            </div>
+
+            {/* Hover / Selected Tooltip Card */}
+            {(isHovered || isSelected) && (
+                <div className={`absolute left-1/2 -translate-x-1/2 bottom-full mb-2.5 px-3 py-2 rounded-xl border text-[11px] whitespace-nowrap z-50 pointer-events-none backdrop-blur-md animate-in fade-in zoom-in-95 duration-150 ${
+                    isDark
+                        ? 'bg-slate-900/95 border-slate-700 text-white shadow-2xl'
+                        : 'bg-white/98 border-slate-200 text-slate-900 shadow-xl'
+                }`}>
+                    <div className="flex items-center gap-1.5 font-bold">
+                        <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                        <span className={isDark ? 'text-white' : 'text-slate-900'}>
+                            #{zone.num} {zone.name}
+                        </span>
+                    </div>
+                    <div className="text-[10px] flex items-center justify-between gap-3 pt-1">
+                        <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>
+                            {zone.enName || fallbackLabel}
+                        </span>
+                        <span className="font-semibold" style={{ color }}>
+                            {count > 0 ? (
+                                `${count} Isu Aktif (${[
+                                    zone.openCount > 0 ? `${zone.openCount} Open` : null,
+                                    zone.progressCount > 0 ? `${zone.progressCount} Progress` : null,
+                                    zone.pendingCount > 0 ? `${zone.pendingCount} Pending` : null,
+                                ].filter(Boolean).join(', ')})`
+                            ) : zone.total > 0 ? (
+                                `Semua Selesai (${zone.total} Tiket)`
+                            ) : (
+                                'Tidak Ada Laporan'
+                            )}
+                        </span>
+                    </div>
+                    <div className={`absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-x-4 border-x-transparent border-t-4 ${
+                        isDark ? 'border-t-slate-900' : 'border-t-white'
+                    }`} />
+                </div>
+            )}
+        </div>
+    );
+}
+
 // --- Denah Arsitektural Masterplan TPI (Telunas Private Island) ---
 function TpiResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark', spotlightTarget = null }) {
     const isDark = theme === 'dark';
@@ -463,6 +595,7 @@ function TpiResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
     const renderMapCanvas = (isModal = false) => {
         const effectiveZoom = isModal ? Math.max(1.25, zoom) : zoom;
         const isFit = !isModal && effectiveZoom <= 1;
+        const isCompactMobile = !isModal && effectiveZoom <= 1;
 
         return (
             <div
@@ -519,107 +652,21 @@ function TpiResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                     )}
 
                     {/* Interactive Compact Location Pins */}
-                    {displayedZones.map((zone) => {
-                        const count = zone.count || 0;
-                        const status = zone.dominantStatus || 'none';
-                        const color = PROGRESS_STATUS_COLORS[status] || PROGRESS_STATUS_COLORS.none;
-                        const isSelected = selectedZoneId === zone.id;
-                        const isHovered = hoveredZone === zone.id;
-
-                        // Clamping koordinat aman agar tidak terpotong separuh di tepi kanvas
-                        const safeX = Math.max(3.5, Math.min(96.5, zone.x));
-                        const safeY = Math.max(4.5, Math.min(95.5, zone.y));
-
-                        return (
-                            <div
-                                key={zone.id}
-                                onClick={() => onSelectZone && onSelectZone(zone)}
-                                onMouseEnter={() => setHoveredZone(zone.id)}
-                                onMouseLeave={() => setHoveredZone(null)}
-                                className={`absolute transform -translate-x-1/2 -translate-y-1/2 cursor-pointer transition-all duration-150 ${
-                                    isSelected ? 'z-40 scale-125' : isHovered ? 'z-30 scale-115' : count > 0 ? 'z-20' : 'z-10'
-                                }`}
-                                style={{ left: `${safeX}%`, top: `${safeY}%` }}
-                            >
-                                {/* Micro ping ring for active issues (ringan dan tidak menutupi pulau) */}
-                                {count > 0 && !isSelected && (
-                                    <span
-                                        className="absolute -inset-1 rounded-full animate-ping opacity-60 pointer-events-none"
-                                        style={{ backgroundColor: color }}
-                                    />
-                                )}
-
-                                {/* Compact Pin Marker (~20px Circle) */}
-                                <div
-                                    className={`relative flex items-center justify-center w-5 h-5 sm:w-5.5 sm:h-5.5 rounded-full transition-all select-none ${
-                                        isSelected
-                                            ? 'ring-3 ring-sky-400 bg-white text-slate-950 font-black shadow-lg'
-                                            : count > 0
-                                            ? 'text-white font-extrabold ring-1 ring-white/90 shadow-sm'
-                                            : zone.total > 0
-                                            ? isDark
-                                                ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-500/50 shadow-2xs hover:bg-emerald-900'
-                                                : 'bg-emerald-50 text-emerald-800 border border-emerald-300 shadow-2xs hover:bg-emerald-100'
-                                            : isDark
-                                            ? 'bg-slate-900/90 text-slate-200 border border-slate-700/80 hover:bg-slate-800 shadow-2xs'
-                                            : 'bg-white/95 text-slate-800 border border-slate-300 shadow-2xs hover:bg-slate-100'
-                                    }`}
-                                    style={{
-                                        backgroundColor: isSelected ? undefined : count > 0 ? color : undefined,
-                                    }}
-                                >
-                                    {/* Number */}
-                                    <span className="text-[9px] sm:text-[10px] font-black leading-none">
-                                        {zone.num}
-                                    </span>
-
-                                    {/* Micro Notification Badge for issue count (Top-Right) */}
-                                    {count > 0 && (
-                                        <span className="absolute -top-1.5 -right-1.5 min-w-[13px] h-[13px] px-0.5 rounded-full bg-slate-950 text-white border border-white text-[7.5px] font-black flex items-center justify-center shadow-xs">
-                                            {count}
-                                        </span>
-                                    )}
-                                </div>
-
-                                {/* Hover / Selected Tooltip Card */}
-                                {(isHovered || isSelected) && (
-                                    <div className={`absolute left-1/2 -translate-x-1/2 bottom-full mb-2.5 px-3 py-2 rounded-xl border text-[11px] whitespace-nowrap z-50 pointer-events-none backdrop-blur-md animate-in fade-in zoom-in-95 duration-150 ${
-                                        isDark
-                                            ? 'bg-slate-900/95 border-slate-700 text-white shadow-2xl'
-                                            : 'bg-white/98 border-slate-200 text-slate-900 shadow-xl'
-                                    }`}>
-                                        <div className="flex items-center gap-1.5 font-bold">
-                                            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
-                                            <span className={isDark ? 'text-white' : 'text-slate-900'}>
-                                                #{zone.num} {zone.name}
-                                            </span>
-                                        </div>
-                                        <div className="text-[10px] flex items-center justify-between gap-3 pt-1">
-                                            <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>
-                                                {zone.enName || 'Fasilitas TPI'}
-                                            </span>
-                                            <span className="font-semibold" style={{ color }}>
-                                                {count > 0 ? (
-                                                    `${count} Isu Aktif (${[
-                                                        zone.openCount > 0 ? `${zone.openCount} Open` : null,
-                                                        zone.progressCount > 0 ? `${zone.progressCount} Progress` : null,
-                                                        zone.pendingCount > 0 ? `${zone.pendingCount} Pending` : null,
-                                                    ].filter(Boolean).join(', ')})`
-                                                ) : zone.total > 0 ? (
-                                                    `Semua Selesai (${zone.total} Tiket)`
-                                                ) : (
-                                                    'Tidak Ada Laporan'
-                                                )}
-                                            </span>
-                                        </div>
-                                        <div className={`absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-x-4 border-x-transparent border-t-4 ${
-                                            isDark ? 'border-t-slate-900' : 'border-t-white'
-                                        }`} />
-                                    </div>
-                                )}
-                            </div>
-                        );
-                    })}
+                    {displayedZones.map((zone) => (
+                        <ResortZonePin
+                            key={zone.id}
+                            zone={zone}
+                            isSelected={selectedZoneId === zone.id}
+                            isHovered={hoveredZone === zone.id}
+                            isCompactMobile={isCompactMobile}
+                            isDark={isDark}
+                            selectedRingClass="ring-2 ring-sky-400"
+                            fallbackLabel="Fasilitas TPI"
+                            onSelectZone={onSelectZone}
+                            onHoverStart={setHoveredZone}
+                            onHoverEnd={() => setHoveredZone(null)}
+                        />
+                    ))}
                 </div>
             </div>
         );
@@ -935,6 +982,7 @@ function TbrResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
 
     const renderMapCanvas = (isModal = false) => {
         const effectiveZoom = isModal ? Math.max(1, zoom) : zoom;
+        const isCompactMobile = !isModal && effectiveZoom <= 1;
 
         return (
             <div
@@ -991,107 +1039,21 @@ function TbrResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                     )}
 
                     {/* Interactive Compact Location Pins */}
-                    {displayedZones.map((zone) => {
-                        const count = zone.count || 0;
-                        const status = zone.dominantStatus || 'none';
-                        const color = PROGRESS_STATUS_COLORS[status] || PROGRESS_STATUS_COLORS.none;
-                        const isSelected = selectedZoneId === zone.id;
-                        const isHovered = hoveredZone === zone.id;
-
-                        // Clamping koordinat aman agar tidak terpotong separuh di tepi kanvas
-                        const safeX = Math.max(3.5, Math.min(96.5, zone.x));
-                        const safeY = Math.max(4.5, Math.min(95.5, zone.y));
-
-                        return (
-                            <div
-                                key={zone.id}
-                                onClick={() => onSelectZone && onSelectZone(zone)}
-                                onMouseEnter={() => setHoveredZone(zone.id)}
-                                onMouseLeave={() => setHoveredZone(null)}
-                                className={`absolute transform -translate-x-1/2 -translate-y-1/2 cursor-pointer transition-all duration-150 ${
-                                    isSelected ? 'z-40 scale-125' : isHovered ? 'z-30 scale-115' : count > 0 ? 'z-20' : 'z-10'
-                                }`}
-                                style={{ left: `${safeX}%`, top: `${safeY}%` }}
-                            >
-                                {/* Micro ping ring for active issues (ringan dan tidak menutupi pulau) */}
-                                {count > 0 && !isSelected && (
-                                    <span
-                                        className="absolute -inset-1 rounded-full animate-ping opacity-60 pointer-events-none"
-                                        style={{ backgroundColor: color }}
-                                    />
-                                )}
-
-                                {/* Compact Pin Marker (~20px Circle) */}
-                                <div
-                                    className={`relative flex items-center justify-center w-5 h-5 sm:w-5.5 sm:h-5.5 rounded-full transition-all select-none ${
-                                        isSelected
-                                            ? 'ring-3 ring-amber-400 bg-white text-slate-950 font-black shadow-lg'
-                                            : count > 0
-                                            ? 'text-white font-extrabold ring-1 ring-white/90 shadow-sm'
-                                            : zone.total > 0
-                                            ? isDark
-                                                ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-500/50 shadow-2xs hover:bg-emerald-900'
-                                                : 'bg-emerald-50 text-emerald-800 border border-emerald-300 shadow-2xs hover:bg-emerald-100'
-                                            : isDark
-                                            ? 'bg-slate-900/90 text-slate-200 border border-slate-700/80 hover:bg-slate-800 shadow-2xs'
-                                            : 'bg-white/95 text-slate-800 border border-slate-300 shadow-2xs hover:bg-slate-100'
-                                    }`}
-                                    style={{
-                                        backgroundColor: isSelected ? undefined : count > 0 ? color : undefined,
-                                    }}
-                                >
-                                    {/* Number */}
-                                    <span className="text-[9px] sm:text-[10px] font-black leading-none">
-                                        {zone.num}
-                                    </span>
-
-                                    {/* Micro Notification Badge for issue count (Top-Right) */}
-                                    {count > 0 && (
-                                        <span className="absolute -top-1.5 -right-1.5 min-w-[13px] h-[13px] px-0.5 rounded-full bg-slate-950 text-white border border-white text-[7.5px] font-black flex items-center justify-center shadow-xs">
-                                            {count}
-                                        </span>
-                                    )}
-                                </div>
-
-                                {/* Tooltip Card on Hover / Select */}
-                                {(isHovered || isSelected) && (
-                                    <div className={`absolute left-1/2 -translate-x-1/2 bottom-full mb-2.5 px-3 py-2 rounded-xl border text-[11px] whitespace-nowrap z-50 pointer-events-none backdrop-blur-md animate-in fade-in zoom-in-95 duration-150 ${
-                                        isDark
-                                            ? 'bg-slate-900/95 border-slate-700 text-white shadow-2xl'
-                                            : 'bg-white/98 border-slate-200 text-slate-900 shadow-xl'
-                                    }`}>
-                                        <div className="flex items-center gap-1.5 font-bold">
-                                            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
-                                            <span className={isDark ? 'text-white' : 'text-slate-900'}>
-                                                #{zone.num} {zone.name}
-                                            </span>
-                                        </div>
-                                        <div className="text-[10px] flex items-center justify-between gap-3 pt-1">
-                                            <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>
-                                                {zone.enName || 'Fasilitas TBR'}
-                                            </span>
-                                            <span className="font-semibold" style={{ color }}>
-                                                {count > 0 ? (
-                                                    `${count} Isu Aktif (${[
-                                                        zone.openCount > 0 ? `${zone.openCount} Open` : null,
-                                                        zone.progressCount > 0 ? `${zone.progressCount} Progress` : null,
-                                                        zone.pendingCount > 0 ? `${zone.pendingCount} Pending` : null,
-                                                    ].filter(Boolean).join(', ')})`
-                                                ) : zone.total > 0 ? (
-                                                    `Semua Selesai (${zone.total} Tiket)`
-                                                ) : (
-                                                    'Tidak Ada Laporan'
-                                                )}
-                                            </span>
-                                        </div>
-                                        <div className={`absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-x-4 border-x-transparent border-t-4 ${
-                                            isDark ? 'border-t-slate-900' : 'border-t-white'
-                                        }`} />
-                                    </div>
-                                )}
-                            </div>
-                        );
-                    })}
+                    {displayedZones.map((zone) => (
+                        <ResortZonePin
+                            key={zone.id}
+                            zone={zone}
+                            isSelected={selectedZoneId === zone.id}
+                            isHovered={hoveredZone === zone.id}
+                            isCompactMobile={isCompactMobile}
+                            isDark={isDark}
+                            selectedRingClass="ring-2 ring-amber-400"
+                            fallbackLabel="Fasilitas TBR"
+                            onSelectZone={onSelectZone}
+                            onHoverStart={setHoveredZone}
+                            onHoverEnd={() => setHoveredZone(null)}
+                        />
+                    ))}
                 </div>
             </div>
         );
