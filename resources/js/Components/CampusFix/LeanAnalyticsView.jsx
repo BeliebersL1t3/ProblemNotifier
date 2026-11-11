@@ -259,6 +259,139 @@ const CustomMttrTooltip = ({ active, payload }) => {
     );
 };
 
+// Reusable mouse drag-to-pan helper without blocking vertical page wheel scroll
+function useDragToPan(containerRef, enabled = true) {
+    const [isDragging, setIsDragging] = useState(false);
+    const dragStateRef = useRef({
+        active: false,
+        startX: 0,
+        startY: 0,
+        scrollLeft: 0,
+        scrollTop: 0,
+        hasMoved: false,
+    });
+    const suppressClickRef = useRef(false);
+    const suppressTimerRef = useRef(null);
+    const cleanupListenersRef = useRef(null);
+
+    const clearSuppressTimer = useCallback(() => {
+        if (suppressTimerRef.current) {
+            clearTimeout(suppressTimerRef.current);
+            suppressTimerRef.current = null;
+        }
+    }, []);
+
+    const stopDragging = useCallback(() => {
+        if (cleanupListenersRef.current) {
+            cleanupListenersRef.current();
+            cleanupListenersRef.current = null;
+        }
+        if (dragStateRef.current.active) {
+            if (dragStateRef.current.hasMoved) {
+                suppressClickRef.current = true;
+                clearSuppressTimer();
+                suppressTimerRef.current = setTimeout(() => {
+                    suppressClickRef.current = false;
+                    suppressTimerRef.current = null;
+                }, 50);
+            }
+            dragStateRef.current.active = false;
+            dragStateRef.current.hasMoved = false;
+            setIsDragging(false);
+        }
+    }, [clearSuppressTimer]);
+
+    useEffect(() => {
+        if (!enabled) {
+            stopDragging();
+        }
+    }, [enabled, stopDragging]);
+
+    useEffect(() => {
+        return () => {
+            clearSuppressTimer();
+            if (cleanupListenersRef.current) {
+                cleanupListenersRef.current();
+                cleanupListenersRef.current = null;
+            }
+        };
+    }, [clearSuppressTimer]);
+
+    const handleMouseDown = useCallback((e) => {
+        if (!enabled || e.button !== 0) return;
+        const container = containerRef.current;
+        if (!container) return;
+
+        const canScrollX = container.scrollWidth > container.clientWidth + 1;
+        const canScrollY = container.scrollHeight > container.clientHeight + 1;
+        if (!canScrollX && !canScrollY) return;
+
+        clearSuppressTimer();
+        suppressClickRef.current = false;
+
+        dragStateRef.current = {
+            active: true,
+            startX: e.clientX,
+            startY: e.clientY,
+            scrollLeft: container.scrollLeft,
+            scrollTop: container.scrollTop,
+            hasMoved: false,
+        };
+
+        const handleMouseMove = (moveEvent) => {
+            const state = dragStateRef.current;
+            if (!state.active || !containerRef.current) return;
+
+            const dx = moveEvent.clientX - state.startX;
+            const dy = moveEvent.clientY - state.startY;
+
+            if (!state.hasMoved && Math.hypot(dx, dy) > 5) {
+                state.hasMoved = true;
+                setIsDragging(true);
+            }
+
+            if (state.hasMoved) {
+                if (canScrollX) {
+                    containerRef.current.scrollLeft = state.scrollLeft - dx;
+                }
+                if (canScrollY) {
+                    containerRef.current.scrollTop = state.scrollTop - dy;
+                }
+            }
+        };
+
+        const handleMouseUp = () => {
+            stopDragging();
+        };
+
+        window.addEventListener('mousemove', handleMouseMove);
+        window.addEventListener('mouseup', handleMouseUp);
+        cleanupListenersRef.current = () => {
+            window.removeEventListener('mousemove', handleMouseMove);
+            window.removeEventListener('mouseup', handleMouseUp);
+        };
+    }, [containerRef, enabled, stopDragging, clearSuppressTimer]);
+
+    const handleClickCapture = useCallback((e) => {
+        if (suppressClickRef.current) {
+            e.stopPropagation();
+            e.preventDefault();
+            suppressClickRef.current = false;
+            clearSuppressTimer();
+        }
+    }, [clearSuppressTimer]);
+
+    return {
+        isDragging,
+        dragHandlers: enabled
+            ? {
+                  onMouseDown: handleMouseDown,
+                  onClickCapture: handleClickCapture,
+              }
+            : {},
+    };
+}
+
 // --- Denah Arsitektural Masterplan TPI (Telunas Private Island) ---
 function TpiResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark', spotlightTarget = null }) {
     const isDark = theme === 'dark';
@@ -270,6 +403,8 @@ function TpiResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
     const [isSpotlightFading, setIsSpotlightFading] = useState(false);
     const scrollContainerRef = useRef(null);
     const modalScrollRef = useRef(null);
+    const inlineDrag = useDragToPan(scrollContainerRef, zoom > 1);
+    const modalDrag = useDragToPan(modalScrollRef, isFullscreen);
 
     // Auto-centering and cinematic spotlight effect when a location is triggered from issue modal
     useEffect(() => {
@@ -343,6 +478,7 @@ function TpiResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                     <img
                         src="/images/maps/tpi_masterplan_v3.png?v=1"
                         alt="Denah Masterplan Telunas Private Island (TPI)"
+                        draggable={false}
                         className="w-full h-auto block select-none pointer-events-none filter contrast-[1.08] brightness-[0.98]"
                         style={{ imageRendering: '-webkit-optimize-contrast' }}
                         loading="eager"
@@ -601,13 +737,15 @@ function TpiResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                     </div>
                 </div>
 
-                {/* Blueprint Map Container - Smooth Touch Scroll & Pan */}
+                {/* Blueprint Map Container - Free Page Scroll & Horizontal Drag-to-Pan on Zoom */}
                 <div
                     ref={scrollContainerRef}
-                    className={`relative w-full bg-[#fbf9f4] overscroll-contain transition-all ${
+                    {...inlineDrag.dragHandlers}
+                    title={zoom > 1 ? 'Tahan klik & geser mouse untuk menggeser denah • Scroll mouse tetap menggerakkan halaman' : undefined}
+                    className={`relative w-full bg-[#fbf9f4] transition-all max-h-none ${
                         zoom > 1
-                            ? 'overflow-auto touch-pan-x touch-pan-y max-h-[550px] sm:max-h-[650px]'
-                            : 'overflow-hidden max-h-none'
+                            ? `overflow-x-auto overflow-y-hidden touch-pan-x touch-pan-y ${inlineDrag.isDragging ? 'cursor-grabbing' : 'cursor-grab'}`
+                            : 'overflow-visible'
                     }`}
                 >
                     {renderMapCanvas(false)}
@@ -710,10 +848,14 @@ function TpiResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                         </div>
                     </div>
 
-                    {/* Modal Scrollable Body - Anti Left Clipping */}
+                    {/* Modal Scrollable Body - Anti Left Clipping & Mouse Drag-to-Pan */}
                     <div
                         ref={modalScrollRef}
-                        className="flex-1 overflow-auto touch-pan-x touch-pan-y relative mt-2 rounded-xl bg-[#fbf9f4] border border-slate-800"
+                        {...modalDrag.dragHandlers}
+                        title="Tahan klik & geser mouse untuk menggeser denah"
+                        className={`flex-1 overflow-auto touch-pan-x touch-pan-y relative mt-2 rounded-xl bg-[#fbf9f4] border border-slate-800 ${
+                            modalDrag.isDragging ? 'cursor-grabbing' : 'cursor-grab'
+                        }`}
                     >
                         {renderMapCanvas(true)}
                     </div>
@@ -734,6 +876,8 @@ function TbrResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
     const [isSpotlightFading, setIsSpotlightFading] = useState(false);
     const scrollContainerRef = useRef(null);
     const modalScrollRef = useRef(null);
+    const inlineDrag = useDragToPan(scrollContainerRef, zoom > 1);
+    const modalDrag = useDragToPan(modalScrollRef, isFullscreen);
 
     // Auto-centering and cinematic spotlight effect when a location is triggered from issue modal
     useEffect(() => {
@@ -806,6 +950,7 @@ function TbrResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                     <img
                         src="/images/maps/tbr_masterplan.png"
                         alt="Denah Arsitektural Telunas Beach Resort (TBR)"
+                        draggable={false}
                         className="w-full h-auto block select-none pointer-events-none filter contrast-[1.10] brightness-[0.98]"
                         style={{ imageRendering: '-webkit-optimize-contrast' }}
                         loading="eager"
@@ -1064,10 +1209,16 @@ function TbrResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                     </div>
                 </div>
 
-                {/* Clean CAD Architectural Blueprint Container - Smooth Touch Scroll & Pan */}
+                {/* Clean CAD Architectural Blueprint Container - Free Page Scroll & Horizontal Drag-to-Pan on Zoom */}
                 <div
                     ref={scrollContainerRef}
-                    className="relative w-full bg-slate-100 overscroll-contain transition-all overflow-auto touch-pan-x touch-pan-y max-h-[500px] sm:max-h-[560px] flex justify-center"
+                    {...inlineDrag.dragHandlers}
+                    title={zoom > 1 ? 'Tahan klik & geser mouse untuk menggeser denah • Scroll mouse tetap menggerakkan halaman' : undefined}
+                    className={`relative w-full bg-slate-100 transition-all max-h-none ${
+                        zoom > 1
+                            ? `overflow-x-auto overflow-y-hidden touch-pan-x touch-pan-y ${inlineDrag.isDragging ? 'cursor-grabbing' : 'cursor-grab'}`
+                            : 'overflow-visible'
+                    }`}
                 >
                     {renderMapCanvas(false)}
                 </div>
@@ -1169,10 +1320,14 @@ function TbrResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                         </div>
                     </div>
 
-                    {/* Modal Scrollable Body - Anti Left Clipping */}
+                    {/* Modal Scrollable Body - Anti Left Clipping & Mouse Drag-to-Pan */}
                     <div
                         ref={modalScrollRef}
-                        className="flex-1 overflow-auto touch-pan-x touch-pan-y relative mt-2 rounded-xl bg-slate-100 border border-slate-800"
+                        {...modalDrag.dragHandlers}
+                        title="Tahan klik & geser mouse untuk menggeser denah"
+                        className={`flex-1 overflow-auto touch-pan-x touch-pan-y relative mt-2 rounded-xl bg-slate-100 border border-slate-800 ${
+                            modalDrag.isDragging ? 'cursor-grabbing' : 'cursor-grab'
+                        }`}
                     >
                         {renderMapCanvas(true)}
                     </div>
