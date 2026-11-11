@@ -56,7 +56,11 @@ class TelunasWifiBypassController extends Controller
         $request->session()->put('telunas_wifi_bypass_until', $expiryTimestamp);
         $request->session()->put('telunas_wifi_bypass_signature', $token);
 
-        $cookie = cookie('telunas_bypass_token', $token, $hours * 60, null, null, false, true);
+        $secureCookie = config('session.secure');
+        if ($secureCookie === null) {
+            $secureCookie = $request->isSecure();
+        }
+        $cookie = cookie('telunas_bypass_token', $token, $hours * 60, null, null, (bool) $secureCookie, true);
 
         return redirect('/')
             ->withCookie($cookie)

@@ -18,10 +18,25 @@ use Inertia\Response;
 class RegisteredUserController extends Controller
 {
     /**
+     * Determine whether public self-registration is currently enabled.
+     */
+    protected function isRegistrationEnabled(): bool
+    {
+        return filter_var(config('telunas.registration_enabled', false), FILTER_VALIDATE_BOOLEAN);
+    }
+
+    /**
      * Display the registration view.
      */
-    public function create(): Response
+    public function create(): Response|RedirectResponse
     {
+        if (!$this->isRegistrationEnabled()) {
+            return redirect()->route('login')->with(
+                'status',
+                'Pendaftaran akun mandiri saat ini dinonaktifkan oleh Administrator. Silakan hubungi Admin untuk pembuatan akun.'
+            );
+        }
+
         return Inertia::render('Auth/Register');
     }
 
@@ -30,6 +45,16 @@ class RegisteredUserController extends Controller
      */
     public function checkPhone(Request $request): \Illuminate\Http\JsonResponse
     {
+        if (!$this->isRegistrationEnabled()) {
+            return response()->json([
+                'valid'        => false,
+                'available'    => false,
+                'exists_on_wa' => null,
+                'bot_online'   => null,
+                'message'      => 'Pendaftaran akun mandiri saat ini sedang dinonaktifkan.',
+            ], 403);
+        }
+
         $rawPhone = $request->input('phone', '');
         [$canonicalPhone, $zeroPhone] = $this->normalizePhoneVariants($rawPhone);
 
@@ -157,6 +182,10 @@ class RegisteredUserController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
+        if (!$this->isRegistrationEnabled()) {
+            abort(403, 'Pendaftaran akun mandiri saat ini sedang dinonaktifkan.');
+        }
+
         [$canonicalPhone, $zeroPhone] = $this->normalizePhoneVariants($request->whatsapp_number);
 
         $request->validate([

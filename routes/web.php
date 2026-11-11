@@ -18,7 +18,7 @@ use Inertia\Inertia;
 
 Route::get('/', function () {
     return redirect()->route('lean.index');
-});
+})->middleware('auth');
 
 Route::get('/csrf-token', function () {
     return response()->json([
@@ -199,27 +199,31 @@ Route::prefix('api')->group(function () {
 Route::get('/telunas-wifi-required', [\App\Http\Controllers\TelunasWifiBypassController::class, 'show'])->name('telunas.wifi.required');
 Route::post('/telunas-wifi-bypass', [\App\Http\Controllers\TelunasWifiBypassController::class, 'verify'])->middleware('throttle:5,1')->name('telunas.wifi.bypass');
 
-// Lean Mode (Sandbox Lapangan) Routes
-Route::get('/lapangan', [\App\Http\Controllers\LeanController::class, 'index'])->name('lean.index');
-Route::post('/lapangan/issues', [\App\Http\Controllers\LeanController::class, 'store'])->name('lean.store');
-Route::post('/lapangan/issues/{issue}/acc', [\App\Http\Controllers\LeanController::class, 'acc'])->name('lean.acc');
-Route::post('/lapangan/issues/{issue}/claim', [\App\Http\Controllers\LeanController::class, 'claim'])->name('lean.claim');
-Route::post('/lapangan/issues/{issue}/progress', [\App\Http\Controllers\LeanController::class, 'updateProgress'])->name('lean.progress');
-Route::post('/lapangan/issues/{issue}/pending', [\App\Http\Controllers\LeanController::class, 'pending'])->name('lean.pending');
-Route::post('/lapangan/issues/{issue}/resolve', [\App\Http\Controllers\LeanController::class, 'resolve'])->name('lean.resolve');
-Route::post('/lapangan/issues/{issue}/transfer', [\App\Http\Controllers\LeanController::class, 'transfer'])->name('lean.transfer');
-Route::post('/lapangan/reset', [\App\Http\Controllers\LeanController::class, 'reset'])->name('lean.reset');
-Route::delete('/lapangan/issues/{issue}', [\App\Http\Controllers\LeanController::class, 'destroy'])->name('lean.destroy');
-Route::post('/lapangan/sync-sheets', [\App\Http\Controllers\LeanController::class, 'syncGoogleSheets'])->name('lean.sync.sheets');
-Route::post('/lapangan/auto-sync', [\App\Http\Controllers\LeanController::class, 'autoSyncSheets'])->name('lean.auto.sync');
+// Lean Mode (Sandbox Lapangan) Routes — Mandatory Authentication
+Route::middleware('auth')->group(function () {
+    Route::get('/lapangan', [\App\Http\Controllers\LeanController::class, 'index'])->name('lean.index');
+    Route::post('/lapangan/issues', [\App\Http\Controllers\LeanController::class, 'store'])->name('lean.store');
+    Route::post('/lapangan/issues/{issue}/acc', [\App\Http\Controllers\LeanController::class, 'acc'])->name('lean.acc');
+    Route::post('/lapangan/issues/{issue}/claim', [\App\Http\Controllers\LeanController::class, 'claim'])->name('lean.claim');
+    Route::post('/lapangan/issues/{issue}/progress', [\App\Http\Controllers\LeanController::class, 'updateProgress'])->name('lean.progress');
+    Route::post('/lapangan/issues/{issue}/pending', [\App\Http\Controllers\LeanController::class, 'pending'])->name('lean.pending');
+    Route::post('/lapangan/issues/{issue}/resolve', [\App\Http\Controllers\LeanController::class, 'resolve'])->name('lean.resolve');
+    Route::post('/lapangan/issues/{issue}/transfer', [\App\Http\Controllers\LeanController::class, 'transfer'])->name('lean.transfer');
+    Route::post('/lapangan/reset', [\App\Http\Controllers\LeanController::class, 'reset'])->name('lean.reset');
+    Route::delete('/lapangan/issues/{issue}', [\App\Http\Controllers\LeanController::class, 'destroy'])->name('lean.destroy');
+    Route::post('/lapangan/sync-sheets', [\App\Http\Controllers\LeanController::class, 'syncGoogleSheets'])->name('lean.sync.sheets');
+    Route::post('/lapangan/auto-sync', [\App\Http\Controllers\LeanController::class, 'autoSyncSheets'])->name('lean.auto.sync');
+});
 
-// Dedicated Lean API endpoints for WhatsApp Bot V2 testing
-Route::get('/api/lean/issues', [\App\Http\Controllers\LeanController::class, 'apiIndex'])->name('lean.api.index');
-Route::post('/api/lean/issues', [\App\Http\Controllers\LeanController::class, 'apiStore'])->name('lean.api.store');
-Route::post('/api/lean/issues/{id}/claim', [\App\Http\Controllers\LeanController::class, 'apiClaim'])->name('lean.api.claim');
-Route::post('/api/lean/issues/{id}/resolve', [\App\Http\Controllers\LeanController::class, 'apiResolve'])->name('lean.api.resolve');
-Route::post('/api/lean/issues/{id}/transfer', [\App\Http\Controllers\LeanController::class, 'apiTransfer'])->name('lean.api.transfer');
-Route::post('/api/lean/issues/{id}/pending', [\App\Http\Controllers\LeanController::class, 'apiPending'])->name('lean.api.pending');
+// Dedicated Lean API endpoints for WhatsApp Bot V2 (Strictly protected by X-Bot-Key)
+Route::middleware('bot.key')->group(function () {
+    Route::get('/api/lean/issues', [\App\Http\Controllers\LeanController::class, 'apiIndex'])->name('lean.api.index');
+    Route::post('/api/lean/issues', [\App\Http\Controllers\LeanController::class, 'apiStore'])->name('lean.api.store');
+    Route::post('/api/lean/issues/{id}/claim', [\App\Http\Controllers\LeanController::class, 'apiClaim'])->name('lean.api.claim');
+    Route::post('/api/lean/issues/{id}/resolve', [\App\Http\Controllers\LeanController::class, 'apiResolve'])->name('lean.api.resolve');
+    Route::post('/api/lean/issues/{id}/transfer', [\App\Http\Controllers\LeanController::class, 'apiTransfer'])->name('lean.api.transfer');
+    Route::post('/api/lean/issues/{id}/pending', [\App\Http\Controllers\LeanController::class, 'apiPending'])->name('lean.api.pending');
+});
 
 require __DIR__.'/auth.php';
 

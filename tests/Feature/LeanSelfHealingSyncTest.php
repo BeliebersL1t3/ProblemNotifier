@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\LeanIssue;
+use App\Models\User;
 use App\Services\LeanSheetDirectService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
@@ -210,7 +211,13 @@ class LeanSelfHealingSyncTest extends TestCase
 
         $this->app->instance(LeanSheetDirectService::class, $mock);
 
-        $response = $this->withServerVariables(['REMOTE_ADDR' => '127.0.0.1'])
+        $user = User::factory()->create([
+            'is_active'       => true,
+            'approval_status' => 'approved',
+        ]);
+
+        $response = $this->actingAs($user)
+            ->withServerVariables(['REMOTE_ADDR' => '127.0.0.1'])
             ->postJson('/lapangan/auto-sync');
 
         $response->assertStatus(200)
@@ -230,6 +237,11 @@ class LeanSelfHealingSyncTest extends TestCase
         $mock->method('getMonthGids')->willReturn(['November' => 12345]);
         $this->app->instance(LeanSheetDirectService::class, $mock);
 
+        $user = User::factory()->create([
+            'is_active'       => true,
+            'approval_status' => 'approved',
+        ]);
+
         $issue = LeanIssue::create([
             'location'           => 'TBR',
             'title'              => 'Test prop',
@@ -241,7 +253,9 @@ class LeanSelfHealingSyncTest extends TestCase
         ]);
 
         // Unsynced issue -> needsAutoReconcile = true
-        $resTrue = $this->withServerVariables(['REMOTE_ADDR' => '127.0.0.1'])->get('/lapangan');
+        $resTrue = $this->actingAs($user)
+            ->withServerVariables(['REMOTE_ADDR' => '127.0.0.1'])
+            ->get('/lapangan');
         $resTrue->assertStatus(200)
             ->assertInertia(fn (Assert $page) => $page
                 ->component('Lean/Index')
@@ -250,7 +264,9 @@ class LeanSelfHealingSyncTest extends TestCase
 
         // Once synced -> needsAutoReconcile = false
         $issue->markSheetsSynced();
-        $resFalse = $this->withServerVariables(['REMOTE_ADDR' => '127.0.0.1'])->get('/lapangan');
+        $resFalse = $this->actingAs($user)
+            ->withServerVariables(['REMOTE_ADDR' => '127.0.0.1'])
+            ->get('/lapangan');
         $resFalse->assertStatus(200)
             ->assertInertia(fn (Assert $page) => $page
                 ->component('Lean/Index')

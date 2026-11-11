@@ -2450,8 +2450,7 @@ class IssueController extends Controller
         $user = $request->user();
         $isAdmin = $user && (method_exists($user, 'isAdmin') ? $user->isAdmin() : ($user->role === 'admin'));
 
-        // For V1 (production bot), require admin. For V2 (sandbox testing in /lapangan), allow authenticated or testing users
-        if ($version !== 'v2' && !$isAdmin) {
+        if (!$isAdmin) {
             return response()->json(['success' => false, 'message' => 'Hanya Admin yang dapat menyalakan bot.'], 403);
         }
 
@@ -2492,7 +2491,7 @@ class IssueController extends Controller
         $user = $request->user();
         $isAdmin = $user && (method_exists($user, 'isAdmin') ? $user->isAdmin() : ($user->role === 'admin'));
 
-        if ($version !== 'v2' && !$isAdmin) {
+        if (!$isAdmin) {
             return response()->json(['success' => false, 'message' => 'Hanya Admin yang dapat mematikan bot.'], 403);
         }
 
@@ -2531,6 +2530,13 @@ class IssueController extends Controller
 
     public function restartBot(Request $request)
     {
+        $user = $request->user();
+        $isAdmin = $user && (method_exists($user, 'isAdmin') ? $user->isAdmin() : ($user->role === 'admin'));
+
+        if (!$isAdmin) {
+            return response()->json(['success' => false, 'message' => 'Hanya Admin yang dapat me-restart bot.'], 403);
+        }
+
         $this->stopBot($request);
         sleep(2);
         return $this->startBot($request);
@@ -2542,7 +2548,7 @@ class IssueController extends Controller
         $user = $request->user();
         $isAdmin = $user && (method_exists($user, 'isAdmin') ? $user->isAdmin() : ($user->role === 'admin'));
 
-        if ($version !== 'v2' && !$isAdmin) {
+        if (!$isAdmin) {
             return response()->json(['success' => false, 'message' => 'Hanya Admin yang dapat melihat log bot.'], 403);
         }
 

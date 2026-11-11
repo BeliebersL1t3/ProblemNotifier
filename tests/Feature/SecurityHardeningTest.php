@@ -2,10 +2,14 @@
 
 namespace Tests\Feature;
 
+use App\Models\LeanIssue;
 use App\Models\User;
 use App\Services\GoogleService;
+use App\Services\GoogleSheetsSyncService;
+use App\Services\LeanSheetDirectService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Config;
 use Mockery;
 use Tests\TestCase;
 
@@ -257,6 +261,8 @@ class SecurityHardeningTest extends TestCase
 
     public function test_phone_check_does_not_leak_user_identity(): void
     {
+        Config::set('telunas.registration_enabled', true);
+
         $user = User::factory()->create([
             'name'            => 'Secret Confidential Employee',
             'department'      => 'Finance Secret Dept',
@@ -398,6 +404,155 @@ class SecurityHardeningTest extends TestCase
         $this->assertFalse($deptUser->canViewDepartment('Housekeeping'));
         $this->assertFalse($deptUser->canViewDepartment('IT'));
         $this->assertTrue($deptUser->canViewDepartment('Kitchen'));
+    }
+
+    public function test_guests_are_blocked_from_root_and_lapangan_routes(): void
+    {
+        $issue = LeanIssue::create([
+            'location'           => 'TBR Villa 5',
+            'title'              => 'AC Rusak',
+            'description'        => 'Perlu cek',
+            'target_departments' => ['Engineer'],
+            'reporter_name'      => 'Budi',
+            'reporter_dept'      => 'HK',
+            'status'             => 'open',
+        ]);
+
+        $this->get('/')->assertRedirect('/login');
+        $this->get('/lapangan')->assertRedirect('/login');
+        $this->postJson('/lapangan/issues', ['title' => 'Guest Spam'])->assertStatus(401);
+        $this->postJson('/lapangan/reset')->assertStatus(401);
+        $this->deleteJson("/lapangan/issues/{$issue->id}")->assertStatus(401);
+    }
+
+    public function test_api_lean_endpoints_require_valid_bot_key(): void
+    {
+        Config::set('services.bot.api_key', 'secure-bot-key-999');
+
+        $this->getJson('/api/lean/issues')->assertStatus(401);
+        $this->postJson('/api/lean/issues', ['title' => 'No Key'])->assertStatus(401);
+        $this->getJson('/api/lean/issues', ['X-Bot-Key' => 'wrong-key'])->assertStatus(401);
+
+        $this->getJson('/api/lean/issues', ['X-Bot-Key' => 'secure-bot-key-999'])
+            ->assertOk()
+            ->assertJson(['success' => true]);
+    }
+
+    public function test_non_admin_cannot_reset_lapangan_or_delete_other_department_issue(): void
+    {
+        $sheetMock = $this->createMock(LeanSheetDirectService::class);
+        $sheetMock->method('deleteSingleIssue')->willReturn(true);
+        $sheetMock->method('clearAllMonthlyData')->willReturn(true);
+        $this->app->instance(LeanSheetDirectService::class, $sheetMock);
+
+        $gasMock = $this->createMock(GoogleSheetsSyncService::class);
+        $gasMock->method('syncIssue')->willReturn(true);
+        $this->app->instance(GoogleSheetsSyncService::class, $gasMock);
+
+        $itUser = User::factory()->create([
+            'name'            => 'Staff IT',
+            'staff_name'      => 'Rama IT',
+            'role'            => 'department',
+            'department'      => 'IT',
+            'is_active'       => true,
+            'approval_status' => 'approved',
+        ]);
+        $engUser = User::factory()->create([
+            'name'            => 'Staff Eng',
+            'staff_name'      => 'Budi Eng',
+            'role'            => 'department',
+            'department'      => 'Engineering',
+            'is_active'       => true,
+            'approval_status' => 'approved',
+        ]);
+        $adminUser = User::factory()->create([
+            'name'            => 'Super Admin',
+            'role'            => 'admin',
+            'department'      => null,
+            'is_active'       => true,
+            'approval_status' => 'approved',
+        ]);
+
+        $engIssue = LeanIssue::create([
+            'location'           => 'TBR Villa 8',
+            'title'              => 'Pompa air bocor',
+            'description'        => 'Cek pipa utama',
+            'target_departments' => ['Engineer'],
+            'reporter_name'      => 'Siti',
+            'reporter_dept'      => 'HK',
+            'status'             => 'open',
+        ]);
+
+        // Non-admin cannot reset sandbox
+        $this->actingAs($itUser)->postJson('/lapangan/reset')->assertStatus(403);
+        $this->actingAs($engUser)->postJson('/lapangan/reset')->assertStatus(403);
+
+        // Other department user cannot delete Engineer issue
+        $this->actingAs($itUser)->deleteJson("/lapangan/issues/{$engIssue->id}")->assertStatus(403);
+        $this->assertDatabaseHas('lean_issues', ['id' => $engIssue->id, 'deleted_at' => null]);
+
+        // Owning department can delete, and deleted_by_name uses authenticated user rather than client input
+        $this->actingAs($engUser)->deleteJson("/lapangan/issues/{$engIssue->id}", [
+            'deleted_by' => 'Spoofed General Manager',
+        ])->assertOk();
+
+        $engIssue->refresh();
+        $this->assertSoftDeleted('lean_issues', ['id' => $engIssue->id]);
+        $this->assertEquals('Budi Eng', $engIssue->deleted_by_name);
+
+        // Admin can reset sandbox
+        $this->actingAs($adminUser)->post('/lapangan/reset')->assertRedirect();
+        $this->assertEquals(0, LeanIssue::withTrashed()->count());
+    }
+
+    public function test_non_admin_cannot_control_bot_even_for_version_v2(): void
+    {
+        $deptUser = User::factory()->create([
+            'role'            => 'department',
+            'department'      => 'Engineer',
+            'is_active'       => true,
+            'approval_status' => 'approved',
+        ]);
+
+        $this->actingAs($deptUser)->postJson('/api/bot/start', ['version' => 'v2'])->assertStatus(403);
+        $this->actingAs($deptUser)->postJson('/api/bot/stop', ['version' => 'v2'])->assertStatus(403);
+        $this->actingAs($deptUser)->postJson('/api/bot/restart', ['version' => 'v2'])->assertStatus(403);
+        $this->actingAs($deptUser)->getJson('/api/bot/logs?version=v2')->assertStatus(403);
+    }
+
+    public function test_telunas_set_whatsapp_command_normalizes_and_prevents_conflicts(): void
+    {
+        $user1 = User::factory()->create([
+            'email'           => 'spv1@telunasresorts.com',
+            'whatsapp_number' => null,
+        ]);
+        $user2 = User::factory()->create([
+            'email'           => 'spv2@telunasresorts.com',
+            'whatsapp_number' => '6281298765432',
+        ]);
+
+        $this->artisan('telunas:set-whatsapp', [
+            'email' => 'spv1@telunasresorts.com',
+            'phone' => '6281234567890',
+        ])->assertExitCode(0);
+
+        $user1->refresh();
+        $this->assertEquals('081234567890', $user1->whatsapp_number);
+
+        // Duplicate across 08xx / 628xx fails
+        $this->artisan('telunas:set-whatsapp', [
+            'email' => 'spv1@telunasresorts.com',
+            'phone' => '081298765432',
+        ])->assertExitCode(1);
+
+        // Clear option removes WhatsApp number
+        $this->artisan('telunas:set-whatsapp', [
+            'email'   => 'spv1@telunasresorts.com',
+            '--clear' => true,
+        ])->assertExitCode(0);
+
+        $user1->refresh();
+        $this->assertNull($user1->whatsapp_number);
     }
 }
 

@@ -2,16 +2,23 @@
 
 namespace App\Http\Requests\Auth;
 
+use App\Models\User;
 use Illuminate\Auth\Events\Lockout;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class LoginRequest extends FormRequest
 {
+    /**
+     * Dummy bcrypt hash used to normalize response timing when email does not exist.
+     */
+    protected const DUMMY_BCRYPT_HASH = '$2y$12$invalidhashpaddingtopreventtimingattack000000000000000';
+
     /**
      * Determine if the user is authorized to make this request.
      */
@@ -34,15 +41,24 @@ class LoginRequest extends FormRequest
     }
 
     /**
-     * Attempt to authenticate the request's credentials.
+     * Validate credentials and account status WITHOUT creating an authenticated session.
      *
      * @throws ValidationException
      */
-    public function authenticate(): void
+    public function validateCredentialsWithoutLogin(): User
     {
         $this->ensureIsNotRateLimited();
 
-        if (! Auth::attempt($this->only('email', 'password'), $this->boolean('remember'))) {
+        $normalizedEmail = mb_strtolower(trim((string) $this->input('email')));
+        $plainPassword = (string) $this->input('password');
+
+        $user = User::whereRaw('LOWER(email) = ?', [$normalizedEmail])->first();
+
+        $passwordMatches = $user
+            ? Hash::check($plainPassword, (string) $user->password)
+            : Hash::check($plainPassword, self::DUMMY_BCRYPT_HASH);
+
+        if (! $user || ! $passwordMatches) {
             RateLimiter::hit($this->throttleKey());
 
             throw ValidationException::withMessages([
@@ -50,10 +66,7 @@ class LoginRequest extends FormRequest
             ]);
         }
 
-        $user = Auth::user();
-
         if ($user->isRejected()) {
-            Auth::logout();
             $reason = $user->rejection_reason ? ": \"{$user->rejection_reason}\"" : ". Silakan hubungi Admin atau HOD departemen Anda.";
             throw ValidationException::withMessages([
                 'email' => "Akun Anda ditolak{$reason}",
@@ -61,7 +74,6 @@ class LoginRequest extends FormRequest
         }
 
         if ($user->isPendingApproval()) {
-            Auth::logout();
             $stage = $user->approval_status === 'pending_hod'
                 ? 'menunggu persetujuan HOD Departemen'
                 : 'menunggu persetujuan final dari Admin';
@@ -71,13 +83,25 @@ class LoginRequest extends FormRequest
         }
 
         if (!$user->is_active) {
-            Auth::logout();
             throw ValidationException::withMessages([
                 'email' => "Akun Anda saat ini dinonaktifkan. Silakan hubungi Admin.",
             ]);
         }
 
         RateLimiter::clear($this->throttleKey());
+
+        return $user;
+    }
+
+    /**
+     * Attempt to authenticate the request's credentials.
+     *
+     * @throws ValidationException
+     */
+    public function authenticate(): void
+    {
+        $user = $this->validateCredentialsWithoutLogin();
+        Auth::login($user, $this->boolean('remember'));
     }
 
     /**

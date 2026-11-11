@@ -3,14 +3,41 @@
 namespace Tests\Feature\Auth;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Config;
 use Tests\TestCase;
 
 class RegistrationTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_registration_is_disabled_by_default(): void
+    {
+        Config::set('telunas.registration_enabled', false);
+
+        $this->get('/register')
+            ->assertRedirect(route('login', absolute: false));
+
+        $this->post('/register', [
+            'name'                  => 'Disabled Reg User',
+            'email'                 => 'disabled@example.com',
+            'password'              => 'password',
+            'password_confirmation' => 'password',
+            'department'            => 'Kitchen',
+            'whatsapp_number'       => '081234567890',
+        ])->assertStatus(403);
+
+        $this->postJson('/register/check-phone', ['phone' => '081234567890'])
+            ->assertStatus(403)
+            ->assertJson([
+                'valid'     => false,
+                'available' => false,
+            ]);
+    }
+
     public function test_registration_screen_can_be_rendered(): void
     {
+        Config::set('telunas.registration_enabled', true);
+
         $response = $this->get('/register');
 
         $response->assertStatus(200);
@@ -18,6 +45,8 @@ class RegistrationTest extends TestCase
 
     public function test_new_users_can_register(): void
     {
+        Config::set('telunas.registration_enabled', true);
+
         $response = $this->post('/register', [
             'name' => 'Test User',
             'email' => 'test@example.com',
@@ -47,6 +76,8 @@ class RegistrationTest extends TestCase
 
     public function test_registration_rejects_invalid_phone_formats(): void
     {
+        Config::set('telunas.registration_enabled', true);
+
         $invalidNumbers = ['1234678', '0211234567', '081234', '08012345678'];
 
         foreach ($invalidNumbers as $badNumber) {
@@ -65,6 +96,8 @@ class RegistrationTest extends TestCase
 
     public function test_check_phone_api_validates_indonesian_mobile_format(): void
     {
+        Config::set('telunas.registration_enabled', true);
+
         // Invalid number like 1234678
         $resInvalid = $this->postJson('/register/check-phone', ['phone' => '1234678']);
         $resInvalid->assertStatus(200);
@@ -82,6 +115,8 @@ class RegistrationTest extends TestCase
 
     public function test_rejected_user_can_re_register_seamlessly(): void
     {
+        Config::set('telunas.registration_enabled', true);
+
         $rejectedUser = \App\Models\User::factory()->create([
             'name' => 'Old Name',
             'email' => 'rejected@example.com',
@@ -135,6 +170,8 @@ class RegistrationTest extends TestCase
 
     public function test_pending_user_blocks_re_registration_with_clear_message(): void
     {
+        Config::set('telunas.registration_enabled', true);
+
         \App\Models\User::factory()->create([
             'email' => 'pending_hod@example.com',
             'whatsapp_number' => '081299990002',

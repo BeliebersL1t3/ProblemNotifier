@@ -32,5 +32,11 @@
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>
+        <env name="BOT_API_KEY" value="testing-bot-secret" force="true"/>
+        <env name="RESTRICT_TELUNAS_WIFI" value="false" force="true"/>
+        <env name="LOGIN_OTP_ENABLED" value="true" force="true"/>
+        <env name="LOGIN_OTP_REQUIRE_WHATSAPP" value="false" force="true"/>
+        <env name="REGISTRATION_ENABLED" value="false" force="true"/>
+        <env name="TRUSTED_PROXIES" value="" force="true"/>
     </php>
 </phpunit>

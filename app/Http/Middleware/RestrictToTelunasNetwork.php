@@ -36,6 +36,11 @@ class RestrictToTelunasNetwork
      */
     public function handle(Request $request, Closure $next): Response
     {
+        // Fast-return when Telunas Wi-Fi restriction is disabled (default for cloud hosting)
+        if (!filter_var(config('telunas.restrict_wifi', false), FILTER_VALIDATE_BOOLEAN)) {
+            return $next($request);
+        }
+
         // 1. Always allow bypass verification and restriction routes
         if ($request->is('telunas-wifi-required') || $request->is('telunas-wifi-bypass')) {
             return $next($request);
@@ -79,7 +84,7 @@ class RestrictToTelunasNetwork
     public function isAllowed(Request $request): bool
     {
         // If restriction is disabled in config/env, allow all traffic
-        if (!config('telunas.restrict_wifi', true)) {
+        if (!filter_var(config('telunas.restrict_wifi', false), FILTER_VALIDATE_BOOLEAN)) {
             return true;
         }
 
@@ -88,9 +93,9 @@ class RestrictToTelunasNetwork
             return true;
         }
 
-        // Allow requests with valid WhatsApp Bot API Key
+        // Allow requests with valid WhatsApp Bot API Key (supports X-Bot-Key and legacy X-Bot-Api-Key)
         $botApiKey = (string) config('services.bot.api_key');
-        $requestApiKey = (string) $request->header('X-Bot-Api-Key');
+        $requestApiKey = (string) ($request->header('X-Bot-Key') ?: $request->header('X-Bot-Api-Key'));
         if (!empty($botApiKey) && !empty($requestApiKey) && hash_equals($botApiKey, $requestApiKey)) {
             return true;
         }

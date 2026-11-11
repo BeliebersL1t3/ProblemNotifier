@@ -12,7 +12,8 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        $middleware->trustProxies(at: '*');
+        // Trusted proxies are configured dynamically via config/trustedproxy.php (TRUSTED_PROXIES env).
+        // Keeping TRUSTED_PROXIES empty prevents X-Forwarded-For IP spoofing when exposed directly on a VPS.
 
         $middleware->web(
             append: [
@@ -50,6 +51,6 @@ return Application::configure(basePath: dirname(__DIR__))
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(
-            fn (Request $request) => $request->is('api/*'),
+            fn (Request $request, \Throwable $e) => ($request->expectsJson() && !$request->header('X-Inertia')) || $request->is('api/*'),
         );
     })->create();

@@ -37,7 +37,7 @@ class TelunasWifiIpCommand extends Command
             $this->info('Cleared cached server public WAN IP.');
         }
 
-        $enabled = config('telunas.restrict_wifi', true);
+        $enabled = filter_var(config('telunas.restrict_wifi', false), FILTER_VALIDATE_BOOLEAN);
         $configuredIps = config('telunas.allowed_ips', 'auto');
         $detectedIp = $middleware->getServerPublicIp();
 

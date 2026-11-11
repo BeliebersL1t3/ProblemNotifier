@@ -199,6 +199,9 @@ class LeanController extends Controller
     public function index(Request $request)
     {
         $authUser = auth()->user();
+        if (!$authUser) {
+            abort(401, 'Silakan login terlebih dahulu untuk mengakses dashboard lapangan.');
+        }
 
         $issues = LeanIssue::orderBy('created_at', 'desc')->get()->map(function ($item) use ($authUser) {
             $code = self::formatIssueCode($item);
@@ -927,7 +930,8 @@ class LeanController extends Controller
      */
     public function destroy(Request $request, LeanIssue $issue, GoogleSheetsSyncService $sheetsService)
     {
-        $deletedBy = auth()->check() ? auth()->user()->name : ($request->input('deleted_by') ?: 'Supervisor');
+        $user = $this->authorizeDepartmentAction($issue);
+        $deletedBy = $user->staff_name ?: $user->name;
         
         $issue->deleted_by_name = $deletedBy;
         $issue->save();
@@ -985,8 +989,13 @@ class LeanController extends Controller
     /**
      * Reset / purge all sandbox testing data.
      */
-    public function reset()
+    public function reset(Request $request)
     {
+        $user = $request->user();
+        if (!$user || !$user->isAdmin()) {
+            abort(403, 'Akses ditolak: Hanya Administrator yang dapat mereset seluruh data sandbox.');
+        }
+
         LeanIssue::truncate();
         \App\Services\LeanSheetDirectService::markPendingClear();
 

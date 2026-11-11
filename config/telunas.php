@@ -16,7 +16,7 @@ return [
     |
     */
 
-    'restrict_wifi' => env('RESTRICT_TELUNAS_WIFI', true),
+    'restrict_wifi' => env('RESTRICT_TELUNAS_WIFI', false),
 
     'allowed_ips' => env('TELUNAS_WIFI_IPS', 'auto'),
 
@@ -36,9 +36,26 @@ return [
     | Allows authorized personnel (leaders/supervisors) outside the resort Wi-Fi
     | to enter a master passcode on the restriction page to gain access.
     */
-    'bypass_passcode' => env('TELUNAS_WIFI_BYPASS_PASSCODE', 'TelunasLeader2026!'),
+    'bypass_passcode' => env('TELUNAS_WIFI_BYPASS_PASSCODE', ''),
 
     'bypass_hours' => (int) env('TELUNAS_WIFI_BYPASS_HOURS', 24),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Cloud Authentication, WhatsApp OTP & Self-Registration Controls
+    |--------------------------------------------------------------------------
+    */
+    'login_otp_enabled' => env('LOGIN_OTP_ENABLED', true),
+
+    'login_otp_require_whatsapp' => env('LOGIN_OTP_REQUIRE_WHATSAPP', false),
+
+    'login_otp_ttl_minutes' => (int) env('LOGIN_OTP_TTL_MINUTES', 5),
+
+    'login_otp_max_attempts' => (int) env('LOGIN_OTP_MAX_ATTEMPTS', 5),
+
+    'login_otp_resend_cooldown_seconds' => (int) env('LOGIN_OTP_RESEND_COOLDOWN_SECONDS', 60),
+
+    'registration_enabled' => env('REGISTRATION_ENABLED', false),
 
     /*
     |--------------------------------------------------------------------------

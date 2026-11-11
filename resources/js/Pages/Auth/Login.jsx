@@ -6,7 +6,7 @@ import TextInput from '@/Components/TextInput';
 import GuestLayout from '@/Layouts/GuestLayout';
 import { Head, Link, useForm } from '@inertiajs/react';
 
-export default function Login({ status, canResetPassword }) {
+export default function Login({ status, canResetPassword, canRegister = false }) {
     const { data, setData, post, processing, errors, reset, transform } = useForm({
         email: '',
         password: '',
@@ -143,17 +143,19 @@ export default function Login({ status, canResetPassword }) {
                     </PrimaryButton>
                 </div>
 
-                <div className="mt-6 pt-4 border-t border-gray-100 text-center">
-                    <p className="text-xs text-gray-500">
-                        Belum memiliki akun staf?{' '}
-                        <Link
-                            href={route('register')}
-                            className="font-semibold text-indigo-600 hover:text-indigo-800 underline ml-1"
-                        >
-                            Daftar di sini
-                        </Link>
-                    </p>
-                </div>
+                {canRegister && (
+                    <div className="mt-6 pt-4 border-t border-gray-100 text-center">
+                        <p className="text-xs text-gray-500">
+                            Belum memiliki akun staf?{' '}
+                            <Link
+                                href={route('register')}
+                                className="font-semibold text-indigo-600 hover:text-indigo-800 underline ml-1"
+                            >
+                                Daftar di sini
+                            </Link>
+                        </p>
+                    </div>
+                )}
             </form>
         </GuestLayout>
     );

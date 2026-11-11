@@ -119,11 +119,11 @@ class LeanDashboardWorkflowTest extends TestCase
                 ->postJson($url, $payload)
                 ->assertStatus(403);
 
-            // Guest must also be blocked with 403
+            // Guest must also be blocked by auth middleware (401 Unauthenticated)
             auth()->logout();
             $this->withServerVariables(['REMOTE_ADDR' => '127.0.0.1'])
                 ->postJson($url, $payload)
-                ->assertStatus(403);
+                ->assertStatus(401);
         }
 
         // 4. Admin account (department = null) is permitted to manage
@@ -598,6 +598,8 @@ class LeanDashboardWorkflowTest extends TestCase
 
     public function test_whatsapp_bot_v2_api_endpoints_prevent_duplicate_group_and_dm_notifications(): void
     {
+        $botHeaders = ['X-Bot-Key' => 'test-bot-secret'];
+
         // 1. apiStore with source='whatsapp_bot' normalizes dept, stores phone, and triggers ZERO HTTP notifications
         $storeRes = $this->postJson('/api/lean/issues', [
             'title'          => 'Handuk vila kurang bersih',
@@ -608,7 +610,7 @@ class LeanDashboardWorkflowTest extends TestCase
             'reporter_dept'  => 'GR',
             'reporter_phone' => '6281377788899',
             'source'         => 'whatsapp_bot',
-        ]);
+        ], $botHeaders);
 
         $storeRes->assertStatus(200)
             ->assertJsonPath('success', true)
@@ -632,7 +634,7 @@ class LeanDashboardWorkflowTest extends TestCase
         $this->postJson("/api/lean/issues/{$issueCode}/claim", [
             'taker'      => 'Rina HK',
             'department' => 'Housekeeping',
-        ])->assertStatus(200);
+        ], $botHeaders)->assertStatus(200);
 
         Http::assertSent(fn ($req) => str_ends_with($req->url(), '/notify-direct')
             && ($req['phone'] ?? '') === '6281377788899'
@@ -643,7 +645,7 @@ class LeanDashboardWorkflowTest extends TestCase
         $this->postJson("/api/lean/issues/{$issueCode}/pending", [
             'reason'     => 'Menunggu stok handuk dari laundry utama',
             'pending_by' => 'Spv Rina',
-        ])->assertStatus(200);
+        ], $botHeaders)->assertStatus(200);
 
         $issue->refresh();
         $this->assertEquals('pending', $issue->status);
@@ -659,7 +661,7 @@ class LeanDashboardWorkflowTest extends TestCase
             'to_department'  => 'Engineering',
             'reason'         => 'Mesin pemanas kamar mandi juga bermasalah',
             'transferred_by' => 'Spv Rina',
-        ]);
+        ], $botHeaders);
 
         $transferRes->assertStatus(200)
             ->assertJsonPath('data.to_department', 'Engineer')
@@ -679,7 +681,7 @@ class LeanDashboardWorkflowTest extends TestCase
         $this->postJson("/api/lean/issues/{$issueCode}/resolve", [
             'solver'         => 'Andi Eng',
             'fixDescription' => 'Pemanas diganti dan area dibersihkan',
-        ])->assertStatus(200);
+        ], $botHeaders)->assertStatus(200);
 
         Http::assertSent(fn ($req) => str_ends_with($req->url(), '/notify-direct')
             && ($req['phone'] ?? '') === '6281377788899'
@@ -800,7 +802,7 @@ class LeanDashboardWorkflowTest extends TestCase
         $this->postJson("/api/lean/issues/{$issueCode}/claim", [
             'taker'      => 'Budi API',
             'department' => 'Engineer',
-        ])->assertStatus(200);
+        ], ['X-Bot-Key' => 'test-bot-secret'])->assertStatus(200);
 
         $issue->refresh();
         $apiLog = $issue->progress_logs[count($issue->progress_logs) - 1];

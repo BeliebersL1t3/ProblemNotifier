@@ -1238,7 +1238,10 @@ async function startSock() {
                     }
 
                     const res = await axios.post(`${BASE_URL}/api/lean/issues`, formData, {
-                        headers: formData.getHeaders()
+                        headers: {
+                            ...formData.getHeaders(),
+                            ...(BOT_API_KEY ? { 'X-Bot-Key': BOT_API_KEY } : {})
+                        }
                     });
 
                     if (res.data.success) {

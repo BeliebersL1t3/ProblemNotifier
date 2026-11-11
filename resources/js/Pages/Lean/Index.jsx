@@ -22,6 +22,7 @@ import {
     AlertCircle,
     ExternalLink,
     LogIn,
+    LogOut,
     Power,
     MessageSquare,
     Table,
@@ -352,7 +353,6 @@ export default function LeanIndex({
     const [showResetConfirm, setShowResetConfirm] = useState(false);
     const [lightboxImage, setLightboxImage] = useState(null);
     const [issueToDelete, setIssueToDelete] = useState(null);
-    const [deleteSupervisorName, setDeleteSupervisorName] = useState(myName || 'Supervisor');
     const [isDeleting, setIsDeleting] = useState(false);
     const [actionNotice, setActionNotice] = useState(null);
 
@@ -1182,9 +1182,6 @@ export default function LeanIndex({
         if (!issueToDelete) return;
         setIsDeleting(true);
         router.delete(`/lapangan/issues/${issueToDelete.id}`, {
-            data: {
-                deleted_by: deleteSupervisorName.trim() || myName || 'Supervisor',
-            },
             preserveScroll: true,
             onSuccess: () => {
                 setIssueToDelete(null);
@@ -1192,10 +1189,11 @@ export default function LeanIndex({
                 if (selectedDetailIssue?.id === issueToDelete.id) {
                     setSelectedDetailIssue(null);
                 }
+                showNotice('success', 'Tiket berhasil dihapus dari dashboard.');
             },
-            onError: () => {
+            onError: (errors) => {
                 setIsDeleting(false);
-                alert('Gagal menghapus tiket. Silakan coba lagi.');
+                showNotice('error', extractErrorMsg(errors, 'Gagal menghapus tiket. Pastikan Anda memiliki izin departemen yang sesuai.'));
             },
         });
     };
@@ -1483,21 +1481,36 @@ export default function LeanIndex({
                             )}
                         </button>
 
-                        {/* WhatsApp Bot V2 Status & Control Button (Hidden on tiny mobile screens, visible on sm+) */}
-                        <button
-                            type="button"
-                            onClick={() => setBotControlModalOpen(true)}
-                            className={`h-7.5 sm:h-8.5 hidden sm:flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 rounded-lg border text-xs font-bold transition-all shadow-xs cursor-pointer shrink-0 ${
-                                botStatus?.connected
-                                    ? (isDark ? 'bg-emerald-950/70 hover:bg-emerald-900/80 border-emerald-600/50 text-emerald-300' : 'bg-emerald-50 hover:bg-emerald-100 border-emerald-200 text-emerald-800')
-                                    : (isDark ? 'bg-rose-950/70 hover:bg-rose-900/80 border-rose-600/50 text-rose-300' : 'bg-rose-50 hover:bg-rose-100 border-rose-200 text-rose-800')
-                            }`}
-                            title="Klik untuk Kontrol Bot WA (Lihat Status / Matikan / Nyalakan)"
-                        >
-                            <span className={`w-2 h-2 rounded-full shrink-0 ${botStatus?.connected ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
-                            <span className="hidden md:inline">Bot WA:</span>
-                            <span className="text-[10px] sm:text-xs">{botStatus?.connected ? 'Online' : 'Offline'}</span>
-                        </button>
+                        {/* WhatsApp Bot V2 Status (Interactive Control for Admin Only; Read-Only Status for Supervisors) */}
+                        {currentUser?.is_admin ? (
+                            <button
+                                type="button"
+                                onClick={() => setBotControlModalOpen(true)}
+                                className={`h-7.5 sm:h-8.5 hidden sm:flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 rounded-lg border text-xs font-bold transition-all shadow-xs cursor-pointer shrink-0 ${
+                                    botStatus?.connected
+                                        ? (isDark ? 'bg-emerald-950/70 hover:bg-emerald-900/80 border-emerald-600/50 text-emerald-300' : 'bg-emerald-50 hover:bg-emerald-100 border-emerald-200 text-emerald-800')
+                                        : (isDark ? 'bg-rose-950/70 hover:bg-rose-900/80 border-rose-600/50 text-rose-300' : 'bg-rose-50 hover:bg-rose-100 border-rose-200 text-rose-800')
+                                }`}
+                                title="Klik untuk Kontrol Bot WA (Lihat Status / Matikan / Nyalakan)"
+                            >
+                                <span className={`w-2 h-2 rounded-full shrink-0 ${botStatus?.connected ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
+                                <span className="hidden md:inline">Bot WA:</span>
+                                <span className="text-[10px] sm:text-xs">{botStatus?.connected ? 'Online' : 'Offline'}</span>
+                            </button>
+                        ) : (
+                            <div
+                                className={`h-7.5 sm:h-8.5 hidden sm:flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 rounded-lg border text-xs font-bold shadow-xs shrink-0 ${
+                                    botStatus?.connected
+                                        ? (isDark ? 'bg-emerald-950/70 border-emerald-600/50 text-emerald-300' : 'bg-emerald-50 border-emerald-200 text-emerald-800')
+                                        : (isDark ? 'bg-rose-950/70 border-rose-600/50 text-rose-300' : 'bg-rose-50 border-rose-200 text-rose-800')
+                                }`}
+                                title="Status Koneksi WhatsApp Bot (Kontrol bot hanya untuk Administrator)"
+                            >
+                                <span className={`w-2 h-2 rounded-full shrink-0 ${botStatus?.connected ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
+                                <span className="hidden md:inline">Bot WA:</span>
+                                <span className="text-[10px] sm:text-xs">{botStatus?.connected ? 'Online' : 'Offline'}</span>
+                            </div>
+                        )}
 
                         {/* Supervisor Account Profile Pill */}
                         <div
@@ -1515,20 +1528,35 @@ export default function LeanIndex({
                             </span>
                         </div>
 
-                        {/* Back to Full Dashboard / Login */}
+                        {/* Back to Full Dashboard & Logout */}
                         {currentUser ? (
-                            <Link
-                                href={route('dashboard')}
-                                className={`h-7.5 w-7.5 sm:h-8.5 sm:w-8.5 flex items-center justify-center rounded-lg border transition-all shadow-xs shrink-0 ${
-                                    isDark
-                                        ? 'bg-slate-800/90 hover:bg-emerald-950 hover:text-emerald-300 text-slate-300 border-slate-700 hover:border-emerald-600/60'
-                                        : 'bg-white hover:bg-emerald-50 hover:text-emerald-800 text-slate-700 border-slate-200 hover:border-emerald-300'
-                                }`}
-                                title="Kembali ke Dashboard Utama (Mode Kantor)"
-                                aria-label="Kembali ke Dashboard Utama"
-                            >
-                                <LayoutDashboard className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300" />
-                            </Link>
+                            <>
+                                <Link
+                                    href={route('dashboard')}
+                                    className={`h-7.5 w-7.5 sm:h-8.5 sm:w-8.5 flex items-center justify-center rounded-lg border transition-all shadow-xs shrink-0 ${
+                                        isDark
+                                            ? 'bg-slate-800/90 hover:bg-emerald-950 hover:text-emerald-300 text-slate-300 border-slate-700 hover:border-emerald-600/60'
+                                            : 'bg-white hover:bg-emerald-50 hover:text-emerald-800 text-slate-700 border-slate-200 hover:border-emerald-300'
+                                    }`}
+                                    title="Kembali ke Dashboard Utama (Mode Kantor)"
+                                    aria-label="Kembali ke Dashboard Utama"
+                                >
+                                    <LayoutDashboard className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300" />
+                                </Link>
+                                <button
+                                    type="button"
+                                    onClick={() => router.post(route('logout'))}
+                                    className={`h-7.5 w-7.5 sm:h-8.5 sm:w-8.5 flex items-center justify-center rounded-lg border transition-all shadow-xs cursor-pointer shrink-0 ${
+                                        isDark
+                                            ? 'bg-slate-800/90 hover:bg-rose-950/80 hover:text-rose-300 text-slate-300 border-slate-700 hover:border-rose-600/60'
+                                            : 'bg-white hover:bg-rose-50 hover:text-rose-700 text-slate-700 border-slate-200 hover:border-rose-300'
+                                    }`}
+                                    title="Keluar dari Akun (Logout)"
+                                    aria-label="Keluar dari Akun"
+                                >
+                                    <LogOut className="w-3.5 h-3.5" />
+                                </button>
+                            </>
                         ) : (
                             <Link
                                 href={route('login')}
@@ -1566,7 +1594,7 @@ export default function LeanIndex({
                             </p>
                         </div>
                     </div>
-                    {issues.length > 0 && (
+                    {currentUser?.is_admin && issues.length > 0 && (
                         <button
                             onClick={() => setShowResetConfirm(true)}
                             className={`shrink-0 flex items-center gap-1 text-[11px] px-2 py-1 rounded-md transition-colors ${
@@ -2177,21 +2205,22 @@ export default function LeanIndex({
 
                                                 {/* AKSI HAPUS */}
                                                 <td className="py-2 px-1.5 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => {
-                                                            setIssueToDelete(issue);
-                                                            setDeleteSupervisorName(myName || 'Supervisor');
-                                                        }}
-                                                        className={`p-1 rounded-md border transition ${
-                                                            isDark
-                                                                ? 'bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border-rose-500/30 hover:border-rose-500/60'
-                                                                : 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200'
-                                                        }`}
-                                                        title="Hapus / Sembunyikan Tiket"
-                                                    >
-                                                        <Trash2 className="w-3 h-3" />
-                                                    </button>
+                                                    {canManageIssue(issue) ? (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setIssueToDelete(issue)}
+                                                            className={`p-1 rounded-md border transition ${
+                                                                isDark
+                                                                    ? 'bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border-rose-500/30 hover:border-rose-500/60'
+                                                                    : 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200'
+                                                            }`}
+                                                            title="Hapus / Sembunyikan Tiket"
+                                                        >
+                                                            <Trash2 className="w-3 h-3" />
+                                                        </button>
+                                                    ) : (
+                                                        <span className="text-[10px] text-slate-400">—</span>
+                                                    )}
                                                 </td>
                                             </tr>
                                         );
@@ -2318,22 +2347,23 @@ export default function LeanIndex({
                                                             {issue.created_at_human}
                                                         </span>
                                                     )}
-                                                    <button
-                                                        type="button"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            setIssueToDelete(issue);
-                                                            setDeleteSupervisorName(myName || 'Supervisor');
-                                                        }}
-                                                        className={`opacity-0 group-hover:opacity-100 p-1 rounded-md transition-opacity ${
-                                                            isDark
-                                                                ? 'hover:bg-rose-950/80 text-slate-500 hover:text-rose-400 border border-transparent hover:border-rose-800'
-                                                                : 'hover:bg-rose-50 text-slate-400 hover:text-rose-600 border border-transparent hover:border-rose-200'
-                                                        }`}
-                                                        title="Hapus / Sembunyikan Tiket"
-                                                    >
-                                                        <Trash2 className="w-3.5 h-3.5" />
-                                                    </button>
+                                                    {canManageIssue(issue) && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setIssueToDelete(issue);
+                                                            }}
+                                                            className={`opacity-0 group-hover:opacity-100 p-1 rounded-md transition-opacity ${
+                                                                isDark
+                                                                    ? 'hover:bg-rose-950/80 text-slate-500 hover:text-rose-400 border border-transparent hover:border-rose-800'
+                                                                    : 'hover:bg-rose-50 text-slate-400 hover:text-rose-600 border border-transparent hover:border-rose-200'
+                                                            }`}
+                                                            title="Hapus / Sembunyikan Tiket"
+                                                        >
+                                                            <Trash2 className="w-3.5 h-3.5" />
+                                                        </button>
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>
@@ -3479,7 +3509,7 @@ export default function LeanIndex({
 
 
             {/* MODAL 4: RESET CONFIRMATION */}
-            {showResetConfirm && (
+            {currentUser?.is_admin && showResetConfirm && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
                     <div className="w-full max-w-sm bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-5 space-y-4">
                         <div className="flex items-center gap-2 text-rose-400">
@@ -4123,21 +4153,20 @@ export default function LeanIndex({
                                     <SlidersHorizontal className="w-3.5 h-3.5" />
                                     <span>Sesuaikan Tampilan Data ({activeColumnCount}/{COLUMN_DEFS.length})</span>
                                 </button>
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setIssueToDelete(activeDetailIssue);
-                                        setDeleteSupervisorName(myName || 'Supervisor');
-                                    }}
-                                    className={`px-2.5 py-1 rounded-lg border text-[11px] font-semibold flex items-center gap-1 transition ${
-                                        isDark
-                                            ? 'bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border-rose-500/30'
-                                            : 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200'
-                                    }`}
-                                >
-                                    <Trash2 className="w-3 h-3 text-rose-500" />
-                                    <span>Hapus Tiket</span>
-                                </button>
+                                {canManageIssue(activeDetailIssue) && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setIssueToDelete(activeDetailIssue)}
+                                        className={`px-2.5 py-1 rounded-lg border text-[11px] font-semibold flex items-center gap-1 transition ${
+                                            isDark
+                                                ? 'bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border-rose-500/30'
+                                                : 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200'
+                                        }`}
+                                    >
+                                        <Trash2 className="w-3 h-3 text-rose-500" />
+                                        <span>Hapus Tiket</span>
+                                    </button>
+                                )}
                             </div>
                             <button
                                 type="button"
@@ -4311,14 +4340,16 @@ export default function LeanIndex({
                 </div>
             )}
 
-            {/* BOT CONTROL MODAL (CONFIGURED FOR BOT V2) */}
-            <BotControlModal
-                open={botControlModalOpen}
-                onOpenChange={setBotControlModalOpen}
-                botStatus={botStatus}
-                onRefreshStatus={fetchBotStatus}
-                botVersion="v2"
-            />
+            {/* BOT CONTROL MODAL (CONFIGURED FOR BOT V2 - ADMIN ONLY) */}
+            {currentUser?.is_admin && (
+                <BotControlModal
+                    open={botControlModalOpen}
+                    onOpenChange={setBotControlModalOpen}
+                    botStatus={botStatus}
+                    onRefreshStatus={fetchBotStatus}
+                    botVersion="v2"
+                />
+            )}
 
             {/* MODAL: DELETE / SOFT DELETE ISSUE */}
             {issueToDelete && (
@@ -4367,16 +4398,14 @@ export default function LeanIndex({
 
                             <div>
                                 <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                                    Nama Supervisor yang Menghapus:
+                                    Dihapus Oleh Akun Terautentikasi:
                                 </label>
-                                <input
-                                    type="text"
-                                    value={deleteSupervisorName}
-                                    onChange={(e) => setDeleteSupervisorName(e.target.value)}
-                                    placeholder="Contoh: Pak Budi (Supervisor)"
-                                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-rose-500"
-                                    disabled={isDeleting}
-                                />
+                                <div className="w-full bg-slate-800/70 border border-slate-700 rounded-xl px-3 py-2 text-slate-200 text-xs font-semibold flex items-center justify-between gap-2">
+                                    <span className="truncate">{currentUser?.staff_name || myName}</span>
+                                    <span className="text-[10px] px-2 py-0.5 rounded bg-slate-900 border border-slate-700 text-slate-400 shrink-0">
+                                        {currentUser?.is_admin ? 'Admin' : myDept}
+                                    </span>
+                                </div>
                             </div>
                         </div>
 
