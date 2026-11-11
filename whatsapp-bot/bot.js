@@ -1,4 +1,4 @@
-const { makeWASocket, useMultiFileAuthState, DisconnectReason, downloadMediaMessage } = require('@whiskeysockets/baileys');
+const { makeWASocket, makeCacheableSignalKeyStore, DisconnectReason, downloadMediaMessage } = require('@whiskeysockets/baileys');
 const pino = require('pino');
 const axios = require('axios');
 const FormData = require('form-data');
@@ -8,6 +8,10 @@ const QRCode = require('qrcode');
 const fs = require('fs');
 const path = require('path');
 const { getAuthFolderStats, cleanAuthFolder, setupHousekeepingSchedule } = require('./housekeeping');
+const { useSqliteAuthState, resetAuthDirectory, clearSessionKeysById, getAuthDbPath } = require('./sqliteAuthState');
+
+const AUTH_DIR = path.resolve(__dirname, 'auth_info_baileys');
+const authCacheLogger = pino({ level: 'silent' });
 
 const app = express();
 app.use(express.json());
@@ -847,16 +851,50 @@ const msgRetryCounterCache = {
     del: (key) => msgRetryCounterMap.delete(key),
 };
 
+let globalSock = null;
+let currentAuthHandle = null;
+let currentCachedKeys = null;
+let staffSyncTimer = null;
+let housekeepingScheduled = false;
+
+async function invalidateAuthKeyCache() {
+    if (!currentCachedKeys || typeof currentCachedKeys.clear !== 'function') return;
+    try {
+        await currentCachedKeys.clear();
+    } catch (err) {
+        console.warn('[AuthCache] Gagal membersihkan cache key in-memory:', err.message);
+    }
+}
+
+async function resetCurrentAuthState() {
+    await invalidateAuthKeyCache();
+    currentCachedKeys = null;
+    if (currentAuthHandle) {
+        currentAuthHandle.close();
+        currentAuthHandle = null;
+    }
+    return resetAuthDirectory(AUTH_DIR);
+}
+
 function clearCorruptedSession(sessionId) {
     if (!sessionId) return 0;
     const cleanId = String(sessionId).replace(/[^0-9_.]/g, '');
     if (!cleanId || cleanId.length < 3) return 0;
 
-    const authDir = path.resolve(__dirname, 'auth_info_baileys');
-    if (!fs.existsSync(authDir)) return 0;
-
     try {
-        const files = fs.readdirSync(authDir);
+        if (fs.existsSync(getAuthDbPath(AUTH_DIR))) {
+            const removed = clearSessionKeysById(cleanId, AUTH_DIR);
+            if (removed > 0) {
+                console.log(`[Auto-Repair] Cleared ${removed} stale/corrupted SQLite session keys for ID: ${cleanId}`);
+                invalidateAuthKeyCache().catch((err) => {
+                    console.warn('[Auto-Repair] Cache flush warning:', err.message);
+                });
+            }
+            return removed;
+        }
+
+        if (!fs.existsSync(AUTH_DIR)) return 0;
+        const files = fs.readdirSync(AUTH_DIR);
         let removed = 0;
         for (const file of files) {
             if (file.includes(cleanId) && (
@@ -865,7 +903,7 @@ function clearCorruptedSession(sessionId) {
                 file.startsWith('identity-key-') ||
                 file.startsWith('device-list-')
             )) {
-                fs.unlinkSync(path.join(authDir, file));
+                fs.unlinkSync(path.join(AUTH_DIR, file));
                 removed++;
             }
         }
@@ -894,16 +932,29 @@ process.on('uncaughtException', (err) => {
     console.error('[Process UncaughtException]', err);
 });
 
-let globalSock = null;
-let staffSyncTimer = null;
-let housekeepingScheduled = false;
-
 async function startSock() {
     botConnectionStatus = 'connecting';
-    const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
+
+    if (currentCachedKeys) {
+        await invalidateAuthKeyCache();
+        currentCachedKeys = null;
+    }
+    if (currentAuthHandle) {
+        currentAuthHandle.close();
+        currentAuthHandle = null;
+    }
+
+    const authHandle = await useSqliteAuthState(AUTH_DIR);
+    currentAuthHandle = authHandle;
+
+    const cachedKeys = makeCacheableSignalKeyStore(authHandle.state.keys, authCacheLogger);
+    currentCachedKeys = cachedKeys;
 
     const sock = makeWASocket({
-        auth: state,
+        auth: {
+            creds: authHandle.state.creds,
+            keys: cachedKeys,
+        },
         printQRInTerminal: true,
         logger: pino({ level: 'silent' }), // suppress spam
         msgRetryCounterCache,
@@ -915,7 +966,7 @@ async function startSock() {
 
     globalSock = sock;
 
-    sock.ev.on('creds.update', saveCreds);
+    sock.ev.on('creds.update', authHandle.saveCreds);
 
     sock.ev.on('connection.update', async (update) => {
         const { connection, lastDisconnect, qr } = update;
@@ -934,21 +985,30 @@ async function startSock() {
         
         if (connection === 'close') {
             botConnectionStatus = 'offline';
-            const statusCode = lastDisconnect.error?.output?.statusCode;
+            const statusCode = lastDisconnect?.error?.output?.statusCode;
             const isLoggedOut = statusCode === DisconnectReason.loggedOut;
             console.log(`Connection closed (Status Code: ${statusCode || 'unknown'}). Reconnecting...`, !isLoggedOut);
             
             if (isLoggedOut) {
                 console.log('\n⚠️ WhatsApp Session was logged out / expired.');
                 console.log('--> Resetting auth_info_baileys and generating a new QR code...\n');
+                latestQrDataUrl = null;
+                latestQrString = null;
+                activePairingCode = null;
+                activePairingPhone = null;
+                globalSock = null;
                 try {
-                    fs.rmSync('auth_info_baileys', { recursive: true, force: true });
+                    await resetCurrentAuthState();
                 } catch (e) {
                     console.error('Error resetting session files:', e.message);
                 }
-                setTimeout(() => startSock(), 1500);
+                setTimeout(() => {
+                    startSock().catch((err) => console.error('[Reconnect Socket Error]', err.message));
+                }, 1500);
             } else {
-                setTimeout(() => startSock(), 2000);
+                setTimeout(() => {
+                    startSock().catch((err) => console.error('[Reconnect Socket Error]', err.message));
+                }, 2000);
             }
         } else if (connection === 'open') {
             botConnectionStatus = 'connected';
@@ -960,11 +1020,25 @@ async function startSock() {
 
             if (!housekeepingScheduled) {
                 housekeepingScheduled = true;
-                setupHousekeepingSchedule();
+                setupHousekeepingSchedule({
+                    authDir: AUTH_DIR,
+                    onCleanup: async (cleanupRes) => {
+                        if (cleanupRes?.totalDeleted > 0) {
+                            await invalidateAuthKeyCache();
+                        }
+                    }
+                });
             }
-            setTimeout(() => {
-                console.log('[Housekeeping] Menjalankan pembersihan berkala awal saat bot online...');
-                cleanAuthFolder();
+            setTimeout(async () => {
+                try {
+                    console.log('[Housekeeping] Menjalankan pembersihan berkala awal saat bot online...');
+                    const cleanupRes = cleanAuthFolder({ authDir: AUTH_DIR });
+                    if (cleanupRes?.totalDeleted > 0) {
+                        await invalidateAuthKeyCache();
+                    }
+                } catch (hkErr) {
+                    console.error('[Housekeeping] Startup cleanup error:', hkErr.message);
+                }
             }, 10000);
 
             // Check if phone number changed or flagged for announcement
@@ -2559,7 +2633,9 @@ app.use([
     '/request-pairing-code', '/api/request-pairing-code',
     '/unlink', '/api/unlink',
     '/auth-state', '/api/auth-state',
-    '/check-number', '/api/check-number'
+    '/check-number', '/api/check-number',
+    '/cleanup-stats', '/api/cleanup-stats',
+    '/cleanup-auth', '/api/cleanup-auth'
 ], authenticateInbound);
 
 // Endpoint to inspect detailed auth & pairing state
@@ -2599,12 +2675,16 @@ app.post(['/request-pairing-code', '/api/request-pairing-code'], async (req, res
             announceNumberChangeOnConnect = true;
             try {
                 await globalSock.end(new Error('Admin requested pairing new number'));
-            } catch (e) {}
+            } catch (endErr) {
+                console.warn('[Pairing] Notice while ending previous socket:', endErr.message);
+            }
             globalSock = null;
             await new Promise(r => setTimeout(r, 600));
             try {
-                fs.rmSync('auth_info_baileys', { recursive: true, force: true });
-            } catch (e) {}
+                await resetCurrentAuthState();
+            } catch (rmErr) {
+                console.warn('[Pairing] Notice while resetting SQLite auth state:', rmErr.message);
+            }
             await startSock();
             await new Promise(r => setTimeout(r, 1200));
         } else if (!globalSock) {
@@ -2654,19 +2734,21 @@ app.post(['/unlink', '/api/unlink'], async (req, res) => {
         if (globalSock) {
             try {
                 await globalSock.end(new Error('Admin unlinked bot'));
-            } catch (e) {}
+            } catch (endErr) {
+                console.warn('[Bot Unlink] Notice while ending socket:', endErr.message);
+            }
             globalSock = null;
         }
 
         await new Promise(r => setTimeout(r, 800));
         try {
-            fs.rmSync('auth_info_baileys', { recursive: true, force: true });
-            console.log('[Bot Unlink] Successfully removed auth_info_baileys.');
+            await resetCurrentAuthState();
+            console.log('[Bot Unlink] Successfully cleared auth_info_baileys session.');
         } catch (e) {
-            console.warn('[Bot Unlink] Notice while clearing auth files:', e.message);
+            console.warn('[Bot Unlink] Notice while clearing auth session:', e.message);
         }
 
-        startSock();
+        startSock().catch((err) => console.error('[Bot Unlink] Failed restarting socket:', err.message));
 
         return res.json({
             success: true,
@@ -2680,18 +2762,23 @@ app.post(['/unlink', '/api/unlink'], async (req, res) => {
 
 app.get(['/cleanup-stats', '/api/cleanup-stats'], (req, res) => {
     try {
-        const stats = getAuthFolderStats();
+        const stats = getAuthFolderStats(AUTH_DIR);
         res.json({ success: true, stats });
     } catch (e) {
+        console.error('[Housekeeping API] Error reading stats:', e.message);
         res.status(500).json({ success: false, error: e.message });
     }
 });
 
-app.post(['/cleanup-auth', '/api/cleanup-auth'], (req, res) => {
+app.post(['/cleanup-auth', '/api/cleanup-auth'], async (req, res) => {
     try {
-        const result = cleanAuthFolder();
+        const result = cleanAuthFolder({ authDir: AUTH_DIR });
+        if (result?.totalDeleted > 0) {
+            await invalidateAuthKeyCache();
+        }
         res.json(result);
     } catch (e) {
+        console.error('[Housekeeping API] Error running cleanup:', e.message);
         res.status(500).json({ success: false, error: e.message });
     }
 });
@@ -2704,7 +2791,14 @@ app.post(['/shutdown', '/api/shutdown'], (req, res) => {
             if (globalSock) {
                 await globalSock.end(new Error('Dashboard requested shutdown'));
             }
-        } catch (e) {}
+        } catch (endErr) {
+            console.warn('[Bot Shutdown] Notice while ending socket:', endErr.message);
+        } finally {
+            if (currentAuthHandle) {
+                currentAuthHandle.close();
+                currentAuthHandle = null;
+            }
+        }
         process.exit(0);
     }, 500);
 });
@@ -3086,4 +3180,18 @@ app.listen(PORT, () => {
     console.log(`Notification API listening on port ${PORT}`);
 });
 
-startSock();
+function handleGracefulExit(signal) {
+    console.log(`[Bot] Received ${signal}, closing SQLite auth handle cleanly...`);
+    if (currentAuthHandle) {
+        currentAuthHandle.close();
+        currentAuthHandle = null;
+    }
+    process.exit(0);
+}
+
+process.on('SIGINT', () => handleGracefulExit('SIGINT'));
+process.on('SIGTERM', () => handleGracefulExit('SIGTERM'));
+
+startSock().catch((err) => {
+    console.error('[Bot Fatal Error]', err);
+});

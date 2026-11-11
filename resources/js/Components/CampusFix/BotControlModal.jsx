@@ -95,8 +95,8 @@ export function BotControlModal({ open, onOpenChange, botStatus, onRefreshStatus
             if (res.data?.success && res.data?.stats) {
                 setAuthStats(res.data.stats);
             }
-        } catch {
-            // Silently ignore
+        } catch (err) {
+            console.warn('[BotControlModal] Failed fetching auth storage stats:', err?.message || err);
         } finally {
             setLoadingStats(false);
         }
@@ -522,7 +522,10 @@ export function BotControlModal({ open, onOpenChange, botStatus, onRefreshStatus
                                     </span>
                                     {authStats && (
                                         <span className="text-[10px] font-mono text-stone-400">
-                                            {authStats.totalFiles} file ({authStats.totalSizeKB} KB)
+                                            {authStats.storageMode === 'sqlite' ? 'SQLite • ' : ''}
+                                            {authStats.totalFiles} file
+                                            {authStats.totalKeys !== undefined ? ` • ${authStats.totalKeys} key` : ''}
+                                            {` (${authStats.totalSizeKB} KB)`}
                                         </span>
                                     )}
                                 </div>
@@ -531,12 +534,12 @@ export function BotControlModal({ open, onOpenChange, botStatus, onRefreshStatus
                                     <div className="space-y-0.5 min-w-0">
                                         <p className="text-[11px] text-stone-300 flex items-center gap-1.5">
                                             <Sparkles className="w-3 h-3 text-amber-400 shrink-0" />
-                                            <span>{lang === 'id' ? 'Auto-Cleanup Harian Aktif (03:00 AM)' : 'Daily Auto-Cleanup Active (03:00 AM)'}</span>
+                                            <span>{lang === 'id' ? 'Auto-Cleanup Harian Aktif (03:00 AM • TTL 60 Hari)' : 'Daily Auto-Cleanup Active (03:00 AM • 60d TTL)'}</span>
                                         </p>
                                         <p className="text-[10px] text-muted-foreground">
                                             {lang === 'id' 
-                                                ? 'Merapikan pre-key & mapping usang. Sesi login (creds.json) selalu dibackup aman.' 
-                                                : 'Prunes stale pre-keys & mapping. Login session is always safely backed up.'}
+                                                ? 'Penyimpanan SQLite tunggal + pangkas key usang >60 hari. Sesi login & mapping staf selalu dilindungi.' 
+                                                : 'Single SQLite storage + 60-day dormant key pruning. Login session & staff mappings are always protected.'}
                                         </p>
                                     </div>
                                     <Button
@@ -545,7 +548,7 @@ export function BotControlModal({ open, onOpenChange, botStatus, onRefreshStatus
                                         disabled={cleaningAuth}
                                         onClick={handleCleanupAuth}
                                         className="h-8 px-2.5 bg-sky-600/80 hover:bg-sky-500 text-white font-bold text-xs shrink-0 gap-1.5 cursor-pointer shadow-xs"
-                                        title={lang === 'id' ? 'Bersihkan file sampah sesi sekarang' : 'Clean session junk now'}
+                                        title={lang === 'id' ? 'Bersihkan key usang (>60 hari) & kompres SQLite sekarang' : 'Prune dormant keys (>60d) & compact SQLite now'}
                                     >
                                         {cleaningAuth ? (
                                             <Loader2 className="w-3.5 h-3.5 animate-spin" />

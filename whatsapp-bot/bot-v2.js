@@ -15,7 +15,7 @@
  *      and notifies old group, new group, and reporter's DM.
  */
 
-const { makeWASocket, useMultiFileAuthState, DisconnectReason, downloadMediaMessage } = require('@whiskeysockets/baileys');
+const { makeWASocket, makeCacheableSignalKeyStore, DisconnectReason, downloadMediaMessage } = require('@whiskeysockets/baileys');
 const pino = require('pino');
 const axios = require('axios');
 const FormData = require('form-data');
@@ -26,7 +26,17 @@ const QRCode = require('qrcode');
 const fs = require('fs');
 const path = require('path');
 const { getAuthFolderStats, cleanAuthFolder, setupHousekeepingSchedule } = require('./housekeeping');
+const {
+    useSqliteAuthState,
+    resetAuthDirectory,
+    clearSessionKeysById,
+    pruneCorruptedSessionRows,
+    getAuthDbPath,
+} = require('./sqliteAuthState');
 const { findNearestTelunasFacility } = require('./services/telunasGeofence');
+
+const AUTH_DIR = path.resolve(__dirname, 'auth_info_baileys');
+const authCacheLogger = pino({ level: 'silent' });
 
 const app = express();
 app.use(express.json());
@@ -147,6 +157,8 @@ loadConfig();
 
 // Real-time Pairing & Connection State for Dashboard Control
 let globalSock = null;
+let currentAuthHandle = null;
+let currentCachedKeys = null;
 let latestQrString = null;
 let latestQrDataUrl = null;
 let activePairingCode = null;
@@ -155,6 +167,25 @@ let botConnectionStatus = 'offline'; // 'offline' | 'connecting' | 'qr_ready' | 
 let announceNumberChangeOnConnect = false;
 let staffSyncTimer = null;
 let housekeepingScheduled = false;
+
+async function invalidateAuthKeyCache() {
+    if (!currentCachedKeys || typeof currentCachedKeys.clear !== 'function') return;
+    try {
+        await currentCachedKeys.clear();
+    } catch (err) {
+        console.warn('[AuthCache V2] Gagal membersihkan cache key in-memory:', err.message);
+    }
+}
+
+async function resetCurrentAuthState() {
+    await invalidateAuthKeyCache();
+    currentCachedKeys = null;
+    if (currentAuthHandle) {
+        currentAuthHandle.close();
+        currentAuthHandle = null;
+    }
+    return resetAuthDirectory(AUTH_DIR);
+}
 
 // ─── Staff Phone Directory & Verification ─────────────────────────────────────
 let staffPhones = {};
@@ -401,11 +432,20 @@ function clearCorruptedSession(sessionId) {
     const cleanId = String(sessionId).replace(/[^0-9_.]/g, '');
     if (!cleanId || cleanId.length < 3) return 0;
 
-    const authDir = path.resolve(__dirname, 'auth_info_baileys');
-    if (!fs.existsSync(authDir)) return 0;
-
     try {
-        const files = fs.readdirSync(authDir);
+        if (fs.existsSync(getAuthDbPath(AUTH_DIR))) {
+            const removed = clearSessionKeysById(cleanId, AUTH_DIR);
+            if (removed > 0) {
+                console.log(`[Auto-Repair V2] Cleared ${removed} stale/corrupted SQLite session keys for ID: ${cleanId}`);
+                invalidateAuthKeyCache().catch((err) => {
+                    console.warn('[Auto-Repair V2] Cache flush warning:', err.message);
+                });
+            }
+            return removed;
+        }
+
+        if (!fs.existsSync(AUTH_DIR)) return 0;
+        const files = fs.readdirSync(AUTH_DIR);
         let removed = 0;
         for (const file of files) {
             if (file.includes(cleanId) && (
@@ -414,7 +454,7 @@ function clearCorruptedSession(sessionId) {
                 file.startsWith('identity-key-') ||
                 file.startsWith('device-list-')
             )) {
-                fs.unlinkSync(path.join(authDir, file));
+                fs.unlinkSync(path.join(AUTH_DIR, file));
                 removed++;
             }
         }
@@ -551,10 +591,27 @@ async function broadcastNewBotNumber(newPhone, previousPhone) {
 // ─── Baileys Connection Setup ─────────────────────────────────────────────────
 async function startSock() {
     botConnectionStatus = 'connecting';
-    const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
+
+    if (currentCachedKeys) {
+        await invalidateAuthKeyCache();
+        currentCachedKeys = null;
+    }
+    if (currentAuthHandle) {
+        currentAuthHandle.close();
+        currentAuthHandle = null;
+    }
+
+    const authHandle = await useSqliteAuthState(AUTH_DIR);
+    currentAuthHandle = authHandle;
+
+    const cachedKeys = makeCacheableSignalKeyStore(authHandle.state.keys, authCacheLogger);
+    currentCachedKeys = cachedKeys;
 
     const sock = makeWASocket({
-        auth: state,
+        auth: {
+            creds: authHandle.state.creds,
+            keys: cachedKeys,
+        },
         logger: pino({ level: 'silent' }),
         printQRInTerminal: true,
         browser: ['Telunas CampusFix V2', 'Chrome', '1.0.0'],
@@ -567,7 +624,7 @@ async function startSock() {
 
     globalSock = sock;
 
-    sock.ev.on('creds.update', saveCreds);
+    sock.ev.on('creds.update', authHandle.saveCreds);
 
     sock.ev.on('connection.update', async (update) => {
         const { connection, lastDisconnect, qr } = update;
@@ -594,8 +651,9 @@ async function startSock() {
                 latestQrString = null;
                 activePairingCode = null;
                 activePairingPhone = null;
+                globalSock = null;
                 try {
-                    fs.rmSync('auth_info_baileys', { recursive: true, force: true });
+                    await resetCurrentAuthState();
                 } catch (e) {
                     console.error('[Session Reset Error]', e.message);
                 }
@@ -617,11 +675,25 @@ async function startSock() {
 
             if (!housekeepingScheduled) {
                 housekeepingScheduled = true;
-                setupHousekeepingSchedule();
+                setupHousekeepingSchedule({
+                    authDir: AUTH_DIR,
+                    onCleanup: async (cleanupRes) => {
+                        if (cleanupRes?.totalDeleted > 0) {
+                            await invalidateAuthKeyCache();
+                        }
+                    }
+                });
             }
-            setTimeout(() => {
-                console.log('[Housekeeping] Menjalankan pembersihan berkala awal saat bot online...');
-                cleanAuthFolder();
+            setTimeout(async () => {
+                try {
+                    console.log('[Housekeeping] Menjalankan pembersihan berkala awal saat bot online...');
+                    const cleanupRes = cleanAuthFolder({ authDir: AUTH_DIR });
+                    if (cleanupRes?.totalDeleted > 0) {
+                        await invalidateAuthKeyCache();
+                    }
+                } catch (hkErr) {
+                    console.error('[Housekeeping] Startup cleanup V2 error:', hkErr.message);
+                }
             }, 10000);
 
             const currentPhone = globalSock?.user?.id ? globalSock.user.id.split(':')[0] : null;
@@ -1382,9 +1454,9 @@ app.post(['/request-pairing-code', '/api/request-pairing-code'], async (req, res
             globalSock = null;
             await new Promise((r) => setTimeout(r, 600));
             try {
-                fs.rmSync('auth_info_baileys', { recursive: true, force: true });
+                await resetCurrentAuthState();
             } catch (rmErr) {
-                console.warn('[Pairing V2] Peringatan saat menghapus folder sesi:', rmErr.message);
+                console.warn('[Pairing V2] Peringatan saat me-reset sesi SQLite:', rmErr.message);
             }
             await startSock();
             await new Promise((r) => setTimeout(r, 1200));
@@ -1441,7 +1513,7 @@ app.post(['/unlink', '/api/unlink'], async (req, res) => {
 
         await new Promise((r) => setTimeout(r, 800));
         try {
-            fs.rmSync('auth_info_baileys', { recursive: true, force: true });
+            await resetCurrentAuthState();
         } catch (rmErr) {
             console.warn('[Bot Unlink V2] Peringatan saat membersihkan auth_info_baileys:', rmErr.message);
         }
@@ -1650,57 +1722,70 @@ app.post(['/shutdown', '/api/shutdown'], (req, res) => {
             }
         } catch (endErr) {
             console.warn('[Bot Shutdown V2] Error saat menutup socket:', endErr.message);
+        } finally {
+            if (currentAuthHandle) {
+                currentAuthHandle.close();
+                currentAuthHandle = null;
+            }
         }
         process.exit(0);
     }, 500);
 });
 
-app.post(['/repair-sessions', '/api/repair-sessions'], (req, res) => {
+app.post(['/repair-sessions', '/api/repair-sessions'], async (req, res) => {
     try {
         const { targetId } = req.body || {};
         let removed = 0;
         if (targetId) {
             removed = clearCorruptedSession(targetId);
-        } else {
-            const authDir = path.resolve(__dirname, 'auth_info_baileys');
-            if (fs.existsSync(authDir)) {
-                const files = fs.readdirSync(authDir);
-                for (const f of files) {
-                    if (f.startsWith('session-') || f.startsWith('sender-key-')) {
-                        const p = path.join(authDir, f);
-                        try {
-                            const st = fs.statSync(p);
-                            if (st.size === 0) {
-                                fs.unlinkSync(p);
-                                removed++;
-                            }
-                        } catch (fileErr) {
-                            console.warn(`[RepairSessions V2] Gagal memeriksa/menghapus ${f}:`, fileErr.message);
+        } else if (fs.existsSync(getAuthDbPath(AUTH_DIR))) {
+            removed = pruneCorruptedSessionRows(AUTH_DIR);
+            if (removed > 0) {
+                await invalidateAuthKeyCache();
+            }
+        } else if (fs.existsSync(AUTH_DIR)) {
+            const files = fs.readdirSync(AUTH_DIR);
+            for (const f of files) {
+                if (f.startsWith('session-') || f.startsWith('sender-key-')) {
+                    const p = path.join(AUTH_DIR, f);
+                    try {
+                        const st = fs.statSync(p);
+                        if (st.size === 0) {
+                            fs.unlinkSync(p);
+                            removed++;
                         }
+                    } catch (fileErr) {
+                        console.warn(`[RepairSessions V2] Gagal memeriksa/menghapus ${f}:`, fileErr.message);
                     }
                 }
             }
         }
-        res.json({ success: true, message: `Session repair completed. Removed ${removed} files.` });
+        res.json({ success: true, message: `Session repair completed. Removed ${removed} entries.` });
     } catch (e) {
+        console.error('[RepairSessions V2 Error]', e.message);
         res.status(500).json({ success: false, error: e.message });
     }
 });
 
 app.get(['/cleanup-stats', '/api/cleanup-stats'], (req, res) => {
     try {
-        const stats = getAuthFolderStats();
+        const stats = getAuthFolderStats(AUTH_DIR);
         res.json({ success: true, stats });
     } catch (e) {
+        console.error('[Housekeeping API V2] Error reading stats:', e.message);
         res.status(500).json({ success: false, error: e.message });
     }
 });
 
-app.post(['/cleanup-auth', '/api/cleanup-auth'], (req, res) => {
+app.post(['/cleanup-auth', '/api/cleanup-auth'], async (req, res) => {
     try {
-        const result = cleanAuthFolder();
+        const result = cleanAuthFolder({ authDir: AUTH_DIR });
+        if (result?.totalDeleted > 0) {
+            await invalidateAuthKeyCache();
+        }
         res.json(result);
     } catch (e) {
+        console.error('[Housekeeping API V2] Error running cleanup:', e.message);
         res.status(500).json({ success: false, error: e.message });
     }
 });
@@ -1717,6 +1802,18 @@ async function startBot() {
     await syncStaffDirectory();
     await startSock();
 }
+
+function handleGracefulExit(signal) {
+    console.log(`[Bot V2] Received ${signal}, closing SQLite auth handle cleanly...`);
+    if (currentAuthHandle) {
+        currentAuthHandle.close();
+        currentAuthHandle = null;
+    }
+    process.exit(0);
+}
+
+process.on('SIGINT', () => handleGracefulExit('SIGINT'));
+process.on('SIGTERM', () => handleGracefulExit('SIGTERM'));
 
 startBot().catch((err) => {
     console.error('[Bot Fatal Error]', err);

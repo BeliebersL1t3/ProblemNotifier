@@ -2748,14 +2748,17 @@ class IssueController extends Controller
             \Log::info('Bot service offline or not responding for cleanup-stats, falling back to disk inspection: ' . $e->getMessage());
         }
 
-        // 2. Fallback: inspect directory directly on disk
+        // 2. Fallback: inspect directory (SQLite DB or legacy multi-file JSONs) directly on disk
         $authDir = base_path('whatsapp-bot' . DIRECTORY_SEPARATOR . 'auth_info_baileys');
-        if (!file_exists($authDir)) {
+        if (!is_dir($authDir)) {
             return response()->json([
                 'success' => true,
                 'stats' => [
                     'exists' => false,
+                    'storageMode' => 'none',
+                    'credsStatus' => 'missing',
                     'totalFiles' => 0,
+                    'totalKeys' => 0,
                     'totalSizeKB' => 0,
                     'totalSizeMB' => 0,
                     'breakdown' => []
@@ -2763,30 +2766,151 @@ class IssueController extends Controller
             ]);
         }
 
-        $files = @scandir($authDir) ?: [];
+        $entries = scandir($authDir);
+        if ($entries === false) {
+            \Log::warning("Failed scanning WhatsApp bot auth directory: {$authDir}");
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal membaca direktori sesi bot pada disk.'
+            ], 500);
+        }
+
         $totalBytes = 0;
         $fileCount = 0;
-        $breakdown = [];
+        $jsonFiles = [];
 
-        foreach ($files as $file) {
+        foreach ($entries as $file) {
             if ($file === '.' || $file === '..') continue;
+            $fullPath = $authDir . DIRECTORY_SEPARATOR . $file;
+            if (!is_file($fullPath)) continue;
+
             $fileCount++;
-            $parts = explode('-', $file);
-            $prefix = $parts[0] ?: 'other';
-            $breakdown[$prefix] = ($breakdown[$prefix] ?? 0) + 1;
-            $path = $authDir . DIRECTORY_SEPARATOR . $file;
-            $size = @filesize($path);
+            $size = filesize($fullPath);
             if ($size !== false) {
                 $totalBytes += $size;
             }
+            if (str_ends_with($file, '.json')) {
+                $jsonFiles[] = $file;
+            }
+        }
+
+        $dbPath = $authDir . DIRECTORY_SEPARATOR . 'baileys_auth.sqlite';
+        if (is_file($dbPath) && class_exists(\PDO::class) && extension_loaded('pdo_sqlite')) {
+            $breakdown = [];
+            $totalKeys = 0;
+            $credsStatus = 'missing';
+            $pdo = null;
+
+            try {
+                $dsn = 'sqlite:' . $dbPath;
+                $roOptions = [\PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION];
+                if (defined('PDO::SQLITE_ATTR_OPEN_FLAGS') && defined('PDO::SQLITE_OPEN_READONLY')) {
+                    $roOptions[\PDO::SQLITE_ATTR_OPEN_FLAGS] = \PDO::SQLITE_OPEN_READONLY;
+                }
+
+                try {
+                    $pdo = new \PDO($dsn, null, null, $roOptions);
+                } catch (\Throwable $roErr) {
+                    \Log::warning('Read-only SQLite stats inspection hit WAL/lock, retrying standard open: ' . $roErr->getMessage());
+                    $pdo = new \PDO($dsn, null, null, [\PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION]);
+                }
+
+                $keyStmt = $pdo->query('SELECT category, COUNT(*) AS cnt FROM auth_keys GROUP BY category');
+                if ($keyStmt) {
+                    foreach ($keyStmt->fetchAll(\PDO::FETCH_ASSOC) as $row) {
+                        $cat = (string) ($row['category'] ?? 'other');
+                        $cnt = (int) ($row['cnt'] ?? 0);
+                        $breakdown[$cat] = $cnt;
+                        $totalKeys += $cnt;
+                    }
+                }
+
+                $credsStmt = $pdo->prepare("SELECT value FROM auth_meta WHERE key = 'creds' LIMIT 1");
+                if ($credsStmt && $credsStmt->execute()) {
+                    $rawCreds = $credsStmt->fetchColumn();
+                    if (is_string($rawCreds) && $rawCreds !== '') {
+                        $credsJson = json_decode($rawCreds, true);
+                        if (is_array($credsJson)) {
+                            $credsStatus = !empty($credsJson['registered']) ? 'registered' : 'unregistered';
+                        } else {
+                            $credsStatus = 'corrupted';
+                        }
+                    }
+                }
+            } catch (\Throwable $sqlErr) {
+                \Log::warning('Failed inspecting baileys_auth.sqlite via PHP PDO: ' . $sqlErr->getMessage());
+                $credsStatus = 'error';
+            } finally {
+                $pdo = null;
+            }
+
+            return response()->json([
+                'success' => true,
+                'stats' => [
+                    'exists' => true,
+                    'storageMode' => 'sqlite',
+                    'credsStatus' => $credsStatus,
+                    'totalFiles' => $fileCount,
+                    'totalKeys' => $totalKeys,
+                    'totalSizeKB' => (int) round($totalBytes / 1024),
+                    'totalSizeMB' => round($totalBytes / (1024 * 1024), 2),
+                    'breakdown' => $breakdown
+                ]
+            ]);
+        }
+
+        // Legacy multi-file JSON stats fallback
+        $knownCategories = [
+            'app-state-sync-version',
+            'app-state-sync-key',
+            'sender-key-memory',
+            'identity-key',
+            'lid-mapping',
+            'device-list',
+            'sender-key',
+            'pre-key',
+            'session',
+            'tctoken',
+        ];
+        $breakdown = [];
+        $totalKeys = 0;
+
+        foreach ($jsonFiles as $file) {
+            if ($file === 'creds.json' || $file === 'creds.json.bak') continue;
+            $baseName = substr($file, 0, -5);
+            $matchedCategory = 'other';
+            foreach ($knownCategories as $cat) {
+                if (str_starts_with($baseName, $cat . '-')) {
+                    $matchedCategory = $cat;
+                    break;
+                }
+            }
+            if ($matchedCategory === 'other' && str_contains($baseName, '-')) {
+                $matchedCategory = explode('-', $baseName, 2)[0] ?: 'other';
+            }
+            $breakdown[$matchedCategory] = ($breakdown[$matchedCategory] ?? 0) + 1;
+            $totalKeys++;
+        }
+
+        $credsStatus = 'missing';
+        $credsPath = $authDir . DIRECTORY_SEPARATOR . 'creds.json';
+        if (is_file($credsPath)) {
+            $rawCreds = file_get_contents($credsPath);
+            $credsJson = is_string($rawCreds) ? json_decode($rawCreds, true) : null;
+            $credsStatus = is_array($credsJson)
+                ? (!empty($credsJson['registered']) ? 'registered' : 'unregistered')
+                : 'corrupted';
         }
 
         return response()->json([
             'success' => true,
             'stats' => [
                 'exists' => true,
+                'storageMode' => 'multifile',
+                'credsStatus' => $credsStatus,
                 'totalFiles' => $fileCount,
-                'totalSizeKB' => round($totalBytes / 1024),
+                'totalKeys' => $totalKeys,
+                'totalSizeKB' => (int) round($totalBytes / 1024),
                 'totalSizeMB' => round($totalBytes / (1024 * 1024), 2),
                 'breakdown' => $breakdown
             ]
@@ -2819,21 +2943,32 @@ class IssueController extends Controller
         $botDir = base_path('whatsapp-bot');
         $scriptPath = $botDir . DIRECTORY_SEPARATOR . 'housekeeping.js';
         if (file_exists($scriptPath)) {
+            $cdPrefix = strtoupper(substr(PHP_OS, 0, 3)) === 'WIN' ? 'cd /D ' : 'cd ';
             $nodeCmd = "node -e \"const { cleanAuthFolder } = require('./housekeeping'); console.log(JSON.stringify(cleanAuthFolder()));\"";
-            $output = @shell_exec("cd " . escapeshellarg($botDir) . " && " . $nodeCmd);
-            if ($output) {
+            $output = shell_exec($cdPrefix . escapeshellarg($botDir) . " && " . $nodeCmd);
+            if (is_string($output) && trim($output) !== '') {
+                $lines = array_reverse(array_filter(array_map('trim', explode("\n", $output))));
+                foreach ($lines as $line) {
+                    if (str_starts_with($line, '{') && str_ends_with($line, '}')) {
+                        $json = json_decode($line, true);
+                        if (is_array($json)) {
+                            return response()->json($json);
+                        }
+                    }
+                }
                 if (preg_match('/\{[\s\S]*\}/', $output, $matches)) {
                     $json = json_decode($matches[0], true);
-                    if ($json) {
+                    if (is_array($json)) {
                         return response()->json($json);
                     }
                 }
+                \Log::warning('Unexpected non-JSON output from Node housekeeping cleanup: ' . substr($output, 0, 500));
             }
         }
 
         return response()->json([
             'success' => false,
-            'message' => 'Gagal menjalankan pembersihan file sesi bot.'
+            'message' => 'Gagal menjalankan pembersihan database sesi bot.'
         ], 500);
     }
 

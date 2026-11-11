@@ -37,6 +37,10 @@ Resort.zip
 
 # WhatsApp Bot Security & Sessions
 /whatsapp-bot/auth_info_baileys/
+/whatsapp-bot/*.sqlite*
+/whatsapp-bot/**/*.sqlite*
+/whatsapp-bot/*.db*
+/whatsapp-bot/**/*.db*
 /whatsapp-bot/config.json
 !/whatsapp-bot/config.json.example
 /whatsapp-bot/node_modules/
