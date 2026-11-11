@@ -80,7 +80,6 @@ class LeanSheetDirectService
             'Waktu Selesai',
             'Catatan Penyelesaian',
             'Seluruh Kontributor (Evaluasi)',
-            'Riwayat Komentar & Log',
             'Riwayat Pengalihan Dept',
             'Aktif di Dashboard',
             'Dihapus Oleh',
@@ -125,7 +124,7 @@ class LeanSheetDirectService
     }
 
     /**
-     * Format a LeanIssue model into a 22-column array matching the Option 4B header.
+     * Format a LeanIssue model into a 21-column array matching the Option 4B header.
      */
     public function formatIssueRow(LeanIssue $issue): array
     {
@@ -174,25 +173,6 @@ class LeanSheetDirectService
             );
         $allContributorsStr = implode(', ', $allContributorsList);
 
-        // Chronological progress & comment logs
-        $logLines = [];
-        foreach (($issue->progress_logs ?? []) as $log) {
-            if (!is_array($log)) {
-                continue;
-            }
-            $ts = !empty($log['created_at'])
-                ? Carbon::parse($log['created_at'])->setTimezone('Asia/Jakarta')->format('d/m H:i')
-                : '';
-            $actor = $log['actor'] ?? 'Sistem';
-            $typeLabel = strtoupper($log['type'] ?? 'LOG');
-            $msg = trim((string) ($log['message'] ?? ''));
-            $workersNote = !empty($log['workers']) && is_array($log['workers'])
-                ? ' [Tim: ' . implode(', ', $log['workers']) . ']'
-                : '';
-            $logLines[] = "[{$ts} | {$typeLabel}] {$actor}: {$msg}{$workersNote}";
-        }
-        $progressLogsStr = implode("\n", $logLines);
-
         // Transfer history summary
         $transferLines = [];
         foreach (($issue->transfer_history ?? []) as $tr) {
@@ -234,7 +214,6 @@ class LeanSheetDirectService
             $issue->resolved_at ? Carbon::parse($issue->resolved_at)->setTimezone('Asia/Jakarta')->format('Y-m-d H:i') : '',
             $issue->resolution_note ?: '',
             $allContributorsStr,
-            $progressLogsStr,
             $transferHistoryStr,
             $isActive,
             $deletedBy,
@@ -248,7 +227,18 @@ class LeanSheetDirectService
     public function setupHeadersAndFormatting(): void
     {
         $service = $this->getSheetsService();
-        $gids = $this->getMonthGids(true);
+        $meta = $service->spreadsheets->get($this->spreadsheetId);
+        $gids = [];
+        $columnCounts = [];
+        foreach ($meta->getSheets() as $s) {
+            $p = $s->getProperties();
+            $title = $p->getTitle();
+            $gids[$title] = (int) $p->getSheetId();
+            $gridProps = $p->getGridProperties();
+            $columnCounts[$title] = $gridProps ? (int) $gridProps->getColumnCount() : 26;
+        }
+        Cache::put("lean_sheet_gids_{$this->spreadsheetId}", $gids, 86400);
+
         $headers = [self::getHeaders()];
 
         $headerRequests = [];
@@ -258,11 +248,11 @@ class LeanSheetDirectService
             }
             $sheetId = $gids[$monthName];
 
-            // 1. Update header values A1:V1
+            // 1. Update header values A1:U1 (21 columns)
             $body = new ValueRange(['values' => $headers]);
             $service->spreadsheets_values->update(
                 $this->spreadsheetId,
-                "{$monthName}!A1:V1",
+                "{$monthName}!A1:U1",
                 $body,
                 ['valueInputOption' => 'USER_ENTERED']
             );
@@ -275,7 +265,7 @@ class LeanSheetDirectService
                         'startRowIndex' => 0,
                         'endRowIndex' => 1,
                         'startColumnIndex' => 0,
-                        'endColumnIndex' => 22,
+                        'endColumnIndex' => 21,
                     ],
                     'cell' => [
                         'userEnteredFormat' => [
@@ -300,6 +290,23 @@ class LeanSheetDirectService
                     'fields' => 'userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,verticalAlignment)',
                 ],
             ]);
+
+            // Clear stale values & formatting from legacy 22nd column (Column V) if present
+            $sheetColCount = $columnCounts[$monthName] ?? 21;
+            if ($sheetColCount > 21) {
+                $headerRequests[] = new \Google\Service\Sheets\Request([
+                    'repeatCell' => [
+                        'range' => [
+                            'sheetId'          => $sheetId,
+                            'startRowIndex'    => 0,
+                            'startColumnIndex' => 21,
+                            'endColumnIndex'   => min($sheetColCount, 22),
+                        ],
+                        'cell'   => new \Google\Service\Sheets\CellData(),
+                        'fields' => 'userEnteredValue,userEnteredFormat',
+                    ],
+                ]);
+            }
 
             // Set Row 1 height to 34px
             $headerRequests[] = new \Google\Service\Sheets\Request([
@@ -363,7 +370,7 @@ class LeanSheetDirectService
             // Clear existing rows below header
             $service->spreadsheets_values->clear(
                 $this->spreadsheetId,
-                "{$monthName}!A2:V1000",
+                "{$monthName}!A2:U1000",
                 new \Google\Service\Sheets\ClearValuesRequest()
             );
 
@@ -372,7 +379,7 @@ class LeanSheetDirectService
                 $body = new ValueRange(['values' => $rows]);
                 $service->spreadsheets_values->update(
                     $this->spreadsheetId,
-                    "{$monthName}!A2:V{$endRow}",
+                    "{$monthName}!A2:U{$endRow}",
                     $body,
                     ['valueInputOption' => 'USER_ENTERED']
                 );
@@ -425,7 +432,7 @@ class LeanSheetDirectService
                 $body = new ValueRange(['values' => [$row]]);
                 $service->spreadsheets_values->update(
                     $this->spreadsheetId,
-                    "{$monthName}!A{$foundRowIndex}:V{$foundRowIndex}",
+                    "{$monthName}!A{$foundRowIndex}:U{$foundRowIndex}",
                     $body,
                     ['valueInputOption' => 'USER_ENTERED']
                 );
@@ -434,7 +441,7 @@ class LeanSheetDirectService
                 $body = new ValueRange(['values' => [$row]]);
                 $service->spreadsheets_values->append(
                     $this->spreadsheetId,
-                    "{$monthName}!A:V",
+                    "{$monthName}!A:U",
                     $body,
                     ['valueInputOption' => 'USER_ENTERED']
                 );
@@ -476,11 +483,11 @@ class LeanSheetDirectService
                 : Carbon::now('Asia/Jakarta')->format('Y-m-d H:i');
 
             if ($foundRowIndex !== null) {
-                // Update columns T, U, V (Aktif di Dashboard, Dihapus Oleh, Waktu Dihapus)
+                // Update columns S, T, U (Aktif di Dashboard, Dihapus Oleh, Waktu Dihapus)
                 $body = new ValueRange(['values' => [[0, $deletedBy, $deletedAt]]]);
                 $service->spreadsheets_values->update(
                     $this->spreadsheetId,
-                    "{$monthName}!T{$foundRowIndex}:V{$foundRowIndex}",
+                    "{$monthName}!S{$foundRowIndex}:U{$foundRowIndex}",
                     $body,
                     ['valueInputOption' => 'USER_ENTERED']
                 );
@@ -498,7 +505,7 @@ class LeanSheetDirectService
     }
 
     /**
-     * Clear all monthly data rows (A2:V1000) across all 12 tabs for sandbox reset.
+     * Clear all monthly data rows (A2:U1000) across all 12 tabs for sandbox reset.
      */
     public function clearAllMonthlyData(): bool
     {
@@ -516,12 +523,12 @@ class LeanSheetDirectService
                 }
                 $service->spreadsheets_values->clear(
                     $this->spreadsheetId,
-                    "{$monthName}!A2:V1000",
+                    "{$monthName}!A2:U1000",
                     new \Google\Service\Sheets\ClearValuesRequest()
                 );
             }
 
-            // Ensure 22-column headers and teal formatting are present on all 12 tabs
+            // Ensure 21-column headers and teal formatting are present on all 12 tabs
             $this->setupHeadersAndFormatting();
             Cache::forget('lean_sheets_pending_clear');
 
