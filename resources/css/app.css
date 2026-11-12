@@ -843,6 +843,37 @@ input[type="range"]::-moz-range-thumb {
     0 16px 40px -6px rgba(0, 0, 0, 0.68) !important;
 }
 
+/* 2b. Soft Edge Fade / Progressive Scrim Behind Floating Mobile Dock */
+.lean-theme-light .liquid-glass-bottom-scrim,
+.liquid-glass-bottom-scrim.liquid-glass-light {
+  background: linear-gradient(
+    to bottom,
+    rgba(248, 250, 252, 0) 0%,
+    rgba(248, 250, 252, 0.36) 36%,
+    rgba(248, 250, 252, 0.72) 68%,
+    rgba(241, 245, 249, 0.88) 100%
+  );
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, rgba(0, 0, 0, 0.55) 45%, #000 82%);
+  mask-image: linear-gradient(to bottom, transparent 0%, rgba(0, 0, 0, 0.55) 45%, #000 82%);
+}
+
+.lean-theme-dark .liquid-glass-bottom-scrim,
+.liquid-glass-bottom-scrim.liquid-glass-dark {
+  background: linear-gradient(
+    to bottom,
+    rgba(15, 23, 42, 0) 0%,
+    rgba(15, 23, 42, 0.40) 36%,
+    rgba(15, 23, 42, 0.76) 68%,
+    rgba(9, 14, 28, 0.90) 100%
+  );
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, rgba(0, 0, 0, 0.55) 45%, #000 82%);
+  mask-image: linear-gradient(to bottom, transparent 0%, rgba(0, 0, 0, 0.55) 45%, #000 82%);
+}
+
 /* 3. Primary Liquid Glass Card (Tier 2: Translucent Frosted Glass over Soft Backdrop) */
 .lean-theme-light .liquid-glass-card,
 .liquid-glass-card.liquid-glass-light {
@@ -1067,6 +1098,14 @@ input[type="range"]::-moz-range-thumb {
   .liquid-glass-modal.liquid-glass-dark,
   .liquid-glass-pill.liquid-glass-dark {
     background: rgba(15, 23, 42, 0.96) !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+
+  .lean-theme-light .liquid-glass-bottom-scrim,
+  .liquid-glass-bottom-scrim.liquid-glass-light,
+  .lean-theme-dark .liquid-glass-bottom-scrim,
+  .liquid-glass-bottom-scrim.liquid-glass-dark {
     -webkit-backdrop-filter: none !important;
     backdrop-filter: none !important;
   }
