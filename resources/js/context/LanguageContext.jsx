@@ -705,7 +705,7 @@ const translations = {
         // Header & Nav
         system_title: 'Sistem Pelaporan Kerusakan',
         dashboard: 'Dashboard',
-        analytics: 'Analistik',
+        analytics: 'Analisis',
         search_placeholder: 'Cari laporan atau lokasi...',
         search_analytics_placeholder: 'Cari aktivitas laporan terbaru...',
         search_calendar_placeholder: 'Cari tugas, tanggal, departemen...',

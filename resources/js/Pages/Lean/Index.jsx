@@ -31,7 +31,6 @@ import {
     Eye,
     EyeOff,
     RotateCcw,
-    BarChart3,
     Sparkles,
     Wrench,
     WifiOff,
@@ -49,6 +48,7 @@ import {
 } from 'lucide-react';
 import axios from 'axios';
 import { LeanHeader } from '@/Components/CampusFix/LeanHeader';
+import { MobileBottomNav } from '@/Components/CampusFix/MobileBottomNav';
 import { useLeanTheme } from '@/hooks/useLeanTheme';
 import {
     EtaPickerField,
@@ -213,13 +213,38 @@ export default function LeanIndex({
         if (typeof window !== 'undefined') {
             const viewParam = new URLSearchParams(window.location.search).get('view');
             if (viewParam === 'analytics') return 'analytics';
-            if (viewParam === 'table' && window.innerWidth >= 768) return 'table';
+            if (viewParam === 'table') return 'table';
             if (viewParam === 'cards') return 'cards';
             if (window.innerWidth < 768) return 'cards';
-            return localStorage.getItem('lean_erp_view_mode') || 'cards';
+            try {
+                return localStorage.getItem('lean_erp_view_mode') || 'cards';
+            } catch (err) {
+                console.warn('[LeanIndex] Failed reading lean_erp_view_mode:', err);
+                return 'cards';
+            }
         }
         return 'cards';
     });
+
+    const lastListViewRef = useRef(viewMode === 'table' ? 'table' : 'cards');
+    useEffect(() => {
+        if (viewMode === 'cards' || viewMode === 'table') {
+            lastListViewRef.current = viewMode;
+        }
+    }, [viewMode]);
+
+    const handleViewModeChange = (nextView) => {
+        setViewMode(nextView);
+        if (typeof window !== 'undefined') {
+            const url = new URL(window.location.href);
+            if (nextView === 'analytics') {
+                url.searchParams.set('view', 'analytics');
+            } else {
+                url.searchParams.delete('view');
+            }
+            window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash);
+        }
+    };
 
     // Multi-select status checklist
     const [selectedStatuses, setSelectedStatuses] = useState({
@@ -245,7 +270,7 @@ export default function LeanIndex({
             previousViewMode: viewMode,
         });
         setSelectedDetailIssue(null);
-        setViewMode('analytics');
+        handleViewModeChange('analytics');
         setActiveAnalyticsTab('executive');
         setFocusMapRequest({
             resort: res.resort,
@@ -291,18 +316,6 @@ export default function LeanIndex({
         } catch (err) {
             console.warn('[LeanIndex] Failed saving lean_erp_view_mode:', err);
         }
-    }, [viewMode]);
-
-    // Force fallback to 'cards' on mobile screens (< 768px)
-    useEffect(() => {
-        const handleResize = () => {
-            if (typeof window !== 'undefined' && window.innerWidth < 768 && viewMode === 'table') {
-                setViewMode('cards');
-            }
-        };
-        handleResize();
-        window.addEventListener('resize', handleResize);
-        return () => window.removeEventListener('resize', handleResize);
     }, [viewMode]);
 
     // Theme preference (dark / light) synced across Lean pages & header
@@ -401,7 +414,7 @@ export default function LeanIndex({
             const viewParam = params.get('view');
             if (viewParam === 'analytics') {
                 setViewMode('analytics');
-            } else if (viewParam === 'table' && window.innerWidth >= 768) {
+            } else if (viewParam === 'table') {
                 setViewMode('table');
             } else if (viewParam === 'cards') {
                 setViewMode('cards');
@@ -1601,7 +1614,7 @@ export default function LeanIndex({
             <LeanHeader
                 activePage="dashboard"
                 viewMode={viewMode}
-                onViewModeChange={setViewMode}
+                onViewModeChange={handleViewModeChange}
                 currentUser={currentUser}
                 outboxProps={{
                     outboxCount,
@@ -1781,16 +1794,56 @@ export default function LeanIndex({
                             </select>
                         </div>
 
-                        {/* Actions group: Column Customizer & New Report */}
-                        <div className="col-span-2 sm:col-span-1 sm:ml-auto flex items-center justify-between sm:justify-end gap-2">
+                        {/* Actions group: Mobile View Switcher, Desktop New Report & Column Customizer */}
+                        <div className="w-full md:w-auto col-span-2 md:col-span-1 md:ml-auto flex items-center justify-between md:justify-end gap-2">
+                            {/* Compact Mobile Card / ERP Table Switcher */}
+                            <div
+                                className={`inline-flex md:hidden items-center p-0.5 rounded-xl border shadow-xs ${
+                                    isDark
+                                        ? 'bg-slate-900/90 border-slate-700'
+                                        : 'bg-slate-100 border-slate-200'
+                                }`}
+                                role="group"
+                                aria-label={isEn ? 'Switch list view' : 'Ubah tampilan daftar'}
+                            >
+                                <button
+                                    type="button"
+                                    onClick={() => handleViewModeChange('cards')}
+                                    className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                        viewMode === 'cards'
+                                            ? 'bg-emerald-600 text-white keep-white shadow-xs'
+                                            : isDark
+                                            ? 'text-slate-400 hover:text-slate-200'
+                                            : 'text-slate-600 hover:text-slate-900'
+                                    }`}
+                                >
+                                    <LayoutGrid className="w-3.5 h-3.5 shrink-0" />
+                                    <span>{isEn ? 'Cards' : 'Kartu'}</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleViewModeChange('table')}
+                                    className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                        viewMode === 'table'
+                                            ? 'bg-emerald-600 text-white keep-white shadow-xs'
+                                            : isDark
+                                            ? 'text-slate-400 hover:text-slate-200'
+                                            : 'text-slate-600 hover:text-slate-900'
+                                    }`}
+                                >
+                                    <Table className="w-3.5 h-3.5 shrink-0" />
+                                    <span>{isEn ? 'Table' : 'Tabel'}</span>
+                                </button>
+                            </div>
+
                             <button
                                 type="button"
                                 onClick={() => setShowReportModal(true)}
-                                className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-md hover:shadow-emerald-600/30 transition-all cursor-pointer shrink-0"
+                                className="hidden md:flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white keep-white font-bold text-xs rounded-xl shadow-md hover:shadow-emerald-600/30 transition-all cursor-pointer shrink-0"
                                 title={isEn ? 'Report New Issue' : 'Laporkan Masalah Baru'}
                             >
                                 <Plus className="w-3.5 h-3.5" />
-                                <span>{isEn ? 'New Report' : '+ Lapor Baru'}</span>
+                                <span>{isEn ? 'New Report' : 'Lapor Baru'}</span>
                             </button>
                             <button
                                 type="button"
@@ -4648,88 +4701,15 @@ export default function LeanIndex({
                 </div>
             )}
 
-            {/* MOBILE BOTTOM NAVIGATION DOCK (KARTU & PETA) */}
-            <nav
-                aria-label={isEn ? 'Mobile Field Bottom Navigation' : 'Navigasi Bawah Mobile Lapangan'}
-                className={`fixed bottom-0 inset-x-0 z-40 md:hidden backdrop-blur-xl border-t shadow-[0_-8px_30px_rgba(0,0,0,0.4)] transition-colors duration-200 ${
-                    isDark
-                        ? 'bg-slate-900/95 border-slate-800 text-slate-300'
-                        : 'bg-white/95 border-slate-200 text-slate-700 shadow-slate-200/50'
-                }`}
-                style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.35rem)' }}
-            >
-                <div className="grid grid-cols-3 max-w-sm mx-auto w-full px-2 py-1.5 gap-1.5">
-                    {/* Tab 1: Tabel ERP */}
-                    <button
-                        type="button"
-                        onClick={() => setViewMode('table')}
-                        className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                            viewMode === 'table'
-                                ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30'
-                                : isDark
-                                ? 'hover:bg-slate-800 text-slate-400 hover:text-white'
-                                : 'hover:bg-slate-100 text-slate-600 hover:text-slate-900'
-                        }`}
-                    >
-                        <Table className="w-3.5 h-3.5 shrink-0" />
-                        <span>{isEn ? 'Table' : 'Tabel'}</span>
-                    </button>
-
-                    {/* Tab 2: Kartu */}
-                    <button
-                        type="button"
-                        onClick={() => setViewMode('cards')}
-                        className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                            viewMode === 'cards'
-                                ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30'
-                                : isDark
-                                ? 'hover:bg-slate-800 text-slate-400 hover:text-white'
-                                : 'hover:bg-slate-100 text-slate-600 hover:text-slate-900'
-                        }`}
-                    >
-                        <LayoutGrid className="w-3.5 h-3.5 shrink-0" />
-                        <span>{isEn ? 'Cards' : 'Kartu'}</span>
-                        <span className={`text-[9px] px-1 py-0.2 rounded-full font-bold ${
-                            viewMode === 'cards'
-                                ? 'bg-white/20 text-white'
-                                : isDark
-                                ? 'bg-slate-800 text-slate-400'
-                                : 'bg-slate-200 text-slate-700'
-                        }`}>
-                            {filteredIssues.length}
-                        </span>
-                    </button>
-
-                    {/* Tab 3: Analisis */}
-                    <button
-                        type="button"
-                        onClick={() => setViewMode('analytics')}
-                        className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                            viewMode === 'analytics'
-                                ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30'
-                                : isDark
-                                ? 'hover:bg-slate-800 text-slate-400 hover:text-white'
-                                : 'hover:bg-slate-100 text-slate-600 hover:text-slate-900'
-                        }`}
-                    >
-                        <BarChart3 className="w-3.5 h-3.5 shrink-0" />
-                        <span>{isEn ? 'Analytics' : 'Analisis'}</span>
-                    </button>
-                </div>
-            </nav>
-
-            {/* FLOATING ACTION BUTTON (+ Lapor Baru) FOR FAST FIELD REPORTING */}
-            {viewMode !== 'analytics' && (
-                <button
-                    type="button"
-                    onClick={() => setShowReportModal(true)}
-                    className="fixed bottom-20 sm:bottom-6 right-4 sm:right-6 z-40 bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-3 sm:px-5 sm:py-3.5 rounded-full shadow-2xl hover:shadow-emerald-500/40 flex items-center gap-2 hover:scale-105 active:scale-95 transition-all border border-emerald-400/40 cursor-pointer"
-                    title={isEn ? 'Report New Issue' : 'Laporkan Masalah Baru'}
-                >
-                    <Plus className="w-5 h-5 text-white" />
-                    <span className="text-xs sm:text-sm tracking-wide">{isEn ? 'Report Issue' : 'Lapor Masalah'}</span>
-                </button>
-            )}
+            {/* UNIFIED MOBILE BOTTOM NAVIGATION */}
+            <MobileBottomNav
+                currentTab={viewMode === 'analytics' ? 'analytics' : 'dashboard'}
+                onReport={() => setShowReportModal(true)}
+                onSelectDashboard={() =>
+                    handleViewModeChange(viewMode === 'analytics' ? lastListViewRef.current : viewMode)
+                }
+                onSelectAnalytics={() => handleViewModeChange('analytics')}
+            />
 
             {/* MODAL 6: OFFLINE OUTBOX MODAL (HP LOCAL STORAGE QUEUE) */}
             {showOutboxModal && (
@@ -4877,11 +4857,11 @@ export default function LeanIndex({
 
             {/* FLOATING QUICK-RETURN TO TICKET BUTTON */}
             {returnTicket && viewMode === 'analytics' && (
-                <div className="fixed bottom-20 sm:bottom-6 right-4 sm:right-6 z-50 flex items-center gap-2 bg-slate-900/95 border border-sky-500/60 shadow-2xl shadow-sky-950/50 rounded-2xl p-2 pl-3.5 backdrop-blur-md animate-in slide-in-from-bottom-4 duration-200">
+                <div className="fixed bottom-24 md:bottom-6 right-4 sm:right-6 z-50 flex items-center gap-2 bg-slate-900/95 border border-sky-500/60 shadow-2xl shadow-sky-950/50 rounded-2xl p-2 pl-3.5 backdrop-blur-md animate-in slide-in-from-bottom-4 duration-200">
                     <button
                         type="button"
                         onClick={() => {
-                            setViewMode(returnTicket.previousViewMode || 'cards');
+                            handleViewModeChange(returnTicket.previousViewMode || 'cards');
                             setSelectedDetailIssue(returnTicket.issue);
                             setReturnTicket(null);
                         }}

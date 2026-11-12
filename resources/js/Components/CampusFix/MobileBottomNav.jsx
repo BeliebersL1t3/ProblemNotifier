@@ -5,24 +5,37 @@ import { useLanguage } from '@/context/LanguageContext';
 import { useLeanTheme } from '@/hooks/useLeanTheme';
 import { useAuth } from '@/hooks/useAuth';
 
-export function MobileBottomNav({ currentTab = 'dashboard', onReport }) {
+export function MobileBottomNav({
+    currentTab = 'dashboard',
+    onReport,
+    onSelectDashboard = null,
+    onSelectAnalytics = null,
+}) {
     const { t, lang } = useLanguage();
     const { isDark } = useLeanTheme();
     const { props: pageProps } = usePage();
     const { isAdmin } = useAuth();
     const approvalTicketsEnabled = Boolean(pageProps?.features?.approval_tickets);
 
-    const handleNav = (e, href) => {
+    const handleNav = (e, item) => {
         e.preventDefault();
-        router.visit(href);
+        if (item.id === 'dashboard' && typeof onSelectDashboard === 'function') {
+            onSelectDashboard();
+            return;
+        }
+        if (item.id === 'analytics' && typeof onSelectAnalytics === 'function') {
+            onSelectAnalytics();
+            return;
+        }
+        router.visit(item.href);
     };
 
     const handleReportClick = (e) => {
+        e.preventDefault();
         if (onReport) {
-            e.preventDefault();
             onReport();
         } else {
-            handleNav(e, '/?report=1');
+            router.visit('/?report=1');
         }
     };
 
@@ -174,7 +187,7 @@ export function MobileBottomNav({ currentTab = 'dashboard', onReport }) {
                         <a
                             key={item.id}
                             href={item.href}
-                            onClick={(e) => handleNav(e, item.href)}
+                            onClick={(e) => handleNav(e, item)}
                             className={`flex flex-col items-center justify-end w-full transition-colors duration-200 select-none group ${
                                 isActive
                                     ? isDark
