@@ -1403,20 +1403,66 @@ const translations = {
     }
 };
 
+const ALLOWED_LANGS = ['id', 'en'];
+const DEFAULT_LANG = 'id';
+
+function readStoredLang() {
+    if (typeof window === 'undefined') {
+        return DEFAULT_LANG;
+    }
+    try {
+        const stored = window.localStorage.getItem('app_lang');
+        return ALLOWED_LANGS.includes(stored) ? stored : DEFAULT_LANG;
+    } catch (err) {
+        console.warn('[LanguageContext] Failed reading app_lang from localStorage:', err);
+        return DEFAULT_LANG;
+    }
+}
+
+function syncLangSideEffects(locale) {
+    if (typeof document !== 'undefined') {
+        document.documentElement.lang = locale;
+        document.cookie = `telunas_locale=${locale}; path=/; max-age=31536000; SameSite=Lax`;
+    }
+    if (typeof window !== 'undefined' && window.axios?.defaults?.headers?.common) {
+        window.axios.defaults.headers.common['X-Telunas-Locale'] = locale;
+    }
+}
+
 const LanguageContext = createContext();
 
 export function LanguageProvider({ children }) {
     const [lang, setLangState] = useState(() => {
-        return localStorage.getItem('app_lang') || 'en';
+        const initial = readStoredLang();
+        syncLangSideEffects(initial);
+        return initial;
     });
 
+    useEffect(() => {
+        syncLangSideEffects(lang);
+    }, [lang]);
+
     const setLang = (newLang) => {
-        setLangState(newLang);
-        localStorage.setItem('app_lang', newLang);
+        const safeLang = ALLOWED_LANGS.includes(newLang) ? newLang : DEFAULT_LANG;
+        setLangState(safeLang);
+        syncLangSideEffects(safeLang);
+        if (typeof window !== 'undefined') {
+            try {
+                window.localStorage.setItem('app_lang', safeLang);
+            } catch (err) {
+                console.warn('[LanguageContext] Failed writing app_lang to localStorage:', err);
+            }
+        }
     };
 
-    const t = (key) => {
-        return translations[lang]?.[key] || translations.en?.[key] || key;
+    const t = (key, params = null) => {
+        let text = translations[lang]?.[key] || translations.id?.[key] || translations.en?.[key] || key;
+        if (params && typeof params === 'object' && typeof text === 'string') {
+            Object.entries(params).forEach(([paramKey, paramVal]) => {
+                text = text.replaceAll(`{${paramKey}}`, String(paramVal ?? ''));
+            });
+        }
+        return text;
     };
 
     return (

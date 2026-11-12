@@ -15,7 +15,14 @@ return Application::configure(basePath: dirname(__DIR__))
         // Trusted proxies are configured dynamically via config/trustedproxy.php (TRUSTED_PROXIES env).
         // Keeping TRUSTED_PROXIES empty prevents X-Forwarded-For IP spoofing when exposed directly on a VPS.
 
+        $middleware->encryptCookies(except: [
+            'telunas_locale',
+        ]);
+
         $middleware->web(
+            prepend: [
+                \App\Http\Middleware\SetAppLocale::class,
+            ],
             append: [
                 \App\Http\Middleware\RestrictToTelunasNetwork::class,
                 \App\Http\Middleware\HandleInertiaRequests::class,
@@ -41,6 +48,7 @@ return Application::configure(basePath: dirname(__DIR__))
             \Illuminate\Cookie\Middleware\EncryptCookies::class,
             \Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse::class,
             \Illuminate\Session\Middleware\StartSession::class,
+            \App\Http\Middleware\SetAppLocale::class,
             \Illuminate\View\Middleware\ShareErrorsFromSession::class,
             \Illuminate\Foundation\Http\Middleware\ValidateCsrfToken::class,
             \App\Http\Middleware\RestrictToTelunasNetwork::class,

@@ -3,6 +3,7 @@ import InputLabel from '@/Components/InputLabel';
 import PrimaryButton from '@/Components/PrimaryButton';
 import TextInput from '@/Components/TextInput';
 import GuestLayout from '@/Layouts/GuestLayout';
+import { useLanguage } from '@/context/LanguageContext';
 import { Head, router, useForm } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 import { ShieldCheck, RefreshCw, ArrowLeft, Clock, AlertTriangle, MessageSquare } from 'lucide-react';
@@ -15,6 +16,8 @@ export default function VerifyOtp({
     attemptsRemaining = 5,
     status = null,
 }) {
+    const { lang } = useLanguage();
+    const isEn = lang === 'en';
     const { data, setData, post, processing, errors, reset } = useForm({
         otp: '',
     });
@@ -96,16 +99,18 @@ export default function VerifyOtp({
 
     return (
         <GuestLayout>
-            <Head title="Verifikasi OTP WhatsApp — Telunas Issue Tracker" />
+            <Head title={isEn ? 'WhatsApp OTP Verification — Telunas Issue Tracker' : 'Verifikasi OTP WhatsApp — Telunas Issue Tracker'} />
 
             <div className="mb-5">
                 <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[11px] font-semibold mb-3">
                     <ShieldCheck className="w-3.5 h-3.5" />
-                    <span>Verifikasi Dua Langkah (2FA)</span>
+                    <span>{isEn ? 'Two-Factor Verification (2FA)' : 'Verifikasi Dua Langkah (2FA)'}</span>
                 </div>
-                <h3 className="text-xl font-bold text-gray-900 tracking-tight">Masukkan Kode OTP WhatsApp</h3>
+                <h3 className="text-xl font-bold text-gray-900 tracking-tight">
+                    {isEn ? 'Enter WhatsApp OTP Code' : 'Masukkan Kode OTP WhatsApp'}
+                </h3>
                 <p className="text-xs text-gray-500 mt-1 leading-relaxed">
-                    Kami telah mengirimkan kode verifikasi 6 digit ke WhatsApp terdaftar{' '}
+                    {isEn ? 'We have sent a 6-digit verification code to your registered WhatsApp ' : 'Kami telah mengirimkan kode verifikasi 6 digit ke WhatsApp terdaftar '}
                     <span className="font-semibold text-gray-800 font-mono">{maskedPhone}</span>.
                 </p>
             </div>
@@ -121,9 +126,15 @@ export default function VerifyOtp({
                 <div className="mb-4 rounded-lg bg-amber-50 border border-amber-200 p-3 text-xs text-amber-800 flex items-start gap-2">
                     <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600 mt-0.5" />
                     <div>
-                        <p className="font-semibold text-amber-900">Kode OTP Kedaluwarsa</p>
+                        <p className="font-semibold text-amber-900">
+                            {isEn ? 'OTP Code Expired' : 'Kode OTP Kedaluwarsa'}
+                        </p>
                         <p className="mt-0.5">
-                            Batas waktu kode telah habis. Klik <strong>Kirim Ulang OTP</strong> untuk mendapatkan kode baru.
+                            {isEn ? (
+                                <>This code has timed out. Click <strong>Resend OTP</strong> to request a new code.</>
+                            ) : (
+                                <>Batas waktu kode telah habis. Klik <strong>Kirim Ulang OTP</strong> untuk mendapatkan kode baru.</>
+                            )}
                         </p>
                     </div>
                 </div>
@@ -132,14 +143,14 @@ export default function VerifyOtp({
             <form onSubmit={submit} className="space-y-4">
                 <div>
                     <div className="flex items-center justify-between">
-                        <InputLabel htmlFor="otp" value="Kode OTP (6 Digit)" />
+                        <InputLabel htmlFor="otp" value={isEn ? 'OTP Code (6 Digits)' : 'Kode OTP (6 Digit)'} />
                         <span
                             className={`inline-flex items-center gap-1 text-[11px] font-mono font-semibold ${
                                 isExpired ? 'text-rose-600' : 'text-gray-500'
                             }`}
                         >
                             <Clock className="w-3 h-3" />
-                            {isExpired ? 'Kedaluwarsa' : formatTimer(secondsRemaining)}
+                            {isExpired ? (isEn ? 'Expired' : 'Kedaluwarsa') : formatTimer(secondsRemaining)}
                         </span>
                     </div>
 
@@ -162,7 +173,9 @@ export default function VerifyOtp({
                     <InputError message={errors.otp || errors.email} className="mt-1.5" />
 
                     <p className="mt-1.5 text-[11px] text-gray-500">
-                        Sisa kesempatan verifikasi: <span className="font-semibold text-gray-700">{attemptsRemaining}</span> kali.
+                        {isEn ? 'Verification attempts left: ' : 'Sisa kesempatan verifikasi: '}
+                        <span className="font-semibold text-gray-700">{attemptsRemaining}</span>
+                        {isEn ? '' : ' kali.'}
                     </p>
                 </div>
 
@@ -171,7 +184,9 @@ export default function VerifyOtp({
                         className="w-full justify-center py-2.5 bg-indigo-600 hover:bg-indigo-700 shadow-sm"
                         disabled={processing || data.otp.length !== 6 || isExpired}
                     >
-                        {processing ? 'Memverifikasi OTP...' : 'Verifikasi & Masuk'}
+                        {processing
+                            ? (isEn ? 'Verifying OTP...' : 'Memverifikasi OTP...')
+                            : (isEn ? 'Verify & Sign In' : 'Verifikasi & Masuk')}
                     </PrimaryButton>
                 </div>
             </form>
@@ -186,10 +201,10 @@ export default function VerifyOtp({
                     <RefreshCw className={`w-3.5 h-3.5 ${resending ? 'animate-spin' : ''}`} />
                     <span>
                         {resending
-                            ? 'Mengirim Ulang...'
+                            ? (isEn ? 'Resending...' : 'Mengirim Ulang...')
                             : resendSeconds > 0
-                            ? `Kirim Ulang (${resendSeconds}d)`
-                            : 'Kirim Ulang OTP'}
+                            ? (isEn ? `Resend (${resendSeconds}s)` : `Kirim Ulang (${resendSeconds}d)`)
+                            : (isEn ? 'Resend OTP' : 'Kirim Ulang OTP')}
                     </span>
                 </button>
 
@@ -200,7 +215,7 @@ export default function VerifyOtp({
                     className="inline-flex items-center gap-1 text-gray-500 hover:text-gray-800 underline transition"
                 >
                     <ArrowLeft className="w-3.5 h-3.5" />
-                    <span>Ganti Akun / Kembali</span>
+                    <span>{isEn ? 'Switch Account / Back' : 'Ganti Akun / Kembali'}</span>
                 </button>
             </div>
         </GuestLayout>

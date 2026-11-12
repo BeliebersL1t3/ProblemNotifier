@@ -67,24 +67,26 @@ class LoginRequest extends FormRequest
         }
 
         if ($user->isRejected()) {
-            $reason = $user->rejection_reason ? ": \"{$user->rejection_reason}\"" : ". Silakan hubungi Admin atau HOD departemen Anda.";
+            $message = $user->rejection_reason
+                ? __('telunas.account_rejected_with_reason', ['reason' => $user->rejection_reason])
+                : __('telunas.account_rejected_generic');
             throw ValidationException::withMessages([
-                'email' => "Akun Anda ditolak{$reason}",
+                'email' => $message,
             ]);
         }
 
         if ($user->isPendingApproval()) {
             $stage = $user->approval_status === 'pending_hod'
-                ? 'menunggu persetujuan HOD Departemen'
-                : 'menunggu persetujuan final dari Admin';
+                ? __('telunas.account_pending_hod')
+                : __('telunas.account_pending_admin');
             throw ValidationException::withMessages([
-                'email' => "Akun Anda belum aktif ({$stage}). Silakan tunggu konfirmasi.",
+                'email' => __('telunas.account_pending', ['stage' => $stage]),
             ]);
         }
 
         if (!$user->is_active) {
             throw ValidationException::withMessages([
-                'email' => "Akun Anda saat ini dinonaktifkan. Silakan hubungi Admin.",
+                'email' => __('telunas.account_inactive'),
             ]);
         }
 

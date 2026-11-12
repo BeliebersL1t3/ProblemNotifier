@@ -63,7 +63,7 @@ class AuthenticatedSessionController extends Controller
         if ($cleanDigits === '') {
             if ($requireWhatsapp) {
                 throw ValidationException::withMessages([
-                    'email' => 'Akun Anda belum memiliki nomor WhatsApp terdaftar untuk verifikasi OTP login. Silakan hubungi Administrator.',
+                    'email' => __('telunas.otp_whatsapp_missing'),
                 ]);
             }
 
@@ -76,7 +76,7 @@ class AuthenticatedSessionController extends Controller
 
         if (!TicketNotificationService::isValidIndonesianMobile($cleanDigits)) {
             throw ValidationException::withMessages([
-                'email' => 'Format nomor WhatsApp yang terdaftar pada akun Anda tidak valid. Silakan hubungi Administrator untuk memperbaikinya.',
+                'email' => __('telunas.otp_whatsapp_invalid'),
             ]);
         }
 
@@ -91,8 +91,8 @@ class AuthenticatedSessionController extends Controller
                 $botState = app(WhatsAppBotLauncher::class)->inspectStatus()['state'];
 
                 $errorMessage = ($botState === 'needs_pairing')
-                    ? 'Bot WhatsApp menyala tetapi sesi WhatsApp terputus atau belum ter-pair. Lihat opsi pemulihan di pojok kiri bawah atau pulihkan lewat CLI / .env.'
-                    : 'Bot WhatsApp sedang offline sehingga kode OTP belum dapat dikirim. Silakan klik tombol "Aktifkan Bot" di pojok kiri bawah untuk menyalakan bot dan mengirim OTP.';
+                    ? __('telunas.otp_needs_pairing_admin_hint')
+                    : __('telunas.otp_send_failed_admin_hint');
 
                 throw ValidationException::withMessages([
                     'email' => $errorMessage,
@@ -100,7 +100,7 @@ class AuthenticatedSessionController extends Controller
             }
 
             throw ValidationException::withMessages([
-                'email' => 'Gagal mengirim kode OTP ke WhatsApp (Bot WhatsApp sedang offline atau tidak dapat dijangkau). Silakan hubungi Administrator.',
+                'email' => __('telunas.otp_send_failed_user'),
             ]);
         }
 

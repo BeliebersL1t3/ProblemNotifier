@@ -126,12 +126,12 @@ class LeanController extends Controller
     {
         $user = auth()->user();
         if (!$user) {
-            abort(403, 'Silakan login terlebih dahulu untuk mengubah status isu.');
+            abort(403, __('telunas.lean_auth_required'));
         }
 
         if (!self::canUserManageIssue($user, $issue)) {
             $targetsStr = implode(', ', is_array($issue->target_departments) ? $issue->target_departments : []);
-            abort(403, "Akses ditolak: Hanya akun dari departemen tujuan ({$targetsStr}) atau Admin yang dapat mengubah status isu ini.");
+            abort(403, __('telunas.lean_dept_denied', ['targets' => $targetsStr]));
         }
 
         return $user;
@@ -200,7 +200,7 @@ class LeanController extends Controller
     {
         $authUser = auth()->user();
         if (!$authUser) {
-            abort(401, 'Silakan login terlebih dahulu untuk mengakses dashboard lapangan.');
+            abort(401, __('telunas.lean_dashboard_auth'));
         }
 
         $issues = LeanIssue::orderBy('created_at', 'desc')->get()->map(function ($item) use ($authUser) {
@@ -237,7 +237,7 @@ class LeanController extends Controller
                 'resolution_note'      => $item->resolution_note,
                 'resolution_image_url' => $resImageUrl,
                 'created_at'           => $item->created_at ? $item->created_at->toIso8601String() : null,
-                'created_at_human'     => $item->created_at ? $item->created_at->locale('id')->diffForHumans() : '',
+                'created_at_human'     => $item->created_at ? $item->created_at->locale(app()->getLocale())->diffForHumans() : '',
                 'transfer_history'     => $item->transfer_history ?? [],
                 'can_manage'           => self::canUserManageIssue($authUser, $item),
             ];
@@ -406,12 +406,12 @@ class LeanController extends Controller
         if (!$request->header('X-Inertia') && ($request->wantsJson() || $request->ajax())) {
             return response()->json([
                 'success' => true,
-                'message' => 'Laporan berhasil dibuat!',
+                'message' => __('telunas.lean_store_success'),
                 'issue'   => $issue,
             ]);
         }
 
-        return redirect()->back()->with('success', 'Laporan berhasil dibuat!');
+        return redirect()->back()->with('success', __('telunas.lean_store_success'));
     }
 
     /**
@@ -444,7 +444,7 @@ class LeanController extends Controller
 
         $this->syncIssueToSheets($issue, 'acc');
 
-        return $this->actionSuccessResponse($request, $issue, "Departemen {$dept} berhasil ACC / Siap!");
+        return $this->actionSuccessResponse($request, $issue, __('telunas.lean_acc_success', ['dept' => $dept]));
     }
 
     /**
@@ -455,7 +455,7 @@ class LeanController extends Controller
         $user = $this->authorizeDepartmentAction($issue);
 
         if ($issue->status === 'resolved') {
-            return $this->actionErrorResponse($request, 'Isu yang sudah selesai tidak dapat diambil ulang.', 422);
+            return $this->actionErrorResponse($request, __('telunas.lean_claim_resolved_err'), 422);
         }
 
         $validator = Validator::make($request->all(), [
@@ -466,7 +466,7 @@ class LeanController extends Controller
             'note'            => 'nullable|string|max:1000',
             'notify_reporter' => 'nullable',
         ], [
-            'workers.min' => 'Pilih minimal 1 pekerja yang mengerjakan.',
+            'workers.min' => __('telunas.lean_workers_min_err'),
         ]);
         if ($validator->fails()) {
             return $this->actionErrorResponse($request, $validator->errors()->first(), 422, $validator->errors()->toArray());
@@ -559,8 +559,8 @@ class LeanController extends Controller
         $this->syncIssueToSheets($issue, 'claim');
 
         $successText = $wasPending
-            ? "Isu dilanjutkan ke tahap Progress oleh {$workersStr} ({$dept})."
-            : "Isu mulai dikerjakan oleh {$workersStr} ({$dept}).";
+            ? __('telunas.lean_claim_resumed_ok', ['workers' => $workersStr, 'dept' => $dept])
+            : __('telunas.lean_claim_started_ok', ['workers' => $workersStr, 'dept' => $dept]);
 
         return $this->actionSuccessResponse($request, $issue, $successText);
     }
@@ -573,7 +573,7 @@ class LeanController extends Controller
         $user = $this->authorizeDepartmentAction($issue);
 
         if ($issue->status !== 'in_progress') {
-            return $this->actionErrorResponse($request, 'Komentar progress & perubahan tim hanya dapat dilakukan saat status In Progress.', 422);
+            return $this->actionErrorResponse($request, __('telunas.lean_progress_status_err'), 422);
         }
 
         $validator = Validator::make($request->all(), [
@@ -598,8 +598,8 @@ class LeanController extends Controller
         if ($request->has('workers')) {
             $newWorkers = LeanIssue::normalizeWorkerList($request->input('workers', []));
             if (empty($newWorkers)) {
-                return $this->actionErrorResponse($request, 'Minimal harus ada 1 pekerja aktif saat status In Progress.', 422, [
-                    'workers' => 'Minimal pilih 1 pekerja aktif.',
+                return $this->actionErrorResponse($request, __('telunas.lean_progress_min_worker_msg'), 422, [
+                    'workers' => __('telunas.lean_progress_min_worker_err'),
                 ]);
             }
         } else {
@@ -613,8 +613,8 @@ class LeanController extends Controller
         $removedWorkers = array_values(array_filter($previousWorkers, fn ($w) => !in_array(mb_strtolower($w), $newLower, true)));
 
         if ($comment === '' && empty($addedWorkers) && empty($removedWorkers)) {
-            return $this->actionErrorResponse($request, 'Mohon isi komentar perkembangan atau ubah daftar pekerja aktif.', 422, [
-                'comment' => 'Isi komentar atau ubah tim pekerja.',
+            return $this->actionErrorResponse($request, __('telunas.lean_progress_empty_msg'), 422, [
+                'comment' => __('telunas.lean_progress_empty_err'),
             ]);
         }
 
@@ -657,7 +657,7 @@ class LeanController extends Controller
 
         $this->syncIssueToSheets($issue, 'progress');
 
-        return $this->actionSuccessResponse($request, $issue, 'Update progress dan tim pekerja berhasil disimpan!');
+        return $this->actionSuccessResponse($request, $issue, __('telunas.lean_progress_saved'));
     }
 
     /**
@@ -668,13 +668,13 @@ class LeanController extends Controller
         $user = $this->authorizeDepartmentAction($issue);
 
         if ($issue->status === 'resolved') {
-            return $this->actionErrorResponse($request, 'Isu yang sudah selesai tidak dapat diubah menjadi Pending.', 422);
+            return $this->actionErrorResponse($request, __('telunas.lean_pending_resolved_err'), 422);
         }
 
         $validator = Validator::make($request->all(), [
             'reason' => 'required|string|max:1000',
         ], [
-            'reason.required' => 'Alasan pending wajib diisi.',
+            'reason.required' => __('telunas.lean_pending_reason_req'),
         ]);
         if ($validator->fails()) {
             return $this->actionErrorResponse($request, $validator->errors()->first(), 422, $validator->errors()->toArray());
@@ -683,8 +683,8 @@ class LeanController extends Controller
 
         $reason = trim($validated['reason']);
         if ($reason === '') {
-            return $this->actionErrorResponse($request, 'Alasan pending wajib diisi.', 422, [
-                'reason' => 'Alasan pending wajib diisi.',
+            return $this->actionErrorResponse($request, __('telunas.lean_pending_reason_req'), 422, [
+                'reason' => __('telunas.lean_pending_reason_req'),
             ]);
         }
 
@@ -713,7 +713,7 @@ class LeanController extends Controller
         $this->notifyGroupsPending($issue, $actorName, $actorDept, $reason, $isUpdatePending);
         $this->syncIssueToSheets($issue, 'pending');
 
-        return $this->actionSuccessResponse($request, $issue, $isUpdatePending ? 'Alasan pending berhasil diperbarui.' : 'Isu berhasil ditandai Pending.');
+        return $this->actionSuccessResponse($request, $issue, $isUpdatePending ? __('telunas.lean_pending_updated') : __('telunas.lean_pending_marked'));
     }
 
     /**
@@ -724,7 +724,7 @@ class LeanController extends Controller
         $user = $this->authorizeDepartmentAction($issue);
 
         if ($issue->status === 'resolved') {
-            return $this->actionErrorResponse($request, 'Isu ini sudah ditandai selesai sebelumnya.', 422);
+            return $this->actionErrorResponse($request, __('telunas.lean_resolve_already_err'), 422);
         }
 
         $validator = Validator::make($request->all(), [
@@ -735,7 +735,7 @@ class LeanController extends Controller
             'staff_name'      => 'nullable|string|max:255',
             'dept'            => 'nullable|string|max:50',
         ], [
-            'note.required' => 'Deskripsi penyelesaian wajib diisi.',
+            'note.required' => __('telunas.lean_resolve_note_req'),
         ]);
         if ($validator->fails()) {
             return $this->actionErrorResponse($request, $validator->errors()->first(), 422, $validator->errors()->toArray());
@@ -744,8 +744,8 @@ class LeanController extends Controller
 
         $note = trim($validated['note']);
         if ($note === '') {
-            return $this->actionErrorResponse($request, 'Deskripsi penyelesaian wajib diisi.', 422, [
-                'note' => 'Deskripsi penyelesaian wajib diisi.',
+            return $this->actionErrorResponse($request, __('telunas.lean_resolve_note_req'), 422, [
+                'note' => __('telunas.lean_resolve_note_req'),
             ]);
         }
 
@@ -800,7 +800,7 @@ class LeanController extends Controller
         $this->notifyGroupsResolved($issue, $finalWorkersStr, $dept, $note);
         $this->syncIssueToSheets($issue, 'resolve');
 
-        return $this->actionSuccessResponse($request, $issue, 'Masalah berhasil ditandai selesai!');
+        return $this->actionSuccessResponse($request, $issue, __('telunas.lean_resolve_success'));
     }
 
     /**
@@ -811,15 +811,15 @@ class LeanController extends Controller
         $user = $this->authorizeDepartmentAction($issue);
 
         if ($issue->status === 'resolved') {
-            return $this->actionErrorResponse($request, 'Isu yang sudah selesai tidak dapat dialihkan ke departemen lain.', 422);
+            return $this->actionErrorResponse($request, __('telunas.lean_transfer_resolved_err'), 422);
         }
 
         $validator = Validator::make($request->all(), [
             'to_department' => 'required|string|max:100',
             'reason'        => 'required|string|max:1000',
         ], [
-            'to_department.required' => 'Departemen tujuan baru wajib dipilih.',
-            'reason.required'        => 'Alasan pengalihan departemen wajib diisi.',
+            'to_department.required' => __('telunas.lean_transfer_dept_req'),
+            'reason.required'        => __('telunas.lean_transfer_reason_req'),
         ]);
         if ($validator->fails()) {
             return $this->actionErrorResponse($request, $validator->errors()->first(), 422, $validator->errors()->toArray());
@@ -832,8 +832,8 @@ class LeanController extends Controller
         $oldDept = $oldDepts[0] ?? 'Umum';
 
         if (count($oldDepts) === 1 && strcasecmp(self::normalizeDepartment((string) $oldDept), $toDept) === 0) {
-            return $this->actionErrorResponse($request, "Isu ini sudah ditujukan ke departemen {$toDept}. Pilih departemen tujuan lain.", 422, [
-                'to_department' => 'Pilih departemen lain yang berbeda dari departemen saat ini.',
+            return $this->actionErrorResponse($request, __('telunas.lean_transfer_same_dept_msg', ['dept' => $toDept]), 422, [
+                'to_department' => __('telunas.lean_transfer_same_dept_err'),
             ]);
         }
 
@@ -886,7 +886,7 @@ class LeanController extends Controller
         $this->notifyGroupsTransferred($issue, $oldDepts, $oldDept, $toDept, $actorName, $reason);
         $this->syncIssueToSheets($issue, 'transfer');
 
-        return $this->actionSuccessResponse($request, $issue, "Isu berhasil dialihkan ke departemen {$toDept}.");
+        return $this->actionSuccessResponse($request, $issue, __('telunas.lean_transfer_success', ['dept' => $toDept]));
     }
 
     protected function syncIssueToSheets(LeanIssue $issue, string $context): void
@@ -947,11 +947,11 @@ class LeanController extends Controller
         if (!$request->header('X-Inertia') && ($request->wantsJson() || $request->ajax())) {
             return response()->json([
                 'success' => true,
-                'message' => 'Tiket berhasil dihapus dari dashboard.',
+                'message' => __('telunas.lean_destroy_success'),
             ]);
         }
 
-        return redirect()->back()->with('success', 'Tiket berhasil dihapus dari dashboard.');
+        return redirect()->back()->with('success', __('telunas.lean_destroy_success'));
     }
 
     /**
@@ -993,7 +993,7 @@ class LeanController extends Controller
     {
         $user = $request->user();
         if (!$user || !$user->isAdmin()) {
-            abort(403, 'Akses ditolak: Hanya Administrator yang dapat mereset seluruh data sandbox.');
+            abort(403, __('telunas.lean_reset_admin_only'));
         }
 
         LeanIssue::truncate();
@@ -1005,7 +1005,7 @@ class LeanController extends Controller
             Log::error('LeanSheetDirectService clearAllMonthlyData failed on reset: ' . $e->getMessage());
         }
 
-        return redirect()->back()->with('success', 'Seluruh data simulasi pengujian berhasil direset dan lembar kerja Google Sheets telah dibersihkan.');
+        return redirect()->back()->with('success', __('telunas.lean_reset_success'));
     }
 
     /**
@@ -1074,7 +1074,7 @@ class LeanController extends Controller
                 'transfer_history'     => $item->transfer_history ?? [],
                 'created_at'           => $item->created_at ? $item->created_at->format('d/m/Y H:i') . ' WIB' : null,
                 'created_at_raw'       => $item->created_at ? $item->created_at->toIso8601String() : null,
-                'created_at_human'     => $item->created_at ? $item->created_at->locale('id')->diffForHumans() : '',
+                'created_at_human'     => $item->created_at ? $item->created_at->locale(app()->getLocale())->diffForHumans() : '',
             ];
         });
 
@@ -1153,7 +1153,7 @@ class LeanController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Laporan Lean berhasil dibuat!',
+            'message' => __('telunas.lean_api_store_success'),
             'data'    => [
                 'id'             => $code,
                 'raw_id'         => $issue->id,
@@ -1175,7 +1175,7 @@ class LeanController extends Controller
     {
         $issue = self::findIssueByIdOrCode($idOrCode);
         if (!$issue) {
-            return response()->json(['success' => false, 'message' => 'Isu tidak ditemukan.'], 404);
+            return response()->json(['success' => false, 'message' => __('telunas.lean_issue_not_found')], 404);
         }
 
         $taker = $request->input('taker', 'Staf WhatsApp');
@@ -1237,7 +1237,7 @@ class LeanController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => "Tiket berhasil diambil oleh {$taker}.",
+            'message' => __('telunas.lean_api_claim_success', ['taker' => $taker]),
             'data'    => [
                 'id'     => self::formatIssueCode($issue),
                 'status' => 'in_progress',
@@ -1253,7 +1253,7 @@ class LeanController extends Controller
     {
         $issue = self::findIssueByIdOrCode($idOrCode);
         if (!$issue) {
-            return response()->json(['success' => false, 'message' => 'Isu tidak ditemukan.'], 404);
+            return response()->json(['success' => false, 'message' => __('telunas.lean_issue_not_found')], 404);
         }
 
         $solver = $request->input('solver', 'Staf WhatsApp');
@@ -1285,7 +1285,7 @@ class LeanController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => "Tiket berhasil diselesaikan oleh {$solver}.",
+            'message' => __('telunas.lean_api_resolve_success', ['solver' => $solver]),
             'data'    => [
                 'id'     => self::formatIssueCode($issue),
                 'status' => 'resolved',
@@ -1301,7 +1301,7 @@ class LeanController extends Controller
     {
         $issue = self::findIssueByIdOrCode($idOrCode);
         if (!$issue) {
-            return response()->json(['success' => false, 'message' => 'Isu tidak ditemukan.'], 404);
+            return response()->json(['success' => false, 'message' => __('telunas.lean_issue_not_found')], 404);
         }
 
         $request->validate([
@@ -1320,7 +1320,7 @@ class LeanController extends Controller
         if (count($oldDepts) === 1 && strcasecmp(self::normalizeDepartment((string) $oldDept), $newDept) === 0) {
             return response()->json([
                 'success' => false,
-                'message' => "Isu ini sudah ditujukan ke departemen {$newDept}. Pilih departemen tujuan lain.",
+                'message' => __('telunas.lean_transfer_same_dept_msg', ['dept' => $newDept]),
             ], 422);
         }
 
@@ -1369,7 +1369,7 @@ class LeanController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => "Tiket berhasil dialihkan dari {$oldDept} ke {$newDept}.",
+            'message' => __('telunas.lean_api_transfer_success', ['from' => $oldDept, 'to' => $newDept]),
             'data'    => [
                 'id'               => $code,
                 'title'            => $issue->title,
@@ -1393,7 +1393,7 @@ class LeanController extends Controller
     {
         $issue = self::findIssueByIdOrCode($idOrCode);
         if (!$issue) {
-            return response()->json(['success' => false, 'message' => 'Isu tidak ditemukan.'], 404);
+            return response()->json(['success' => false, 'message' => __('telunas.lean_issue_not_found')], 404);
         }
 
         $reason = trim((string) $request->input('reason', 'Tertunda')) ?: 'Tertunda';
@@ -1420,7 +1420,7 @@ class LeanController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => "Tiket ditandai pending.",
+            'message' => __('telunas.lean_api_pending_success'),
             'data'    => [
                 'id'     => self::formatIssueCode($issue),
                 'status' => 'pending',

@@ -188,7 +188,7 @@ class IssueDiscussionController extends Controller
         if (!$this->checkAccess($user, $row)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Akses ditolak. Tiket ini bersifat rahasia (Confidential).',
+                'message' => __('telunas.disc_confidential_denied'),
             ], 403);
         }
 
@@ -255,7 +255,7 @@ class IssueDiscussionController extends Controller
                     'is_whatsapp_dispatched' => (bool)$msg->is_whatsapp_dispatched,
                     'is_system_event'        => (bool)$msg->is_system_event,
                     'created_at'             => $msg->created_at->toIso8601String(),
-                    'created_at_human'       => $msg->created_at->locale('id')->diffForHumans(),
+                    'created_at_human'       => $msg->created_at->locale(app()->getLocale())->diffForHumans(),
                 ];
             });
 
@@ -302,7 +302,7 @@ class IssueDiscussionController extends Controller
 
         $row = $issueData['row'];
         if (!$this->checkAccess($user, $row)) {
-            return response()->json(['success' => false, 'message' => 'Akses ditolak.'], 403);
+            return response()->json(['success' => false, 'message' => __('telunas.disc_access_denied')], 403);
         }
 
         $status = strtolower(trim($row[IssueSheetRepository::COL_STATUS] ?? 'open'));
@@ -310,7 +310,7 @@ class IssueDiscussionController extends Controller
         if ($status === 'solved' || $isArchived) {
             return response()->json([
                 'success' => false,
-                'message' => 'Ruang diskusi telah dikunci (tiket sudah berstatus Solved/Archived).',
+                'message' => __('telunas.disc_locked'),
             ], 422);
         }
 
@@ -384,7 +384,7 @@ class IssueDiscussionController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Pesan berhasil dikirim.',
+            'message' => __('telunas.disc_msg_sent'),
             'data'    => [
                 'id'                     => $discussion->id,
                 'user_id'                => $discussion->user_id,
@@ -395,7 +395,7 @@ class IssueDiscussionController extends Controller
                 'is_whatsapp_dispatched' => (bool)$discussion->is_whatsapp_dispatched,
                 'is_system_event'        => false,
                 'created_at'             => $discussion->created_at->toIso8601String(),
-                'created_at_human'       => $discussion->created_at->locale('id')->diffForHumans(),
+                'created_at_human'       => $discussion->created_at->locale(app()->getLocale())->diffForHumans(),
             ],
         ]);
     }
@@ -490,7 +490,7 @@ class IssueDiscussionController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => "Departemen {$userDept} berhasil dinyatakan Siap Dikerjakan.",
+            'message' => __('telunas.disc_dept_ready', ['dept' => $userDept]),
             'all_ready' => $allReady,
         ]);
     }
@@ -566,7 +566,7 @@ class IssueDiscussionController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Tiket berhasil dipending.',
+            'message' => __('telunas.disc_pending_marked'),
         ]);
     }
 
@@ -680,7 +680,7 @@ class IssueDiscussionController extends Controller
 
         return response()->json([
             'success'    => true,
-            'message'    => "Penyelesaian berhasil di-ACC untuk departemen {$userDept}.",
+            'message'    => __('telunas.disc_solve_acc', ['dept' => $userDept]),
             'all_solved' => $allSolved,
         ]);
     }

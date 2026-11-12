@@ -57,6 +57,7 @@ import { BotControlModal } from '@/Components/CampusFix/BotControlModal';
 import { LeanAnalyticsView } from '@/Components/CampusFix/LeanAnalyticsView';
 import { resolveIssueResortAndZone } from '@/constants/locations';
 import { DEPARTMENT_STAFF, normalizeDepartment } from '@/constants/staff';
+import { useLanguage } from '@/context/LanguageContext';
 import { compressImage } from '@/services/imageCompressor';
 import {
     addToOutbox,
@@ -75,18 +76,6 @@ const URGENCY_COLORS = {
     'Sedang': '#facc15',
     'Rendah': '#10b981',
 };
-
-const COLUMN_DEFS = [
-    { id: 'id', label: 'ID Isu', icon: '#' },
-    { id: 'photo', label: 'Foto Bukti', icon: '📷' },
-    { id: 'title', label: 'Judul Masalah', icon: '📝' },
-    { id: 'location', label: 'Lokasi', icon: '📍' },
-    { id: 'dept', label: 'Departemen Tujuan', icon: '🏢' },
-    { id: 'reporter', label: 'Nama Pelapor', icon: '👤' },
-    { id: 'desc', label: 'Deskripsi Detail', icon: '📄' },
-    { id: 'status', label: 'Status', icon: '🏷️' },
-    { id: 'time', label: 'Waktu Pelaporan', icon: '🕒' },
-];
 
 const DEFAULT_COLUMNS = {
     id: true,
@@ -110,6 +99,34 @@ export default function LeanIndex({
     monthGids = {},
     needsAutoReconcile = false,
 }) {
+    const { lang, setLang } = useLanguage();
+    const isEn = lang === 'en';
+
+    const columnDefs = useMemo(() => [
+        { id: 'id', label: isEn ? 'Issue ID' : 'ID Isu', icon: '#' },
+        { id: 'photo', label: isEn ? 'Photo Proof' : 'Foto Bukti', icon: '📷' },
+        { id: 'title', label: isEn ? 'Issue Title' : 'Judul Masalah', icon: '📝' },
+        { id: 'location', label: isEn ? 'Location' : 'Lokasi', icon: '📍' },
+        { id: 'dept', label: isEn ? 'Target Department' : 'Departemen Tujuan', icon: '🏢' },
+        { id: 'reporter', label: isEn ? 'Reporter Name' : 'Nama Pelapor', icon: '👤' },
+        { id: 'desc', label: isEn ? 'Detailed Description' : 'Deskripsi Detail', icon: '📄' },
+        { id: 'status', label: 'Status', icon: '🏷️' },
+        { id: 'time', label: isEn ? 'Reported Time' : 'Waktu Pelaporan', icon: '🕒' },
+    ], [isEn]);
+
+    const prevLangRef = useRef(lang);
+    useEffect(() => {
+        if (prevLangRef.current === lang) return;
+        prevLangRef.current = lang;
+        if (typeof navigator === 'undefined' || navigator.onLine) {
+            router.reload({
+                only: ['issues'],
+                preserveScroll: true,
+                preserveState: true,
+            });
+        }
+    }, [lang]);
+
     // --- Supervisor / Department Account Info ---
     const myName = currentUser?.name || 'Supervisor';
     const myDept = currentUser?.department || 'Supervisor';
@@ -167,7 +184,9 @@ export default function LeanIndex({
                 delete parsed.category;
                 return { ...DEFAULT_COLUMNS, ...parsed };
             }
-        } catch (e) {}
+        } catch (err) {
+            console.warn('[LeanIndex] Failed parsing lean_erp_columns from localStorage:', err);
+        }
         return DEFAULT_COLUMNS;
     });
 
@@ -217,7 +236,8 @@ export default function LeanIndex({
     const [sortBy, setSortBy] = useState(() => {
         try {
             return localStorage.getItem('telunas_field_sort_by') || 'status';
-        } catch (e) {
+        } catch (err) {
+            console.warn('[LeanIndex] Failed reading telunas_field_sort_by:', err);
             return 'status';
         }
     });
@@ -225,14 +245,18 @@ export default function LeanIndex({
     useEffect(() => {
         try {
             localStorage.setItem('telunas_field_sort_by', sortBy);
-        } catch (e) {}
+        } catch (err) {
+            console.warn('[LeanIndex] Failed saving telunas_field_sort_by:', err);
+        }
     }, [sortBy]);
 
     // Save preferences to localStorage
     useEffect(() => {
         try {
             localStorage.setItem('lean_erp_columns', JSON.stringify(visibleColumns));
-        } catch (e) {}
+        } catch (err) {
+            console.warn('[LeanIndex] Failed saving lean_erp_columns:', err);
+        }
     }, [visibleColumns]);
 
     useEffect(() => {
@@ -240,7 +264,9 @@ export default function LeanIndex({
             if (viewMode !== 'table' || (typeof window !== 'undefined' && window.innerWidth >= 768)) {
                 localStorage.setItem('lean_erp_view_mode', viewMode);
             }
-        } catch (e) {}
+        } catch (err) {
+            console.warn('[LeanIndex] Failed saving lean_erp_view_mode:', err);
+        }
     }, [viewMode]);
 
     // Force fallback to 'cards' on mobile screens (< 768px)
@@ -259,7 +285,8 @@ export default function LeanIndex({
     const [theme, setTheme] = useState(() => {
         try {
             return localStorage.getItem('telunas_field_theme') || 'dark';
-        } catch (e) {
+        } catch (err) {
+            console.warn('[LeanIndex] Failed reading telunas_field_theme:', err);
             return 'dark';
         }
     });
@@ -269,7 +296,9 @@ export default function LeanIndex({
     useEffect(() => {
         try {
             localStorage.setItem('telunas_field_theme', theme);
-        } catch (e) {}
+        } catch (err) {
+            console.warn('[LeanIndex] Failed saving telunas_field_theme:', err);
+        }
     }, [theme]);
 
     const toggleColumn = (colId) => {
@@ -278,7 +307,7 @@ export default function LeanIndex({
 
     const setAllColumns = (val) => {
         const next = {};
-        COLUMN_DEFS.forEach((c) => { next[c.id] = val; });
+        columnDefs.forEach((c) => { next[c.id] = val; });
         setVisibleColumns(next);
     };
 
@@ -318,7 +347,9 @@ export default function LeanIndex({
             if (res.data) {
                 setBotStatus(res.data);
             }
-        } catch (e) {}
+        } catch (err) {
+            console.warn('[LeanIndex] Failed polling bot status:', err);
+        }
     };
 
     useEffect(() => {
@@ -433,17 +464,45 @@ export default function LeanIndex({
         return result;
     };
 
-    const formatDateTimeId = (isoStr) => {
+    const formatDateTimeId = (isoStr, withShortDateStyle = false) => {
         if (!isoStr) return '';
         try {
-            return new Date(isoStr).toLocaleString('id-ID', {
+            const localeCode = isEn ? 'en-US' : 'id-ID';
+            if (withShortDateStyle) {
+                return new Date(isoStr).toLocaleString(localeCode, {
+                    dateStyle: 'short',
+                    timeStyle: 'short',
+                });
+            }
+            return new Date(isoStr).toLocaleString(localeCode, {
                 day: '2-digit',
                 month: 'short',
                 hour: '2-digit',
                 minute: '2-digit',
             });
-        } catch (e) {
+        } catch (err) {
+            console.warn('[LeanIndex] Failed formatting date:', err);
             return isoStr;
+        }
+    };
+
+    const formatRelativeTime = (isoStr, fallbackHuman) => {
+        if (!isoStr) return fallbackHuman || '';
+        try {
+            const dt = new Date(isoStr);
+            if (isNaN(dt.getTime())) return fallbackHuman || '';
+            const diffSec = Math.floor((Date.now() - dt.getTime()) / 1000);
+            if (diffSec < 45) return isEn ? 'Just now' : 'Baru saja';
+            const diffMin = Math.floor(diffSec / 60);
+            if (diffMin < 60) return isEn ? `${diffMin} min ago` : `${diffMin} menit yang lalu`;
+            const diffHour = Math.floor(diffMin / 60);
+            if (diffHour < 24) return isEn ? `${diffHour} hr${diffHour > 1 ? 's' : ''} ago` : `${diffHour} jam yang lalu`;
+            const diffDay = Math.floor(diffHour / 24);
+            if (diffDay < 30) return isEn ? `${diffDay} day${diffDay > 1 ? 's' : ''} ago` : `${diffDay} hari yang lalu`;
+            return dt.toLocaleDateString(isEn ? 'en-US' : 'id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
+        } catch (err) {
+            console.warn('[LeanIndex] Failed formatting relative time:', err);
+            return fallbackHuman || '';
         }
     };
 
@@ -630,7 +689,9 @@ export default function LeanIndex({
     // Manual Outbox Sync
     const handleManualSync = async () => {
         if (!navigator.onLine) {
-            alert('Perangkat Anda saat ini masih offline (belum terhubung ke internet/Wi-Fi). Silakan hubungkan internet terlebih dahulu.');
+            alert(isEn
+                ? 'Your device is currently offline (not connected to internet/Wi-Fi). Please connect to the internet first.'
+                : 'Perangkat Anda saat ini masih offline (belum terhubung ke internet/Wi-Fi). Silakan hubungkan internet terlebih dahulu.');
             return;
         }
 
@@ -643,13 +704,17 @@ export default function LeanIndex({
 
             if (result.synced > 0) {
                 router.reload({ only: ['issues'], preserveScroll: true, preserveState: true });
-                alert(`✅ Berhasil menyinkronkan ${result.synced} laporan ke server & Google Sheets!`);
+                alert(isEn
+                    ? `✅ Successfully synced ${result.synced} report(s) to the server & Google Sheets!`
+                    : `✅ Berhasil menyinkronkan ${result.synced} laporan ke server & Google Sheets!`);
             } else if (result.failed > 0) {
-                alert(`⚠️ Ada ${result.failed} laporan yang gagal terkirim. Silakan periksa koneksi dan coba lagi.`);
+                alert(isEn
+                    ? `⚠️ ${result.failed} report(s) failed to send. Please check your connection and try again.`
+                    : `⚠️ Ada ${result.failed} laporan yang gagal terkirim. Silakan periksa koneksi dan coba lagi.`);
             }
         } catch (err) {
             console.error('[Index] Manual sync error:', err);
-            alert(`Gagal menyinkronkan antrean: ${err.message}`);
+            alert(isEn ? `Failed to sync queue: ${err.message}` : `Gagal menyinkronkan antrean: ${err.message}`);
         } finally {
             setIsSyncingOutbox(false);
         }
@@ -657,7 +722,9 @@ export default function LeanIndex({
 
     // Delete single outbox item
     const handleDeleteOutboxItem = async (id) => {
-        if (!confirm('Apakah Anda yakin ingin menghapus draf laporan ini dari antrean HP?')) {
+        if (!confirm(isEn
+            ? 'Are you sure you want to delete this draft report from your device queue?'
+            : 'Apakah Anda yakin ingin menghapus draf laporan ini dari antrean HP?')) {
             return;
         }
         try {
@@ -667,7 +734,7 @@ export default function LeanIndex({
             setOutboxCount(tickets.length);
         } catch (err) {
             console.error('[Index] Error deleting outbox item:', err);
-            alert(`Gagal menghapus draf: ${err.message}`);
+            alert(isEn ? `Failed to delete draft: ${err.message}` : `Gagal menghapus draf: ${err.message}`);
         }
     };
 
@@ -726,7 +793,7 @@ export default function LeanIndex({
     const handleReportSubmit = async (e) => {
         e.preventDefault();
         if (!formTitle.trim()) {
-            alert('Mohon isi judul / masalah yang ditemukan.');
+            alert(isEn ? 'Please enter the issue title / problem found.' : 'Mohon isi judul / masalah yang ditemukan.');
             return;
         }
 
@@ -778,7 +845,9 @@ export default function LeanIndex({
                     imagePreview: compressed?.dataUrl || formImagePreview,
                 });
 
-                alert('📱 Mode Offline: Laporan & foto telah tersimpan aman di HP Anda! Laporan akan otomatis terkirim begitu HP Anda kembali terhubung ke sinyal Wi-Fi / Starlink.');
+                alert(isEn
+                    ? '📱 Offline Mode: Report & photo safely saved on your device! It will automatically upload once Wi-Fi / Starlink reconnects.'
+                    : '📱 Mode Offline: Laporan & foto telah tersimpan aman di HP Anda! Laporan akan otomatis terkirim begitu HP Anda kembali terhubung ke sinyal Wi-Fi / Starlink.');
                 setShowReportModal(false);
                 setFormDetailLoc('');
                 setFormTitle('');
@@ -859,7 +928,9 @@ export default function LeanIndex({
                                 imageName: compressed?.file?.name || formImage?.name || 'offline_photo.jpg',
                                 imagePreview: compressed?.dataUrl || formImagePreview,
                             });
-                            alert('⚠️ Koneksi terputus saat pengiriman. Laporan telah diamankan di antrean offline HP Anda.');
+                            alert(isEn
+                                ? '⚠️ Connection dropped while sending. Your report has been safely queued offline on your device.'
+                                : '⚠️ Koneksi terputus saat pengiriman. Laporan telah diamankan di antrean offline HP Anda.');
                             setShowReportModal(false);
                             await refreshOutbox();
                         } catch (saveErr) {
@@ -871,7 +942,9 @@ export default function LeanIndex({
             });
         } catch (submitErr) {
             console.error('[ReportSubmit] Unexpected error:', submitErr);
-            alert(`Gagal memproses laporan: ${submitErr.message || 'Kesalahan sistem'}`);
+            alert(isEn
+                ? `Failed to process report: ${submitErr.message || 'System error'}`
+                : `Gagal memproses laporan: ${submitErr.message || 'Kesalahan sistem'}`);
             setIsSubmitting(false);
         }
     };
@@ -934,7 +1007,7 @@ export default function LeanIndex({
         e.preventDefault();
         if (!showClaimModal) return;
         if (claimWorkers.length === 0) {
-            alert('Pilih minimal 1 pekerja yang ditugaskan.');
+            alert(isEn ? 'Select at least 1 assigned worker.' : 'Pilih minimal 1 pekerja yang ditugaskan.');
             return;
         }
         const isResuming = showClaimModal.status === 'pending';
@@ -958,9 +1031,9 @@ export default function LeanIndex({
                     'success',
                     isResuming
                         ? (notifyOnResume
-                            ? 'Isu dilanjutkan ke tahap Progress & pelapor dikabari via WA.'
-                            : 'Isu dilanjutkan ke tahap Progress.')
-                        : 'Isu mulai dikerjakan (In Progress).'
+                            ? (isEn ? 'Issue resumed to In Progress & reporter notified via WA.' : 'Isu dilanjutkan ke tahap Progress & pelapor dikabari via WA.')
+                            : (isEn ? 'Issue resumed to In Progress.' : 'Isu dilanjutkan ke tahap Progress.'))
+                        : (isEn ? 'Issue marked as In Progress.' : 'Isu mulai dikerjakan (In Progress).')
                 );
             },
             onError: (errors) => {
@@ -968,8 +1041,8 @@ export default function LeanIndex({
                 showNotice('error', extractErrorMsg(
                     errors,
                     isResuming
-                        ? 'Gagal melanjutkan isu ke tahap Progress. Pastikan hak akses departemen sesuai.'
-                        : 'Gagal mengambil pekerjaan. Pastikan hak akses departemen sesuai.'
+                        ? (isEn ? 'Failed to resume issue to In Progress. Please verify department permissions.' : 'Gagal melanjutkan isu ke tahap Progress. Pastikan hak akses departemen sesuai.')
+                        : (isEn ? 'Failed to claim issue. Please verify department permissions.' : 'Gagal mengambil pekerjaan. Pastikan hak akses departemen sesuai.')
                 ));
             },
         });
@@ -992,7 +1065,9 @@ export default function LeanIndex({
         e.preventDefault();
         if (!showProgressModal) return;
         if (progressWorkers.length === 0) {
-            alert('Minimal harus ada 1 pekerja aktif saat status In Progress.');
+            alert(isEn
+                ? 'At least 1 active worker is required while status is In Progress.'
+                : 'Minimal harus ada 1 pekerja aktif saat status In Progress.');
             return;
         }
         setIsSubmitting(true);
@@ -1009,13 +1084,13 @@ export default function LeanIndex({
                 setProgressCustomWorker('');
                 setIsSubmitting(false);
                 showNotice('success', progressNotifyReporter
-                    ? 'Progress & tim disimpan, info WA dikirim ke pelapor.'
-                    : 'Progress & tim berhasil diperbarui.'
+                    ? (isEn ? 'Progress & team saved, WA update sent to reporter.' : 'Progress & tim disimpan, info WA dikirim ke pelapor.')
+                    : (isEn ? 'Progress & team updated successfully.' : 'Progress & tim berhasil diperbarui.')
                 );
             },
             onError: (errors) => {
                 setIsSubmitting(false);
-                showNotice('error', extractErrorMsg(errors, 'Gagal menyimpan update progress.'));
+                showNotice('error', extractErrorMsg(errors, isEn ? 'Failed to save progress update.' : 'Gagal menyimpan update progress.'));
             },
         });
     };
@@ -1031,7 +1106,7 @@ export default function LeanIndex({
         e.preventDefault();
         if (!showPendingModal) return;
         if (!pendingReason.trim()) {
-            alert('Alasan pending wajib diisi.');
+            alert(isEn ? 'Pending reason is required.' : 'Alasan pending wajib diisi.');
             return;
         }
         setIsSubmitting(true);
@@ -1043,11 +1118,13 @@ export default function LeanIndex({
                 setShowPendingModal(null);
                 setPendingReason('');
                 setIsSubmitting(false);
-                showNotice('success', 'Status isu diperbarui menjadi Pending & pelapor dikabari.');
+                showNotice('success', isEn
+                    ? 'Issue status updated to Pending & reporter notified.'
+                    : 'Status isu diperbarui menjadi Pending & pelapor dikabari.');
             },
             onError: (errors) => {
                 setIsSubmitting(false);
-                showNotice('error', extractErrorMsg(errors, 'Gagal mengubah status ke Pending.'));
+                showNotice('error', extractErrorMsg(errors, isEn ? 'Failed to update status to Pending.' : 'Gagal mengubah status ke Pending.'));
             },
         });
     };
@@ -1073,11 +1150,11 @@ export default function LeanIndex({
         e.preventDefault();
         if (!showResolveModal) return;
         if (!resolveNote.trim()) {
-            alert('Deskripsi / catatan penyelesaian wajib diisi.');
+            alert(isEn ? 'Resolution description / note is required.' : 'Deskripsi / catatan penyelesaian wajib diisi.');
             return;
         }
         if (resolveWorkers.length === 0) {
-            alert('Pilih minimal 1 pekerja yang menyelesaikan / berkontribusi.');
+            alert(isEn ? 'Select at least 1 worker who resolved / contributed.' : 'Pilih minimal 1 pekerja yang menyelesaikan / berkontribusi.');
             return;
         }
 
@@ -1113,17 +1190,21 @@ export default function LeanIndex({
                     setResolveWorkers([]);
                     setResolveCustomWorker('');
                     setIsSubmitting(false);
-                    showNotice('success', 'Isu berhasil ditandai Selesai & daftar kontributor tercatat!');
+                    showNotice('success', isEn
+                        ? 'Issue marked as Resolved & contributor list recorded!'
+                        : 'Isu berhasil ditandai Selesai & daftar kontributor tercatat!');
                 },
                 onError: (errors) => {
                     setIsSubmitting(false);
-                    showNotice('error', extractErrorMsg(errors, 'Gagal menandai isu selesai.'));
+                    showNotice('error', extractErrorMsg(errors, isEn ? 'Failed to mark issue as resolved.' : 'Gagal menandai isu selesai.'));
                 },
             });
         } catch (err) {
             console.error('[ResolveSubmit] Unexpected error:', err);
             setIsSubmitting(false);
-            showNotice('error', `Gagal memproses penyelesaian: ${err.message}`);
+            showNotice('error', isEn
+                ? `Failed to process resolution: ${err.message}`
+                : `Gagal memproses penyelesaian: ${err.message}`);
         }
     };
 
@@ -1143,11 +1224,11 @@ export default function LeanIndex({
         e.preventDefault();
         if (!showTransferModal) return;
         if (!transferTargetDept) {
-            alert('Pilih departemen tujuan baru.');
+            alert(isEn ? 'Select a new target department.' : 'Pilih departemen tujuan baru.');
             return;
         }
         if (!transferReason.trim()) {
-            alert('Alasan pengalihan departemen wajib diisi.');
+            alert(isEn ? 'Department transfer reason is required.' : 'Alasan pengalihan departemen wajib diisi.');
             return;
         }
         setIsSubmitting(true);
@@ -1161,11 +1242,13 @@ export default function LeanIndex({
                 setTransferTargetDept('');
                 setTransferReason('');
                 setIsSubmitting(false);
-                showNotice('success', `Isu berhasil dialihkan ke departemen ${transferTargetDept}.`);
+                showNotice('success', isEn
+                    ? `Issue successfully transferred to ${transferTargetDept}.`
+                    : `Isu berhasil dialihkan ke departemen ${transferTargetDept}.`);
             },
             onError: (errors) => {
                 setIsSubmitting(false);
-                showNotice('error', extractErrorMsg(errors, 'Gagal mengalihkan departemen.'));
+                showNotice('error', extractErrorMsg(errors, isEn ? 'Failed to transfer department.' : 'Gagal mengalihkan departemen.'));
             },
         });
     };
@@ -1189,11 +1272,15 @@ export default function LeanIndex({
                 if (selectedDetailIssue?.id === issueToDelete.id) {
                     setSelectedDetailIssue(null);
                 }
-                showNotice('success', 'Tiket berhasil dihapus dari dashboard.');
+                showNotice('success', isEn
+                    ? 'Ticket removed from dashboard.'
+                    : 'Tiket berhasil dihapus dari dashboard.');
             },
             onError: (errors) => {
                 setIsDeleting(false);
-                showNotice('error', extractErrorMsg(errors, 'Gagal menghapus tiket. Pastikan Anda memiliki izin departemen yang sesuai.'));
+                showNotice('error', extractErrorMsg(errors, isEn
+                    ? 'Failed to delete ticket. Please verify department permissions.'
+                    : 'Gagal menghapus tiket. Pastikan Anda memiliki izin departemen yang sesuai.'));
             },
         });
     };
@@ -1333,9 +1420,20 @@ export default function LeanIndex({
         return { total, open, inProgress, pending, resolved };
     }, [issues, selectedDeptFilter]);
 
+    const formatDeptDisplay = (dept) => {
+        if (!dept) return dept;
+        if (isEn && (dept === 'Umum' || dept === 'Lainnya')) return 'General';
+        return dept;
+    };
+
+    const formatMainLocDisplay = (loc) => {
+        if (isEn && loc === 'Kantor') return 'Office';
+        return loc;
+    };
+
     return (
         <div className={`lean-root ${isDark ? 'lean-theme-dark text-slate-100' : 'lean-theme-light text-slate-800'} flex flex-col font-sans pb-24 md:pb-12 transition-colors duration-300 w-full max-w-full overflow-x-hidden min-h-screen`}>
-            <Head title="Mode Lapangan (Sandbox) — Telunas Issue Tracker" />
+            <Head title={isEn ? 'Field Mode (Sandbox) — Telunas Issue Tracker' : 'Mode Lapangan (Sandbox) — Telunas Issue Tracker'} />
 
             {/* TOP HEADER */}
             <header className={`sticky top-0 z-30 backdrop-blur-md border-b px-2.5 sm:px-6 lg:px-8 py-2 sm:py-2.5 shadow-xs transition-colors duration-200 w-full max-w-full overflow-hidden ${
@@ -1360,7 +1458,7 @@ export default function LeanIndex({
                                 <span className={`text-[8px] sm:text-[10px] font-bold px-1 sm:px-1.5 py-0.2 rounded-full border shrink-0 hidden xs:inline ${
                                     isDark ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300' : 'bg-emerald-50 border-emerald-300 text-emerald-800'
                                 }`}>
-                                    Operasional
+                                    {isEn ? 'Operations' : 'Operasional'}
                                 </span>
                             </div>
                             <p className={`text-[10px] sm:text-[11px] truncate hidden md:block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Telunas Resorts Tracker</p>
@@ -1381,11 +1479,11 @@ export default function LeanIndex({
                                     ? 'text-slate-400 hover:text-slate-200'
                                     : 'text-slate-600 hover:text-slate-900 hover:bg-white'
                             }`}
-                            title="Tampilan Tabel Spreadsheet ERP"
+                            title={isEn ? 'ERP Spreadsheet Table View' : 'Tampilan Tabel Spreadsheet ERP'}
                         >
                             <Table className="w-3.5 h-3.5" />
-                            <span className="hidden sm:inline">Tabel ERP</span>
-                            <span className="sm:hidden">Tabel</span>
+                            <span className="hidden sm:inline">{isEn ? 'ERP Table' : 'Tabel ERP'}</span>
+                            <span className="sm:hidden">{isEn ? 'Table' : 'Tabel'}</span>
                         </button>
                         <button
                             type="button"
@@ -1397,10 +1495,10 @@ export default function LeanIndex({
                                     ? 'text-slate-400 hover:text-slate-200'
                                     : 'text-slate-600 hover:text-slate-900 hover:bg-white'
                             }`}
-                            title="Tampilan Kartu Visual"
+                            title={isEn ? 'Visual Card View' : 'Tampilan Kartu Visual'}
                         >
                             <LayoutGrid className="w-3.5 h-3.5" />
-                            <span>Kartu</span>
+                            <span>{isEn ? 'Cards' : 'Kartu'}</span>
                         </button>
                         <button
                             type="button"
@@ -1412,10 +1510,10 @@ export default function LeanIndex({
                                     ? 'text-slate-400 hover:text-slate-200'
                                     : 'text-slate-600 hover:text-slate-900 hover:bg-white'
                             }`}
-                            title="Analisa Statistik Operasional & Peta Resort"
+                            title={isEn ? 'Operational Statistics & Resort Map Analytics' : 'Analisa Statistik Operasional & Peta Resort'}
                         >
                             <BarChart3 className="w-3.5 h-3.5" />
-                            <span>Analisis</span>
+                            <span>{isEn ? 'Analytics' : 'Analisis'}</span>
                         </button>
                     </div>
 
@@ -1438,16 +1536,18 @@ export default function LeanIndex({
                             }`}
                             title={
                                 outboxCount > 0
-                                    ? `${outboxCount} tiket tersimpan di HP. Klik untuk melihat / sinkronkan.`
+                                    ? (isEn ? `${outboxCount} ticket(s) saved on device. Click to view / sync.` : `${outboxCount} tiket tersimpan di HP. Klik untuk melihat / sinkronkan.`)
                                     : isOnline
-                                    ? 'Online (Terhubung ke Internet)'
-                                    : 'Offline (0 Bar / Tanpa Sinyal)'
+                                    ? (isEn ? 'Online (Connected to Internet)' : 'Online (Terhubung ke Internet)')
+                                    : (isEn ? 'Offline (0 Bars / No Signal)' : 'Offline (0 Bar / Tanpa Sinyal)')
                             }
                         >
                             {outboxCount > 0 ? (
                                 <>
                                     <CloudUpload className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                                    <span className="text-[10px] sm:text-xs text-amber-300 font-extrabold">{outboxCount} di HP</span>
+                                    <span className="text-[10px] sm:text-xs text-amber-300 font-extrabold">
+                                        {isEn ? `${outboxCount} queued` : `${outboxCount} di HP`}
+                                    </span>
                                 </>
                             ) : isOnline ? (
                                 <>
@@ -1462,6 +1562,44 @@ export default function LeanIndex({
                             )}
                         </button>
 
+                        {/* ID | EN Language Switcher */}
+                        <div
+                            className={`h-7.5 sm:h-8.5 flex items-center rounded-lg border p-0.5 text-[10px] sm:text-xs font-bold shadow-xs shrink-0 ${
+                                isDark
+                                    ? 'bg-slate-800/90 border-slate-700'
+                                    : 'bg-white border-slate-200'
+                            }`}
+                            role="group"
+                            aria-label={isEn ? 'Language switcher' : 'Pemilih bahasa'}
+                        >
+                            <button
+                                type="button"
+                                onClick={() => setLang('id')}
+                                className={`h-full px-1.5 sm:px-2 rounded-md transition-all cursor-pointer ${
+                                    lang === 'id'
+                                        ? 'bg-emerald-600 text-white shadow-xs'
+                                        : isDark
+                                        ? 'text-slate-400 hover:text-slate-200'
+                                        : 'text-slate-600 hover:text-slate-900'
+                                }`}
+                            >
+                                ID
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setLang('en')}
+                                className={`h-full px-1.5 sm:px-2 rounded-md transition-all cursor-pointer ${
+                                    lang === 'en'
+                                        ? 'bg-emerald-600 text-white shadow-xs'
+                                        : isDark
+                                        ? 'text-slate-400 hover:text-slate-200'
+                                        : 'text-slate-600 hover:text-slate-900'
+                                }`}
+                            >
+                                EN
+                            </button>
+                        </div>
+
                         {/* Quick Theme Toggle (Icon Only) */}
                         <button
                             type="button"
@@ -1471,8 +1609,8 @@ export default function LeanIndex({
                                     ? 'bg-slate-800/90 hover:bg-slate-700 text-amber-300 border-slate-700'
                                     : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200 hover:border-slate-300'
                             }`}
-                            title={isDark ? 'Beralih ke Mode Terang' : 'Beralih ke Mode Gelap'}
-                            aria-label="Toggle Tema"
+                            title={isDark ? (isEn ? 'Switch to Light Mode' : 'Beralih ke Mode Terang') : (isEn ? 'Switch to Dark Mode' : 'Beralih ke Mode Gelap')}
+                            aria-label={isEn ? 'Toggle Theme' : 'Toggle Tema'}
                         >
                             {isDark ? (
                                 <Sun className="w-3.5 h-3.5 text-amber-400" />
@@ -1491,7 +1629,7 @@ export default function LeanIndex({
                                         ? (isDark ? 'bg-emerald-950/70 hover:bg-emerald-900/80 border-emerald-600/50 text-emerald-300' : 'bg-emerald-50 hover:bg-emerald-100 border-emerald-200 text-emerald-800')
                                         : (isDark ? 'bg-rose-950/70 hover:bg-rose-900/80 border-rose-600/50 text-rose-300' : 'bg-rose-50 hover:bg-rose-100 border-rose-200 text-rose-800')
                                 }`}
-                                title="Klik untuk Kontrol Bot WA (Lihat Status / Matikan / Nyalakan)"
+                                title={isEn ? 'Click to Control WA Bot (View Status / Stop / Start)' : 'Klik untuk Kontrol Bot WA (Lihat Status / Matikan / Nyalakan)'}
                             >
                                 <span className={`w-2 h-2 rounded-full shrink-0 ${botStatus?.connected ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
                                 <span className="hidden md:inline">Bot WA:</span>
@@ -1504,7 +1642,7 @@ export default function LeanIndex({
                                         ? (isDark ? 'bg-emerald-950/70 border-emerald-600/50 text-emerald-300' : 'bg-emerald-50 border-emerald-200 text-emerald-800')
                                         : (isDark ? 'bg-rose-950/70 border-rose-600/50 text-rose-300' : 'bg-rose-50 border-rose-200 text-rose-800')
                                 }`}
-                                title="Status Koneksi WhatsApp Bot (Kontrol bot hanya untuk Administrator)"
+                                title={isEn ? 'WhatsApp Bot Connection Status (Bot control is Admin only)' : 'Status Koneksi WhatsApp Bot (Kontrol bot hanya untuk Administrator)'}
                             >
                                 <span className={`w-2 h-2 rounded-full shrink-0 ${botStatus?.connected ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
                                 <span className="hidden md:inline">Bot WA:</span>
@@ -1517,7 +1655,9 @@ export default function LeanIndex({
                             className={`h-7.5 sm:h-8.5 flex items-center gap-1 px-1.5 sm:px-2.5 rounded-lg border text-xs shadow-xs shrink-0 ${
                                 isDark ? 'bg-slate-800/90 border-slate-700 text-slate-200' : 'bg-white border-slate-200 text-slate-800'
                             }`}
-                            title={currentUser ? `Login sebagai ${myName} (${currentUser.department || 'Supervisor'})` : 'Mode Tamu / Belum Login'}
+                            title={currentUser
+                                ? (isEn ? `Signed in as ${myName} (${currentUser.department || 'Supervisor'})` : `Login sebagai ${myName} (${currentUser.department || 'Supervisor'})`)
+                                : (isEn ? 'Guest Mode / Not Signed In' : 'Mode Tamu / Belum Login')}
                         >
                             <span className={`w-2 h-2 rounded-full shrink-0 ${currentUser ? 'bg-emerald-500' : 'bg-slate-400'}`} />
                             <span className="font-bold truncate max-w-[42px] sm:max-w-[120px] text-[10px] sm:text-xs">{myName}</span>
@@ -1538,8 +1678,8 @@ export default function LeanIndex({
                                             ? 'bg-slate-800/90 hover:bg-emerald-950 hover:text-emerald-300 text-slate-300 border-slate-700 hover:border-emerald-600/60'
                                             : 'bg-white hover:bg-emerald-50 hover:text-emerald-800 text-slate-700 border-slate-200 hover:border-emerald-300'
                                     }`}
-                                    title="Kembali ke Dashboard Utama (Mode Kantor)"
-                                    aria-label="Kembali ke Dashboard Utama"
+                                    title={isEn ? 'Back to Main Dashboard (Office Mode)' : 'Kembali ke Dashboard Utama (Mode Kantor)'}
+                                    aria-label={isEn ? 'Back to Main Dashboard' : 'Kembali ke Dashboard Utama'}
                                 >
                                     <LayoutDashboard className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300" />
                                 </Link>
@@ -1551,8 +1691,8 @@ export default function LeanIndex({
                                             ? 'bg-slate-800/90 hover:bg-rose-950/80 hover:text-rose-300 text-slate-300 border-slate-700 hover:border-rose-600/60'
                                             : 'bg-white hover:bg-rose-50 hover:text-rose-700 text-slate-700 border-slate-200 hover:border-rose-300'
                                     }`}
-                                    title="Keluar dari Akun (Logout)"
-                                    aria-label="Keluar dari Akun"
+                                    title={isEn ? 'Sign Out (Logout)' : 'Keluar dari Akun (Logout)'}
+                                    aria-label={isEn ? 'Sign Out' : 'Keluar dari Akun'}
                                 >
                                     <LogOut className="w-3.5 h-3.5" />
                                 </button>
@@ -1565,10 +1705,10 @@ export default function LeanIndex({
                                         ? 'bg-amber-950/60 hover:bg-amber-900/80 border-amber-500/50 text-amber-300'
                                         : 'bg-amber-50 hover:bg-amber-100 border-amber-200 text-amber-800'
                                 }`}
-                                title="Masuk ke Akun Anda"
+                                title={isEn ? 'Sign in to Your Account' : 'Masuk ke Akun Anda'}
                             >
                                 <LogIn className="w-3 h-3 text-amber-600" />
-                                <span className="text-[10px] sm:text-xs">Masuk</span>
+                                <span className="text-[10px] sm:text-xs">{isEn ? 'Sign In' : 'Masuk'}</span>
                             </Link>
                         )}
                     </div>
@@ -1588,9 +1728,13 @@ export default function LeanIndex({
                     <div className={`flex items-start gap-2.5 ${isDark ? 'text-amber-200' : 'text-amber-950'}`}>
                         <AlertCircle className={`w-4 h-4 shrink-0 mt-0.5 ${isDark ? 'text-amber-400' : 'text-amber-600'}`} />
                         <div>
-                            <p className={`font-bold ${isDark ? 'text-amber-300' : 'text-amber-900'}`}>Lingkungan Uji Coba Terisolasi (Sandbox)</p>
+                            <p className={`font-bold ${isDark ? 'text-amber-300' : 'text-amber-900'}`}>
+                                {isEn ? 'Isolated Testing Environment (Sandbox)' : 'Lingkungan Uji Coba Terisolasi (Sandbox)'}
+                            </p>
                             <p className={`text-[11px] mt-0.5 leading-relaxed ${isDark ? 'text-amber-200/80' : 'text-amber-800'}`}>
-                                Laporan di sini terpisah dari dashboard tahunan resmi, namun terhubung dengan notifikasi WhatsApp Bot V2 ke pelapor dan grup terkait saat bot aktif.
+                                {isEn
+                                    ? 'Reports here are separated from the official annual dashboard, yet remain connected to WhatsApp Bot V2 notifications for reporters and relevant groups when the bot is active.'
+                                    : 'Laporan di sini terpisah dari dashboard tahunan resmi, namun terhubung dengan notifikasi WhatsApp Bot V2 ke pelapor dan grup terkait saat bot aktif.'}
                             </p>
                         </div>
                     </div>
@@ -1622,12 +1766,14 @@ export default function LeanIndex({
                             </div>
                             <div className="min-w-0">
                                 <p className="font-bold text-xs truncate">
-                                    Ada {outboxCount} Laporan Tersimpan di HP (Offline Outbox)
+                                    {isEn
+                                        ? `${outboxCount} Report(s) Saved on Device (Offline Outbox)`
+                                        : `Ada ${outboxCount} Laporan Tersimpan di HP (Offline Outbox)`}
                                 </p>
                                 <p className={`text-[11px] mt-0.5 leading-relaxed truncate ${isDark ? 'text-amber-300/80' : 'text-amber-800'}`}>
                                     {isOnline
-                                        ? 'Sinyal pulih! Tiket siap disinkronkan ke server Cloud & Google Sheets.'
-                                        : 'Perangkat sedang offline (0 bar). Tiket tersimpan aman di memori HP.'}
+                                        ? (isEn ? 'Signal restored! Tickets are ready to sync to the Cloud server & Google Sheets.' : 'Sinyal pulih! Tiket siap disinkronkan ke server Cloud & Google Sheets.')
+                                        : (isEn ? 'Device is currently offline (0 bars). Tickets are safely stored on your device.' : 'Perangkat sedang offline (0 bar). Tiket tersimpan aman di memori HP.')}
                                 </p>
                             </div>
                         </div>
@@ -1641,12 +1787,12 @@ export default function LeanIndex({
                                 {isSyncingOutbox ? (
                                     <>
                                         <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                                        <span>Mengirim...</span>
+                                        <span>{isEn ? 'Sending...' : 'Mengirim...'}</span>
                                     </>
                                 ) : (
                                     <>
                                         <Send className="w-3.5 h-3.5" />
-                                        <span>Kirim Sekarang</span>
+                                        <span>{isEn ? 'Send Now' : 'Kirim Sekarang'}</span>
                                     </>
                                 )}
                             </button>
@@ -1662,10 +1808,10 @@ export default function LeanIndex({
                                         ? 'border-amber-600/50 hover:bg-amber-900/40 text-amber-300'
                                         : 'border-amber-300 hover:bg-amber-100 text-amber-900'
                                 }`}
-                                title="Buka daftar antrean"
+                                title={isEn ? 'Open queue list' : 'Buka daftar antrean'}
                             >
                                 <Eye className="w-3.5 h-3.5" />
-                                <span>Detail</span>
+                                <span>{isEn ? 'Details' : 'Detail'}</span>
                             </button>
                         </div>
                     </div>
@@ -1683,7 +1829,7 @@ export default function LeanIndex({
                             type="text"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            placeholder="Cari ID, judul, pelapor, lokasi..."
+                            placeholder={isEn ? 'Search ID, title, reporter, location...' : 'Cari ID, judul, pelapor, lokasi...'}
                             className={`w-full text-xs rounded-xl pl-8 pr-7 py-2.5 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 shadow-sm transition-all border ${
                                 isDark
                                     ? 'bg-slate-800/90 border-slate-700 text-slate-200 placeholder-slate-500'
@@ -1695,7 +1841,7 @@ export default function LeanIndex({
                                 type="button"
                                 onClick={() => setSearchQuery('')}
                                 className={`absolute right-2.5 top-1/2 -translate-y-1/2 p-1 ${isDark ? 'text-slate-400 hover:text-white' : 'text-slate-400 hover:text-slate-700'}`}
-                                title="Hapus pencarian"
+                                title={isEn ? 'Clear search' : 'Hapus pencarian'}
                             >
                                 <X className="w-3.5 h-3.5" />
                             </button>
@@ -1714,21 +1860,21 @@ export default function LeanIndex({
                                         ? 'bg-slate-800/90 border-slate-700 text-slate-200'
                                         : 'bg-white/95 border-slate-300 text-slate-800 shadow-xs'
                                 }`}
-                                title="Pilih Tab Bulan (12 Tab Bulanan)"
+                                title={isEn ? 'Select Month Tab (12 Monthly Tabs)' : 'Pilih Tab Bulan (12 Tab Bulanan)'}
                             >
-                                <option value="all">📅 Semua Bulan (Semua Tab)</option>
-                                <option value="1">Januari</option>
-                                <option value="2">Februari</option>
-                                <option value="3">Maret</option>
+                                <option value="all">{isEn ? '📅 All Months (All Tabs)' : '📅 Semua Bulan (Semua Tab)'}</option>
+                                <option value="1">{isEn ? 'January' : 'Januari'}</option>
+                                <option value="2">{isEn ? 'February' : 'Februari'}</option>
+                                <option value="3">{isEn ? 'March' : 'Maret'}</option>
                                 <option value="4">April</option>
-                                <option value="5">Mei</option>
-                                <option value="6">Juni</option>
-                                <option value="7">Juli</option>
-                                <option value="8">Agustus</option>
+                                <option value="5">{isEn ? 'May' : 'Mei'}</option>
+                                <option value="6">{isEn ? 'June' : 'Juni'}</option>
+                                <option value="7">{isEn ? 'July' : 'Juli'}</option>
+                                <option value="8">{isEn ? 'August' : 'Agustus'}</option>
                                 <option value="9">September</option>
-                                <option value="10">Oktober</option>
+                                <option value="10">{isEn ? 'October' : 'Oktober'}</option>
                                 <option value="11">November</option>
-                                <option value="12">Desember</option>
+                                <option value="12">{isEn ? 'December' : 'Desember'}</option>
                             </select>
                         </div>
 
@@ -1743,9 +1889,9 @@ export default function LeanIndex({
                                         : 'bg-white/95 border-slate-300 text-slate-800 shadow-xs'
                                 }`}
                             >
-                                <option value="all">Semua Dept (All)</option>
+                                <option value="all">{isEn ? 'All Depts (All)' : 'Semua Dept (All)'}</option>
                                 {departments.map((dept) => (
-                                    <option key={dept} value={dept}>{dept}</option>
+                                    <option key={dept} value={dept}>{formatDeptDisplay(dept)}</option>
                                 ))}
                             </select>
                         </div>
@@ -1761,12 +1907,12 @@ export default function LeanIndex({
                                         ? 'bg-slate-800/90 border-slate-700 text-slate-200 hover:border-slate-600'
                                         : 'bg-white/95 border-slate-300 text-slate-800 shadow-xs hover:border-slate-400'
                                 }`}
-                                title="Urutkan daftar tiket secara cepat"
+                                title={isEn ? 'Quickly sort ticket list' : 'Urutkan daftar tiket secara cepat'}
                             >
-                                <option value="newest">🕒 Terbaru</option>
-                                <option value="oldest">⏳ Terlama</option>
-                                <option value="status">📊 Status Progres</option>
-                                <option value="waiting_acc">🚨 Menunggu ACC</option>
+                                <option value="newest">{isEn ? '🕒 Newest' : '🕒 Terbaru'}</option>
+                                <option value="oldest">{isEn ? '⏳ Oldest' : '⏳ Terlama'}</option>
+                                <option value="status">{isEn ? '📊 Progress Status' : '📊 Status Progres'}</option>
+                                <option value="waiting_acc">{isEn ? '🚨 Awaiting ACC' : '🚨 Menunggu ACC'}</option>
                             </select>
                         </div>
 
@@ -1776,10 +1922,10 @@ export default function LeanIndex({
                                 type="button"
                                 onClick={() => setShowReportModal(true)}
                                 className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-md hover:shadow-emerald-600/30 transition-all cursor-pointer shrink-0"
-                                title="Laporkan Masalah Baru"
+                                title={isEn ? 'Report New Issue' : 'Laporkan Masalah Baru'}
                             >
                                 <Plus className="w-3.5 h-3.5" />
-                                <span>+ Lapor Baru</span>
+                                <span>{isEn ? 'New Report' : '+ Lapor Baru'}</span>
                             </button>
                             <button
                                 type="button"
@@ -1789,16 +1935,16 @@ export default function LeanIndex({
                                         ? 'bg-slate-800/90 hover:bg-slate-700 border-slate-700 hover:border-emerald-500/50 text-slate-200'
                                         : 'bg-white/95 hover:bg-slate-50 border-slate-300 hover:border-slate-400 text-slate-800 shadow-xs'
                                 }`}
-                                title="Pilih data/kolom apa saja yang ingin ditampilkan"
+                                title={isEn ? 'Choose which data/columns to display' : 'Pilih data/kolom apa saja yang ingin ditampilkan'}
                             >
                                 <SlidersHorizontal className="w-3.5 h-3.5 text-emerald-500" />
-                                <span>Tampilan</span>
+                                <span>{isEn ? 'Columns' : 'Tampilan'}</span>
                                 <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded border ${
                                     isDark
                                         ? 'bg-emerald-950 text-emerald-300 border-emerald-800/60'
                                         : 'bg-emerald-100 text-emerald-800 border-emerald-300'
                                 }`}>
-                                    {activeColumnCount}/{COLUMN_DEFS.length}
+                                    {activeColumnCount}/{columnDefs.length}
                                 </span>
                             </button>
                         </div>
@@ -1857,7 +2003,7 @@ export default function LeanIndex({
                             }`}>
                                 {selectedStatuses.in_progress && '✓'}
                             </span>
-                            <span className="truncate hidden xs:inline">Progress</span>
+                            <span className="truncate hidden xs:inline">{isEn ? 'In Progress' : 'Progress'}</span>
                             <span className="truncate xs:hidden">Prog</span>
                             <span className={`text-[9px] sm:text-[10px] px-1 sm:px-1.5 py-0.2 rounded-full font-bold shrink-0 ${
                                 isDark ? 'bg-slate-900/80 text-white' : 'bg-amber-100 text-amber-800 border border-amber-200'
@@ -1885,8 +2031,8 @@ export default function LeanIndex({
                             }`}>
                                 {selectedStatuses.pending && '✓'}
                             </span>
-                            <span className="truncate hidden xs:inline">Tertunda</span>
-                            <span className="truncate xs:hidden">Tunda</span>
+                            <span className="truncate hidden xs:inline">{isEn ? 'Pending' : 'Tertunda'}</span>
+                            <span className="truncate xs:hidden">{isEn ? 'Hold' : 'Tunda'}</span>
                             <span className={`text-[9px] sm:text-[10px] px-1 sm:px-1.5 py-0.2 rounded-full font-bold shrink-0 ${
                                 isDark ? 'bg-slate-900/80 text-white' : 'bg-orange-100 text-orange-800 border border-orange-200'
                             }`}>
@@ -1913,7 +2059,7 @@ export default function LeanIndex({
                             }`}>
                                 {selectedStatuses.resolved && '✓'}
                             </span>
-                            <span className="truncate">Selesai</span>
+                            <span className="truncate">{isEn ? 'Resolved' : 'Selesai'}</span>
                             <span className={`text-[9px] sm:text-[10px] px-1 sm:px-1.5 py-0.2 rounded-full font-bold shrink-0 ${
                                 isDark ? 'bg-slate-900/80 text-white' : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
                             }`}>
@@ -1933,7 +2079,7 @@ export default function LeanIndex({
                                     : 'bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 border-slate-300 shadow-xs'
                             }`}
                         >
-                            Semua
+                            {isEn ? 'All' : 'Semua'}
                         </button>
                         <button
                             type="button"
@@ -1944,7 +2090,7 @@ export default function LeanIndex({
                                     : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-300 shadow-xs'
                             }`}
                         >
-                            Isu Aktif
+                            {isEn ? 'Active Issues' : 'Isu Aktif'}
                         </button>
                         <button
                             type="button"
@@ -1955,7 +2101,7 @@ export default function LeanIndex({
                                     : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-300 shadow-xs'
                             }`}
                         >
-                            Selesai Saja
+                            {isEn ? 'Resolved Only' : 'Selesai Saja'}
                         </button>
                     </div>
                 </div>
@@ -1980,13 +2126,15 @@ export default function LeanIndex({
                         <div className="w-12 h-12 rounded-full bg-slate-800 text-slate-500 flex items-center justify-center mx-auto mb-3">
                             <CheckCircle2 className="w-6 h-6" />
                         </div>
-                        <h3 className="text-sm font-bold text-slate-300">Tidak ada masalah ditemukan</h3>
+                        <h3 className="text-sm font-bold text-slate-300">
+                            {isEn ? 'No issues found' : 'Tidak ada masalah ditemukan'}
+                        </h3>
                         <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
                             {searchQuery
-                                ? `Tidak ditemukan isu yang cocok dengan kata kunci "${searchQuery}".`
+                                ? (isEn ? `No issues matched the keyword "${searchQuery}".` : `Tidak ditemukan isu yang cocok dengan kata kunci "${searchQuery}".`)
                                 : selectedDeptFilter !== 'all'
-                                ? `Tidak ada masalah untuk departemen ${selectedDeptFilter}.`
-                                : 'Belum ada masalah di dalam daftar.'}
+                                ? (isEn ? `No issues found for ${formatDeptDisplay(selectedDeptFilter)} department.` : `Tidak ada masalah untuk departemen ${selectedDeptFilter}.`)
+                                : (isEn ? 'No issues in the list yet.' : 'Belum ada masalah di dalam daftar.')}
                         </p>
                         <div className="mt-4 flex items-center justify-center gap-2">
                             {searchQuery ? (
@@ -1994,11 +2142,13 @@ export default function LeanIndex({
                                     onClick={() => setSearchQuery('')}
                                     className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold"
                                 >
-                                    Reset Pencarian
+                                    {isEn ? 'Reset Search' : 'Reset Pencarian'}
                                 </button>
                             ) : (
                                 <p className="text-[11px] text-slate-500 italic">
-                                    Pelaporan isu baru dilakukan secara terpusat melalui WhatsApp Bot.
+                                    {isEn
+                                        ? 'New issue reporting is centrally managed via the WhatsApp Bot.'
+                                        : 'Pelaporan isu baru dilakukan secara terpusat melalui WhatsApp Bot.'}
                                 </p>
                             )}
                         </div>
@@ -2014,16 +2164,16 @@ export default function LeanIndex({
                                     <tr className={`font-bold border-b uppercase tracking-wider text-[10px] ${
                                         isDark ? 'bg-slate-900/90 text-slate-300 border-slate-700/80' : 'bg-slate-100 text-slate-700 border-slate-200'
                                     }`}>
-                                        {visibleColumns.id && <th className="py-2.5 px-2 whitespace-nowrap">ID Isu</th>}
-                                        {visibleColumns.photo && <th className="py-2.5 px-1 text-center whitespace-nowrap">Foto</th>}
-                                        {visibleColumns.title && <th className="py-2.5 px-2 min-w-[110px] max-w-[160px]">Judul Masalah</th>}
-                                        {visibleColumns.location && <th className="py-2.5 px-2 whitespace-nowrap">Lokasi</th>}
-                                        {visibleColumns.dept && <th className="py-2.5 px-2 whitespace-nowrap">Departemen</th>}
-                                        {visibleColumns.reporter && <th className="py-2.5 px-2 whitespace-nowrap">Pelapor</th>}
-                                        {visibleColumns.desc && <th className="py-2.5 px-2 min-w-[130px] max-w-[180px]">Deskripsi</th>}
+                                        {visibleColumns.id && <th className="py-2.5 px-2 whitespace-nowrap">{isEn ? 'Issue ID' : 'ID Isu'}</th>}
+                                        {visibleColumns.photo && <th className="py-2.5 px-1 text-center whitespace-nowrap">{isEn ? 'Photo' : 'Foto'}</th>}
+                                        {visibleColumns.title && <th className="py-2.5 px-2 min-w-[110px] max-w-[160px]">{isEn ? 'Issue Title' : 'Judul Masalah'}</th>}
+                                        {visibleColumns.location && <th className="py-2.5 px-2 whitespace-nowrap">{isEn ? 'Location' : 'Lokasi'}</th>}
+                                        {visibleColumns.dept && <th className="py-2.5 px-2 whitespace-nowrap">{isEn ? 'Department' : 'Departemen'}</th>}
+                                        {visibleColumns.reporter && <th className="py-2.5 px-2 whitespace-nowrap">{isEn ? 'Reporter' : 'Pelapor'}</th>}
+                                        {visibleColumns.desc && <th className="py-2.5 px-2 min-w-[130px] max-w-[180px]">{isEn ? 'Description' : 'Deskripsi'}</th>}
                                         {visibleColumns.status && <th className="py-2.5 px-2 whitespace-nowrap">Status</th>}
-                                        {visibleColumns.time && <th className="py-2.5 px-2 whitespace-nowrap">Waktu</th>}
-                                        <th className="py-2.5 px-1.5 text-center whitespace-nowrap">Aksi</th>
+                                        {visibleColumns.time && <th className="py-2.5 px-2 whitespace-nowrap">{isEn ? 'Time' : 'Waktu'}</th>}
+                                        <th className="py-2.5 px-1.5 text-center whitespace-nowrap">{isEn ? 'Action' : 'Aksi'}</th>
                                     </tr>
                                 </thead>
                                 <tbody className={`divide-y font-medium ${
@@ -2039,7 +2189,7 @@ export default function LeanIndex({
                                                 className={`cursor-pointer transition-colors group ${
                                                     isDark ? 'hover:bg-slate-700/50' : 'hover:bg-slate-50'
                                                 }`}
-                                                title="Klik baris untuk melihat rincian lengkap isu"
+                                                title={isEn ? 'Click row to view full issue details' : 'Klik baris untuk melihat rincian lengkap isu'}
                                             >
                                                 {/* ID ISU */}
                                                 {visibleColumns.id && (
@@ -2063,7 +2213,7 @@ export default function LeanIndex({
                                                                 className={`w-8 h-8 rounded-md overflow-hidden border inline-block transition-all hover:scale-105 ${
                                                                     isDark ? 'border-slate-700 hover:border-emerald-500' : 'border-slate-300 hover:border-emerald-500'
                                                                 }`}
-                                                                title="Klik untuk lihat foto"
+                                                                title={isEn ? 'Click to view photo' : 'Klik untuk lihat foto'}
                                                             >
                                                                 <img src={issue.image_url} alt="" className="w-full h-full object-cover" />
                                                             </button>
@@ -2127,7 +2277,7 @@ export default function LeanIndex({
                                                                                 : 'bg-slate-100 border-slate-300 text-slate-700'
                                                                         }`}
                                                                     >
-                                                                        {dept} {isWorking ? '🟡 Dikerjakan' : isThisAcc ? '✓' : ''}
+                                                                        {formatDeptDisplay(dept)} {isWorking ? (isEn ? '🟡 Working' : '🟡 Dikerjakan') : isThisAcc ? '✓' : ''}
                                                                     </span>
                                                                 );
                                                             })}
@@ -2142,7 +2292,7 @@ export default function LeanIndex({
                                                             {issue.reporter_name}
                                                         </div>
                                                         <div className={`text-[9px] leading-tight ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                                                            {issue.reporter_dept || 'Staf'}
+                                                            {issue.reporter_dept ? formatDeptDisplay(issue.reporter_dept) : (isEn ? 'Staff' : 'Staf')}
                                                         </div>
                                                     </td>
                                                 )}
@@ -2152,7 +2302,7 @@ export default function LeanIndex({
                                                     <td className={`py-2 px-2 text-[11px] max-w-[180px] truncate ${
                                                         isDark ? 'text-slate-300' : 'text-slate-600'
                                                     }`} title={issue.description}>
-                                                        {issue.description || <span className="text-slate-400 italic">Tidak ada keterangan</span>}
+                                                        {issue.description || <span className="text-slate-400 italic">{isEn ? 'No description' : 'Tidak ada keterangan'}</span>}
                                                     </td>
                                                 )}
 
@@ -2172,7 +2322,7 @@ export default function LeanIndex({
                                                                 isDark ? 'bg-amber-500/20 text-amber-300 border-amber-500/40' : 'bg-amber-100 text-amber-800 border-amber-300'
                                                             }`}>
                                                                 <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                                                                Progress
+                                                                {isEn ? 'In Progress' : 'Progress'}
                                                             </span>
                                                         )}
                                                         {issue.status === 'pending' && (
@@ -2180,7 +2330,7 @@ export default function LeanIndex({
                                                                 isDark ? 'bg-orange-500/20 text-orange-300 border-orange-500/40' : 'bg-orange-100 text-orange-800 border-orange-300'
                                                             }`}>
                                                                 <span className="w-1.5 h-1.5 rounded-full bg-orange-500" />
-                                                                Tertunda
+                                                                {isEn ? 'Pending' : 'Tertunda'}
                                                             </span>
                                                         )}
                                                         {issue.status === 'resolved' && (
@@ -2188,7 +2338,7 @@ export default function LeanIndex({
                                                                 isDark ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' : 'bg-emerald-100 text-emerald-800 border-emerald-300'
                                                             }`}>
                                                                 <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600" />
-                                                                Selesai
+                                                                {isEn ? 'Resolved' : 'Selesai'}
                                                             </span>
                                                         )}
                                                     </td>
@@ -2199,7 +2349,7 @@ export default function LeanIndex({
                                                     <td className={`py-2 px-2 whitespace-nowrap text-[10px] ${
                                                         isDark ? 'text-slate-400' : 'text-slate-500'
                                                     }`}>
-                                                        {issue.created_at_human}
+                                                        {formatRelativeTime(issue.created_at, issue.created_at_human)}
                                                     </td>
                                                 )}
 
@@ -2214,7 +2364,7 @@ export default function LeanIndex({
                                                                     ? 'bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border-rose-500/30 hover:border-rose-500/60'
                                                                     : 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200'
                                                             }`}
-                                                            title="Hapus / Sembunyikan Tiket"
+                                                            title={isEn ? 'Delete / Hide Ticket' : 'Hapus / Sembunyikan Tiket'}
                                                         >
                                                             <Trash2 className="w-3 h-3" />
                                                         </button>
@@ -2274,7 +2424,7 @@ export default function LeanIndex({
                                             ? 'bg-slate-800/95 border-slate-700/90 hover:border-slate-600 shadow-lg hover:shadow-2xl ring-1 ring-white/5'
                                             : 'bg-white border-slate-300/90 hover:border-slate-400 shadow-md hover:shadow-xl ring-1 ring-slate-900/5'
                                     }`}
-                                    title="Klik kartu untuk melihat rincian lengkap isu"
+                                    title={isEn ? 'Click card to view full issue details' : 'Klik kartu untuk melihat rincian lengkap isu'}
                                 >
                                     {/* Option 2: Top Status Accent Bar */}
                                     <div className={`h-1.5 w-full shrink-0 ${statusTheme.topBar}`} />
@@ -2307,19 +2457,19 @@ export default function LeanIndex({
                                                             {issue.status === 'in_progress' && (
                                                                 <span className="px-2 py-0.5 rounded-full bg-sky-500/15 text-sky-600 dark:text-sky-300 border border-sky-500/30 text-[10px] font-bold flex items-center gap-1">
                                                                     <span className="w-1.5 h-1.5 rounded-full bg-sky-500" />
-                                                                    Progress
+                                                                    {isEn ? 'In Progress' : 'Progress'}
                                                                 </span>
                                                             )}
                                                             {issue.status === 'pending' && (
                                                                 <span className="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-300 border border-amber-500/30 text-[10px] font-bold flex items-center gap-1">
                                                                     <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                                                                    Tertunda
+                                                                    {isEn ? 'Pending' : 'Tertunda'}
                                                                 </span>
                                                             )}
                                                             {issue.status === 'resolved' && (
                                                                 <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-[10px] font-bold flex items-center gap-1">
                                                                     <CheckCircle2 className="w-3 h-3 text-emerald-500" />
-                                                                    Selesai
+                                                                    {isEn ? 'Resolved' : 'Selesai'}
                                                                 </span>
                                                             )}
                                                         </>
@@ -2329,10 +2479,12 @@ export default function LeanIndex({
                                                     {issue.transfer_history && issue.transfer_history.length > 0 && (
                                                         <span
                                                             className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 flex items-center gap-1"
-                                                            title={`Dialihkan ${issue.transfer_history.length} kali`}
+                                                            title={isEn
+                                                                ? `Transferred ${issue.transfer_history.length} time(s)`
+                                                                : `Dialihkan ${issue.transfer_history.length} kali`}
                                                         >
                                                             <RotateCcw className="w-2.5 h-2.5 text-amber-500" />
-                                                            <span>{issue.transfer_history.length}x Dialihkan</span>
+                                                            <span>{issue.transfer_history.length}x {isEn ? 'Transferred' : 'Dialihkan'}</span>
                                                         </span>
                                                     )}
                                                 </div>
@@ -2344,7 +2496,7 @@ export default function LeanIndex({
                                                             isDark ? 'text-slate-400' : 'text-slate-500'
                                                         }`}>
                                                             <Clock className="w-3 h-3" />
-                                                            {issue.created_at_human}
+                                                            {formatRelativeTime(issue.created_at, issue.created_at_human)}
                                                         </span>
                                                     )}
                                                     {canManageIssue(issue) && (
@@ -2359,7 +2511,7 @@ export default function LeanIndex({
                                                                     ? 'hover:bg-rose-950/80 text-slate-500 hover:text-rose-400 border border-transparent hover:border-rose-800'
                                                                     : 'hover:bg-rose-50 text-slate-400 hover:text-rose-600 border border-transparent hover:border-rose-200'
                                                             }`}
-                                                            title="Hapus / Sembunyikan Tiket"
+                                                            title={isEn ? 'Delete / Hide Ticket' : 'Hapus / Sembunyikan Tiket'}
                                                         >
                                                             <Trash2 className="w-3.5 h-3.5" />
                                                         </button>
@@ -2418,14 +2570,14 @@ export default function LeanIndex({
                                                     >
                                                         <img
                                                             src={issue.image_url}
-                                                            alt="Bukti Masalah"
+                                                            alt={isEn ? 'Issue Evidence' : 'Bukti Masalah'}
                                                             className="w-full h-full object-cover group-hover/img:scale-105 transition-transform duration-300"
                                                         />
                                                         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent flex items-end justify-between p-2">
                                                             <span className="text-[10px] text-white font-medium bg-black/60 px-2 py-0.5 rounded-md backdrop-blur-xs flex items-center gap-1">
-                                                                <Eye className="w-3 h-3" /> Foto Bukti
+                                                                <Eye className="w-3 h-3" /> {isEn ? 'Evidence Photo' : 'Foto Bukti'}
                                                             </span>
-                                                            <span className="text-[9px] text-slate-300 font-medium">Klik perbesar</span>
+                                                            <span className="text-[9px] text-slate-300 font-medium">{isEn ? 'Click to zoom' : 'Klik perbesar'}</span>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -2436,7 +2588,9 @@ export default function LeanIndex({
                                                 <div className={`pt-2 border-t flex flex-wrap items-center gap-1.5 ${
                                                     isDark ? 'border-slate-700/60' : 'border-slate-200'
                                                 }`}>
-                                                    <span className={`text-[10px] font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Tujuan:</span>
+                                                    <span className={`text-[10px] font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                                        {isEn ? 'Target:' : 'Tujuan:'}
+                                                    </span>
                                                     {(issue.target_departments || []).map((dept) => {
                                                         const isThisDeptClaimed = issue.claimed_by_dept && (
                                                             issue.claimed_by_dept.toLowerCase() === dept.toLowerCase()
@@ -2458,17 +2612,17 @@ export default function LeanIndex({
                                                                 {isWorking ? (
                                                                     <>
                                                                         <Clock className="w-2.5 h-2.5 text-amber-400 shrink-0" />
-                                                                        <span>{dept}: Dikerjakan</span>
+                                                                        <span>{formatDeptDisplay(dept)}: {isEn ? 'Working' : 'Dikerjakan'}</span>
                                                                     </>
                                                                 ) : isThisAcc ? (
                                                                     <>
                                                                         <Check className="w-2.5 h-2.5 text-emerald-400 shrink-0" />
-                                                                        <span>{dept}: ACC</span>
+                                                                        <span>{formatDeptDisplay(dept)}: ACC</span>
                                                                     </>
                                                                 ) : (
                                                                     <>
                                                                         <Clock className="w-2.5 h-2.5 opacity-50 shrink-0" />
-                                                                        <span>{dept}</span>
+                                                                        <span>{formatDeptDisplay(dept)}</span>
                                                                     </>
                                                                 )}
                                                             </div>
@@ -2494,7 +2648,7 @@ export default function LeanIndex({
                                                 <span className={`text-[11px] truncate ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
                                                     <strong className={isDark ? 'text-white' : 'text-slate-900'}>{issue.reporter_name}</strong>
                                                     {issue.reporter_dept && (
-                                                        <span className={`text-[10px] ml-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>({issue.reporter_dept})</span>
+                                                        <span className={`text-[10px] ml-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>({formatDeptDisplay(issue.reporter_dept)})</span>
                                                     )}
                                                 </span>
                                             </div>
@@ -2512,7 +2666,7 @@ export default function LeanIndex({
                                             {((Array.isArray(issue.active_workers) && issue.active_workers.length > 0) || issue.claimed_by_name) && (
                                                 <span className={`text-[10px] font-semibold px-2 py-0.5 rounded border flex items-center gap-1 max-w-[180px] truncate ${
                                                     isDark ? 'bg-amber-950/60 text-amber-300 border-amber-800/40' : 'bg-amber-50 text-amber-800 border-amber-200'
-                                                }`} title={`Tim: ${(issue.active_workers?.length ? issue.active_workers.join(', ') : issue.claimed_by_name)}`}>
+                                                }`} title={`${isEn ? 'Team' : 'Tim'}: ${(issue.active_workers?.length ? issue.active_workers.join(', ') : issue.claimed_by_name)}`}>
                                                     <Users className="w-2.5 h-2.5 shrink-0" />
                                                     <span className="truncate">{issue.active_workers?.length ? issue.active_workers.join(', ') : issue.claimed_by_name}</span>
                                                 </span>
@@ -2523,8 +2677,8 @@ export default function LeanIndex({
                                                 }`}>
                                                     <CheckCircle2 className="w-2.5 h-2.5" />
                                                     {Array.isArray(issue.contributors) && issue.contributors.length > 0
-                                                        ? `Selesai (${issue.contributors.length} Tim)`
-                                                        : 'Selesai'}
+                                                        ? (isEn ? `Resolved (${issue.contributors.length} Team)` : `Selesai (${issue.contributors.length} Tim)`)
+                                                        : (isEn ? 'Resolved' : 'Selesai')}
                                                 </span>
                                             )}
                                         </div>
@@ -2545,9 +2699,13 @@ export default function LeanIndex({
                             <div>
                                 <h3 className="font-bold text-base text-white flex items-center gap-1.5">
                                     <MessageSquare className="w-4 h-4 text-emerald-400" />
-                                    Catat Hasil Diskusi Lapangan
+                                    {isEn ? 'Log Field Discussion' : 'Catat Hasil Diskusi Lapangan'}
                                 </h3>
-                                <p className="text-xs text-slate-400">Verifikasi verbal langsung &rarr; Input sistem otomatis</p>
+                                <p className="text-xs text-slate-400">
+                                    {isEn
+                                        ? 'Direct verbal verification → Automatic system entry'
+                                        : 'Verifikasi verbal langsung → Input sistem otomatis'}
+                                </p>
                             </div>
                             <button
                                 onClick={() => {
@@ -2570,17 +2728,17 @@ export default function LeanIndex({
                                     </div>
                                     <div>
                                         <div className="text-[10px] uppercase font-bold tracking-wider text-emerald-400">
-                                            Departemen Penanggung Jawab
+                                            {isEn ? 'Responsible Department' : 'Departemen Penanggung Jawab'}
                                         </div>
                                         <div className="text-xs font-bold text-white flex items-center gap-1.5">
-                                            <span>{myDept}</span>
+                                            <span>{formatDeptDisplay(myDept)}</span>
                                             <span className="text-slate-500">&bull;</span>
                                             <span className="text-slate-300 font-normal">{myName}</span>
                                         </div>
                                     </div>
                                 </div>
                                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold">
-                                    Pencatat Resmi
+                                    {isEn ? 'Official Recorder' : 'Pencatat Resmi'}
                                 </span>
                             </div>
 
@@ -2589,9 +2747,11 @@ export default function LeanIndex({
                                 <label className="block text-xs font-bold text-slate-300 mb-1.5 flex items-center justify-between">
                                     <span className="flex items-center gap-1">
                                         <User className="w-3.5 h-3.5 text-indigo-400" />
-                                        1. Staf yang Datang Melapor *
+                                        {isEn ? '1. Reporting Staff *' : '1. Staf yang Datang Melapor *'}
                                     </span>
-                                    <span className="text-[10px] text-slate-400 font-normal">Cari / ketik nama staf</span>
+                                    <span className="text-[10px] text-slate-400 font-normal">
+                                        {isEn ? 'Search / type staff name' : 'Cari / ketik nama staf'}
+                                    </span>
                                 </label>
                                 <div className="relative">
                                     <input
@@ -2603,7 +2763,7 @@ export default function LeanIndex({
                                             setShowStaffDropdown(true);
                                         }}
                                         onFocus={() => setShowStaffDropdown(true)}
-                                        placeholder="Ketik nama staf (contoh: Budi / Siti / Hendra)..."
+                                        placeholder={isEn ? 'Type staff name (e.g., Budi / Siti / Hendra)...' : 'Ketik nama staf (contoh: Budi / Siti / Hendra)...'}
                                         className="w-full text-xs bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
                                         required
                                     />
@@ -2636,7 +2796,7 @@ export default function LeanIndex({
                                                 <div>
                                                     <p className="font-semibold text-white">{staff.name}</p>
                                                     <p className="text-[10px] text-slate-400">
-                                                        {staff.department ? `${staff.department} ` : ''}
+                                                        {staff.department ? `${formatDeptDisplay(staff.department)} ` : ''}
                                                         {staff.subdivision ? `(${staff.subdivision})` : ''}
                                                     </p>
                                                 </div>
@@ -2653,19 +2813,21 @@ export default function LeanIndex({
                                 {/* WhatsApp Phone input */}
                                 <div className="mt-2">
                                     <label className="block text-[11px] font-semibold text-slate-400 mb-1">
-                                        No. WhatsApp Staf Pelapor (Untuk notifikasi status otomatis):
+                                        {isEn ? 'Reporter WhatsApp Number (For automatic status notifications):' : 'No. WhatsApp Staf Pelapor (Untuk notifikasi status otomatis):'}
                                     </label>
                                     <div className="relative">
                                         <input
                                             type="tel"
                                             value={staffReporterPhone}
                                             onChange={(e) => setStaffReporterPhone(e.target.value)}
-                                            placeholder="Contoh: 08123456789 atau 628..."
+                                            placeholder={isEn ? 'Example: 08123456789 or 628...' : 'Contoh: 08123456789 atau 628...'}
                                             className="w-full text-xs bg-slate-800/90 border border-slate-700 rounded-lg px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
                                         />
                                     </div>
                                     <p className="text-[10px] text-slate-500 mt-0.5">
-                                        Bot WA akan mengirimkan konfirmasi tiket, update progress/pending/pengalihan, hingga info selesai ke nomor ini.
+                                        {isEn
+                                            ? 'WA Bot will send ticket confirmation, progress/pending/transfer updates, and resolution notices to this number.'
+                                            : 'Bot WA akan mengirimkan konfirmasi tiket, update progress/pending/pengalihan, hingga info selesai ke nomor ini.'}
                                     </p>
                                 </div>
                             </div>
@@ -2674,7 +2836,7 @@ export default function LeanIndex({
                             <div>
                                 <label className="block text-xs font-bold text-slate-300 mb-1.5 flex items-center gap-1">
                                     <MapPin className="w-3.5 h-3.5 text-emerald-400" />
-                                    2. Lokasi Masalah *
+                                    {isEn ? '2. Issue Location *' : '2. Lokasi Masalah *'}
                                 </label>
                                 <div className="grid grid-cols-3 gap-2 mb-2">
                                     {['TBR', 'TPI', 'Kantor'].map((loc) => (
@@ -2688,7 +2850,7 @@ export default function LeanIndex({
                                                     : 'bg-slate-800 text-slate-300 border-slate-700 hover:border-slate-600'
                                             }`}
                                         >
-                                            {loc}
+                                            {formatMainLocDisplay(loc)}
                                         </button>
                                     ))}
                                 </div>
@@ -2696,7 +2858,7 @@ export default function LeanIndex({
                                     type="text"
                                     value={formDetailLoc}
                                     onChange={(e) => setFormDetailLoc(e.target.value)}
-                                    placeholder="Detail spesifik (contoh: Villa 05 / Jetty / Kamar 12)"
+                                    placeholder={isEn ? 'Specific detail (e.g., Villa 05 / Jetty / Room 12)' : 'Detail spesifik (contoh: Villa 05 / Jetty / Kamar 12)'}
                                     className="w-full text-xs bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
                                 />
                             </div>
@@ -2705,13 +2867,13 @@ export default function LeanIndex({
                             <div>
                                 <label className="block text-xs font-bold text-slate-300 mb-1 flex items-center gap-1">
                                     <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
-                                    3. Isu / Masalah *
+                                    {isEn ? '3. Issue / Title *' : '3. Isu / Masalah *'}
                                 </label>
                                 <input
                                     type="text"
                                     value={formTitle}
                                     onChange={(e) => setFormTitle(e.target.value)}
-                                    placeholder="Contoh: Pipa wastafel bocor / AC tidak dingin"
+                                    placeholder={isEn ? 'Example: Leaking sink pipe / AC not cooling' : 'Contoh: Pipa wastafel bocor / AC tidak dingin'}
                                     className="w-full text-xs bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
                                     required
                                 />
@@ -2720,12 +2882,12 @@ export default function LeanIndex({
                             {/* 4. DESKRIPSI ISU */}
                             <div>
                                 <label className="block text-xs font-bold text-slate-300 mb-1">
-                                    4. Deskripsi Isu (Rincian Hasil Diskusi)
+                                    {isEn ? '4. Issue Description (Discussion Details)' : '4. Deskripsi Isu (Rincian Hasil Diskusi)'}
                                 </label>
                                 <textarea
                                     value={formDescription}
                                     onChange={(e) => setFormDescription(e.target.value)}
-                                    placeholder="Jelaskan detail yang dibahas (contoh: Air menetes deras ke lantai kolong wastafel)"
+                                    placeholder={isEn ? 'Explain details discussed (e.g., Water dripping heavily under the sink cabinet)' : 'Jelaskan detail yang dibahas (contoh: Air menetes deras ke lantai kolong wastafel)'}
                                     rows={2}
                                     className="w-full text-xs bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
                                 />
@@ -2735,7 +2897,7 @@ export default function LeanIndex({
                             <div>
                                 <label className="block text-xs font-bold text-slate-300 mb-1.5 flex items-center gap-1">
                                     <Camera className="w-3.5 h-3.5 text-emerald-400" />
-                                    5. Foto Bukti (Kamera HP / Galeri)
+                                    {isEn ? '5. Photo Proof (Phone Camera / Gallery)' : '5. Foto Bukti (Kamera HP / Galeri)'}
                                 </label>
                                 {formImagePreview ? (
                                     <div className="relative rounded-lg overflow-hidden border border-slate-700 max-h-48 bg-black/40 flex items-center justify-center">
@@ -2754,8 +2916,12 @@ export default function LeanIndex({
                                 ) : (
                                     <label className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-slate-700 hover:border-slate-600 rounded-xl cursor-pointer bg-slate-800/40 hover:bg-slate-800/70 transition-colors">
                                         <Camera className="w-6 h-6 text-slate-400 mb-1" />
-                                        <span className="text-xs font-semibold text-slate-300">Ambil Foto / Pilih File</span>
-                                        <span className="text-[10px] text-slate-500 mt-0.5">Bisa langsung pakai kamera HP</span>
+                                        <span className="text-xs font-semibold text-slate-300">
+                                            {isEn ? 'Take Photo / Choose File' : 'Ambil Foto / Pilih File'}
+                                        </span>
+                                        <span className="text-[10px] text-slate-500 mt-0.5">
+                                            {isEn ? 'Supports phone camera directly' : 'Bisa langsung pakai kamera HP'}
+                                        </span>
                                         <input
                                             type="file"
                                             accept="image/*"
@@ -2784,10 +2950,12 @@ export default function LeanIndex({
                                     />
                                     <div>
                                         <span className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
-                                            ⚡ Langsung Dikerjakan Sekarang (In Progress)
+                                            {isEn ? '⚡ Start Working Immediately (In Progress)' : '⚡ Langsung Dikerjakan Sekarang (In Progress)'}
                                         </span>
                                         <p className="text-[10px] text-slate-400 mt-0.5 leading-tight">
-                                            Centang jika departemen Anda langsung mengeksekusi perbaikan tanpa menunggu antrean Open.
+                                            {isEn
+                                                ? 'Check this if your department is starting the repair right away without waiting in the Open queue.'
+                                                : 'Centang jika departemen Anda langsung mengeksekusi perbaikan tanpa menunggu antrean Open.'}
                                         </p>
                                     </div>
                                 </label>
@@ -2795,7 +2963,7 @@ export default function LeanIndex({
                                 {startInProgress && (
                                     <div className="pt-2 border-t border-slate-700/80 space-y-2">
                                         <label className="block text-[11px] font-bold text-slate-300">
-                                            Ditugaskan / Dikerjakan oleh siapa? (Pilih satu atau lebih):
+                                            {isEn ? 'Assigned / Handled by whom? (Select one or more):' : 'Ditugaskan / Dikerjakan oleh siapa? (Pilih satu atau lebih):'}
                                         </label>
                                         <div className="flex flex-wrap gap-1.5">
                                             {myDeptTeammates.map((workerName) => {
@@ -2830,7 +2998,7 @@ export default function LeanIndex({
                                                         handleAddCustomWorker();
                                                     }
                                                 }}
-                                                placeholder="Tambah nama teknisi lain..."
+                                                placeholder={isEn ? 'Add another technician name...' : 'Tambah nama teknisi lain...'}
                                                 className="flex-1 text-xs bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
                                             />
                                             <button
@@ -2838,13 +3006,13 @@ export default function LeanIndex({
                                                 onClick={handleAddCustomWorker}
                                                 className="px-2.5 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-xs font-semibold text-slate-200 transition-colors cursor-pointer"
                                             >
-                                                + Tambah
+                                                {isEn ? '+ Add' : '+ Tambah'}
                                             </button>
                                         </div>
 
                                         {assignedWorkers.length > 0 && (
                                             <p className="text-[10px] text-amber-300/90 font-medium">
-                                                Ditugaskan: <span className="font-bold text-white">{assignedWorkers.join(', ')}</span>
+                                                {isEn ? 'Assigned:' : 'Ditugaskan:'} <span className="font-bold text-white">{assignedWorkers.join(', ')}</span>
                                             </p>
                                         )}
                                     </div>
@@ -2856,7 +3024,9 @@ export default function LeanIndex({
                                 <div className="p-2.5 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-300 text-xs flex items-center gap-2">
                                     <WifiOff className="w-4 h-4 shrink-0 text-amber-400" />
                                     <span className="text-[11px] leading-tight">
-                                        Perangkat sedang offline (0 bar). Laporan & foto akan disimpan di memori HP dan otomatis di-upload saat mendapatkan sinyal.
+                                        {isEn
+                                            ? 'Device is offline (0 bars). Report & photo will be stored locally and auto-uploaded when signal returns.'
+                                            : 'Perangkat sedang offline (0 bar). Laporan & foto akan disimpan di memori HP dan otomatis di-upload saat mendapatkan sinyal.'}
                                     </span>
                                 </div>
                             )}
@@ -2877,22 +3047,22 @@ export default function LeanIndex({
                                     {isSubmitting ? (
                                         <>
                                             <RefreshCw className="w-4 h-4 animate-spin" />
-                                            <span>Menyimpan Laporan...</span>
+                                            <span>{isEn ? 'Saving Report...' : 'Menyimpan Laporan...'}</span>
                                         </>
                                     ) : !isOnline ? (
                                         <>
                                             <HardDrive className="w-4 h-4" />
-                                            <span>Simpan di Antrean HP (Offline)</span>
+                                            <span>{isEn ? 'Save to Device Queue (Offline)' : 'Simpan di Antrean HP (Offline)'}</span>
                                         </>
                                     ) : startInProgress ? (
                                         <>
                                             <Send className="w-4 h-4" />
-                                            <span>Simpan & Mulai Kerjakan (In Progress)</span>
+                                            <span>{isEn ? 'Save & Start Working (In Progress)' : 'Simpan & Mulai Kerjakan (In Progress)'}</span>
                                         </>
                                     ) : (
                                         <>
                                             <Send className="w-4 h-4" />
-                                            <span>Simpan & Kirim Laporan</span>
+                                            <span>{isEn ? 'Save & Submit Report' : 'Simpan & Kirim Laporan'}</span>
                                         </>
                                     )}
                                 </button>
@@ -2919,7 +3089,7 @@ export default function LeanIndex({
                                 <div>
                                     <h3 className="font-bold text-base text-white flex items-center gap-1.5">
                                         <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                                        Tandai Masalah Selesai
+                                        {isEn ? 'Mark Issue Resolved' : 'Tandai Masalah Selesai'}
                                     </h3>
                                     <p className="text-xs text-slate-400 mt-0.5">
                                         #{showResolveModal.issue_code || showResolveModal.id} &bull; {showResolveModal.location} — {showResolveModal.title}
@@ -2937,12 +3107,15 @@ export default function LeanIndex({
                             <form onSubmit={handleResolveSubmit} className="space-y-3.5">
                                 <div>
                                     <label className="block text-xs font-bold text-slate-200 mb-1">
-                                        Deskripsi / Catatan Penyelesaian <span className="text-rose-400">* (Wajib)</span>
+                                        {isEn ? 'Resolution Description / Notes ' : 'Deskripsi / Catatan Penyelesaian '}
+                                        <span className="text-rose-400">{isEn ? '* (Required)' : '* (Wajib)'}</span>
                                     </label>
                                     <textarea
                                         value={resolveNote}
                                         onChange={(e) => setResolveNote(e.target.value)}
-                                        placeholder="Jelaskan tindakan perbaikan yang dilakukan (Contoh: Pipa telah diganti seal baru, sudah dites tidak bocor)"
+                                        placeholder={isEn
+                                            ? 'Explain the repair completed (e.g., Pipe seal replaced, tested with no leaks)'
+                                            : 'Jelaskan tindakan perbaikan yang dilakukan (Contoh: Pipa telah diganti seal baru, sudah dites tidak bocor)'}
                                         rows={3}
                                         required
                                         className="w-full text-xs bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
@@ -2952,7 +3125,10 @@ export default function LeanIndex({
                                 <div>
                                     <label className="block text-xs font-bold text-slate-200 mb-1 flex items-center gap-1">
                                         <Camera className="w-3.5 h-3.5 text-emerald-400" />
-                                        Foto Bukti Selesai <span className="text-[10px] font-normal text-slate-400">(Opsional — sebisa mungkin dilampirkan sesuai SOP)</span>
+                                        {isEn ? 'Resolution Proof Photo ' : 'Foto Bukti Selesai '}
+                                        <span className="text-[10px] font-normal text-slate-400">
+                                            {isEn ? '(Optional — please attach whenever possible per SOP)' : '(Opsional — sebisa mungkin dilampirkan sesuai SOP)'}
+                                        </span>
                                     </label>
                                     {resolveImagePreview ? (
                                         <div className="relative rounded-lg overflow-hidden border border-slate-700 max-h-36 bg-black/40 flex items-center justify-center">
@@ -2971,7 +3147,7 @@ export default function LeanIndex({
                                     ) : (
                                         <label className="flex items-center justify-center gap-2 p-3 border border-dashed border-slate-700 hover:border-slate-600 rounded-lg cursor-pointer bg-slate-800/40 text-xs text-slate-300">
                                             <Camera className="w-4 h-4 text-slate-400" />
-                                            <span>Ambil Foto Hasil Perbaikan (Opsional)</span>
+                                            <span>{isEn ? 'Take Repair Proof Photo (Optional)' : 'Ambil Foto Hasil Perbaikan (Opsional)'}</span>
                                             <input
                                                 type="file"
                                                 accept="image/*"
@@ -2987,11 +3163,13 @@ export default function LeanIndex({
                                 <div className="p-3 rounded-xl bg-slate-800/70 border border-slate-700 space-y-2">
                                     <label className="block text-xs font-bold text-slate-200 flex items-center gap-1.5">
                                         <Users className="w-3.5 h-3.5 text-emerald-400" />
-                                        Tim yang Menyelesaikan / Berkontribusi Akhir *
+                                        {isEn ? 'Resolved By / Final Contributors *' : 'Tim yang Menyelesaikan / Berkontribusi Akhir *'}
                                     </label>
                                     {Array.isArray(showResolveModal.contributors) && showResolveModal.contributors.length > 0 && (
                                         <p className="text-[10px] text-emerald-300/80">
-                                            Kontributor tercatat sebelumnya: <span className="font-semibold">{showResolveModal.contributors.join(', ')}</span> (akan tetap terakumulasi untuk evaluasi).
+                                            {isEn ? 'Previously recorded contributors:' : 'Kontributor tercatat sebelumnya:'}{' '}
+                                            <span className="font-semibold">{showResolveModal.contributors.join(', ')}</span>{' '}
+                                            {isEn ? '(retained cumulatively for evaluation).' : '(akan tetap terakumulasi untuk evaluasi).'}
                                         </p>
                                     )}
                                     <div className="flex flex-wrap gap-1.5">
@@ -3025,7 +3203,7 @@ export default function LeanIndex({
                                                     addCustomListWorker(resolveCustomWorker, setResolveCustomWorker, resolveWorkers, setResolveWorkers);
                                                 }
                                             }}
-                                            placeholder="Tambah nama pekerja lain..."
+                                            placeholder={isEn ? 'Add another worker name...' : 'Tambah nama pekerja lain...'}
                                             className="flex-1 text-xs bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
                                         />
                                         <button
@@ -3033,7 +3211,7 @@ export default function LeanIndex({
                                             onClick={() => addCustomListWorker(resolveCustomWorker, setResolveCustomWorker, resolveWorkers, setResolveWorkers)}
                                             className="px-2.5 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-xs font-semibold text-slate-200 cursor-pointer"
                                         >
-                                            + Tambah
+                                            {isEn ? '+ Add' : '+ Tambah'}
                                         </button>
                                     </div>
                                 </div>
@@ -3044,14 +3222,16 @@ export default function LeanIndex({
                                         onClick={() => setShowResolveModal(null)}
                                         className="flex-1 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold"
                                     >
-                                        Batal
+                                        {isEn ? 'Cancel' : 'Batal'}
                                     </button>
                                     <button
                                         type="submit"
                                         disabled={isSubmitting}
                                         className="flex-1 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-bold shadow-md cursor-pointer"
                                     >
-                                        {isSubmitting ? 'Menyimpan...' : 'Konfirmasi Selesai'}
+                                        {isSubmitting
+                                            ? (isEn ? 'Saving...' : 'Menyimpan...')
+                                            : (isEn ? 'Confirm Resolved' : 'Konfirmasi Selesai')}
                                     </button>
                                 </div>
                             </form>
@@ -3078,7 +3258,9 @@ export default function LeanIndex({
                                 <div>
                                     <h3 className="font-bold text-base text-white flex items-center gap-1.5">
                                         <Play className={`w-4 h-4 ${isResuming ? 'text-sky-400' : 'text-amber-400'}`} />
-                                        {isResuming ? 'Lanjutkan ke Progress' : 'Mulai Kerjakan Isu (Claim)'}
+                                        {isResuming
+                                            ? (isEn ? 'Resume to In Progress' : 'Lanjutkan ke Progress')
+                                            : (isEn ? 'Start Working (Claim)' : 'Mulai Kerjakan Isu (Claim)')}
                                     </h3>
                                     <p className="text-xs text-slate-400 mt-0.5">
                                         #{showClaimModal.issue_code || showClaimModal.id} &bull; {showClaimModal.title}
@@ -3097,7 +3279,7 @@ export default function LeanIndex({
                                 <div className="p-3 rounded-xl bg-slate-800/70 border border-slate-700 space-y-2">
                                     <label className="block text-xs font-bold text-slate-200 flex items-center gap-1.5">
                                         <Users className={`w-3.5 h-3.5 ${isResuming ? 'text-sky-400' : 'text-amber-400'}`} />
-                                        Pilih Pekerja yang Mengerjakan * (Bisa lebih dari 1)
+                                        {isEn ? 'Select Assigned Worker(s) * (Multiple allowed)' : 'Pilih Pekerja yang Mengerjakan * (Bisa lebih dari 1)'}
                                     </label>
                                     <div className="flex flex-wrap gap-1.5">
                                         {workerChips.map((workerName) => {
@@ -3132,7 +3314,7 @@ export default function LeanIndex({
                                                     addCustomListWorker(claimCustomWorker, setClaimCustomWorker, claimWorkers, setClaimWorkers);
                                                 }
                                             }}
-                                            placeholder="Tambah nama pekerja lain..."
+                                            placeholder={isEn ? 'Add another worker name...' : 'Tambah nama pekerja lain...'}
                                             className={`flex-1 text-xs bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white placeholder-slate-500 focus:outline-none ${isResuming ? 'focus:border-sky-500' : 'focus:border-amber-500'}`}
                                         />
                                         <button
@@ -3140,26 +3322,28 @@ export default function LeanIndex({
                                             onClick={() => addCustomListWorker(claimCustomWorker, setClaimCustomWorker, claimWorkers, setClaimWorkers)}
                                             className="px-2.5 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-xs font-semibold text-slate-200 cursor-pointer"
                                         >
-                                            + Tambah
+                                            {isEn ? '+ Add' : '+ Tambah'}
                                         </button>
                                     </div>
                                     {claimWorkers.length > 0 && (
                                         <p className={`text-[11px] ${isResuming ? 'text-sky-300' : 'text-amber-300'}`}>
-                                            Terpilih ({claimWorkers.length}): <strong className="text-white">{claimWorkers.join(', ')}</strong>
+                                            {isEn ? 'Selected' : 'Terpilih'} ({claimWorkers.length}): <strong className="text-white">{claimWorkers.join(', ')}</strong>
                                         </p>
                                     )}
                                 </div>
 
                                 <div>
                                     <label className="block text-xs font-bold text-slate-300 mb-1">
-                                        {isResuming ? 'Catatan Lanjut Progress (Opsional)' : 'Catatan Awal Pengerjaan (Opsional)'}
+                                        {isResuming
+                                            ? (isEn ? 'Resume Progress Note (Optional)' : 'Catatan Lanjut Progress (Opsional)')
+                                            : (isEn ? 'Initial Work Note (Optional)' : 'Catatan Awal Pengerjaan (Opsional)')}
                                     </label>
                                     <textarea
                                         value={claimNote}
                                         onChange={(e) => setClaimNote(e.target.value)}
                                         placeholder={isResuming
-                                            ? 'Contoh: Material sparepart sudah tiba, lanjut pemasangan di lokasi'
-                                            : 'Contoh: Tim membawa peralatan menuju lokasi sekarang'}
+                                            ? (isEn ? 'Example: Spare parts have arrived, resuming on-site installation' : 'Contoh: Material sparepart sudah tiba, lanjut pemasangan di lokasi')
+                                            : (isEn ? 'Example: Team bringing tools to the location now' : 'Contoh: Tim membawa peralatan menuju lokasi sekarang')}
                                         rows={2}
                                         className={`w-full text-xs bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white placeholder-slate-500 focus:outline-none ${isResuming ? 'focus:border-sky-500' : 'focus:border-amber-500'}`}
                                     />
@@ -3175,12 +3359,16 @@ export default function LeanIndex({
                                         />
                                         <div>
                                             <span className="text-xs font-bold text-emerald-300 block">
-                                                Kirim info progress ini ke WhatsApp pelapor
+                                                {isEn ? 'Send this progress update to reporter WhatsApp' : 'Kirim info progress ini ke WhatsApp pelapor'}
                                             </span>
                                             <span className="text-[10px] text-slate-400">
                                                 {showClaimModal.reporter_phone
-                                                    ? `Dikirim otomatis ke ${showClaimModal.reporter_name} (${showClaimModal.reporter_phone}).`
-                                                    : `Aktif secara default (No. WA pelapor belum tercatat di tiket ini).`}
+                                                    ? (isEn
+                                                        ? `Auto-sent to ${showClaimModal.reporter_name} (${showClaimModal.reporter_phone}).`
+                                                        : `Dikirim otomatis ke ${showClaimModal.reporter_name} (${showClaimModal.reporter_phone}).`)
+                                                    : (isEn
+                                                        ? 'Enabled by default (reporter WA number not recorded on this ticket yet).'
+                                                        : 'Aktif secara default (No. WA pelapor belum tercatat di tiket ini).')}
                                             </span>
                                         </div>
                                     </label>
@@ -3192,7 +3380,7 @@ export default function LeanIndex({
                                         onClick={() => setShowClaimModal(null)}
                                         className="flex-1 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold"
                                     >
-                                        Batal
+                                        {isEn ? 'Cancel' : 'Batal'}
                                     </button>
                                     <button
                                         type="submit"
@@ -3203,7 +3391,11 @@ export default function LeanIndex({
                                                 : 'bg-amber-600 hover:bg-amber-500'
                                         } disabled:opacity-50 text-white text-xs font-bold shadow-md cursor-pointer`}
                                     >
-                                        {isSubmitting ? 'Menyimpan...' : (isResuming ? 'Lanjutkan Progress' : 'Mulai Kerjakan')}
+                                        {isSubmitting
+                                            ? (isEn ? 'Saving...' : 'Menyimpan...')
+                                            : (isResuming
+                                                ? (isEn ? 'Resume Progress' : 'Lanjutkan Progress')
+                                                : (isEn ? 'Start Working' : 'Mulai Kerjakan'))}
                                     </button>
                                 </div>
                             </form>
@@ -3229,7 +3421,7 @@ export default function LeanIndex({
                                 <div>
                                     <h3 className="font-bold text-base text-white flex items-center gap-1.5">
                                         <MessageSquare className="w-4 h-4 text-sky-400" />
-                                        Update Progress &amp; Tim Pelaksana
+                                        {isEn ? 'Update Progress & Assigned Team' : 'Update Progress & Tim Pelaksana'}
                                     </h3>
                                     <p className="text-xs text-slate-400 mt-0.5">
                                         #{showProgressModal.issue_code || showProgressModal.id} &bull; {showProgressModal.title}
@@ -3247,12 +3439,14 @@ export default function LeanIndex({
                             <form onSubmit={handleProgressSubmit} className="space-y-3.5">
                                 <div>
                                     <label className="block text-xs font-bold text-slate-200 mb-1">
-                                        Komentar Perkembangan Pekerjaan
+                                        {isEn ? 'Work Progress Comment' : 'Komentar Perkembangan Pekerjaan'}
                                     </label>
                                     <textarea
                                         value={progressComment}
                                         onChange={(e) => setProgressComment(e.target.value)}
-                                        placeholder="Contoh: Jalur pipa sudah dibongkar, menunggu pengeringan lem dan penggantian elbow..."
+                                        placeholder={isEn
+                                            ? 'Example: Pipe line disassembled, waiting for adhesive to cure and elbow replacement...'
+                                            : 'Contoh: Jalur pipa sudah dibongkar, menunggu pengeringan lem dan penggantian elbow...'}
                                         rows={3}
                                         className="w-full text-xs bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-sky-500"
                                     />
@@ -3262,12 +3456,16 @@ export default function LeanIndex({
                                     <label className="block text-xs font-bold text-slate-200 flex items-center justify-between">
                                         <span className="flex items-center gap-1.5">
                                             <Users className="w-3.5 h-3.5 text-sky-400" />
-                                            Pekerja Aktif Sekarang (Tambah / Kurangi)
+                                            {isEn ? 'Active Workers Now (Add / Remove)' : 'Pekerja Aktif Sekarang (Tambah / Kurangi)'}
                                         </span>
-                                        <span className="text-[10px] font-normal text-slate-400">Min. 1 pekerja</span>
+                                        <span className="text-[10px] font-normal text-slate-400">
+                                            {isEn ? 'Min. 1 worker' : 'Min. 1 pekerja'}
+                                        </span>
                                     </label>
                                     <p className="text-[10px] text-slate-400 leading-snug">
-                                        Klik nama untuk menambah atau mengeluarkan dari tim aktif. Pekerja yang dikurangi tetap tersimpan dalam data kontributor evaluasi.
+                                        {isEn
+                                            ? 'Click a name to add or remove from the active team. Removed workers remain recorded in contributor evaluation data.'
+                                            : 'Klik nama untuk menambah atau mengeluarkan dari tim aktif. Pekerja yang dikurangi tetap tersimpan dalam data kontributor evaluasi.'}
                                     </p>
                                     <div className="flex flex-wrap gap-1.5">
                                         {workerChips.map((workerName) => {
@@ -3300,7 +3498,7 @@ export default function LeanIndex({
                                                     addCustomListWorker(progressCustomWorker, setProgressCustomWorker, progressWorkers, setProgressWorkers);
                                                 }
                                             }}
-                                            placeholder="Tambah nama pekerja baru..."
+                                            placeholder={isEn ? 'Add new worker name...' : 'Tambah nama pekerja baru...'}
                                             className="flex-1 text-xs bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white placeholder-slate-500 focus:outline-none focus:border-sky-500"
                                         />
                                         <button
@@ -3308,7 +3506,7 @@ export default function LeanIndex({
                                             onClick={() => addCustomListWorker(progressCustomWorker, setProgressCustomWorker, progressWorkers, setProgressWorkers)}
                                             className="px-2.5 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-xs font-semibold text-slate-200 cursor-pointer"
                                         >
-                                            + Tambah
+                                            {isEn ? '+ Add' : '+ Tambah'}
                                         </button>
                                     </div>
                                 </div>
@@ -3323,12 +3521,16 @@ export default function LeanIndex({
                                     />
                                     <div>
                                         <span className="text-xs font-bold text-emerald-300 block">
-                                            Kirim info progress ini ke WhatsApp pelapor
+                                            {isEn ? 'Send this progress update to reporter WhatsApp' : 'Kirim info progress ini ke WhatsApp pelapor'}
                                         </span>
                                         <span className="text-[10px] text-slate-400">
                                             {showProgressModal.reporter_phone
-                                                ? `Dikirim otomatis ke ${showProgressModal.reporter_name} (${showProgressModal.reporter_phone}).`
-                                                : `Aktif secara default (No. WA pelapor belum tercatat di tiket ini).`}
+                                                ? (isEn
+                                                    ? `Auto-sent to ${showProgressModal.reporter_name} (${showProgressModal.reporter_phone}).`
+                                                    : `Dikirim otomatis ke ${showProgressModal.reporter_name} (${showProgressModal.reporter_phone}).`)
+                                                : (isEn
+                                                    ? 'Enabled by default (reporter WA number not recorded on this ticket yet).'
+                                                    : 'Aktif secara default (No. WA pelapor belum tercatat di tiket ini).')}
                                         </span>
                                     </div>
                                 </label>
@@ -3339,14 +3541,16 @@ export default function LeanIndex({
                                         onClick={() => setShowProgressModal(null)}
                                         className="flex-1 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold"
                                     >
-                                        Batal
+                                        {isEn ? 'Cancel' : 'Batal'}
                                     </button>
                                     <button
                                         type="submit"
                                         disabled={isSubmitting || progressWorkers.length === 0}
                                         className="flex-1 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white text-xs font-bold shadow-md cursor-pointer"
                                     >
-                                        {isSubmitting ? 'Menyimpan...' : 'Simpan Update'}
+                                        {isSubmitting
+                                            ? (isEn ? 'Saving...' : 'Menyimpan...')
+                                            : (isEn ? 'Save Update' : 'Simpan Update')}
                                     </button>
                                 </div>
                             </form>
@@ -3363,7 +3567,9 @@ export default function LeanIndex({
                             <div>
                                 <h3 className="font-bold text-base text-white flex items-center gap-1.5">
                                     <PauseCircle className="w-4 h-4 text-orange-400" />
-                                    {showPendingModal.status === 'pending' ? 'Update Alasan Pending' : 'Tunda Isu (Pending)'}
+                                    {showPendingModal.status === 'pending'
+                                        ? (isEn ? 'Update Pending Reason' : 'Update Alasan Pending')
+                                        : (isEn ? 'Put Issue on Hold (Pending)' : 'Tunda Isu (Pending)')}
                                 </h3>
                                 <p className="text-xs text-slate-400 mt-0.5">
                                     #{showPendingModal.issue_code || showPendingModal.id} &bull; {showPendingModal.title}
@@ -3380,17 +3586,24 @@ export default function LeanIndex({
 
                         <form onSubmit={handlePendingSubmit} className="space-y-3.5">
                             <div className="p-2.5 rounded-lg bg-orange-950/30 border border-orange-500/30 text-[11px] text-orange-200 leading-relaxed">
-                                Status tiket akan diubah ke <strong>Pending</strong> dan pelapor akan otomatis mendapatkan pemberitahuan beserta alasan penundaan melalui WhatsApp.
+                                {isEn ? (
+                                    <>Ticket status will be set to <strong>Pending</strong> and the reporter will automatically receive an update with the hold reason via WhatsApp.</>
+                                ) : (
+                                    <>Status tiket akan diubah ke <strong>Pending</strong> dan pelapor akan otomatis mendapatkan pemberitahuan beserta alasan penundaan melalui WhatsApp.</>
+                                )}
                             </div>
 
                             <div>
                                 <label className="block text-xs font-bold text-slate-200 mb-1">
-                                    Alasan Pending / Kendala <span className="text-rose-400">* (Wajib)</span>
+                                    {isEn ? 'Pending / Blocker Reason ' : 'Alasan Pending / Kendala '}
+                                    <span className="text-rose-400">{isEn ? '* (Required)' : '* (Wajib)'}</span>
                                 </label>
                                 <textarea
                                     value={pendingReason}
                                     onChange={(e) => setPendingReason(e.target.value)}
-                                    placeholder="Contoh: Menunggu sparepart valve tiba dari Batam besok pagi / Menunggu kamar tamu check-out jam 12:00"
+                                    placeholder={isEn
+                                        ? 'Example: Waiting for valve spare part from Batam tomorrow morning / Waiting for guest room check-out at 12:00'
+                                        : 'Contoh: Menunggu sparepart valve tiba dari Batam besok pagi / Menunggu kamar tamu check-out jam 12:00'}
                                     rows={3}
                                     required
                                     className="w-full text-xs bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-orange-500"
@@ -3403,14 +3616,16 @@ export default function LeanIndex({
                                     onClick={() => setShowPendingModal(null)}
                                     className="flex-1 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold"
                                 >
-                                    Batal
+                                    {isEn ? 'Cancel' : 'Batal'}
                                 </button>
                                 <button
                                     type="submit"
                                     disabled={isSubmitting}
                                     className="flex-1 py-2 rounded-lg bg-orange-600 hover:bg-orange-500 disabled:opacity-50 text-white text-xs font-bold shadow-md cursor-pointer"
                                 >
-                                    {isSubmitting ? 'Menyimpan...' : 'Simpan Status Pending'}
+                                    {isSubmitting
+                                        ? (isEn ? 'Saving...' : 'Menyimpan...')
+                                        : (isEn ? 'Save Pending Status' : 'Simpan Status Pending')}
                                 </button>
                             </div>
                         </form>
@@ -3434,10 +3649,10 @@ export default function LeanIndex({
                                 <div>
                                     <h3 className="font-bold text-base text-white flex items-center gap-1.5">
                                         <ArrowRightLeft className="w-4 h-4 text-indigo-400" />
-                                        Alihkan ke Departemen Lain
+                                        {isEn ? 'Transfer to Another Department' : 'Alihkan ke Departemen Lain'}
                                     </h3>
                                     <p className="text-xs text-slate-400 mt-0.5">
-                                        #{showTransferModal.issue_code || showTransferModal.id} &bull; Dari {(showTransferModal.target_departments || []).join(', ')}
+                                        #{showTransferModal.issue_code || showTransferModal.id} &bull; {isEn ? 'From' : 'Dari'} {(showTransferModal.target_departments || []).map(formatDeptDisplay).join(', ')}
                                     </p>
                                 </div>
                                 <button
@@ -3451,12 +3666,16 @@ export default function LeanIndex({
 
                             <form onSubmit={handleTransferSubmit} className="space-y-3.5">
                                 <div className="p-2.5 rounded-lg bg-indigo-950/30 border border-indigo-500/30 text-[11px] text-indigo-200 leading-relaxed">
-                                    Isu akan dikembalikan ke status <strong>Open</strong> untuk departemen tujuan baru, tim aktif saat ini dikosongkan, riwayat kontributor tetap aman, dan pelapor dikabari via WA.
+                                    {isEn ? (
+                                        <>The issue will return to <strong>Open</strong> status for the new target department, current active team will be cleared while contributor history remains preserved, and the reporter will be notified via WA.</>
+                                    ) : (
+                                        <>Isu akan dikembalikan ke status <strong>Open</strong> untuk departemen tujuan baru, tim aktif saat ini dikosongkan, riwayat kontributor tetap aman, dan pelapor dikabari via WA.</>
+                                    )}
                                 </div>
 
                                 <div>
                                     <label className="block text-xs font-bold text-slate-200 mb-1">
-                                        Departemen Tujuan Baru <span className="text-rose-400">*</span>
+                                        {isEn ? 'New Target Department ' : 'Departemen Tujuan Baru '}<span className="text-rose-400">*</span>
                                     </label>
                                     <select
                                         value={transferTargetDept}
@@ -3465,19 +3684,22 @@ export default function LeanIndex({
                                         className="w-full text-xs bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-indigo-500"
                                     >
                                         {availableDepts.map((dept) => (
-                                            <option key={dept} value={dept}>{dept}</option>
+                                            <option key={dept} value={dept}>{formatDeptDisplay(dept)}</option>
                                         ))}
                                     </select>
                                 </div>
 
                                 <div>
                                     <label className="block text-xs font-bold text-slate-200 mb-1">
-                                        Alasan Pengalihan <span className="text-rose-400">* (Wajib)</span>
+                                        {isEn ? 'Transfer Reason ' : 'Alasan Pengalihan '}
+                                        <span className="text-rose-400">{isEn ? '* (Required)' : '* (Wajib)'}</span>
                                     </label>
                                     <textarea
                                         value={transferReason}
                                         onChange={(e) => setTransferReason(e.target.value)}
-                                        placeholder="Contoh: Setelah dicek di lokasi, kendala berada pada jaringan Wi-Fi Access Point yang menjadi wewenang tim IT."
+                                        placeholder={isEn
+                                            ? 'Example: After on-site inspection, the issue is on the Wi-Fi Access Point network managed by the IT team.'
+                                            : 'Contoh: Setelah dicek di lokasi, kendala berada pada jaringan Wi-Fi Access Point yang menjadi wewenang tim IT.'}
                                         rows={3}
                                         required
                                         className="w-full text-xs bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
@@ -3490,14 +3712,16 @@ export default function LeanIndex({
                                         onClick={() => setShowTransferModal(null)}
                                         className="flex-1 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold"
                                     >
-                                        Batal
+                                        {isEn ? 'Cancel' : 'Batal'}
                                     </button>
                                     <button
                                         type="submit"
                                         disabled={isSubmitting}
                                         className="flex-1 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-bold shadow-md cursor-pointer"
                                     >
-                                        {isSubmitting ? 'Mengalihkan...' : 'Konfirmasi Pengalihan'}
+                                        {isSubmitting
+                                            ? (isEn ? 'Transferring...' : 'Mengalihkan...')
+                                            : (isEn ? 'Confirm Transfer' : 'Konfirmasi Pengalihan')}
                                     </button>
                                 </div>
                             </form>
@@ -3514,23 +3738,27 @@ export default function LeanIndex({
                     <div className="w-full max-w-sm bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-5 space-y-4">
                         <div className="flex items-center gap-2 text-rose-400">
                             <AlertTriangle className="w-5 h-5 shrink-0" />
-                            <h3 className="font-bold text-sm text-white">Reset Seluruh Data Simulasi?</h3>
+                            <h3 className="font-bold text-sm text-white">
+                                {isEn ? 'Reset All Simulation Data?' : 'Reset Seluruh Data Simulasi?'}
+                            </h3>
                         </div>
                         <p className="text-xs text-slate-300 leading-relaxed">
-                            Tindakan ini akan mengosongkan seluruh tiket uji coba di Sandbox. Cocok dilakukan jika sesi latihan telah selesai.
+                            {isEn
+                                ? 'This action will clear all trial tickets in the Sandbox. Ideal when a training session has finished.'
+                                : 'Tindakan ini akan mengosongkan seluruh tiket uji coba di Sandbox. Cocok dilakukan jika sesi latihan telah selesai.'}
                         </p>
                         <div className="flex items-center justify-end gap-2 pt-2">
                             <button
                                 onClick={() => setShowResetConfirm(false)}
                                 className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold"
                             >
-                                Batal
+                                {isEn ? 'Cancel' : 'Batal'}
                             </button>
                             <button
                                 onClick={handleResetSandbox}
                                 className="px-3.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-md"
                             >
-                                Ya, Kosongkan Data
+                                {isEn ? 'Yes, Clear Data' : 'Ya, Kosongkan Data'}
                             </button>
                         </div>
                     </div>
@@ -3569,21 +3797,21 @@ export default function LeanIndex({
                                                 <span className={`px-2 py-0.5 rounded-full inline-flex items-center gap-1 border ${
                                                     isDark ? 'bg-amber-500/20 text-amber-300 border-amber-500/40' : 'bg-amber-100 text-amber-800 border-amber-300'
                                                 }`}>
-                                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500" /> Progress
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500" /> {isEn ? 'In Progress' : 'Progress'}
                                                 </span>
                                             )}
                                             {activeDetailIssue.status === 'pending' && (
                                                 <span className={`px-2 py-0.5 rounded-full inline-flex items-center gap-1 border ${
                                                     isDark ? 'bg-orange-500/20 text-orange-300 border-orange-500/40' : 'bg-orange-100 text-orange-800 border-orange-300'
                                                 }`}>
-                                                    <span className="w-1.5 h-1.5 rounded-full bg-orange-500" /> Tertunda
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-orange-500" /> {isEn ? 'Pending' : 'Tertunda'}
                                                 </span>
                                             )}
                                             {activeDetailIssue.status === 'resolved' && (
                                                 <span className={`px-2 py-0.5 rounded-full inline-flex items-center gap-1 border ${
                                                     isDark ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' : 'bg-emerald-100 text-emerald-800 border-emerald-300'
                                                 }`}>
-                                                    <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Selesai
+                                                    <CheckCircle2 className="w-3 h-3 text-emerald-600" /> {isEn ? 'Resolved' : 'Selesai'}
                                                 </span>
                                             )}
                                         </span>
@@ -3595,7 +3823,7 @@ export default function LeanIndex({
                                     </h3>
                                 ) : (
                                     <h3 className={`font-bold text-sm italic ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                                        Detail Isu Lapangan
+                                        {isEn ? 'Field Issue Details' : 'Detail Isu Lapangan'}
                                     </h3>
                                 )}
                             </div>
@@ -3623,12 +3851,12 @@ export default function LeanIndex({
                                                 isDark ? 'text-emerald-300' : 'text-emerald-800'
                                             }`}>
                                                 <Wrench className="w-3.5 h-3.5" />
-                                                Kelola Status &amp; Progress Isu
+                                                {isEn ? 'Manage Issue Status & Progress' : 'Kelola Status & Progress Isu'}
                                             </span>
                                             <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold border ${
                                                 isDark ? 'bg-emerald-950/60 border-emerald-700 text-emerald-300' : 'bg-white border-emerald-300 text-emerald-700'
                                             }`}>
-                                                {currentUser?.is_admin ? 'Akses Admin' : `Dept: ${myDept}`}
+                                                {currentUser?.is_admin ? (isEn ? 'Admin Access' : 'Akses Admin') : `Dept: ${formatDeptDisplay(myDept)}`}
                                             </span>
                                         </div>
                                         <div className="flex flex-wrap gap-2">
@@ -3643,7 +3871,7 @@ export default function LeanIndex({
                                                     }`}
                                                 >
                                                     <Play className="w-3.5 h-3.5" />
-                                                    <span>{activeDetailIssue.status === 'pending' ? 'Lanjutkan Progress' : 'Mulai Kerjakan'}</span>
+                                                    <span>{activeDetailIssue.status === 'pending' ? (isEn ? 'Resume Progress' : 'Lanjutkan Progress') : (isEn ? 'Start Working' : 'Mulai Kerjakan')}</span>
                                                 </button>
                                             )}
 
@@ -3654,7 +3882,7 @@ export default function LeanIndex({
                                                     className="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition cursor-pointer"
                                                 >
                                                     <MessageSquare className="w-3.5 h-3.5" />
-                                                    <span>Update Progress &amp; Tim</span>
+                                                    <span>{isEn ? 'Update Progress & Team' : 'Update Progress & Tim'}</span>
                                                 </button>
                                             )}
 
@@ -3664,7 +3892,7 @@ export default function LeanIndex({
                                                 className="px-3 py-1.5 rounded-lg bg-orange-600 hover:bg-orange-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition cursor-pointer"
                                             >
                                                 <PauseCircle className="w-3.5 h-3.5" />
-                                                <span>{activeDetailIssue.status === 'pending' ? 'Update Alasan Pending' : 'Tunda / Pending'}</span>
+                                                <span>{activeDetailIssue.status === 'pending' ? (isEn ? 'Update Pending Reason' : 'Update Alasan Pending') : (isEn ? 'Put on Hold / Pending' : 'Tunda / Pending')}</span>
                                             </button>
 
                                             <button
@@ -3673,7 +3901,7 @@ export default function LeanIndex({
                                                 className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition cursor-pointer"
                                             >
                                                 <CheckCircle2 className="w-3.5 h-3.5" />
-                                                <span>Tandai Selesai</span>
+                                                <span>{isEn ? 'Mark Resolved' : 'Tandai Selesai'}</span>
                                             </button>
 
                                             <button
@@ -3686,7 +3914,7 @@ export default function LeanIndex({
                                                 }`}
                                             >
                                                 <ArrowRightLeft className="w-3.5 h-3.5" />
-                                                <span>Alihkan ke Dept Lain</span>
+                                                <span>{isEn ? 'Transfer to Another Dept' : 'Alihkan ke Dept Lain'}</span>
                                             </button>
                                         </div>
                                     </div>
@@ -3696,11 +3924,15 @@ export default function LeanIndex({
                                     }`}>
                                         <Lock className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
                                         <div>
-                                            <p className="font-bold">Mode Lihat Saja</p>
+                                            <p className="font-bold">{isEn ? 'View-Only Mode' : 'Mode Lihat Saja'}</p>
                                             <p className={`text-[11px] mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
                                                 {!currentUser
-                                                    ? 'Silakan login terlebih dahulu menggunakan akun departemen penangan untuk mengubah status isu.'
-                                                    : `Anda masuk sebagai ${myName} (${myDept}). Hanya pemilik departemen tujuan (${(activeDetailIssue.target_departments || []).join(', ')}) atau Admin yang dapat mengubah status isu ini.`}
+                                                    ? (isEn
+                                                        ? 'Please log in with the handling department account to update this issue status.'
+                                                        : 'Silakan login terlebih dahulu menggunakan akun departemen penangan untuk mengubah status isu.')
+                                                    : (isEn
+                                                        ? `You are logged in as ${myName} (${formatDeptDisplay(myDept)}). Only owners of the target department (${(activeDetailIssue.target_departments || []).map(formatDeptDisplay).join(', ')}) or Admin can update this issue status.`
+                                                        : `Anda masuk sebagai ${myName} (${myDept}). Hanya pemilik departemen tujuan (${(activeDetailIssue.target_departments || []).join(', ')}) atau Admin yang dapat mengubah status isu ini.`)}
                                             </p>
                                         </div>
                                     </div>
@@ -3715,16 +3947,16 @@ export default function LeanIndex({
                                     <div className="flex items-center justify-between gap-2 font-bold">
                                         <span className="flex items-center gap-1.5">
                                             <PauseCircle className="w-4 h-4 text-orange-500" />
-                                            Status Pending / Tertunda
+                                            {isEn ? 'Pending / On Hold Status' : 'Status Pending / Tertunda'}
                                         </span>
                                         {activeDetailIssue.pending_since && (
                                             <span className="text-[10px] font-medium opacity-80">
-                                                Sejak: {formatDateTimeId(activeDetailIssue.pending_since)}
+                                                {isEn ? 'Since:' : 'Sejak:'} {formatDateTimeId(activeDetailIssue.pending_since)}
                                             </span>
                                         )}
                                     </div>
                                     <p className="text-xs leading-relaxed">
-                                        Alasan: <strong>{activeDetailIssue.pending_reason}</strong>
+                                        {isEn ? 'Reason:' : 'Alasan:'} <strong>{activeDetailIssue.pending_reason}</strong>
                                     </p>
                                 </div>
                             )}
@@ -3749,23 +3981,23 @@ export default function LeanIndex({
                                             }`}
                                             title={
                                                 canNavigate
-                                                    ? `Klik untuk melihat titik lokasi pada Denah ${locInfo.resort}`
-                                                    : 'Lokasi Kantor / Office (Denah pulau tidak tersedia)'
+                                                    ? (isEn ? `Click to view location pin on ${locInfo.resort} Map` : `Klik untuk melihat titik lokasi pada Denah ${locInfo.resort}`)
+                                                    : (isEn ? 'Office Location (Island map not available)' : 'Lokasi Kantor / Office (Denah pulau tidak tersedia)')
                                             }
                                         >
                                             <div className="flex items-center justify-between">
-                                                <span className={`text-[10px] font-medium block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Lokasi Masalah</span>
+                                                <span className={`text-[10px] font-medium block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{isEn ? 'Issue Location' : 'Lokasi Masalah'}</span>
                                                 {canNavigate ? (
                                                     <span className={`text-[9.5px] font-bold px-1.5 py-0.5 rounded border flex items-center gap-1 transition-colors ${
                                                         isDark
                                                             ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30 group-hover:bg-emerald-500 group-hover:text-slate-950'
                                                             : 'bg-emerald-100 text-emerald-800 border-emerald-200 group-hover:bg-emerald-600 group-hover:text-white'
                                                     }`}>
-                                                        <span>Peta {locInfo.resort}</span>
+                                                        <span>{isEn ? `${locInfo.resort} Map` : `Peta ${locInfo.resort}`}</span>
                                                         <ExternalLink className="w-2.5 h-2.5" />
                                                     </span>
                                                 ) : (
-                                                    <span className={`text-[9.5px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Kantor</span>
+                                                    <span className={`text-[9.5px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{isEn ? 'Office' : 'Kantor'}</span>
                                                 )}
                                             </div>
                                             <span className={`text-xs font-bold flex items-center gap-1 mt-0.5 ${
@@ -3786,9 +4018,9 @@ export default function LeanIndex({
                                                         className={`inline-flex items-center gap-1 text-[10px] font-bold mt-1 underline ${
                                                             isDark ? 'text-sky-400 hover:text-sky-300' : 'text-sky-600 hover:text-sky-700'
                                                         }`}
-                                                        title="Buka titik koordinat di Google Maps"
+                                                        title={isEn ? 'Open coordinates in Google Maps' : 'Buka titik koordinat di Google Maps'}
                                                     >
-                                                        <span>Buka Pin Google Maps</span>
+                                                        <span>{isEn ? 'Open Google Maps Pin' : 'Buka Pin Google Maps'}</span>
                                                         <ExternalLink className="w-2.5 h-2.5" />
                                                     </a>
                                                 );
@@ -3801,10 +4033,10 @@ export default function LeanIndex({
                                     <div className={`p-2.5 rounded-xl border ${
                                         isDark ? 'bg-slate-800/80 border-slate-700/80' : 'bg-slate-50 border-slate-200'
                                     }`}>
-                                        <span className={`text-[10px] font-medium block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Waktu Pelaporan</span>
+                                        <span className={`text-[10px] font-medium block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{isEn ? 'Reported Time' : 'Waktu Pelaporan'}</span>
                                         <span className={`text-xs font-semibold flex items-center gap-1 mt-0.5 ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
                                             <Clock className="w-3.5 h-3.5 text-slate-400" />
-                                            {activeDetailIssue.created_at_human || activeDetailIssue.created_at}
+                                            {formatRelativeTime(activeDetailIssue.created_at, activeDetailIssue.created_at_human) || activeDetailIssue.created_at}
                                         </span>
                                     </div>
                                 )}
@@ -3813,13 +4045,13 @@ export default function LeanIndex({
                                     <div className={`p-2.5 rounded-xl border ${
                                         isDark ? 'bg-slate-800/80 border-slate-700/80' : 'bg-slate-50 border-slate-200'
                                     }`}>
-                                        <span className={`text-[10px] font-medium block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Pelapor</span>
+                                        <span className={`text-[10px] font-medium block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{isEn ? 'Reporter' : 'Pelapor'}</span>
                                         <span className={`text-xs font-semibold flex items-center gap-1 mt-0.5 ${isDark ? 'text-white' : 'text-slate-900'}`}>
                                             <User className={`w-3.5 h-3.5 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
                                             {activeDetailIssue.reporter_name}
                                             {activeDetailIssue.reporter_dept && (
                                                 <span className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                                                    ({activeDetailIssue.reporter_dept})
+                                                    ({formatDeptDisplay(activeDetailIssue.reporter_dept)})
                                                 </span>
                                             )}
                                         </span>
@@ -3832,7 +4064,7 @@ export default function LeanIndex({
                                 <div className={`p-3 rounded-xl border space-y-1.5 ${
                                     isDark ? 'bg-slate-800/60 border-slate-700/80' : 'bg-slate-50 border-slate-200'
                                 }`}>
-                                    <span className={`text-[10px] font-semibold block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Departemen Dituju & Penerima Isu:</span>
+                                    <span className={`text-[10px] font-semibold block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{isEn ? 'Target Department & Issue Assignee:' : 'Departemen Dituju & Penerima Isu:'}</span>
                                     <div className="flex flex-wrap gap-1.5 items-center">
                                         {(activeDetailIssue.target_departments || []).map((dept) => {
                                             const isThisDeptClaimed = activeDetailIssue.claimed_by_dept && (
@@ -3863,15 +4095,15 @@ export default function LeanIndex({
                                                             : 'bg-white border-slate-300 text-slate-700'
                                                     }`}
                                                 >
-                                                    <span>{dept}</span>
+                                                    <span>{formatDeptDisplay(dept)}</span>
                                                     {isWorking ? (
-                                                        <span className={`text-[10px] font-bold ${isDark ? 'text-amber-300' : 'text-amber-700'}`}>🟡 Dikerjakan ({activeDetailIssue.claimed_by_name})</span>
+                                                        <span className={`text-[10px] font-bold ${isDark ? 'text-amber-300' : 'text-amber-700'}`}>{isEn ? `🟡 Working (${activeDetailIssue.claimed_by_name})` : `🟡 Dikerjakan (${activeDetailIssue.claimed_by_name})`}</span>
                                                     ) : isThisAcc ? (
-                                                        <span className={`text-[10px] font-bold ${isDark ? 'text-emerald-400' : 'text-emerald-700'}`}>✓ Diterima {accBy && `(${accBy})`}</span>
+                                                        <span className={`text-[10px] font-bold ${isDark ? 'text-emerald-400' : 'text-emerald-700'}`}>{isEn ? '✓ Accepted' : '✓ Diterima'} {accBy && `(${accBy})`}</span>
                                                     ) : activeDetailIssue.status === 'in_progress' ? (
-                                                        <span className={`text-[10px] ${isDark ? 'text-amber-400/80' : 'text-amber-700'}`}>Diproses ({activeDetailIssue.claimed_by_name || 'Tim'})</span>
+                                                        <span className={`text-[10px] ${isDark ? 'text-amber-400/80' : 'text-amber-700'}`}>{isEn ? `In Progress (${activeDetailIssue.claimed_by_name || 'Team'})` : `Diproses (${activeDetailIssue.claimed_by_name || 'Tim'})`}</span>
                                                     ) : (
-                                                        <span className={`text-[10px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Menunggu</span>
+                                                        <span className={`text-[10px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{isEn ? 'Waiting' : 'Menunggu'}</span>
                                                     )}
                                                 </span>
                                             );
@@ -3881,8 +4113,8 @@ export default function LeanIndex({
                                             <span className={`px-2 py-1 rounded-lg text-xs font-semibold border flex items-center gap-1.5 ${
                                                 isDark ? 'bg-amber-950/80 border-amber-500 text-amber-200' : 'bg-amber-100 border-amber-400 text-amber-900'
                                             }`}>
-                                                <span>{activeDetailIssue.claimed_by_dept}</span>
-                                                <span className={`text-[10px] font-bold ${isDark ? 'text-amber-300' : 'text-amber-700'}`}>🟡 Dikerjakan ({activeDetailIssue.claimed_by_name})</span>
+                                                <span>{formatDeptDisplay(activeDetailIssue.claimed_by_dept)}</span>
+                                                <span className={`text-[10px] font-bold ${isDark ? 'text-amber-300' : 'text-amber-700'}`}>{isEn ? `🟡 Working (${activeDetailIssue.claimed_by_name})` : `🟡 Dikerjakan (${activeDetailIssue.claimed_by_name})`}</span>
                                             </span>
                                         )}
                                     </div>
@@ -3892,11 +4124,11 @@ export default function LeanIndex({
                             {/* Deskripsi Lengkap */}
                             {visibleColumns.desc && (
                                 <div className="space-y-1">
-                                    <span className={`text-xs font-bold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Deskripsi Lengkap Masalah:</span>
+                                    <span className={`text-xs font-bold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>{isEn ? 'Full Issue Description:' : 'Deskripsi Lengkap Masalah:'}</span>
                                     <div className={`p-3 rounded-xl border text-xs leading-relaxed whitespace-pre-line ${
                                         isDark ? 'bg-slate-950/70 border-slate-800 text-slate-200' : 'bg-slate-50 border-slate-200 text-slate-800'
                                     }`}>
-                                        {activeDetailIssue.description || <span className={`italic ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Tidak ada deskripsi tambahan yang dilampirkan.</span>}
+                                        {activeDetailIssue.description || <span className={`italic ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{isEn ? 'No additional description attached.' : 'Tidak ada deskripsi tambahan yang dilampirkan.'}</span>}
                                     </div>
                                 </div>
                             )}
@@ -3906,23 +4138,23 @@ export default function LeanIndex({
                                 <div className="space-y-1.5">
                                     <span className={`text-xs font-bold flex items-center gap-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
                                         <Camera className={`w-3.5 h-3.5 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
-                                        Lampiran Foto Masalah:
+                                        {isEn ? 'Attached Issue Photo:' : 'Lampiran Foto Masalah:'}
                                     </span>
                                     <div
                                         onClick={() => setLightboxImage(activeDetailIssue.image_url)}
                                         className={`relative rounded-xl overflow-hidden border cursor-pointer group max-h-56 flex items-center justify-center ${
                                             isDark ? 'border-slate-700 bg-black/40' : 'border-slate-300 bg-slate-100'
                                         }`}
-                                        title="Klik untuk perbesar foto"
+                                        title={isEn ? 'Click to enlarge photo' : 'Klik untuk perbesar foto'}
                                     >
                                         <img
                                             src={activeDetailIssue.image_url}
-                                            alt="Bukti"
+                                            alt={isEn ? 'Photo proof' : 'Bukti'}
                                             className="max-h-56 w-full object-cover group-hover:scale-105 transition-transform"
                                         />
                                         <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                                             <span className="text-xs font-bold text-white bg-black/70 px-3 py-1.5 rounded-lg flex items-center gap-1.5">
-                                                <Eye className="w-4 h-4" /> Klik untuk Perbesar
+                                                <Eye className="w-4 h-4" /> {isEn ? 'Click to Enlarge' : 'Klik untuk Perbesar'}
                                             </span>
                                         </div>
                                     </div>
@@ -3941,12 +4173,12 @@ export default function LeanIndex({
                                 }`}>
                                     <div className={`font-bold flex items-center gap-1.5 ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
                                         <Award className="w-3.5 h-3.5 text-emerald-500" />
-                                        <span>Tim Pelaksana &amp; Kontributor Evaluasi</span>
+                                        <span>{isEn ? 'Assigned Team & Evaluation Contributors' : 'Tim Pelaksana & Kontributor Evaluasi'}</span>
                                     </div>
 
                                     {activeDetailIssue.active_workers && activeDetailIssue.active_workers.length > 0 && activeDetailIssue.status !== 'resolved' && (
                                         <div className="flex flex-wrap items-center gap-1.5">
-                                            <span className={`text-[11px] ${isDark ? 'text-amber-300' : 'text-amber-800 font-semibold'}`}>Pekerja Aktif:</span>
+                                            <span className={`text-[11px] ${isDark ? 'text-amber-300' : 'text-amber-800 font-semibold'}`}>{isEn ? 'Active Workers:' : 'Pekerja Aktif:'}</span>
                                             {activeDetailIssue.active_workers.map((w) => (
                                                 <span key={w} className={`px-2 py-0.5 rounded-md text-[11px] font-bold border ${
                                                     isDark ? 'bg-amber-950/70 border-amber-500/40 text-amber-200' : 'bg-amber-100 border-amber-300 text-amber-900'
@@ -3959,13 +4191,13 @@ export default function LeanIndex({
 
                                     {activeDetailIssue.initial_workers && activeDetailIssue.initial_workers.length > 0 && (
                                         <p className={`text-[11px] ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                                            Pekerja Awal (Claim): <strong>{activeDetailIssue.initial_workers.join(', ')}</strong>
+                                            {isEn ? 'Initial Workers (Claim):' : 'Pekerja Awal (Claim):'} <strong>{activeDetailIssue.initial_workers.join(', ')}</strong>
                                         </p>
                                     )}
 
                                     {activeDetailIssue.claimed_by_name && (!activeDetailIssue.active_workers || activeDetailIssue.active_workers.length === 0) && activeDetailIssue.status !== 'resolved' && (
                                         <p className={isDark ? 'text-amber-300' : 'text-amber-800 font-medium'}>
-                                            Dikerjakan oleh: <strong>{activeDetailIssue.claimed_by_name}</strong> ({activeDetailIssue.claimed_by_dept})
+                                            {isEn ? 'Handled by:' : 'Dikerjakan oleh:'} <strong>{activeDetailIssue.claimed_by_name}</strong> ({formatDeptDisplay(activeDetailIssue.claimed_by_dept)})
                                         </p>
                                     )}
 
@@ -3974,7 +4206,7 @@ export default function LeanIndex({
                                             isDark ? 'bg-emerald-950/30 border-emerald-700/40 text-emerald-200' : 'bg-emerald-50 border-emerald-200 text-emerald-900'
                                         }`}>
                                             <p>
-                                                Diselesaikan oleh: <strong>{activeDetailIssue.resolved_by_name}</strong> ({activeDetailIssue.resolved_by_dept})
+                                                {isEn ? 'Resolved by:' : 'Diselesaikan oleh:'} <strong>{activeDetailIssue.resolved_by_name}</strong> ({formatDeptDisplay(activeDetailIssue.resolved_by_dept)})
                                             </p>
                                             {activeDetailIssue.resolution_note && (
                                                 <p className="text-[11px] italic">"{activeDetailIssue.resolution_note}"</p>
@@ -3983,11 +4215,11 @@ export default function LeanIndex({
                                                 <div
                                                     onClick={() => setLightboxImage(activeDetailIssue.resolution_image_url)}
                                                     className="relative rounded-lg overflow-hidden border border-emerald-500/30 cursor-pointer max-h-40 flex items-center justify-center bg-black/40"
-                                                    title="Klik untuk perbesar foto bukti selesai"
+                                                    title={isEn ? 'Click to enlarge resolution photo' : 'Klik untuk perbesar foto bukti selesai'}
                                                 >
                                                     <img
                                                         src={activeDetailIssue.resolution_image_url}
-                                                        alt="Bukti Penyelesaian"
+                                                        alt={isEn ? 'Resolution proof' : 'Bukti Penyelesaian'}
                                                         className="max-h-40 w-full object-cover"
                                                     />
                                                 </div>
@@ -4000,7 +4232,7 @@ export default function LeanIndex({
                                             isDark ? 'border-slate-700/60' : 'border-slate-200'
                                         }`}>
                                             <span className={`text-[11px] font-semibold ${isDark ? 'text-emerald-300' : 'text-emerald-800'}`}>
-                                                Seluruh Kontributor ({activeDetailIssue.contributors.length}):
+                                                {isEn ? `All Contributors (${activeDetailIssue.contributors.length}):` : `Seluruh Kontributor (${activeDetailIssue.contributors.length}):`}
                                             </span>
                                             {activeDetailIssue.contributors.map((c) => (
                                                 <span key={c} className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
@@ -4021,7 +4253,7 @@ export default function LeanIndex({
                                 }`}>
                                     <div className={`flex items-center gap-1.5 font-bold ${isDark ? 'text-sky-400' : 'text-sky-800'}`}>
                                         <History className="w-3.5 h-3.5" />
-                                        <span>Timeline Komentar &amp; Aktivitas ({activeDetailIssue.progress_logs.length})</span>
+                                        <span>{isEn ? `Comments & Activity Timeline (${activeDetailIssue.progress_logs.length})` : `Timeline Komentar & Aktivitas (${activeDetailIssue.progress_logs.length})`}</span>
                                     </div>
                                     <div className="space-y-1.5 pl-2.5 border-l-2 border-sky-500/40">
                                         {activeDetailIssue.progress_logs.map((log, idx) => {
@@ -4047,11 +4279,11 @@ export default function LeanIndex({
                                             }[effectiveLogType] || 'bg-slate-100 text-slate-700 border-slate-300');
 
                                             const typeText = {
-                                                claim: 'Claim / Kerja',
+                                                claim: isEn ? 'Claim / Start' : 'Claim / Kerja',
                                                 progress: 'Progress',
                                                 pending: 'Pending',
-                                                transfer: 'Dialihkan',
-                                                resolved: 'Selesai',
+                                                transfer: isEn ? 'Transferred' : 'Dialihkan',
+                                                resolved: isEn ? 'Resolved' : 'Selesai',
                                             }[effectiveLogType] || effectiveLogType;
 
                                             return (
@@ -4068,7 +4300,7 @@ export default function LeanIndex({
                                                             </span>
                                                             {log.actor_dept && (
                                                                 <span className={`text-[10px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                                                                    ({log.actor_dept})
+                                                                    ({formatDeptDisplay(log.actor_dept)})
                                                                 </span>
                                                             )}
                                                         </div>
@@ -4084,12 +4316,12 @@ export default function LeanIndex({
                                                     <div className="flex items-center justify-between gap-2 flex-wrap">
                                                         {Array.isArray(log.workers) && log.workers.length > 0 && (
                                                             <span className={`text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                                                                Tim: <strong className={isDark ? 'text-slate-300' : 'text-slate-700'}>{log.workers.join(', ')}</strong>
+                                                                {isEn ? 'Team:' : 'Tim:'} <strong className={isDark ? 'text-slate-300' : 'text-slate-700'}>{log.workers.join(', ')}</strong>
                                                             </span>
                                                         )}
                                                         {log.notified_wa && (
                                                             <span className="text-[9.5px] text-emerald-400 font-semibold ml-auto">
-                                                                WA Pelapor Terkirim ✓
+                                                                {isEn ? 'Reporter WA Sent ✓' : 'WA Pelapor Terkirim ✓'}
                                                             </span>
                                                         )}
                                                     </div>
@@ -4107,7 +4339,7 @@ export default function LeanIndex({
                                 }`}>
                                     <div className={`flex items-center gap-1.5 font-bold ${isDark ? 'text-amber-400' : 'text-amber-800'}`}>
                                         <RotateCcw className="w-3.5 h-3.5" />
-                                        <span>Riwayat Pengalihan Departemen ({activeDetailIssue.transfer_history.length}x)</span>
+                                        <span>{isEn ? `Department Transfer History (${activeDetailIssue.transfer_history.length}x)` : `Riwayat Pengalihan Departemen (${activeDetailIssue.transfer_history.length}x)`}</span>
                                     </div>
                                     <div className="space-y-1.5 pl-2 border-l-2 border-amber-500/40">
                                         {activeDetailIssue.transfer_history.map((hist, idx) => (
@@ -4116,19 +4348,19 @@ export default function LeanIndex({
                                             }`}>
                                                 <div className={`flex items-center justify-between text-[11px] font-semibold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
                                                     <span>
-                                                        <span className={isDark ? 'text-slate-400' : 'text-slate-600'}>{hist.from_department}</span>
+                                                        <span className={isDark ? 'text-slate-400' : 'text-slate-600'}>{formatDeptDisplay(hist.from_department)}</span>
                                                         <span className="text-amber-500 mx-1.5">➔</span>
-                                                        <span className={isDark ? 'text-emerald-400' : 'text-emerald-700'}>{hist.to_department}</span>
+                                                        <span className={isDark ? 'text-emerald-400' : 'text-emerald-700'}>{formatDeptDisplay(hist.to_department)}</span>
                                                     </span>
                                                     <span className={`text-[10px] font-normal ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                                                        {hist.transferred_at ? new Date(hist.transferred_at).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' }) : ''}
+                                                        {hist.transferred_at ? formatDateTimeId(hist.transferred_at, true) : ''}
                                                     </span>
                                                 </div>
                                                 <p className={`text-[11px] italic ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
                                                     "{hist.reason}"
                                                 </p>
                                                 <p className={`text-[10px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                                                    Oleh: <strong className={isDark ? 'text-slate-400' : 'text-slate-600'}>{hist.transferred_by}</strong>
+                                                    {isEn ? 'By:' : 'Oleh:'} <strong className={isDark ? 'text-slate-400' : 'text-slate-600'}>{hist.transferred_by}</strong>
                                                 </p>
                                             </div>
                                         ))}
@@ -4148,10 +4380,10 @@ export default function LeanIndex({
                                     className={`text-[11px] flex items-center gap-1.5 transition-colors ${
                                         isDark ? 'text-slate-400 hover:text-emerald-400' : 'text-slate-600 hover:text-emerald-700'
                                     }`}
-                                    title="Ubah kolom yang ditampilkan di modal & tabel"
+                                    title={isEn ? 'Customize columns shown in modal & table' : 'Ubah kolom yang ditampilkan di modal & tabel'}
                                 >
                                     <SlidersHorizontal className="w-3.5 h-3.5" />
-                                    <span>Sesuaikan Tampilan Data ({activeColumnCount}/{COLUMN_DEFS.length})</span>
+                                    <span>{isEn ? `Customize View (${activeColumnCount}/${columnDefs.length})` : `Sesuaikan Tampilan Data (${activeColumnCount}/${columnDefs.length})`}</span>
                                 </button>
                                 {canManageIssue(activeDetailIssue) && (
                                     <button
@@ -4164,7 +4396,7 @@ export default function LeanIndex({
                                         }`}
                                     >
                                         <Trash2 className="w-3 h-3 text-rose-500" />
-                                        <span>Hapus Tiket</span>
+                                        <span>{isEn ? 'Delete Ticket' : 'Hapus Tiket'}</span>
                                     </button>
                                 )}
                             </div>
@@ -4175,7 +4407,7 @@ export default function LeanIndex({
                                     isDark ? 'bg-slate-800 hover:bg-slate-700 text-slate-200' : 'bg-slate-200 hover:bg-slate-300 text-slate-800'
                                 }`}
                             >
-                                Tutup
+                                {isEn ? 'Close' : 'Tutup'}
                             </button>
                         </div>
                     </div>
@@ -4191,14 +4423,14 @@ export default function LeanIndex({
                     <div className="relative max-w-3xl max-h-[90vh]">
                         <img
                             src={lightboxImage}
-                            alt="Bukti Besar"
+                            alt={isEn ? 'Enlarged proof' : 'Bukti Besar'}
                             className="max-w-full max-h-[90vh] object-contain rounded-lg"
                         />
                         <button
                             onClick={() => setLightboxImage(null)}
                             className="absolute -top-10 right-0 text-white text-xs font-semibold bg-white/20 hover:bg-white/30 px-3 py-1 rounded-full"
                         >
-                            Tutup [X]
+                            {isEn ? 'Close [X]' : 'Tutup [X]'}
                         </button>
                     </div>
                 </div>
@@ -4244,8 +4476,10 @@ export default function LeanIndex({
                                     <SlidersHorizontal className="w-4 h-4" />
                                 </div>
                                 <div>
-                                    <h3 className={`font-bold text-sm ${isDark ? 'text-white' : 'text-slate-900'}`}>Kustomisasi Tampilan Data</h3>
-                                    <p className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Pilih data yang ingin dimunculkan ({activeColumnCount} dari {COLUMN_DEFS.length} aktif)</p>
+                                    <h3 className={`font-bold text-sm ${isDark ? 'text-white' : 'text-slate-900'}`}>{isEn ? 'Customize Data View' : 'Kustomisasi Tampilan Data'}</h3>
+                                    <p className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                        {isEn ? `Select fields to display (${activeColumnCount} of ${columnDefs.length} active)` : `Pilih data yang ingin dimunculkan (${activeColumnCount} dari ${columnDefs.length} aktif)`}
+                                    </p>
                                 </div>
                             </div>
                             <button
@@ -4260,7 +4494,7 @@ export default function LeanIndex({
 
                         {/* Column Toggles List */}
                         <div className="p-4 space-y-2 max-h-[60vh] overflow-y-auto">
-                            {COLUMN_DEFS.map((col) => {
+                            {columnDefs.map((col) => {
                                 const isVisible = !!visibleColumns[col.id];
                                 return (
                                     <button
@@ -4287,14 +4521,14 @@ export default function LeanIndex({
                                                     isDark ? 'text-emerald-400 bg-emerald-950/80 border-emerald-800/60' : 'text-emerald-800 bg-emerald-100 border-emerald-300'
                                                 }`}>
                                                     <Eye className="w-3 h-3" />
-                                                    Tampil
+                                                    {isEn ? 'Shown' : 'Tampil'}
                                                 </span>
                                             ) : (
                                                 <span className={`flex items-center gap-1 text-[11px] px-2 py-0.5 rounded border ${
                                                     isDark ? 'text-slate-500 bg-slate-800/60 border-slate-800' : 'text-slate-500 bg-slate-200 border-slate-300'
                                                 }`}>
                                                     <EyeOff className="w-3 h-3" />
-                                                    Disembunyikan
+                                                    {isEn ? 'Hidden' : 'Disembunyikan'}
                                                 </span>
                                             )}
                                         </div>
@@ -4315,7 +4549,7 @@ export default function LeanIndex({
                                         isDark ? 'text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700' : 'text-slate-700 hover:text-slate-900 bg-slate-200 hover:bg-slate-300'
                                     }`}
                                 >
-                                    Pilih Semua
+                                    {isEn ? 'Select All' : 'Pilih Semua'}
                                 </button>
                                 <button
                                     type="button"
@@ -4333,7 +4567,7 @@ export default function LeanIndex({
                                 onClick={() => setShowColumnModal(false)}
                                 className="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md transition-all"
                             >
-                                Selesai
+                                {isEn ? 'Done' : 'Selesai'}
                             </button>
                         </div>
                     </div>
@@ -4361,8 +4595,8 @@ export default function LeanIndex({
                                     <Trash2 className="w-4 h-4" />
                                 </div>
                                 <div>
-                                    <h3 className="font-bold text-sm text-white">Hapus Tiket #{issueToDelete.issue_code || ('LEAN-' + issueToDelete.id)}</h3>
-                                    <p className="text-[11px] text-slate-400">Soft Delete & Sinkronisasi Spreadsheet</p>
+                                    <h3 className="font-bold text-sm text-white">{isEn ? 'Delete Ticket' : 'Hapus Tiket'} #{issueToDelete.issue_code || ('LEAN-' + issueToDelete.id)}</h3>
+                                    <p className="text-[11px] text-slate-400">{isEn ? 'Soft Delete & Spreadsheet Sync' : 'Soft Delete & Sinkronisasi Spreadsheet'}</p>
                                 </div>
                             </div>
                             <button
@@ -4378,32 +4612,42 @@ export default function LeanIndex({
                             <div className="p-3 bg-slate-800/80 border border-slate-700 rounded-xl space-y-1">
                                 <div className="text-xs font-bold text-white line-clamp-2">{issueToDelete.title}</div>
                                 <div className="text-[11px] text-slate-400 flex items-center gap-2">
-                                    <span>Lokasi: <strong className="text-slate-300">{issueToDelete.location}</strong></span>
+                                    <span>{isEn ? 'Location:' : 'Lokasi:'} <strong className="text-slate-300">{issueToDelete.location}</strong></span>
                                     <span>•</span>
-                                    <span>Pelapor: <strong className="text-slate-300">{issueToDelete.reporter_name}</strong></span>
+                                    <span>{isEn ? 'Reporter:' : 'Pelapor:'} <strong className="text-slate-300">{issueToDelete.reporter_name}</strong></span>
                                 </div>
                             </div>
 
                             <div className="p-3 bg-amber-950/30 border border-amber-500/30 rounded-xl text-xs space-y-1 text-amber-200/90 leading-relaxed">
                                 <p className="font-semibold text-amber-300 flex items-center gap-1.5">
                                     <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-                                    Kebijakan Integritas Data:
+                                    {isEn ? 'Data Integrity Policy:' : 'Kebijakan Integritas Data:'}
                                 </p>
                                 <ul className="list-disc list-inside space-y-0.5 text-[11px] text-amber-200/80">
-                                    <li>Tiket ini akan <strong>disembunyikan dari dashboard & grafik</strong>.</li>
-                                    <li>Data di <strong>Google Spreadsheet TIDAK DIHAPUS</strong>, melainkan ditandai non-aktif (<strong>Aktif di Dashboard = 0</strong>).</li>
-                                    <li>Nama dan waktu penghapusan akan diaudit secara otomatis.</li>
+                                    {isEn ? (
+                                        <>
+                                            <li>This ticket will be <strong>hidden from the dashboard &amp; charts</strong>.</li>
+                                            <li>Data in <strong>Google Spreadsheet is NOT DELETED</strong>, instead marked inactive (<strong>Active in Dashboard = 0</strong>).</li>
+                                            <li>Your name and deletion time will be automatically audited.</li>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <li>Tiket ini akan <strong>disembunyikan dari dashboard &amp; grafik</strong>.</li>
+                                            <li>Data di <strong>Google Spreadsheet TIDAK DIHAPUS</strong>, melainkan ditandai non-aktif (<strong>Aktif di Dashboard = 0</strong>).</li>
+                                            <li>Nama dan waktu penghapusan akan diaudit secara otomatis.</li>
+                                        </>
+                                    )}
                                 </ul>
                             </div>
 
                             <div>
                                 <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                                    Dihapus Oleh Akun Terautentikasi:
+                                    {isEn ? 'Deleted By Authenticated Account:' : 'Dihapus Oleh Akun Terautentikasi:'}
                                 </label>
                                 <div className="w-full bg-slate-800/70 border border-slate-700 rounded-xl px-3 py-2 text-slate-200 text-xs font-semibold flex items-center justify-between gap-2">
                                     <span className="truncate">{currentUser?.staff_name || myName}</span>
                                     <span className="text-[10px] px-2 py-0.5 rounded bg-slate-900 border border-slate-700 text-slate-400 shrink-0">
-                                        {currentUser?.is_admin ? 'Admin' : myDept}
+                                        {currentUser?.is_admin ? 'Admin' : formatDeptDisplay(myDept)}
                                     </span>
                                 </div>
                             </div>
@@ -4416,7 +4660,7 @@ export default function LeanIndex({
                                 disabled={isDeleting}
                                 className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition"
                             >
-                                Batal
+                                {isEn ? 'Cancel' : 'Batal'}
                             </button>
                             <button
                                 type="button"
@@ -4425,7 +4669,7 @@ export default function LeanIndex({
                                 className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-md shadow-rose-600/30 flex items-center gap-1.5 transition disabled:opacity-50"
                             >
                                 <Trash2 className={`w-3.5 h-3.5 ${isDeleting ? 'animate-spin' : ''}`} />
-                                <span>{isDeleting ? 'Menghapus...' : 'Hapus Tiket'}</span>
+                                <span>{isDeleting ? (isEn ? 'Deleting...' : 'Menghapus...') : (isEn ? 'Delete Ticket' : 'Hapus Tiket')}</span>
                             </button>
                         </div>
                     </div>
@@ -4434,7 +4678,7 @@ export default function LeanIndex({
 
             {/* MOBILE BOTTOM NAVIGATION DOCK (KARTU & PETA) */}
             <nav
-                aria-label="Navigasi Bawah Mobile Lapangan"
+                aria-label={isEn ? 'Mobile Field Bottom Navigation' : 'Navigasi Bawah Mobile Lapangan'}
                 className={`fixed bottom-0 inset-x-0 z-40 md:hidden backdrop-blur-xl border-t shadow-[0_-8px_30px_rgba(0,0,0,0.4)] transition-colors duration-200 ${
                     isDark
                         ? 'bg-slate-900/95 border-slate-800 text-slate-300'
@@ -4456,7 +4700,7 @@ export default function LeanIndex({
                         }`}
                     >
                         <Table className="w-3.5 h-3.5 shrink-0" />
-                        <span>Tabel</span>
+                        <span>{isEn ? 'Table' : 'Tabel'}</span>
                     </button>
 
                     {/* Tab 2: Kartu */}
@@ -4472,7 +4716,7 @@ export default function LeanIndex({
                         }`}
                     >
                         <LayoutGrid className="w-3.5 h-3.5 shrink-0" />
-                        <span>Kartu</span>
+                        <span>{isEn ? 'Cards' : 'Kartu'}</span>
                         <span className={`text-[9px] px-1 py-0.2 rounded-full font-bold ${
                             viewMode === 'cards'
                                 ? 'bg-white/20 text-white'
@@ -4497,7 +4741,7 @@ export default function LeanIndex({
                         }`}
                     >
                         <BarChart3 className="w-3.5 h-3.5 shrink-0" />
-                        <span>Analisis</span>
+                        <span>{isEn ? 'Analytics' : 'Analisis'}</span>
                     </button>
                 </div>
             </nav>
@@ -4508,10 +4752,10 @@ export default function LeanIndex({
                     type="button"
                     onClick={() => setShowReportModal(true)}
                     className="fixed bottom-20 sm:bottom-6 right-4 sm:right-6 z-40 bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-3 sm:px-5 sm:py-3.5 rounded-full shadow-2xl hover:shadow-emerald-500/40 flex items-center gap-2 hover:scale-105 active:scale-95 transition-all border border-emerald-400/40 cursor-pointer"
-                    title="Laporkan Masalah Baru"
+                    title={isEn ? 'Report New Issue' : 'Laporkan Masalah Baru'}
                 >
                     <Plus className="w-5 h-5 text-white" />
-                    <span className="text-xs sm:text-sm tracking-wide">Lapor Masalah</span>
+                    <span className="text-xs sm:text-sm tracking-wide">{isEn ? 'Report Issue' : 'Lapor Masalah'}</span>
                 </button>
             )}
 
@@ -4531,10 +4775,10 @@ export default function LeanIndex({
                                 </div>
                                 <div>
                                     <h3 className={`font-bold text-sm ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                                        Antrean Offline HP (Outbox)
+                                        {isEn ? 'Device Offline Queue (Outbox)' : 'Antrean Offline HP (Outbox)'}
                                     </h3>
                                     <p className="text-[11px] text-slate-400">
-                                        {outboxTickets.length} tiket tersimpan di memori perangkat
+                                        {outboxTickets.length} {isEn ? 'ticket(s) saved in device memory' : 'tiket tersimpan di memori perangkat'}
                                     </p>
                                 </div>
                             </div>
@@ -4551,9 +4795,11 @@ export default function LeanIndex({
                             {outboxTickets.length === 0 ? (
                                 <div className="text-center py-8 text-slate-400">
                                     <CheckCircle2 className="w-10 h-10 mx-auto text-emerald-500 mb-2 opacity-80" />
-                                    <p className="font-bold text-xs">Antrean Bersih / Kosong</p>
+                                    <p className="font-bold text-xs">{isEn ? 'Queue Clean / Empty' : 'Antrean Bersih / Kosong'}</p>
                                     <p className="text-[11px] mt-0.5 max-w-xs mx-auto">
-                                        Semua laporan dari HP ini telah berhasil dikirim ke server Cloud dan disinkronkan ke Google Sheets.
+                                        {isEn
+                                            ? 'All reports from this device have been sent to the Cloud server and synced to Google Sheets.'
+                                            : 'Semua laporan dari HP ini telah berhasil dikirim ke server Cloud dan disinkronkan ke Google Sheets.'}
                                     </p>
                                 </div>
                             ) : (
@@ -4567,7 +4813,7 @@ export default function LeanIndex({
                                         {/* Photo thumbnail */}
                                         <div className="w-14 h-14 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center overflow-hidden shrink-0">
                                             {item.imagePreview ? (
-                                                <img src={item.imagePreview} alt="Foto" className="w-full h-full object-cover" />
+                                                <img src={item.imagePreview} alt={isEn ? 'Photo' : 'Foto'} className="w-full h-full object-cover" />
                                             ) : (
                                                 <ImageIcon className="w-5 h-5 text-slate-500" />
                                             )}
@@ -4585,16 +4831,16 @@ export default function LeanIndex({
                                             <div className="flex flex-wrap items-center gap-1 mt-1.5">
                                                 {item.target_departments?.map((d) => (
                                                     <span key={d} className="text-[9.5px] px-1.5 py-0.2 rounded bg-indigo-500/20 text-indigo-300 font-semibold border border-indigo-500/30">
-                                                        {d}
+                                                        {formatDeptDisplay(d)}
                                                     </span>
                                                 ))}
                                                 <span className="text-[9.5px] text-slate-500 ml-auto">
-                                                    {new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                    {new Date(item.createdAt).toLocaleTimeString(isEn ? 'en-US' : 'id-ID', { hour: '2-digit', minute: '2-digit' })}
                                                 </span>
                                             </div>
                                             {item.errorMessage && (
                                                 <p className="text-[10px] text-rose-400 mt-1 bg-rose-950/40 px-2 py-0.5 rounded border border-rose-800/40 truncate">
-                                                    Gagal: {item.errorMessage}
+                                                    {isEn ? 'Failed:' : 'Gagal:'} {item.errorMessage}
                                                 </p>
                                             )}
                                         </div>
@@ -4604,7 +4850,7 @@ export default function LeanIndex({
                                             type="button"
                                             onClick={() => handleDeleteOutboxItem(item.id)}
                                             className="p-1.5 rounded-lg hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 transition-colors shrink-0 cursor-pointer"
-                                            title="Batalkan dan hapus draf ini"
+                                            title={isEn ? 'Cancel and delete this draft' : 'Batalkan dan hapus draf ini'}
                                         >
                                             <Trash2 className="w-4 h-4" />
                                         </button>
@@ -4620,7 +4866,7 @@ export default function LeanIndex({
                             <div className="flex items-center gap-2">
                                 <span className={`w-2 h-2 rounded-full ${isOnline ? 'bg-emerald-500' : 'bg-rose-500'}`} />
                                 <span className={`text-[11px] font-semibold ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-                                    {isOnline ? 'Online (Siap Kirim)' : 'Offline (Menunggu Sinyal)'}
+                                    {isOnline ? (isEn ? 'Online (Ready to Send)' : 'Online (Siap Kirim)') : (isEn ? 'Offline (Waiting for Signal)' : 'Offline (Menunggu Sinyal)')}
                                 </span>
                             </div>
                             {outboxTickets.length > 0 && (
@@ -4633,12 +4879,12 @@ export default function LeanIndex({
                                     {isSyncingOutbox ? (
                                         <>
                                             <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                                            <span>Mengirim...</span>
+                                            <span>{isEn ? 'Sending...' : 'Mengirim...'}</span>
                                         </>
                                     ) : (
                                         <>
                                             <CloudUpload className="w-3.5 h-3.5" />
-                                            <span>Kirim Semua ({outboxTickets.length})</span>
+                                            <span>{isEn ? `Send All (${outboxTickets.length})` : `Kirim Semua (${outboxTickets.length})`}</span>
                                         </>
                                     )}
                                 </button>
@@ -4661,13 +4907,13 @@ export default function LeanIndex({
                         className="flex items-center gap-2 text-xs font-bold text-sky-300 hover:text-white transition-colors cursor-pointer"
                     >
                         <ArrowLeft className="w-4 h-4 text-sky-400 animate-pulse" />
-                        <span>Kembali ke Tiket #{returnTicket.issue.issue_code || returnTicket.issue.id}</span>
+                        <span>{isEn ? 'Back to Ticket' : 'Kembali ke Tiket'} #{returnTicket.issue.issue_code || returnTicket.issue.id}</span>
                     </button>
                     <button
                         type="button"
                         onClick={() => setReturnTicket(null)}
                         className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 text-xs ml-1 transition-colors cursor-pointer"
-                        title="Tutup tombol kembali"
+                        title={isEn ? 'Dismiss back button' : 'Tutup tombol kembali'}
                     >
                         <X className="w-3.5 h-3.5" />
                     </button>

@@ -5,6 +5,7 @@ import InputLabel from '@/Components/InputLabel';
 import PrimaryButton from '@/Components/PrimaryButton';
 import TextInput from '@/Components/TextInput';
 import GuestLayout from '@/Layouts/GuestLayout';
+import { useLanguage } from '@/context/LanguageContext';
 import { Head, Link, router, useForm } from '@inertiajs/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Loader2, Power } from 'lucide-react';
@@ -21,6 +22,11 @@ export default function Login({
     botRecoveryExpiresAt = 0,
     serverNow = 0,
 }) {
+    const { lang } = useLanguage();
+    const isEn = lang === 'en';
+    const isEnRef = useRef(isEn);
+    isEnRef.current = isEn;
+
     const { data, setData, post, processing, errors, reset, transform } = useForm({
         email: '',
         password: '',
@@ -76,10 +82,12 @@ export default function Login({
         } else if (botRecoveryState === 'needs_pairing') {
             setRecoveryPhase('needs_pairing');
             setRecoveryMessage(
-                'Bot menyala namun sesi WhatsApp terputus atau belum ter-pair. Pulihkan sesi via CLI server (node bot-v2.js) atau ubah LOGIN_OTP_ENABLED=false di .env untuk pemulihan darurat.'
+                isEn
+                    ? 'The bot is running, but its WhatsApp session is disconnected or unpaired. Restore via server CLI (node bot-v2.js) or set LOGIN_OTP_ENABLED=false in .env for emergency recovery.'
+                    : 'Bot menyala namun sesi WhatsApp terputus atau belum ter-pair. Pulihkan sesi via CLI server (node bot-v2.js) atau ubah LOGIN_OTP_ENABLED=false di .env untuk pemulihan darurat.'
             );
         }
-    }, [canRecoverBot, botRecoveryState, botRecoveryExpiresAt, serverNow, stopPolling]);
+    }, [canRecoverBot, botRecoveryState, botRecoveryExpiresAt, serverNow, stopPolling, isEn]);
 
     useEffect(() => {
         if (!canRecoverBot || !botRecoveryExpiresAt) {
@@ -101,6 +109,7 @@ export default function Login({
 
     const pollBotReadiness = useCallback(async (attempt = 1) => {
         if (!isMountedRef.current) return;
+        const enNow = isEnRef.current;
 
         try {
             const res = await axios.get(route('login.bot.status'));
@@ -110,7 +119,12 @@ export default function Login({
             if (payload.status === 'otp_sent' && payload.redirect) {
                 stopPolling();
                 setRecoveryPhase('otp_sent');
-                setRecoveryMessage(payload.message || 'Bot aktif dan OTP terkirim. Mengalihkan...');
+                setRecoveryMessage(
+                    payload.message ||
+                        (enNow
+                            ? 'Bot is active and OTP has been sent. Redirecting...'
+                            : 'Bot aktif dan OTP terkirim. Mengalihkan...')
+                );
                 router.visit(payload.redirect);
                 return;
             }
@@ -123,13 +137,20 @@ export default function Login({
             }
 
             setRecoveryPhase('booting');
-            setRecoveryMessage(payload.message || 'Menunggu Bot WhatsApp terhubung...');
+            setRecoveryMessage(
+                payload.message ||
+                    (enNow
+                        ? 'Waiting for WhatsApp Bot to connect...'
+                        : 'Menunggu Bot WhatsApp terhubung...')
+            );
 
             if (attempt >= MAX_BOT_POLL_ATTEMPTS) {
                 stopPolling();
                 setRecoveryPhase('error');
                 setRecoveryMessage(
-                    'Bot masih menghubungkan sesi WhatsApp. Klik tombol "Aktifkan Bot" lagi untuk mengecek ulang dan mengirim OTP.'
+                    enNow
+                        ? 'The bot is still connecting to WhatsApp. Click "Activate Bot" again to recheck and dispatch the OTP.'
+                        : 'Bot masih menghubungkan sesi WhatsApp. Klik tombol "Aktifkan Bot" lagi untuk mengecek ulang dan mengirim OTP.'
                 );
                 return;
             }
@@ -148,14 +169,22 @@ export default function Login({
                 stopPolling();
                 setRecoveryPhase('expired');
                 setRecoveryMessage(
-                    errMsg || 'Sesi pemulihan bot telah berakhir. Silakan masukkan ulang email & password Admin.'
+                    errMsg ||
+                        (enNow
+                            ? 'Admin bot recovery session has expired. Please re-enter your Admin email & password.'
+                            : 'Sesi pemulihan bot telah berakhir. Silakan masukkan ulang email & password Admin.')
                 );
                 return;
             }
 
             if (httpStatus === 503 && attempt < MAX_BOT_POLL_ATTEMPTS) {
                 setRecoveryPhase('booting');
-                setRecoveryMessage(errMsg || 'Bot terhubung, mencoba ulang pengiriman OTP...');
+                setRecoveryMessage(
+                    errMsg ||
+                        (enNow
+                            ? 'Bot connected, retrying OTP delivery...'
+                            : 'Bot terhubung, mencoba ulang pengiriman OTP...')
+                );
                 pollTimeoutRef.current = setTimeout(() => {
                     pollBotReadiness(attempt + 1);
                 }, BOT_POLL_INTERVAL_MS);
@@ -164,7 +193,12 @@ export default function Login({
 
             stopPolling();
             setRecoveryPhase('error');
-            setRecoveryMessage(errMsg || 'Gagal memeriksa status Bot WhatsApp di server.');
+            setRecoveryMessage(
+                errMsg ||
+                    (enNow
+                        ? 'Failed checking WhatsApp Bot status on the server.'
+                        : 'Gagal memeriksa status Bot WhatsApp di server.')
+            );
         }
     }, [stopPolling]);
 
@@ -176,7 +210,11 @@ export default function Login({
         stopPolling();
         setBotStarting(true);
         setRecoveryPhase('booting');
-        setRecoveryMessage('Mengirim perintah menyalakan Bot WhatsApp...');
+        setRecoveryMessage(
+            isEn
+                ? 'Sending command to start the WhatsApp Bot...'
+                : 'Mengirim perintah menyalakan Bot WhatsApp...'
+        );
 
         try {
             const res = await axios.post(route('login.bot.start'));
@@ -185,7 +223,12 @@ export default function Login({
             const payload = res.data || {};
             if (payload.status === 'otp_sent' && payload.redirect) {
                 setRecoveryPhase('otp_sent');
-                setRecoveryMessage(payload.message || 'Bot aktif dan kode OTP terkirim! Mengalihkan...');
+                setRecoveryMessage(
+                    payload.message ||
+                        (isEn
+                            ? 'Bot is active and OTP code sent! Redirecting...'
+                            : 'Bot aktif dan kode OTP terkirim! Mengalihkan...')
+                );
                 router.visit(payload.redirect);
                 return;
             }
@@ -198,7 +241,12 @@ export default function Login({
 
             setBotPolling(true);
             setRecoveryPhase('booting');
-            setRecoveryMessage(payload.message || 'Bot sedang dinyalakan, menunggu koneksi WhatsApp...');
+            setRecoveryMessage(
+                payload.message ||
+                    (isEn
+                        ? 'Bot is starting, waiting for WhatsApp connection...'
+                        : 'Bot sedang dinyalakan, menunggu koneksi WhatsApp...')
+            );
             pollTimeoutRef.current = setTimeout(() => {
                 pollBotReadiness(1);
             }, BOT_POLL_INTERVAL_MS);
@@ -212,13 +260,21 @@ export default function Login({
             if (httpStatus === 403 || httpStatus === 419) {
                 setRecoveryPhase('expired');
                 setRecoveryMessage(
-                    errMsg || 'Sesi pemulihan bot telah berakhir. Silakan masukkan ulang email & password Admin.'
+                    errMsg ||
+                        (isEn
+                            ? 'Admin bot recovery session has expired. Please re-enter your Admin email & password.'
+                            : 'Sesi pemulihan bot telah berakhir. Silakan masukkan ulang email & password Admin.')
                 );
                 return;
             }
 
             setRecoveryPhase('error');
-            setRecoveryMessage(errMsg || 'Terjadi kendala saat mencoba menyalakan Bot WhatsApp.');
+            setRecoveryMessage(
+                errMsg ||
+                    (isEn
+                        ? 'An error occurred while trying to start the WhatsApp Bot.'
+                        : 'Terjadi kendala saat mencoba menyalakan Bot WhatsApp.')
+            );
         } finally {
             if (isMountedRef.current) {
                 setBotStarting(false);
@@ -247,7 +303,17 @@ export default function Login({
         });
     };
 
-    const isPendingOrRejected = errors.email && (errors.email.includes('ditolak') || errors.email.includes('belum aktif') || errors.email.includes('dinonaktifkan'));
+    const emailErrLower = String(errors.email || '').toLowerCase();
+    const isPendingOrRejected = Boolean(
+        errors.email && (
+            emailErrLower.includes('ditolak') ||
+            emailErrLower.includes('belum aktif') ||
+            emailErrLower.includes('dinonaktifkan') ||
+            emailErrLower.includes('rejected') ||
+            emailErrLower.includes('not active yet') ||
+            emailErrLower.includes('deactivated')
+        )
+    );
 
     const botBusy = botStarting || botPolling;
     const leftRecoveryButton = isRecoveryActive ? (
@@ -255,7 +321,11 @@ export default function Login({
             type="button"
             onClick={handleActivateBot}
             disabled={botBusy || recoveryPhase === 'otp_sent'}
-            title="Pemulihan khusus Admin: nyalakan Bot WhatsApp agar dapat mengirim kode OTP"
+            title={
+                isEn
+                    ? 'Admin-only recovery: start the WhatsApp Bot so it can deliver OTP codes'
+                    : 'Pemulihan khusus Admin: nyalakan Bot WhatsApp agar dapat mengirim kode OTP'
+            }
             className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold shadow-sm transition ${
                 botBusy
                     ? 'border-amber-300 bg-amber-50 text-amber-800 cursor-wait'
@@ -271,24 +341,28 @@ export default function Login({
             )}
             <span>
                 {botStarting
-                    ? 'Menyalakan Bot...'
+                    ? (isEn ? 'Starting Bot...' : 'Menyalakan Bot...')
                     : botPolling
-                    ? 'Menghubungkan WA...'
+                    ? (isEn ? 'Connecting WA...' : 'Menghubungkan WA...')
                     : recoveryPhase === 'needs_pairing'
-                    ? 'Cek Ulang Bot'
-                    : 'Aktifkan Bot'}
+                    ? (isEn ? 'Recheck Bot' : 'Cek Ulang Bot')
+                    : (isEn ? 'Activate Bot' : 'Aktifkan Bot')}
             </span>
         </button>
     ) : null;
 
     return (
         <GuestLayout leftBottomAction={leftRecoveryButton}>
-            <Head title="Masuk — Telunas Issue Tracker" />
+            <Head title={isEn ? 'Sign In — Telunas Issue Tracker' : 'Masuk — Telunas Issue Tracker'} />
 
             <div className="mb-6">
-                <h3 className="text-xl font-bold text-gray-900 tracking-tight">Masuk ke Akun</h3>
+                <h3 className="text-xl font-bold text-gray-900 tracking-tight">
+                    {isEn ? 'Sign In to Account' : 'Masuk ke Akun'}
+                </h3>
                 <p className="text-xs text-gray-500 mt-1">
-                    Silakan masukkan email dan password akun resort Anda.
+                    {isEn
+                        ? 'Enter your resort account email and password.'
+                        : 'Silakan masukkan email dan password akun resort Anda.'}
                 </p>
             </div>
 
@@ -297,9 +371,15 @@ export default function Login({
                     <div className="flex items-start gap-2">
                         <span className="text-base">⏳</span>
                         <div>
-                            <p className="font-semibold text-emerald-900">Pendaftaran Berhasil Dikirim!</p>
+                            <p className="font-semibold text-emerald-900">
+                                {isEn ? 'Registration Submitted!' : 'Pendaftaran Berhasil Dikirim!'}
+                            </p>
                             <p className="mt-0.5">
-                                Permohonan akun Anda saat ini sedang menunggu tinjauan dari <strong>HOD Departemen</strong> dan <strong>Admin</strong>. Anda akan menerima pemberitahuan via WhatsApp dan dapat login setelah akun diaktifkan.
+                                {isEn ? (
+                                    <>Your account request is awaiting review by your <strong>Department HOD</strong> and <strong>Admin</strong>. You will receive a WhatsApp notification once activated.</>
+                                ) : (
+                                    <>Permohonan akun Anda saat ini sedang menunggu tinjauan dari <strong>HOD Departemen</strong> dan <strong>Admin</strong>. Anda akan menerima pemberitahuan via WhatsApp dan dapat login setelah akun diaktifkan.</>
+                                )}
                             </p>
                         </div>
                     </div>
@@ -317,7 +397,9 @@ export default function Login({
                     <div className="flex items-start gap-2">
                         <span className="text-base">⚠️</span>
                         <div>
-                            <p className="font-semibold text-rose-900">Perhatian Status Akun</p>
+                            <p className="font-semibold text-rose-900">
+                                {isEn ? 'Account Status Notice' : 'Perhatian Status Akun'}
+                            </p>
                             <p className="mt-0.5">{errors.email}</p>
                         </div>
                     </div>
@@ -344,10 +426,10 @@ export default function Login({
                     <div>
                         <p className="font-semibold">
                             {recoveryPhase === 'booting'
-                                ? 'Pemulihan Bot Admin'
+                                ? (isEn ? 'Admin Bot Recovery' : 'Pemulihan Bot Admin')
                                 : recoveryPhase === 'otp_sent'
-                                ? 'Bot Aktif'
-                                : 'Status Bot WhatsApp'}
+                                ? (isEn ? 'Bot Active' : 'Bot Aktif')
+                                : (isEn ? 'WhatsApp Bot Status' : 'Status Bot WhatsApp')}
                         </p>
                         <p className="mt-0.5 leading-relaxed">{recoveryMessage}</p>
                     </div>
@@ -366,7 +448,7 @@ export default function Login({
                         className="mt-1 block w-full text-sm"
                         autoComplete="username"
                         isFocused={true}
-                        placeholder="nama@telunasresorts.com"
+                        placeholder={isEn ? 'name@telunasresorts.com' : 'nama@telunasresorts.com'}
                         onChange={(e) => setData('email', e.target.value)}
                         required
                     />
@@ -375,7 +457,7 @@ export default function Login({
                 </div>
 
                 <div>
-                    <InputLabel htmlFor="password" value="Password" />
+                    <InputLabel htmlFor="password" value={isEn ? 'Password' : 'Password'} />
 
                     <TextInput
                         id="password"
@@ -401,7 +483,7 @@ export default function Login({
                             }
                         />
                         <span className="ms-2 text-gray-600">
-                            Ingat saya
+                            {isEn ? 'Remember me' : 'Ingat saya'}
                         </span>
                     </label>
 
@@ -410,26 +492,28 @@ export default function Login({
                             href={route('password.request')}
                             className="text-gray-500 hover:text-indigo-600 underline"
                         >
-                            Lupa password?
+                            {isEn ? 'Forgot password?' : 'Lupa password?'}
                         </Link>
                     )}
                 </div>
 
                 <div className="pt-2">
                     <PrimaryButton className="w-full justify-center py-2.5 bg-indigo-600 hover:bg-indigo-700 shadow-sm" disabled={processing}>
-                        {processing ? 'Memverifikasi...' : 'Masuk ke Dashboard'}
+                        {processing
+                            ? (isEn ? 'Verifying...' : 'Memverifikasi...')
+                            : (isEn ? 'Sign In to Dashboard' : 'Masuk ke Dashboard')}
                     </PrimaryButton>
                 </div>
 
                 {canRegister && (
                     <div className="mt-6 pt-4 border-t border-gray-100 text-center">
                         <p className="text-xs text-gray-500">
-                            Belum memiliki akun staf?{' '}
+                            {isEn ? "Don't have a staff account?" : 'Belum memiliki akun staf?'}{' '}
                             <Link
                                 href={route('register')}
                                 className="font-semibold text-indigo-600 hover:text-indigo-800 underline ml-1"
                             >
-                                Daftar di sini
+                                {isEn ? 'Register here' : 'Daftar di sini'}
                             </Link>
                         </p>
                     </div>

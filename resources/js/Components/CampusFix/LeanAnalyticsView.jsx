@@ -65,6 +65,7 @@ import {
     ArrowUpRight,
 } from 'lucide-react';
 import { TPI_MASTERPLAN_ZONES, TBR_MASTERPLAN_ZONES, resolveIssueResortAndZone } from '@/constants/locations';
+import { useLanguage } from '@/context/LanguageContext';
 
 const DEPARTMENT_COLORS = {
     'Engineer': '#38bdf8',          // Sky
@@ -93,6 +94,8 @@ const PROGRESS_STATUS_COLORS = {
 
 // Custom Tooltip for Pareto: shows count, individual share, and cumulative share
 const CustomParetoTooltip = ({ active, payload }) => {
+    const { lang } = useLanguage();
+    const isEn = lang === 'en';
     if (!active || !payload || !payload.length) return null;
     const data = payload[0]?.payload;
     if (!data) return null;
@@ -107,7 +110,7 @@ const CustomParetoTooltip = ({ active, payload }) => {
                     </span>
                 ) : (
                     <span className="text-[10px] text-slate-400 bg-slate-800 px-1.5 py-0.5 rounded border border-slate-700">
-                        Sekunder
+                        {isEn ? 'Secondary' : 'Sekunder'}
                     </span>
                 )}
             </p>
@@ -115,18 +118,18 @@ const CustomParetoTooltip = ({ active, payload }) => {
                 <div className="flex items-center justify-between text-slate-300">
                     <span className="flex items-center gap-1.5">
                         <span className="w-2.5 h-2.5 rounded-sm bg-emerald-400 inline-block" />
-                        Jumlah Kasus:
+                        {isEn ? 'Case Count:' : 'Jumlah Kasus:'}
                     </span>
                     <span className="font-bold text-white text-sm">{data.count}</span>
                 </div>
                 <div className="flex items-center justify-between text-slate-300">
-                    <span className="text-slate-400">Porsi dari Total:</span>
+                    <span className="text-slate-400">{isEn ? 'Share of Total:' : 'Porsi dari Total:'}</span>
                     <span className="font-semibold text-emerald-300">{data.percentage}%</span>
                 </div>
                 <div className="flex items-center justify-between text-slate-300 pt-1 border-t border-slate-800">
                     <span className="flex items-center gap-1.5 text-amber-400 font-medium">
                         <span className="w-2 h-2 rounded-full bg-amber-400 inline-block" />
-                        Akumulasi Kumulatif:
+                        {isEn ? 'Cumulative Share:' : 'Akumulasi Kumulatif:'}
                     </span>
                     <span className="font-bold text-amber-300">{data.cumulativePercentage}%</span>
                 </div>
@@ -137,6 +140,8 @@ const CustomParetoTooltip = ({ active, payload }) => {
 
 // Custom Tooltip for Hotspot: filters out urgency levels with 0 count
 const CustomHotspotTooltip = ({ active, payload, label }) => {
+    const { lang } = useLanguage();
+    const isEn = lang === 'en';
     if (!active || !payload || !payload.length) return null;
     const activeItems = payload.filter((item) => Number(item.value) > 0);
     const total = payload[0]?.payload?.total || 0;
@@ -160,10 +165,10 @@ const CustomHotspotTooltip = ({ active, payload, label }) => {
                     ))}
                 </div>
             ) : (
-                <p className="text-[11px] text-slate-400">Tidak ada insiden</p>
+                <p className="text-[11px] text-slate-400">{isEn ? 'No incidents' : 'Tidak ada insiden'}</p>
             )}
             <div className="pt-1.5 mt-1.5 border-t border-slate-800/80 text-[10px] text-sky-400 font-medium">
-                💡 Klik balok untuk lihat detail tiket
+                {isEn ? '💡 Click bar to view ticket details' : '💡 Klik balok untuk lihat detail tiket'}
             </div>
         </div>
     );
@@ -171,11 +176,13 @@ const CustomHotspotTooltip = ({ active, payload, label }) => {
 
 // Custom Tooltip for Department Workload
 const CustomDeptTooltip = ({ active, payload, label }) => {
+    const { lang } = useLanguage();
+    const isEn = lang === 'en';
     if (!active || !payload || !payload.length) return null;
     const total = payload.reduce((sum, item) => sum + (Number(item.value) || 0), 0);
     return (
         <div className="bg-slate-900 border border-slate-700/80 rounded-lg p-2.5 shadow-xl text-xs min-w-[170px]">
-            <p className="font-bold text-white mb-1.5 pb-1 border-b border-slate-800">{label || 'Departemen'}</p>
+            <p className="font-bold text-white mb-1.5 pb-1 border-b border-slate-800">{label || (isEn ? 'Department' : 'Departemen')}</p>
             <div className="space-y-1">
                 {payload.map((item) => (
                     <div key={item.dataKey} className="flex items-center justify-between gap-4">
@@ -188,7 +195,7 @@ const CustomDeptTooltip = ({ active, payload, label }) => {
                 ))}
             </div>
             <div className="pt-1.5 mt-1.5 border-t border-slate-800 flex justify-between text-slate-400 font-semibold">
-                <span>Total Beban:</span>
+                <span>{isEn ? 'Total Workload:' : 'Total Beban:'}</span>
                 <span className="text-white font-bold">{total}</span>
             </div>
         </div>
@@ -222,6 +229,8 @@ const CustomUrgencyTooltip = ({ active, payload, label }) => {
 
 // Custom Tooltip for MTTR / Speed Analysis
 const CustomMttrTooltip = ({ active, payload }) => {
+    const { lang } = useLanguage();
+    const isEn = lang === 'en';
     if (!active || !payload || !payload.length) return null;
     const data = payload[0]?.payload;
     if (!data) return null;
@@ -238,21 +247,25 @@ const CustomMttrTooltip = ({ active, payload }) => {
                         ? 'bg-sky-500/20 text-sky-300 border-sky-500/40'
                         : 'bg-rose-500/20 text-rose-300 border-rose-500/40'
                 }`}>
-                    {data.speedStatus || 'Standar'}
+                    {data.speedStatus || (isEn ? 'Standard' : 'Standar')}
                 </span>
             </p>
             <div className="space-y-1.5 text-slate-300">
                 <div className="flex items-center justify-between gap-4">
-                    <span>Rata-rata Durasi Selesai:</span>
-                    <span className="font-bold text-sky-300">{data.avgHours} Jam</span>
+                    <span>{isEn ? 'Avg. Resolution Time:' : 'Rata-rata Durasi Selesai:'}</span>
+                    <span className="font-bold text-sky-300">
+                        {data.avgHours} {isEn ? 'Hours' : 'Jam'}
+                    </span>
                 </div>
                 <div className="flex items-center justify-between gap-4 text-slate-400 text-[10px]">
-                    <span>Tiket Diselesaikan:</span>
+                    <span>{isEn ? 'Tickets Resolved:' : 'Tiket Diselesaikan:'}</span>
                     <span className="font-semibold text-white">{data.solvedCount}</span>
                 </div>
                 <div className="flex items-center justify-between gap-4 pt-1 border-t border-slate-800 text-[10px]">
-                    <span className="text-amber-400">Kasus Pending / Sparepart:</span>
-                    <span className="font-bold text-amber-300">{data.pendingCount || 0} Tiket</span>
+                    <span className="text-amber-400">{isEn ? 'Pending / Sparepart Cases:' : 'Kasus Pending / Sparepart:'}</span>
+                    <span className="font-bold text-amber-300">
+                        {data.pendingCount || 0} {isEn ? 'Tickets' : 'Tiket'}
+                    </span>
                 </div>
             </div>
         </div>
@@ -406,6 +419,8 @@ function ResortZonePin({
     onHoverStart,
     onHoverEnd,
 }) {
+    const { lang } = useLanguage();
+    const isEn = lang === 'en';
     const count = zone.count || 0;
     const status = zone.dominantStatus || 'none';
     const color = PROGRESS_STATUS_COLORS[status] || PROGRESS_STATUS_COLORS.none;
@@ -503,15 +518,15 @@ function ResortZonePin({
                         </span>
                         <span className="font-semibold" style={{ color }}>
                             {count > 0 ? (
-                                `${count} Isu Aktif (${[
+                                `${count} ${isEn ? 'Active Issues' : 'Isu Aktif'} (${[
                                     zone.openCount > 0 ? `${zone.openCount} Open` : null,
-                                    zone.progressCount > 0 ? `${zone.progressCount} Progress` : null,
+                                    zone.progressCount > 0 ? `${zone.progressCount} ${isEn ? 'In Progress' : 'Progress'}` : null,
                                     zone.pendingCount > 0 ? `${zone.pendingCount} Pending` : null,
                                 ].filter(Boolean).join(', ')})`
                             ) : zone.total > 0 ? (
-                                `Semua Selesai (${zone.total} Tiket)`
+                                isEn ? `All Resolved (${zone.total} Tickets)` : `Semua Selesai (${zone.total} Tiket)`
                             ) : (
-                                'Tidak Ada Laporan'
+                                isEn ? 'No Reports' : 'Tidak Ada Laporan'
                             )}
                         </span>
                     </div>
@@ -526,6 +541,8 @@ function ResortZonePin({
 
 // --- Denah Arsitektural Masterplan TPI (Telunas Private Island) ---
 function TpiResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark', spotlightTarget = null }) {
+    const { lang } = useLanguage();
+    const isEn = lang === 'en';
     const isDark = theme === 'dark';
     const [zoom, setZoom] = useState(1);
     const [filterMode, setFilterMode] = useState('all'); // 'all' (22 markers) | 'active' (issues only)
@@ -610,7 +627,7 @@ function TpiResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                 <div className="relative rounded-xl overflow-hidden border border-slate-300/80 shadow-md bg-white w-full">
                     <img
                         src="/images/maps/tpi_masterplan_v3.png?v=1"
-                        alt="Denah Masterplan Telunas Private Island (TPI)"
+                        alt={isEn ? 'Telunas Private Island (TPI) Masterplan' : 'Denah Masterplan Telunas Private Island (TPI)'}
                         draggable={false}
                         className="w-full h-auto block select-none pointer-events-none filter contrast-[1.08] brightness-[0.98]"
                         style={{ imageRendering: '-webkit-optimize-contrast' }}
@@ -661,7 +678,7 @@ function TpiResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                             isCompactMobile={isCompactMobile}
                             isDark={isDark}
                             selectedRingClass="ring-2 ring-sky-400"
-                            fallbackLabel="Fasilitas TPI"
+                            fallbackLabel={isEn ? 'TPI Facility' : 'Fasilitas TPI'}
                             onSelectZone={onSelectZone}
                             onHoverStart={setHoveredZone}
                             onHoverEnd={() => setHoveredZone(null)}
@@ -691,10 +708,10 @@ function TpiResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                                     ? isDark ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : 'bg-amber-100 text-amber-800 border border-amber-300'
                                     : isDark ? 'text-slate-300 hover:text-white hover:bg-slate-800' : 'text-slate-700 hover:text-slate-900 hover:bg-white'
                             }`}
-                            title="Filter hanya lokasi dengan isu aktif"
+                            title={isEn ? 'Filter only locations with active issues' : 'Filter hanya lokasi dengan isu aktif'}
                         >
                             {filterMode === 'active' ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
-                            <span>{filterMode === 'active' ? 'Hanya Isu Aktif' : 'Semua 22 Titik'}</span>
+                            <span>{filterMode === 'active' ? (isEn ? 'Active Issues Only' : 'Hanya Isu Aktif') : (isEn ? 'All 22 Points' : 'Semua 22 Titik')}</span>
                         </button>
 
                         {/* Quick HD Zoom Chips */}
@@ -709,7 +726,7 @@ function TpiResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                                         ? 'bg-sky-500 text-slate-950 shadow-2xs font-extrabold'
                                         : isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'
                                 }`}
-                                title="Paskan 100% Lebar Layar"
+                                title={isEn ? 'Fit 100% Screen Width' : 'Paskan 100% Lebar Layar'}
                             >
                                 1x Fit
                             </button>
@@ -721,7 +738,7 @@ function TpiResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                                         ? 'bg-emerald-500 text-slate-950 shadow-2xs font-extrabold'
                                         : isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'
                                 }`}
-                                title="Zoom 1.5x HD (Teks tajam terbaca)"
+                                title={isEn ? 'Zoom 1.5x HD (Crisp readable text)' : 'Zoom 1.5x HD (Teks tajam terbaca)'}
                             >
                                 <Sparkles className="w-2.5 h-2.5" />
                                 <span>1.5x HD</span>
@@ -734,7 +751,7 @@ function TpiResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                                         ? 'bg-purple-500 text-white shadow-2xs font-extrabold'
                                         : isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'
                                 }`}
-                                title="Zoom 2x Ultra Detail"
+                                title={isEn ? 'Zoom 2x Ultra Detail' : 'Zoom 2x Ultra Detail'}
                             >
                                 2x Ultra
                             </button>
@@ -749,7 +766,7 @@ function TpiResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                             className={`p-1.5 rounded-lg disabled:opacity-40 transition-colors cursor-pointer ${
                                 isDark ? 'text-slate-300 hover:text-white hover:bg-slate-800' : 'text-slate-700 hover:text-slate-900 hover:bg-white'
                             }`}
-                            title="Perbesar Denah"
+                            title={isEn ? 'Zoom In' : 'Perbesar Denah'}
                         >
                             <ZoomIn className="w-3.5 h-3.5" />
                         </button>
@@ -760,7 +777,7 @@ function TpiResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                             className={`p-1.5 rounded-lg disabled:opacity-40 transition-colors cursor-pointer ${
                                 isDark ? 'text-slate-300 hover:text-white hover:bg-slate-800' : 'text-slate-700 hover:text-slate-900 hover:bg-white'
                             }`}
-                            title="Perkecil Denah"
+                            title={isEn ? 'Zoom Out' : 'Perkecil Denah'}
                         >
                             <ZoomOut className="w-3.5 h-3.5" />
                         </button>
@@ -776,10 +793,10 @@ function TpiResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                                     ? 'bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700'
                                     : 'bg-white hover:bg-slate-50 text-sky-700 border border-slate-300 shadow-2xs'
                             }`}
-                            title="Buka Denah di Layar Penuh"
+                            title={isEn ? 'Open Map in Fullscreen' : 'Buka Denah di Layar Penuh'}
                         >
                             <Maximize2 className="w-3.5 h-3.5" />
-                            <span className="hidden sm:inline">Layar Penuh</span>
+                            <span className="hidden sm:inline">{isEn ? 'Fullscreen' : 'Layar Penuh'}</span>
                         </button>
                     </div>
                 </div>
@@ -788,7 +805,7 @@ function TpiResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                 <div
                     ref={scrollContainerRef}
                     {...inlineDrag.dragHandlers}
-                    title={zoom > 1 ? 'Tahan klik & geser mouse untuk menggeser denah • Scroll mouse tetap menggerakkan halaman' : undefined}
+                    title={zoom > 1 ? (isEn ? 'Click & drag to pan map • Mouse wheel still scrolls page' : 'Tahan klik & geser mouse untuk menggeser denah • Scroll mouse tetap menggerakkan halaman') : undefined}
                     className={`relative w-full bg-[#fbf9f4] transition-all max-h-none ${
                         zoom > 1
                             ? `overflow-x-auto overflow-y-hidden touch-pan-x touch-pan-y ${inlineDrag.isDragging ? 'cursor-grabbing' : 'cursor-grab'}`
@@ -803,24 +820,28 @@ function TpiResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                     isDark ? 'bg-slate-900/95 border-slate-800 text-slate-400' : 'bg-white border-slate-200 text-slate-700'
                 }`}>
                     <div className="flex items-center gap-2">
-                        <span className={`font-semibold ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>Denah Spasial Resmi Pulau Telunas</span>
-                        <span className={`text-[11px] ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>• 22 Titik Fasilitas Terpetakan</span>
+                        <span className={`font-semibold ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>
+                            {isEn ? 'Official Telunas Private Island Map' : 'Denah Spasial Resmi Pulau Telunas'}
+                        </span>
+                        <span className={`text-[11px] ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
+                            {isEn ? '• 22 Mapped Facility Points' : '• 22 Titik Fasilitas Terpetakan'}
+                        </span>
                     </div>
                     <div className="flex items-center gap-3 text-[11px] flex-wrap font-medium">
                         <span className="flex items-center gap-1.5">
-                            <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" /> Open (Belum Dikerjakan)
+                            <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" /> {isEn ? 'Open (Not Started)' : 'Open (Belum Dikerjakan)'}
                         </span>
                         <span className="flex items-center gap-1.5">
-                            <span className="w-2 h-2 rounded-full bg-sky-600" /> Sedang Dikerjakan
+                            <span className="w-2 h-2 rounded-full bg-sky-600" /> {isEn ? 'In Progress' : 'Sedang Dikerjakan'}
                         </span>
                         <span className="flex items-center gap-1.5">
-                            <span className="w-2 h-2 rounded-full bg-amber-500" /> Tertunda (Pending)
+                            <span className="w-2 h-2 rounded-full bg-amber-500" /> {isEn ? 'Pending' : 'Tertunda (Pending)'}
                         </span>
                         <span className="flex items-center gap-1.5">
-                            <span className="w-2 h-2 rounded-full bg-emerald-500" /> Semua Selesai
+                            <span className="w-2 h-2 rounded-full bg-emerald-500" /> {isEn ? 'All Resolved' : 'Semua Selesai'}
                         </span>
                         <span className="flex items-center gap-1.5">
-                            <span className={`w-2 h-2 rounded-full ${isDark ? 'bg-slate-600' : 'bg-slate-400'}`} /> Tidak Ada Laporan
+                            <span className={`w-2 h-2 rounded-full ${isDark ? 'bg-slate-600' : 'bg-slate-400'}`} /> {isEn ? 'No Reports' : 'Tidak Ada Laporan'}
                         </span>
                     </div>
                 </div>
@@ -835,10 +856,10 @@ function TpiResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                             <Map className="w-5 h-5 text-emerald-400 shrink-0" />
                             <div>
                                 <h3 className="font-bold text-xs sm:text-sm text-white">
-                                    Denah Resmi Pulau Telunas (TPI) - Mode Layar Penuh HD
+                                    {isEn ? 'Telunas Private Island (TPI) Official Map — HD Fullscreen' : 'Denah Resmi Pulau Telunas (TPI) - Mode Layar Penuh HD'}
                                 </h3>
                                 <p className="text-[10px] text-slate-400">
-                                    Geser / pan denah untuk melihat fasilitas • Klik pin untuk filter isu
+                                    {isEn ? 'Drag / pan map to inspect facilities • Click pin to filter issues' : 'Geser / pan denah untuk melihat fasilitas • Klik pin untuk filter isu'}
                                 </p>
                             </div>
                         </div>
@@ -871,7 +892,7 @@ function TpiResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                                 onClick={handleZoomIn}
                                 disabled={zoom >= 3}
                                 className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 cursor-pointer"
-                                title="Perbesar"
+                                title={isEn ? 'Zoom In' : 'Perbesar'}
                             >
                                 <ZoomIn className="w-4 h-4" />
                             </button>
@@ -880,7 +901,7 @@ function TpiResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                                 onClick={handleZoomOut}
                                 disabled={zoom <= 1}
                                 className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 cursor-pointer"
-                                title="Perkecil"
+                                title={isEn ? 'Zoom Out' : 'Perkecil'}
                             >
                                 <ZoomOut className="w-4 h-4" />
                             </button>
@@ -888,7 +909,7 @@ function TpiResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                                 type="button"
                                 onClick={() => setIsFullscreen(false)}
                                 className="p-1.5 rounded-lg bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 border border-rose-500/30 cursor-pointer ml-1"
-                                title="Tutup Layar Penuh"
+                                title={isEn ? 'Close Fullscreen' : 'Tutup Layar Penuh'}
                             >
                                 <X className="w-4 h-4" />
                             </button>
@@ -899,7 +920,7 @@ function TpiResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                     <div
                         ref={modalScrollRef}
                         {...modalDrag.dragHandlers}
-                        title="Tahan klik & geser mouse untuk menggeser denah"
+                        title={isEn ? 'Click & drag mouse to pan the map' : 'Tahan klik & geser mouse untuk menggeser denah'}
                         className={`flex-1 overflow-auto touch-pan-x touch-pan-y relative mt-2 rounded-xl bg-[#fbf9f4] border border-slate-800 ${
                             modalDrag.isDragging ? 'cursor-grabbing' : 'cursor-grab'
                         }`}
@@ -914,6 +935,8 @@ function TpiResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
 
 // --- Denah Arsitektural Masterplan TBR (Telunas Beach Resort) ---
 function TbrResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark', spotlightTarget = null }) {
+    const { lang } = useLanguage();
+    const isEn = lang === 'en';
     const isDark = theme === 'dark';
     const [zoom, setZoom] = useState(0.65); // Default 0.65x compact for square TBR layout
     const [filterMode, setFilterMode] = useState('all'); // 'all' (all facilities) | 'active' (issues only)
@@ -997,7 +1020,7 @@ function TbrResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                 <div className="relative rounded-xl overflow-hidden border border-slate-300/80 shadow-md bg-white w-full">
                     <img
                         src="/images/maps/tbr_masterplan.png"
-                        alt="Denah Arsitektural Telunas Beach Resort (TBR)"
+                        alt={isEn ? 'Telunas Beach Resort (TBR) Architectural Plan' : 'Denah Arsitektural Telunas Beach Resort (TBR)'}
                         draggable={false}
                         className="w-full h-auto block select-none pointer-events-none filter contrast-[1.10] brightness-[0.98]"
                         style={{ imageRendering: '-webkit-optimize-contrast' }}
@@ -1048,7 +1071,7 @@ function TbrResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                             isCompactMobile={isCompactMobile}
                             isDark={isDark}
                             selectedRingClass="ring-2 ring-amber-400"
-                            fallbackLabel="Fasilitas TBR"
+                            fallbackLabel={isEn ? 'TBR Facility' : 'Fasilitas TBR'}
                             onSelectZone={onSelectZone}
                             onHoverStart={setHoveredZone}
                             onHoverEnd={() => setHoveredZone(null)}
@@ -1078,10 +1101,10 @@ function TbrResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                                     ? isDark ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : 'bg-amber-100 text-amber-800 border border-amber-300'
                                     : isDark ? 'text-slate-300 hover:text-white hover:bg-slate-800' : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
                             }`}
-                            title="Filter hanya lokasi dengan isu aktif"
+                            title={isEn ? 'Filter only locations with active issues' : 'Filter hanya lokasi dengan isu aktif'}
                         >
                             {filterMode === 'active' ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
-                            <span>{filterMode === 'active' ? 'Hanya Isu Aktif' : 'Semua Fasilitas'}</span>
+                            <span>{filterMode === 'active' ? (isEn ? 'Active Issues Only' : 'Hanya Isu Aktif') : (isEn ? 'All Facilities' : 'Semua Fasilitas')}</span>
                         </button>
 
                         {/* Quick HD Zoom Chips */}
@@ -1096,9 +1119,9 @@ function TbrResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                                         ? 'bg-amber-500 text-slate-950 shadow-2xs font-extrabold'
                                         : isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'
                                 }`}
-                                title="Tampilan Kompak Pas Layar"
+                                title={isEn ? 'Compact Fit View' : 'Tampilan Kompak Pas Layar'}
                             >
-                                0.6x Kompak
+                                {isEn ? '0.6x Compact' : '0.6x Kompak'}
                             </button>
                             <button
                                 type="button"
@@ -1108,9 +1131,9 @@ function TbrResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                                         ? 'bg-amber-500 text-slate-950 shadow-2xs font-extrabold'
                                         : isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'
                                 }`}
-                                title="Ukuran 1x Standar"
+                                title={isEn ? 'Standard 1x Size' : 'Ukuran 1x Standar'}
                             >
-                                1x Standar
+                                {isEn ? '1x Standard' : '1x Standar'}
                             </button>
                             <button
                                 type="button"
@@ -1120,7 +1143,7 @@ function TbrResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                                         ? 'bg-amber-500 text-slate-950 shadow-2xs font-extrabold'
                                         : isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'
                                 }`}
-                                title="Zoom 1.5x HD (Teks tajam terbaca)"
+                                title={isEn ? 'Zoom 1.5x HD (Crisp readable text)' : 'Zoom 1.5x HD (Teks tajam terbaca)'}
                             >
                                 <Sparkles className="w-2.5 h-2.5" />
                                 <span>1.5x HD</span>
@@ -1136,7 +1159,7 @@ function TbrResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                             className={`p-1.5 rounded-lg disabled:opacity-40 transition-colors cursor-pointer ${
                                 isDark ? 'text-slate-300 hover:text-white hover:bg-slate-800' : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
                             }`}
-                            title="Perbesar Denah"
+                            title={isEn ? 'Zoom In' : 'Perbesar Denah'}
                         >
                             <ZoomIn className="w-3.5 h-3.5" />
                         </button>
@@ -1147,7 +1170,7 @@ function TbrResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                             className={`p-1.5 rounded-lg disabled:opacity-40 transition-colors cursor-pointer ${
                                 isDark ? 'text-slate-300 hover:text-white hover:bg-slate-800' : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
                             }`}
-                            title="Perkecil Denah"
+                            title={isEn ? 'Zoom Out' : 'Perkecil Denah'}
                         >
                             <ZoomOut className="w-3.5 h-3.5" />
                         </button>
@@ -1163,10 +1186,10 @@ function TbrResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                                     ? 'bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700'
                                     : 'bg-white hover:bg-slate-50 text-amber-800 border border-slate-300 shadow-2xs'
                             }`}
-                            title="Buka Denah di Layar Penuh"
+                            title={isEn ? 'Open Map in Fullscreen' : 'Buka Denah di Layar Penuh'}
                         >
                             <Maximize2 className="w-3.5 h-3.5" />
-                            <span className="hidden sm:inline">Layar Penuh</span>
+                            <span className="hidden sm:inline">{isEn ? 'Fullscreen' : 'Layar Penuh'}</span>
                         </button>
                     </div>
                 </div>
@@ -1175,7 +1198,7 @@ function TbrResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                 <div
                     ref={scrollContainerRef}
                     {...inlineDrag.dragHandlers}
-                    title={zoom > 1 ? 'Tahan klik & geser mouse untuk menggeser denah • Scroll mouse tetap menggerakkan halaman' : undefined}
+                    title={zoom > 1 ? (isEn ? 'Click & drag to pan map • Mouse wheel still scrolls page' : 'Tahan klik & geser mouse untuk menggeser denah • Scroll mouse tetap menggerakkan halaman') : undefined}
                     className={`relative w-full bg-slate-100 transition-all max-h-none ${
                         zoom > 1
                             ? `overflow-x-auto overflow-y-hidden touch-pan-x touch-pan-y ${inlineDrag.isDragging ? 'cursor-grabbing' : 'cursor-grab'}`
@@ -1190,24 +1213,28 @@ function TbrResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                     isDark ? 'bg-slate-900/95 border-slate-800 text-slate-400' : 'bg-white border-slate-200 text-slate-700'
                 }`}>
                     <div className="flex items-center gap-2">
-                        <span className={`font-bold ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>Denah Arsitektural Telunas Beach Resort (TBR)</span>
-                        <span className={`text-[11px] ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>• Fasilitas Vila Terapung & Titian</span>
+                        <span className={`font-bold ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>
+                            {isEn ? 'Telunas Beach Resort (TBR) Architectural Plan' : 'Denah Arsitektural Telunas Beach Resort (TBR)'}
+                        </span>
+                        <span className={`text-[11px] ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
+                            {isEn ? '• Overwater Villas & Boardwalk Facilities' : '• Fasilitas Vila Terapung & Titian'}
+                        </span>
                     </div>
                     <div className="flex items-center gap-3 text-[11px] flex-wrap font-medium">
                         <span className="flex items-center gap-1.5">
-                            <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" /> Open (Belum Dikerjakan)
+                            <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" /> {isEn ? 'Open (Not Started)' : 'Open (Belum Dikerjakan)'}
                         </span>
                         <span className="flex items-center gap-1.5">
-                            <span className="w-2 h-2 rounded-full bg-sky-600" /> Sedang Dikerjakan
+                            <span className="w-2 h-2 rounded-full bg-sky-600" /> {isEn ? 'In Progress' : 'Sedang Dikerjakan'}
                         </span>
                         <span className="flex items-center gap-1.5">
-                            <span className="w-2 h-2 rounded-full bg-amber-500" /> Tertunda (Pending)
+                            <span className="w-2 h-2 rounded-full bg-amber-500" /> {isEn ? 'Pending' : 'Tertunda (Pending)'}
                         </span>
                         <span className="flex items-center gap-1.5">
-                            <span className="w-2 h-2 rounded-full bg-emerald-500" /> Semua Selesai
+                            <span className="w-2 h-2 rounded-full bg-emerald-500" /> {isEn ? 'All Resolved' : 'Semua Selesai'}
                         </span>
                         <span className="flex items-center gap-1.5">
-                            <span className={`w-2 h-2 rounded-full ${isDark ? 'bg-slate-600' : 'bg-slate-400'}`} /> Tidak Ada Laporan
+                            <span className={`w-2 h-2 rounded-full ${isDark ? 'bg-slate-600' : 'bg-slate-400'}`} /> {isEn ? 'No Reports' : 'Tidak Ada Laporan'}
                         </span>
                     </div>
                 </div>
@@ -1222,10 +1249,10 @@ function TbrResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                             <Map className="w-5 h-5 text-amber-400 shrink-0" />
                             <div>
                                 <h3 className="font-bold text-xs sm:text-sm text-white">
-                                    Denah Resmi Telunas Beach Resort (TBR) - Mode Layar Penuh HD
+                                    {isEn ? 'Telunas Beach Resort (TBR) Official Map — HD Fullscreen' : 'Denah Resmi Telunas Beach Resort (TBR) - Mode Layar Penuh HD'}
                                 </h3>
                                 <p className="text-[10px] text-slate-400">
-                                    Geser / pan denah untuk melihat fasilitas • Klik pin untuk filter isu
+                                    {isEn ? 'Drag / pan map to inspect facilities • Click pin to filter issues' : 'Geser / pan denah untuk melihat fasilitas • Klik pin untuk filter isu'}
                                 </p>
                             </div>
                         </div>
@@ -1258,7 +1285,7 @@ function TbrResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                                 onClick={handleZoomIn}
                                 disabled={zoom >= 3}
                                 className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 cursor-pointer"
-                                title="Perbesar"
+                                title={isEn ? 'Zoom In' : 'Perbesar'}
                             >
                                 <ZoomIn className="w-4 h-4" />
                             </button>
@@ -1267,7 +1294,7 @@ function TbrResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                                 onClick={handleZoomOut}
                                 disabled={zoom <= 1}
                                 className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 cursor-pointer"
-                                title="Perkecil"
+                                title={isEn ? 'Zoom Out' : 'Perkecil'}
                             >
                                 <ZoomOut className="w-4 h-4" />
                             </button>
@@ -1275,7 +1302,7 @@ function TbrResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                                 type="button"
                                 onClick={() => setIsFullscreen(false)}
                                 className="p-1.5 rounded-lg bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 border border-rose-500/30 cursor-pointer ml-1"
-                                title="Tutup Layar Penuh"
+                                title={isEn ? 'Close Fullscreen' : 'Tutup Layar Penuh'}
                             >
                                 <X className="w-4 h-4" />
                             </button>
@@ -1286,7 +1313,7 @@ function TbrResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                     <div
                         ref={modalScrollRef}
                         {...modalDrag.dragHandlers}
-                        title="Tahan klik & geser mouse untuk menggeser denah"
+                        title={isEn ? 'Click & drag mouse to pan the map' : 'Tahan klik & geser mouse untuk menggeser denah'}
                         className={`flex-1 overflow-auto touch-pan-x touch-pan-y relative mt-2 rounded-xl bg-slate-100 border border-slate-800 ${
                             modalDrag.isDragging ? 'cursor-grabbing' : 'cursor-grab'
                         }`}
@@ -1305,10 +1332,13 @@ function TbrResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
 export function exportTelunasPdfReport({
     filteredIssues = [],
     stats = {},
-    timeLabel = 'Semua Bulan',
+    timeLabel,
     deptTargetData = [],
     hotspotList = [],
+    lang = 'id',
 }) {
+    const isEn = lang === 'en';
+    const resolvedTimeLabel = timeLabel || (isEn ? 'All Months' : 'Semua Bulan');
     const doc = new jsPDF('p', 'mm', 'a4');
     const pageWidth = doc.internal.pageSize.getWidth();
 
@@ -1319,17 +1349,33 @@ export function exportTelunasPdfReport({
     doc.setTextColor(255, 255, 255);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(15);
-    doc.text('TELUNAS RESORTS - LAPORAN OPERASIONAL ISU', 14, 12);
+    doc.text(
+        isEn ? 'TELUNAS RESORTS - OPERATIONAL ISSUE REPORT' : 'TELUNAS RESORTS - LAPORAN OPERASIONAL ISU',
+        14,
+        12
+    );
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
     doc.setTextColor(203, 213, 225); // Slate-300
-    doc.text('Rekapitulasi Tiket & Analisis Lapangan (Pure WhatsApp Bot Input)', 14, 18);
+    doc.text(
+        isEn
+            ? 'Ticket Summary & Field Analytics (WhatsApp Bot & Field Tracker)'
+            : 'Rekapitulasi Tiket & Analisis Lapangan (Pure WhatsApp Bot Input)',
+        14,
+        18
+    );
 
     doc.setFontSize(8);
     doc.setTextColor(148, 163, 184); // Slate-400
-    const nowStr = new Date().toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' });
-    doc.text(`Waktu Cetak: ${nowStr} WIB | Filter Periode: ${timeLabel}`, 14, 24);
+    const nowStr = new Date().toLocaleString(isEn ? 'en-US' : 'id-ID', { dateStyle: 'medium', timeStyle: 'short' });
+    doc.text(
+        isEn
+            ? `Printed: ${nowStr} WIB | Period Filter: ${resolvedTimeLabel}`
+            : `Waktu Cetak: ${nowStr} WIB | Filter Periode: ${resolvedTimeLabel}`,
+        14,
+        24
+    );
 
     // 2. Summary KPI Cards (3 boxes)
     const boxY = 32;
@@ -1343,7 +1389,7 @@ export function exportTelunasPdfReport({
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
     doc.setTextColor(100, 116, 139);
-    doc.text('TOTAL TIKET', 18, boxY + 6);
+    doc.text(isEn ? 'TOTAL TICKETS' : 'TOTAL TIKET', 18, boxY + 6);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(13);
     doc.setTextColor(15, 23, 42);
@@ -1356,7 +1402,7 @@ export function exportTelunasPdfReport({
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
     doc.setTextColor(22, 101, 52);
-    doc.text('TIKET SELESAI', 18 + boxWidth + 4, boxY + 6);
+    doc.text(isEn ? 'RESOLVED TICKETS' : 'TIKET SELESAI', 18 + boxWidth + 4, boxY + 6);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(13);
     doc.setTextColor(21, 128, 61);
@@ -1369,7 +1415,7 @@ export function exportTelunasPdfReport({
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
     doc.setTextColor(159, 18, 57);
-    doc.text('BELUM SELESAI (BACKLOG)', 18 + (boxWidth + 4) * 2, boxY + 6);
+    doc.text(isEn ? 'UNRESOLVED (BACKLOG)' : 'BELUM SELESAI (BACKLOG)', 18 + (boxWidth + 4) * 2, boxY + 6);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(13);
     doc.setTextColor(225, 29, 72);
@@ -1380,7 +1426,7 @@ export function exportTelunasPdfReport({
     // 3. Table: Sebaran Beban per Departemen
     const deptRows = deptTargetData.map((d, idx) => [
         idx + 1,
-        d.name,
+        d.name === 'Umum' && isEn ? 'General' : d.name,
         d.total,
         d.resolved,
         d.active,
@@ -1389,7 +1435,11 @@ export function exportTelunasPdfReport({
 
     autoTable(doc, {
         startY: startY,
-        head: [['#', 'Departemen Dituju', 'Total Isu', 'Selesai', 'Belum Selesai', 'Rasio Backlog']],
+        head: [
+            isEn
+                ? ['#', 'Target Department', 'Total Issues', 'Resolved', 'Unresolved', 'Backlog Ratio']
+                : ['#', 'Departemen Dituju', 'Total Isu', 'Selesai', 'Belum Selesai', 'Rasio Backlog'],
+        ],
         body: deptRows,
         theme: 'striped',
         headStyles: { fillColor: [15, 23, 42], fontSize: 8, fontStyle: 'bold' },
@@ -1410,16 +1460,20 @@ export function exportTelunasPdfReport({
     // 4. Table: Hotspot Lokasi Terbanyak
     const hotspotRows = hotspotList.slice(0, 8).map((h, idx) => [
         idx + 1,
-        h.location,
+        h.location === 'Lainnya' && isEn ? 'Other' : h.location,
         h.resort || '-',
         h.total,
         h.openCount,
-        h.openCount > 0 ? 'Perlu Pengerjaan' : 'Tuntas',
+        h.openCount > 0 ? (isEn ? 'Needs Work' : 'Perlu Pengerjaan') : (isEn ? 'Clear' : 'Tuntas'),
     ]);
 
     autoTable(doc, {
         startY: startY,
-        head: [['#', 'Lokasi / Unit', 'Resort', 'Total Insiden', 'Isu Belum Selesai', 'Status Area']],
+        head: [
+            isEn
+                ? ['#', 'Location / Unit', 'Resort', 'Total Incidents', 'Unresolved', 'Area Status']
+                : ['#', 'Lokasi / Unit', 'Resort', 'Total Insiden', 'Isu Belum Selesai', 'Status Area'],
+        ],
         body: hotspotRows,
         theme: 'striped',
         headStyles: { fillColor: [51, 65, 85], fontSize: 8, fontStyle: 'bold' },
@@ -1448,16 +1502,24 @@ export function exportTelunasPdfReport({
         const activeRows = activeIssues.map(i => [
             i.issue_code || ('#' + i.id),
             i.location || '-',
-            (i.target_departments || []).join(', ') || 'Umum',
+            (i.target_departments || []).map((d) => (d === 'Umum' && isEn ? 'General' : d)).join(', ') || (isEn ? 'General' : 'Umum'),
             i.title || '-',
             i.reporter_name || '-',
-            i.status === 'open' ? 'Open' : (i.status === 'pending' ? 'Tertunda' : 'Progress'),
+            i.status === 'open'
+                ? 'Open'
+                : i.status === 'pending'
+                ? (isEn ? 'Pending' : 'Tertunda')
+                : (isEn ? 'In Progress' : 'Progress'),
             i.pending_reason || '-',
         ]);
 
         autoTable(doc, {
             startY: startY,
-            head: [['Kode', 'Lokasi', 'Dept Dituju', 'Judul Masalah', 'Pelapor', 'Status', 'Catatan Pending']],
+            head: [
+                isEn
+                    ? ['Code', 'Location', 'Target Dept', 'Issue Title', 'Reporter', 'Status', 'Pending Notes']
+                    : ['Kode', 'Lokasi', 'Dept Dituju', 'Judul Masalah', 'Pelapor', 'Status', 'Catatan Pending'],
+            ],
             body: activeRows,
             theme: 'grid',
             headStyles: { fillColor: [190, 18, 60], fontSize: 8, fontStyle: 'bold' },
@@ -1475,7 +1537,7 @@ export function exportTelunasPdfReport({
         });
     }
 
-    doc.save(`Laporan_Analisis_Telunas_${new Date().toISOString().slice(0, 10)}.pdf`);
+    doc.save(`${isEn ? 'Telunas_Analytics_Report' : 'Laporan_Analisis_Telunas'}_${new Date().toISOString().slice(0, 10)}.pdf`);
 }
 
 // =========================================================================
@@ -1490,12 +1552,24 @@ export function LeanAnalyticsView({
     spreadsheetUrl = 'https://docs.google.com/spreadsheets/d/1hF2X6DrcWvOv4h77T_B4pmcNklO2-Zq2CzAiAR-UYIg/edit?usp=sharing',
     monthGids = {},
 }) {
+    const { lang } = useLanguage();
+    const isEn = lang === 'en';
     const isDark = theme === 'dark';
+
+    const getStatusLabel = (status) => {
+        if (status === 'open') return 'Open';
+        if (status === 'in_progress') return isEn ? 'In Progress' : 'Progress';
+        if (status === 'pending') return isEn ? 'Pending' : 'Tertunda';
+        if (status === 'resolved') return isEn ? 'Resolved' : 'Selesai';
+        return status;
+    };
+
+    const formatDeptDisplay = (name) => (name === 'Umum' && isEn ? 'General' : name);
 
     // 1. Time / Month Filter
     const [timeRange, setTimeRange] = useState('all');
 
-    // Map timeRange selection to Indonesian month name
+    // Map timeRange selection to canonical Indonesian Google Sheets tab name (for monthGids lookup)
     const activeMonthName = useMemo(() => {
         const monthMap = {
             month_1: 'Januari',
@@ -1517,6 +1591,25 @@ export function LeanAnalyticsView({
         const currentM = new Date().getMonth() + 1;
         return monthMap[`month_${currentM}`] || 'November';
     }, [timeRange]);
+
+    const activeMonthDisplayName = useMemo(() => {
+        if (!isEn) return activeMonthName;
+        const enMap = {
+            Januari: 'January',
+            Februari: 'February',
+            Maret: 'March',
+            April: 'April',
+            Mei: 'May',
+            Juni: 'June',
+            Juli: 'July',
+            Agustus: 'August',
+            September: 'September',
+            Oktober: 'October',
+            November: 'November',
+            Desember: 'December',
+        };
+        return enMap[activeMonthName] || activeMonthName;
+    }, [activeMonthName, isEn]);
 
     // Dynamic Google Sheet URL with #gid anchor to open the exact month tab
     const dynamicSheetUrl = useMemo(() => {
@@ -1773,34 +1866,54 @@ export function LeanAnalyticsView({
     const handleDownloadPdf = () => {
         setIsDownloadingPdf(true);
         try {
-            const timeLabels = {
-                all: 'Semua Bulan (Semua Tab)',
-                today: 'Hari Ini',
-                '7d': '7 Hari Terakhir',
-                '30d': '30 Hari Terakhir',
-                month_1: 'Bulan Januari',
-                month_2: 'Bulan Februari',
-                month_3: 'Bulan Maret',
-                month_4: 'Bulan April',
-                month_5: 'Bulan Mei',
-                month_6: 'Bulan Juni',
-                month_7: 'Bulan Juli',
-                month_8: 'Bulan Agustus',
-                month_9: 'Bulan September',
-                month_10: 'Bulan Oktober',
-                month_11: 'Bulan November',
-                month_12: 'Bulan Desember',
-            };
+            const timeLabels = isEn
+                ? {
+                      all: 'All Months (All Tabs)',
+                      today: 'Today',
+                      '7d': 'Last 7 Days',
+                      '30d': 'Last 30 Days',
+                      month_1: 'January',
+                      month_2: 'February',
+                      month_3: 'March',
+                      month_4: 'April',
+                      month_5: 'May',
+                      month_6: 'June',
+                      month_7: 'July',
+                      month_8: 'August',
+                      month_9: 'September',
+                      month_10: 'October',
+                      month_11: 'November',
+                      month_12: 'December',
+                  }
+                : {
+                      all: 'Semua Bulan (Semua Tab)',
+                      today: 'Hari Ini',
+                      '7d': '7 Hari Terakhir',
+                      '30d': '30 Hari Terakhir',
+                      month_1: 'Bulan Januari',
+                      month_2: 'Bulan Februari',
+                      month_3: 'Bulan Maret',
+                      month_4: 'Bulan April',
+                      month_5: 'Bulan Mei',
+                      month_6: 'Bulan Juni',
+                      month_7: 'Bulan Juli',
+                      month_8: 'Bulan Agustus',
+                      month_9: 'Bulan September',
+                      month_10: 'Bulan Oktober',
+                      month_11: 'Bulan November',
+                      month_12: 'Bulan Desember',
+                  };
             exportTelunasPdfReport({
                 filteredIssues,
                 stats,
                 timeLabel: timeLabels[timeRange] || timeRange,
                 deptTargetData: deptMetrics.targetList,
                 hotspotList,
+                lang,
             });
         } catch (err) {
             console.error('Error generating PDF:', err);
-            alert('Gagal membuat PDF: ' + err.message);
+            alert((isEn ? 'Failed to generate PDF: ' : 'Gagal membuat PDF: ') + err.message);
         } finally {
             setIsDownloadingPdf(false);
         }
@@ -1819,7 +1932,7 @@ export function LeanAnalyticsView({
                     <div className="flex items-center gap-2 flex-wrap">
                         <span className={`text-xs font-semibold flex items-center gap-1.5 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
                             <Clock className="w-3.5 h-3.5 text-emerald-500" />
-                            Periode Laporan:
+                            {isEn ? 'Report Period:' : 'Periode Laporan:'}
                         </span>
                         <select
                             value={timeRange}
@@ -1828,23 +1941,23 @@ export function LeanAnalyticsView({
                                 isDark ? 'bg-slate-800 border-slate-700 text-slate-200' : 'bg-white border-slate-300 text-slate-800'
                             }`}
                         >
-                            <option value="all">📅 Semua Bulan (Semua Tab)</option>
-                            <option value="today">⚡ Hari Ini</option>
-                            <option value="7d">🕒 7 Hari Terakhir</option>
-                            <option value="30d">🗓️ 30 Hari Terakhir</option>
-                            <optgroup label="Tab Bulanan Spreadsheet">
-                                <option value="month_1">Bulan 01 - Januari</option>
-                                <option value="month_2">Bulan 02 - Februari</option>
-                                <option value="month_3">Bulan 03 - Maret</option>
-                                <option value="month_4">Bulan 04 - April</option>
-                                <option value="month_5">Bulan 05 - Mei</option>
-                                <option value="month_6">Bulan 06 - Juni</option>
-                                <option value="month_7">Bulan 07 - Juli</option>
-                                <option value="month_8">Bulan 08 - Agustus</option>
-                                <option value="month_9">Bulan 09 - September</option>
-                                <option value="month_10">Bulan 10 - Oktober</option>
-                                <option value="month_11">Bulan 11 - November</option>
-                                <option value="month_12">Bulan 12 - Desember</option>
+                            <option value="all">{isEn ? '📅 All Months (All Tabs)' : '📅 Semua Bulan (Semua Tab)'}</option>
+                            <option value="today">{isEn ? '⚡ Today' : '⚡ Hari Ini'}</option>
+                            <option value="7d">{isEn ? '🕒 Last 7 Days' : '🕒 7 Hari Terakhir'}</option>
+                            <option value="30d">{isEn ? '🗓️ Last 30 Days' : '🗓️ 30 Hari Terakhir'}</option>
+                            <optgroup label={isEn ? 'Monthly Spreadsheet Tabs' : 'Tab Bulanan Spreadsheet'}>
+                                <option value="month_1">{isEn ? 'Month 01 - January' : 'Bulan 01 - Januari'}</option>
+                                <option value="month_2">{isEn ? 'Month 02 - February' : 'Bulan 02 - Februari'}</option>
+                                <option value="month_3">{isEn ? 'Month 03 - March' : 'Bulan 03 - Maret'}</option>
+                                <option value="month_4">{isEn ? 'Month 04 - April' : 'Bulan 04 - April'}</option>
+                                <option value="month_5">{isEn ? 'Month 05 - May' : 'Bulan 05 - Mei'}</option>
+                                <option value="month_6">{isEn ? 'Month 06 - June' : 'Bulan 06 - Juni'}</option>
+                                <option value="month_7">{isEn ? 'Month 07 - July' : 'Bulan 07 - Juli'}</option>
+                                <option value="month_8">{isEn ? 'Month 08 - August' : 'Bulan 08 - Agustus'}</option>
+                                <option value="month_9">{isEn ? 'Month 09 - September' : 'Bulan 09 - September'}</option>
+                                <option value="month_10">{isEn ? 'Month 10 - October' : 'Bulan 10 - Oktober'}</option>
+                                <option value="month_11">{isEn ? 'Month 11 - November' : 'Bulan 11 - November'}</option>
+                                <option value="month_12">{isEn ? 'Month 12 - December' : 'Bulan 12 - Desember'}</option>
                             </optgroup>
                         </select>
                     </div>
@@ -1857,10 +1970,10 @@ export function LeanAnalyticsView({
                             target="_blank"
                             rel="noopener noreferrer"
                             className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white keep-white shadow-sm transition-all cursor-pointer group"
-                            title={`Buka Google Sheet: Tab ${activeMonthName}`}
+                            title={isEn ? `Open Google Sheet: ${activeMonthDisplayName} Tab` : `Buka Google Sheet: Tab ${activeMonthName}`}
                         >
                             <FileSpreadsheet className="w-4 h-4 shrink-0 text-white" />
-                            <span className="text-white">Ke Sheet ({activeMonthName})</span>
+                            <span className="text-white">{isEn ? `Open Sheet (${activeMonthDisplayName})` : `Ke Sheet (${activeMonthName})`}</span>
                             <ExternalLink className="w-3.5 h-3.5 opacity-90 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform text-white" />
                         </a>
 
@@ -1870,10 +1983,10 @@ export function LeanAnalyticsView({
                             onClick={handleDownloadPdf}
                             disabled={isDownloadingPdf}
                             className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white keep-white shadow-sm transition-all cursor-pointer disabled:opacity-50"
-                            title="Download Laporan Rekapitulasi Resmi Telunas (PDF Siap Cetak)"
+                            title={isEn ? 'Download Official Telunas Summary Report (Print-ready PDF)' : 'Download Laporan Rekapitulasi Resmi Telunas (PDF Siap Cetak)'}
                         >
                             <Download className="w-4 h-4 shrink-0 text-white" />
-                            <span className="text-white">{isDownloadingPdf ? 'Menyiapkan PDF...' : 'Download PDF'}</span>
+                            <span className="text-white">{isDownloadingPdf ? (isEn ? 'Generating PDF...' : 'Menyiapkan PDF...') : 'Download PDF'}</span>
                         </button>
                     </div>
                 </div>
@@ -1890,7 +2003,7 @@ export function LeanAnalyticsView({
                     <div>
                         <div className="flex items-center justify-between">
                             <span className={`text-xs font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                                Total Tiket Masuk
+                                {isEn ? 'Total Incoming Tickets' : 'Total Tiket Masuk'}
                             </span>
                             <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
                                 <Layers className="w-4 h-4" />
@@ -1903,12 +2016,14 @@ export function LeanAnalyticsView({
                             <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
                                 isDark ? 'bg-emerald-950/80 border-emerald-800/60 text-emerald-300' : 'bg-emerald-100 border-emerald-300 text-emerald-800'
                             }`}>
-                                {stats.resolutionRate}% Selesai
+                                {stats.resolutionRate}% {isEn ? 'Resolved' : 'Selesai'}
                             </span>
                         </div>
                     </div>
                     <p className={`text-[11px] mt-2 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                        {stats.resolved} dari {stats.total} tiket telah dituntaskan tim lapangan
+                        {isEn
+                            ? `${stats.resolved} of ${stats.total} tickets resolved by the field team`
+                            : `${stats.resolved} dari ${stats.total} tiket telah dituntaskan tim lapangan`}
                     </p>
                 </div>
 
@@ -1919,7 +2034,7 @@ export function LeanAnalyticsView({
                     <div>
                         <div className="flex items-center justify-between">
                             <span className={`text-xs font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                                Tiket Belum Selesai (Backlog)
+                                {isEn ? 'Unresolved Tickets (Backlog)' : 'Tiket Belum Selesai (Backlog)'}
                             </span>
                             <div className="w-8 h-8 rounded-xl bg-rose-500/20 text-rose-400 flex items-center justify-center">
                                 <Clock className="w-4 h-4" />
@@ -1937,7 +2052,7 @@ export function LeanAnalyticsView({
                         </div>
                     </div>
                     <p className={`text-[11px] mt-2 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                        Open: <strong className={isDark ? 'text-rose-400' : 'text-rose-600'}>{stats.openCount}</strong> • Progress: <strong className={isDark ? 'text-sky-400' : 'text-sky-600'}>{stats.inProgressCount}</strong> • Tertunda: <strong className={isDark ? 'text-amber-400' : 'text-amber-600'}>{stats.pendingCount}</strong>
+                        Open: <strong className={isDark ? 'text-rose-400' : 'text-rose-600'}>{stats.openCount}</strong> • Progress: <strong className={isDark ? 'text-sky-400' : 'text-sky-600'}>{stats.inProgressCount}</strong> • {isEn ? 'Pending' : 'Tertunda'}: <strong className={isDark ? 'text-amber-400' : 'text-amber-600'}>{stats.pendingCount}</strong>
                     </p>
                 </div>
 
@@ -1955,34 +2070,34 @@ export function LeanAnalyticsView({
                         topDept = deptMetrics.targetList[0];
                         rank2 = deptMetrics.targetList[1];
                         rank3 = deptMetrics.targetList[2];
-                        bigValue = topDept ? `${topDept.total} Isu` : '0 Isu';
-                        badgeText = topDept ? `${topDept.pct}% dari total` : '0%';
+                        bigValue = topDept ? `${topDept.total} ${isEn ? 'Issues' : 'Isu'}` : (isEn ? '0 Issues' : '0 Isu');
+                        badgeText = topDept ? `${topDept.pct}% ${isEn ? 'of total' : 'dari total'}` : '0%';
                         badgeStyle = isDark ? 'bg-sky-950/80 border-sky-800/60 text-sky-300' : 'bg-sky-100 border-sky-300 text-sky-800';
                         subInfo = (rank2 || rank3)
-                            ? `#2 ${rank2?.name || '-'}: ${rank2?.total || 0} • #3 ${rank3?.name || '-'}: ${rank3?.total || 0}`
-                            : 'Beban tugas laporan tertinggi';
+                            ? `#2 ${rank2?.name ? formatDeptDisplay(rank2.name) : '-'}: ${rank2?.total || 0} • #3 ${rank3?.name ? formatDeptDisplay(rank3.name) : '-'}: ${rank3?.total || 0}`
+                            : (isEn ? 'Highest issue workload' : 'Beban tugas laporan tertinggi');
                     } else if (deptMode === 'reporters') {
                         topDept = deptMetrics.reporterList[0];
                         rank2 = deptMetrics.reporterList[1];
                         rank3 = deptMetrics.reporterList[2];
-                        bigValue = topDept ? `${topDept.total} Laporan` : '0 Laporan';
-                        badgeText = topDept ? `${topDept.pct}% kontribusi` : '0%';
+                        bigValue = topDept ? `${topDept.total} ${isEn ? 'Reports' : 'Laporan'}` : (isEn ? '0 Reports' : '0 Laporan');
+                        badgeText = topDept ? `${topDept.pct}% ${isEn ? 'share' : 'kontribusi'}` : '0%';
                         badgeStyle = isDark ? 'bg-emerald-950/80 border-emerald-800/60 text-emerald-300' : 'bg-emerald-100 border-emerald-300 text-emerald-800';
                         subInfo = (rank2 || rank3)
-                            ? `#2 ${rank2?.name || '-'}: ${rank2?.total || 0} • #3 ${rank3?.name || '-'}: ${rank3?.total || 0}`
-                            : 'Staf paling aktif melapor';
+                            ? `#2 ${rank2?.name ? formatDeptDisplay(rank2.name) : '-'}: ${rank2?.total || 0} • #3 ${rank3?.name ? formatDeptDisplay(rank3.name) : '-'}: ${rank3?.total || 0}`
+                            : (isEn ? 'Most active reporting staff' : 'Staf paling aktif melapor');
                     } else { // backlog_ratio
                         topDept = deptMetrics.backlogList[0];
                         rank2 = deptMetrics.backlogList[1];
                         rank3 = deptMetrics.backlogList[2];
-                        bigValue = topDept ? `${topDept.active} Belum Selesai` : '0 Belum Selesai';
+                        bigValue = topDept ? `${topDept.active} ${isEn ? 'Unresolved' : 'Belum Selesai'}` : (isEn ? '0 Unresolved' : '0 Belum Selesai');
                         badgeText = topDept ? `${topDept.backlogRate}% Backlog` : '0%';
                         badgeStyle = (topDept && topDept.active > 0)
                             ? (isDark ? 'bg-rose-950/80 border-rose-800/60 text-rose-300' : 'bg-rose-100 border-rose-300 text-rose-800')
                             : (isDark ? 'bg-emerald-950/80 border-emerald-800/60 text-emerald-300' : 'bg-emerald-100 border-emerald-300 text-emerald-800');
                         subInfo = topDept
-                            ? `${topDept.resolved} selesai dari ${topDept.total} isu • #2 ${rank2?.name || '-'}: ${rank2?.active || 0}`
-                            : 'Belum ada data backlog';
+                            ? `${topDept.resolved} ${isEn ? 'resolved of' : 'selesai dari'} ${topDept.total} ${isEn ? 'issues' : 'isu'} • #2 ${rank2?.name ? formatDeptDisplay(rank2.name) : '-'}: ${rank2?.active || 0}`
+                            : (isEn ? 'No backlog data yet' : 'Belum ada data backlog');
                     }
 
                     return (
@@ -1992,7 +2107,7 @@ export function LeanAnalyticsView({
                             <div>
                                 <div className="flex items-center justify-between gap-1.5">
                                     <span className={`text-xs font-semibold shrink-0 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                                        Departemen Terbanyak
+                                        {isEn ? 'Top Department' : 'Departemen Terbanyak'}
                                     </span>
                                     {/* Mini Switcher Selector */}
                                     <select
@@ -2001,16 +2116,16 @@ export function LeanAnalyticsView({
                                         className={`text-[10px] font-bold rounded-lg px-2 py-0.5 border cursor-pointer transition-colors focus:ring-1 focus:ring-sky-500 max-w-[130px] truncate ${
                                             isDark ? 'bg-slate-900 border-slate-700 text-slate-200' : 'bg-slate-100 border-slate-300 text-slate-800'
                                         }`}
-                                        title="Pilih metrik departemen: Isu Terbanyak, Pelapor Terbanyak, atau Belum Selesai / Total"
+                                        title={isEn ? 'Choose department metric: Most Issues, Top Reporters, or Unresolved / Total' : 'Pilih metrik departemen: Isu Terbanyak, Pelapor Terbanyak, atau Belum Selesai / Total'}
                                     >
-                                        <option value="target_issues">📋 Isu Terbanyak</option>
-                                        <option value="reporters">🙋‍♂️ Pelapor Terbanyak</option>
-                                        <option value="backlog_ratio">⏳ Belum Selesai / Total</option>
+                                        <option value="target_issues">{isEn ? '📋 Most Issues' : '📋 Isu Terbanyak'}</option>
+                                        <option value="reporters">{isEn ? '🙋‍♂️ Top Reporters' : '🙋‍♂️ Pelapor Terbanyak'}</option>
+                                        <option value="backlog_ratio">{isEn ? '⏳ Unresolved / Total' : '⏳ Belum Selesai / Total'}</option>
                                     </select>
                                 </div>
                                 <div className="mt-2">
                                     <span className={`text-base font-bold truncate block ${isDark ? 'text-sky-300' : 'text-sky-700'}`}>
-                                        {topDept ? `#1 ${topDept.name}` : '-'}
+                                        {topDept ? `#1 ${formatDeptDisplay(topDept.name)}` : '-'}
                                     </span>
                                     <div className="mt-1 flex items-baseline gap-2 flex-wrap">
                                         <span className={`text-xl font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>
@@ -2037,12 +2152,12 @@ export function LeanAnalyticsView({
                     className={`p-4 rounded-2xl border shadow-sm relative overflow-hidden backdrop-blur-md transition-all cursor-pointer group flex flex-col justify-between ${
                         isDark ? 'bg-slate-800/90 border-slate-700/80 hover:border-amber-500/50' : 'bg-white border-slate-200 hover:border-amber-400'
                     }`}
-                    title={topHotspot ? `Klik untuk rincian tiket di ${topHotspot.location}` : undefined}
+                    title={topHotspot ? (isEn ? `Click for ticket details at ${topHotspot.location}` : `Klik untuk rincian tiket di ${topHotspot.location}`) : undefined}
                 >
                     <div>
                         <div className="flex items-center justify-between">
                             <span className={`text-xs font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                                Lokasi Terbanyak
+                                {isEn ? 'Top Location' : 'Lokasi Terbanyak'}
                             </span>
                             <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center group-hover:scale-110 transition-transform">
                                 <MapPin className="w-4 h-4" />
@@ -2057,7 +2172,7 @@ export function LeanAnalyticsView({
                             </span>
                             <div className="mt-1 flex items-baseline gap-2">
                                 <span className={`text-xl font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                                    {topHotspot ? `${topHotspot.total} Insiden` : '0 Insiden'}
+                                    {topHotspot ? `${topHotspot.total} ${isEn ? 'Incidents' : 'Insiden'}` : (isEn ? '0 Incidents' : '0 Insiden')}
                                 </span>
                                 {topHotspot && (
                                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${
@@ -2077,8 +2192,10 @@ export function LeanAnalyticsView({
                     </div>
                     <p className={`text-[11px] mt-2 truncate ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                         {topHotspot
-                            ? `${topHotspot.openCount} belum selesai • ${topHotspot.total - topHotspot.openCount} selesai (Klik rincian)`
-                            : 'Belum ada data insiden tercatat'}
+                            ? (isEn
+                                ? `${topHotspot.openCount} unresolved • ${topHotspot.total - topHotspot.openCount} resolved (Click details)`
+                                : `${topHotspot.openCount} belum selesai • ${topHotspot.total - topHotspot.openCount} selesai (Klik rincian)`)
+                            : (isEn ? 'No incident data recorded' : 'Belum ada data insiden tercatat')}
                     </p>
                 </div>
             </div>
@@ -2093,10 +2210,12 @@ export function LeanAnalyticsView({
                     <div>
                         <h3 className={`text-sm font-bold flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>
                             <Compass className="w-4 h-4 text-emerald-400" />
-                            Matriks Lokasi Denah Resort Telunas
+                            {isEn ? 'Telunas Resort Spatial Map Matrix' : 'Matriks Lokasi Denah Resort Telunas'}
                         </h3>
                         <p className={`text-[11px] mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                            Peta spasial interaktif denah arsitektur Telunas Private Island (TPI) dan Telunas Beach Resort (TBR)
+                            {isEn
+                                ? 'Interactive architectural spatial map for Telunas Private Island (TPI) and Telunas Beach Resort (TBR)'
+                                : 'Peta spasial interaktif denah arsitektur Telunas Private Island (TPI) dan Telunas Beach Resort (TBR)'}
                         </p>
                     </div>
 
@@ -2113,7 +2232,7 @@ export function LeanAnalyticsView({
                                     : isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'
                             }`}
                         >
-                            <span>🌴 Denah TPI (Private Island)</span>
+                            <span>{isEn ? '🌴 TPI Map (Private Island)' : '🌴 Denah TPI (Private Island)'}</span>
                         </button>
                         <button
                             type="button"
@@ -2124,7 +2243,7 @@ export function LeanAnalyticsView({
                                     : isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'
                             }`}
                         >
-                            <span>🏖️ Denah TBR (Beach Resort)</span>
+                            <span>{isEn ? '🏖️ TBR Map (Beach Resort)' : '🏖️ Denah TBR (Beach Resort)'}</span>
                         </button>
                     </div>
                 </div>
@@ -2137,6 +2256,7 @@ export function LeanAnalyticsView({
                             onSelectZone={(zone) => setSelectedTpiZone(prev => prev?.id === zone.id ? null : zone)}
                             selectedZoneId={selectedTpiZone?.id}
                             theme={theme}
+                            spotlightTarget={focusMapRequest?.resort === 'TPI' ? focusMapRequest : null}
                         />
 
                         {/* Zone Inspector TPI */}
@@ -2171,7 +2291,7 @@ export function LeanAnalyticsView({
                                             ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
                                             : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
                                     }`}>
-                                        {selectedTpiZone.count || 0} Isu Aktif
+                                        {selectedTpiZone.count || 0} {isEn ? 'Active Issues' : 'Isu Aktif'}
                                     </span>
                                 </div>
 
@@ -2196,7 +2316,7 @@ export function LeanAnalyticsView({
                                                             ? isDark ? 'text-emerald-400' : 'text-emerald-700'
                                                             : isDark ? 'text-rose-400' : 'text-rose-600'
                                                     }>
-                                                        {iss.status}
+                                                        {getStatusLabel(iss.status)}
                                                     </span>
                                                 </div>
                                                 <p className={`font-medium truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>{iss.title}</p>
@@ -2204,7 +2324,9 @@ export function LeanAnalyticsView({
                                         ))}
                                     </div>
                                 ) : (
-                                    <p className={`text-[11px] italic ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Tidak ada insiden tercatat pada unit ini.</p>
+                                    <p className={`text-[11px] italic ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                        {isEn ? 'No incidents recorded at this unit.' : 'Tidak ada insiden tercatat pada unit ini.'}
+                                    </p>
                                 )}
                             </div>
                         )}
@@ -2219,6 +2341,7 @@ export function LeanAnalyticsView({
                             onSelectZone={(zone) => setSelectedTbrZone(prev => prev?.id === zone.id ? null : zone)}
                             selectedZoneId={selectedTbrZone?.id}
                             theme={theme}
+                            spotlightTarget={focusMapRequest?.resort === 'TBR' ? focusMapRequest : null}
                         />
 
                         {/* Zone Inspector TBR */}
@@ -2253,7 +2376,7 @@ export function LeanAnalyticsView({
                                             ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
                                             : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
                                     }`}>
-                                        {selectedTbrZone.count || 0} Isu Aktif
+                                        {selectedTbrZone.count || 0} {isEn ? 'Active Issues' : 'Isu Aktif'}
                                     </span>
                                 </div>
 
@@ -2278,7 +2401,7 @@ export function LeanAnalyticsView({
                                                             ? isDark ? 'text-emerald-400' : 'text-emerald-700'
                                                             : isDark ? 'text-rose-400' : 'text-rose-600'
                                                     }>
-                                                        {iss.status}
+                                                        {getStatusLabel(iss.status)}
                                                     </span>
                                                 </div>
                                                 <p className={`font-medium truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>{iss.title}</p>
@@ -2286,7 +2409,9 @@ export function LeanAnalyticsView({
                                         ))}
                                     </div>
                                 ) : (
-                                    <p className={`text-[11px] italic ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Tidak ada insiden tercatat pada fasilitas ini.</p>
+                                    <p className={`text-[11px] italic ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                        {isEn ? 'No incidents recorded at this facility.' : 'Tidak ada insiden tercatat pada fasilitas ini.'}
+                                    </p>
                                 )}
                             </div>
                         )}
@@ -2312,10 +2437,12 @@ export function LeanAnalyticsView({
                                 </div>
                                 <div>
                                     <h3 className={`font-bold text-sm ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                                        Daftar Isu: {selectedLocationForModal.location}
+                                        {isEn ? 'Issue List:' : 'Daftar Isu:'} {selectedLocationForModal.location}
                                     </h3>
                                     <p className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                                        Total {selectedLocationForModal.total} insiden ({selectedLocationForModal.openCount} belum selesai)
+                                        {isEn
+                                            ? `Total ${selectedLocationForModal.total} incidents (${selectedLocationForModal.openCount} unresolved)`
+                                            : `Total ${selectedLocationForModal.total} insiden (${selectedLocationForModal.openCount} belum selesai)`}
                                     </p>
                                 </div>
                             </div>
@@ -2355,10 +2482,10 @@ export function LeanAnalyticsView({
                                                     ? isDark ? 'bg-amber-500/20 border-amber-500/40 text-amber-300' : 'bg-orange-100 border-orange-300 text-orange-800'
                                                     : isDark ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300' : 'bg-emerald-100 border-emerald-300 text-emerald-800'
                                             }`}>
-                                                {iss.status}
+                                                {getStatusLabel(iss.status)}
                                             </span>
                                             <span className={`text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                                                Dept: {(iss.target_departments || []).join(', ') || 'Umum'}
+                                                Dept: {(iss.target_departments || []).map(formatDeptDisplay).join(', ') || (isEn ? 'General' : 'Umum')}
                                             </span>
                                         </div>
                                         <h4 className={`text-xs font-bold truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>
@@ -2373,7 +2500,7 @@ export function LeanAnalyticsView({
                                             <p className={`text-[10px] p-1.5 rounded border ${
                                                 isDark ? 'text-amber-300 bg-amber-950/40 border-amber-800/50' : 'text-amber-900 bg-amber-50 border-amber-300'
                                             }`}>
-                                                Alasan Pending: {iss.pending_reason}
+                                                {isEn ? 'Pending Reason:' : 'Alasan Pending:'} {iss.pending_reason}
                                             </p>
                                         )}
                                     </div>
@@ -2387,7 +2514,7 @@ export function LeanAnalyticsView({
                                             }}
                                             className="shrink-0 px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs transition-all flex items-center gap-1 self-end sm:self-center"
                                         >
-                                            <span>Rincian</span>
+                                            <span>{isEn ? 'Details' : 'Rincian'}</span>
                                             <ArrowUpRight className="w-3.5 h-3.5" />
                                         </button>
                                     )}

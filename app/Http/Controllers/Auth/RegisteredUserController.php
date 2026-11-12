@@ -33,7 +33,7 @@ class RegisteredUserController extends Controller
         if (!$this->isRegistrationEnabled()) {
             return redirect()->route('login')->with(
                 'status',
-                'Pendaftaran akun mandiri saat ini dinonaktifkan oleh Administrator. Silakan hubungi Admin untuk pembuatan akun.'
+                __('telunas.registration_disabled')
             );
         }
 
@@ -51,7 +51,7 @@ class RegisteredUserController extends Controller
                 'available'    => false,
                 'exists_on_wa' => null,
                 'bot_online'   => null,
-                'message'      => 'Pendaftaran akun mandiri saat ini sedang dinonaktifkan.',
+                'message'      => __('telunas.registration_disabled_short'),
             ], 403);
         }
 
@@ -183,7 +183,7 @@ class RegisteredUserController extends Controller
     public function store(Request $request): RedirectResponse
     {
         if (!$this->isRegistrationEnabled()) {
-            abort(403, 'Pendaftaran akun mandiri saat ini sedang dinonaktifkan.');
+            abort(403, __('telunas.registration_disabled_short'));
         }
 
         [$canonicalPhone, $zeroPhone] = $this->normalizePhoneVariants($request->whatsapp_number);

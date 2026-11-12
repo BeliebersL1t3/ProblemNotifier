@@ -72,7 +72,7 @@ class WhatsAppBotLauncher
                             'connected'  => true,
                             'state'      => 'connected',
                             'raw_status' => 'connected',
-                            'message'    => 'Bot WhatsApp aktif dan terhubung.',
+                            'message'    => __('telunas.bot_status_connected'),
                         ];
                     }
 
@@ -82,7 +82,7 @@ class WhatsAppBotLauncher
                             'connected'  => false,
                             'state'      => 'needs_pairing',
                             'raw_status' => $rawStatus,
-                            'message'    => 'Bot sudah menyala, namun sesi WhatsApp sedang terputus atau belum ter-pair (butuh scan QR / pairing ulang).',
+                            'message'    => __('telunas.bot_status_needs_pairing'),
                         ];
                     }
 
@@ -91,7 +91,7 @@ class WhatsAppBotLauncher
                         'connected'  => false,
                         'state'      => 'booting',
                         'raw_status' => $rawStatus !== '' ? $rawStatus : 'booting',
-                        'message'    => 'Proses bot menyala dan sedang menghubungkan koneksi WhatsApp...',
+                        'message'    => __('telunas.bot_status_booting'),
                     ];
                 }
             } catch (\Throwable $e) {
@@ -104,7 +104,7 @@ class WhatsAppBotLauncher
             'connected'  => false,
             'state'      => 'offline',
             'raw_status' => 'offline',
-            'message'    => 'Bot WhatsApp sedang offline atau tidak dapat dijangkau.',
+            'message'    => __('telunas.bot_status_offline'),
         ];
     }
 
@@ -131,7 +131,7 @@ class WhatsAppBotLauncher
                 'version'         => $resolvedVersion,
                 'state'           => $currentStatus['state'],
                 'message'         => $currentStatus['connected']
-                    ? 'Bot sudah aktif dan berjalan.'
+                    ? __('telunas.bot_already_running')
                     : $currentStatus['message'],
             ];
         }
@@ -146,7 +146,7 @@ class WhatsAppBotLauncher
                 'bot_dir'     => $botDir,
                 'script_path' => $scriptPath,
             ]);
-            throw new \RuntimeException("Skrip bot '{$script}' tidak ditemukan pada direktori whatsapp-bot.");
+            throw new \RuntimeException(__('telunas.bot_script_missing', ['script' => $script]));
         }
 
         if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
@@ -156,7 +156,7 @@ class WhatsAppBotLauncher
                 Log::error('[WhatsAppBotLauncher] Failed launching Windows background bot process.', [
                     'version' => $resolvedVersion,
                 ]);
-                throw new \RuntimeException('Gagal menjalankan proses Bot WhatsApp di background (Windows popen failed).');
+                throw new \RuntimeException(__('telunas.bot_win_popen_failed'));
             }
             pclose($handle);
         } else {
@@ -170,7 +170,7 @@ class WhatsAppBotLauncher
                     'exit_code' => $exitCode,
                     'output'    => $output,
                 ]);
-                throw new \RuntimeException("Gagal menjalankan proses Bot WhatsApp di background (exit code {$exitCode}).");
+                throw new \RuntimeException(__('telunas.bot_unix_exec_failed', ['code' => $exitCode]));
             }
         }
 
@@ -185,8 +185,8 @@ class WhatsAppBotLauncher
             'version'         => $resolvedVersion,
             'state'           => 'booting',
             'message'         => ($resolvedVersion === 'v2')
-                ? 'Perintah menyalakan Bot WA V2 berhasil dikirim. Bot sedang booting di background.'
-                : 'Perintah menyalakan bot berhasil dikirim. Bot sedang booting di background.',
+                ? __('telunas.bot_launch_v2_ok')
+                : __('telunas.bot_launch_v1_ok'),
         ];
     }
 }

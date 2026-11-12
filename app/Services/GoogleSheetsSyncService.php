@@ -395,7 +395,7 @@ class GoogleSheetsSyncService
         if (!$issuesWebhookUrl) {
             return [
                 'success' => false,
-                'message' => 'URL Webhook Google Sheets belum diatur di konfigurasi (.env).',
+                'message' => __('telunas.sheets_webhook_missing'),
             ];
         }
 
@@ -435,8 +435,8 @@ class GoogleSheetsSyncService
             'staff_synced' => $staffResult['success'] ?? false,
             'locations_synced' => $locationsSuccess,
             'message' => $issuesSuccess
-                ? "Berhasil menyinkronkan " . count($items) . " tiket ke tab bulanan dan data staf ke Google Sheets."
-                : "Gagal mengirim data ke Google Sheets Webhook. Pastikan URL Webhook aktif.",
+                ? __('telunas.sheets_sync_all_success', ['count' => count($items)])
+                : __('telunas.sheets_sync_all_failed'),
         ];
     }
 }

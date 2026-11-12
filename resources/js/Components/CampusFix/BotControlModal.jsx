@@ -68,6 +68,8 @@ export function BotControlModal({ open, onOpenChange, botStatus, onRefreshStatus
                 setTimeout(() => {
                     isBackingOffRef.current = false;
                 }, 15000);
+            } else {
+                console.warn('[BotControlModal] Failed fetching auth state:', err?.message || err);
             }
         } finally {
             setLoadingAuth(false);
@@ -81,12 +83,13 @@ export function BotControlModal({ open, onOpenChange, botStatus, onRefreshStatus
             if (res.data?.success) {
                 setLogs(res.data.logs || []);
             }
-        } catch {
-            setLogs(['Gagal memuat log runtime bot.']);
+        } catch (err) {
+            console.warn('[BotControlModal] Failed fetching bot runtime logs:', err?.message || err);
+            setLogs([lang === 'id' ? 'Gagal memuat log runtime bot.' : 'Failed to load bot runtime logs.']);
         } finally {
             setLoadingLogs(false);
         }
-    }, [botVersion]);
+    }, [botVersion, lang]);
 
     const fetchAuthStats = useCallback(async () => {
         try {
@@ -120,7 +123,7 @@ export function BotControlModal({ open, onOpenChange, botStatus, onRefreshStatus
             } else {
                 setActionMsg({
                     type: 'error',
-                    text: res.data?.message || 'Gagal membersihkan file sampah.'
+                    text: res.data?.message || (lang === 'id' ? 'Gagal membersihkan file sampah.' : 'Failed to clean session junk.')
                 });
             }
         } catch (err) {
@@ -164,7 +167,7 @@ export function BotControlModal({ open, onOpenChange, botStatus, onRefreshStatus
         setActionMsg(null);
         try {
             const res = await axios.post('/api/bot/start', { version: botVersion });
-            setActionMsg({ type: 'success', text: res.data?.message || 'Perintah start terkirim.' });
+            setActionMsg({ type: 'success', text: res.data?.message || (lang === 'id' ? 'Perintah start terkirim.' : 'Start command sent.') });
             setTimeout(async () => {
                 await onRefreshStatus?.();
                 await fetchAuthState();
@@ -172,7 +175,7 @@ export function BotControlModal({ open, onOpenChange, botStatus, onRefreshStatus
                 setActionLoading(false);
             }, 2500);
         } catch (err) {
-            setActionMsg({ type: 'error', text: err.response?.data?.message || 'Gagal menyalakan bot.' });
+            setActionMsg({ type: 'error', text: err.response?.data?.message || (lang === 'id' ? 'Gagal menyalakan bot.' : 'Failed to start bot.') });
             setActionLoading(false);
         }
     };
@@ -182,7 +185,7 @@ export function BotControlModal({ open, onOpenChange, botStatus, onRefreshStatus
         setActionMsg(null);
         try {
             const res = await axios.post('/api/bot/stop', { version: botVersion });
-            setActionMsg({ type: 'success', text: res.data?.message || 'Bot berhasil dimatikan.' });
+            setActionMsg({ type: 'success', text: res.data?.message || (lang === 'id' ? 'Bot berhasil dimatikan.' : 'Bot stopped successfully.') });
             setTimeout(async () => {
                 await onRefreshStatus?.();
                 await fetchAuthState();
@@ -190,7 +193,7 @@ export function BotControlModal({ open, onOpenChange, botStatus, onRefreshStatus
                 setActionLoading(false);
             }, 1500);
         } catch (err) {
-            setActionMsg({ type: 'error', text: err.response?.data?.message || 'Gagal mematikan bot.' });
+            setActionMsg({ type: 'error', text: err.response?.data?.message || (lang === 'id' ? 'Gagal mematikan bot.' : 'Failed to stop bot.') });
             setActionLoading(false);
         }
     };
@@ -200,7 +203,7 @@ export function BotControlModal({ open, onOpenChange, botStatus, onRefreshStatus
         setActionMsg(null);
         try {
             const res = await axios.post('/api/bot/restart', { version: botVersion });
-            setActionMsg({ type: 'success', text: res.data?.message || 'Bot sedang di-restart...' });
+            setActionMsg({ type: 'success', text: res.data?.message || (lang === 'id' ? 'Bot sedang di-restart...' : 'Restarting bot...') });
             setTimeout(async () => {
                 await onRefreshStatus?.();
                 await fetchAuthState();
@@ -208,7 +211,7 @@ export function BotControlModal({ open, onOpenChange, botStatus, onRefreshStatus
                 setActionLoading(false);
             }, 3500);
         } catch (err) {
-            setActionMsg({ type: 'error', text: err.response?.data?.message || 'Gagal me-restart bot.' });
+            setActionMsg({ type: 'error', text: err.response?.data?.message || (lang === 'id' ? 'Gagal me-restart bot.' : 'Failed to restart bot.') });
             setActionLoading(false);
         }
     };
@@ -237,7 +240,7 @@ export function BotControlModal({ open, onOpenChange, botStatus, onRefreshStatus
                 });
                 await fetchAuthState();
             } else {
-                setActionMsg({ type: 'error', text: res.data?.message || 'Gagal membuat kode pairing.' });
+                setActionMsg({ type: 'error', text: res.data?.message || (lang === 'id' ? 'Gagal membuat kode pairing.' : 'Failed to generate pairing code.') });
             }
         } catch (err) {
             setActionMsg({ 
@@ -276,11 +279,11 @@ export function BotControlModal({ open, onOpenChange, botStatus, onRefreshStatus
                     setUnlinking(false);
                 }, 1500);
             } else {
-                setActionMsg({ type: 'error', text: res.data?.message || 'Gagal memutuskan sesi bot.' });
+                setActionMsg({ type: 'error', text: res.data?.message || (lang === 'id' ? 'Gagal memutuskan sesi bot.' : 'Failed to unlink bot session.') });
                 setUnlinking(false);
             }
         } catch (err) {
-            setActionMsg({ type: 'error', text: err.response?.data?.message || 'Gagal memutuskan sesi bot.' });
+            setActionMsg({ type: 'error', text: err.response?.data?.message || (lang === 'id' ? 'Gagal memutuskan sesi bot.' : 'Failed to unlink bot session.') });
             setUnlinking(false);
         }
     };
@@ -293,11 +296,11 @@ export function BotControlModal({ open, onOpenChange, botStatus, onRefreshStatus
     };
 
     const formatUptime = (seconds) => {
-        if (!seconds) return '0 menit';
+        if (!seconds) return lang === 'id' ? '0 menit' : '0 min';
         const h = Math.floor(seconds / 3600);
         const m = Math.floor((seconds % 3600) / 60);
-        if (h > 0) return `${h} jam ${m} mnt`;
-        return `${m} menit`;
+        if (h > 0) return lang === 'id' ? `${h} jam ${m} mnt` : `${h} hr ${m} min`;
+        return lang === 'id' ? `${m} menit` : `${m} min`;
     };
 
     return (
@@ -380,7 +383,7 @@ export function BotControlModal({ open, onOpenChange, botStatus, onRefreshStatus
                                 </h4>
                                 <p className="text-xs text-muted-foreground pt-0.5 truncate">
                                     {isConnected 
-                                        ? (activePhone ? `Nomor: +${activePhone}` : 'Connected')
+                                        ? (activePhone ? (lang === 'id' ? `Nomor: +${activePhone}` : `Number: +${activePhone}`) : 'Connected')
                                         : (lang === 'id' ? 'Bot belum terhubung / memerlukan pairing.' : 'Bot is disconnected.')}
                                 </p>
                             </div>
@@ -393,7 +396,7 @@ export function BotControlModal({ open, onOpenChange, botStatus, onRefreshStatus
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="h-8 px-2.5 rounded-lg bg-[#25D366]/20 hover:bg-[#25D366]/30 text-[#25D366] border border-[#25D366]/40 flex items-center gap-1.5 text-xs font-bold transition-all shadow-xs"
-                                    title="Buka Chat WhatsApp Bot"
+                                    title={lang === 'id' ? 'Buka Chat WhatsApp Bot' : 'Open Bot WhatsApp Chat'}
                                 >
                                     <ExternalLink className="w-3.5 h-3.5" />
                                     <span className="hidden sm:inline">Chat</span>
@@ -613,7 +616,7 @@ export function BotControlModal({ open, onOpenChange, botStatus, onRefreshStatus
                                             type="text"
                                             value={newPhone}
                                             onChange={(e) => setNewPhone(formatToLocalPhone(e.target.value))}
-                                            placeholder="Contoh: 081234567890"
+                                            placeholder={lang === 'id' ? 'Contoh: 081234567890' : 'Example: 081234567890'}
                                             className="w-full bg-[#1C1B0E] border border-border/80 rounded-lg pl-9 pr-3 py-2 text-xs font-mono text-[#FAFAFA] placeholder:text-stone-600 focus:outline-none focus:border-amber-400"
                                         />
                                     </div>
@@ -648,7 +651,7 @@ export function BotControlModal({ open, onOpenChange, botStatus, onRefreshStatus
                                             size="sm"
                                             onClick={handleCopyCode}
                                             className="h-11 w-11 p-0 rounded-xl bg-[#2A281E] border border-border hover:border-emerald-400 text-stone-200 hover:text-white cursor-pointer"
-                                            title="Salin Kode"
+                                            title={lang === 'id' ? 'Salin Kode' : 'Copy Code'}
                                         >
                                             {copied ? <Check className="w-5 h-5 text-emerald-400" /> : <Copy className="w-5 h-5" />}
                                         </Button>
@@ -814,10 +817,10 @@ export function BotControlModal({ open, onOpenChange, botStatus, onRefreshStatus
                                     {loadingLogs ? (
                                         <div className="flex items-center gap-2 text-stone-400 py-2">
                                             <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                            <span>Memuat log...</span>
+                                            <span>{lang === 'id' ? 'Memuat log...' : 'Loading logs...'}</span>
                                         </div>
                                     ) : logs.length === 0 ? (
-                                        <span className="text-stone-500 italic">Tidak ada log yang tercatat.</span>
+                                        <span className="text-stone-500 italic">{lang === 'id' ? 'Tidak ada log yang tercatat.' : 'No logs recorded.'}</span>
                                     ) : (
                                         logs.map((line, idx) => (
                                             <div key={idx} className="whitespace-pre-wrap break-all hover:bg-white/5 px-1 py-0.5 rounded">
@@ -834,7 +837,7 @@ export function BotControlModal({ open, onOpenChange, botStatus, onRefreshStatus
                                         className="text-[10px] text-amber-400 hover:text-amber-300 flex items-center gap-1 cursor-pointer"
                                     >
                                         <RefreshCw className={`w-3 h-3 ${loadingLogs ? 'animate-spin' : ''}`} />
-                                        <span>Refresh Log</span>
+                                        <span>{lang === 'id' ? 'Refresh Log' : 'Refresh Logs'}</span>
                                     </button>
                                 </div>
                             </div>

@@ -121,7 +121,7 @@ class LoginOtpController extends Controller
         if (!$user || !$user->is_active || $user->isRejected() || $user->isPendingApproval()) {
             $request->session()->forget(self::SESSION_KEY);
             return redirect()->route('login')->withErrors([
-                'email' => 'Sesi verifikasi login tidak lagi valid. Silakan masuk kembali.',
+                'email' => __('telunas.otp_session_invalid'),
             ]);
         }
 
@@ -148,21 +148,21 @@ class LoginOtpController extends Controller
         $request->validate([
             'otp' => ['required', 'string', 'regex:/^\d{6}$/'],
         ], [
-            'otp.required' => 'Masukkan 6 digit kode OTP WhatsApp Anda.',
-            'otp.regex'    => 'Kode OTP harus terdiri dari tepat 6 digit angka.',
+            'otp.required' => __('telunas.otp_required'),
+            'otp.regex'    => __('telunas.otp_regex'),
         ]);
 
         $challenge = $request->session()->get(self::SESSION_KEY);
         if (!is_array($challenge) || empty($challenge['user_id']) || empty($challenge['otp_hash'])) {
             return redirect()->route('login')->withErrors([
-                'email' => 'Sesi verifikasi OTP tidak ditemukan atau telah berakhir. Silakan login kembali.',
+                'email' => __('telunas.otp_not_found'),
             ]);
         }
 
         $nowTs = now()->timestamp;
         if ($nowTs > (int) ($challenge['expires_at'] ?? 0)) {
             throw ValidationException::withMessages([
-                'otp' => 'Kode OTP sudah kedaluwarsa. Silakan klik "Kirim Ulang OTP" atau login kembali.',
+                'otp' => __('telunas.otp_expired'),
             ]);
         }
 
@@ -172,7 +172,7 @@ class LoginOtpController extends Controller
         if ($attempts >= $maxAttempts) {
             $request->session()->forget(self::SESSION_KEY);
             return redirect()->route('login')->withErrors([
-                'email' => 'Terlalu banyak percobaan kode OTP yang salah. Demi keamanan, silakan login ulang.',
+                'email' => __('telunas.otp_too_many_attempts'),
             ]);
         }
 
@@ -186,7 +186,7 @@ class LoginOtpController extends Controller
             if ($newAttempts >= $maxAttempts) {
                 $request->session()->forget(self::SESSION_KEY);
                 return redirect()->route('login')->withErrors([
-                    'email' => 'Kode OTP salah melebihi batas percobaan. Demi keamanan, silakan login ulang.',
+                    'email' => __('telunas.otp_mismatch_max'),
                 ]);
             }
 
@@ -195,7 +195,7 @@ class LoginOtpController extends Controller
             $remaining = $maxAttempts - $newAttempts;
 
             throw ValidationException::withMessages([
-                'otp' => "Kode OTP tidak sesuai. Sisa percobaan: {$remaining} kali.",
+                'otp' => __('telunas.otp_mismatch_remaining', ['remaining' => $remaining]),
             ]);
         }
 
@@ -203,7 +203,7 @@ class LoginOtpController extends Controller
         if (!$user || !$user->is_active || $user->isRejected() || $user->isPendingApproval()) {
             $request->session()->forget(self::SESSION_KEY);
             return redirect()->route('login')->withErrors([
-                'email' => 'Akun Anda tidak aktif atau status persetujuannya telah berubah. Silakan hubungi Admin.',
+                'email' => __('telunas.otp_account_changed'),
             ]);
         }
 
@@ -224,7 +224,7 @@ class LoginOtpController extends Controller
         $challenge = $request->session()->get(self::SESSION_KEY);
         if (!is_array($challenge) || empty($challenge['user_id'])) {
             return redirect()->route('login')->withErrors([
-                'email' => 'Sesi verifikasi tidak ditemukan. Silakan login kembali.',
+                'email' => __('telunas.otp_session_missing'),
             ]);
         }
 
@@ -233,7 +233,7 @@ class LoginOtpController extends Controller
         if ($nowTs < $resendAvailableAt) {
             $waitSeconds = $resendAvailableAt - $nowTs;
             return back()->withErrors([
-                'otp' => "Mohon tunggu {$waitSeconds} detik sebelum mengirim ulang kode OTP.",
+                'otp' => __('telunas.otp_resend_cooldown', ['seconds' => $waitSeconds]),
             ]);
         }
 
@@ -241,18 +241,18 @@ class LoginOtpController extends Controller
         if (!$user || !$user->is_active || $user->isRejected() || $user->isPendingApproval()) {
             $request->session()->forget(self::SESSION_KEY);
             return redirect()->route('login')->withErrors([
-                'email' => 'Akun Anda tidak aktif atau tidak valid. Silakan login kembali.',
+                'email' => __('telunas.otp_account_inactive'),
             ]);
         }
 
         $sent = self::initiateChallenge($request, $user, (bool) ($challenge['remember'] ?? false));
         if (!$sent) {
             return back()->withErrors([
-                'otp' => 'Gagal mengirim ulang kode OTP karena Bot WhatsApp sedang offline atau tidak dapat dijangkau. Silakan hubungi Admin.',
+                'otp' => __('telunas.otp_resend_failed'),
             ]);
         }
 
-        return back()->with('status', 'Kode OTP baru telah dikirim ke WhatsApp Anda.');
+        return back()->with('status', __('telunas.otp_resent_success'));
     }
 
     /**
@@ -338,7 +338,7 @@ class LoginOtpController extends Controller
             return response()->json([
                 'status'  => 'needs_pairing',
                 'state'   => 'needs_pairing',
-                'message' => 'Bot sudah menyala, namun sesi WhatsApp sedang terputus atau belum ter-pair. Pulihkan sesi bot via CLI server (node bot-v2.js) atau ubah LOGIN_OTP_ENABLED=false di .env untuk pemulihan darurat.',
+                'message' => __('telunas.bot_needs_pairing_recovery'),
             ]);
         }
 
@@ -350,7 +350,7 @@ class LoginOtpController extends Controller
             return response()->json([
                 'status'  => 'booting',
                 'state'   => 'booting',
-                'message' => 'Bot WhatsApp sedang booting dan menghubungkan koneksi WhatsApp...',
+                'message' => __('telunas.bot_booting'),
             ]);
         }
 
@@ -367,7 +367,7 @@ class LoginOtpController extends Controller
                 return response()->json([
                     'status'  => 'needs_pairing',
                     'state'   => 'needs_pairing',
-                    'message' => 'Bot sudah menyala, namun sesi WhatsApp sedang terputus atau belum ter-pair. Pulihkan sesi bot via CLI server (node bot-v2.js) atau ubah LOGIN_OTP_ENABLED=false di .env untuk pemulihan darurat.',
+                    'message' => __('telunas.bot_needs_pairing_recovery'),
                 ]);
             }
 
@@ -393,7 +393,7 @@ class LoginOtpController extends Controller
             return response()->json([
                 'status'  => 'error',
                 'state'   => 'offline',
-                'message' => 'Gagal menyalakan Bot WhatsApp di server: ' . $e->getMessage(),
+                'message' => __('telunas.bot_start_error', ['error' => $e->getMessage()]),
             ], 500);
         }
     }
@@ -422,7 +422,7 @@ class LoginOtpController extends Controller
             return response()->json([
                 'status'  => 'needs_pairing',
                 'state'   => 'needs_pairing',
-                'message' => 'Bot sudah menyala, namun sesi WhatsApp sedang terputus atau belum ter-pair. Pulihkan sesi bot via CLI server (node bot-v2.js) atau ubah LOGIN_OTP_ENABLED=false di .env untuk pemulihan darurat.',
+                'message' => __('telunas.bot_needs_pairing_recovery'),
             ]);
         }
 
@@ -445,7 +445,7 @@ class LoginOtpController extends Controller
             $request->session()->forget(self::BOT_RECOVERY_SESSION_KEY);
             return response()->json([
                 'status'  => 'unauthorized',
-                'message' => 'Sesi pemulihan bot khusus Admin tidak ditemukan atau sudah berakhir. Silakan masukkan kembali email & password Admin.',
+                'message' => __('telunas.bot_recovery_unauthorized'),
             ], 403);
         }
 
@@ -453,7 +453,7 @@ class LoginOtpController extends Controller
             $request->session()->forget(self::BOT_RECOVERY_SESSION_KEY);
             return response()->json([
                 'status'  => 'expired',
-                'message' => 'Waktu sesi pemulihan bot telah habis. Silakan masukkan kembali email & password Admin.',
+                'message' => __('telunas.bot_recovery_expired'),
             ], 403);
         }
 
@@ -462,7 +462,7 @@ class LoginOtpController extends Controller
             $request->session()->forget(self::BOT_RECOVERY_SESSION_KEY);
             return response()->json([
                 'status'  => 'unauthorized',
-                'message' => 'Hanya akun Administrator aktif yang diizinkan menggunakan fitur pemulihan bot.',
+                'message' => __('telunas.bot_recovery_admin_only'),
             ], 403);
         }
 
@@ -491,7 +491,7 @@ class LoginOtpController extends Controller
                 'status'   => 'otp_sent',
                 'state'    => 'connected',
                 'redirect' => route('login.otp', absolute: false),
-                'message'  => 'Bot WhatsApp sudah aktif dan kode OTP sudah dikirim. Mengalihkan ke halaman verifikasi...',
+                'message'  => __('telunas.bot_otp_already_sent'),
             ]);
         }
 
@@ -500,7 +500,7 @@ class LoginOtpController extends Controller
             return response()->json([
                 'status'  => 'error',
                 'state'   => 'booting',
-                'message' => 'Bot terhubung, tetapi pengiriman kode OTP ke WhatsApp belum berhasil. Silakan coba sesaat lagi.',
+                'message' => __('telunas.bot_otp_send_retry'),
             ], 503);
         }
 
@@ -515,7 +515,7 @@ class LoginOtpController extends Controller
             'status'   => 'otp_sent',
             'state'    => 'connected',
             'redirect' => route('login.otp', absolute: false),
-            'message'  => 'Bot WhatsApp berhasil diaktifkan dan kode OTP telah dikirim ke WhatsApp Anda.',
+            'message'  => __('telunas.bot_started_and_otp_sent'),
         ]);
     }
 }
