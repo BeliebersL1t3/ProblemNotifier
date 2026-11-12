@@ -165,14 +165,14 @@ export function MobileBottomNav({
                                               : 'liquid-glass-light text-emerald-700'
                                       }`
                                     : isDark
-                                    ? 'text-slate-300/80 hover:text-white hover:bg-white/5'
-                                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/40'
+                                    ? 'text-slate-200 hover:text-white hover:bg-white/10'
+                                    : 'text-slate-700 hover:text-slate-900 hover:bg-white/55'
                             }`}
                         >
                             <div className="relative flex items-center justify-center h-6 w-full">
                                 <Icon
                                     className={`w-[19px] h-[19px] transition-transform duration-200 ${
-                                        isActive ? 'stroke-[2.4] scale-105' : 'stroke-[1.9] group-active:scale-90'
+                                        isActive ? 'stroke-[2.4] scale-105' : 'stroke-[2.0] group-active:scale-90'
                                     }`}
                                 />
                             </div>
@@ -183,8 +183,8 @@ export function MobileBottomNav({
                                             ? 'font-extrabold text-emerald-300'
                                             : 'font-extrabold text-emerald-700'
                                         : isDark
-                                        ? 'font-medium text-slate-300/80'
-                                        : 'font-medium text-slate-600'
+                                        ? 'font-semibold text-slate-200'
+                                        : 'font-semibold text-slate-700'
                                 }`}
                             >
                                 {item.label}
