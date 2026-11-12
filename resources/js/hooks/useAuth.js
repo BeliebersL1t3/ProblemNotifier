@@ -38,20 +38,20 @@ export function useAuth() {
     return {
         user,
         isAdmin,
-        isHOD:       Boolean(user?.is_hod),
-        isDeptUser:  user?.role === 'department',
-        department:  user?.department ?? null,
+        isHOD: Boolean(user?.is_hod),
+        isDeptUser: user?.role === 'department',
+        department: user?.department ?? null,
         subdivision: user?.subdivision ?? null,
-        staffName:      user?.staff_name ?? user?.name ?? null,
+        staffName: user?.staff_name ?? user?.name ?? null,
         whatsappNumber: user?.whatsapp_number ?? null,
-        avatar:         avatarUrl,
+        avatar: avatarUrl,
         avatarUrl,
         activeStaffRoster: active_staff_roster ?? null,
         permissions,
         // Specific capability helpers
         canViewAllDepartments: hasPermission('can_view_all_departments', true),
-        canManageIssues:        hasPermission('can_manage_issues', true),
-        canDeleteIssues:        isAdmin,
-        canExportReports:       hasPermission('can_export_reports', true),
+        canManageIssues: hasPermission('can_manage_issues', true),
+        canDeleteIssues: isAdmin,
+        canExportReports: hasPermission('can_export_reports', true),
     };
 }
