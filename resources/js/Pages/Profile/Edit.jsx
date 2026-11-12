@@ -1,4 +1,4 @@
-import { Head, useForm, router, Link } from '@inertiajs/react';
+import { Head, useForm, router, Link, usePage } from '@inertiajs/react';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { 
@@ -39,6 +39,8 @@ export default function ProfilePage(props) {
 }
 
 function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket, notifyWhatsAppTickets, status }) {
+    const { props: pageProps } = usePage();
+    const webNotificationsEnabled = Boolean(pageProps?.features?.web_notifications);
     const { t, lang } = useLanguage();
     const { isDark } = useLeanTheme();
     const {
@@ -306,12 +308,13 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
     const [soundAlertEnabled, setSoundAlertEnabled] = useState(isSoundEnabled());
 
     useEffect(() => {
+        if (!webNotificationsEnabled) return;
         const handleSoundPref = (e) => {
             setSoundAlertEnabled(e.detail?.enabled ?? isSoundEnabled());
         };
         window.addEventListener('campusfix-sound-pref-changed', handleSoundPref);
         return () => window.removeEventListener('campusfix-sound-pref-changed', handleSoundPref);
-    }, []);
+    }, [webNotificationsEnabled]);
 
     const handleToggleSound = () => {
         const next = !soundAlertEnabled;
@@ -323,6 +326,7 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
     };
 
     useEffect(() => {
+        if (!webNotificationsEnabled) return;
         const checkPush = async () => {
             const supported = isPushNotificationSupported();
             setPushSupported(supported);
@@ -332,7 +336,7 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
             }
         };
         checkPush();
-    }, []);
+    }, [webNotificationsEnabled]);
 
     const handleTogglePush = async () => {
         setPushLoading(true);
@@ -1287,7 +1291,8 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
                             </form>
                         </div>
 
-                        {/* Web Push Pop-up Notifications Card (HP & PC) */}
+                        {/* Web Push Pop-up Notifications Card (HP & PC) — gated by WEB_NOTIFICATIONS_ENABLED */}
+                        {webNotificationsEnabled && (
                         <div
                             className={`rounded-2xl border p-6 sm:p-8 shadow-lg space-y-6 ${
                                 isDark
@@ -1540,6 +1545,7 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
                                 </div>
                             </div>
                         </div>
+                        )}
 
                         {/* WhatsApp Bot System Management Card (Admin Only) */}
                         {isAdmin && (

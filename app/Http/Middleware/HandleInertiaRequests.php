@@ -32,6 +32,9 @@ class HandleInertiaRequests extends Middleware
         return [
             ...parent::share($request),
             'locale' => app()->getLocale(),
+            'features' => [
+                'web_notifications' => (bool) config('telunas.web_notifications_enabled', false),
+            ],
             'auth' => [
                 'user' => $request->user(),
             ],

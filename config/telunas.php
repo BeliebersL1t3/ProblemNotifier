@@ -63,6 +63,15 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Web / In-App Dashboard Notifications Toggle
+    |--------------------------------------------------------------------------
+    | Controls visibility of in-app notification bell, toast alerts, and
+    | Web Push / Sound UI settings while keeping WhatsApp Bot alerts active.
+    */
+    'web_notifications_enabled' => filter_var(env('WEB_NOTIFICATIONS_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
+
+    /*
+    |--------------------------------------------------------------------------
     | Google Sheets Webhook Integration
     |--------------------------------------------------------------------------
     | Webhook endpoints deployed via Google Apps Script for live data synchronization.

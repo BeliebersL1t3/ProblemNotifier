@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from 'react';
-import axios from 'axios';
-import { Bell, Check, Clock, Ticket, AlertCircle, ExternalLink, CheckCheck, Crown, X, BellRing, Volume2, VolumeX } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
+import { Bell, Check, Clock, Ticket, ExternalLink, CheckCheck, Crown, X, BellRing, Volume2, VolumeX } from 'lucide-react';
 import { Link } from '@inertiajs/react';
 import { useLanguage } from '@/context/LanguageContext';
 import {
@@ -12,7 +12,6 @@ import {
     isSoundEnabled,
     setSoundEnabled,
     playNotificationChime,
-    triggerNotificationAlert
 } from '@/services/soundService';
 import { useNotificationFeed } from '@/hooks/useNotificationFeed';
 
@@ -26,6 +25,26 @@ export default function NotificationDropdown({ isMobile = false, themeVariant = 
     const [pushLoading, setPushLoading] = useState(false);
     const [soundActive, setSoundActive] = useState(isSoundEnabled());
     const dropdownRef = useRef(null);
+    const panelRef = useRef(null);
+    const [panelCoords, setPanelCoords] = useState({
+        top: 64,
+        right: 16,
+        maxHeight: 480,
+        isMobileViewport: false,
+    });
+
+    const updatePanelPosition = useCallback(() => {
+        if (typeof window === 'undefined' || !dropdownRef.current) return;
+        const rect = dropdownRef.current.getBoundingClientRect();
+        const viewportWidth = window.innerWidth;
+        const viewportHeight = window.innerHeight;
+        const isMobileViewport = viewportWidth < 640;
+        const top = Math.max(isMobileViewport ? 56 : 52, Math.round(rect.bottom + 8));
+        const right = Math.max(12, Math.round(viewportWidth - rect.right));
+        const bottomReserve = isMobileViewport ? 88 : 20;
+        const maxHeight = Math.max(240, Math.min(540, viewportHeight - top - bottomReserve));
+        setPanelCoords({ top, right, maxHeight, isMobileViewport });
+    }, []);
 
     useEffect(() => {
         const handleSoundPref = (e) => {
@@ -69,20 +88,39 @@ export default function NotificationDropdown({ isMobile = false, themeVariant = 
         }
     };
 
-    // Close on outside click or touch
+    // Close on outside click, touch, or Escape key; keep portal anchored cleanly to bell button
     useEffect(() => {
+        if (!isOpen) return;
+
+        updatePanelPosition();
+
         const handleClickOutside = (e) => {
-            if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+            const clickedTrigger = dropdownRef.current && dropdownRef.current.contains(e.target);
+            const clickedPanel = panelRef.current && panelRef.current.contains(e.target);
+            if (!clickedTrigger && !clickedPanel) {
                 setIsOpen(false);
             }
         };
+        const handleKeyDown = (e) => {
+            if (e.key === 'Escape') {
+                setIsOpen(false);
+            }
+        };
+
         document.addEventListener('mousedown', handleClickOutside);
         document.addEventListener('touchstart', handleClickOutside, { passive: true });
+        document.addEventListener('keydown', handleKeyDown);
+        window.addEventListener('resize', updatePanelPosition);
+        window.addEventListener('scroll', updatePanelPosition, true);
+
         return () => {
             document.removeEventListener('mousedown', handleClickOutside);
             document.removeEventListener('touchstart', handleClickOutside);
+            document.removeEventListener('keydown', handleKeyDown);
+            window.removeEventListener('resize', updatePanelPosition);
+            window.removeEventListener('scroll', updatePanelPosition, true);
         };
-    }, []);
+    }, [isOpen, updatePanelPosition]);
 
     const extractIssueDetails = (url) => {
         if (!url) return null;
@@ -142,6 +180,7 @@ export default function NotificationDropdown({ isMobile = false, themeVariant = 
                 }`}
                 title="Pusat Notifikasi"
                 aria-label="Pusat Notifikasi"
+                aria-expanded={isOpen}
             >
                 <Bell className={themeVariant === 'lean' ? 'w-3.5 h-3.5 sm:w-4 sm:h-4' : (isMobile ? 'w-4 h-4' : 'w-5 h-5')} />
                 {data.unread_count > 0 && (
@@ -157,17 +196,24 @@ export default function NotificationDropdown({ isMobile = false, themeVariant = 
                 )}
             </button>
 
-            {/* Dropdown Card */}
-            {isOpen && (
+            {/* Dropdown Card (Rendered via Portal to escape header stacking contexts) */}
+            {isOpen && typeof document !== 'undefined' && createPortal(
                 <>
                     {/* Mobile Backdrop to close when tapping outside */}
                     <div 
-                        className="fixed inset-0 bg-black/60 backdrop-blur-xs z-40 sm:hidden animate-in fade-in duration-150"
+                        className="fixed inset-0 bg-black/60 backdrop-blur-xs z-[85] sm:hidden animate-in fade-in duration-150"
                         onClick={() => setIsOpen(false)}
                         aria-hidden="true"
                     />
 
-                    <div className={`fixed sm:absolute left-3 right-3 sm:left-auto sm:right-0 top-14 sm:top-full sm:mt-2.5 max-w-sm mx-auto sm:mx-0 sm:w-96 rounded-2xl shadow-2xl border z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150 max-h-[calc(100vh-140px)] flex flex-col ${
+                    <div
+                        ref={panelRef}
+                        style={
+                            panelCoords.isMobileViewport
+                                ? { top: `${panelCoords.top}px`, maxHeight: `${panelCoords.maxHeight}px` }
+                                : { top: `${panelCoords.top}px`, right: `${panelCoords.right}px`, left: 'auto', maxHeight: `${panelCoords.maxHeight}px` }
+                        }
+                        className={`fixed left-3 right-3 sm:w-96 max-w-sm mx-auto sm:mx-0 rounded-2xl shadow-2xl border z-[90] overflow-hidden animate-in fade-in zoom-in-95 duration-150 flex flex-col ${
                         isDark
                             ? 'bg-slate-900 text-slate-100 border-slate-700'
                             : 'bg-white text-slate-900 border-slate-200'
@@ -483,7 +529,8 @@ export default function NotificationDropdown({ isMobile = false, themeVariant = 
                         </Link>
                     </div>
                 </div>
-            </>
+            </>,
+            document.body
         )}
         </div>
     );

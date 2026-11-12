@@ -33,6 +33,7 @@ export function LeanHeader({
     const { props: pageProps } = usePage();
     const authUser = pageProps?.auth?.user || null;
     const effectiveUser = currentUser || authUser;
+    const webNotificationsEnabled = Boolean(pageProps?.features?.web_notifications);
 
     const { lang, setLang } = useLanguage();
     const isEn = lang === 'en';
@@ -127,7 +128,7 @@ export function LeanHeader({
 
     return (
         <>
-            <NotificationToast />
+            {webNotificationsEnabled && <NotificationToast />}
             <MandatoryRealEmailModal user={authUser || effectiveUser} />
 
             {/* TOP HEADER */}
@@ -443,8 +444,10 @@ export function LeanHeader({
                                     </Link>
                                 )}
 
-                                {/* Notification Bell Dropdown */}
-                                <NotificationDropdown themeVariant="lean" isDark={isDark} />
+                                {/* Notification Bell Dropdown (Controlled by WEB_NOTIFICATIONS_ENABLED feature flag) */}
+                                {webNotificationsEnabled && (
+                                    <NotificationDropdown themeVariant="lean" isDark={isDark} />
+                                )}
 
                                 {/* Account Profile Link */}
                                 <Link
