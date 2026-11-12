@@ -2,13 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 
 /**
- * Luxury Telunas Tooltip Component
- * 
- * @param {string|React.ReactNode} content - Text or component to display inside tooltip
- * @param {React.ReactNode} children - The trigger element
- * @param {'top'|'bottom'|'left'|'right'} position - Preferred position relative to trigger
- * @param {string} className - Extra classes for tooltip content box
- * @param {number} delay - Hover delay in ms before showing
+ * Lean Telunas Tooltip Component
  */
 export function Tooltip({ 
     content, 
@@ -47,10 +41,10 @@ export function Tooltip({
     };
 
     const arrowClasses = {
-        top: 'top-full left-1/2 -translate-x-1/2 border-t-[#3B3929] border-r-transparent border-b-transparent border-l-transparent border-4',
-        bottom: 'bottom-full left-1/2 -translate-x-1/2 border-b-[#3B3929] border-r-transparent border-t-transparent border-l-transparent border-4',
-        left: 'left-full top-1/2 -translate-y-1/2 border-l-[#3B3929] border-t-transparent border-b-transparent border-r-transparent border-4',
-        right: 'right-full top-1/2 -translate-y-1/2 border-r-[#3B3929] border-t-transparent border-b-transparent border-l-transparent border-4',
+        top: 'top-full left-1/2 -translate-x-1/2 border-t-slate-900 border-r-transparent border-b-transparent border-l-transparent border-4',
+        bottom: 'bottom-full left-1/2 -translate-x-1/2 border-b-slate-900 border-r-transparent border-t-transparent border-l-transparent border-4',
+        left: 'left-full top-1/2 -translate-y-1/2 border-l-slate-900 border-t-transparent border-b-transparent border-r-transparent border-4',
+        right: 'right-full top-1/2 -translate-y-1/2 border-r-slate-900 border-t-transparent border-b-transparent border-l-transparent border-4',
     };
 
     return (
@@ -68,13 +62,13 @@ export function Tooltip({
                     role="tooltip"
                     className={cn(
                         'pointer-events-none absolute z-50 whitespace-normal text-center',
-                        'px-2.5 py-1.5 rounded-xl border border-[#C9AA71]/30 bg-[#1C1B0E]/95 text-[#FAFAFA]',
+                        'px-2.5 py-1.5 rounded-xl border border-slate-700 bg-slate-900/95 text-slate-100',
                         'text-[11px] font-medium leading-snug shadow-xl backdrop-blur-md',
                         'max-w-xs animate-in fade-in zoom-in-95 duration-150',
                         positionClasses[position],
                         className
                     )}
-                    style={{ filter: 'drop-shadow(0 4px 12px rgba(0, 0, 0, 0.5))' }}
+                    style={{ filter: 'drop-shadow(0 4px 12px rgba(0, 0, 0, 0.35))' }}
                 >
                     {content}
                     <div 

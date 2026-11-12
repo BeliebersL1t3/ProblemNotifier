@@ -8,9 +8,11 @@ import {
 } from 'lucide-react';
 import { AuditDiffViewer, extractDifferences } from './AuditDiffViewer';
 import { useLanguage } from '@/context/LanguageContext';
+import { useLeanTheme } from '@/hooks/useLeanTheme';
 
 export function AuditTrailTab() {
     const { lang } = useLanguage();
+    const { isDark } = useLeanTheme();
     const [logs, setLogs] = useState([]);
     const [totalCount, setTotalCount] = useState(0);
     const [loading, setLoading] = useState(false);
@@ -170,30 +172,30 @@ export function AuditTrailTab() {
         const action = log?.action;
         switch (action) {
             case 'USER_CREATED':
-                return <span className="px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">User Baru</span>;
+                return <span className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold border ${isDark ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' : 'bg-emerald-100 text-emerald-800 border-emerald-200'}`}>User Baru</span>;
             case 'PASSWORD_RESET':
-                return <span className="px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">Reset Password</span>;
+                return <span className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold border ${isDark ? 'bg-amber-500/20 text-amber-300 border-amber-500/30' : 'bg-amber-100 text-amber-800 border-amber-200'}`}>Reset Password</span>;
             case 'USER_ARCHIVED':
-                return <span className="px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-red-500/20 text-red-300 border border-red-500/30">Di-Archive (Soft Delete)</span>;
+                return <span className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold border ${isDark ? 'bg-rose-500/20 text-rose-300 border-rose-500/30' : 'bg-rose-100 text-rose-800 border-rose-200'}`}>Di-Archive (Soft Delete)</span>;
             case 'BATCH_USERS_ARCHIVED':
                 return (
-                    <span className="px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-red-500/20 text-red-300 border border-red-500/40 flex items-center gap-1.5">
+                    <span className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold border inline-flex items-center gap-1.5 ${isDark ? 'bg-rose-500/20 text-rose-300 border-rose-500/40' : 'bg-rose-100 text-rose-800 border-rose-200'}`}>
                         <span>Hapus Massal (Archive)</span>
                         {log?.changes?.account_count && (
-                            <span className="px-1.5 py-0.2 rounded bg-red-600 text-white font-black text-[9px]">
+                            <span className="px-1.5 py-0.2 rounded bg-rose-600 text-white keep-white font-black text-[9px]">
                                 {log.changes.account_count}
                             </span>
                         )}
                     </span>
                 );
             case 'USER_RESTORED':
-                return <span className="px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30">Dipulihkan</span>;
+                return <span className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold border ${isDark ? 'bg-purple-500/20 text-purple-300 border-purple-500/30' : 'bg-purple-100 text-purple-800 border-purple-200'}`}>Dipulihkan</span>;
             case 'BATCH_USERS_RESTORED':
                 return (
-                    <span className="px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-purple-500/20 text-purple-300 border border-purple-500/40 flex items-center gap-1.5">
+                    <span className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold border inline-flex items-center gap-1.5 ${isDark ? 'bg-purple-500/20 text-purple-300 border-purple-500/40' : 'bg-purple-100 text-purple-800 border-purple-200'}`}>
                         <span>Pulihkan Massal</span>
                         {log?.changes?.account_count && (
-                            <span className="px-1.5 py-0.2 rounded bg-purple-600 text-white font-black text-[9px]">
+                            <span className="px-1.5 py-0.2 rounded bg-purple-600 text-white keep-white font-black text-[9px]">
                                 {log.changes.account_count}
                             </span>
                         )}
@@ -202,17 +204,17 @@ export function AuditTrailTab() {
             case 'BATCH_PERMISSIONS_UPDATED':
             case 'USER_PERMISSIONS_BATCH_UPDATED':
                 return (
-                    <span className="px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-[#C9AA71]/20 text-[#E3D1AA] border border-[#C9AA71]/40 flex items-center gap-1.5">
+                    <span className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold border inline-flex items-center gap-1.5 ${isDark ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' : 'bg-emerald-100 text-emerald-800 border-emerald-200'}`}>
                         <span>Izin Massal</span>
                         {log?.changes?.account_count && (
-                            <span className="px-1.5 py-0.2 rounded bg-[#C9AA71] text-[#1C1B0E] font-black text-[9px]">
+                            <span className="px-1.5 py-0.2 rounded bg-emerald-600 text-white keep-white font-black text-[9px]">
                                 {log.changes.account_count} Akun
                             </span>
                         )}
                     </span>
                 );
             case 'PERMISSIONS_UPDATED':
-                return <span className="px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-blue-500/20 text-blue-300 border border-blue-500/30">Izin Diubah</span>;
+                return <span className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold border ${isDark ? 'bg-sky-500/20 text-sky-300 border-sky-500/30' : 'bg-sky-100 text-sky-800 border-sky-200'}`}>Izin Diubah</span>;
             case 'USER_UPDATED': {
                 const diffs = extractDifferences(log?.changes);
                 const hasPerms = diffs.some(d => d.type === 'permission');
@@ -220,21 +222,21 @@ export function AuditTrailTab() {
                 const hasPass = diffs.some(d => d.type === 'password');
 
                 if (hasPerms && !hasFields && !hasPass) {
-                    return <span className="px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-blue-500/20 text-blue-300 border border-blue-500/30">Izin Diubah</span>;
+                    return <span className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold border ${isDark ? 'bg-sky-500/20 text-sky-300 border-sky-500/30' : 'bg-sky-100 text-sky-800 border-sky-200'}`}>Izin Diubah</span>;
                 }
                 if (hasFields && !hasPerms && !hasPass) {
-                    return <span className="px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-sky-500/20 text-sky-300 border border-sky-500/30">Profil Diperbarui</span>;
+                    return <span className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold border ${isDark ? 'bg-sky-500/20 text-sky-300 border-sky-500/30' : 'bg-sky-100 text-sky-800 border-sky-200'}`}>Profil Diperbarui</span>;
                 }
                 if (hasPass && !hasFields && !hasPerms) {
-                    return <span className="px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">Reset Password</span>;
+                    return <span className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold border ${isDark ? 'bg-amber-500/20 text-amber-300 border-amber-500/30' : 'bg-amber-100 text-amber-800 border-amber-200'}`}>Reset Password</span>;
                 }
                 if (hasPerms && hasFields) {
-                    return <span className="px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">Profil & Izin Diubah</span>;
+                    return <span className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold border ${isDark ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30' : 'bg-indigo-100 text-indigo-800 border-indigo-200'}`}>Profil & Izin Diubah</span>;
                 }
-                return <span className="px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-blue-500/20 text-blue-300 border border-blue-500/30">Data Diperbarui</span>;
+                return <span className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold border ${isDark ? 'bg-sky-500/20 text-sky-300 border-sky-500/30' : 'bg-sky-100 text-sky-800 border-sky-200'}`}>Data Diperbarui</span>;
             }
             default:
-                return <span className="px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-gray-500/20 text-gray-300 border border-gray-500/30">{action}</span>;
+                return <span className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold border ${isDark ? 'bg-slate-700/60 text-slate-300 border-slate-600' : 'bg-slate-100 text-slate-700 border-slate-300'}`}>{action}</span>;
         }
     };
 
@@ -260,23 +262,35 @@ export function AuditTrailTab() {
     return (
         <div className="space-y-5 animate-in fade-in duration-200">
             {/* 1. Google Spreadsheet Connection & Live Sync Card */}
-            <div className="rounded-2xl border border-emerald-500/40 bg-gradient-to-r from-emerald-950/40 via-[#1C1B0E] to-[#2A281E] p-4 sm:p-5 shadow-xl">
+            <div className={`rounded-2xl border p-4 sm:p-5 shadow-md ${
+                isDark
+                    ? 'border-emerald-500/40 bg-gradient-to-r from-emerald-950/40 via-slate-900 to-slate-800/80'
+                    : 'border-emerald-200 bg-gradient-to-r from-emerald-50/90 via-white to-slate-50'
+            }`}>
                 <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
                     <div className="flex items-center gap-3.5">
-                        <div className="p-3 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 shadow-inner shrink-0">
+                        <div className={`p-3 rounded-2xl border shadow-inner shrink-0 ${
+                            isDark
+                                ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                                : 'bg-emerald-100 text-emerald-700 border-emerald-200'
+                        }`}>
                             <FileSpreadsheet className="h-6 w-6" />
                         </div>
                         <div>
                             <div className="flex items-center gap-2.5 flex-wrap">
-                                <h3 className="text-base sm:text-lg font-extrabold text-[#FAFAFA]">
+                                <h3 className={`text-base sm:text-lg font-extrabold ${isDark ? 'text-white' : 'text-slate-900'}`}>
                                     Google Spreadsheet Audit Trail
                                 </h3>
-                                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/30 text-emerald-300 border border-emerald-500/50 flex items-center gap-1">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-black border flex items-center gap-1 ${
+                                    isDark
+                                        ? 'bg-emerald-500/25 text-emerald-300 border-emerald-500/50'
+                                        : 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                }`}>
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
                                     LIVE AUTO-APPEND
                                 </span>
                             </div>
-                            <p className="text-xs text-[#A19F8D] mt-0.5">
+                            <p className={`text-xs mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
                                 Setiap perubahan profil staf, reset password, dan hak akses otomatis tercatat dan tersinkronisasi ke Google Cloud Spreadsheet.
                             </p>
                         </div>
@@ -287,7 +301,11 @@ export function AuditTrailTab() {
                             type="button"
                             onClick={handleSyncSheet}
                             disabled={syncingSheet}
-                            className="flex-1 lg:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-[#1C1B0E] hover:bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 transition-all cursor-pointer shadow-md disabled:opacity-50"
+                            className={`flex-1 lg:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold border transition-all cursor-pointer shadow-xs disabled:opacity-50 ${
+                                isDark
+                                    ? 'bg-slate-900 hover:bg-emerald-950/60 border-emerald-500/40 text-emerald-300'
+                                    : 'bg-white hover:bg-emerald-50 border-emerald-300 text-emerald-700'
+                            }`}
                             title="Sinkronkan seluruh basis data audit log ke spreadsheet"
                         >
                             <RefreshCw className={`h-4 w-4 ${syncingSheet ? 'animate-spin' : ''}`} />
@@ -298,7 +316,7 @@ export function AuditTrailTab() {
                             href={spreadsheetUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="flex-1 lg:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-extrabold bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg hover:shadow-emerald-900/40 transition-all cursor-pointer"
+                            className="flex-1 lg:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-extrabold bg-emerald-600 hover:bg-emerald-500 text-white keep-white shadow-md transition-all cursor-pointer"
                             title="Buka Spreadsheet di Tab Baru"
                         >
                             <ExternalLink className="h-4 w-4" />
@@ -311,10 +329,10 @@ export function AuditTrailTab() {
                 {syncFeedback && (
                     <div className={`mt-3.5 p-3 rounded-xl border text-xs font-bold flex items-center gap-2.5 animate-in fade-in duration-200 ${
                         syncFeedback.success 
-                            ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-200' 
-                            : 'bg-red-500/20 border-red-500/40 text-red-200'
+                            ? isDark ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-200' : 'bg-emerald-100 border-emerald-300 text-emerald-900'
+                            : isDark ? 'bg-rose-500/20 border-rose-500/40 text-rose-200' : 'bg-rose-100 border-rose-300 text-rose-900'
                     }`}>
-                        {syncFeedback.success ? <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" /> : <AlertCircle className="h-4 w-4 text-red-400 shrink-0" />}
+                        {syncFeedback.success ? <CheckCircle2 className={`h-4 w-4 shrink-0 ${isDark ? 'text-emerald-400' : 'text-emerald-700'}`} /> : <AlertCircle className={`h-4 w-4 shrink-0 ${isDark ? 'text-rose-400' : 'text-rose-700'}`} />}
                         <span>{syncFeedback.message}</span>
                     </div>
                 )}
@@ -322,67 +340,75 @@ export function AuditTrailTab() {
 
             {/* 2. Mini Audit Dashboard Metrik */}
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-                <div className="rounded-xl border border-[#3B3929] bg-[#2A281E]/80 p-3.5 space-y-1">
-                    <div className="text-[11px] font-bold text-[#A19F8D] uppercase tracking-wider flex items-center justify-between">
+                <div className={`rounded-xl border p-3.5 space-y-1 ${isDark ? 'border-slate-800 bg-slate-900/80' : 'border-slate-200 bg-white/90 shadow-xs'}`}>
+                    <div className={`text-[11px] font-bold uppercase tracking-wider flex items-center justify-between ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                         <span>Total Log</span>
-                        <Database className="h-3.5 w-3.5 text-[#A19F8D]" />
+                        <Database className={`h-3.5 w-3.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`} />
                     </div>
-                    <div className="text-xl font-extrabold text-[#FAFAFA]">{stats.total}</div>
+                    <div className={`text-xl font-extrabold ${isDark ? 'text-white' : 'text-slate-900'}`}>{stats.total}</div>
                 </div>
 
-                <div className="rounded-xl border border-[#3B3929] bg-[#2A281E]/80 p-3.5 space-y-1">
-                    <div className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider flex items-center justify-between">
+                <div className={`rounded-xl border p-3.5 space-y-1 ${isDark ? 'border-slate-800 bg-slate-900/80' : 'border-slate-200 bg-white/90 shadow-xs'}`}>
+                    <div className={`text-[11px] font-bold uppercase tracking-wider flex items-center justify-between ${isDark ? 'text-emerald-400' : 'text-emerald-700'}`}>
                         <span>24 Jam Terakhir</span>
-                        <Clock className="h-3.5 w-3.5 text-emerald-400" />
+                        <Clock className={`h-3.5 w-3.5 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
                     </div>
-                    <div className="text-xl font-extrabold text-emerald-400">{stats.count24h}</div>
+                    <div className={`text-xl font-extrabold ${isDark ? 'text-emerald-400' : 'text-emerald-700'}`}>{stats.count24h}</div>
                 </div>
 
-                <div className="rounded-xl border border-[#3B3929] bg-[#2A281E]/80 p-3.5 space-y-1">
-                    <div className="text-[11px] font-bold text-sky-400 uppercase tracking-wider flex items-center justify-between">
+                <div className={`rounded-xl border p-3.5 space-y-1 ${isDark ? 'border-slate-800 bg-slate-900/80' : 'border-slate-200 bg-white/90 shadow-xs'}`}>
+                    <div className={`text-[11px] font-bold uppercase tracking-wider flex items-center justify-between ${isDark ? 'text-sky-400' : 'text-sky-700'}`}>
                         <span>Perubahan Izin</span>
-                        <Sliders className="h-3.5 w-3.5 text-sky-400" />
+                        <Sliders className={`h-3.5 w-3.5 ${isDark ? 'text-sky-400' : 'text-sky-600'}`} />
                     </div>
-                    <div className="text-xl font-extrabold text-sky-400">{stats.countPerms}</div>
+                    <div className={`text-xl font-extrabold ${isDark ? 'text-sky-400' : 'text-sky-700'}`}>{stats.countPerms}</div>
                 </div>
 
-                <div className="rounded-xl border border-[#3B3929] bg-[#2A281E]/80 p-3.5 space-y-1">
-                    <div className="text-[11px] font-bold text-amber-400 uppercase tracking-wider flex items-center justify-between">
+                <div className={`rounded-xl border p-3.5 space-y-1 ${isDark ? 'border-slate-800 bg-slate-900/80' : 'border-slate-200 bg-white/90 shadow-xs'}`}>
+                    <div className={`text-[11px] font-bold uppercase tracking-wider flex items-center justify-between ${isDark ? 'text-amber-400' : 'text-amber-700'}`}>
                         <span>Reset Password</span>
-                        <KeyRound className="h-3.5 w-3.5 text-amber-400" />
+                        <KeyRound className={`h-3.5 w-3.5 ${isDark ? 'text-amber-400' : 'text-amber-600'}`} />
                     </div>
-                    <div className="text-xl font-extrabold text-amber-400">{stats.countPass}</div>
+                    <div className={`text-xl font-extrabold ${isDark ? 'text-amber-400' : 'text-amber-700'}`}>{stats.countPass}</div>
                 </div>
 
-                <div className="rounded-xl border border-[#3B3929] bg-[#2A281E]/80 p-3.5 space-y-1 col-span-2 sm:col-span-1">
-                    <div className="text-[11px] font-bold text-[#C9AA71] uppercase tracking-wider flex items-center justify-between">
+                <div className={`rounded-xl border p-3.5 space-y-1 col-span-2 sm:col-span-1 ${isDark ? 'border-slate-800 bg-slate-900/80' : 'border-slate-200 bg-white/90 shadow-xs'}`}>
+                    <div className={`text-[11px] font-bold uppercase tracking-wider flex items-center justify-between ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>
                         <span>Admin Teraktif</span>
-                        <Sparkles className="h-3.5 w-3.5 text-[#C9AA71]" />
+                        <Sparkles className={`h-3.5 w-3.5 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
                     </div>
-                    <div className="text-sm font-extrabold text-[#FAFAFA] truncate" title={stats.topAdmin}>
+                    <div className={`text-sm font-extrabold truncate ${isDark ? 'text-white' : 'text-slate-900'}`} title={stats.topAdmin}>
                         {stats.topAdmin}
                     </div>
                 </div>
             </div>
 
             {/* 3. Search & Filter Bar */}
-            <div className="rounded-2xl border border-[#3B3929] bg-[#2A281E]/90 p-3.5 sm:p-4 shadow-xl space-y-3">
+            <div className={`rounded-2xl border p-3.5 sm:p-4 shadow-md space-y-3 ${
+                isDark ? 'border-slate-800 bg-slate-900/90' : 'border-slate-200 bg-white/90'
+            }`}>
                 <div className="flex flex-col md:flex-row items-center gap-3">
                     {/* Search Input */}
                     <div className="relative w-full md:flex-1">
-                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-[#A19F8D]" />
+                        <Search className={`absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 ${isDark ? 'text-slate-400' : 'text-slate-500'}`} />
                         <input
                             type="text"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             placeholder="Cari nama akun staf, admin pelaksana, IP address..."
-                            className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-[#1C1B0E] border border-[#3B3929] text-xs text-[#FAFAFA] placeholder-[#A19F8D]/60 focus:outline-none focus:border-[#C9AA71] focus:ring-1 focus:ring-[#C9AA71] transition-all"
+                            className={`w-full pl-10 pr-4 py-2.5 rounded-xl border text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/30 transition-all ${
+                                isDark
+                                    ? 'bg-slate-950 border-slate-700 text-white placeholder-slate-500 focus:border-emerald-500'
+                                    : 'bg-white border-slate-300 text-slate-900 placeholder-slate-400 focus:border-emerald-600'
+                            }`}
                         />
                         {searchQuery && (
                             <button
                                 type="button"
                                 onClick={() => setSearchQuery('')}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[#A19F8D] hover:text-[#FAFAFA]"
+                                className={`absolute right-3 top-1/2 -translate-y-1/2 text-xs cursor-pointer ${
+                                    isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900'
+                                }`}
                             >
                                 Clear
                             </button>
@@ -396,7 +422,11 @@ export function AuditTrailTab() {
                             value={timeFilter}
                             onChange={(e) => setTimeFilter(e.target.value)}
                             aria-label="Rentang Waktu Audit"
-                            className="w-full sm:w-44 px-3.5 py-2.5 rounded-xl bg-[#1C1B0E] border border-[#3B3929] text-xs font-semibold text-[#FAFAFA] focus:outline-none focus:border-[#C9AA71] cursor-pointer"
+                            className={`w-full sm:w-44 px-3.5 py-2.5 rounded-xl border text-xs font-semibold focus:outline-none cursor-pointer ${
+                                isDark
+                                    ? 'bg-slate-950 border-slate-700 text-white focus:border-emerald-500'
+                                    : 'bg-white border-slate-300 text-slate-900 focus:border-emerald-600'
+                            }`}
                         >
                             <option value="all">Semua Waktu</option>
                             <option value="today">Hari Ini</option>
@@ -411,7 +441,11 @@ export function AuditTrailTab() {
                             value={actionFilter}
                             onChange={(e) => setActionFilter(e.target.value)}
                             aria-label="Filter Tipe Aksi"
-                            className="w-full sm:w-52 px-3.5 py-2.5 rounded-xl bg-[#1C1B0E] border border-[#3B3929] text-xs font-semibold text-[#FAFAFA] focus:outline-none focus:border-[#C9AA71] cursor-pointer"
+                            className={`w-full sm:w-52 px-3.5 py-2.5 rounded-xl border text-xs font-semibold focus:outline-none cursor-pointer ${
+                                isDark
+                                    ? 'bg-slate-950 border-slate-700 text-white focus:border-emerald-500'
+                                    : 'bg-white border-slate-300 text-slate-900 focus:border-emerald-600'
+                            }`}
                         >
                             <option value="all">Semua Tipe Aksi</option>
                             <option value="profile_permission">Perubahan Izin / Profil</option>
@@ -426,9 +460,13 @@ export function AuditTrailTab() {
                             onClick={() => fetchLogs(timeFilter)}
                             disabled={loading}
                             title="Segarkan Log Audit"
-                            className="p-2.5 rounded-xl bg-[#1C1B0E] border border-[#3B3929] text-[#A19F8D] hover:text-[#FAFAFA] hover:bg-[#3B3929] transition-all cursor-pointer shrink-0"
+                            className={`p-2.5 rounded-xl border transition-all cursor-pointer shrink-0 ${
+                                isDark
+                                    ? 'bg-slate-950 border-slate-700 text-slate-300 hover:text-white hover:bg-slate-800'
+                                    : 'bg-white border-slate-300 text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                            }`}
                         >
-                            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin text-[#C9AA71]' : ''}`} />
+                            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin text-emerald-500' : ''}`} />
                         </button>
                     </div>
                 </div>
@@ -436,16 +474,20 @@ export function AuditTrailTab() {
 
             {/* 4. Logs List: Desktop Table & Mobile Cards */}
             {loading && logs.length === 0 ? (
-                <div className="rounded-2xl border border-[#3B3929] bg-[#2A281E]/60 p-12 text-center">
-                    <RefreshCw className="h-7 w-7 animate-spin text-[#C9AA71] mx-auto mb-3" />
-                    <p className="text-sm font-semibold text-[#FAFAFA]">Memuat riwayat keamanan audit...</p>
-                    <p className="text-xs text-[#A19F8D] mt-1">Mengambil log dari database dan cloud spreadsheet</p>
+                <div className={`rounded-2xl border p-12 text-center ${
+                    isDark ? 'border-slate-800 bg-slate-900/70' : 'border-slate-200 bg-white/90'
+                }`}>
+                    <RefreshCw className={`h-7 w-7 animate-spin mx-auto mb-3 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
+                    <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>Memuat riwayat keamanan audit...</p>
+                    <p className={`text-xs mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Mengambil log dari database dan cloud spreadsheet</p>
                 </div>
             ) : filteredLogs.length === 0 ? (
-                <div className="rounded-2xl border border-[#3B3929] bg-[#2A281E]/60 p-12 text-center space-y-2">
-                    <Shield className="h-10 w-10 text-[#3B3929] mx-auto" />
-                    <p className="text-sm font-bold text-[#FAFAFA]">Tidak ada log audit yang cocok</p>
-                    <p className="text-xs text-[#A19F8D]">
+                <div className={`rounded-2xl border p-12 text-center space-y-2 ${
+                    isDark ? 'border-slate-800 bg-slate-900/70' : 'border-slate-200 bg-white/90'
+                }`}>
+                    <Shield className={`h-10 w-10 mx-auto ${isDark ? 'text-slate-600' : 'text-slate-300'}`} />
+                    <p className={`text-sm font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>Tidak ada log audit yang cocok</p>
+                    <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                         {searchQuery || actionFilter !== 'all' 
                             ? 'Coba sesuaikan kata kunci pencarian atau reset filter aksi.' 
                             : 'Belum ada aktivitas keamanan yang tercatat di sistem.'}
@@ -454,10 +496,16 @@ export function AuditTrailTab() {
             ) : (
                 <div className="space-y-3">
                     {/* Desktop Table */}
-                    <div className="hidden md:block rounded-2xl border border-[#3B3929] bg-[#2A281E]/80 shadow-xl overflow-hidden">
+                    <div className={`hidden md:block rounded-2xl border shadow-md overflow-hidden ${
+                        isDark ? 'border-slate-800 bg-slate-900/80' : 'border-slate-200 bg-white/90'
+                    }`}>
                         <table className="w-full text-left border-collapse">
                             <thead>
-                                <tr className="border-b border-[#3B3929] bg-[#1C1B0E]/60 text-[11px] font-extrabold uppercase tracking-wider text-[#A19F8D]">
+                                <tr className={`border-b text-[11px] font-extrabold uppercase tracking-wider ${
+                                    isDark
+                                        ? 'border-slate-800 bg-slate-950/70 text-slate-400'
+                                        : 'border-slate-200 bg-slate-50 text-slate-600'
+                                }`}>
                                     <th className="py-3.5 px-4 w-48">Waktu (WIB)</th>
                                     <th className="py-3.5 px-4 w-52">Tipe Aksi</th>
                                     <th className="py-3.5 px-4">Pengguna Target</th>
@@ -466,7 +514,7 @@ export function AuditTrailTab() {
                                     <th className="py-3.5 px-4 text-right w-44">Rincian Perubahan</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-[#3B3929]/50 text-xs">
+                            <tbody className={`divide-y text-xs ${isDark ? 'divide-slate-800/70' : 'divide-slate-200'}`}>
                                 {(() => {
                                     let currentMonth = null;
                                     return filteredLogs.map(log => {
@@ -479,36 +527,38 @@ export function AuditTrailTab() {
                                         return (
                                             <React.Fragment key={log.id}>
                                                 {showDivider && (
-                                                    <tr className="bg-[#1C1B0E] border-y border-[#C9AA71]/30">
+                                                    <tr className={`border-y ${isDark ? 'bg-slate-950 border-emerald-500/30' : 'bg-emerald-50/70 border-emerald-200'}`}>
                                                         <td colSpan={6} className="py-2.5 px-4">
-                                                            <div className="flex items-center gap-2 text-xs font-extrabold text-[#C9AA71] tracking-wider uppercase">
-                                                                <Calendar className="h-3.5 w-3.5 text-[#C9AA71]" />
+                                                            <div className={`flex items-center gap-2 text-xs font-extrabold tracking-wider uppercase ${
+                                                                isDark ? 'text-emerald-400' : 'text-emerald-700'
+                                                            }`}>
+                                                                <Calendar className="h-3.5 w-3.5" />
                                                                 <span>Periode: {logMonth}</span>
-                                                                <div className="flex-1 h-px bg-[#3B3929]/80" />
+                                                                <div className={`flex-1 h-px ${isDark ? 'bg-slate-800' : 'bg-emerald-200'}`} />
                                                             </div>
                                                         </td>
                                                     </tr>
                                                 )}
-                                                <tr className="hover:bg-[#1C1B0E]/40 transition-colors">
-                                                    <td className="py-3.5 px-4 text-[#A19F8D] font-mono text-[11px] whitespace-nowrap">
+                                                <tr className={`transition-colors ${isDark ? 'hover:bg-slate-800/40' : 'hover:bg-slate-50'}`}>
+                                                    <td className={`py-3.5 px-4 font-mono text-[11px] whitespace-nowrap ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                                                         <div className="flex items-center gap-1.5">
-                                                            <Clock className="h-3.5 w-3.5 text-[#C9AA71]" />
+                                                            <Clock className={`h-3.5 w-3.5 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
                                                             <span>{formatDate(log.created_at)}</span>
                                                         </div>
                                                     </td>
                                                 <td className="py-3.5 px-4">
                                                     {getActionBadge(log)}
                                                 </td>
-                                                <td className="py-3.5 px-4 font-bold text-[#FAFAFA]">
+                                                <td className={`py-3.5 px-4 font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
                                                     {log.target_user_name || '-'}
                                                 </td>
-                                                <td className="py-3.5 px-4 text-[#E3D1AA]">
+                                                <td className={`py-3.5 px-4 ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>
                                                     <div className="flex items-center gap-1.5">
-                                                        <User className="h-3.5 w-3.5 text-[#A19F8D]" />
+                                                        <User className={`h-3.5 w-3.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`} />
                                                         <span className="font-semibold">{log.admin_name}</span>
                                                     </div>
                                                 </td>
-                                                <td className="py-3.5 px-4 text-[#A19F8D] font-mono text-[11px]">
+                                                <td className={`py-3.5 px-4 font-mono text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                                                     {log.ip_address || '-'}
                                                 </td>
                                                 <td className="py-3.5 px-4 text-right">
@@ -516,27 +566,33 @@ export function AuditTrailTab() {
                                                         <button
                                                             type="button"
                                                             onClick={() => setExpandedId(isExpanded ? null : log.id)}
-                                                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-[#1C1B0E] hover:bg-[#3B3929] text-[#C9AA71] border border-[#3B3929] transition-all cursor-pointer"
+                                                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
+                                                                isDark
+                                                                    ? 'bg-slate-950 hover:bg-slate-800 text-emerald-300 border-slate-700'
+                                                                    : 'bg-slate-50 hover:bg-emerald-50 text-emerald-700 border-slate-300 hover:border-emerald-300'
+                                                            }`}
                                                         >
                                                             <span>{isExpanded ? 'Tutup' : 'Lihat Diff'}</span>
                                                             {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
                                                         </button>
                                                     ) : (
-                                                        <span className="text-[#A19F8D]/50 text-[11px]">-</span>
+                                                        <span className="text-slate-400 text-[11px]">-</span>
                                                     )}
                                                 </td>
                                             </tr>
 
                                             {/* Expandable diff row */}
                                             {isExpanded && log.changes && (
-                                                <tr className="bg-[#1C1B0E]/80 border-b border-[#3B3929]">
+                                                <tr className={`border-b ${isDark ? 'bg-slate-950/80 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
                                                     <td colSpan={6} className="p-4 sm:p-5">
-                                                        <div className="rounded-xl border border-[#3B3929] bg-[#2A281E]/90 p-4 space-y-2">
-                                                            <div className="flex items-center justify-between pb-2 border-b border-[#3B3929]">
-                                                                <span className="text-xs font-bold text-[#FAFAFA]">
+                                                        <div className={`rounded-xl border p-4 space-y-2 ${
+                                                            isDark ? 'border-slate-800 bg-slate-900/90' : 'border-slate-200 bg-white'
+                                                        }`}>
+                                                            <div className={`flex items-center justify-between pb-2 border-b ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
+                                                                <span className={`text-xs font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
                                                                     Detail Komparasi Perubahan Akun: {log.target_user_name}
                                                                 </span>
-                                                                <span className="text-[11px] text-[#A19F8D]">
+                                                                <span className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                                                                     Dicatat oleh {log.admin_name} ({formatDate(log.created_at)})
                                                                 </span>
                                                             </div>
@@ -568,33 +624,37 @@ export function AuditTrailTab() {
                                 return (
                                     <React.Fragment key={log.id}>
                                         {showDivider && (
-                                            <div className="flex items-center gap-2 py-2 px-1 text-xs font-extrabold text-[#C9AA71] tracking-wider uppercase">
-                                                <Calendar className="h-3.5 w-3.5 text-[#C9AA71]" />
+                                            <div className={`flex items-center gap-2 py-2 px-1 text-xs font-extrabold tracking-wider uppercase ${
+                                                isDark ? 'text-emerald-400' : 'text-emerald-700'
+                                            }`}>
+                                                <Calendar className="h-3.5 w-3.5" />
                                                 <span>Periode: {logMonth}</span>
-                                                <div className="flex-1 h-px bg-[#3B3929]/80" />
+                                                <div className={`flex-1 h-px ${isDark ? 'bg-slate-800' : 'bg-slate-200'}`} />
                                             </div>
                                         )}
                                         <div 
-                                            className="rounded-2xl border border-[#3B3929] bg-[#2A281E]/90 p-4 space-y-2.5 shadow-md"
+                                            className={`rounded-2xl border p-4 space-y-2.5 shadow-sm ${
+                                                isDark ? 'border-slate-800 bg-slate-900/90' : 'border-slate-200 bg-white/95'
+                                            }`}
                                         >
                                             <div className="flex items-start justify-between gap-2">
                                                 <div className="space-y-1">
                                                     {getActionBadge(log)}
-                                                    <div className="text-sm font-bold text-[#FAFAFA]">
+                                                    <div className={`text-sm font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
                                                         {log.target_user_name}
                                                     </div>
-                                                    <div className="text-xs text-[#A19F8D]">
-                                                        Oleh: <strong className="text-[#E3D1AA]">{log.admin_name}</strong>
+                                                    <div className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                                                        Oleh: <strong className={isDark ? 'text-emerald-300' : 'text-emerald-700'}>{log.admin_name}</strong>
                                                     </div>
                                                 </div>
 
                                                 <div className="text-right shrink-0">
-                                                    <div className="text-[11px] text-[#A19F8D] flex items-center justify-end gap-1">
-                                                        <Clock className="h-3 w-3 text-[#C9AA71]" />
+                                                    <div className={`text-[11px] flex items-center justify-end gap-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                                        <Clock className={`h-3 w-3 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
                                                         <span>{formatDate(log.created_at)}</span>
                                                     </div>
                                                     {log.ip_address && (
-                                                        <span className="text-[10px] text-[#A19F8D]/60 font-mono">
+                                                        <span className={`text-[10px] font-mono ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
                                                             IP: {log.ip_address}
                                                         </span>
                                                     )}
@@ -603,18 +663,20 @@ export function AuditTrailTab() {
 
                                             {/* Diff toggle */}
                                             {log.changes && (
-                                                <div className="pt-1 border-t border-[#3B3929]/50">
+                                                <div className={`pt-1 border-t ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
                                                     <button
                                                         type="button"
                                                         onClick={() => setExpandedId(isExpanded ? null : log.id)}
-                                                        className="w-full flex items-center justify-between text-xs font-semibold text-[#C9AA71] hover:text-[#E3D1AA] py-1 cursor-pointer"
+                                                        className={`w-full flex items-center justify-between text-xs font-semibold py-1 cursor-pointer ${
+                                                            isDark ? 'text-emerald-400 hover:text-emerald-300' : 'text-emerald-700 hover:text-emerald-800'
+                                                        }`}
                                                     >
                                                         <span>{isExpanded ? 'Sembunyikan Rincian' : 'Lihat Rincian Perubahan'}</span>
                                                         {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                                                     </button>
 
                                                     {isExpanded && (
-                                                        <div className="mt-2 pt-2 border-t border-[#3B3929] animate-in fade-in duration-200">
+                                                        <div className={`mt-2 pt-2 border-t animate-in fade-in duration-200 ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
                                                             <AuditDiffViewer log={log} />
                                                         </div>
                                                     )}

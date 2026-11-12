@@ -4,6 +4,7 @@ import {
     KeyRound, CheckCircle2, XCircle, Code, Info, Sparkles, 
     RotateCcw, Trash2, Eye, EyeOff
 } from 'lucide-react';
+import { useLeanTheme } from '@/hooks/useLeanTheme';
 
 const FIELD_CONFIG = {
     name: { label: 'Nama Akun', icon: User },
@@ -44,10 +45,18 @@ export function extractDifferences(changes) {
     let after = changes.after;
 
     if (typeof before === 'string') {
-        try { before = JSON.parse(before); } catch (e) { /* ignore */ }
+        try {
+            before = JSON.parse(before);
+        } catch (e) {
+            console.warn('[AuditDiffViewer] Failed parsing before JSON:', e);
+        }
     }
     if (typeof after === 'string') {
-        try { after = JSON.parse(after); } catch (e) { /* ignore */ }
+        try {
+            after = JSON.parse(after);
+        } catch (e) {
+            console.warn('[AuditDiffViewer] Failed parsing after JSON:', e);
+        }
     }
 
     if (!before || !after || typeof before !== 'object' || typeof after !== 'object') {
@@ -141,13 +150,14 @@ export function extractDifferences(changes) {
 }
 
 export function AuditDiffViewer({ log }) {
+    const { isDark } = useLeanTheme();
     const [showRaw, setShowRaw] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
 
     const changes = log?.changes;
     if (!changes) {
         return (
-            <div className="p-3 text-xs text-[#A19F8D] italic">
+            <div className={`p-3 text-xs italic ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                 Tidak ada data rincian untuk aktivitas ini.
             </div>
         );
@@ -163,27 +173,31 @@ export function AuditDiffViewer({ log }) {
 
         return (
             <div className="space-y-3 pt-1">
-                <div className="p-3 rounded-xl bg-[#232218] border border-emerald-500/20 text-xs space-y-2">
-                    <div className="flex items-center gap-1.5 text-emerald-400 font-bold">
+                <div className={`p-3 rounded-xl border text-xs space-y-2 ${
+                    isDark ? 'bg-slate-900/90 border-emerald-500/30' : 'bg-emerald-50/70 border-emerald-200'
+                }`}>
+                    <div className={`flex items-center gap-1.5 font-bold ${isDark ? 'text-emerald-400' : 'text-emerald-700'}`}>
                         <Sparkles className="h-4 w-4" />
                         <span>Pengguna Baru Berhasil Didaftarkan</span>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] pt-1">
-                        <div className="p-2 rounded-lg bg-[#1C1B0E] border border-[#3B3929]">
-                            <span className="text-[#A19F8D] block text-[10px]">Email:</span>
-                            <span className="font-mono text-[#FAFAFA] font-medium">{u.email}</span>
+                        <div className={`p-2 rounded-lg border ${isDark ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200'}`}>
+                            <span className={`block text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Email:</span>
+                            <span className={`font-mono font-medium ${isDark ? 'text-white' : 'text-slate-900'}`}>{u.email}</span>
                         </div>
-                        <div className="p-2 rounded-lg bg-[#1C1B0E] border border-[#3B3929]">
-                            <span className="text-[#A19F8D] block text-[10px]">Role & Departemen:</span>
-                            <span className="text-[#E3D1AA] font-semibold">{u.role} — {u.department || 'Resort'}</span>
+                        <div className={`p-2 rounded-lg border ${isDark ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200'}`}>
+                            <span className={`block text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Role & Departemen:</span>
+                            <span className={`font-semibold ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>{u.role} — {u.department || 'Resort'}</span>
                         </div>
                     </div>
                     {activePerms.length > 0 && (
                         <div className="pt-1">
-                            <span className="text-[10px] text-[#A19F8D] block mb-1">Hak Akses Aktif:</span>
+                            <span className={`text-[10px] block mb-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Hak Akses Aktif:</span>
                             <div className="flex flex-wrap gap-1">
                                 {activePerms.map((permName, idx) => (
-                                    <span key={idx} className="px-2 py-0.5 rounded text-[10px] bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
+                                    <span key={idx} className={`px-2 py-0.5 rounded text-[10px] border ${
+                                        isDark ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/25' : 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                                    }`}>
                                         ✓ {permName}
                                     </span>
                                 ))}
@@ -199,26 +213,30 @@ export function AuditDiffViewer({ log }) {
         const newPass = changes.reset_to;
         return (
             <div className="space-y-3 pt-1">
-                <div className="p-3 rounded-xl bg-[#232218] border border-amber-500/20 text-xs space-y-2">
-                    <div className="flex items-center gap-1.5 text-amber-400 font-bold">
+                <div className={`p-3 rounded-xl border text-xs space-y-2 ${
+                    isDark ? 'bg-slate-900/90 border-amber-500/30' : 'bg-amber-50/70 border-amber-200'
+                }`}>
+                    <div className={`flex items-center gap-1.5 font-bold ${isDark ? 'text-amber-400' : 'text-amber-700'}`}>
                         <KeyRound className="h-4 w-4" />
                         <span>Reset Password Akun</span>
                     </div>
-                    <p className="text-[11px] text-[#A19F8D]">
+                    <p className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
                         Password akun berhasil direset oleh Administrator.
                     </p>
                     {newPass && (
-                        <div className="flex items-center justify-between p-2 rounded-lg bg-[#1C1B0E] border border-[#3B3929]">
+                        <div className={`flex items-center justify-between p-2 rounded-lg border ${
+                            isDark ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200'
+                        }`}>
                             <div className="flex items-center gap-2">
-                                <span className="text-[10px] text-[#A19F8D]">Sandi Baru:</span>
-                                <span className="font-mono text-xs text-[#E3D1AA] font-bold">
+                                <span className={`text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Sandi Baru:</span>
+                                <span className={`font-mono text-xs font-bold ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>
                                     {showPassword ? newPass : '••••••••••••'}
                                 </span>
                             </div>
                             <button
                                 type="button"
                                 onClick={() => setShowPassword(!showPassword)}
-                                className="p-1 rounded text-[#A19F8D] hover:text-[#FAFAFA]"
+                                className={`p-1 rounded cursor-pointer ${isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900'}`}
                                 title={showPassword ? 'Sembunyikan' : 'Tampilkan'}
                             >
                                 {showPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
@@ -238,32 +256,38 @@ export function AuditDiffViewer({ log }) {
 
         return (
             <div className="space-y-3 pt-1">
-                <div className="p-3.5 rounded-xl bg-gradient-to-br from-[#2A281E] to-[#1C1B0E] border border-[#C9AA71]/40 text-xs space-y-3 shadow-lg">
-                    <div className="flex items-center justify-between gap-2 flex-wrap pb-2 border-b border-[#3B3929]">
+                <div className={`p-3.5 rounded-xl border text-xs space-y-3 shadow-md ${
+                    isDark ? 'bg-slate-900/90 border-emerald-500/30' : 'bg-slate-50 border-emerald-200'
+                }`}>
+                    <div className={`flex items-center justify-between gap-2 flex-wrap pb-2 border-b ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
                         <div className="flex items-center gap-2">
-                            <div className="w-7 h-7 rounded-lg bg-[#C9AA71]/20 text-[#C9AA71] flex items-center justify-center border border-[#C9AA71]/30 shrink-0">
+                            <div className={`w-7 h-7 rounded-lg flex items-center justify-center border shrink-0 ${
+                                isDark ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' : 'bg-emerald-100 text-emerald-700 border-emerald-200'
+                            }`}>
                                 <Sliders className="h-4 w-4" />
                             </div>
                             <div>
-                                <span className="font-extrabold text-[#FAFAFA] text-xs sm:text-sm">
+                                <span className={`font-extrabold text-xs sm:text-sm ${isDark ? 'text-white' : 'text-slate-900'}`}>
                                     Laporan Perubahan Izin Massal
                                 </span>
-                                <p className="text-[10px] text-[#A19F8D]">
+                                <p className={`text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                                     Diterapkan serentak untuk {accountCount} akun
                                 </p>
                             </div>
                         </div>
-                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-[#C9AA71] text-[#1C1B0E]">
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-600 text-white keep-white">
                             {accountCount} AKUN
                         </span>
                     </div>
 
                     <div className="space-y-1.5">
-                        <span className="text-[10px] font-bold text-[#E3D1AA] uppercase tracking-wider">
+                        <span className={`text-[10px] font-bold uppercase tracking-wider ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>
                             Izin yang Diubah:
                         </span>
                         {actionApplied === 'reset_default' ? (
-                            <div className="p-2 rounded-lg bg-blue-950/20 border border-blue-500/30 text-blue-300 text-xs">
+                            <div className={`p-2 rounded-lg border text-xs ${
+                                isDark ? 'bg-sky-950/30 border-sky-500/30 text-sky-300' : 'bg-sky-50 border-sky-200 text-sky-800'
+                            }`}>
                                 🔄 Seluruh izin direset kembali ke standar default role akun masing-masing.
                             </div>
                         ) : Object.keys(permChanges).length > 0 ? (
@@ -274,15 +298,21 @@ export function AuditDiffViewer({ log }) {
                                     return (
                                         <div 
                                             key={permKey}
-                                            className="p-2 rounded-lg bg-[#1C1B0E] border border-[#3B3929] flex items-center justify-between gap-2"
+                                            className={`p-2 rounded-lg border flex items-center justify-between gap-2 ${
+                                                isDark ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200'
+                                            }`}
                                         >
-                                            <span className="text-xs text-[#FAFAFA] font-medium">{label}</span>
+                                            <span className={`text-xs font-medium ${isDark ? 'text-white' : 'text-slate-900'}`}>{label}</span>
                                             {isEnabled ? (
-                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold border ${
+                                                    isDark ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' : 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                                                }`}>
                                                     <CheckCircle2 className="h-3 w-3" /> DIAKTIFKAN (ON)
                                                 </span>
                                             ) : (
-                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-red-500/20 text-red-300 border border-red-500/30">
+                                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold border ${
+                                                    isDark ? 'bg-rose-500/20 text-rose-300 border-rose-500/30' : 'bg-rose-100 text-rose-800 border-rose-200'
+                                                }`}>
                                                     <XCircle className="h-3 w-3" /> DINONAKTIFKAN (OFF)
                                                 </span>
                                             )}
@@ -291,7 +321,7 @@ export function AuditDiffViewer({ log }) {
                                 })}
                             </div>
                         ) : (
-                            <div className="text-[11px] text-[#A19F8D]">
+                            <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                                 Izin diperbarui secara serentak.
                             </div>
                         )}
@@ -299,18 +329,22 @@ export function AuditDiffViewer({ log }) {
 
                     {accounts.length > 0 && (
                         <div className="space-y-1.5 pt-1">
-                            <span className="text-[10px] font-bold text-[#E3D1AA] uppercase tracking-wider">
+                            <span className={`text-[10px] font-bold uppercase tracking-wider ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>
                                 Daftar Akun yang Diperbarui ({accounts.length}):
                             </span>
-                            <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto p-2 rounded-lg bg-[#1C1B0E]/80 border border-[#3B3929] custom-scrollbar">
+                            <div className={`flex flex-wrap gap-1.5 max-h-36 overflow-y-auto p-2 rounded-lg border ${
+                                isDark ? 'bg-slate-950/80 border-slate-800' : 'bg-white border-slate-200'
+                            }`}>
                                 {accounts.map((acc, idx) => (
                                     <span 
                                         key={acc.id || idx}
-                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] bg-[#2A281E] border border-[#3B3929] text-[#FAFAFA]"
+                                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] border ${
+                                            isDark ? 'bg-slate-800 border-slate-700 text-slate-100' : 'bg-slate-50 border-slate-200 text-slate-800'
+                                        }`}
                                     >
                                         <span className="font-semibold">{acc.name}</span>
                                         {acc.department && (
-                                            <span className="text-[9px] text-[#A19F8D]">({acc.department})</span>
+                                            <span className={`text-[9px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>({acc.department})</span>
                                         )}
                                     </span>
                                 ))}
@@ -324,12 +358,14 @@ export function AuditDiffViewer({ log }) {
 
     if (changes.archived_user || log.action === 'USER_ARCHIVED') {
         return (
-            <div className="p-3 rounded-xl bg-[#232218] border border-red-500/20 text-xs space-y-1">
-                <div className="flex items-center gap-1.5 text-red-400 font-bold">
+            <div className={`p-3 rounded-xl border text-xs space-y-1 ${
+                isDark ? 'bg-rose-950/25 border-rose-500/30' : 'bg-rose-50 border-rose-200'
+            }`}>
+                <div className={`flex items-center gap-1.5 font-bold ${isDark ? 'text-rose-400' : 'text-rose-700'}`}>
                     <Trash2 className="h-4 w-4" />
                     <span>Akun Dinonaktifkan (Soft Delete)</span>
                 </div>
-                <p className="text-[11px] text-[#A19F8D] leading-relaxed">
+                <p className={`text-[11px] leading-relaxed ${isDark ? 'text-slate-300' : 'text-rose-900/80'}`}>
                     Pengguna dinonaktifkan sementara dan tidak dapat login ke sistem. Seluruh data pelaporan, relasi, dan riwayat tugas tetap terjaga aman.
                 </p>
             </div>
@@ -338,12 +374,14 @@ export function AuditDiffViewer({ log }) {
 
     if (changes.restored_user || log.action === 'USER_RESTORED') {
         return (
-            <div className="p-3 rounded-xl bg-[#232218] border border-purple-500/20 text-xs space-y-1">
-                <div className="flex items-center gap-1.5 text-purple-300 font-bold">
+            <div className={`p-3 rounded-xl border text-xs space-y-1 ${
+                isDark ? 'bg-purple-950/25 border-purple-500/30' : 'bg-purple-50 border-purple-200'
+            }`}>
+                <div className={`flex items-center gap-1.5 font-bold ${isDark ? 'text-purple-300' : 'text-purple-800'}`}>
                     <RotateCcw className="h-4 w-4" />
                     <span>Akun Berhasil Dipulihkan</span>
                 </div>
-                <p className="text-[11px] text-[#A19F8D] leading-relaxed">
+                <p className={`text-[11px] leading-relaxed ${isDark ? 'text-slate-300' : 'text-purple-900/80'}`}>
                     Pengguna telah dikembalikan ke daftar staf aktif dan dapat kembali login serta mengakses sistem sesuai izinnya.
                 </p>
             </div>
@@ -356,14 +394,16 @@ export function AuditDiffViewer({ log }) {
     return (
         <div className="space-y-2 pt-1">
             {diffs.length === 0 ? (
-                <div className="p-3 rounded-xl bg-[#1C1B0E] border border-[#3B3929] text-center text-xs text-[#A19F8D] space-y-1">
-                    <Info className="h-4 w-4 mx-auto text-[#C9AA71]/70" />
-                    <p className="text-[#E3D1AA] font-medium">Disimpan Tanpa Perubahan Nilai</p>
+                <div className={`p-3 rounded-xl border text-center text-xs space-y-1 ${
+                    isDark ? 'bg-slate-950 border-slate-800 text-slate-400' : 'bg-slate-50 border-slate-200 text-slate-500'
+                }`}>
+                    <Info className={`h-4 w-4 mx-auto ${isDark ? 'text-emerald-400/70' : 'text-emerald-600'}`} />
+                    <p className={`font-medium ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>Disimpan Tanpa Perubahan Nilai</p>
                     <p className="text-[10px]">Data profil dan seluruh hak akses akun tetap persis sama.</p>
                 </div>
             ) : (
                 <div className="space-y-2">
-                    <div className="flex items-center justify-between text-[10px] text-[#A19F8D] px-1 font-medium">
+                    <div className={`flex items-center justify-between text-[10px] px-1 font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                         <span>{diffs.length} Perubahan Terdeteksi:</span>
                         <span className="hidden sm:inline">Perbandingan Sebelum & Sesudah</span>
                     </div>
@@ -374,11 +414,15 @@ export function AuditDiffViewer({ log }) {
                             return (
                                 <div
                                     key={diff.key || index}
-                                    className="p-3 rounded-xl bg-[#1C1B0E] border border-[#3B3929] hover:border-[#C9AA71]/40 transition-all space-y-2 shadow-sm"
+                                    className={`p-3 rounded-xl border transition-all space-y-2 shadow-xs ${
+                                        isDark
+                                            ? 'bg-slate-950 border-slate-800 hover:border-emerald-500/40'
+                                            : 'bg-white border-slate-200 hover:border-emerald-300'
+                                    }`}
                                 >
                                     {/* Header: Field label */}
-                                    <div className="flex items-center gap-1.5 text-xs font-bold text-[#E3D1AA]">
-                                        <div className="p-1 rounded-md bg-[#C9AA71]/15 text-[#C9AA71]">
+                                    <div className={`flex items-center gap-1.5 text-xs font-bold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
+                                        <div className={`p-1 rounded-md ${isDark ? 'bg-emerald-500/15 text-emerald-400' : 'bg-emerald-100 text-emerald-700'}`}>
                                             <IconComponent className="h-3 w-3" />
                                         </div>
                                         <span>{diff.label}</span>
@@ -388,17 +432,23 @@ export function AuditDiffViewer({ log }) {
                                     {diff.type === 'permission' ? (
                                         <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] items-center gap-2 pt-0.5">
                                             {/* Before */}
-                                            <div className="p-2 rounded-lg bg-red-950/20 border border-red-500/20 flex flex-col gap-1">
-                                                <span className="text-[9px] font-bold text-red-400/80 uppercase tracking-wider">
+                                            <div className={`p-2 rounded-lg border flex flex-col gap-1 ${
+                                                isDark ? 'bg-rose-950/20 border-rose-500/20' : 'bg-rose-50 border-rose-200'
+                                            }`}>
+                                                <span className={`text-[9px] font-bold uppercase tracking-wider ${isDark ? 'text-rose-400/80' : 'text-rose-700'}`}>
                                                     Sebelum
                                                 </span>
                                                 <div className="flex items-center gap-1.5">
                                                     {diff.beforeBool ? (
-                                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                                                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold border ${
+                                                            isDark ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' : 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                                                        }`}>
                                                             <CheckCircle2 className="h-3 w-3" /> Diizinkan (Aktif)
                                                         </span>
                                                     ) : (
-                                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-red-500/20 text-red-300 border border-red-500/30">
+                                                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold border ${
+                                                            isDark ? 'bg-rose-500/20 text-rose-300 border-rose-500/30' : 'bg-rose-100 text-rose-800 border-rose-200'
+                                                        }`}>
                                                             <XCircle className="h-3 w-3" /> Dibatasi (Nonaktif)
                                                         </span>
                                                     )}
@@ -406,22 +456,28 @@ export function AuditDiffViewer({ log }) {
                                             </div>
 
                                             {/* Arrow */}
-                                            <div className="flex justify-center items-center text-[#C9AA71]">
+                                            <div className={`flex justify-center items-center ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
                                                 <ArrowRight className="h-4 w-4 rotate-90 sm:rotate-0" />
                                             </div>
 
                                             {/* After */}
-                                            <div className="p-2 rounded-lg bg-emerald-950/20 border border-emerald-500/30 flex flex-col gap-1">
-                                                <span className="text-[9px] font-bold text-emerald-400/80 uppercase tracking-wider">
+                                            <div className={`p-2 rounded-lg border flex flex-col gap-1 ${
+                                                isDark ? 'bg-emerald-950/20 border-emerald-500/30' : 'bg-emerald-50 border-emerald-200'
+                                            }`}>
+                                                <span className={`text-[9px] font-bold uppercase tracking-wider ${isDark ? 'text-emerald-400/80' : 'text-emerald-700'}`}>
                                                     Sesudah
                                                 </span>
                                                 <div className="flex items-center gap-1.5">
                                                     {diff.afterBool ? (
-                                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                                                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold border ${
+                                                            isDark ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' : 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                                                        }`}>
                                                             <CheckCircle2 className="h-3 w-3" /> Diizinkan (Aktif)
                                                         </span>
                                                     ) : (
-                                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-red-500/20 text-red-300 border border-red-500/30">
+                                                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold border ${
+                                                            isDark ? 'bg-rose-500/20 text-rose-300 border-rose-500/30' : 'bg-rose-100 text-rose-800 border-rose-200'
+                                                        }`}>
                                                             <XCircle className="h-3 w-3" /> Dibatasi (Nonaktif)
                                                         </span>
                                                     )}
@@ -431,26 +487,30 @@ export function AuditDiffViewer({ log }) {
                                     ) : (
                                         <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] items-center gap-2 pt-0.5">
                                             {/* Before */}
-                                            <div className="p-2 rounded-lg bg-red-950/20 border border-red-500/20 flex flex-col gap-0.5 overflow-hidden">
-                                                <span className="text-[9px] font-bold text-red-400/80 uppercase tracking-wider">
+                                            <div className={`p-2 rounded-lg border flex flex-col gap-0.5 overflow-hidden ${
+                                                isDark ? 'bg-rose-950/20 border-rose-500/20' : 'bg-rose-50 border-rose-200'
+                                            }`}>
+                                                <span className={`text-[9px] font-bold uppercase tracking-wider ${isDark ? 'text-rose-400/80' : 'text-rose-700'}`}>
                                                     Sebelum
                                                 </span>
-                                                <span className="text-[11px] font-mono text-red-200 line-through truncate" title={diff.beforeText}>
+                                                <span className={`text-[11px] font-mono line-through truncate ${isDark ? 'text-rose-200' : 'text-rose-800'}`} title={diff.beforeText}>
                                                     {diff.beforeText}
                                                 </span>
                                             </div>
 
                                             {/* Arrow */}
-                                            <div className="flex justify-center items-center text-[#C9AA71]">
+                                            <div className={`flex justify-center items-center ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
                                                 <ArrowRight className="h-4 w-4 rotate-90 sm:rotate-0" />
                                             </div>
 
                                             {/* After */}
-                                            <div className="p-2 rounded-lg bg-emerald-950/20 border border-emerald-500/30 flex flex-col gap-0.5 overflow-hidden">
-                                                <span className="text-[9px] font-bold text-emerald-400/80 uppercase tracking-wider">
+                                            <div className={`p-2 rounded-lg border flex flex-col gap-0.5 overflow-hidden ${
+                                                isDark ? 'bg-emerald-950/20 border-emerald-500/30' : 'bg-emerald-50 border-emerald-200'
+                                            }`}>
+                                                <span className={`text-[9px] font-bold uppercase tracking-wider ${isDark ? 'text-emerald-400/80' : 'text-emerald-700'}`}>
                                                     Sesudah
                                                 </span>
-                                                <span className="text-[11px] font-mono text-emerald-200 font-semibold truncate" title={diff.afterText}>
+                                                <span className={`text-[11px] font-mono font-semibold truncate ${isDark ? 'text-emerald-200' : 'text-emerald-800'}`} title={diff.afterText}>
                                                     {diff.afterText}
                                                 </span>
                                             </div>
@@ -468,7 +528,9 @@ export function AuditDiffViewer({ log }) {
                 <button
                     type="button"
                     onClick={() => setShowRaw(!showRaw)}
-                    className="inline-flex items-center gap-1 text-[10px] text-[#A19F8D] hover:text-[#C9AA71] transition-colors cursor-pointer"
+                    className={`inline-flex items-center gap-1 text-[10px] transition-colors cursor-pointer ${
+                        isDark ? 'text-slate-400 hover:text-emerald-300' : 'text-slate-500 hover:text-emerald-700'
+                    }`}
                 >
                     <Code className="h-3 w-3" />
                     <span>{showRaw ? 'Sembunyikan JSON Teknis' : 'Lihat Data JSON Mentah'}</span>
@@ -476,7 +538,9 @@ export function AuditDiffViewer({ log }) {
             </div>
 
             {showRaw && (
-                <div className="mt-1 p-2.5 rounded-lg bg-black/60 border border-[#3B3929] text-[10px] font-mono text-[#E3D1AA] overflow-x-auto">
+                <div className={`mt-1 p-2.5 rounded-lg border text-[10px] font-mono overflow-x-auto ${
+                    isDark ? 'bg-slate-950 border-slate-800 text-slate-200' : 'bg-slate-900 border-slate-700 text-slate-100'
+                }`}>
                     <pre className="whitespace-pre-wrap leading-relaxed">
                         {JSON.stringify(changes, null, 2)}
                     </pre>

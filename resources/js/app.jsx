@@ -17,7 +17,6 @@ router.on('invalid', (event) => {
     }
 });
 
-import { SlashProvider } from '@/Components/CampusFix/SlashTransition';
 import { LanguageProvider } from '@/context/LanguageContext';
 import { ErrorBoundary } from '@/Components/CampusFix/ErrorBoundary';
 import { registerServiceWorker } from '@/services/webPushService';
@@ -42,14 +41,12 @@ createInertiaApp({
         root.render(
             <ErrorBoundary>
                 <LanguageProvider>
-                    <SlashProvider>
-                        <App {...props} />
-                    </SlashProvider>
+                    <App {...props} />
                 </LanguageProvider>
             </ErrorBoundary>
         );
     },
     progress: {
-        color: '#C9AA71',
+        color: '#10B981',
     },
 });

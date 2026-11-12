@@ -23,9 +23,10 @@ import {
 } from '@/services/soundService';
 
 import { useLanguage } from '@/context/LanguageContext';
-import { CampusFixHeader } from '@/Components/CampusFix/CampusFixHeader';
+import { LeanHeader } from '@/Components/CampusFix/LeanHeader';
 import { MobileBottomNav } from '@/Components/CampusFix/MobileBottomNav';
 import { BotControlModal } from '@/Components/CampusFix/BotControlModal';
+import { useLeanTheme } from '@/hooks/useLeanTheme';
 import { useAuth } from '@/hooks/useAuth';
 import { getDepartmentTheme, ALL_DEPARTMENTS, DEPARTMENT_SUBDIVISIONS } from '@/constants/departments';
 import { getStaffForDepartment } from '@/constants/staff';
@@ -39,12 +40,13 @@ export default function ProfilePage(props) {
 
 function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket, notifyWhatsAppTickets, status }) {
     const { t, lang } = useLanguage();
-    const { 
+    const { isDark } = useLeanTheme();
+    const {
         user, isAdmin, isHOD, isDeptUser, department, subdivision, staffName, whatsappNumber, avatarUrl, activeStaffRoster,
         canViewAllDepartments, canManageIssues, canDeleteIssues, canExportReports
     } = useAuth();
     const canDirectUpdateWa = isAdmin || isHOD;
-    const currentDeptTheme = department ? getDepartmentTheme(department) : { bg: '#C9AA71', text: '#1C1B0E' };
+    const currentDeptTheme = department ? getDepartmentTheme(department) : { bg: '#059669', text: '#FFFFFF' };
 
     const [isLoggingOut, setIsLoggingOut] = useState(false);
     const passwordInput = useRef(null);
@@ -60,7 +62,8 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
         try {
             const res = await axios.get('/api/bot/status');
             setAdminBotStatus(res.data);
-        } catch {
+        } catch (err) {
+            console.warn('[Profile] Failed to load WhatsApp bot status:', err?.message || err);
             setAdminBotStatus({ connected: false });
         }
     }, [isAdmin]);
@@ -208,7 +211,7 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
         if (!confirm(lang === 'id' ? 'Apakah Anda yakin ingin melepas tautan nomor WhatsApp ini dari akun Anda?' : 'Are you sure you want to unlink this WhatsApp number from your account?')) {
             return;
         }
-        router.patch(route('profile.whatsapp'), { 
+        router.patch(route('profile.whatsapp'), {
             whatsapp_number: '',
             reason: 'Permintaan pelepasan nomor WhatsApp mandiri via Profile'
         }, {
@@ -346,6 +349,7 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
                 setPushSuccessMsg(lang === 'id' ? 'Notifikasi pop-up berhasil diaktifkan! Anda akan menerima pop-up saat ada tiket baru.' : 'Push notifications enabled successfully!');
             }
         } catch (err) {
+            console.warn('[Profile] Push notification toggle error:', err);
             setPushErrorMsg(err.message || (lang === 'id' ? 'Gagal mengubah pengaturan notifikasi.' : 'Failed to update notification settings.'));
         } finally {
             setPushLoading(false);
@@ -360,6 +364,7 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
             const res = await sendTestPushNotification();
             setPushSuccessMsg(res.message || (lang === 'id' ? 'Tes notifikasi pop-up berhasil dikirim ke perangkat Anda!' : 'Test notification sent!'));
         } catch (err) {
+            console.warn('[Profile] Test push error:', err);
             setPushErrorMsg(err.response?.data?.message || err.message || (lang === 'id' ? 'Gagal mengirim tes notifikasi.' : 'Failed to send test push.'));
         } finally {
             setPushTestLoading(false);
@@ -420,975 +425,1028 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
     const deptStaffRoster = department ? getStaffForDepartment(department, activeStaffRoster) : [];
 
     return (
-        <div className="min-h-screen bg-[#1C1B0E] text-[#FAFAFA] relative overflow-x-clip antialiased selection:bg-[#C9AA71]/30">
+        <div
+            className={`lean-root ${
+                isDark ? 'lean-theme-dark text-slate-100' : 'lean-theme-light text-slate-800'
+            } min-h-screen flex flex-col font-sans pb-24 md:pb-12 transition-colors duration-300 w-full max-w-full overflow-x-clip selection:bg-emerald-500 selection:text-white`}
+        >
             <Head title={`${t('profile') || 'Profil'} — Telunas Resort`} />
 
-            {/* Background Motif Wallpaper */}
-            <div className="app-bg-wallpaper" />
+            <LeanHeader activePage="profile" onBotStatusChange={setAdminBotStatus} />
 
-            {/* Ambient Glow */}
-            <div className="fixed top-12 left-1/2 -translate-x-1/2 w-[750px] h-[380px] pointer-events-none blur-[160px] opacity-15 rounded-full bg-[#C9AA71] z-0" />
+            <main className="mx-auto max-w-6xl w-full flex-1 space-y-6 px-4 py-6 sm:px-6 lg:px-8">
+                {/* Hidden Avatar File Input */}
+                <input
+                    ref={avatarInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/jpg,image/webp"
+                    onChange={handleAvatarSelect}
+                    className="hidden"
+                />
 
-            <div className="relative z-10">
-                <CampusFixHeader mode="profile" />
+                {/* Header Banner */}
+                <div
+                    className={`rounded-2xl p-6 sm:p-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5 border shadow-lg transition-colors ${
+                        isDark
+                            ? 'border-slate-800 bg-slate-900/80 backdrop-blur-md'
+                            : 'border-slate-200 bg-white/95 shadow-slate-200/60'
+                    }`}
+                >
+                    <div className="flex items-start sm:items-center gap-5">
+                        {/* Interactive Avatar in Banner */}
+                        <div className="relative group shrink-0">
+                            <div
+                                className={`w-16 h-16 sm:w-20 sm:h-20 rounded-2xl flex items-center justify-center font-extrabold text-2xl sm:text-3xl shadow-lg border-2 overflow-hidden relative ${
+                                    isDark ? 'border-slate-700' : 'border-slate-200'
+                                }`}
+                                style={{ background: currentDeptTheme.bg, color: currentDeptTheme.text }}
+                            >
+                                {avatarPreview ? (
+                                    <img src={avatarPreview} alt="Preview" className="w-full h-full object-cover" />
+                                ) : avatarUrl ? (
+                                    <img src={avatarUrl} alt={user?.name || 'Avatar'} className="w-full h-full object-cover" />
+                                ) : (
+                                    user?.name ? user.name.charAt(0).toUpperCase() : <User className="h-8 w-8" />
+                                )}
 
-                <main className="mx-auto max-w-5xl space-y-8 px-4 py-8 sm:px-6 sm:py-10 pb-28 md:pb-10">
-                    {/* Hidden Avatar File Input */}
-                    <input
-                        ref={avatarInputRef}
-                        type="file"
-                        accept="image/jpeg,image/png,image/jpg,image/webp"
-                        onChange={handleAvatarSelect}
-                        className="hidden"
-                    />
-
-                    {/* Header Banner */}
-                    <div className="rounded-2xl p-6 sm:p-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5 shadow-xl border border-white/10 bg-gradient-to-br from-[#2A281E] to-[#1C1B0E]">
-                        <div className="flex items-start sm:items-center gap-5">
-                            {/* Interactive Avatar in Banner */}
-                            <div className="relative group shrink-0">
-                                <div 
-                                    className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl flex items-center justify-center font-extrabold text-2xl sm:text-3xl shadow-xl border-2 border-white/20 overflow-hidden relative"
-                                    style={{ background: currentDeptTheme.bg, color: currentDeptTheme.text }}
-                                >
-                                    {avatarPreview ? (
-                                        <img src={avatarPreview} alt="Preview" className="w-full h-full object-cover" />
-                                    ) : avatarUrl ? (
-                                        <img src={avatarUrl} alt={user?.name || 'Avatar'} className="w-full h-full object-cover" />
-                                    ) : (
-                                        user?.name ? user.name.charAt(0).toUpperCase() : <User className="h-8 w-8" />
-                                    )}
-
-                                    {/* Hover overlay button */}
-                                    <button
-                                        type="button"
-                                        onClick={() => avatarInputRef.current?.click()}
-                                        disabled={isUploadingAvatar || isDeletingAvatar}
-                                        className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center text-white transition-opacity duration-200 cursor-pointer backdrop-blur-[2px]"
-                                        title={lang === 'id' ? 'Ubah Foto Profil' : 'Change Profile Photo'}
-                                    >
-                                        <Camera className="h-5 w-5 sm:h-6 sm:w-6 text-[#E3D1AA] mb-0.5" />
-                                        <span className="text-[10px] font-bold text-[#E3D1AA]">{lang === 'id' ? 'Ubah' : 'Change'}</span>
-                                    </button>
-                                </div>
-
-                                {/* Quick Camera Badge Icon */}
+                                {/* Hover overlay button */}
                                 <button
                                     type="button"
                                     onClick={() => avatarInputRef.current?.click()}
                                     disabled={isUploadingAvatar || isDeletingAvatar}
-                                    className="absolute -bottom-1 -right-1 sm:-bottom-1.5 sm:-right-1.5 w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-[#C9AA71] hover:bg-[#E3D1AA] text-[#1C1B0E] flex items-center justify-center shadow-lg border-2 border-[#1C1B0E] transition-transform hover:scale-110 cursor-pointer"
-                                    title={lang === 'id' ? 'Pilih Foto Baru' : 'Choose New Photo'}
+                                    className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center text-white keep-white transition-opacity duration-200 cursor-pointer backdrop-blur-[2px]"
+                                    title={lang === 'id' ? 'Ubah Foto Profil' : 'Change Profile Photo'}
                                 >
-                                    <Camera className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                                    <Camera className="h-5 w-5 sm:h-6 sm:w-6 text-emerald-300 mb-0.5" />
+                                    <span className="text-[10px] font-bold text-emerald-300">{lang === 'id' ? 'Ubah' : 'Change'}</span>
                                 </button>
                             </div>
 
-                            <div>
-                                <div className="flex items-center gap-2.5 flex-wrap">
-                                    <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#FAFAFA]">
-                                        {staffName || user?.name || 'Account'}
-                                    </h1>
-                                    {isAdmin && (
-                                        <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-[#C9AA71] text-[#1C1B0E] flex items-center gap-1 shadow-sm">
-                                            <ShieldCheck className="h-3.5 w-3.5" />
-                                            Admin
-                                        </span>
-                                    )}
-                                    {department && (
-                                        <SubdivisionTag 
-                                            department={department} 
-                                            subdivision={subdivision} 
-                                            size="sm" 
-                                        />
-                                    )}
-                                </div>
-                                <p className="text-xs sm:text-sm text-[#A19F8D] mt-1 flex items-center gap-1.5">
-                                    <Mail className="h-3.5 w-3.5" />
-                                    {user?.email}
-                                </p>
+                            {/* Quick Camera Badge Icon */}
+                            <button
+                                type="button"
+                                onClick={() => avatarInputRef.current?.click()}
+                                disabled={isUploadingAvatar || isDeletingAvatar}
+                                className={`absolute -bottom-1 -right-1 sm:-bottom-1.5 sm:-right-1.5 w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white keep-white flex items-center justify-center shadow-lg border-2 transition-transform hover:scale-110 cursor-pointer ${
+                                    isDark ? 'border-slate-900' : 'border-white'
+                                }`}
+                                title={lang === 'id' ? 'Pilih Foto Baru' : 'Choose New Photo'}
+                            >
+                                <Camera className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                            </button>
+                        </div>
 
-                                {/* Banner Quick Preview Action Bar */}
-                                {avatarPreview && (
-                                    <div className="mt-2.5 flex items-center gap-2 flex-wrap">
-                                        <span className="text-[11px] text-[#E3D1AA] font-semibold flex items-center gap-1">
-                                            <Sparkles className="h-3 w-3 text-[#C9AA71]" />
-                                            {lang === 'id' ? 'Foto siap disimpan:' : 'Ready to save:'}
-                                        </span>
-                                        <button
-                                            type="button"
-                                            onClick={handleAvatarUpload}
-                                            disabled={isUploadingAvatar}
-                                            className="flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-bold bg-[#C9AA71] hover:bg-[#b89960] text-[#1C1B0E] transition-all cursor-pointer shadow-md disabled:opacity-60"
-                                        >
-                                            {isUploadingAvatar ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
-                                            <span>{isUploadingAvatar ? (lang === 'id' ? 'Menyimpan...' : 'Saving...') : (lang === 'id' ? 'Simpan' : 'Save')}</span>
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={handleAvatarCancel}
-                                            disabled={isUploadingAvatar}
-                                            className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold bg-white/10 hover:bg-white/20 text-[#FAFAFA] transition-all cursor-pointer"
-                                        >
-                                            <X className="h-3 w-3" />
-                                            <span>{lang === 'id' ? 'Batal' : 'Cancel'}</span>
-                                        </button>
-                                    </div>
+                        <div>
+                            <div className="flex items-center gap-2.5 flex-wrap">
+                                <h1 className={`text-2xl sm:text-3xl font-extrabold tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                                    {staffName || user?.name || 'Account'}
+                                </h1>
+                                {isAdmin && (
+                                    <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-600 text-white keep-white flex items-center gap-1 shadow-sm">
+                                        <ShieldCheck className="h-3.5 w-3.5" />
+                                        Admin
+                                    </span>
+                                )}
+                                {department && (
+                                    <SubdivisionTag
+                                        department={department}
+                                        subdivision={subdivision}
+                                        size="sm"
+                                    />
                                 )}
                             </div>
-                        </div>
+                            <p className={`text-xs sm:text-sm mt-1 flex items-center gap-1.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                <Mail className="h-3.5 w-3.5" />
+                                {user?.email}
+                            </p>
 
-                        {/* Logout Button */}
-                        <button
-                            type="button"
-                            onClick={handleLogout}
-                            disabled={isLoggingOut}
-                            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-red-600/20 hover:bg-red-600 text-red-300 hover:text-white border border-red-500/40 hover:border-red-500 transition-all duration-200 cursor-pointer shadow-lg hover:scale-105 disabled:opacity-60 shrink-0"
-                        >
-                            {isLoggingOut ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                                <LogOut className="h-4 w-4" />
+                            {/* Banner Quick Preview Action Bar */}
+                            {avatarPreview && (
+                                <div className="mt-2.5 flex items-center gap-2 flex-wrap">
+                                    <span className={`text-[11px] font-semibold flex items-center gap-1 ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>
+                                        <Sparkles className={`h-3 w-3 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
+                                        {lang === 'id' ? 'Foto siap disimpan:' : 'Ready to save:'}
+                                    </span>
+                                    <button
+                                        type="button"
+                                        onClick={handleAvatarUpload}
+                                        disabled={isUploadingAvatar}
+                                        className="flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white keep-white transition-all cursor-pointer shadow-md disabled:opacity-60"
+                                    >
+                                        {isUploadingAvatar ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                                        <span>{isUploadingAvatar ? (lang === 'id' ? 'Menyimpan...' : 'Saving...') : (lang === 'id' ? 'Simpan' : 'Save')}</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={handleAvatarCancel}
+                                        disabled={isUploadingAvatar}
+                                        className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                                            isDark
+                                                ? 'bg-slate-800 hover:bg-slate-700 text-slate-200'
+                                                : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                                        }`}
+                                    >
+                                        <X className="h-3 w-3" />
+                                        <span>{lang === 'id' ? 'Batal' : 'Cancel'}</span>
+                                    </button>
+                                </div>
                             )}
-                            <span>{isLoggingOut ? (t('logging_out') || 'Logging out...') : (t('logout') || 'Log Out')}</span>
-                        </button>
+                        </div>
                     </div>
 
-                    {/* Admin Control Hub Banner (Visible only for Administrator) */}
-                    {isAdmin && (
-                        <div className="rounded-2xl border border-[#C9AA71]/40 bg-gradient-to-r from-[#2A281E] via-[#332E1C] to-[#1C1B0E] p-6 shadow-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 relative overflow-hidden group">
-                            <div className="flex items-center gap-4">
-                                <div className="p-3 rounded-2xl bg-[#C9AA71]/20 text-[#C9AA71] border border-[#C9AA71]/40 shadow-inner shrink-0">
-                                    <UsersIcon className="h-7 w-7" />
+                    {/* Logout Button */}
+                    <button
+                        type="button"
+                        onClick={handleLogout}
+                        disabled={isLoggingOut}
+                        className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold border transition-all duration-200 cursor-pointer shadow-sm hover:scale-105 disabled:opacity-60 shrink-0 ${
+                            isDark
+                                ? 'bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border-rose-500/40 hover:border-rose-500'
+                                : 'bg-rose-50 hover:bg-rose-600 text-rose-700 hover:text-white border-rose-200 hover:border-rose-600'
+                        }`}
+                    >
+                        {isLoggingOut ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                            <LogOut className="h-4 w-4" />
+                        )}
+                        <span>{isLoggingOut ? (t('logging_out') || 'Logging out...') : (t('logout') || 'Log Out')}</span>
+                    </button>
+                </div>
+
+                {/* Admin Control Hub Banner (Visible only for Administrator) */}
+                {isAdmin && (
+                    <div
+                        className={`rounded-2xl border p-6 shadow-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 relative overflow-hidden ${
+                            isDark
+                                ? 'border-emerald-500/30 bg-slate-900/90 backdrop-blur-md'
+                                : 'border-emerald-200 bg-emerald-50/70 shadow-slate-200/60'
+                        }`}
+                    >
+                        <div className="flex items-center gap-4">
+                            <div
+                                className={`p-3 rounded-2xl border shadow-xs shrink-0 ${
+                                    isDark
+                                        ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                                        : 'bg-emerald-100 text-emerald-700 border-emerald-200'
+                                }`}
+                            >
+                                <UsersIcon className="h-7 w-7" />
+                            </div>
+                            <div>
+                                <div className="flex items-center gap-2">
+                                    <h2 className={`text-base sm:text-lg font-extrabold ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                                        {lang === 'id' ? 'Manajemen Pengguna & Hak Akses' : 'User Management & Permissions'}
+                                    </h2>
+                                    <span className="px-2 py-0.5 rounded text-[10px] font-black bg-emerald-600 text-white keep-white">
+                                        ADMIN
+                                    </span>
                                 </div>
+                                <p className={`text-xs mt-0.5 max-w-xl leading-relaxed ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                                    {lang === 'id'
+                                        ? 'Atur akun staf, reset password, konfigurasi departemen, matriks izin akses (Barrier), serta pantau audit log keamanan resort.'
+                                        : 'Manage staff credentials, reset passwords, configure department scopes, access barriers, and review security audit logs.'}
+                                </p>
+                            </div>
+                        </div>
+                        <Link
+                            href="/users"
+                            className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white keep-white transition-all shadow-md hover:shadow-lg cursor-pointer shrink-0 hover:scale-[1.02]"
+                        >
+                            <ShieldAlert className="h-4 w-4" />
+                            <span>{lang === 'id' ? 'Buka Kelola Semua Akun' : 'Open User Management'}</span>
+                            <ChevronRight className="h-4 w-4" />
+                        </Link>
+                    </div>
+                )}
+
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    {/* Account Details Card */}
+                    <div className="lg:col-span-1 space-y-6">
+                        <div
+                            className={`rounded-2xl border p-6 shadow-lg space-y-4 ${
+                                isDark
+                                    ? 'border-slate-800 bg-slate-900/80 backdrop-blur-md'
+                                    : 'border-slate-200 bg-white/95 shadow-slate-200/60'
+                            }`}
+                        >
+                            <div className={`flex items-center gap-2 pb-3 border-b ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
+                                <Shield className={`h-5 w-5 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
+                                <h2 className={`text-base font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                                    {t('account_info') || 'Informasi Akun'}
+                                </h2>
+                            </div>
+
+                            <div className="space-y-3.5 text-xs">
                                 <div>
-                                    <div className="flex items-center gap-2">
-                                        <h2 className="text-base sm:text-lg font-extrabold text-[#FAFAFA]">
-                                            {lang === 'id' ? 'Manajemen Pengguna & Hak Akses' : 'User Management & Permissions'}
-                                        </h2>
-                                        <span className="px-2 py-0.5 rounded text-[10px] font-black bg-[#C9AA71] text-[#1C1B0E]">
-                                            ADMIN
-                                        </span>
+                                    <p className={`font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{t('email_label') || 'Alamat Email'}</p>
+                                    <p className={`text-sm font-semibold break-all ${isDark ? 'text-white' : 'text-slate-900'}`}>{user?.email}</p>
+                                </div>
+
+                                <div>
+                                    <div className="flex items-center justify-between gap-2 mb-1">
+                                        <p className={`font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{t('staff_name_label') || 'Nama Tampilan'}</p>
+                                        {!pendingNameTicket && (
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setNameData('new_name', '');
+                                                    setNameData('reason', '');
+                                                    setIsNameModalOpen(true);
+                                                }}
+                                                className={`inline-flex items-center gap-1 text-[11px] font-bold transition-colors cursor-pointer ${
+                                                    isDark ? 'text-emerald-400 hover:text-emerald-300' : 'text-emerald-600 hover:text-emerald-700'
+                                                }`}
+                                                title={lang === 'id' ? 'Ajukan perubahan nama akun resmi' : 'Request official name change'}
+                                            >
+                                                <User className="w-3 h-3" />
+                                                <span>{lang === 'id' ? 'Ubah Nama' : 'Change Name'}</span>
+                                            </button>
+                                        )}
                                     </div>
-                                    <p className="text-xs text-[#A19F8D] mt-0.5 max-w-xl leading-relaxed">
-                                        {lang === 'id'
-                                            ? 'Atur akun staf, reset password, konfigurasi departemen, matriks izin akses (Barrier), serta pantau audit log keamanan resort.'
-                                            : 'Manage staff credentials, reset passwords, configure department scopes, access barriers, and review security audit logs.'}
+                                    <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>{staffName || user?.name || '-'}</p>
+
+                                    {/* Pending Name Change Ticket Alert */}
+                                    {pendingNameTicket && (
+                                        <div
+                                            className={`mt-2.5 p-2.5 rounded-xl border text-xs space-y-1 ${
+                                                isDark
+                                                    ? 'bg-indigo-500/10 border-indigo-500/30 text-indigo-200'
+                                                    : 'bg-indigo-50 border-indigo-200 text-indigo-900'
+                                            }`}
+                                        >
+                                            <div className={`flex items-center gap-1.5 font-bold ${isDark ? 'text-indigo-300' : 'text-indigo-700'}`}>
+                                                <Clock className={`w-3.5 h-3.5 ${isDark ? 'text-indigo-400' : 'text-indigo-600'}`} />
+                                                <span>Permohonan Nama (#{pendingNameTicket.ticket_number})</span>
+                                            </div>
+                                            <p className={`text-[11px] ${isDark ? 'text-indigo-200/80' : 'text-indigo-800'}`}>
+                                                Nama Baru: <strong>{pendingNameTicket.requested_value}</strong>
+                                            </p>
+                                            <div className={`text-[10px] flex items-center gap-1 pt-0.5 ${isDark ? 'text-indigo-300/70' : 'text-indigo-700'}`}>
+                                                <span>⏳</span>
+                                                <span>
+                                                    {pendingNameTicket.status === 'pending_hod'
+                                                        ? (lang === 'id' ? 'Menunggu persetujuan HOD' : 'Pending HOD review')
+                                                        : (lang === 'id' ? 'Menunggu persetujuan ACC Admin' : 'Pending Admin final approval')}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div>
+                                    <p className={`font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{t('role_label') || 'Peran Akun'}</p>
+                                    <p className={`text-sm font-semibold capitalize ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                                        {isAdmin ? 'Administrator (Full Access)' : 'Department User'}
                                     </p>
                                 </div>
-                            </div>
-                            <Link
-                                href="/users"
-                                className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-xs font-bold bg-[#C9AA71] hover:bg-[#b89960] text-[#1C1B0E] transition-all shadow-md hover:shadow-lg cursor-pointer shrink-0 hover:scale-[1.02]"
-                            >
-                                <ShieldAlert className="h-4 w-4" />
-                                <span>{lang === 'id' ? 'Buka Kelola Semua Akun' : 'Open User Management'}</span>
-                                <ChevronRight className="h-4 w-4" />
-                            </Link>
-                        </div>
-                    )}
 
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                        {/* Account Details Card */}
-                        <div className="lg:col-span-1 space-y-6">
-                            <div className="rounded-2xl border border-[#3B3929] bg-[#2A281E]/90 p-6 shadow-xl space-y-4">
-                                <div className="flex items-center gap-2 pb-3 border-b border-[#3B3929]">
-                                    <Shield className="h-5 w-5 text-[#C9AA71]" />
-                                    <h2 className="text-base font-bold text-[#FAFAFA]">
-                                        {t('account_info') || 'Informasi Akun'}
-                                    </h2>
-                                </div>
-
-                                <div className="space-y-3.5 text-xs">
+                                {department && (
                                     <div>
-                                        <p className="text-[#A19F8D] font-medium">{t('email_label') || 'Alamat Email'}</p>
-                                        <p className="text-sm font-semibold text-[#FAFAFA] break-all">{user?.email}</p>
-                                    </div>
-
-                                    <div>
-                                        <div className="flex items-center justify-between gap-2 mb-1">
-                                            <p className="text-[#A19F8D] font-medium">{t('staff_name_label') || 'Nama Tampilan'}</p>
-                                            {!pendingNameTicket && (
+                                        <p className={`font-medium mb-1.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{t('department_label') || 'Cakupan Departemen'}</p>
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                            <SubdivisionTag
+                                                department={department}
+                                                subdivision={subdivision}
+                                                size="md"
+                                            />
+                                            {!isAdmin && !pendingTransferTicket && (
                                                 <button
                                                     type="button"
-                                                    onClick={() => {
-                                                        setNameData('new_name', '');
-                                                        setNameData('reason', '');
-                                                        setIsNameModalOpen(true);
-                                                    }}
-                                                    className="inline-flex items-center gap-1 text-[11px] font-bold text-[#C9AA71] hover:text-[#E3D1AA] transition-colors cursor-pointer"
-                                                    title={lang === 'id' ? 'Ajukan perubahan nama akun resmi' : 'Request official name change'}
+                                                    onClick={() => setIsTransferModalOpen(true)}
+                                                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
+                                                        isDark
+                                                            ? 'bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25 border-emerald-500/30'
+                                                            : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-emerald-200'
+                                                    }`}
                                                 >
-                                                    <User className="w-3 h-3" />
-                                                    <span>{lang === 'id' ? 'Ubah Nama' : 'Change Name'}</span>
+                                                    <ArrowRightLeft className={`w-3.5 h-3.5 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
+                                                    <span>{lang === 'id' ? 'Ajukan Pindah Departemen' : 'Request Transfer'}</span>
                                                 </button>
                                             )}
                                         </div>
-                                        <p className="text-sm font-semibold text-[#FAFAFA]">{staffName || user?.name || '-'}</p>
 
-                                        {/* Pending Name Change Ticket Alert */}
-                                        {pendingNameTicket && (
-                                            <div className="mt-2.5 p-2.5 rounded-xl bg-indigo-500/10 border border-indigo-500/30 text-xs text-indigo-200 space-y-1">
-                                                <div className="flex items-center gap-1.5 font-bold text-indigo-300">
-                                                    <Clock className="w-3.5 h-3.5 text-indigo-400" />
-                                                    <span>Permohonan Nama (#{pendingNameTicket.ticket_number})</span>
+                                        {/* Pending Transfer Alert */}
+                                        {pendingTransferTicket && (
+                                            <div
+                                                className={`mt-3 p-3 rounded-xl border text-xs space-y-1 ${
+                                                    isDark
+                                                        ? 'bg-teal-500/10 border-teal-500/30 text-teal-200'
+                                                        : 'bg-teal-50 border-teal-200 text-teal-900'
+                                                }`}
+                                            >
+                                                <div className={`flex items-center gap-1.5 font-bold ${isDark ? 'text-teal-300' : 'text-teal-700'}`}>
+                                                    <Clock className={`w-4 h-4 ${isDark ? 'text-teal-400' : 'text-teal-600'}`} />
+                                                    <span>Permohonan Pindah (#{pendingTransferTicket.ticket_number})</span>
                                                 </div>
-                                                <p className="text-[11px] text-indigo-200/80">
-                                                    Nama Baru: <strong>{pendingNameTicket.requested_value}</strong>
+                                                <p className={`text-[11px] ${isDark ? 'text-teal-200/80' : 'text-teal-800'}`}>
+                                                    Tujuan: <strong>{pendingTransferTicket.requested_value?.replace('::', ' — Subdivisi: ')}</strong>
                                                 </p>
-                                                <div className="text-[10px] text-indigo-300/70 flex items-center gap-1 pt-0.5">
-                                                    <span>⏳</span>
-                                                    <span>
-                                                        {pendingNameTicket.status === 'pending_hod' 
-                                                            ? (lang === 'id' ? 'Menunggu persetujuan HOD' : 'Pending HOD review')
-                                                            : (lang === 'id' ? 'Menunggu persetujuan ACC Admin' : 'Pending Admin final approval')}
-                                                    </span>
-                                                </div>
+                                                <p className={`text-[10px] ${isDark ? 'text-teal-300/70' : 'text-teal-700'}`}>
+                                                    Status: Menunggu ACC <strong>{pendingTransferTicket.status === 'pending_hod' ? 'HOD Departemen Asal' : 'Admin'}</strong>
+                                                </p>
                                             </div>
                                         )}
                                     </div>
+                                )}
+                            </div>
+                        </div>
 
+                        {/* Active Account Permissions Card */}
+                        <div
+                            className={`rounded-2xl border p-5 shadow-lg space-y-3 ${
+                                isDark
+                                    ? 'border-slate-800 bg-slate-900/70 backdrop-blur-md'
+                                    : 'border-slate-200 bg-white/95 shadow-slate-200/60'
+                            }`}
+                        >
+                            <div className="flex items-center gap-2">
+                                <ShieldCheck className={`h-4 w-4 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
+                                <h3 className={`text-xs font-bold uppercase tracking-wider ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>
+                                    {lang === 'id' ? 'Wewenang & Hak Akses Akun' : 'Account Special Permissions'}
+                                </h3>
+                            </div>
+                            <div className="space-y-2 pt-1 text-xs">
+                                {isAdmin && (
+                                    <div
+                                        className={`p-2.5 rounded-xl border flex items-start gap-2.5 ${
+                                            isDark ? 'bg-amber-500/10 border-amber-500/30' : 'bg-amber-50 border-amber-200'
+                                        }`}
+                                    >
+                                        <ShieldCheck className={`w-4 h-4 shrink-0 mt-0.5 ${isDark ? 'text-amber-400' : 'text-amber-600'}`} />
+                                        <div>
+                                            <p className={`font-bold ${isDark ? 'text-amber-200' : 'text-amber-900'}`}>Full Administrator Access</p>
+                                            <p className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Wewenang penuh untuk mengatur seluruh sistem, staf, tiket, dan isu.</p>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {isHOD && (
+                                    <div
+                                        className={`p-2.5 rounded-xl border flex items-start gap-2.5 ${
+                                            isDark ? 'bg-amber-500/10 border-amber-500/30' : 'bg-amber-50 border-amber-200'
+                                        }`}
+                                    >
+                                        <Crown className={`w-4 h-4 shrink-0 mt-0.5 ${isDark ? 'text-amber-400' : 'text-amber-600'}`} />
+                                        <div>
+                                            <p className={`font-bold ${isDark ? 'text-amber-200' : 'text-amber-900'}`}>Head of Department (HOD)</p>
+                                            <p className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Pimpinan departemen dengan wewenang persetujuan tiket dan manajemen tim.</p>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {canViewAllDepartments && !isAdmin && (
+                                    <div
+                                        className={`p-2.5 rounded-xl border flex items-start gap-2.5 ${
+                                            isDark ? 'bg-sky-500/10 border-sky-500/30' : 'bg-sky-50 border-sky-200'
+                                        }`}
+                                    >
+                                        <Globe className={`w-4 h-4 shrink-0 mt-0.5 ${isDark ? 'text-sky-400' : 'text-sky-600'}`} />
+                                        <div>
+                                            <p className={`font-bold ${isDark ? 'text-sky-300' : 'text-sky-800'}`}>Akses Lintas Seluruh Departemen</p>
+                                            <p className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Anda memiliki izin istimewa untuk memantau dan memfilter isu dari semua divisi resort Telunas di dashboard.</p>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {canManageIssues && !isAdmin && (
+                                    <div
+                                        className={`p-2 rounded-lg border flex items-center justify-between text-[11px] ${
+                                            isDark ? 'bg-slate-950/80 border-slate-800' : 'bg-slate-50 border-slate-200'
+                                        }`}
+                                    >
+                                        <span className={`font-medium flex items-center gap-1.5 ${isDark ? 'text-slate-100' : 'text-slate-800'}`}>
+                                            <Check className={`w-3.5 h-3.5 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} /> Penanganan Isu (Klaim, Pending, Selesai)
+                                        </span>
+                                        <span
+                                            className={`font-bold text-[10px] px-1.5 py-0.5 rounded border ${
+                                                isDark
+                                                    ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
+                                                    : 'text-emerald-700 bg-emerald-50 border-emerald-200'
+                                            }`}
+                                        >
+                                            Aktif
+                                        </span>
+                                    </div>
+                                )}
+
+                                {canExportReports && !isAdmin && (
+                                    <div
+                                        className={`p-2 rounded-lg border flex items-center justify-between text-[11px] ${
+                                            isDark ? 'bg-slate-950/80 border-slate-800' : 'bg-slate-50 border-slate-200'
+                                        }`}
+                                    >
+                                        <span className={`font-medium flex items-center gap-1.5 ${isDark ? 'text-slate-100' : 'text-slate-800'}`}>
+                                            <Check className={`w-3.5 h-3.5 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} /> Ekspor Laporan (PDF & Excel)
+                                        </span>
+                                        <span
+                                            className={`font-bold text-[10px] px-1.5 py-0.5 rounded border ${
+                                                isDark
+                                                    ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
+                                                    : 'text-emerald-700 bg-emerald-50 border-emerald-200'
+                                            }`}
+                                        >
+                                            Aktif
+                                        </span>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Scope Roster Card (if department user) */}
+                        {department && deptStaffRoster.length > 0 && (
+                            <div
+                                className={`rounded-2xl border p-5 shadow-lg space-y-3 ${
+                                    isDark
+                                        ? 'border-slate-800 bg-slate-900/70 backdrop-blur-md'
+                                        : 'border-slate-200 bg-white/95 shadow-slate-200/60'
+                                }`}
+                            >
+                                <div className="flex items-center gap-2">
+                                    <Building2 className={`h-4 w-4 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
+                                    <h3 className={`text-xs font-bold uppercase tracking-wider ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>
+                                        {department} Team Scope
+                                    </h3>
+                                </div>
+                                <p className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                    Your account is scoped to manage and claim tasks assigned to the <strong>{department}</strong> unit:
+                                </p>
+                                <div className="flex flex-wrap gap-1.5 pt-1">
+                                    {deptStaffRoster.map(s => (
+                                        <span
+                                            key={s}
+                                            className={`text-[11px] px-2 py-0.5 rounded-md border ${
+                                                s === staffName || s === user?.name
+                                                    ? 'bg-emerald-600 text-white keep-white font-bold border-emerald-500'
+                                                    : (isDark
+                                                        ? 'bg-slate-950 text-slate-300 border-slate-800'
+                                                        : 'bg-slate-100 text-slate-700 border-slate-200')
+                                            }`}
+                                        >
+                                            {s}
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Right Column: Profile Photo, WhatsApp Linking & Password Change */}
+                    <div className="lg:col-span-2 space-y-6">
+                        {/* Profile Photo Card */}
+                        <div
+                            className={`rounded-2xl border p-6 sm:p-8 shadow-lg space-y-6 ${
+                                isDark
+                                    ? 'border-slate-800 bg-slate-900/80 backdrop-blur-md'
+                                    : 'border-slate-200 bg-white/95 shadow-slate-200/60'
+                            }`}
+                        >
+                            <div className={`flex items-center justify-between gap-4 pb-4 border-b flex-wrap ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
+                                <div className="flex items-center gap-2.5">
+                                    <div
+                                        className={`w-9 h-9 rounded-xl flex items-center justify-center border shrink-0 ${
+                                            isDark
+                                                ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                                                : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                        }`}
+                                    >
+                                        <Camera className="h-5 w-5" />
+                                    </div>
                                     <div>
-                                        <p className="text-[#A19F8D] font-medium">{t('role_label') || 'Peran Akun'}</p>
-                                        <p className="text-sm font-semibold text-[#FAFAFA] capitalize">
-                                            {isAdmin ? 'Administrator (Full Access)' : 'Department User'}
+                                        <h2 className={`text-base sm:text-lg font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                                            {lang === 'id' ? 'Foto Profil Akun' : 'Account Profile Photo'}
+                                        </h2>
+                                        <p className={`text-xs mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                            {lang === 'id'
+                                                ? 'Personalisasi avatar akun Anda agar mudah dikenali oleh seluruh rekan tim dan resort.'
+                                                : 'Personalize your avatar for easy recognition across team activities and operations.'}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {avatarUrl ? (
+                                    <span
+                                        className={`px-3 py-1 rounded-full text-xs font-bold border flex items-center gap-1.5 shadow-xs ${
+                                            isDark
+                                                ? 'bg-emerald-950/60 border-emerald-500/50 text-emerald-300'
+                                                : 'bg-emerald-50 border-emerald-300 text-emerald-700'
+                                        }`}
+                                    >
+                                        <CheckCircle2 className={`h-3.5 w-3.5 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
+                                        <span>{lang === 'id' ? 'Foto Kustom Aktif' : 'Custom Photo Active'}</span>
+                                    </span>
+                                ) : (
+                                    <span
+                                        className={`px-3 py-1 rounded-full text-xs font-semibold border flex items-center gap-1.5 ${
+                                            isDark
+                                                ? 'bg-slate-800 border-slate-700 text-slate-300'
+                                                : 'bg-slate-100 border-slate-200 text-slate-600'
+                                        }`}
+                                    >
+                                        <User className="h-3.5 w-3.5" />
+                                        <span>{lang === 'id' ? 'Inisial Default' : 'Default Initials'}</span>
+                                    </span>
+                                )}
+                            </div>
+
+                            {/* Status Alerts */}
+                            {avatarSuccess && (
+                                <div
+                                    className={`flex items-center gap-2 p-3.5 rounded-xl border text-xs font-medium animate-in fade-in duration-200 ${
+                                        isDark
+                                            ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300'
+                                            : 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                                    }`}
+                                >
+                                    <CheckCircle2 className={`h-4 w-4 shrink-0 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
+                                    <span>{avatarSuccess}</span>
+                                </div>
+                            )}
+
+                            {avatarError && (
+                                <div
+                                    className={`flex items-center gap-2 p-3.5 rounded-xl border text-xs font-medium animate-in fade-in duration-200 ${
+                                        isDark
+                                            ? 'bg-rose-500/15 border-rose-500/30 text-rose-300'
+                                            : 'bg-rose-50 border-rose-200 text-rose-700'
+                                    }`}
+                                >
+                                    <AlertCircle className={`h-4 w-4 shrink-0 ${isDark ? 'text-rose-400' : 'text-rose-600'}`} />
+                                    <span>{avatarError}</span>
+                                </div>
+                            )}
+
+                            <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
+                                {/* Large Avatar Preview with frame */}
+                                <div className="relative group shrink-0">
+                                    <div
+                                        className={`w-24 h-24 sm:w-28 sm:h-28 rounded-2xl flex items-center justify-center font-extrabold text-3xl sm:text-4xl shadow-xl border-2 overflow-hidden relative ring-4 ${
+                                            isDark
+                                                ? 'border-emerald-500/40 ring-slate-950/60'
+                                                : 'border-emerald-300 ring-emerald-500/10'
+                                        }`}
+                                        style={{ background: currentDeptTheme.bg, color: currentDeptTheme.text }}
+                                    >
+                                        {avatarPreview ? (
+                                            <img src={avatarPreview} alt="Preview" className="w-full h-full object-cover" />
+                                        ) : avatarUrl ? (
+                                            <img src={avatarUrl} alt={user?.name || 'Avatar'} className="w-full h-full object-cover" />
+                                        ) : (
+                                            user?.name ? user.name.charAt(0).toUpperCase() : <User className="h-12 w-12" />
+                                        )}
+
+                                        {/* Hover overlay to change */}
+                                        <button
+                                            type="button"
+                                            onClick={() => avatarInputRef.current?.click()}
+                                            disabled={isUploadingAvatar || isDeletingAvatar}
+                                            className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center text-white keep-white transition-opacity duration-200 cursor-pointer backdrop-blur-[2px]"
+                                        >
+                                            <UploadCloud className="h-7 w-7 text-emerald-300 mb-1" />
+                                            <span className="text-[11px] font-bold text-emerald-300">{lang === 'id' ? 'Ganti Foto' : 'Change'}</span>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Action Controls & Instructions */}
+                                <div className="flex-1 space-y-3.5 text-center sm:text-left">
+                                    <div className="space-y-1">
+                                        <h3 className={`text-sm font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                                            {lang === 'id' ? 'Pengaturan Avatar' : 'Avatar Settings'}
+                                        </h3>
+                                        <p className={`text-xs leading-relaxed ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                                            {lang === 'id'
+                                                ? 'Unggah foto profil Anda (JPG, PNG, atau WEBP, maks. 5MB). Foto akan ditampilkan pada header, kartu profil, serta daftar aktivitas sistem.'
+                                                : 'Upload your avatar photo (JPG, PNG, or WEBP, max 5MB). Your photo appears on the header, profile badges, and system activity logs.'}
                                         </p>
                                     </div>
 
-                                    {department && (
-                                        <div>
-                                            <p className="text-[#A19F8D] font-medium mb-1.5">{t('department_label') || 'Cakupan Departemen'}</p>
-                                            <div className="flex items-center gap-2 flex-wrap">
-                                                <SubdivisionTag 
-                                                    department={department} 
-                                                    subdivision={subdivision} 
-                                                    size="md" 
-                                                />
-                                                {!isAdmin && !pendingTransferTicket && (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setIsTransferModalOpen(true)}
-                                                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-[#C9AA71]/15 text-[#E3D1AA] hover:bg-[#C9AA71]/25 border border-[#C9AA71]/30 transition-all cursor-pointer"
-                                                    >
-                                                        <ArrowRightLeft className="w-3.5 h-3.5 text-[#C9AA71]" />
-                                                        <span>{lang === 'id' ? 'Ajukan Pindah Departemen' : 'Request Transfer'}</span>
-                                                    </button>
+                                    {avatarPreview ? (
+                                        <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3 pt-1">
+                                            <button
+                                                type="button"
+                                                onClick={handleAvatarUpload}
+                                                disabled={isUploadingAvatar}
+                                                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-emerald-600 hover:bg-emerald-500 text-white keep-white transition-all shadow-lg hover:shadow-xl cursor-pointer disabled:opacity-60 hover:scale-[1.02]"
+                                            >
+                                                {isUploadingAvatar ? (
+                                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                                ) : (
+                                                    <Check className="h-4 w-4" />
                                                 )}
-                                            </div>
-
-                                            {/* Pending Transfer Alert */}
-                                            {pendingTransferTicket && (
-                                                <div className="mt-3 p-3 rounded-xl bg-teal-500/10 border border-teal-500/30 text-xs text-teal-200 space-y-1">
-                                                    <div className="flex items-center gap-1.5 font-bold text-teal-300">
-                                                        <Clock className="w-4 h-4 text-teal-400" />
-                                                        <span>Permohonan Pindah (#{pendingTransferTicket.ticket_number})</span>
-                                                    </div>
-                                                    <p className="text-[11px] text-teal-200/80">
-                                                        Tujuan: <strong>{pendingTransferTicket.requested_value?.replace('::', ' — Subdivisi: ')}</strong>
-                                                    </p>
-                                                    <p className="text-[10px] text-teal-300/70">
-                                                        Status: Menunggu ACC <strong>{pendingTransferTicket.status === 'pending_hod' ? 'HOD Departemen Asal' : 'Admin'}</strong>
-                                                    </p>
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-
-                            {/* Active Account Permissions Card */}
-                            <div className="rounded-2xl border border-[#3B3929] bg-[#2A281E]/60 p-5 shadow-xl space-y-3">
-                                <div className="flex items-center gap-2">
-                                    <ShieldCheck className="h-4 w-4 text-[#C9AA71]" />
-                                    <h3 className="text-xs font-bold uppercase tracking-wider text-[#E3D1AA]">
-                                        {lang === 'id' ? 'Wewenang & Hak Akses Akun' : 'Account Special Permissions'}
-                                    </h3>
-                                </div>
-                                <div className="space-y-2 pt-1 text-xs">
-                                    {isAdmin && (
-                                        <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-start gap-2.5">
-                                            <ShieldCheck className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-                                            <div>
-                                                <p className="font-bold text-amber-200">Full Administrator Access</p>
-                                                <p className="text-[11px] text-[#A19F8D]">Wewenang penuh untuk mengatur seluruh sistem, staf, tiket, dan isu.</p>
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {isHOD && (
-                                        <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-start gap-2.5">
-                                            <Crown className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-                                            <div>
-                                                <p className="font-bold text-amber-200">Head of Department (HOD)</p>
-                                                <p className="text-[11px] text-[#A19F8D]">Pimpinan departemen dengan wewenang persetujuan tiket dan manajemen tim.</p>
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {canViewAllDepartments && !isAdmin && (
-                                        <div className="p-2.5 rounded-xl bg-sky-500/10 border border-sky-500/30 flex items-start gap-2.5">
-                                            <Globe className="w-4 h-4 text-sky-400 shrink-0 mt-0.5" />
-                                            <div>
-                                                <p className="font-bold text-sky-300">Akses Lintas Seluruh Departemen</p>
-                                                <p className="text-[11px] text-[#A19F8D]">Anda memiliki izin istimewa untuk memantau dan memfilter isu dari semua divisi resort Telunas di dashboard.</p>
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {canManageIssues && !isAdmin && (
-                                        <div className="p-2 rounded-lg bg-[#1C1B0E] border border-[#3B3929] flex items-center justify-between text-[11px]">
-                                            <span className="text-[#FAFAFA] font-medium flex items-center gap-1.5">
-                                                <Check className="w-3.5 h-3.5 text-emerald-400" /> Penanganan Isu (Klaim, Pending, Selesai)
-                                            </span>
-                                            <span className="text-emerald-400 font-bold text-[10px] bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">Aktif</span>
-                                        </div>
-                                    )}
-
-                                    {canExportReports && !isAdmin && (
-                                        <div className="p-2 rounded-lg bg-[#1C1B0E] border border-[#3B3929] flex items-center justify-between text-[11px]">
-                                            <span className="text-[#FAFAFA] font-medium flex items-center gap-1.5">
-                                                <Check className="w-3.5 h-3.5 text-emerald-400" /> Ekspor Laporan (PDF & Excel)
-                                            </span>
-                                            <span className="text-emerald-400 font-bold text-[10px] bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">Aktif</span>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-
-                            {/* Scope Roster Card (if department user) */}
-                            {department && deptStaffRoster.length > 0 && (
-                                <div className="rounded-2xl border border-[#3B3929] bg-[#2A281E]/60 p-5 shadow-xl space-y-3">
-                                    <div className="flex items-center gap-2">
-                                        <Building2 className="h-4 w-4 text-[#C9AA71]" />
-                                        <h3 className="text-xs font-bold uppercase tracking-wider text-[#E3D1AA]">
-                                            {department} Team Scope
-                                        </h3>
-                                    </div>
-                                    <p className="text-[11px] text-[#A19F8D]">
-                                        Your account is scoped to manage and claim tasks assigned to the <strong>{department}</strong> unit:
-                                    </p>
-                                    <div className="flex flex-wrap gap-1.5 pt-1">
-                                        {deptStaffRoster.map(s => (
-                                            <span 
-                                                key={s} 
-                                                className={`text-[11px] px-2 py-0.5 rounded-md border ${
-                                                    s === staffName || s === user?.name 
-                                                        ? 'bg-[#C9AA71] text-[#1C1B0E] font-bold border-[#C9AA71]' 
-                                                        : 'bg-[#1C1B0E] text-[#A19F8D] border-[#3B3929]'
+                                                <span>{isUploadingAvatar ? (lang === 'id' ? 'Menyimpan...' : 'Saving...') : (lang === 'id' ? 'Simpan Foto Ini' : 'Save This Photo')}</span>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={handleAvatarCancel}
+                                                disabled={isUploadingAvatar}
+                                                className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
+                                                    isDark
+                                                        ? 'bg-slate-800 hover:bg-slate-700 text-slate-200'
+                                                        : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
                                                 }`}
                                             >
-                                                {s}
-                                            </span>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Right Column: Profile Photo, WhatsApp Linking & Password Change */}
-                        <div className="lg:col-span-2 space-y-6">
-                            {/* Profile Photo Card */}
-                            <div className="rounded-2xl border border-[#3B3929] bg-[#2A281E]/90 p-6 sm:p-8 shadow-xl space-y-6">
-                                <div className="flex items-center justify-between gap-4 pb-4 border-b border-[#3B3929] flex-wrap">
-                                    <div className="flex items-center gap-2.5">
-                                        <div className="w-9 h-9 rounded-xl bg-[#C9AA71]/20 text-[#C9AA71] flex items-center justify-center border border-[#C9AA71]/30 shrink-0">
-                                            <Camera className="h-5 w-5" />
+                                                <X className="h-4 w-4" />
+                                                <span>{lang === 'id' ? 'Batal' : 'Cancel'}</span>
+                                            </button>
                                         </div>
-                                        <div>
-                                            <h2 className="text-base sm:text-lg font-bold text-[#FAFAFA]">
-                                                {lang === 'id' ? 'Foto Profil Akun' : 'Account Profile Photo'}
-                                            </h2>
-                                            <p className="text-xs text-[#A19F8D] mt-0.5">
-                                                {lang === 'id'
-                                                    ? 'Personalisasi avatar akun Anda agar mudah dikenali oleh seluruh rekan tim dan resort.'
-                                                    : 'Personalize your avatar for easy recognition across team activities and operations.'}
-                                            </p>
-                                        </div>
-                                    </div>
-
-                                    {avatarUrl ? (
-                                        <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-950/60 border border-emerald-500/50 text-emerald-300 flex items-center gap-1.5 shadow-sm">
-                                            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
-                                            <span>{lang === 'id' ? 'Foto Kustom Aktif' : 'Custom Photo Active'}</span>
-                                        </span>
                                     ) : (
-                                        <span className="px-3 py-1 rounded-full text-xs font-semibold bg-white/5 border border-white/10 text-[#A19F8D] flex items-center gap-1.5">
-                                            <User className="h-3.5 w-3.5" />
-                                            <span>{lang === 'id' ? 'Inisial Default' : 'Default Initials'}</span>
-                                        </span>
-                                    )}
-                                </div>
-
-                                {/* Status Alerts */}
-                                {avatarSuccess && (
-                                    <div className="flex items-center gap-2 p-3.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-medium animate-in fade-in duration-200">
-                                        <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
-                                        <span>{avatarSuccess}</span>
-                                    </div>
-                                )}
-
-                                {avatarError && (
-                                    <div className="flex items-center gap-2 p-3.5 rounded-xl bg-red-500/15 border border-red-500/30 text-red-300 text-xs font-medium animate-in fade-in duration-200">
-                                        <AlertCircle className="h-4 w-4 shrink-0 text-red-400" />
-                                        <span>{avatarError}</span>
-                                    </div>
-                                )}
-
-                                <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
-                                    {/* Large Avatar Preview with frame */}
-                                    <div className="relative group shrink-0">
-                                        <div 
-                                            className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl flex items-center justify-center font-extrabold text-3xl sm:text-4xl shadow-2xl border-2 border-[#C9AA71]/40 overflow-hidden relative ring-4 ring-black/30"
-                                            style={{ background: currentDeptTheme.bg, color: currentDeptTheme.text }}
-                                        >
-                                            {avatarPreview ? (
-                                                <img src={avatarPreview} alt="Preview" className="w-full h-full object-cover" />
-                                            ) : avatarUrl ? (
-                                                <img src={avatarUrl} alt={user?.name || 'Avatar'} className="w-full h-full object-cover" />
-                                            ) : (
-                                                user?.name ? user.name.charAt(0).toUpperCase() : <User className="h-12 w-12" />
-                                            )}
-
-                                            {/* Hover overlay to change */}
+                                        <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3 pt-1">
                                             <button
                                                 type="button"
                                                 onClick={() => avatarInputRef.current?.click()}
                                                 disabled={isUploadingAvatar || isDeletingAvatar}
-                                                className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center text-white transition-opacity duration-200 cursor-pointer backdrop-blur-[2px]"
+                                                className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-emerald-600 hover:bg-emerald-500 text-white keep-white transition-all shadow-md hover:shadow-lg cursor-pointer hover:scale-[1.02] disabled:opacity-60"
                                             >
-                                                <UploadCloud className="h-7 w-7 text-[#E3D1AA] mb-1" />
-                                                <span className="text-[11px] font-bold text-[#E3D1AA]">{lang === 'id' ? 'Ganti Foto' : 'Change'}</span>
+                                                <Camera className="h-4 w-4" />
+                                                <span>{avatarUrl ? (lang === 'id' ? 'Ganti Foto' : 'Change Photo') : (lang === 'id' ? 'Pilih Foto' : 'Choose Photo')}</span>
                                             </button>
-                                        </div>
-                                    </div>
 
-                                    {/* Action Controls & Instructions */}
-                                    <div className="flex-1 space-y-3.5 text-center sm:text-left">
-                                        <div className="space-y-1">
-                                            <h3 className="text-sm font-bold text-[#FAFAFA]">
-                                                {lang === 'id' ? 'Pengaturan Avatar' : 'Avatar Settings'}
-                                            </h3>
-                                            <p className="text-xs text-[#A19F8D] leading-relaxed">
-                                                {lang === 'id'
-                                                    ? 'Unggah foto profil Anda (JPG, PNG, atau WEBP, maks. 5MB). Foto akan ditampilkan pada header, kartu profil, serta daftar aktivitas sistem.'
-                                                    : 'Upload your avatar photo (JPG, PNG, or WEBP, max 5MB). Your photo appears on the header, profile badges, and system activity logs.'}
-                                            </p>
-                                        </div>
-
-                                        {avatarPreview ? (
-                                            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3 pt-1">
+                                            {avatarUrl && (
                                                 <button
                                                     type="button"
-                                                    onClick={handleAvatarUpload}
-                                                    disabled={isUploadingAvatar}
-                                                    className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-[#C9AA71] hover:bg-[#b89960] text-[#1C1B0E] transition-all shadow-lg hover:shadow-xl cursor-pointer disabled:opacity-60 hover:scale-[1.02]"
+                                                    onClick={handleAvatarDelete}
+                                                    disabled={isUploadingAvatar || isDeletingAvatar}
+                                                    className={`flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold border transition-all cursor-pointer disabled:opacity-60 ${
+                                                        isDark
+                                                            ? 'text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 border-rose-500/20'
+                                                            : 'text-rose-700 bg-rose-50 hover:bg-rose-100 border-rose-200'
+                                                    }`}
                                                 >
-                                                    {isUploadingAvatar ? (
+                                                    {isDeletingAvatar ? (
                                                         <Loader2 className="h-4 w-4 animate-spin" />
                                                     ) : (
-                                                        <Check className="h-4 w-4" />
+                                                        <Trash2 className="h-4 w-4" />
                                                     )}
-                                                    <span>{isUploadingAvatar ? (lang === 'id' ? 'Menyimpan...' : 'Saving...') : (lang === 'id' ? 'Simpan Foto Ini' : 'Save This Photo')}</span>
+                                                    <span>{lang === 'id' ? 'Hapus Foto' : 'Remove Photo'}</span>
                                                 </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={handleAvatarCancel}
-                                                    disabled={isUploadingAvatar}
-                                                    className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold bg-white/10 hover:bg-white/15 text-[#FAFAFA] transition-all cursor-pointer"
-                                                >
-                                                    <X className="h-4 w-4" />
-                                                    <span>{lang === 'id' ? 'Batal' : 'Cancel'}</span>
-                                                </button>
-                                            </div>
-                                        ) : (
-                                            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3 pt-1">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => avatarInputRef.current?.click()}
-                                                    disabled={isUploadingAvatar || isDeletingAvatar}
-                                                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-[#C9AA71] hover:bg-[#b89960] text-[#1C1B0E] transition-all shadow-md hover:shadow-lg cursor-pointer hover:scale-[1.02] disabled:opacity-60"
-                                                >
-                                                    <Camera className="h-4 w-4" />
-                                                    <span>{avatarUrl ? (lang === 'id' ? 'Ganti Foto' : 'Change Photo') : (lang === 'id' ? 'Pilih Foto' : 'Choose Photo')}</span>
-                                                </button>
-
-                                                {avatarUrl && (
-                                                    <button
-                                                        type="button"
-                                                        onClick={handleAvatarDelete}
-                                                        disabled={isUploadingAvatar || isDeletingAvatar}
-                                                        className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold text-red-400 hover:text-red-300 hover:bg-red-500/10 border border-red-500/20 transition-all cursor-pointer disabled:opacity-60"
-                                                    >
-                                                        {isDeletingAvatar ? (
-                                                            <Loader2 className="h-4 w-4 animate-spin" />
-                                                        ) : (
-                                                            <Trash2 className="h-4 w-4" />
-                                                        )}
-                                                        <span>{lang === 'id' ? 'Hapus Foto' : 'Remove Photo'}</span>
-                                                    </button>
-                                                )}
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* WhatsApp Linking Card */}
-                            <div className="rounded-2xl border border-[#3B3929] bg-[#2A281E]/90 p-6 sm:p-8 shadow-xl space-y-6">
-                                <div className="flex items-center justify-between gap-4 pb-4 border-b border-[#3B3929] flex-wrap">
-                                    <div className="flex items-center gap-2.5">
-                                        <div className="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30 shrink-0">
-                                            <Smartphone className="h-5 w-5" />
-                                        </div>
-                                        <div>
-                                            <h2 className="text-base sm:text-lg font-bold text-[#FAFAFA]">
-                                                {t('whatsapp_linking_title') || 'Integrasi WhatsApp & Pengenalan Otomatis'}
-                                            </h2>
-                                            <p className="text-xs text-[#A19F8D] mt-0.5">
-                                                {lang === 'id'
-                                                    ? 'Nomor WhatsApp terverifikasi digunakan oleh bot resort saat bertugas.'
-                                                    : 'Verified WhatsApp number used by the resort bot for task assignments.'}
-                                            </p>
-                                        </div>
-                                    </div>
-
-                                    {user?.whatsapp_number ? (
-                                        <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-950/60 border border-emerald-500/50 text-emerald-300 flex items-center gap-1.5 shadow-sm">
-                                            <Check className="h-3.5 w-3.5" />
-                                            <span>{user.whatsapp_number}</span>
-                                        </span>
-                                    ) : (
-                                        <span className="px-3 py-1 rounded-full text-xs font-semibold bg-amber-950/40 border border-amber-500/40 text-amber-300 flex items-center gap-1.5">
-                                            <span>⚠️ Belum Ditautkan</span>
-                                        </span>
-                                    )}
-                                </div>
-
-                                {/* Pending Ticket Notice Banner */}
-                                {pendingTicket && (pendingTicket.type === 'whatsapp_change' || pendingTicket.type === 'whatsapp_unlink') && (
-                                    <div className="p-4 rounded-xl bg-amber-950/60 border border-amber-500/50 text-amber-200 text-xs space-y-1.5 animate-in fade-in duration-200">
-                                        <div className="flex items-center gap-2 font-bold text-amber-300">
-                                            <Clock className="w-4 h-4 text-amber-400" />
-                                            <span>Permohonan Perubahan WhatsApp (#{pendingTicket.ticket_number})</span>
-                                        </div>
-                                        <p>
-                                            Permohonan nomor baru <strong>{pendingTicket.requested_value || 'Pelepasan Nomor'}</strong> sedang menunggu persetujuan <strong>{pendingTicket.status === 'pending_hod' ? 'HOD Departemen' : 'Admin'}</strong>.
-                                        </p>
-                                        <p className="text-amber-400/90 text-[11px] pt-1 border-t border-amber-500/30">
-                                            ℹ️ Nomor WhatsApp Anda saat ini <strong>({user?.whatsapp_number || '-'})</strong> tetap aktif digunakan sistem hingga permohonan disetujui.
-                                        </p>
-                                    </div>
-                                )}
-
-                                <form onSubmit={handleWhatsAppUpdate} className="space-y-4">
-                                    {(waSuccessful || status === 'whatsapp-ticket-submitted' || status === 'whatsapp-updated') && (
-                                        <div className="flex items-center gap-2 p-3.5 rounded-xl bg-emerald-950/50 border border-emerald-500/40 text-emerald-300 text-xs font-semibold animate-fade-in">
-                                            <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
-                                            <span>
-                                                {canDirectUpdateWa 
-                                                    ? (lang === 'id' ? 'Nomor WhatsApp berhasil diperbarui secara langsung!' : 'WhatsApp number updated directly!')
-                                                    : (lang === 'id' ? 'Tiket permohonan perubahan nomor WhatsApp telah dikirim ke HOD!' : 'WhatsApp update ticket submitted to HOD!')}
-                                            </span>
-                                        </div>
-                                    )}
-
-                                    <div className="space-y-1.5">
-                                        <label 
-                                            htmlFor="whatsapp_number" 
-                                            className="block text-xs font-semibold text-[#FAFAFA]"
-                                        >
-                                            {canDirectUpdateWa ? (lang === 'id' ? 'Nomor WhatsApp Anda' : 'Your WhatsApp Number') : (lang === 'id' ? 'Nomor WhatsApp Baru yang Diajukan' : 'Requested New WhatsApp Number')}
-                                        </label>
-                                        <div className="relative">
-                                            <Phone className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#A19F8D]" />
-                                            <input
-                                                id="whatsapp_number"
-                                                type="text"
-                                                value={waData.whatsapp_number}
-                                                onChange={(e) => setWaData('whatsapp_number', formatToLocalPhone(e.target.value))}
-                                                placeholder="e.g. 081234567890"
-                                                className="w-full rounded-xl border border-[#3B3929] bg-[#1C1B0E] pl-9 pr-3 py-2.5 text-sm text-[#FAFAFA] placeholder:text-[#A19F8D]/40 focus:border-[#C9AA71] focus:outline-none transition-colors font-mono"
-                                            />
-                                        </div>
-                                        {waErrors.whatsapp_number && (
-                                            <p className="text-xs text-red-400 flex items-center gap-1 mt-1">
-                                                <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                                                {waErrors.whatsapp_number}
-                                            </p>
-                                        )}
-                                    </div>
-
-                                    {!canDirectUpdateWa && (
-                                        <div className="space-y-1.5">
-                                            <label 
-                                                htmlFor="wa_reason" 
-                                                className="block text-xs font-semibold text-[#FAFAFA]"
-                                            >
-                                                Alasan Perubahan Nomor
-                                            </label>
-                                            <input
-                                                id="wa_reason"
-                                                type="text"
-                                                value={waData.reason}
-                                                onChange={(e) => setWaData('reason', e.target.value)}
-                                                placeholder="Contoh: Mengganti ke nomor WhatsApp dinas baru..."
-                                                className="w-full rounded-xl border border-[#3B3929] bg-[#1C1B0E] px-3 py-2 text-xs text-[#FAFAFA] placeholder:text-[#A19F8D]/40 focus:border-[#C9AA71] focus:outline-none transition-colors"
-                                            />
-                                        </div>
-                                    )}
-
-                                    <p className="text-[11px] text-[#A19F8D] leading-relaxed">
-                                        💡 {canDirectUpdateWa 
-                                            ? (lang === 'id'
-                                                ? `Sebagai ${isAdmin ? 'Administrator' : 'Head of Department (HOD)'}, nomor WhatsApp Anda langsung aktif dan disinkronkan ke sistem & bot tanpa tiket permohonan.`
-                                                : `As ${isAdmin ? 'Administrator' : 'Head of Department (HOD)'}, your WhatsApp number is directly updated and synced to the system and bot without approval tickets.`)
-                                            : (lang === 'id'
-                                                ? 'Perubahan nomor WhatsApp memerlukan persetujuan HOD Departemen dan Admin. Nomor lama Anda tetap aktif selama masa verifikasi.'
-                                                : 'WhatsApp number change requires approval from your Department HOD and Admin. Your current number remains active during verification.')}
-                                    </p>
-
-                                    <div className="pt-2 flex items-center justify-between gap-3 flex-wrap">
-                                        {user?.whatsapp_number ? (
-                                            <button
-                                                type="button"
-                                                onClick={handleUnlinkWhatsApp}
-                                                disabled={waProcessing}
-                                                className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold text-red-400 hover:text-white bg-red-950/40 hover:bg-red-600/80 border border-red-900/60 hover:border-red-500 transition-all cursor-pointer shadow-md disabled:opacity-50"
-                                            >
-                                                <Unlink className="h-4 w-4" />
-                                                <span>{lang === 'id' ? 'Lepas Tautan Nomor' : 'Unlink WhatsApp Number'}</span>
-                                            </button>
-                                        ) : <div />}
-
-                                        <button
-                                            type="submit"
-                                            disabled={waProcessing}
-                                            className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold bg-emerald-600 hover:bg-emerald-500 text-white hover:scale-105 active:scale-95 transition-all shadow-xl cursor-pointer disabled:opacity-60 ml-auto"
-                                        >
-                                            {waProcessing ? (
-                                                <>
-                                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                                    <span>{t('saving') || 'Memproses...'}</span>
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <Smartphone className="h-4 w-4" />
-                                                    <span>
-                                                        {canDirectUpdateWa
-                                                            ? (user?.whatsapp_number ? (lang === 'id' ? 'Perbarui Nomor' : 'Update Number') : (lang === 'id' ? 'Simpan Nomor' : 'Save Number'))
-                                                            : (lang === 'id' ? 'Ajukan Perubahan ke HOD' : 'Submit Request to HOD')}
-                                                    </span>
-                                                </>
                                             )}
-                                        </button>
-                                    </div>
-                                </form>
-                            </div>
-
-                            {/* Web Push Pop-up Notifications Card (HP & PC) */}
-                            <div className="rounded-2xl border border-[#3B3929] bg-[#2A281E]/90 p-6 sm:p-8 shadow-xl space-y-6">
-                                <div className="flex items-center justify-between gap-4 pb-4 border-b border-[#3B3929] flex-wrap">
-                                    <div className="flex items-center gap-2.5">
-                                        <div className="w-9 h-9 rounded-xl bg-[#C9AA71]/20 text-[#C9AA71] flex items-center justify-center border border-[#C9AA71]/30 shrink-0">
-                                            <BellRing className="h-5 w-5" />
                                         </div>
-                                        <div>
-                                            <h2 className="text-base sm:text-lg font-bold text-[#FAFAFA]">
-                                                {lang === 'id' ? 'Notifikasi Pop-up Perangkat (HP & PC)' : 'Device Pop-up Notifications (Mobile & PC)'}
-                                            </h2>
-                                            <p className="text-xs text-[#A19F8D] mt-0.5">
-                                                {lang === 'id'
-                                                    ? 'Terima notifikasi pop-up sistem saat ada tiket baru, penanganan darurat (SOS), atau update isu.'
-                                                    : 'Receive native system pop-ups for new issues, emergency alerts (SOS), and task updates.'}
-                                            </p>
-                                        </div>
-                                    </div>
-
-                                    {pushSubscribed ? (
-                                        <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-950/60 border border-emerald-500/50 text-emerald-300 flex items-center gap-1.5 shadow-sm">
-                                            <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-                                            <span>{lang === 'id' ? 'Aktif di Perangkat Ini' : 'Active on This Device'}</span>
-                                        </span>
-                                    ) : pushSupported ? (
-                                        <span className="px-3 py-1 rounded-full text-xs font-semibold bg-amber-950/40 border border-amber-500/40 text-amber-300 flex items-center gap-1.5">
-                                            <span>⚠️ {lang === 'id' ? 'Belum Diaktifkan' : 'Not Activated'}</span>
-                                        </span>
-                                    ) : (
-                                        <span className="px-3 py-1 rounded-full text-xs font-semibold bg-white/5 border border-white/10 text-[#A19F8D]">
-                                            {lang === 'id' ? 'Tidak Didukung Browser Ini' : 'Not Supported'}
-                                        </span>
                                     )}
                                 </div>
+                            </div>
+                        </div>
 
-                                {/* Status Alerts */}
-                                {pushSuccessMsg && (
-                                    <div className="flex items-center gap-2 p-3.5 rounded-xl bg-emerald-950/50 border border-emerald-500/40 text-emerald-300 text-xs font-semibold animate-in fade-in duration-200">
-                                        <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
-                                        <span>{pushSuccessMsg}</span>
+                        {/* WhatsApp Linking Card */}
+                        <div
+                            className={`rounded-2xl border p-6 sm:p-8 shadow-lg space-y-6 ${
+                                isDark
+                                    ? 'border-slate-800 bg-slate-900/80 backdrop-blur-md'
+                                    : 'border-slate-200 bg-white/95 shadow-slate-200/60'
+                            }`}
+                        >
+                            <div className={`flex items-center justify-between gap-4 pb-4 border-b flex-wrap ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
+                                <div className="flex items-center gap-2.5">
+                                    <div
+                                        className={`w-9 h-9 rounded-xl flex items-center justify-center border shrink-0 ${
+                                            isDark
+                                                ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                                                : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                        }`}
+                                    >
+                                        <Smartphone className="h-5 w-5" />
                                     </div>
-                                )}
-
-                                {pushErrorMsg && (
-                                    <div className="flex items-center gap-2 p-3.5 rounded-xl bg-red-950/50 border border-red-500/40 text-red-300 text-xs font-semibold animate-in fade-in duration-200">
-                                        <AlertCircle className="h-4 w-4 shrink-0 text-red-400" />
-                                        <span>{pushErrorMsg}</span>
-                                    </div>
-                                )}
-
-                                <div className="space-y-4">
-                                    <p className="text-xs text-[#FAFAFA] leading-relaxed">
-                                        {lang === 'id'
-                                            ? 'Dengan mengaktifkan fitur ini, ponsel atau laptop Anda akan memunculkan banner notifikasi pop-up (disertai suara dan getar) begitu ada tiket baru yang dilaporkan atau ditugaskan ke departemen Anda, bahkan ketika layar sedang terkunci atau aplikasi tidak dibuka.'
-                                            : 'With this feature enabled, your phone or computer will display native pop-up alert banners with sound and vibration whenever issues are assigned or reported to your unit.'}
-                                    </p>
-
-                                    {/* iPhone iOS Note */}
-                                    <div className="p-3.5 rounded-xl bg-[#1C1B0E] border border-[#3B3929] text-[11px] text-[#A19F8D] space-y-1">
-                                        <p className="font-bold text-[#E3D1AA] flex items-center gap-1.5">
-                                            <span>📱 {lang === 'id' ? 'Petunjuk untuk Pengguna iPhone (iOS):' : 'Guide for iPhone (iOS) Users:'}</span>
-                                        </p>
-                                        <p>
+                                    <div>
+                                        <h2 className={`text-base sm:text-lg font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                                            {t('whatsapp_linking_title') || 'Integrasi WhatsApp & Pengenalan Otomatis'}
+                                        </h2>
+                                        <p className={`text-xs mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                                             {lang === 'id'
-                                                ? 'Buka website Telunas Fix di browser Safari, ketuk tombol Bagikan (Share ⎋) di bawah, lalu pilih "Tambahkan ke Layar Utama" (Add to Home Screen). Buka aplikasi dari layar utama Anda untuk mengaktifkan notifikasi pop-up sistem Apple.'
-                                                : 'Open Telunas Fix in Safari, tap Share (⎋), then choose "Add to Home Screen". Launch from your home screen to enable Apple web push notifications.'}
+                                                ? 'Nomor WhatsApp terverifikasi digunakan oleh bot resort saat bertugas.'
+                                                : 'Verified WhatsApp number used by the resort bot for task assignments.'}
                                         </p>
                                     </div>
-
-                                    {!pushSupported && (
-                                        <div className="p-3.5 rounded-xl bg-amber-950/30 border border-amber-500/30 text-xs text-amber-200/90 space-y-1.5">
-                                            <p className="font-bold flex items-center gap-1.5 text-amber-300">
-                                                <span>🌐 {lang === 'id' ? 'Status Akses: HTTP / Jaringan Wi-Fi Lokal' : 'Access Status: Local HTTP / Wi-Fi'}</span>
-                                            </p>
-                                            <p className="text-[11px] leading-relaxed text-[#D4D2C5]">
-                                                {lang === 'id'
-                                                    ? 'Browser membatasi banner pop-up sistem saat web diakses melalui HTTP IP lokal. Namun, notifikasi suara denting & banner pop-up di dalam web ini TETAP AKTIF setiap kali ada tiket baru untuk departemen Anda.'
-                                                    : 'Browsers restrict native system push on local HTTP IP. However, in-app chime audio and visual alerts remain fully active whenever new tickets are reported.'}
-                                            </p>
-                                        </div>
-                                    )}
-
-                                    {/* In-App Sound Alert Toggle (Works on HTTP & HTTPS) */}
-                                    <div className="p-4 rounded-xl bg-[#1C1B0E] border border-[#3B3929] flex items-center justify-between gap-4 flex-wrap">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-8 h-8 rounded-lg bg-[#C9AA71]/20 text-[#C9AA71] flex items-center justify-center border border-[#C9AA71]/30 shrink-0">
-                                                {soundAlertEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4 text-[#A19F8D]" />}
-                                            </div>
-                                            <div>
-                                                <h3 className="text-xs sm:text-sm font-bold text-[#FAFAFA]">
-                                                    {lang === 'id' ? 'Suara Peringatan & Getar di Web (HTTP / Wi-Fi)' : 'In-App Chime & Vibration (HTTP / Wi-Fi)'}
-                                                </h3>
-                                                <p className="text-[11px] text-[#A19F8D]">
-                                                    {lang === 'id'
-                                                        ? 'Memutar audio denting lonceng saat tiket/isu baru masuk (100% aktif di jaringan lokal).'
-                                                        : 'Plays audio chime when new issues arrive (works on local network).'}
-                                                </p>
-                                            </div>
-                                        </div>
-
-                                        <div className="flex items-center gap-2">
-                                            <button
-                                                type="button"
-                                                onClick={() => playNotificationChime('normal')}
-                                                className="px-3 py-1.5 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-xs font-semibold text-[#FAFAFA] transition-colors cursor-pointer"
-                                                title={lang === 'id' ? 'Putar tes bunyi lonceng' : 'Play test chime'}
-                                            >
-                                                🔔 {lang === 'id' ? 'Tes Suara' : 'Test Sound'}
-                                            </button>
-
-                                            <button
-                                                type="button"
-                                                onClick={handleToggleSound}
-                                                className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm ${
-                                                    soundAlertEnabled
-                                                        ? 'bg-emerald-950/60 border border-emerald-500/50 text-emerald-300 hover:bg-emerald-900/60'
-                                                        : 'bg-white/5 border border-white/10 text-[#A19F8D] hover:text-[#FAFAFA]'
-                                                }`}
-                                            >
-                                                {soundAlertEnabled ? (
-                                                    <>
-                                                        <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-                                                        <span>{lang === 'id' ? 'Suara Aktif' : 'Enabled'}</span>
-                                                    </>
-                                                ) : (
-                                                    <span>{lang === 'id' ? 'Hening (Mute)' : 'Muted'}</span>
-                                                )}
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    <div className="pt-2 flex items-center justify-between gap-3 flex-wrap">
-                                        {pushSubscribed ? (
-                                            <>
-                                                <button
-                                                    type="button"
-                                                    onClick={handleTogglePush}
-                                                    disabled={pushLoading}
-                                                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold text-red-400 hover:text-white bg-red-950/40 hover:bg-red-600/80 border border-red-900/60 hover:border-red-500 transition-all cursor-pointer shadow-md disabled:opacity-50"
-                                                >
-                                                    {pushLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Unlink className="h-4 w-4" />}
-                                                    <span>{lang === 'id' ? 'Matikan Notifikasi di Perangkat Ini' : 'Turn Off On This Device'}</span>
-                                                </button>
-
-                                                <button
-                                                    type="button"
-                                                    onClick={handleTestPush}
-                                                    disabled={pushTestLoading}
-                                                    className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold bg-[#C9AA71] hover:bg-[#b89960] text-[#1C1B0E] transition-all cursor-pointer shadow-lg disabled:opacity-60 ml-auto"
-                                                >
-                                                    {pushTestLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bell className="h-4 w-4" />}
-                                                    <span>{lang === 'id' ? 'Kirim Tes Pop-up ke HP / PC' : 'Send Test Pop-up Notification'}</span>
-                                                </button>
-                                            </>
-                                        ) : (
-                                            <button
-                                                type="button"
-                                                onClick={handleTogglePush}
-                                                disabled={pushLoading || !pushSupported}
-                                                className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold bg-[#C9AA71] hover:bg-[#b89960] text-[#1C1B0E] transition-all cursor-pointer shadow-xl disabled:opacity-50 ml-auto hover:scale-105 active:scale-95"
-                                            >
-                                                {pushLoading ? (
-                                                    <>
-                                                        <Loader2 className="h-4 w-4 animate-spin" />
-                                                        <span>{lang === 'id' ? 'Menghubungkan...' : 'Connecting...'}</span>
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <BellRing className="h-4 w-4" />
-                                                        <span>{lang === 'id' ? 'Aktifkan Notifikasi Pop-up (HP / PC)' : 'Enable Pop-up Notifications'}</span>
-                                                    </>
-                                                )}
-                                            </button>
-                                        )}
-                                    </div>
                                 </div>
+
+                                {user?.whatsapp_number ? (
+                                    <span
+                                        className={`px-3 py-1 rounded-full text-xs font-bold border flex items-center gap-1.5 shadow-xs ${
+                                            isDark
+                                                ? 'bg-emerald-950/60 border-emerald-500/50 text-emerald-300'
+                                                : 'bg-emerald-50 border-emerald-300 text-emerald-700'
+                                        }`}
+                                    >
+                                        <Check className="h-3.5 w-3.5" />
+                                        <span>{user.whatsapp_number}</span>
+                                    </span>
+                                ) : (
+                                    <span
+                                        className={`px-3 py-1 rounded-full text-xs font-semibold border flex items-center gap-1.5 ${
+                                            isDark
+                                                ? 'bg-amber-950/40 border-amber-500/40 text-amber-300'
+                                                : 'bg-amber-50 border-amber-300 text-amber-800'
+                                        }`}
+                                    >
+                                        <span>⚠️ Belum Ditautkan</span>
+                                    </span>
+                                )}
                             </div>
 
-                            {/* WhatsApp Bot System Management Card (Admin Only) */}
-                            {isAdmin && (
-                                <div className="rounded-2xl border-2 border-amber-500/40 bg-[#2A281E]/95 p-6 sm:p-8 shadow-2xl space-y-5 relative overflow-hidden">
-                                    <div className="absolute top-0 right-0 w-48 h-48 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
-
-                                    <div className="flex items-center justify-between gap-4 pb-4 border-b border-[#3B3929] flex-wrap relative z-10">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500/30 to-[#25D366]/30 text-[#25D366] flex items-center justify-center border border-amber-500/40 shadow-sm shrink-0">
-                                                <MessageSquare className="h-5 w-5" />
-                                            </div>
-                                            <div>
-                                                <div className="flex items-center gap-2 flex-wrap">
-                                                    <h2 className="text-base sm:text-lg font-bold text-[#FAFAFA]">
-                                                        {lang === 'id' ? 'Pengelolaan Nomor WhatsApp Bot Resmi' : 'Official WhatsApp Bot Number & System'}
-                                                    </h2>
-                                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">
-                                                        ADMIN ONLY
-                                                    </span>
-                                                </div>
-                                                <p className="text-xs text-[#A19F8D] mt-0.5">
-                                                    {lang === 'id'
-                                                        ? 'Kendali penuh untuk mengganti nomor bot, reset sesi yang bermasalah, atau scan QR langsung dari profil Anda.'
-                                                        : 'Full control to change the bot number, re-link problematic sessions, or scan QR directly from your profile.'}
-                                                </p>
-                                            </div>
-                                        </div>
-
-                                        <div className={`px-3 py-1 rounded-full text-xs font-bold border flex items-center gap-1.5 shadow-sm ${
-                                            adminBotStatus?.connected 
-                                                ? 'bg-emerald-950/60 border-emerald-500/50 text-emerald-300' 
-                                                : 'bg-red-950/60 border-red-500/50 text-red-300 animate-pulse'
-                                        }`}>
-                                            <span className={`w-2 h-2 rounded-full ${adminBotStatus?.connected ? 'bg-emerald-400' : 'bg-red-400'}`} />
-                                            <span>{adminBotStatus?.connected ? `Online (+${adminBotStatus.phone || 'Active'})` : 'Bot Terputus / Perlu Ditautkan'}</span>
-                                        </div>
+                            {/* Pending Ticket Notice Banner */}
+                            {pendingTicket && (pendingTicket.type === 'whatsapp_change' || pendingTicket.type === 'whatsapp_unlink') && (
+                                <div
+                                    className={`p-4 rounded-xl border text-xs space-y-1.5 animate-in fade-in duration-200 ${
+                                        isDark
+                                            ? 'bg-amber-950/50 border-amber-500/40 text-amber-200'
+                                            : 'bg-amber-50 border-amber-200 text-amber-900'
+                                    }`}
+                                >
+                                    <div className={`flex items-center gap-2 font-bold ${isDark ? 'text-amber-300' : 'text-amber-800'}`}>
+                                        <Clock className={`w-4 h-4 ${isDark ? 'text-amber-400' : 'text-amber-600'}`} />
+                                        <span>Permohonan Perubahan WhatsApp (#{pendingTicket.ticket_number})</span>
                                     </div>
-
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 relative z-10">
-                                        <div className="p-3.5 rounded-xl bg-[#1C1B0E] border border-amber-500/20 space-y-1">
-                                            <span className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1.5">
-                                                <Phone className="w-3.5 h-3.5 text-emerald-400" />
-                                                <span>{lang === 'id' ? 'Nomor Bot Saat Ini' : 'Current Bot Number'}</span>
-                                            </span>
-                                            <span className="text-base font-mono font-extrabold text-[#FAFAFA] block">
-                                                {adminBotStatus?.phone ? `+${adminBotStatus.phone}` : (lang === 'id' ? 'Belum Ada / Nonaktif' : 'None / Inactive')}
-                                            </span>
-                                            <span className="text-[10px] text-stone-400 block pt-0.5">
-                                                {lang === 'id' ? 'Nomor ini yang mengirim laporan tiket & broadcast ke grup WhatsApp staf.' : 'Used to send ticket alerts & broadcast to staff WhatsApp groups.'}
-                                            </span>
-                                        </div>
-
-                                        <div className="p-3.5 rounded-xl bg-[#1C1B0E] border border-amber-500/20 flex flex-col justify-center space-y-2">
-                                            <span className="text-[11px] font-semibold text-muted-foreground">
-                                                {lang === 'id' ? 'Aksi Pengelolaan Admin' : 'Admin Actions'}
-                                            </span>
-                                            <div className="flex items-center gap-2 flex-wrap">
-                                                {adminBotStatus?.connected && adminBotStatus?.phone && (
-                                                    <a
-                                                        href={`https://wa.me/${String(adminBotStatus.phone).replace(/[^0-9]/g, '')}`}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        className="flex-1 min-w-[120px] inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-[#25D366]/20 hover:bg-[#25D366]/30 text-[#25D366] border border-[#25D366]/40 transition-all shadow-xs"
-                                                    >
-                                                        <ExternalLink className="w-3.5 h-3.5" />
-                                                        <span>{lang === 'id' ? 'Tes Chat Bot' : 'Test Chat'}</span>
-                                                    </a>
-                                                )}
-                                                <button
-                                                    type="button"
-                                                    onClick={() => {
-                                                        setBotModalTab('pair');
-                                                        setBotModalOpen(true);
-                                                    }}
-                                                    className="flex-1 min-w-[130px] inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-stone-950 transition-all shadow-md cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
-                                                >
-                                                    <KeyRound className="w-3.5 h-3.5" />
-                                                    <span>{lang === 'id' ? 'Ganti Nomor Bot' : 'Change Number'}</span>
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => {
-                                                        setBotModalTab('status');
-                                                        setBotModalOpen(true);
-                                                    }}
-                                                    className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-white/5 hover:bg-white/10 text-stone-300 border border-white/10 transition-all cursor-pointer"
-                                                    title="Buka Menu Kontrol Lengkap"
-                                                >
-                                                    <span>{lang === 'id' ? 'Kontrol Layanan' : 'Control Panel'}</span>
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <p className="text-[11px] text-stone-400 leading-relaxed border-t border-white/5 pt-3 relative z-10">
-                                        📢 <strong>{lang === 'id' ? 'Pemberitahuan Otomatis ke Grup:' : 'Automatic Group Broadcast:'}</strong>{' '}
-                                        {lang === 'id'
-                                            ? 'Setiap kali nomor bot berhasil diganti, bot akan langsung mengirimkan pesan siaran resmi nomor baru ke seluruh grup WhatsApp departemen dan channel.'
-                                            : 'Whenever the bot number is changed, it automatically broadcasts an official announcement with the new number to all staff department groups and channel.'}
+                                    <p>
+                                        Permohonan nomor baru <strong>{pendingTicket.requested_value || 'Pelepasan Nomor'}</strong> sedang menunggu persetujuan <strong>{pendingTicket.status === 'pending_hod' ? 'HOD Departemen' : 'Admin'}</strong>.
+                                    </p>
+                                    <p className={`text-[11px] pt-1 border-t ${isDark ? 'text-amber-300/90 border-amber-500/30' : 'text-amber-800 border-amber-200'}`}>
+                                        ℹ️ Nomor WhatsApp Anda saat ini <strong>({user?.whatsapp_number || '-'})</strong> tetap aktif digunakan sistem hingga permohonan disetujui.
                                     </p>
                                 </div>
                             )}
 
-                            {/* Notification Preferences Card */}
-                            <div className={`rounded-2xl border border-[#3B3929] bg-[#2A281E]/90 p-6 sm:p-8 shadow-xl space-y-4 ${!hasWhatsapp ? 'opacity-85' : ''}`}>
-                                <div className="flex items-center justify-between gap-4 flex-wrap">
-                                    <div className="flex items-center gap-2.5">
-                                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center border shrink-0 ${
-                                            hasWhatsapp 
-                                                ? 'bg-indigo-500/20 text-indigo-400 border-indigo-500/30' 
-                                                : 'bg-stone-800 text-stone-400 border-stone-700'
-                                        }`}>
-                                            <MessageSquare className="h-5 w-5" />
+                            <form onSubmit={handleWhatsAppUpdate} className="space-y-4">
+                                {(waSuccessful || status === 'whatsapp-ticket-submitted' || status === 'whatsapp-updated') && (
+                                    <div
+                                        className={`flex items-center gap-2 p-3.5 rounded-xl border text-xs font-semibold animate-fade-in ${
+                                            isDark
+                                                ? 'bg-emerald-950/50 border-emerald-500/40 text-emerald-300'
+                                                : 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                                        }`}
+                                    >
+                                        <CheckCircle2 className={`h-4 w-4 shrink-0 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
+                                        <span>
+                                            {canDirectUpdateWa
+                                                ? (lang === 'id' ? 'Nomor WhatsApp berhasil diperbarui secara langsung!' : 'WhatsApp number updated directly!')
+                                                : (lang === 'id' ? 'Tiket permohonan perubahan nomor WhatsApp telah dikirim ke HOD!' : 'WhatsApp update ticket submitted to HOD!')}
+                                        </span>
+                                    </div>
+                                )}
+
+                                <div className="space-y-1.5">
+                                    <label
+                                        htmlFor="whatsapp_number"
+                                        className={`block text-xs font-semibold ${isDark ? 'text-slate-200' : 'text-slate-700'}`}
+                                    >
+                                        {canDirectUpdateWa ? (lang === 'id' ? 'Nomor WhatsApp Anda' : 'Your WhatsApp Number') : (lang === 'id' ? 'Nomor WhatsApp Baru yang Diajukan' : 'Requested New WhatsApp Number')}
+                                    </label>
+                                    <div className="relative">
+                                        <Phone className={`pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 ${isDark ? 'text-slate-400' : 'text-slate-500'}`} />
+                                        <input
+                                            id="whatsapp_number"
+                                            type="text"
+                                            value={waData.whatsapp_number}
+                                            onChange={(e) => setWaData('whatsapp_number', formatToLocalPhone(e.target.value))}
+                                            placeholder="e.g. 081234567890"
+                                            className={`w-full rounded-xl border pl-9 pr-3 py-2.5 text-sm focus:outline-none focus:ring-1 transition-colors font-mono ${
+                                                isDark
+                                                    ? 'border-slate-800 bg-slate-950 text-slate-100 placeholder:text-slate-500 focus:border-emerald-500 focus:ring-emerald-500'
+                                                    : 'border-slate-300 bg-slate-50 text-slate-900 placeholder:text-slate-400 focus:border-emerald-500 focus:ring-emerald-500'
+                                            }`}
+                                        />
+                                    </div>
+                                    {waErrors.whatsapp_number && (
+                                        <p className={`text-xs flex items-center gap-1 mt-1 ${isDark ? 'text-rose-400' : 'text-rose-600'}`}>
+                                            <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                                            {waErrors.whatsapp_number}
+                                        </p>
+                                    )}
+                                </div>
+
+                                {!canDirectUpdateWa && (
+                                    <div className="space-y-1.5">
+                                        <label
+                                            htmlFor="wa_reason"
+                                            className={`block text-xs font-semibold ${isDark ? 'text-slate-200' : 'text-slate-700'}`}
+                                        >
+                                            Alasan Perubahan Nomor
+                                        </label>
+                                        <input
+                                            id="wa_reason"
+                                            type="text"
+                                            value={waData.reason}
+                                            onChange={(e) => setWaData('reason', e.target.value)}
+                                            placeholder="Contoh: Mengganti ke nomor WhatsApp dinas baru..."
+                                            className={`w-full rounded-xl border px-3 py-2 text-xs focus:outline-none focus:ring-1 transition-colors ${
+                                                isDark
+                                                    ? 'border-slate-800 bg-slate-950 text-slate-100 placeholder:text-slate-500 focus:border-emerald-500 focus:ring-emerald-500'
+                                                    : 'border-slate-300 bg-slate-50 text-slate-900 placeholder:text-slate-400 focus:border-emerald-500 focus:ring-emerald-500'
+                                            }`}
+                                        />
+                                    </div>
+                                )}
+
+                                <p className={`text-[11px] leading-relaxed ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                    💡 {canDirectUpdateWa
+                                        ? (lang === 'id'
+                                            ? `Sebagai ${isAdmin ? 'Administrator' : 'Head of Department (HOD)'}, nomor WhatsApp Anda langsung aktif dan disinkronkan ke sistem & bot tanpa tiket permohonan.`
+                                            : `As ${isAdmin ? 'Administrator' : 'Head of Department (HOD)'}, your WhatsApp number is directly updated and synced to the system and bot without approval tickets.`)
+                                        : (lang === 'id'
+                                            ? 'Perubahan nomor WhatsApp memerlukan persetujuan HOD Departemen dan Admin. Nomor lama Anda tetap aktif selama masa verifikasi.'
+                                            : 'WhatsApp number change requires approval from your Department HOD and Admin. Your current number remains active during verification.')}
+                                </p>
+
+                                <div className="pt-2 flex items-center justify-between gap-3 flex-wrap">
+                                    {user?.whatsapp_number ? (
+                                        <button
+                                            type="button"
+                                            onClick={handleUnlinkWhatsApp}
+                                            disabled={waProcessing}
+                                            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold border transition-all cursor-pointer shadow-sm disabled:opacity-50 ${
+                                                isDark
+                                                    ? 'text-rose-400 hover:text-white bg-rose-950/40 hover:bg-rose-600/80 border-rose-900/60 hover:border-rose-500'
+                                                    : 'text-rose-700 hover:text-white bg-rose-50 hover:bg-rose-600 border-rose-200 hover:border-rose-600'
+                                            }`}
+                                        >
+                                            <Unlink className="h-4 w-4" />
+                                            <span>{lang === 'id' ? 'Lepas Tautan Nomor' : 'Unlink WhatsApp Number'}</span>
+                                        </button>
+                                    ) : <div />}
+
+                                    <button
+                                        type="submit"
+                                        disabled={waProcessing}
+                                        className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold bg-emerald-600 hover:bg-emerald-500 text-white keep-white hover:scale-105 active:scale-95 transition-all shadow-lg cursor-pointer disabled:opacity-60 ml-auto"
+                                    >
+                                        {waProcessing ? (
+                                            <>
+                                                <Loader2 className="h-4 w-4 animate-spin" />
+                                                <span>{t('saving') || 'Memproses...'}</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Smartphone className="h-4 w-4" />
+                                                <span>
+                                                    {canDirectUpdateWa
+                                                        ? (user?.whatsapp_number ? (lang === 'id' ? 'Perbarui Nomor' : 'Update Number') : (lang === 'id' ? 'Simpan Nomor' : 'Save Number'))
+                                                        : (lang === 'id' ? 'Ajukan Perubahan ke HOD' : 'Submit Request to HOD')}
+                                                </span>
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+
+                        {/* Web Push Pop-up Notifications Card (HP & PC) */}
+                        <div
+                            className={`rounded-2xl border p-6 sm:p-8 shadow-lg space-y-6 ${
+                                isDark
+                                    ? 'border-slate-800 bg-slate-900/80 backdrop-blur-md'
+                                    : 'border-slate-200 bg-white/95 shadow-slate-200/60'
+                            }`}
+                        >
+                            <div className={`flex items-center justify-between gap-4 pb-4 border-b flex-wrap ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
+                                <div className="flex items-center gap-2.5">
+                                    <div
+                                        className={`w-9 h-9 rounded-xl flex items-center justify-center border shrink-0 ${
+                                            isDark
+                                                ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                                                : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                        }`}
+                                    >
+                                        <BellRing className="h-5 w-5" />
+                                    </div>
+                                    <div>
+                                        <h2 className={`text-base sm:text-lg font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                                            {lang === 'id' ? 'Notifikasi Pop-up Perangkat (HP & PC)' : 'Device Pop-up Notifications (Mobile & PC)'}
+                                        </h2>
+                                        <p className={`text-xs mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                            {lang === 'id'
+                                                ? 'Terima notifikasi pop-up sistem saat ada tiket baru, penanganan darurat (SOS), atau update isu.'
+                                                : 'Receive native system pop-ups for new issues, emergency alerts (SOS), and task updates.'}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {pushSubscribed ? (
+                                    <span
+                                        className={`px-3 py-1 rounded-full text-xs font-bold border flex items-center gap-1.5 shadow-xs ${
+                                            isDark
+                                                ? 'bg-emerald-950/60 border-emerald-500/50 text-emerald-300'
+                                                : 'bg-emerald-50 border-emerald-300 text-emerald-700'
+                                        }`}
+                                    >
+                                        <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                                        <span>{lang === 'id' ? 'Aktif di Perangkat Ini' : 'Active on This Device'}</span>
+                                    </span>
+                                ) : pushSupported ? (
+                                    <span
+                                        className={`px-3 py-1 rounded-full text-xs font-semibold border flex items-center gap-1.5 ${
+                                            isDark
+                                                ? 'bg-amber-950/40 border-amber-500/40 text-amber-300'
+                                                : 'bg-amber-50 border-amber-300 text-amber-800'
+                                        }`}
+                                    >
+                                        <span>⚠️ {lang === 'id' ? 'Belum Diaktifkan' : 'Not Activated'}</span>
+                                    </span>
+                                ) : (
+                                    <span
+                                        className={`px-3 py-1 rounded-full text-xs font-semibold border ${
+                                            isDark
+                                                ? 'bg-slate-800 border-slate-700 text-slate-300'
+                                                : 'bg-slate-100 border-slate-200 text-slate-600'
+                                        }`}
+                                    >
+                                        {lang === 'id' ? 'Tidak Didukung Browser Ini' : 'Not Supported'}
+                                    </span>
+                                )}
+                            </div>
+
+                            {/* Status Alerts */}
+                            {pushSuccessMsg && (
+                                <div
+                                    className={`flex items-center gap-2 p-3.5 rounded-xl border text-xs font-semibold animate-in fade-in duration-200 ${
+                                        isDark
+                                            ? 'bg-emerald-950/50 border-emerald-500/40 text-emerald-300'
+                                            : 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                                    }`}
+                                >
+                                    <CheckCircle2 className={`h-4 w-4 shrink-0 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
+                                    <span>{pushSuccessMsg}</span>
+                                </div>
+                            )}
+
+                            {pushErrorMsg && (
+                                <div
+                                    className={`flex items-center gap-2 p-3.5 rounded-xl border text-xs font-semibold animate-in fade-in duration-200 ${
+                                        isDark
+                                            ? 'bg-rose-950/50 border-rose-500/40 text-rose-300'
+                                            : 'bg-rose-50 border-rose-200 text-rose-700'
+                                    }`}
+                                >
+                                    <AlertCircle className={`h-4 w-4 shrink-0 ${isDark ? 'text-rose-400' : 'text-rose-600'}`} />
+                                    <span>{pushErrorMsg}</span>
+                                </div>
+                            )}
+
+                            <div className="space-y-4">
+                                <p className={`text-xs leading-relaxed ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
+                                    {lang === 'id'
+                                        ? 'Dengan mengaktifkan fitur ini, ponsel atau laptop Anda akan memunculkan banner notifikasi pop-up (disertai suara dan getar) begitu ada tiket baru yang dilaporkan atau ditugaskan ke departemen Anda, bahkan ketika layar sedang terkunci atau aplikasi tidak dibuka.'
+                                        : 'With this feature enabled, your phone or computer will display native pop-up alert banners with sound and vibration whenever issues are assigned or reported to your unit.'}
+                                </p>
+
+                                {/* iPhone iOS Note */}
+                                <div
+                                    className={`p-3.5 rounded-xl border text-[11px] space-y-1 ${
+                                        isDark
+                                            ? 'bg-slate-950 border-slate-800 text-slate-400'
+                                            : 'bg-slate-50 border-slate-200 text-slate-600'
+                                    }`}
+                                >
+                                    <p className={`font-bold flex items-center gap-1.5 ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>
+                                        <span>📱 {lang === 'id' ? 'Petunjuk untuk Pengguna iPhone (iOS):' : 'Guide for iPhone (iOS) Users:'}</span>
+                                    </p>
+                                    <p>
+                                        {lang === 'id'
+                                            ? 'Buka website Telunas Fix di browser Safari, ketuk tombol Bagikan (Share ⎋) di bawah, lalu pilih "Tambahkan ke Layar Utama" (Add to Home Screen). Buka aplikasi dari layar utama Anda untuk mengaktifkan notifikasi pop-up sistem Apple.'
+                                            : 'Open Telunas Fix in Safari, tap Share (⎋), then choose "Add to Home Screen". Launch from your home screen to enable Apple web push notifications.'}
+                                    </p>
+                                </div>
+
+                                {!pushSupported && (
+                                    <div
+                                        className={`p-3.5 rounded-xl border text-xs space-y-1.5 ${
+                                            isDark
+                                                ? 'bg-amber-950/30 border-amber-500/30 text-amber-200/90'
+                                                : 'bg-amber-50 border-amber-200 text-amber-900'
+                                        }`}
+                                    >
+                                        <p className={`font-bold flex items-center gap-1.5 ${isDark ? 'text-amber-300' : 'text-amber-800'}`}>
+                                            <span>🌐 {lang === 'id' ? 'Status Akses: HTTP / Jaringan Wi-Fi Lokal' : 'Access Status: Local HTTP / Wi-Fi'}</span>
+                                        </p>
+                                        <p className={`text-[11px] leading-relaxed ${isDark ? 'text-slate-300' : 'text-amber-800'}`}>
+                                            {lang === 'id'
+                                                ? 'Browser membatasi banner pop-up sistem saat web diakses melalui HTTP IP lokal. Namun, notifikasi suara denting & banner pop-up di dalam web ini TETAP AKTIF setiap kali ada tiket baru untuk departemen Anda.'
+                                                : 'Browsers restrict native system push on local HTTP IP. However, in-app chime audio and visual alerts remain fully active whenever new tickets are reported.'}
+                                        </p>
+                                    </div>
+                                )}
+
+                                {/* In-App Sound Alert Toggle (Works on HTTP & HTTPS) */}
+                                <div
+                                    className={`p-4 rounded-xl border flex items-center justify-between gap-4 flex-wrap ${
+                                        isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'
+                                    }`}
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <div
+                                            className={`w-8 h-8 rounded-lg flex items-center justify-center border shrink-0 ${
+                                                isDark
+                                                    ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                                                    : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                            }`}
+                                        >
+                                            {soundAlertEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className={`h-4 w-4 ${isDark ? 'text-slate-400' : 'text-slate-500'}`} />}
                                         </div>
                                         <div>
-                                            <div className="flex items-center gap-2 flex-wrap">
-                                                <h2 className="text-base sm:text-lg font-bold text-[#FAFAFA]">
-                                                    Notifikasi Tiket via WhatsApp
-                                                </h2>
-                                                {!hasWhatsapp && (
-                                                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                                                        Nomor Tidak Terdaftar
-                                                    </span>
-                                                )}
-                                            </div>
-                                            <p className="text-xs text-[#A19F8D] mt-0.5">
-                                                Kirimkan pemberitahuan tiket permohonan dan persetujuan akun ke WhatsApp pribadi Anda.
+                                            <h3 className={`text-xs sm:text-sm font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                                                {lang === 'id' ? 'Suara Peringatan & Getar di Web (HTTP / Wi-Fi)' : 'In-App Chime & Vibration (HTTP / Wi-Fi)'}
+                                            </h3>
+                                            <p className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                                {lang === 'id'
+                                                    ? 'Memutar audio denting lonceng saat tiket/isu baru masuk (100% aktif di jaringan lokal).'
+                                                    : 'Plays audio chime when new issues arrive (works on local network).'}
                                             </p>
                                         </div>
                                     </div>
@@ -1396,253 +1454,590 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
                                     <div className="flex items-center gap-2">
                                         <button
                                             type="button"
-                                            onClick={handleToggleNotifyPref}
-                                            disabled={isUpdatingNotifyPref || !hasWhatsapp}
-                                            title={!hasWhatsapp ? 'Nomor WhatsApp belum terdaftar atau telah dihapus' : (notifyPref ? 'Matikan Notifikasi WhatsApp' : 'Nyalakan Notifikasi WhatsApp')}
-                                            className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                                                !hasWhatsapp
-                                                    ? 'bg-[#3B3929]/70 cursor-not-allowed opacity-40'
-                                                    : (notifyPref ? 'bg-emerald-600 cursor-pointer' : 'bg-slate-700 cursor-pointer')
+                                            onClick={() => playNotificationChime('normal')}
+                                            className={`px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors cursor-pointer ${
+                                                isDark
+                                                    ? 'border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-100'
+                                                    : 'border-slate-300 bg-white hover:bg-slate-100 text-slate-700'
+                                            }`}
+                                            title={lang === 'id' ? 'Putar tes bunyi lonceng' : 'Play test chime'}
+                                        >
+                                            🔔 {lang === 'id' ? 'Tes Suara' : 'Test Sound'}
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            onClick={handleToggleSound}
+                                            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs ${
+                                                soundAlertEnabled
+                                                    ? (isDark
+                                                        ? 'bg-emerald-950/60 border border-emerald-500/50 text-emerald-300 hover:bg-emerald-900/60'
+                                                        : 'bg-emerald-50 border border-emerald-300 text-emerald-700 hover:bg-emerald-100')
+                                                    : (isDark
+                                                        ? 'bg-slate-800 border border-slate-700 text-slate-400 hover:text-white'
+                                                        : 'bg-white border border-slate-300 text-slate-500 hover:text-slate-900')
                                             }`}
                                         >
-                                            <span 
-                                                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                                                    (hasWhatsapp && notifyPref) ? 'translate-x-5' : 'translate-x-0'
-                                                }`} 
-                                            />
+                                            {soundAlertEnabled ? (
+                                                <>
+                                                    <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                                                    <span>{lang === 'id' ? 'Suara Aktif' : 'Enabled'}</span>
+                                                </>
+                                            ) : (
+                                                <span>{lang === 'id' ? 'Hening (Mute)' : 'Muted'}</span>
+                                            )}
                                         </button>
                                     </div>
                                 </div>
 
-                                {!hasWhatsapp ? (
-                                    <div className="p-3.5 rounded-xl bg-amber-950/40 border border-amber-500/30 text-amber-200 text-xs flex items-center gap-2.5">
-                                        <AlertCircle className="h-4 w-4 shrink-0 text-amber-400" />
-                                        <span>
-                                            Opsi ini <strong>tidak dapat diaktifkan</strong> karena akun Anda tidak memiliki nomor WhatsApp yang terdaftar (atau nomor telah dihapus/di-unlink dan di-ACC Admin). Hubungkan nomor WhatsApp terlebih dahulu untuk mengaktifkan notifikasi via WhatsApp pribadi.
+                                <div className="pt-2 flex items-center justify-between gap-3 flex-wrap">
+                                    {pushSubscribed ? (
+                                        <>
+                                            <button
+                                                type="button"
+                                                onClick={handleTogglePush}
+                                                disabled={pushLoading}
+                                                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold border transition-all cursor-pointer shadow-sm disabled:opacity-50 ${
+                                                    isDark
+                                                        ? 'text-rose-400 hover:text-white bg-rose-950/40 hover:bg-rose-600/80 border-rose-900/60 hover:border-rose-500'
+                                                        : 'text-rose-700 hover:text-white bg-rose-50 hover:bg-rose-600 border-rose-200 hover:border-rose-600'
+                                                }`}
+                                            >
+                                                {pushLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Unlink className="h-4 w-4" />}
+                                                <span>{lang === 'id' ? 'Matikan Notifikasi di Perangkat Ini' : 'Turn Off On This Device'}</span>
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                onClick={handleTestPush}
+                                                disabled={pushTestLoading}
+                                                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white keep-white transition-all cursor-pointer shadow-lg disabled:opacity-60 ml-auto"
+                                            >
+                                                {pushTestLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bell className="h-4 w-4" />}
+                                                <span>{lang === 'id' ? 'Kirim Tes Pop-up ke HP / PC' : 'Send Test Pop-up Notification'}</span>
+                                            </button>
+                                        </>
+                                    ) : (
+                                        <button
+                                            type="button"
+                                            onClick={handleTogglePush}
+                                            disabled={pushLoading || !pushSupported}
+                                            className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold bg-emerald-600 hover:bg-emerald-500 text-white keep-white transition-all cursor-pointer shadow-lg disabled:opacity-50 ml-auto hover:scale-105 active:scale-95"
+                                        >
+                                            {pushLoading ? (
+                                                <>
+                                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                                    <span>{lang === 'id' ? 'Menghubungkan...' : 'Connecting...'}</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <BellRing className="h-4 w-4" />
+                                                    <span>{lang === 'id' ? 'Aktifkan Notifikasi Pop-up (HP / PC)' : 'Enable Pop-up Notifications'}</span>
+                                                </>
+                                            )}
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* WhatsApp Bot System Management Card (Admin Only) */}
+                        {isAdmin && (
+                            <div
+                                className={`rounded-2xl border-2 p-6 sm:p-8 shadow-lg space-y-5 relative overflow-hidden ${
+                                    isDark
+                                        ? 'border-emerald-500/35 bg-slate-900/90 backdrop-blur-md'
+                                        : 'border-emerald-200 bg-white/95 shadow-slate-200/60'
+                                }`}
+                            >
+                                <div className="absolute top-0 right-0 w-48 h-48 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+
+                                <div className={`flex items-center justify-between gap-4 pb-4 border-b flex-wrap relative z-10 ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
+                                    <div className="flex items-center gap-3">
+                                        <div
+                                            className={`w-10 h-10 rounded-xl flex items-center justify-center border shadow-xs shrink-0 ${
+                                                isDark
+                                                    ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                                                    : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                            }`}
+                                        >
+                                            <MessageSquare className="h-5 w-5" />
+                                        </div>
+                                        <div>
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                                <h2 className={`text-base sm:text-lg font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                                                    {lang === 'id' ? 'Pengelolaan Nomor WhatsApp Bot Resmi' : 'Official WhatsApp Bot Number & System'}
+                                                </h2>
+                                                <span
+                                                    className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                                                        isDark
+                                                            ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                                                            : 'bg-amber-100 text-amber-800 border-amber-300'
+                                                    }`}
+                                                >
+                                                    ADMIN ONLY
+                                                </span>
+                                            </div>
+                                            <p className={`text-xs mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                                {lang === 'id'
+                                                    ? 'Kendali penuh untuk mengganti nomor bot, reset sesi yang bermasalah, atau scan QR langsung dari profil Anda.'
+                                                    : 'Full control to change the bot number, re-link problematic sessions, or scan QR directly from your profile.'}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div
+                                        className={`px-3 py-1 rounded-full text-xs font-bold border flex items-center gap-1.5 shadow-xs ${
+                                            adminBotStatus?.connected
+                                                ? (isDark
+                                                    ? 'bg-emerald-950/60 border-emerald-500/50 text-emerald-300'
+                                                    : 'bg-emerald-50 border-emerald-300 text-emerald-700')
+                                                : (isDark
+                                                    ? 'bg-rose-950/60 border-rose-500/50 text-rose-300 animate-pulse'
+                                                    : 'bg-rose-50 border-rose-300 text-rose-700 animate-pulse')
+                                        }`}
+                                    >
+                                        <span className={`w-2 h-2 rounded-full ${adminBotStatus?.connected ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                                        <span>{adminBotStatus?.connected ? `Online (+${adminBotStatus.phone || 'Active'})` : 'Bot Terputus / Perlu Ditautkan'}</span>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 relative z-10">
+                                    <div
+                                        className={`p-3.5 rounded-xl border space-y-1 ${
+                                            isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'
+                                        }`}
+                                    >
+                                        <span className={`text-[11px] font-semibold flex items-center gap-1.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                            <Phone className={`w-3.5 h-3.5 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
+                                            <span>{lang === 'id' ? 'Nomor Bot Saat Ini' : 'Current Bot Number'}</span>
+                                        </span>
+                                        <span className={`text-base font-mono font-extrabold block ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                                            {adminBotStatus?.phone ? `+${adminBotStatus.phone}` : (lang === 'id' ? 'Belum Ada / Nonaktif' : 'None / Inactive')}
+                                        </span>
+                                        <span className={`text-[10px] block pt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                            {lang === 'id' ? 'Nomor ini yang mengirim laporan tiket & broadcast ke grup WhatsApp staf.' : 'Used to send ticket alerts & broadcast to staff WhatsApp groups.'}
                                         </span>
                                     </div>
-                                ) : (
-                                    <p className="text-[11px] text-[#A19F8D]">
-                                        <em>Catatan:</em> Bot tidak akan mengirimkan spam progres isu ke chat pribadi Anda. Progres isu antar-departemen dapat dipantau melalui lonceng notifikasi di dashboard.
-                                    </p>
-                                )}
-                            </div>
 
-                            {/* Password Form Card */}
-                            <div className="rounded-2xl border border-[#3B3929] bg-[#2A281E]/90 p-6 sm:p-8 shadow-xl space-y-6">
-                                <div className="flex items-center gap-2.5 pb-4 border-b border-[#3B3929]">
-                                    <KeyRound className="h-5 w-5 text-[#C9AA71]" />
+                                    <div
+                                        className={`p-3.5 rounded-xl border flex flex-col justify-center space-y-2 ${
+                                            isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'
+                                        }`}
+                                    >
+                                        <span className={`text-[11px] font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                            {lang === 'id' ? 'Aksi Pengelolaan Admin' : 'Admin Actions'}
+                                        </span>
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                            {adminBotStatus?.connected && adminBotStatus?.phone && (
+                                                <a
+                                                    href={`https://wa.me/${String(adminBotStatus.phone).replace(/[^0-9]/g, '')}`}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className={`flex-1 min-w-[120px] inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border transition-all shadow-xs ${
+                                                        isDark
+                                                            ? 'bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 border-emerald-500/40'
+                                                            : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-300'
+                                                    }`}
+                                                >
+                                                    <ExternalLink className="w-3.5 h-3.5" />
+                                                    <span>{lang === 'id' ? 'Tes Chat Bot' : 'Test Chat'}</span>
+                                                </a>
+                                            )}
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setBotModalTab('pair');
+                                                    setBotModalOpen(true);
+                                                }}
+                                                className="flex-1 min-w-[130px] inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white keep-white transition-all shadow-md cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
+                                            >
+                                                <KeyRound className="w-3.5 h-3.5" />
+                                                <span>{lang === 'id' ? 'Ganti Nomor Bot' : 'Change Number'}</span>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setBotModalTab('status');
+                                                    setBotModalOpen(true);
+                                                }}
+                                                className={`inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                                                    isDark
+                                                        ? 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
+                                                        : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-300'
+                                                }`}
+                                                title="Buka Menu Kontrol Lengkap"
+                                            >
+                                                <span>{lang === 'id' ? 'Kontrol Layanan' : 'Control Panel'}</span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <p className={`text-[11px] leading-relaxed border-t pt-3 relative z-10 ${isDark ? 'text-slate-400 border-slate-800' : 'text-slate-500 border-slate-200'}`}>
+                                    📢 <strong>{lang === 'id' ? 'Pemberitahuan Otomatis ke Grup:' : 'Automatic Group Broadcast:'}</strong>{' '}
+                                    {lang === 'id'
+                                        ? 'Setiap kali nomor bot berhasil diganti, bot akan langsung mengirimkan pesan siaran resmi nomor baru ke seluruh grup WhatsApp departemen dan channel.'
+                                        : 'Whenever the bot number is changed, it automatically broadcasts an official announcement with the new number to all staff department groups and channel.'}
+                                </p>
+                            </div>
+                        )}
+
+                        {/* Notification Preferences Card */}
+                        <div
+                            className={`rounded-2xl border p-6 sm:p-8 shadow-lg space-y-4 ${
+                                isDark
+                                    ? 'border-slate-800 bg-slate-900/80 backdrop-blur-md'
+                                    : 'border-slate-200 bg-white/95 shadow-slate-200/60'
+                            } ${!hasWhatsapp ? 'opacity-90' : ''}`}
+                        >
+                            <div className="flex items-center justify-between gap-4 flex-wrap">
+                                <div className="flex items-center gap-2.5">
+                                    <div
+                                        className={`w-9 h-9 rounded-xl flex items-center justify-center border shrink-0 ${
+                                            hasWhatsapp
+                                                ? (isDark ? 'bg-indigo-500/20 text-indigo-400 border-indigo-500/30' : 'bg-indigo-50 text-indigo-700 border-indigo-200')
+                                                : (isDark ? 'bg-slate-800 text-slate-400 border-slate-700' : 'bg-slate-100 text-slate-500 border-slate-200')
+                                        }`}
+                                    >
+                                        <MessageSquare className="h-5 w-5" />
+                                    </div>
                                     <div>
-                                        <h2 className="text-base sm:text-lg font-bold text-[#FAFAFA]">
-                                            {isAdmin ? 'Ganti Kata Sandi (Langsung)' : 'Permohonan Reset Kata Sandi'}
-                                        </h2>
-                                        <p className="text-xs text-[#A19F8D] mt-0.5">
-                                            {isAdmin 
-                                                ? 'Sebagai Admin, Anda dapat mengganti kata sandi Anda secara langsung.'
-                                                : 'Sesuai SOP Telunas, permohonan reset password staf akan ditinjau oleh HOD sebelum disetujui Admin.'}
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                            <h2 className={`text-base sm:text-lg font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                                                Notifikasi Tiket via WhatsApp
+                                            </h2>
+                                            {!hasWhatsapp && (
+                                                <span
+                                                    className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
+                                                        isDark
+                                                            ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                                                            : 'bg-amber-100 text-amber-800 border-amber-300'
+                                                    }`}
+                                                >
+                                                    Nomor Tidak Terdaftar
+                                                </span>
+                                            )}
+                                        </div>
+                                        <p className={`text-xs mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                            Kirimkan pemberitahuan tiket permohonan dan persetujuan akun ke WhatsApp pribadi Anda.
                                         </p>
                                     </div>
                                 </div>
 
-                                {isAdmin ? (
-                                    /* Admin Direct Password Change Form */
-                                    <form onSubmit={handlePasswordUpdate} className="space-y-4">
-                                        {recentlySuccessful && (
-                                            <div className="flex items-center gap-2 p-3.5 rounded-xl bg-emerald-950/50 border border-emerald-500/40 text-emerald-300 text-xs font-semibold animate-fade-in">
-                                                <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
-                                                <span>Kata sandi berhasil diperbarui.</span>
-                                            </div>
-                                        )}
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={handleToggleNotifyPref}
+                                        disabled={isUpdatingNotifyPref || !hasWhatsapp}
+                                        title={!hasWhatsapp ? 'Nomor WhatsApp belum terdaftar atau telah dihapus' : (notifyPref ? 'Matikan Notifikasi WhatsApp' : 'Nyalakan Notifikasi WhatsApp')}
+                                        className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                                            !hasWhatsapp
+                                                ? (isDark ? 'bg-slate-800 cursor-not-allowed opacity-40' : 'bg-slate-200 cursor-not-allowed opacity-50')
+                                                : (notifyPref
+                                                    ? 'bg-emerald-600 cursor-pointer'
+                                                    : (isDark ? 'bg-slate-700 cursor-pointer' : 'bg-slate-300 cursor-pointer'))
+                                        }`}
+                                    >
+                                        <span
+                                            className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                                                (hasWhatsapp && notifyPref) ? 'translate-x-5' : 'translate-x-0'
+                                            }`}
+                                        />
+                                    </button>
+                                </div>
+                            </div>
 
-                                        <div className="space-y-1.5">
-                                            <label htmlFor="current_password" className="block text-xs font-semibold text-[#FAFAFA]">
-                                                Kata Sandi Saat Ini <span className="text-red-400">*</span>
-                                            </label>
-                                            <div className="relative">
-                                                <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#A19F8D]" />
-                                                <input
-                                                    id="current_password"
-                                                    ref={currentPasswordInput}
-                                                    type="password"
-                                                    value={data.current_password}
-                                                    onChange={(e) => setData('current_password', e.target.value)}
-                                                    autoComplete="current-password"
-                                                    placeholder="••••••••"
-                                                    className="w-full rounded-xl border border-[#3B3929] bg-[#1C1B0E] pl-9 pr-3 py-2.5 text-sm text-[#FAFAFA] placeholder:text-[#A19F8D]/40 focus:border-[#C9AA71] focus:outline-none"
-                                                />
-                                            </div>
-                                            {errors.current_password && (
-                                                <p className="text-xs text-red-400 flex items-center gap-1 mt-1">
-                                                    <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                                                    {errors.current_password}
-                                                </p>
-                                            )}
+                            {!hasWhatsapp ? (
+                                <div
+                                    className={`p-3.5 rounded-xl border text-xs flex items-center gap-2.5 ${
+                                        isDark
+                                            ? 'bg-amber-950/40 border-amber-500/30 text-amber-200'
+                                            : 'bg-amber-50 border-amber-200 text-amber-900'
+                                    }`}
+                                >
+                                    <AlertCircle className={`h-4 w-4 shrink-0 ${isDark ? 'text-amber-400' : 'text-amber-600'}`} />
+                                    <span>
+                                        Opsi ini <strong>tidak dapat diaktifkan</strong> karena akun Anda tidak memiliki nomor WhatsApp yang terdaftar (atau nomor telah dihapus/di-unlink dan di-ACC Admin). Hubungkan nomor WhatsApp terlebih dahulu untuk mengaktifkan notifikasi via WhatsApp pribadi.
+                                    </span>
+                                </div>
+                            ) : (
+                                <p className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                    <em>Catatan:</em> Bot tidak akan mengirimkan spam progres isu ke chat pribadi Anda. Progres isu antar-departemen dapat dipantau melalui lonceng notifikasi di dashboard.
+                                </p>
+                            )}
+                        </div>
+
+                        {/* Password Form Card */}
+                        <div
+                            className={`rounded-2xl border p-6 sm:p-8 shadow-lg space-y-6 ${
+                                isDark
+                                    ? 'border-slate-800 bg-slate-900/80 backdrop-blur-md'
+                                    : 'border-slate-200 bg-white/95 shadow-slate-200/60'
+                            }`}
+                        >
+                            <div className={`flex items-center gap-2.5 pb-4 border-b ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
+                                <KeyRound className={`h-5 w-5 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
+                                <div>
+                                    <h2 className={`text-base sm:text-lg font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                                        {isAdmin ? 'Ganti Kata Sandi (Langsung)' : 'Permohonan Reset Kata Sandi'}
+                                    </h2>
+                                    <p className={`text-xs mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                        {isAdmin
+                                            ? 'Sebagai Admin, Anda dapat mengganti kata sandi Anda secara langsung.'
+                                            : 'Sesuai SOP Telunas, permohonan reset password staf akan ditinjau oleh HOD sebelum disetujui Admin.'}
+                                    </p>
+                                </div>
+                            </div>
+
+                            {isAdmin ? (
+                                /* Admin Direct Password Change Form */
+                                <form onSubmit={handlePasswordUpdate} className="space-y-4">
+                                    {recentlySuccessful && (
+                                        <div
+                                            className={`flex items-center gap-2 p-3.5 rounded-xl border text-xs font-semibold animate-fade-in ${
+                                                isDark
+                                                    ? 'bg-emerald-950/50 border-emerald-500/40 text-emerald-300'
+                                                    : 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                                            }`}
+                                        >
+                                            <CheckCircle2 className={`h-4 w-4 shrink-0 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
+                                            <span>Kata sandi berhasil diperbarui.</span>
                                         </div>
+                                    )}
 
-                                        <div className="space-y-1.5">
-                                            <label htmlFor="password" className="block text-xs font-semibold text-[#FAFAFA]">
-                                                Kata Sandi Baru <span className="text-red-400">*</span>
-                                            </label>
-                                            <div className="relative">
-                                                <KeyRound className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#A19F8D]" />
-                                                <input
-                                                    id="password"
-                                                    ref={passwordInput}
-                                                    type="password"
-                                                    value={data.password}
-                                                    onChange={(e) => setData('password', e.target.value)}
-                                                    autoComplete="new-password"
-                                                    placeholder="••••••••"
-                                                    className="w-full rounded-xl border border-[#3B3929] bg-[#1C1B0E] pl-9 pr-3 py-2.5 text-sm text-[#FAFAFA] placeholder:text-[#A19F8D]/40 focus:border-[#C9AA71] focus:outline-none"
-                                                />
-                                            </div>
-                                            {errors.password && (
-                                                <p className="text-xs text-red-400 flex items-center gap-1 mt-1">
-                                                    <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                                                    {errors.password}
-                                                </p>
-                                            )}
+                                    <div className="space-y-1.5">
+                                        <label htmlFor="current_password" className={`block text-xs font-semibold ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
+                                            Kata Sandi Saat Ini <span className="text-rose-500">*</span>
+                                        </label>
+                                        <div className="relative">
+                                            <Lock className={`pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 ${isDark ? 'text-slate-400' : 'text-slate-500'}`} />
+                                            <input
+                                                id="current_password"
+                                                ref={currentPasswordInput}
+                                                type="password"
+                                                value={data.current_password}
+                                                onChange={(e) => setData('current_password', e.target.value)}
+                                                autoComplete="current-password"
+                                                placeholder="••••••••"
+                                                className={`w-full rounded-xl border pl-9 pr-3 py-2.5 text-sm focus:outline-none focus:ring-1 transition-colors ${
+                                                    isDark
+                                                        ? 'border-slate-800 bg-slate-950 text-slate-100 placeholder:text-slate-500 focus:border-emerald-500 focus:ring-emerald-500'
+                                                        : 'border-slate-300 bg-slate-50 text-slate-900 placeholder:text-slate-400 focus:border-emerald-500 focus:ring-emerald-500'
+                                                }`}
+                                            />
                                         </div>
-
-                                        <div className="space-y-1.5">
-                                            <label htmlFor="password_confirmation" className="block text-xs font-semibold text-[#FAFAFA]">
-                                                Konfirmasi Kata Sandi Baru <span className="text-red-400">*</span>
-                                            </label>
-                                            <div className="relative">
-                                                <KeyRound className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#A19F8D]" />
-                                                <input
-                                                    id="password_confirmation"
-                                                    type="password"
-                                                    value={data.password_confirmation}
-                                                    onChange={(e) => setData('password_confirmation', e.target.value)}
-                                                    autoComplete="new-password"
-                                                    placeholder="••••••••"
-                                                    className="w-full rounded-xl border border-[#3B3929] bg-[#1C1B0E] pl-9 pr-3 py-2.5 text-sm text-[#FAFAFA] placeholder:text-[#A19F8D]/40 focus:border-[#C9AA71] focus:outline-none"
-                                                />
-                                            </div>
-                                            {errors.password_confirmation && (
-                                                <p className="text-xs text-red-400 flex items-center gap-1 mt-1">
-                                                    <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                                                    {errors.password_confirmation}
-                                                </p>
-                                            )}
-                                        </div>
-
-                                        <div className="pt-3 flex justify-end">
-                                            <button
-                                                type="submit"
-                                                disabled={processing}
-                                                className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold bg-[#C9AA71] text-[#1C1B0E] hover:bg-[#D8BE8A] hover:scale-105 active:scale-95 transition-all shadow-xl cursor-pointer disabled:opacity-60"
-                                            >
-                                                {processing ? 'Menyimpan...' : 'Simpan Kata Sandi Baru'}
-                                            </button>
-                                        </div>
-                                    </form>
-                                ) : (
-                                    /* Non-Admin 2-Tier Password Reset Ticketing Flow */
-                                    <div className="space-y-4">
-                                        {pendingTicket && pendingTicket.type === 'password_reset' ? (
-                                            <div className="p-4 rounded-xl bg-amber-950/60 border border-amber-500/50 text-amber-200 text-xs space-y-1.5 animate-in fade-in duration-200">
-                                                <div className="flex items-center gap-2 font-bold text-amber-300">
-                                                    <Clock className="w-4 h-4 text-amber-400" />
-                                                    <span>Tiket Reset Password Sedang Diproses (#{pendingTicket.ticket_number})</span>
-                                                </div>
-                                                <p>
-                                                    Permohonan reset kata sandi Anda saat ini sedang dalam tahap peninjauan <strong>{pendingTicket.status === 'pending_hod' ? 'HOD Departemen' : 'Admin'}</strong>.
-                                                </p>
-                                                <p className="text-amber-400/90 text-[11px] pt-1 border-t border-amber-500/30">
-                                                    Anda akan menerima kata sandi baru atau konfirmasi setelah tiket disetujui.
-                                                </p>
-                                            </div>
-                                        ) : (
-                                            <form onSubmit={handlePasswordTicketSubmit} className="space-y-4">
-                                                {(pwdTicketSuccessful || status === 'password-ticket-submitted') && (
-                                                    <div className="flex items-center gap-2 p-3.5 rounded-xl bg-emerald-950/50 border border-emerald-500/40 text-emerald-300 text-xs font-semibold animate-fade-in">
-                                                        <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
-                                                        <span>Permohonan tiket reset password telah berhasil diajukan ke HOD!</span>
-                                                    </div>
-                                                )}
-
-                                                <div className="space-y-1.5">
-                                                    <label htmlFor="pwd_reason" className="block text-xs font-semibold text-[#FAFAFA]">
-                                                        Alasan Reset Kata Sandi <span className="text-red-400">*</span>
-                                                    </label>
-                                                    <textarea
-                                                        id="pwd_reason"
-                                                        rows={2}
-                                                        value={pwdTicketData.reason}
-                                                        onChange={(e) => setPwdTicketData('reason', e.target.value)}
-                                                        placeholder="Contoh: Lupa kata sandi lama / Pergantian berkala..."
-                                                        className="w-full rounded-xl border border-[#3B3929] bg-[#1C1B0E] p-3 text-xs text-[#FAFAFA] placeholder:text-[#A19F8D]/40 focus:border-[#C9AA71] focus:outline-none"
-                                                        required
-                                                    />
-                                                    {pwdTicketErrors.reason && (
-                                                        <p className="text-xs text-red-400 flex items-center gap-1 mt-1">
-                                                            <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                                                            {pwdTicketErrors.reason}
-                                                        </p>
-                                                    )}
-                                                </div>
-
-                                                <div className="space-y-1.5">
-                                                    <label htmlFor="new_password_req" className="block text-xs font-semibold text-[#FAFAFA]">
-                                                        Kata Sandi Baru yang Diinginkan (Opsional)
-                                                    </label>
-                                                    <input
-                                                        id="new_password_req"
-                                                        type="password"
-                                                        value={pwdTicketData.new_password}
-                                                        onChange={(e) => setPwdTicketData('new_password', e.target.value)}
-                                                        placeholder="Minimal 8 karakter (biarkan kosong jika ingin digenerate oleh Admin)"
-                                                        className="w-full rounded-xl border border-[#3B3929] bg-[#1C1B0E] px-3 py-2 text-xs text-[#FAFAFA] placeholder:text-[#A19F8D]/40 focus:border-[#C9AA71] focus:outline-none"
-                                                    />
-                                                </div>
-
-                                                <div className="pt-2 flex justify-end">
-                                                    <button
-                                                        type="submit"
-                                                        disabled={pwdTicketProcessing}
-                                                        className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold bg-[#C9AA71] text-[#1C1B0E] hover:bg-[#D8BE8A] hover:scale-105 active:scale-95 transition-all shadow-xl cursor-pointer disabled:opacity-60"
-                                                    >
-                                                        {pwdTicketProcessing ? (
-                                                            <>
-                                                                <Loader2 className="h-4 w-4 animate-spin" />
-                                                                <span>Mengajukan...</span>
-                                                            </>
-                                                        ) : (
-                                                            <>
-                                                                <KeyRound className="h-4 w-4" />
-                                                                <span>Ajukan Reset Password ke HOD</span>
-                                                            </>
-                                                        )}
-                                                    </button>
-                                                </div>
-                                            </form>
+                                        {errors.current_password && (
+                                            <p className={`text-xs flex items-center gap-1 mt-1 ${isDark ? 'text-rose-400' : 'text-rose-600'}`}>
+                                                <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                                                {errors.current_password}
+                                            </p>
                                         )}
                                     </div>
-                                )}
-                            </div>
+
+                                    <div className="space-y-1.5">
+                                        <label htmlFor="password" className={`block text-xs font-semibold ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
+                                            Kata Sandi Baru <span className="text-rose-500">*</span>
+                                        </label>
+                                        <div className="relative">
+                                            <KeyRound className={`pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 ${isDark ? 'text-slate-400' : 'text-slate-500'}`} />
+                                            <input
+                                                id="password"
+                                                ref={passwordInput}
+                                                type="password"
+                                                value={data.password}
+                                                onChange={(e) => setData('password', e.target.value)}
+                                                autoComplete="new-password"
+                                                placeholder="••••••••"
+                                                className={`w-full rounded-xl border pl-9 pr-3 py-2.5 text-sm focus:outline-none focus:ring-1 transition-colors ${
+                                                    isDark
+                                                        ? 'border-slate-800 bg-slate-950 text-slate-100 placeholder:text-slate-500 focus:border-emerald-500 focus:ring-emerald-500'
+                                                        : 'border-slate-300 bg-slate-50 text-slate-900 placeholder:text-slate-400 focus:border-emerald-500 focus:ring-emerald-500'
+                                                }`}
+                                            />
+                                        </div>
+                                        {errors.password && (
+                                            <p className={`text-xs flex items-center gap-1 mt-1 ${isDark ? 'text-rose-400' : 'text-rose-600'}`}>
+                                                <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                                                {errors.password}
+                                            </p>
+                                        )}
+                                    </div>
+
+                                    <div className="space-y-1.5">
+                                        <label htmlFor="password_confirmation" className={`block text-xs font-semibold ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
+                                            Konfirmasi Kata Sandi Baru <span className="text-rose-500">*</span>
+                                        </label>
+                                        <div className="relative">
+                                            <KeyRound className={`pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 ${isDark ? 'text-slate-400' : 'text-slate-500'}`} />
+                                            <input
+                                                id="password_confirmation"
+                                                type="password"
+                                                value={data.password_confirmation}
+                                                onChange={(e) => setData('password_confirmation', e.target.value)}
+                                                autoComplete="new-password"
+                                                placeholder="••••••••"
+                                                className={`w-full rounded-xl border pl-9 pr-3 py-2.5 text-sm focus:outline-none focus:ring-1 transition-colors ${
+                                                    isDark
+                                                        ? 'border-slate-800 bg-slate-950 text-slate-100 placeholder:text-slate-500 focus:border-emerald-500 focus:ring-emerald-500'
+                                                        : 'border-slate-300 bg-slate-50 text-slate-900 placeholder:text-slate-400 focus:border-emerald-500 focus:ring-emerald-500'
+                                                }`}
+                                            />
+                                        </div>
+                                        {errors.password_confirmation && (
+                                            <p className={`text-xs flex items-center gap-1 mt-1 ${isDark ? 'text-rose-400' : 'text-rose-600'}`}>
+                                                <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                                                {errors.password_confirmation}
+                                            </p>
+                                        )}
+                                    </div>
+
+                                    <div className="pt-3 flex justify-end">
+                                        <button
+                                            type="submit"
+                                            disabled={processing}
+                                            className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold bg-emerald-600 hover:bg-emerald-500 text-white keep-white hover:scale-105 active:scale-95 transition-all shadow-lg cursor-pointer disabled:opacity-60"
+                                        >
+                                            {processing ? 'Menyimpan...' : 'Simpan Kata Sandi Baru'}
+                                        </button>
+                                    </div>
+                                </form>
+                            ) : (
+                                /* Non-Admin 2-Tier Password Reset Ticketing Flow */
+                                <div className="space-y-4">
+                                    {pendingTicket && pendingTicket.type === 'password_reset' ? (
+                                        <div
+                                            className={`p-4 rounded-xl border text-xs space-y-1.5 animate-in fade-in duration-200 ${
+                                                isDark
+                                                    ? 'bg-amber-950/50 border-amber-500/40 text-amber-200'
+                                                    : 'bg-amber-50 border-amber-200 text-amber-900'
+                                            }`}
+                                        >
+                                            <div className={`flex items-center gap-2 font-bold ${isDark ? 'text-amber-300' : 'text-amber-800'}`}>
+                                                <Clock className={`w-4 h-4 ${isDark ? 'text-amber-400' : 'text-amber-600'}`} />
+                                                <span>Tiket Reset Password Sedang Diproses (#{pendingTicket.ticket_number})</span>
+                                            </div>
+                                            <p>
+                                                Permohonan reset kata sandi Anda saat ini sedang dalam tahap peninjauan <strong>{pendingTicket.status === 'pending_hod' ? 'HOD Departemen' : 'Admin'}</strong>.
+                                            </p>
+                                            <p className={`text-[11px] pt-1 border-t ${isDark ? 'text-amber-300/90 border-amber-500/30' : 'text-amber-800 border-amber-200'}`}>
+                                                Anda akan menerima kata sandi baru atau konfirmasi setelah tiket disetujui.
+                                            </p>
+                                        </div>
+                                    ) : (
+                                        <form onSubmit={handlePasswordTicketSubmit} className="space-y-4">
+                                            {(pwdTicketSuccessful || status === 'password-ticket-submitted') && (
+                                                <div
+                                                    className={`flex items-center gap-2 p-3.5 rounded-xl border text-xs font-semibold animate-fade-in ${
+                                                        isDark
+                                                            ? 'bg-emerald-950/50 border-emerald-500/40 text-emerald-300'
+                                                            : 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                                                    }`}
+                                                >
+                                                    <CheckCircle2 className={`h-4 w-4 shrink-0 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
+                                                    <span>Permohonan tiket reset password telah berhasil diajukan ke HOD!</span>
+                                                </div>
+                                            )}
+
+                                            <div className="space-y-1.5">
+                                                <label htmlFor="pwd_reason" className={`block text-xs font-semibold ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
+                                                    Alasan Reset Kata Sandi <span className="text-rose-500">*</span>
+                                                </label>
+                                                <textarea
+                                                    id="pwd_reason"
+                                                    rows={2}
+                                                    value={pwdTicketData.reason}
+                                                    onChange={(e) => setPwdTicketData('reason', e.target.value)}
+                                                    placeholder="Contoh: Lupa kata sandi lama / Pergantian berkala..."
+                                                    className={`w-full rounded-xl border p-3 text-xs focus:outline-none focus:ring-1 transition-colors ${
+                                                        isDark
+                                                            ? 'border-slate-800 bg-slate-950 text-slate-100 placeholder:text-slate-500 focus:border-emerald-500 focus:ring-emerald-500'
+                                                            : 'border-slate-300 bg-slate-50 text-slate-900 placeholder:text-slate-400 focus:border-emerald-500 focus:ring-emerald-500'
+                                                    }`}
+                                                    required
+                                                />
+                                                {pwdTicketErrors.reason && (
+                                                    <p className={`text-xs flex items-center gap-1 mt-1 ${isDark ? 'text-rose-400' : 'text-rose-600'}`}>
+                                                        <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                                                        {pwdTicketErrors.reason}
+                                                    </p>
+                                                )}
+                                            </div>
+
+                                            <div className="space-y-1.5">
+                                                <label htmlFor="new_password_req" className={`block text-xs font-semibold ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
+                                                    Kata Sandi Baru yang Diinginkan (Opsional)
+                                                </label>
+                                                <input
+                                                    id="new_password_req"
+                                                    type="password"
+                                                    value={pwdTicketData.new_password}
+                                                    onChange={(e) => setPwdTicketData('new_password', e.target.value)}
+                                                    placeholder="Minimal 8 karakter (biarkan kosong jika ingin digenerate oleh Admin)"
+                                                    className={`w-full rounded-xl border px-3 py-2 text-xs focus:outline-none focus:ring-1 transition-colors ${
+                                                        isDark
+                                                            ? 'border-slate-800 bg-slate-950 text-slate-100 placeholder:text-slate-500 focus:border-emerald-500 focus:ring-emerald-500'
+                                                            : 'border-slate-300 bg-slate-50 text-slate-900 placeholder:text-slate-400 focus:border-emerald-500 focus:ring-emerald-500'
+                                                    }`}
+                                                />
+                                            </div>
+
+                                            <div className="pt-2 flex justify-end">
+                                                <button
+                                                    type="submit"
+                                                    disabled={pwdTicketProcessing}
+                                                    className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold bg-emerald-600 hover:bg-emerald-500 text-white keep-white hover:scale-105 active:scale-95 transition-all shadow-lg cursor-pointer disabled:opacity-60"
+                                                >
+                                                    {pwdTicketProcessing ? (
+                                                        <>
+                                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                                            <span>Mengajukan...</span>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <KeyRound className="h-4 w-4" />
+                                                            <span>Ajukan Reset Password ke HOD</span>
+                                                        </>
+                                                    )}
+                                                </button>
+                                            </div>
+                                        </form>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     </div>
-                </main>
+                </div>
+            </main>
 
-                <MobileBottomNav currentTab="profile" />
-            </div>
+            <MobileBottomNav currentTab="profile" />
 
             {/* Modal: Ajukan Pindah Departemen */}
             <Dialog open={isTransferModalOpen} onOpenChange={setIsTransferModalOpen}>
-                <DialogContent className="bg-[#2A281E] border border-[#3B3929] text-[#FAFAFA] max-w-md p-6 rounded-2xl shadow-2xl">
+                <DialogContent
+                    className={`max-w-md p-6 rounded-2xl shadow-2xl border ${
+                        isDark
+                            ? 'bg-slate-900 border-slate-800 text-slate-100'
+                            : 'bg-white border-slate-200 text-slate-900'
+                    }`}
+                >
                     <DialogHeader>
                         <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-xl bg-teal-500/15 text-teal-400 border border-teal-500/30 flex items-center justify-center">
+                            <div
+                                className={`w-10 h-10 rounded-xl border flex items-center justify-center ${
+                                    isDark
+                                        ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                                        : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                }`}
+                            >
                                 <Building2 className="w-5 h-5" />
                             </div>
                             <div>
-                                <DialogTitle className="text-base sm:text-lg font-bold text-[#FAFAFA]">
+                                <DialogTitle className={`text-base sm:text-lg font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
                                     {lang === 'id' ? 'Ajukan Pindah Departemen' : 'Request Department Transfer'}
                                 </DialogTitle>
-                                <p className="text-xs text-[#A19F8D]">
-                                    Departemen saat ini: <strong className="text-[#FAFAFA]">{department}</strong> {subdivision ? `(${subdivision})` : ''}
+                                <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                    Departemen saat ini: <strong className={isDark ? 'text-white' : 'text-slate-900'}>{department}</strong> {subdivision ? `(${subdivision})` : ''}
                                 </p>
                             </div>
                         </div>
@@ -1651,8 +2046,8 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
                     <form onSubmit={handleTransferSubmit} className="space-y-4 pt-2 text-xs">
                         {/* Target Department Select */}
                         <div className="space-y-1.5">
-                            <label className="text-xs font-bold text-[#E3D1AA]">
-                                Departemen Tujuan <span className="text-red-400">*</span>
+                            <label className={`text-xs font-bold ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>
+                                Departemen Tujuan <span className="text-rose-500">*</span>
                             </label>
                             <select
                                 value={transferData.target_department}
@@ -1664,7 +2059,11 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
                                     }));
                                 }}
                                 required
-                                className="w-full bg-[#1C1B0E] border border-[#3B3929] text-[#FAFAFA] rounded-xl px-3.5 py-2.5 text-xs focus:border-[#C9AA71] focus:ring-1 focus:ring-[#C9AA71]"
+                                className={`w-full rounded-xl border px-3.5 py-2.5 text-xs focus:outline-none focus:ring-1 ${
+                                    isDark
+                                        ? 'bg-slate-950 border-slate-800 text-slate-100 focus:border-emerald-500 focus:ring-emerald-500'
+                                        : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500 focus:ring-emerald-500'
+                                }`}
                             >
                                 <option value="">-- Pilih Departemen Tujuan --</option>
                                 {ALL_DEPARTMENTS.filter(d => d.toLowerCase() !== (department || '').toLowerCase()).map(d => (
@@ -1672,20 +2071,24 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
                                 ))}
                             </select>
                             {transferErrors.target_department && (
-                                <p className="text-[11px] text-red-400">{transferErrors.target_department}</p>
+                                <p className={`text-[11px] ${isDark ? 'text-rose-400' : 'text-rose-600'}`}>{transferErrors.target_department}</p>
                             )}
                         </div>
 
                         {/* Optional Subdivision Select */}
                         {transferData.target_department && (DEPARTMENT_SUBDIVISIONS[transferData.target_department] || []).length > 1 && (
                             <div className="space-y-1.5">
-                                <label className="text-xs font-bold text-[#E3D1AA]">
+                                <label className={`text-xs font-bold ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>
                                     Subdivisi / Sub-Unit (Opsional)
                                 </label>
                                 <select
                                     value={transferData.target_subdivision}
                                     onChange={(e) => setTransferData('target_subdivision', e.target.value)}
-                                    className="w-full bg-[#1C1B0E] border border-[#3B3929] text-[#FAFAFA] rounded-xl px-3.5 py-2.5 text-xs focus:border-[#C9AA71] focus:ring-1 focus:ring-[#C9AA71]"
+                                    className={`w-full rounded-xl border px-3.5 py-2.5 text-xs focus:outline-none focus:ring-1 ${
+                                        isDark
+                                            ? 'bg-slate-950 border-slate-800 text-slate-100 focus:border-emerald-500 focus:ring-emerald-500'
+                                            : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500 focus:ring-emerald-500'
+                                    }`}
                                 >
                                     <option value="">-- Tanpa Subdivisi Khusus --</option>
                                     {DEPARTMENT_SUBDIVISIONS[transferData.target_department].map(sub => (
@@ -1697,8 +2100,8 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
 
                         {/* Reason Textarea */}
                         <div className="space-y-1.5">
-                            <label className="text-xs font-bold text-[#E3D1AA]">
-                                Alasan Pemindahan / Rotasi <span className="text-red-400">*</span>
+                            <label className={`text-xs font-bold ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>
+                                Alasan Pemindahan / Rotasi <span className="text-rose-500">*</span>
                             </label>
                             <textarea
                                 rows={3}
@@ -1706,17 +2109,27 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
                                 onChange={(e) => setTransferData('reason', e.target.value)}
                                 placeholder="Jelaskan alasan pengajuan mutasi tugas atau rotasi divisi ini..."
                                 required
-                                className="w-full bg-[#1C1B0E] border border-[#3B3929] text-[#FAFAFA] rounded-xl p-3 text-xs focus:border-[#C9AA71] focus:ring-1 focus:ring-[#C9AA71] placeholder-[#A19F8D]/60 leading-relaxed"
+                                className={`w-full rounded-xl border p-3 text-xs leading-relaxed focus:outline-none focus:ring-1 ${
+                                    isDark
+                                        ? 'bg-slate-950 border-slate-800 text-slate-100 placeholder-slate-500 focus:border-emerald-500 focus:ring-emerald-500'
+                                        : 'bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:border-emerald-500 focus:ring-emerald-500'
+                                }`}
                             />
                             {transferErrors.reason && (
-                                <p className="text-[11px] text-red-400">{transferErrors.reason}</p>
+                                <p className={`text-[11px] ${isDark ? 'text-rose-400' : 'text-rose-600'}`}>{transferErrors.reason}</p>
                             )}
                         </div>
 
                         {/* Workflow info */}
-                        <div className="p-3 rounded-xl bg-[#1C1B0E]/80 border border-[#3B3929] text-[11px] text-[#A19F8D] space-y-1 leading-relaxed">
-                            <p className="font-bold text-[#C9AA71] flex items-center gap-1.5">
-                                <ShieldAlert className="w-3.5 h-3.5 text-[#C9AA71]" />
+                        <div
+                            className={`p-3 rounded-xl border text-[11px] space-y-1 leading-relaxed ${
+                                isDark
+                                    ? 'bg-slate-950/80 border-slate-800 text-slate-400'
+                                    : 'bg-slate-50 border-slate-200 text-slate-600'
+                            }`}
+                        >
+                            <p className={`font-bold flex items-center gap-1.5 ${isDark ? 'text-emerald-400' : 'text-emerald-700'}`}>
+                                <ShieldAlert className={`w-3.5 h-3.5 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
                                 {isHOD ? 'Alur Persetujuan Mutasi Pimpinan:' : 'Alur Persetujuan Bertingkat:'}
                             </p>
                             {isHOD ? (
@@ -1742,7 +2155,11 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
                                     setIsTransferModalOpen(false);
                                     resetTransfer();
                                 }}
-                                className="px-4 py-2 rounded-xl text-xs font-semibold text-[#A19F8D] hover:text-[#FAFAFA] hover:bg-[#1C1B0E] transition-all cursor-pointer"
+                                className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                                    isDark
+                                        ? 'text-slate-400 hover:text-white hover:bg-slate-800'
+                                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                                }`}
                             >
                                 Batal
                             </button>
@@ -1750,7 +2167,7 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
                             <button
                                 type="submit"
                                 disabled={transferProcessing || !transferData.target_department || !transferData.reason.trim()}
-                                className="flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-bold bg-[#C9AA71] text-[#1C1B0E] hover:bg-[#D8BE8A] active:scale-95 transition-all shadow-lg cursor-pointer disabled:opacity-50"
+                                className="flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white keep-white active:scale-95 transition-all shadow-lg cursor-pointer disabled:opacity-50"
                             >
                                 {transferProcessing ? (
                                     <>
@@ -1771,17 +2188,29 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
 
             {/* Name Change Request Modal */}
             <Dialog open={isNameModalOpen} onOpenChange={setIsNameModalOpen}>
-                <DialogContent className="sm:max-w-md bg-[#2A281E] border border-[#3B3929] text-[#FAFAFA] p-6 shadow-2xl rounded-2xl">
+                <DialogContent
+                    className={`sm:max-w-md p-6 shadow-2xl rounded-2xl border ${
+                        isDark
+                            ? 'bg-slate-900 border-slate-800 text-slate-100'
+                            : 'bg-white border-slate-200 text-slate-900'
+                    }`}
+                >
                     <DialogHeader>
                         <div className="flex items-center gap-3">
-                            <div className="p-2.5 rounded-xl bg-[#C9AA71]/20 text-[#C9AA71] border border-[#C9AA71]/40">
-                                <User className="w-5 h-5 text-[#C9AA71]" />
+                            <div
+                                className={`p-2.5 rounded-xl border ${
+                                    isDark
+                                        ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                                        : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                }`}
+                            >
+                                <User className={`w-5 h-5 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
                             </div>
                             <div>
-                                <DialogTitle className="text-base sm:text-lg font-extrabold text-[#FAFAFA]">
+                                <DialogTitle className={`text-base sm:text-lg font-extrabold ${isDark ? 'text-white' : 'text-slate-900'}`}>
                                     {lang === 'id' ? 'Permohonan Perubahan Nama Akun' : 'Name Change Request'}
                                 </DialogTitle>
-                                <p className="text-xs text-[#A19F8D] mt-0.5">
+                                <p className={`text-xs mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                                     {lang === 'id' ? 'Ajukan pembaruan nama resmi untuk identitas tugas & profil.' : 'Submit official name update for work identity.'}
                                 </p>
                             </div>
@@ -1790,15 +2219,21 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
 
                     <form onSubmit={handleNameSubmit} className="space-y-4 pt-2 text-xs">
                         {/* Current Name Summary */}
-                        <div className="p-3 rounded-xl bg-[#1C1B0E] border border-[#3B3929] flex items-center justify-between text-xs">
-                            <span className="text-[#A19F8D]">Nama Saat Ini:</span>
-                            <span className="font-bold text-[#FAFAFA]">{user?.name}</span>
+                        <div
+                            className={`p-3 rounded-xl border flex items-center justify-between text-xs ${
+                                isDark
+                                    ? 'bg-slate-950 border-slate-800'
+                                    : 'bg-slate-50 border-slate-200'
+                            }`}
+                        >
+                            <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>Nama Saat Ini:</span>
+                            <span className={`font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{user?.name}</span>
                         </div>
 
                         {/* New Name Input */}
                         <div className="space-y-1.5">
-                            <label className="text-xs font-bold text-[#E3D1AA]">
-                                Nama Baru Resmi <span className="text-red-400">*</span>
+                            <label className={`text-xs font-bold ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>
+                                Nama Baru Resmi <span className="text-rose-500">*</span>
                             </label>
                             <input
                                 type="text"
@@ -1808,17 +2243,21 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
                                 required
                                 minLength={2}
                                 maxLength={100}
-                                className="w-full bg-[#1C1B0E] border border-[#3B3929] text-[#FAFAFA] rounded-xl px-3.5 py-2.5 text-xs focus:border-[#C9AA71] focus:ring-1 focus:ring-[#C9AA71] placeholder-[#A19F8D]/60"
+                                className={`w-full rounded-xl border px-3.5 py-2.5 text-xs focus:outline-none focus:ring-1 ${
+                                    isDark
+                                        ? 'bg-slate-950 border-slate-800 text-slate-100 placeholder-slate-500 focus:border-emerald-500 focus:ring-emerald-500'
+                                        : 'bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:border-emerald-500 focus:ring-emerald-500'
+                                }`}
                             />
                             {nameErrors.new_name && (
-                                <p className="text-[11px] text-red-400">{nameErrors.new_name}</p>
+                                <p className={`text-[11px] ${isDark ? 'text-rose-400' : 'text-rose-600'}`}>{nameErrors.new_name}</p>
                             )}
                         </div>
 
                         {/* Reason Textarea */}
                         <div className="space-y-1.5">
-                            <label className="text-xs font-bold text-[#E3D1AA]">
-                                Alasan Perubahan Nama <span className="text-red-400">*</span>
+                            <label className={`text-xs font-bold ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>
+                                Alasan Perubahan Nama <span className="text-rose-500">*</span>
                             </label>
                             <textarea
                                 rows={3}
@@ -1828,17 +2267,27 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
                                 required
                                 minLength={3}
                                 maxLength={500}
-                                className="w-full bg-[#1C1B0E] border border-[#3B3929] text-[#FAFAFA] rounded-xl p-3 text-xs focus:border-[#C9AA71] focus:ring-1 focus:ring-[#C9AA71] placeholder-[#A19F8D]/60 leading-relaxed"
+                                className={`w-full rounded-xl border p-3 text-xs leading-relaxed focus:outline-none focus:ring-1 ${
+                                    isDark
+                                        ? 'bg-slate-950 border-slate-800 text-slate-100 placeholder-slate-500 focus:border-emerald-500 focus:ring-emerald-500'
+                                        : 'bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:border-emerald-500 focus:ring-emerald-500'
+                                }`}
                             />
                             {nameErrors.reason && (
-                                <p className="text-[11px] text-red-400">{nameErrors.reason}</p>
+                                <p className={`text-[11px] ${isDark ? 'text-rose-400' : 'text-rose-600'}`}>{nameErrors.reason}</p>
                             )}
                         </div>
 
                         {/* Workflow info */}
-                        <div className="p-3 rounded-xl bg-[#1C1B0E]/80 border border-[#3B3929] text-[11px] text-[#A19F8D] space-y-1 leading-relaxed">
-                            <p className="font-bold text-[#C9AA71] flex items-center gap-1.5">
-                                <ShieldCheck className="w-3.5 h-3.5 text-[#C9AA71]" />
+                        <div
+                            className={`p-3 rounded-xl border text-[11px] space-y-1 leading-relaxed ${
+                                isDark
+                                    ? 'bg-slate-950/80 border-slate-800 text-slate-400'
+                                    : 'bg-slate-50 border-slate-200 text-slate-600'
+                            }`}
+                        >
+                            <p className={`font-bold flex items-center gap-1.5 ${isDark ? 'text-emerald-400' : 'text-emerald-700'}`}>
+                                <ShieldCheck className={`w-3.5 h-3.5 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
                                 {lang === 'id' ? 'Alur Verifikasi & Sinkronisasi Data:' : 'Verification & Synchronization:'}
                             </p>
                             <p>1. Permohonan nama baru akan diverifikasi oleh <strong>{isHOD ? 'Admin Resort' : `HOD Departemen ${department || ''} & Admin Resort`}</strong>.</p>
@@ -1853,7 +2302,11 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
                                     setIsNameModalOpen(false);
                                     resetName();
                                 }}
-                                className="px-4 py-2 rounded-xl text-xs font-semibold text-[#A19F8D] hover:text-[#FAFAFA] hover:bg-[#1C1B0E] transition-all cursor-pointer"
+                                className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                                    isDark
+                                        ? 'text-slate-400 hover:text-white hover:bg-slate-800'
+                                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                                }`}
                             >
                                 Batal
                             </button>
@@ -1861,7 +2314,7 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
                             <button
                                 type="submit"
                                 disabled={nameProcessing || !nameData.new_name.trim() || !nameData.reason.trim()}
-                                className="flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-bold bg-[#C9AA71] text-[#1C1B0E] hover:bg-[#D8BE8A] active:scale-95 transition-all shadow-lg cursor-pointer disabled:opacity-50"
+                                className="flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white keep-white active:scale-95 transition-all shadow-lg cursor-pointer disabled:opacity-50"
                             >
                                 {nameProcessing ? (
                                     <>

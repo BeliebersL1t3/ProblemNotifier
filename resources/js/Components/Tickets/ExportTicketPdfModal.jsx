@@ -12,6 +12,7 @@ import {
 import { Loader2, Download, FileText, Filter, ExternalLink, RefreshCw, CheckCircle2, Clock, XCircle, Shield } from 'lucide-react';
 import { DEPARTMENTS } from '@/constants/departments';
 import { useLanguage } from '@/context/LanguageContext';
+import { useLeanTheme } from '@/hooks/useLeanTheme';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import axios from 'axios';
@@ -20,6 +21,7 @@ const LIMITS = [10, 25, 50, 100, 'All'];
 
 export function ExportTicketPdfModal({ open, onOpenChange, currentUser }) {
     const { t, lang } = useLanguage();
+    const { isDark } = useLeanTheme();
     const { tickets_sheet_url } = usePage().props;
     const [statusFilter, setStatusFilter] = useState('all');
     const [typeFilter, setTypeFilter] = useState('all');
@@ -355,18 +357,30 @@ export function ExportTicketPdfModal({ open, onOpenChange, currentUser }) {
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-5xl max-h-[92vh] flex flex-col p-6 bg-[#1C1B0E] border-[#3B3929] text-[#FAFAFA] shadow-2xl">
-                <DialogHeader className="border-b border-[#3B3929] pb-4">
-                    <div className="flex items-center justify-between">
+            <DialogContent
+                className={`max-w-5xl max-h-[92vh] flex flex-col p-6 shadow-2xl rounded-2xl border ${
+                    isDark
+                        ? 'bg-slate-950 border-slate-800 text-slate-100'
+                        : 'bg-white border-slate-200 text-slate-900'
+                }`}
+            >
+                <DialogHeader className={`border-b pb-4 ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
+                    <div className="flex items-center justify-between pr-6">
                         <div className="flex items-center gap-3">
-                            <div className="p-2.5 rounded-xl bg-[#C9AA71]/15 text-[#C9AA71] border border-[#C9AA71]/30">
+                            <div
+                                className={`p-2.5 rounded-xl border ${
+                                    isDark
+                                        ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                                        : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                }`}
+                            >
                                 <FileText className="w-5 h-5" />
                             </div>
                             <div>
-                                <DialogTitle className="text-xl font-bold text-[#FAFAFA]">
+                                <DialogTitle className={`text-xl font-bold ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
                                     {t('ticket_pdf_modal_title')}
                                 </DialogTitle>
-                                <DialogDescription className="text-xs text-[#A19F8D] mt-0.5">
+                                <DialogDescription className={`text-xs mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                                     {t('ticket_pdf_modal_desc')}
                                 </DialogDescription>
                             </div>
@@ -377,7 +391,11 @@ export function ExportTicketPdfModal({ open, onOpenChange, currentUser }) {
                                 href={tickets_sheet_url}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-950/40 text-emerald-300 hover:bg-emerald-900/50 border border-emerald-500/40 transition-colors"
+                                className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl border transition-colors ${
+                                    isDark
+                                        ? 'bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25 border-emerald-500/30'
+                                        : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-emerald-200'
+                                }`}
                                 title={t('ticket_open_sheet_btn')}
                             >
                                 <ExternalLink className="w-3.5 h-3.5" />
@@ -388,16 +406,28 @@ export function ExportTicketPdfModal({ open, onOpenChange, currentUser }) {
                 </DialogHeader>
 
                 {/* Filter Options Bar */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 py-3 border-b border-[#3B3929]/70 bg-[#2A281E]/40 p-3 rounded-xl mt-2">
+                <div
+                    className={`grid grid-cols-2 sm:grid-cols-4 gap-3 border p-3 rounded-xl mt-2 ${
+                        isDark ? 'border-slate-800 bg-slate-900/70' : 'border-slate-200 bg-slate-50'
+                    }`}
+                >
                     {/* Status */}
                     <div>
-                        <label className="text-[10px] uppercase font-bold text-[#A19F8D] tracking-wider block mb-1">
+                        <label
+                            className={`text-[10px] uppercase font-bold tracking-wider block mb-1 ${
+                                isDark ? 'text-slate-400' : 'text-slate-500'
+                            }`}
+                        >
                             {t('ticket_pdf_filter_status')}
                         </label>
                         <select
                             value={statusFilter}
                             onChange={(e) => setStatusFilter(e.target.value)}
-                            className="w-full bg-[#1C1B0E] border border-[#3B3929] text-[#FAFAFA] rounded-lg text-xs py-1.5 px-2 focus:border-[#C9AA71] focus:ring-1 focus:ring-[#C9AA71]"
+                            className={`w-full border rounded-lg text-xs py-1.5 px-2 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none ${
+                                isDark
+                                    ? 'bg-slate-950 border-slate-700 text-slate-100'
+                                    : 'bg-white border-slate-300 text-slate-900'
+                            }`}
                         >
                             {statusOptions.map(s => (
                                 <option key={s.id} value={s.id}>{s.label}</option>
@@ -407,13 +437,21 @@ export function ExportTicketPdfModal({ open, onOpenChange, currentUser }) {
 
                     {/* Tipe Tiket */}
                     <div>
-                        <label className="text-[10px] uppercase font-bold text-[#A19F8D] tracking-wider block mb-1">
+                        <label
+                            className={`text-[10px] uppercase font-bold tracking-wider block mb-1 ${
+                                isDark ? 'text-slate-400' : 'text-slate-500'
+                            }`}
+                        >
                             {t('ticket_pdf_filter_type')}
                         </label>
                         <select
                             value={typeFilter}
                             onChange={(e) => setTypeFilter(e.target.value)}
-                            className="w-full bg-[#1C1B0E] border border-[#3B3929] text-[#FAFAFA] rounded-lg text-xs py-1.5 px-2 focus:border-[#C9AA71] focus:ring-1 focus:ring-[#C9AA71]"
+                            className={`w-full border rounded-lg text-xs py-1.5 px-2 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none ${
+                                isDark
+                                    ? 'bg-slate-950 border-slate-700 text-slate-100'
+                                    : 'bg-white border-slate-300 text-slate-900'
+                            }`}
                         >
                             {ticketTypes.map(tItem => (
                                 <option key={tItem.id} value={tItem.id}>{tItem.label}</option>
@@ -423,13 +461,21 @@ export function ExportTicketPdfModal({ open, onOpenChange, currentUser }) {
 
                     {/* Departemen */}
                     <div>
-                        <label className="text-[10px] uppercase font-bold text-[#A19F8D] tracking-wider block mb-1">
+                        <label
+                            className={`text-[10px] uppercase font-bold tracking-wider block mb-1 ${
+                                isDark ? 'text-slate-400' : 'text-slate-500'
+                            }`}
+                        >
                             {t('ticket_pdf_filter_dept')}
                         </label>
                         <select
                             value={deptFilter}
                             onChange={(e) => setDeptFilter(e.target.value)}
-                            className="w-full bg-[#1C1B0E] border border-[#3B3929] text-[#FAFAFA] rounded-lg text-xs py-1.5 px-2 focus:border-[#C9AA71] focus:ring-1 focus:ring-[#C9AA71]"
+                            className={`w-full border rounded-lg text-xs py-1.5 px-2 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none ${
+                                isDark
+                                    ? 'bg-slate-950 border-slate-700 text-slate-100'
+                                    : 'bg-white border-slate-300 text-slate-900'
+                            }`}
                         >
                             <option value="all">{t('all_departments')}</option>
                             {DEPARTMENTS.map(d => (
@@ -440,13 +486,21 @@ export function ExportTicketPdfModal({ open, onOpenChange, currentUser }) {
 
                     {/* Limit Rows */}
                     <div>
-                        <label className="text-[10px] uppercase font-bold text-[#A19F8D] tracking-wider block mb-1">
+                        <label
+                            className={`text-[10px] uppercase font-bold tracking-wider block mb-1 ${
+                                isDark ? 'text-slate-400' : 'text-slate-500'
+                            }`}
+                        >
                             {t('ticket_pdf_max_rows')}
                         </label>
                         <select
                             value={limit}
                             onChange={(e) => setLimit(e.target.value)}
-                            className="w-full bg-[#1C1B0E] border border-[#3B3929] text-[#FAFAFA] rounded-lg text-xs py-1.5 px-2 focus:border-[#C9AA71] focus:ring-1 focus:ring-[#C9AA71]"
+                            className={`w-full border rounded-lg text-xs py-1.5 px-2 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none ${
+                                isDark
+                                    ? 'bg-slate-950 border-slate-700 text-slate-100'
+                                    : 'bg-white border-slate-300 text-slate-900'
+                            }`}
                         >
                             {LIMITS.map(l => (
                                 <option key={l} value={l}>
@@ -458,11 +512,19 @@ export function ExportTicketPdfModal({ open, onOpenChange, currentUser }) {
                 </div>
 
                 {/* PDF Live Preview Window */}
-                <div className="flex-1 min-h-[350px] relative bg-stone-900 rounded-xl overflow-hidden border border-[#3B3929] mt-3">
+                <div
+                    className={`flex-1 min-h-[350px] relative rounded-xl overflow-hidden border mt-3 ${
+                        isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-100 border-slate-200'
+                    }`}
+                >
                     {isLoadingData ? (
-                        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-[#1C1B0E]/80 backdrop-blur-sm z-10 text-white">
-                            <Loader2 className="w-7 h-7 animate-spin text-[#C9AA71]" />
-                            <p className="text-xs font-semibold text-[#A19F8D]">
+                        <div
+                            className={`absolute inset-0 flex flex-col items-center justify-center gap-3 backdrop-blur-sm z-10 ${
+                                isDark ? 'bg-slate-950/85 text-slate-100' : 'bg-white/85 text-slate-800'
+                            }`}
+                        >
+                            <Loader2 className="w-7 h-7 animate-spin text-emerald-500" />
+                            <p className={`text-xs font-semibold ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
                                 {lang === 'id' ? 'Mengambil data tiket...' : 'Fetching ticket data...'}
                             </p>
                         </div>
@@ -473,15 +535,15 @@ export function ExportTicketPdfModal({ open, onOpenChange, currentUser }) {
                             title={t('ticket_pdf_modal_title')}
                         />
                     ) : (
-                        <div className="flex items-center justify-center h-full text-xs text-muted-foreground">
+                        <div className={`flex items-center justify-center h-full text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                             {t('ticket_pdf_preview_loading')}
                         </div>
                     )}
                 </div>
 
-                <DialogFooter className="flex items-center justify-between mt-4 pt-3 border-t border-[#3B3929]">
-                    <div className="text-xs text-[#A19F8D]">
-                        Total: <strong className="text-[#FAFAFA]">{tickets.length}</strong> {lang === 'id' ? 'tiket ditemukan' : 'tickets found'}
+                <DialogFooter className={`flex items-center justify-between mt-4 pt-3 border-t ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
+                    <div className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                        Total: <strong className={isDark ? 'text-slate-100' : 'text-slate-900'}>{tickets.length}</strong> {lang === 'id' ? 'tiket ditemukan' : 'tickets found'}
                     </div>
 
                     <div className="flex items-center gap-2">
@@ -489,7 +551,11 @@ export function ExportTicketPdfModal({ open, onOpenChange, currentUser }) {
                             type="button"
                             variant="outline"
                             onClick={() => onOpenChange(false)}
-                            className="border-[#3B3929] text-[#FAFAFA] hover:bg-[#2A281E]"
+                            className={`rounded-xl ${
+                                isDark
+                                    ? 'border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800 hover:text-white'
+                                    : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100 hover:text-slate-900'
+                            }`}
                         >
                             {t('ticket_modal_btn_cancel')}
                         </Button>
@@ -497,7 +563,7 @@ export function ExportTicketPdfModal({ open, onOpenChange, currentUser }) {
                             type="button"
                             onClick={handleDownload}
                             disabled={isExporting || isLoadingData || tickets.length === 0}
-                            className="bg-gradient-to-r from-[#C9AA71] to-[#B39355] text-[#1C1B0E] hover:brightness-110 font-bold shadow-md shadow-[#C9AA71]/20 flex items-center gap-2"
+                            className="rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white keep-white font-bold shadow-md shadow-emerald-600/20 flex items-center gap-2"
                         >
                             {isExporting ? (
                                 <Loader2 className="w-4 h-4 animate-spin" />

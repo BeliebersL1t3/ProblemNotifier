@@ -9,8 +9,9 @@ import {
 } from 'lucide-react';
 
 import { useLanguage } from '@/context/LanguageContext';
-import { CampusFixHeader } from '@/Components/CampusFix/CampusFixHeader';
+import { LeanHeader } from '@/Components/CampusFix/LeanHeader';
 import { MobileBottomNav } from '@/Components/CampusFix/MobileBottomNav';
+import { useLeanTheme } from '@/hooks/useLeanTheme';
 import { useAuth } from '@/hooks/useAuth';
 import { UserModal } from '@/Components/Users/UserModal';
 import { AuditTrailTab } from '@/Components/Users/AuditTrailTab';
@@ -24,6 +25,7 @@ export default function UsersPage({ initialUsers = [], initialStats = {} }) {
 
 function UsersInner({ initialUsers, initialStats }) {
     const { lang } = useLanguage();
+    const { isDark } = useLeanTheme();
     const { user: currentUser } = useAuth();
 
     const [users, setUsers] = useState(initialUsers);
@@ -322,990 +324,1175 @@ function UsersInner({ initialUsers, initialStats }) {
     };
 
     return (
-        <div className="min-h-screen bg-[#1C1B0E] text-[#FAFAFA] relative overflow-x-clip selection:bg-[#C9AA71] selection:text-[#1C1B0E]">
+        <div
+            className={`lean-root ${
+                isDark ? 'lean-theme-dark text-slate-100' : 'lean-theme-light text-slate-800'
+            } min-h-screen flex flex-col font-sans pb-24 md:pb-12 transition-colors duration-300 w-full max-w-full overflow-x-clip selection:bg-emerald-500 selection:text-white`}
+        >
             <Head title={lang === 'id' ? 'Kelola Akun & Hak Akses' : 'User Management'} />
 
-            {/* Background Motif Wallpaper */}
-            <div className="app-bg-wallpaper" />
+            <LeanHeader activePage="users" />
 
-            {/* Ambient Glow */}
-            <div className="fixed top-12 left-1/2 -translate-x-1/2 w-[800px] h-[350px] pointer-events-none blur-[170px] opacity-15 rounded-full bg-[#C9AA71] z-0" />
-
-            <div className="relative z-10">
-                <CampusFixHeader mode="users" />
-
-                <main className="mx-auto max-w-[1600px] 2xl:max-w-[1760px] space-y-6 px-4 py-8 sm:px-6 lg:px-8 sm:py-10 pb-28 md:pb-10">
-                    
-                    {/* Header Banner & Breadcrumbs */}
-                    <div className="rounded-2xl p-6 sm:p-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xl border border-white/10 bg-gradient-to-br from-[#2A281E] to-[#1C1B0E]">
-                        <div className="flex items-center gap-4">
-                            <Link 
-                                href="/profile" 
-                                className="p-2.5 rounded-xl bg-[#1C1B0E]/80 hover:bg-[#C9AA71] hover:text-[#1C1B0E] text-[#A19F8D] border border-white/10 transition-all cursor-pointer shadow-sm"
-                                title="Kembali ke Profile"
-                            >
-                                <ArrowLeft className="h-5 w-5" />
-                            </Link>
-                            <div>
-                                <div className="flex items-center gap-2.5 flex-wrap">
-                                    <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#FAFAFA]">
-                                        {lang === 'id' ? 'Manajemen Pengguna & Hak Akses' : 'User Management & Permissions'}
-                                    </h1>
-                                    <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-[#C9AA71] text-[#1C1B0E]">
-                                        ADMIN HUB
-                                    </span>
-                                </div>
-                                <p className="text-xs sm:text-sm text-[#A19F8D] mt-1">
-                                    {lang === 'id' 
-                                        ? 'Kelola akun staf, wewenang departemen, hak akses, dan pantau riwayat keamanan resort'
-                                        : 'Manage staff credentials, department scopes, access permissions, and security audit logs'}
-                                </p>
+            <main className="mx-auto w-full max-w-[1600px] 2xl:max-w-[1760px] flex-1 space-y-5 px-4 pt-6 sm:px-6 lg:px-8">
+                {/* Header Banner & Breadcrumbs */}
+                <div
+                    className={`rounded-2xl p-5 sm:p-7 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border shadow-lg transition-colors ${
+                        isDark
+                            ? 'bg-slate-900/80 border-slate-800 backdrop-blur-md'
+                            : 'bg-white/95 border-slate-200 shadow-slate-200/60'
+                    }`}
+                >
+                    <div className="flex items-center gap-4">
+                        <Link
+                            href="/profile"
+                            className={`p-2.5 rounded-xl border transition-all cursor-pointer shadow-xs ${
+                                isDark
+                                    ? 'bg-slate-800/90 hover:bg-emerald-600 hover:text-white hover:border-emerald-500 text-slate-300 border-slate-700'
+                                    : 'bg-slate-100 hover:bg-emerald-600 hover:text-white hover:border-emerald-600 text-slate-600 border-slate-200'
+                            }`}
+                            title={lang === 'id' ? 'Kembali ke Profile' : 'Back to Profile'}
+                        >
+                            <ArrowLeft className="h-5 w-5" />
+                        </Link>
+                        <div>
+                            <div className="flex items-center gap-2.5 flex-wrap">
+                                <h1
+                                    className={`text-xl sm:text-2xl font-extrabold tracking-tight ${
+                                        isDark ? 'text-white' : 'text-slate-900'
+                                    }`}
+                                >
+                                    {lang === 'id' ? 'Manajemen Pengguna & Hak Akses' : 'User Management & Permissions'}
+                                </h1>
+                                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-600 text-white keep-white shadow-xs">
+                                    ADMIN HUB
+                                </span>
                             </div>
-                        </div>
-
-                        {/* Top Action Buttons */}
-                        <div className="flex items-center gap-2.5 w-full sm:w-auto">
-                            <button
-                                type="button"
-                                onClick={handleCreateUser}
-                                className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-[#C9AA71] hover:bg-[#b89960] text-[#1C1B0E] transition-all shadow-md hover:shadow-lg cursor-pointer"
-                            >
-                                <Plus className="h-4 w-4" />
-                                <span>{lang === 'id' ? 'Tambah Akun' : 'New User'}</span>
-                            </button>
+                            <p className={`text-xs sm:text-sm mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                {lang === 'id'
+                                    ? 'Kelola akun staf, wewenang departemen, hak akses, dan pantau riwayat keamanan resort'
+                                    : 'Manage staff credentials, department scopes, access permissions, and security audit logs'}
+                            </p>
                         </div>
                     </div>
 
-                    {/* Primary Tab Navigation: Users Management vs Audit Trail & Spreadsheet */}
-                    <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 border-b border-[#3B3929] pb-3 mb-6">
+                    {/* Top Action Buttons */}
+                    <div className="flex items-center gap-2.5 w-full sm:w-auto">
                         <button
                             type="button"
-                            onClick={() => setActiveMainTab('users')}
-                            className={`flex items-center justify-center sm:justify-start gap-2 px-3 sm:px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+                            onClick={handleCreateUser}
+                            className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white keep-white transition-all shadow-md shadow-emerald-600/20 cursor-pointer"
+                        >
+                            <Plus className="h-4 w-4" />
+                            <span>{lang === 'id' ? 'Tambah Akun' : 'New User'}</span>
+                        </button>
+                    </div>
+                </div>
+
+                {/* Primary Tab Navigation: Users Management vs Audit Trail & Spreadsheet */}
+                <div
+                    className={`grid grid-cols-2 sm:flex sm:items-center gap-2 border-b pb-3 ${
+                        isDark ? 'border-slate-800' : 'border-slate-200'
+                    }`}
+                >
+                    <button
+                        type="button"
+                        onClick={() => setActiveMainTab('users')}
+                        className={`flex items-center justify-center sm:justify-start gap-2 px-3 sm:px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer border ${
+                            activeMainTab === 'users'
+                                ? 'bg-emerald-600 border-emerald-500 text-white keep-white shadow-md shadow-emerald-600/20'
+                                : isDark
+                                    ? 'bg-slate-900/70 text-slate-400 hover:text-white hover:bg-slate-800 border-slate-800'
+                                    : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 border-slate-200'
+                        }`}
+                    >
+                        <UsersIcon className="h-4 w-4 shrink-0" />
+                        <span className="truncate">{lang === 'id' ? 'Daftar Pengguna' : 'Users Directory'}</span>
+                        <span
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-black shrink-0 ${
                                 activeMainTab === 'users'
-                                    ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-md shadow-[#C9AA71]/20 font-black'
-                                    : 'bg-[#2A281E] text-[#A19F8D] hover:text-[#FAFAFA] hover:bg-[#3B3929] border border-[#3B3929]'
+                                    ? 'bg-white/20 text-white keep-white'
+                                    : isDark
+                                        ? 'bg-slate-800 text-emerald-400'
+                                        : 'bg-emerald-50 text-emerald-700'
                             }`}
                         >
-                            <UsersIcon className="h-4 w-4 shrink-0" />
-                            <span className="truncate">{lang === 'id' ? 'Daftar Pengguna' : 'Users Directory'}</span>
-                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-black shrink-0 ${
-                                activeMainTab === 'users' ? 'bg-[#1C1B0E]/20 text-[#1C1B0E]' : 'bg-[#1C1B0E] text-[#C9AA71]'
-                            }`}>
-                                {stats.total_users ?? 0}
-                            </span>
-                        </button>
+                            {stats.total_users ?? 0}
+                        </span>
+                    </button>
 
-                        <button
-                            type="button"
-                            onClick={() => setActiveMainTab('audit')}
-                            className={`flex items-center justify-center sm:justify-start gap-1.5 sm:gap-2 px-3 sm:px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+                    <button
+                        type="button"
+                        onClick={() => setActiveMainTab('audit')}
+                        className={`flex items-center justify-center sm:justify-start gap-1.5 sm:gap-2 px-3 sm:px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer border ${
+                            activeMainTab === 'audit'
+                                ? 'bg-emerald-600 border-emerald-500 text-white keep-white shadow-md shadow-emerald-600/20'
+                                : isDark
+                                    ? 'bg-slate-900/70 text-slate-400 hover:text-white hover:bg-slate-800 border-slate-800'
+                                    : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 border-slate-200'
+                        }`}
+                    >
+                        <Activity className={`h-4 w-4 shrink-0 ${activeMainTab === 'audit' ? 'text-white' : 'text-emerald-500'}`} />
+                        <span className="truncate">{lang === 'id' ? 'Audit & Sheets' : 'Audit Trail'}</span>
+                        <span
+                            className={`px-1.5 py-0.5 rounded text-[9px] font-black shrink-0 ${
                                 activeMainTab === 'audit'
-                                    ? 'bg-[#C9AA71] text-[#1C1B0E] shadow-md shadow-[#C9AA71]/20 font-black'
-                                    : 'bg-[#2A281E] text-[#A19F8D] hover:text-[#FAFAFA] hover:bg-[#3B3929] border border-[#3B3929]'
+                                    ? 'bg-white/20 text-white keep-white'
+                                    : isDark
+                                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                        : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                             }`}
                         >
-                            <Activity className={`h-4 w-4 shrink-0 ${activeMainTab === 'audit' ? 'text-[#1C1B0E]' : 'text-emerald-400'}`} />
-                            <span className="truncate">{lang === 'id' ? 'Audit & Sheets' : 'Audit Trail'}</span>
-                            <span className={`px-1.5 py-0.5 rounded text-[9px] font-black shrink-0 ${
-                                activeMainTab === 'audit'
-                                    ? 'bg-[#1C1B0E] text-emerald-300'
-                                    : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
-                            }`}>
-                                LIVE SYNC
-                            </span>
-                        </button>
-                    </div>
+                            LIVE SYNC
+                        </span>
+                    </button>
+                </div>
 
-                    {activeMainTab === 'users' ? (
-                        <>
-                    {/* Quick Stats Grid - 5 Balanced Columns, All Clickable with Two-Way Filter Sync */}
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-                        {/* Total Akun Stat Card - Click to reset to All Active */}
-                        <div 
-                            onClick={() => {
-                                setStatusFilter('active');
-                                setRoleFilter('all');
-                                setHodFilter(false);
-                            }}
-                            className={`rounded-xl border p-3.5 space-y-1 cursor-pointer transition-all hover:scale-[1.01] ${
-                                statusFilter === 'active' && roleFilter === 'all' && !hodFilter
-                                    ? 'border-[#C9AA71] bg-[#C9AA71]/20 ring-1 ring-[#C9AA71] shadow-md'
-                                    : 'border-[#3B3929] bg-[#2A281E]/80 hover:bg-[#3B3929]/50'
-                            }`}
-                            title={lang === 'id' ? 'Klik untuk tampilkan semua akun aktif' : 'Click to show all active accounts'}
-                        >
-                            <div className="text-[11px] font-bold text-[#A19F8D] uppercase tracking-wider flex items-center justify-between">
-                                <span>{lang === 'id' ? 'Total Akun' : 'Total Accounts'}</span>
-                                {statusFilter === 'active' && roleFilter === 'all' && !hodFilter && (
-                                    <span className="text-[9px] font-black bg-[#C9AA71] text-[#1C1B0E] px-1.5 py-0.2 rounded">
-                                        AKTIF
-                                    </span>
-                                )}
-                            </div>
-                            <div className="text-xl font-extrabold text-[#FAFAFA]">{stats.total_users ?? 0}</div>
-                        </div>
-
-                        {/* Admin Stat Card with 1-click Filter Toggle */}
-                        <div 
-                            onClick={() => {
-                                if (roleFilter === 'admin' && !hodFilter && statusFilter === 'active') {
-                                    setRoleFilter('all');
-                                } else {
+                {activeMainTab === 'users' ? (
+                    <>
+                        {/* Quick Stats Grid - 5 Balanced Columns, All Clickable with Two-Way Filter Sync */}
+                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                            {/* Total Akun Stat Card */}
+                            <div
+                                onClick={() => {
                                     setStatusFilter('active');
-                                    setRoleFilter('admin');
-                                    setHodFilter(false);
-                                }
-                            }}
-                            className={`rounded-xl border p-3.5 space-y-1 cursor-pointer transition-all hover:scale-[1.01] ${
-                                roleFilter === 'admin' && !hodFilter && statusFilter === 'active'
-                                    ? 'border-[#C9AA71] bg-[#C9AA71]/25 ring-1 ring-[#C9AA71] shadow-md'
-                                    : 'border-[#C9AA71]/30 bg-[#C9AA71]/10 hover:bg-[#C9AA71]/15'
-                            }`}
-                            title={lang === 'id' ? 'Klik untuk filter akun Administrator' : 'Click to filter Administrator accounts'}
-                        >
-                            <div className="text-[11px] font-bold text-[#C9AA71] uppercase tracking-wider flex items-center justify-between">
-                                <span>Admin</span>
-                                {roleFilter === 'admin' && !hodFilter && statusFilter === 'active' && (
-                                    <span className="text-[9px] font-black bg-[#C9AA71] text-[#1C1B0E] px-1.5 py-0.2 rounded">
-                                        AKTIF
-                                    </span>
-                                )}
-                            </div>
-                            <div className="text-xl font-extrabold text-[#C9AA71]">{stats.total_admins ?? 0}</div>
-                        </div>
-
-                        {/* Departemen Stat Card with 1-click Filter Toggle */}
-                        <div 
-                            onClick={() => {
-                                if (roleFilter === 'department' && !hodFilter && statusFilter === 'active') {
-                                    setRoleFilter('all');
-                                } else {
-                                    setStatusFilter('active');
-                                    setRoleFilter('department');
-                                    setHodFilter(false);
-                                }
-                            }}
-                            className={`rounded-xl border p-3.5 space-y-1 cursor-pointer transition-all hover:scale-[1.01] ${
-                                roleFilter === 'department' && !hodFilter && statusFilter === 'active'
-                                    ? 'border-sky-400 bg-sky-500/25 ring-1 ring-sky-400 shadow-md'
-                                    : 'border-sky-500/30 bg-sky-500/10 hover:bg-sky-500/15'
-                            }`}
-                            title={lang === 'id' ? 'Klik untuk filter akun Departemen' : 'Click to filter Department accounts'}
-                        >
-                            <div className="text-[11px] font-bold text-sky-400 uppercase tracking-wider flex items-center justify-between">
-                                <span>Departemen</span>
-                                {roleFilter === 'department' && !hodFilter && statusFilter === 'active' && (
-                                    <span className="text-[9px] font-black bg-sky-400 text-[#1C1B0E] px-1.5 py-0.2 rounded">
-                                        AKTIF
-                                    </span>
-                                )}
-                            </div>
-                            <div className="text-xl font-extrabold text-sky-400">{stats.total_departments ?? 0}</div>
-                        </div>
-
-                        {/* HOD Stat Card with 1-click Filter Toggle */}
-                        <div 
-                            onClick={() => {
-                                if ((hodFilter || roleFilter === 'hod') && statusFilter === 'active') {
                                     setRoleFilter('all');
                                     setHodFilter(false);
-                                } else {
-                                    setStatusFilter('active');
-                                    setRoleFilter('all');
-                                    setHodFilter(true);
-                                }
-                            }}
-                            className={`rounded-xl border p-3.5 space-y-1 cursor-pointer transition-all hover:scale-[1.01] ${
-                                (hodFilter || roleFilter === 'hod') && statusFilter === 'active'
-                                    ? 'border-amber-400 bg-amber-500/25 ring-1 ring-amber-400 shadow-md'
-                                    : 'border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/15'
-                            }`}
-                            title={lang === 'id' ? 'Klik untuk filter hanya akun HOD' : 'Click to filter HOD accounts'}
-                        >
-                            <div className="text-[11px] font-bold text-amber-400 uppercase tracking-wider flex items-center justify-between">
-                                <span>👑 HOD</span>
-                                {(hodFilter || roleFilter === 'hod') && statusFilter === 'active' && (
-                                    <span className="text-[9px] font-black bg-amber-400 text-[#1C1B0E] px-1.5 py-0.2 rounded">
-                                        AKTIF
-                                    </span>
-                                )}
-                            </div>
-                            <div className="text-xl font-extrabold text-amber-400">{stats.total_hod ?? 0}</div>
-                        </div>
-
-                        {/* Di-Archive Stat Card with 1-click Filter Toggle */}
-                        <div 
-                            onClick={() => {
-                                if (statusFilter === 'archived') {
-                                    setStatusFilter('active');
-                                } else {
-                                    setStatusFilter('archived');
-                                }
-                            }}
-                            className={`col-span-2 sm:col-span-1 rounded-xl border p-3.5 space-y-1 cursor-pointer transition-all hover:scale-[1.01] ${
-                                statusFilter === 'archived'
-                                    ? 'border-rose-400 bg-rose-500/25 ring-1 ring-rose-400 shadow-md'
-                                    : 'border-[#3B3929] bg-[#2A281E]/80 hover:bg-[#3B3929]/50'
-                            }`}
-                            title={lang === 'id' ? 'Klik untuk filter akun yang di-archive' : 'Click to filter archived accounts'}
-                        >
-                            <div className="text-[11px] font-bold text-[#A19F8D] uppercase tracking-wider flex items-center justify-between">
-                                <span>Di-Archive</span>
-                                {statusFilter === 'archived' && (
-                                    <span className="text-[9px] font-black bg-rose-400 text-[#1C1B0E] px-1.5 py-0.2 rounded">
-                                        AKTIF
-                                    </span>
-                                )}
-                            </div>
-                            <div className="text-xl font-extrabold text-[#FAFAFA]">{stats.total_archived ?? 0}</div>
-                        </div>
-                    </div>
-
-                    {/* Filter & Search Bar - Fully Responsive, 0 Mobile Horizontal Scroll */}
-                    <div className="rounded-2xl border border-[#3B3929] bg-[#2A281E]/90 p-3.5 sm:p-4 shadow-xl space-y-3">
-                        {/* Top: Full-Width Search Input */}
-                        <div className="relative w-full">
-                            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-[#A19F8D]" />
-                            <input
-                                type="text"
-                                value={searchQuery}
-                                onChange={e => setSearchQuery(e.target.value)}
-                                placeholder={lang === 'id' ? 'Cari nama, email, departemen, nomor WA...' : 'Search name, email, department, phone...'}
-                                className="w-full rounded-xl bg-[#1C1B0E] border border-[#3B3929] pl-10 pr-4 py-2.5 text-xs font-medium text-[#FAFAFA] placeholder-[#A19F8D] focus:border-[#C9AA71] focus:outline-none transition-colors"
-                            />
-                        </div>
-
-                        {/* Bottom: Filter Controls & Status Tab without overflow-x scrolling */}
-                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
-                            {/* Role & Department Dropdowns (2 columns on mobile) */}
-                            <div className="grid grid-cols-2 gap-2 flex-1">
-                                {/* Role Filter */}
-                                <select
-                                    value={hodFilter ? 'hod' : roleFilter}
-                                    onChange={e => {
-                                        const val = e.target.value;
-                                        if (val === 'hod') {
-                                            setRoleFilter('all');
-                                            setHodFilter(true);
-                                        } else {
-                                            setHodFilter(false);
-                                            setRoleFilter(val);
-                                        }
-                                    }}
-                                    className="w-full rounded-xl bg-[#1C1B0E] border border-[#3B3929] px-3 py-2 text-xs font-medium text-[#FAFAFA] focus:border-[#C9AA71] focus:outline-none cursor-pointer truncate"
-                                >
-                                    <option value="all">Semua Role</option>
-                                    <option value="admin">Administrator</option>
-                                    <option value="department">Department</option>
-                                    <option value="hod">👑 HOD ({stats.total_hod ?? 0})</option>
-                                </select>
-
-                                {/* Department Filter */}
-                                <select
-                                    value={deptFilter}
-                                    onChange={e => setDeptFilter(e.target.value)}
-                                    className="w-full rounded-xl bg-[#1C1B0E] border border-[#3B3929] px-3 py-2 text-xs font-medium text-[#FAFAFA] focus:border-[#C9AA71] focus:outline-none cursor-pointer truncate"
-                                >
-                                    <option value="all">Semua Dept</option>
-                                    {DEPARTMENTS.map(d => (
-                                        <option key={d} value={d}>{d}</option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            {/* Status Filter Tabs (Aktif / Archived) */}
-                            <div className="flex items-center rounded-xl border border-[#3B3929] bg-[#1C1B0E] p-1 text-xs font-bold shrink-0">
-                                <button
-                                    type="button"
-                                    onClick={() => setStatusFilter('active')}
-                                    className={`flex-1 sm:flex-initial px-3.5 py-1.5 rounded-lg transition-all text-center cursor-pointer ${
-                                        statusFilter === 'active' ? 'bg-[#C9AA71] text-[#1C1B0E]' : 'text-[#A19F8D] hover:text-[#FAFAFA]'
-                                    }`}
-                                >
-                                    Aktif ({stats.total_users ?? 0})
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setStatusFilter('archived')}
-                                    className={`flex-1 sm:flex-initial px-3.5 py-1.5 rounded-lg transition-all text-center cursor-pointer ${
-                                        statusFilter === 'archived' ? 'bg-[#C9AA71] text-[#1C1B0E]' : 'text-[#A19F8D] hover:text-[#FAFAFA]'
-                                    }`}
-                                >
-                                    Archived ({stats.total_archived ?? 0})
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Toast Alert */}
-                    {toastMessage && (
-                        <div className={`p-4 rounded-xl border shadow-lg flex items-center justify-between gap-3 text-xs font-bold animate-in fade-in slide-in-from-top-2 duration-200 ${
-                            toastMessage.isError 
-                                ? 'bg-red-500/20 border-red-500/40 text-red-200' 
-                                : 'bg-emerald-500/20 border-emerald-500/40 text-emerald-200'
-                        }`}>
-                            <div className="flex items-center gap-2">
-                                {toastMessage.isError ? <AlertCircle className="h-4 w-4 text-red-400" /> : <CheckCircle2 className="h-4 w-4 text-emerald-400" />}
-                                <span>{toastMessage.text}</span>
-                            </div>
-                            <button type="button" onClick={() => setToastMessage(null)} className="opacity-70 hover:opacity-100">
-                                &times;
-                            </button>
-                        </div>
-                    )}
-
-                    {/* Batch Action Toolbar */}
-                    {selectedUserIds.length > 0 && (
-                        <div className="rounded-2xl border-2 border-[#C9AA71]/60 bg-gradient-to-r from-[#2A281E] via-[#332E1C] to-[#1C1B0E] p-4 sm:p-5 shadow-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-in fade-in slide-in-from-top-4 duration-300">
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-xl bg-[#C9AA71] text-[#1C1B0E] flex items-center justify-center font-black text-sm shadow-md shrink-0">
-                                    {selectedUserIds.length}
-                                </div>
-                                <div>
-                                    <div className="font-extrabold text-sm sm:text-base text-[#FAFAFA] flex items-center gap-2 flex-wrap">
-                                        <span>
-                                            {selectedAdminUsers.length > 0 && selectedDeptUsers.length > 0
-                                                ? `${selectedUserIds.length} Akun Dipilih (${selectedDeptUsers.length} Staf, ${selectedAdminUsers.length} Admin)`
-                                                : selectedAdminUsers.length > 0
-                                                    ? `${selectedAdminUsers.length} Akun Administrator Dipilih`
-                                                    : `${selectedDeptUsers.length} Akun Staf Dipilih`}
+                                }}
+                                className={`rounded-xl border p-3.5 space-y-1 cursor-pointer transition-all hover:scale-[1.01] ${
+                                    statusFilter === 'active' && roleFilter === 'all' && !hodFilter
+                                        ? isDark
+                                            ? 'border-emerald-500 bg-emerald-500/15 ring-1 ring-emerald-500/60 shadow-md'
+                                            : 'border-emerald-500 bg-emerald-50 ring-1 ring-emerald-400 shadow-sm'
+                                        : isDark
+                                            ? 'border-slate-800 bg-slate-900/80 hover:bg-slate-800/70'
+                                            : 'border-slate-200 bg-white/95 hover:bg-slate-50 shadow-xs'
+                                }`}
+                                title={lang === 'id' ? 'Klik untuk tampilkan semua akun aktif' : 'Click to show all active accounts'}
+                            >
+                                <div className={`text-[11px] font-bold uppercase tracking-wider flex items-center justify-between ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                    <span>{lang === 'id' ? 'Total Akun' : 'Total Accounts'}</span>
+                                    {statusFilter === 'active' && roleFilter === 'all' && !hodFilter && (
+                                        <span className="text-[9px] font-black bg-emerald-600 text-white keep-white px-1.5 py-0.5 rounded">
+                                            AKTIF
                                         </span>
-                                        <button
-                                            type="button"
-                                            onClick={handleDeselectAll}
-                                            className="text-xs text-[#A19F8D] hover:text-[#FAFAFA] underline cursor-pointer"
-                                        >
-                                            Batalkan
-                                        </button>
-                                    </div>
-                                    <p className="text-xs text-[#A19F8D] mt-0.5">
-                                        {statusFilter === 'archived' 
-                                            ? 'Pulihkan massal akun yang dipilih agar aktif kembali.' 
-                                            : selectedAdminUsers.length > 0
-                                                ? 'Akun Administrator memiliki hak penuh inheren dan dilindungi dari pembatasan akses.'
-                                                : 'Ubah izin massal atau archive (soft delete) akun staf terpilih dengan aman.'}
-                                    </p>
+                                    )}
                                 </div>
+                                <div className={`text-xl font-extrabold ${isDark ? 'text-white' : 'text-slate-900'}`}>{stats.total_users ?? 0}</div>
                             </div>
 
-                            <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
-                                {statusFilter === 'archived' ? (
-                                    /* Batch Restore Button */
-                                    <button
-                                        type="button"
-                                        onClick={handleBatchRestore}
-                                        disabled={batchRestoreLoading}
-                                        className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-extrabold bg-emerald-600 hover:bg-emerald-500 text-white transition-all shadow-md hover:shadow-lg cursor-pointer hover:scale-[1.02] disabled:opacity-50"
-                                    >
-                                        <RotateCcw className={`h-4 w-4 ${batchRestoreLoading ? 'animate-spin' : ''}`} />
-                                        <span>{batchRestoreLoading ? 'Memulihkan...' : `Pulihkan ${selectedUserIds.length} Akun`}</span>
-                                    </button>
-                                ) : (
-                                    <>
-                                        {/* Quick Toggle: Batasi ke Departemen Sendiri */}
-                                        <button
-                                            type="button"
-                                            onClick={() => handleQuickToggleViewAllDepts(false)}
-                                            disabled={batchQuickProcessing || batchDeleteLoading || selectedDeptUsers.length === 0}
-                                            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-amber-950/50 hover:bg-amber-900/60 border border-amber-500/40 text-amber-300 hover:text-amber-200 transition-all cursor-pointer shadow-xs disabled:opacity-40 disabled:cursor-not-allowed"
-                                            title={selectedDeptUsers.length === 0 ? "Akun Administrator tidak dapat dibatasi departemennya" : "Matikan 'Bisa Melihat Semua Departemen' untuk staf terpilih"}
-                                        >
-                                            <Lock className="h-3.5 w-3.5 text-amber-400" />
-                                            <span>Batasi Dept (OFF)</span>
-                                        </button>
+                            {/* Admin Stat Card */}
+                            <div
+                                onClick={() => {
+                                    if (roleFilter === 'admin' && !hodFilter && statusFilter === 'active') {
+                                        setRoleFilter('all');
+                                    } else {
+                                        setStatusFilter('active');
+                                        setRoleFilter('admin');
+                                        setHodFilter(false);
+                                    }
+                                }}
+                                className={`rounded-xl border p-3.5 space-y-1 cursor-pointer transition-all hover:scale-[1.01] ${
+                                    roleFilter === 'admin' && !hodFilter && statusFilter === 'active'
+                                        ? isDark
+                                            ? 'border-emerald-400 bg-emerald-500/20 ring-1 ring-emerald-400 shadow-md'
+                                            : 'border-emerald-500 bg-emerald-50 ring-1 ring-emerald-400 shadow-sm'
+                                        : isDark
+                                            ? 'border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/15'
+                                            : 'border-emerald-200 bg-emerald-50/50 hover:bg-emerald-50 shadow-xs'
+                                }`}
+                                title={lang === 'id' ? 'Klik untuk filter akun Administrator' : 'Click to filter Administrator accounts'}
+                            >
+                                <div className={`text-[11px] font-bold uppercase tracking-wider flex items-center justify-between ${isDark ? 'text-emerald-400' : 'text-emerald-700'}`}>
+                                    <span>Admin</span>
+                                    {roleFilter === 'admin' && !hodFilter && statusFilter === 'active' && (
+                                        <span className="text-[9px] font-black bg-emerald-600 text-white keep-white px-1.5 py-0.5 rounded">
+                                            AKTIF
+                                        </span>
+                                    )}
+                                </div>
+                                <div className={`text-xl font-extrabold ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>{stats.total_admins ?? 0}</div>
+                            </div>
 
-                                        {/* Quick Toggle: Buka Semua Departemen */}
-                                        <button
-                                            type="button"
-                                            onClick={() => handleQuickToggleViewAllDepts(true)}
-                                            disabled={batchQuickProcessing || batchDeleteLoading || selectedDeptUsers.length === 0}
-                                            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-950/50 hover:bg-emerald-900/60 border border-emerald-500/40 text-emerald-300 hover:text-emerald-200 transition-all cursor-pointer shadow-xs disabled:opacity-40 disabled:cursor-not-allowed"
-                                            title={selectedDeptUsers.length === 0 ? "Akun Administrator sudah memiliki hak akses penuh" : "Nyalakan 'Bisa Melihat Semua Departemen' untuk staf terpilih"}
-                                        >
-                                            <Check className="h-3.5 w-3.5 text-emerald-400" />
-                                            <span>Buka Semua (ON)</span>
-                                        </button>
+                            {/* Departemen Stat Card */}
+                            <div
+                                onClick={() => {
+                                    if (roleFilter === 'department' && !hodFilter && statusFilter === 'active') {
+                                        setRoleFilter('all');
+                                    } else {
+                                        setStatusFilter('active');
+                                        setRoleFilter('department');
+                                        setHodFilter(false);
+                                    }
+                                }}
+                                className={`rounded-xl border p-3.5 space-y-1 cursor-pointer transition-all hover:scale-[1.01] ${
+                                    roleFilter === 'department' && !hodFilter && statusFilter === 'active'
+                                        ? isDark
+                                            ? 'border-sky-400 bg-sky-500/25 ring-1 ring-sky-400 shadow-md'
+                                            : 'border-sky-500 bg-sky-50 ring-1 ring-sky-400 shadow-sm'
+                                        : isDark
+                                            ? 'border-sky-500/30 bg-sky-500/10 hover:bg-sky-500/15'
+                                            : 'border-sky-200 bg-sky-50/50 hover:bg-sky-50 shadow-xs'
+                                }`}
+                                title={lang === 'id' ? 'Klik untuk filter akun Departemen' : 'Click to filter Department accounts'}
+                            >
+                                <div className={`text-[11px] font-bold uppercase tracking-wider flex items-center justify-between ${isDark ? 'text-sky-400' : 'text-sky-700'}`}>
+                                    <span>Departemen</span>
+                                    {roleFilter === 'department' && !hodFilter && statusFilter === 'active' && (
+                                        <span className="text-[9px] font-black bg-sky-600 text-white keep-white px-1.5 py-0.5 rounded">
+                                            AKTIF
+                                        </span>
+                                    )}
+                                </div>
+                                <div className={`text-xl font-extrabold ${isDark ? 'text-sky-300' : 'text-sky-700'}`}>{stats.total_departments ?? 0}</div>
+                            </div>
 
-                                        {/* Granular Batch Permissions Modal Button */}
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                if (selectedDeptUsers.length === 0) {
-                                                    showToast(lang === 'id' ? 'Akun Administrator memiliki hak akses penuh inheren dan tidak dapat diubah izinnya via matriks staf.' : 'Administrator accounts have full inherent permissions.', true);
-                                                    return;
-                                                }
-                                                setIsBatchModalOpen(true);
-                                            }}
-                                            disabled={batchQuickProcessing || batchDeleteLoading || selectedDeptUsers.length === 0}
-                                            className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-extrabold bg-[#C9AA71] hover:bg-[#b89960] text-[#1C1B0E] transition-all shadow-md hover:shadow-lg cursor-pointer hover:scale-[1.02] disabled:opacity-40 disabled:cursor-not-allowed"
-                                            title={selectedDeptUsers.length === 0 ? "Izin Administrator tidak dapat diubah via matriks staf" : "Atur hak akses granular staf terpilih"}
-                                        >
-                                            <ShieldCheck className="h-4 w-4" />
-                                            <span>Atur Izin...</span>
-                                        </button>
+                            {/* HOD Stat Card */}
+                            <div
+                                onClick={() => {
+                                    if ((hodFilter || roleFilter === 'hod') && statusFilter === 'active') {
+                                        setRoleFilter('all');
+                                        setHodFilter(false);
+                                    } else {
+                                        setStatusFilter('active');
+                                        setRoleFilter('all');
+                                        setHodFilter(true);
+                                    }
+                                }}
+                                className={`rounded-xl border p-3.5 space-y-1 cursor-pointer transition-all hover:scale-[1.01] ${
+                                    (hodFilter || roleFilter === 'hod') && statusFilter === 'active'
+                                        ? isDark
+                                            ? 'border-amber-400 bg-amber-500/25 ring-1 ring-amber-400 shadow-md'
+                                            : 'border-amber-500 bg-amber-50 ring-1 ring-amber-400 shadow-sm'
+                                        : isDark
+                                            ? 'border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/15'
+                                            : 'border-amber-200 bg-amber-50/60 hover:bg-amber-50 shadow-xs'
+                                }`}
+                                title={lang === 'id' ? 'Klik untuk filter hanya akun HOD' : 'Click to filter HOD accounts'}
+                            >
+                                <div className={`text-[11px] font-bold uppercase tracking-wider flex items-center justify-between ${isDark ? 'text-amber-400' : 'text-amber-700'}`}>
+                                    <span>👑 HOD</span>
+                                    {(hodFilter || roleFilter === 'hod') && statusFilter === 'active' && (
+                                        <span className="text-[9px] font-black bg-amber-600 text-white keep-white px-1.5 py-0.5 rounded">
+                                            AKTIF
+                                        </span>
+                                    )}
+                                </div>
+                                <div className={`text-xl font-extrabold ${isDark ? 'text-amber-300' : 'text-amber-700'}`}>{stats.total_hod ?? 0}</div>
+                            </div>
 
-                                        {/* Batch Soft Delete Button */}
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                if (effectiveDeleteCount === 0) {
-                                                    showToast(lang === 'id' ? 'Akun Administrator dan akun sendiri dilindungi dari penghapusan massal.' : 'Administrator accounts and your own account are protected from batch deletion.', true);
-                                                    return;
-                                                }
-                                                setIsBatchDeleteModalOpen(true);
-                                            }}
-                                            disabled={batchQuickProcessing || batchDeleteLoading || effectiveDeleteCount === 0}
-                                            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-extrabold bg-rose-950/70 hover:bg-rose-900 border border-rose-500/50 text-rose-300 hover:text-rose-100 transition-all shadow-md hover:shadow-lg cursor-pointer hover:scale-[1.02] disabled:opacity-40 disabled:cursor-not-allowed"
-                                            title={effectiveDeleteCount === 0 ? "Akun yang dipilih dilindungi dari penghapusan massal" : `Archive ${effectiveDeleteCount} akun staf yang dipilih`}
-                                        >
-                                            <Trash2 className="h-4 w-4 text-rose-400" />
-                                            <span>Hapus / Archive ({effectiveDeleteCount})</span>
-                                        </button>
-                                    </>
-                                )}
+                            {/* Di-Archive Stat Card */}
+                            <div
+                                onClick={() => {
+                                    if (statusFilter === 'archived') {
+                                        setStatusFilter('active');
+                                    } else {
+                                        setStatusFilter('archived');
+                                    }
+                                }}
+                                className={`col-span-2 sm:col-span-1 rounded-xl border p-3.5 space-y-1 cursor-pointer transition-all hover:scale-[1.01] ${
+                                    statusFilter === 'archived'
+                                        ? isDark
+                                            ? 'border-rose-400 bg-rose-500/20 ring-1 ring-rose-400 shadow-md'
+                                            : 'border-rose-500 bg-rose-50 ring-1 ring-rose-400 shadow-sm'
+                                        : isDark
+                                            ? 'border-slate-800 bg-slate-900/80 hover:bg-slate-800/70'
+                                            : 'border-slate-200 bg-white/95 hover:bg-slate-50 shadow-xs'
+                                }`}
+                                title={lang === 'id' ? 'Klik untuk filter akun yang di-archive' : 'Click to filter archived accounts'}
+                            >
+                                <div className={`text-[11px] font-bold uppercase tracking-wider flex items-center justify-between ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                    <span>Di-Archive</span>
+                                    {statusFilter === 'archived' && (
+                                        <span className="text-[9px] font-black bg-rose-600 text-white keep-white px-1.5 py-0.5 rounded">
+                                            AKTIF
+                                        </span>
+                                    )}
+                                </div>
+                                <div className={`text-xl font-extrabold ${isDark ? 'text-white' : 'text-slate-900'}`}>{stats.total_archived ?? 0}</div>
                             </div>
                         </div>
-                    )}
 
-                    {/* Mobile View: Responsive Card List (block md:hidden) - 0 Horizontal Scroll */}
-                    <div className="block md:hidden space-y-3">
-                        {/* Mobile Select All Header */}
-                        {users.length > 0 && (
-                            <div className="flex items-center justify-between px-2 py-1 text-xs text-[#A19F8D]">
-                                <label className="flex items-center gap-2 cursor-pointer font-bold select-none text-[#FAFAFA]">
-                                    <input 
-                                        type="checkbox"
-                                        checked={isAllSelected}
-                                        ref={el => { if (el) el.indeterminate = isSomeSelected; }}
-                                        onChange={handleSelectAll}
-                                        className="w-4 h-4 rounded border-[#3B3929] bg-[#1C1B0E] text-[#C9AA71] accent-[#C9AA71] focus:ring-[#C9AA71] focus:ring-offset-0 cursor-pointer"
-                                    />
-                                    <span>
-                                        {isAllSelected 
-                                            ? 'Batalkan Semua' 
-                                            : statusFilter === 'active' 
-                                                ? 'Pilih Semua Staf' 
-                                                : 'Pilih Semua Akun'}
-                                    </span>
-                                </label>
-                                <span className="text-[11px] font-medium">{users.length} akun</span>
+                        {/* Filter & Search Bar */}
+                        <div
+                            className={`rounded-2xl border p-3.5 sm:p-4 shadow-lg space-y-3 ${
+                                isDark ? 'border-slate-800 bg-slate-900/80' : 'border-slate-200 bg-white/95'
+                            }`}
+                        >
+                            {/* Top: Full-Width Search Input */}
+                            <div className="relative w-full">
+                                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                                <input
+                                    type="text"
+                                    value={searchQuery}
+                                    onChange={e => setSearchQuery(e.target.value)}
+                                    placeholder={lang === 'id' ? 'Cari nama, email, departemen, nomor WA...' : 'Search name, email, department, phone...'}
+                                    className={`w-full rounded-xl border pl-10 pr-4 py-2.5 text-xs font-medium focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none transition-colors ${
+                                        isDark
+                                            ? 'bg-slate-950 border-slate-700 text-slate-100 placeholder-slate-500'
+                                            : 'bg-white border-slate-300 text-slate-900 placeholder-slate-400'
+                                    }`}
+                                />
                             </div>
-                        )}
 
-                        {loading && users.length === 0 ? (
-                            <div className="rounded-2xl border border-[#3B3929] bg-[#2A281E]/90 p-8 text-center text-[#A19F8D]">
-                                <RefreshCw className="h-6 w-6 animate-spin text-[#C9AA71] mx-auto mb-2" />
-                                <span>Memuat daftar akun...</span>
-                            </div>
-                        ) : users.length === 0 ? (
-                            <div className="rounded-2xl border border-[#3B3929] bg-[#2A281E]/90 p-8 text-center text-[#A19F8D] space-y-2">
-                                <UsersIcon className="h-8 w-8 mx-auto text-[#3B3929]" />
-                                <div>Tidak ada akun yang sesuai dengan filter.</div>
-                            </div>
-                        ) : (
-                            users.map(u => {
-                                const deptTheme = u.department ? getDepartmentTheme(u.department) : { bg: '#C9AA71', text: '#1C1B0E' };
-                                const isMe = u.id === currentUser?.id;
-                                const isSelected = selectedUserIds.includes(u.id);
-                                const isPending = Boolean(u.approval_status && u.approval_status !== 'approved');
-                                const approvalTicketUrl = u.pending_ticket_number 
-                                    ? `/tickets?search=${encodeURIComponent(u.pending_ticket_number)}` 
-                                    : `/tickets?search=${encodeURIComponent(u.email || u.name)}`;
-
-                                return (
-                                    <div 
-                                        key={u.id}
-                                        className={`rounded-2xl border transition-all p-3.5 space-y-2.5 shadow-md ${
-                                            isSelected 
-                                                ? 'border-[#C9AA71] bg-[#C9AA71]/15 ring-1 ring-[#C9AA71]/40' 
-                                                : u.is_archived
-                                                    ? 'border-red-900/30 bg-red-950/15 opacity-75'
-                                                    : 'border-[#3B3929] bg-[#2A281E]/90'
+                            {/* Bottom: Filter Controls & Status Tab */}
+                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
+                                <div className="grid grid-cols-2 gap-2 flex-1">
+                                    {/* Role Filter */}
+                                    <select
+                                        value={hodFilter ? 'hod' : roleFilter}
+                                        onChange={e => {
+                                            const val = e.target.value;
+                                            if (val === 'hod') {
+                                                setRoleFilter('all');
+                                                setHodFilter(true);
+                                            } else {
+                                                setHodFilter(false);
+                                                setRoleFilter(val);
+                                            }
+                                        }}
+                                        className={`w-full rounded-xl border px-3 py-2 text-xs font-medium focus:border-emerald-500 focus:outline-none cursor-pointer truncate ${
+                                            isDark
+                                                ? 'bg-slate-950 border-slate-700 text-slate-100'
+                                                : 'bg-white border-slate-300 text-slate-900'
                                         }`}
                                     >
-                                        {/* Top Row: Checkbox, Avatar, Name & Role Badge */}
-                                        <div className="flex items-start justify-between gap-2.5">
-                                            <div className="flex items-center gap-2.5 min-w-0">
-                                                <input 
-                                                    type="checkbox"
-                                                    checked={isSelected}
-                                                    onChange={() => handleSelectUser(u.id)}
-                                                    className="w-4 h-4 rounded border-[#3B3929] bg-[#1C1B0E] text-[#C9AA71] accent-[#C9AA71] focus:ring-[#C9AA71] cursor-pointer shrink-0 mt-0.5"
-                                                />
-                                                <div 
-                                                    className="w-9 h-9 rounded-xl flex items-center justify-center font-extrabold text-sm shrink-0 border border-white/10 shadow-xs overflow-hidden"
-                                                    style={{ backgroundColor: deptTheme.bg, color: deptTheme.text }}
-                                                >
-                                                    {(u.avatar_url || (u.avatar ? (u.avatar.startsWith('http') ? u.avatar : `/uploads/avatars/${u.avatar}`) : null)) ? (
-                                                        <img 
-                                                            src={u.avatar_url || (u.avatar.startsWith('http') ? u.avatar : `/uploads/avatars/${u.avatar}`)} 
-                                                            alt={u.name} 
-                                                            className="w-full h-full object-cover rounded-xl"
-                                                        />
-                                                    ) : (
-                                                        u.name.charAt(0).toUpperCase()
-                                                    )}
-                                                </div>
-                                                <div className="min-w-0">
-                                                    <div className="font-bold text-sm text-[#FAFAFA] flex items-center gap-1.5 flex-wrap leading-tight">
-                                                        <span className="truncate">{u.staff_name || u.name}</span>
-                                                        {isMe && (
-                                                            <span className="px-1.5 py-0.2 rounded text-[9px] font-black bg-[#C9AA71] text-[#1C1B0E]">
-                                                                YOU
-                                                            </span>
-                                                        )}
-                                                        {u.is_hod && (
-                                                            <span 
-                                                                className="px-1.5 py-0.5 rounded text-[9px] font-black bg-amber-500/20 text-amber-300 border border-amber-500/40"
-                                                                title={u.hod_title || 'Head of Department'}
-                                                            >
-                                                                👑 HOD
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                    <div className="text-[11px] text-[#A19F8D] truncate mt-0.5">
-                                                        {u.email}
-                                                    </div>
-                                                </div>
-                                            </div>
+                                        <option value="all">Semua Role</option>
+                                        <option value="admin">Administrator</option>
+                                        <option value="department">Department</option>
+                                        <option value="hod">👑 HOD ({stats.total_hod ?? 0})</option>
+                                    </select>
 
-                                            {/* Role Badge */}
-                                            <div className="shrink-0">
-                                                {u.role === 'admin' ? (
-                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-extrabold bg-[#C9AA71]/20 text-[#C9AA71] border border-[#C9AA71]/40">
-                                                        <ShieldCheck className="h-3 w-3" />
-                                                        Admin
-                                                    </span>
-                                                ) : (
-                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold bg-sky-500/20 text-sky-300 border border-sky-500/40">
-                                                        <Building2 className="h-3 w-3" />
-                                                        Dept
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
+                                    {/* Department Filter */}
+                                    <select
+                                        value={deptFilter}
+                                        onChange={e => setDeptFilter(e.target.value)}
+                                        className={`w-full rounded-xl border px-3 py-2 text-xs font-medium focus:border-emerald-500 focus:outline-none cursor-pointer truncate ${
+                                            isDark
+                                                ? 'bg-slate-950 border-slate-700 text-slate-100'
+                                                : 'bg-white border-slate-300 text-slate-900'
+                                        }`}
+                                    >
+                                        <option value="all">Semua Dept</option>
+                                        {DEPARTMENTS.map(d => (
+                                            <option key={d} value={d}>{d}</option>
+                                        ))}
+                                    </select>
+                                </div>
 
-                                        {/* Middle Row: Department Tag & WhatsApp */}
-                                        <div className="flex items-center justify-between gap-2 pt-1 border-t border-[#3B3929]/50 text-xs">
-                                            <div className="min-w-0">
-                                                {u.department ? (
-                                                    <SubdivisionTag
-                                                        department={u.department}
-                                                        subdivision={u.subdivision}
-                                                        size="xs"
-                                                    />
-                                                ) : (
-                                                    <span className="text-[#A19F8D] italic text-[11px]">Semua Dept</span>
-                                                )}
-                                            </div>
+                                {/* Status Filter Tabs (Aktif / Archived) */}
+                                <div
+                                    className={`flex items-center rounded-xl border p-1 text-xs font-bold shrink-0 ${
+                                        isDark ? 'border-slate-800 bg-slate-950' : 'border-slate-200 bg-slate-100'
+                                    }`}
+                                >
+                                    <button
+                                        type="button"
+                                        onClick={() => setStatusFilter('active')}
+                                        className={`flex-1 sm:flex-initial px-3.5 py-1.5 rounded-lg transition-all text-center cursor-pointer ${
+                                            statusFilter === 'active'
+                                                ? 'bg-emerald-600 text-white keep-white shadow-xs'
+                                                : isDark
+                                                    ? 'text-slate-400 hover:text-white'
+                                                    : 'text-slate-600 hover:text-slate-900'
+                                        }`}
+                                    >
+                                        Aktif ({stats.total_users ?? 0})
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setStatusFilter('archived')}
+                                        className={`flex-1 sm:flex-initial px-3.5 py-1.5 rounded-lg transition-all text-center cursor-pointer ${
+                                            statusFilter === 'archived'
+                                                ? 'bg-emerald-600 text-white keep-white shadow-xs'
+                                                : isDark
+                                                    ? 'text-slate-400 hover:text-white'
+                                                    : 'text-slate-600 hover:text-slate-900'
+                                        }`}
+                                    >
+                                        Archived ({stats.total_archived ?? 0})
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
 
-                                            <div>
-                                                {u.whatsapp_number ? (
-                                                    <div className="flex items-center gap-1 text-[11px] font-mono text-emerald-400">
-                                                        <Phone className="h-3 w-3" />
-                                                        <span>{u.whatsapp_number}</span>
-                                                    </div>
-                                                ) : (
-                                                    <span className="text-[#A19F8D]/50 text-[10px] italic">No WA</span>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        {/* Bottom Row: Status tags & Actions */}
-                                        <div className="flex items-center justify-between gap-1 pt-1 border-t border-[#3B3929]/40">
-                                            <div className="flex items-center gap-1 text-[10px]">
-                                                {u.approval_status === 'pending_hod' && (
-                                                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/20 text-amber-300">Pending HOD</span>
-                                                )}
-                                                {u.approval_status === 'pending_admin' && (
-                                                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-sky-500/20 text-sky-300">Pending Admin</span>
-                                                )}
-                                                {u.approval_status === 'rejected' && (
-                                                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-red-500/20 text-red-300">Ditolak</span>
-                                                )}
-                                                {u.is_archived && (
-                                                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-red-500/20 text-red-300">Archived</span>
-                                                )}
-                                            </div>
-
-                                            <div className="flex items-center gap-1">
-                                                {/* Shortcut to Approval Ticket if pending */}
-                                                {isPending && (
-                                                    <Link
-                                                        href={approvalTicketUrl}
-                                                        title={lang === 'id' ? 'Tinjau & Setujui di Menu Approval Ticket' : 'Review & Approve in Approval Tickets'}
-                                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-sky-500/20 text-sky-300 hover:bg-sky-500/30 border border-sky-500/40 transition-all cursor-pointer mr-0.5"
-                                                    >
-                                                        <ClipboardCheck className="h-3 w-3" />
-                                                        <span>Review</span>
-                                                    </Link>
-                                                )}
-
-                                                {/* Quick Reset Password */}
-                                                <button
-                                                    type="button"
-                                                    onClick={() => handleResetPassword(u)}
-                                                    disabled={isPending}
-                                                    title={isPending ? (lang === 'id' ? 'Akun belum disetujui (Pending Approval)' : 'Account pending approval') : 'Reset Password 1-Klik'}
-                                                    className={`p-1.5 rounded-lg transition-all ${
-                                                        isPending
-                                                            ? 'text-gray-600 cursor-not-allowed opacity-40'
-                                                            : 'text-[#A19F8D] hover:text-[#C9AA71] hover:bg-[#1C1B0E] cursor-pointer'
-                                                    }`}
-                                                >
-                                                    <KeyRound className="h-3.5 w-3.5" />
-                                                </button>
-
-                                                {/* Edit */}
-                                                <button
-                                                    type="button"
-                                                    onClick={() => handleEditUser(u)}
-                                                    disabled={isPending}
-                                                    title={isPending ? (lang === 'id' ? 'Akun belum disetujui (Pending Approval)' : 'Account pending approval') : 'Edit Akun & Izin'}
-                                                    className={`p-1.5 rounded-lg transition-all ${
-                                                        isPending
-                                                            ? 'text-gray-600 cursor-not-allowed opacity-40'
-                                                            : 'text-[#A19F8D] hover:text-[#FAFAFA] hover:bg-[#1C1B0E] cursor-pointer'
-                                                    }`}
-                                                >
-                                                    <Edit className="h-3.5 w-3.5" />
-                                                </button>
-
-                                                {/* Quick Toggle HOD */}
-                                                {u.role !== 'admin' && (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => handleToggleHod(u)}
-                                                        disabled={isPending}
-                                                        title={
-                                                            isPending
-                                                                ? (lang === 'id' ? 'Akun belum disetujui (Pending Approval)' : 'Account pending approval')
-                                                                : u.is_hod 
-                                                                    ? `Cabut Status HOD (${u.staff_name || u.name})` 
-                                                                    : `Jadikan HOD Departemen (${u.staff_name || u.name})`
-                                                        }
-                                                        className={`p-1.5 rounded-lg transition-all ${
-                                                            isPending
-                                                                ? 'text-gray-600 cursor-not-allowed opacity-40'
-                                                                : u.is_hod 
-                                                                    ? 'text-amber-400 hover:text-amber-300 hover:bg-amber-400/10 cursor-pointer' 
-                                                                    : 'text-[#A19F8D] hover:text-amber-400 hover:bg-[#1C1B0E] cursor-pointer'
-                                                        }`}
-                                                    >
-                                                        <span className="text-xs">👑</span>
-                                                    </button>
-                                                )}
-
-                                                {/* Archive (Soft Delete) or Restore */}
-                                                {u.is_archived ? (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => handleRestoreUser(u)}
-                                                        title="Pulihkan Akun Ini"
-                                                        className="p-1.5 rounded-lg text-emerald-400 hover:bg-emerald-500/20 transition-all cursor-pointer"
-                                                    >
-                                                        <RotateCcw className="h-3.5 w-3.5" />
-                                                    </button>
-                                                ) : (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => handleArchiveUser(u)}
-                                                        disabled={isMe}
-                                                        title={isMe ? 'Anda tidak dapat meng-archive akun sendiri' : 'Archive (Soft Delete) Akun'}
-                                                        className={`p-1.5 rounded-lg transition-all ${
-                                                            isMe 
-                                                                ? 'text-gray-600 cursor-not-allowed opacity-40' 
-                                                                : 'text-[#A19F8D] hover:text-red-400 hover:bg-red-500/10 cursor-pointer'
-                         }`}
-                                                    >
-                                                        <Trash2 className="h-3.5 w-3.5" />
-                                                    </button>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-                                );
-                            })
-                        )}
-                    </div>
-
-                    {/* Desktop View: Compact Table (hidden md:block) - No Barrier Column */}
-                    <div className="hidden md:block rounded-2xl border border-[#3B3929] bg-[#2A281E]/90 shadow-2xl overflow-hidden">
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left border-collapse text-xs">
-                                <thead>
-                                    <tr className="border-b border-[#3B3929] bg-[#1C1B0E]/80 text-[#A19F8D] uppercase tracking-wider font-bold">
-                                        <th className="w-12 py-3.5 px-3 text-center">
-                                            <input 
-                                                type="checkbox"
-                                                checked={isAllSelected}
-                                                ref={el => { if (el) el.indeterminate = isSomeSelected; }}
-                                                onChange={handleSelectAll}
-                                                className="w-4 h-4 rounded border-[#3B3929] bg-[#1C1B0E] text-[#C9AA71] accent-[#C9AA71] focus:ring-[#C9AA71] focus:ring-offset-0 cursor-pointer"
-                                                title={isAllSelected ? "Batalkan semua pilihan" : (statusFilter === 'active' ? "Pilih semua staf departemen (Akun Admin dikecualikan)" : "Pilih semua akun")}
-                                            />
-                                        </th>
-                                        <th className="py-3.5 px-4">Pengguna / Nama Staf</th>
-                                        <th className="py-3.5 px-4">Peran (Role)</th>
-                                        <th className="py-3.5 px-4">Departemen / Unit</th>
-                                        <th className="py-3.5 px-4">WhatsApp Bot</th>
-                                        <th className="py-3.5 px-4 text-right">Aksi</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-[#3B3929]/50">
-                                    {loading && users.length === 0 ? (
-                                        <tr>
-                                            <td colSpan={6} className="py-16 text-center text-[#A19F8D]">
-                                                <RefreshCw className="h-6 w-6 animate-spin text-[#C9AA71] mx-auto mb-2" />
-                                                <span>Memuat daftar akun...</span>
-                                            </td>
-                                        </tr>
-                                    ) : users.length === 0 ? (
-                                        <tr>
-                                            <td colSpan={6} className="py-16 text-center text-[#A19F8D] space-y-2">
-                                                <UsersIcon className="h-8 w-8 mx-auto text-[#3B3929]" />
-                                                <div>Tidak ada akun yang sesuai dengan filter.</div>
-                                            </td>
-                                        </tr>
+                        {/* Toast Alert */}
+                        {toastMessage && (
+                            <div
+                                className={`p-4 rounded-xl border shadow-lg flex items-center justify-between gap-3 text-xs font-bold animate-in fade-in slide-in-from-top-2 duration-200 ${
+                                    toastMessage.isError
+                                        ? isDark
+                                            ? 'bg-rose-500/20 border-rose-500/40 text-rose-200'
+                                            : 'bg-rose-50 border-rose-200 text-rose-800'
+                                        : isDark
+                                            ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-200'
+                                            : 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                                }`}
+                            >
+                                <div className="flex items-center gap-2">
+                                    {toastMessage.isError ? (
+                                        <AlertCircle className={`h-4 w-4 ${isDark ? 'text-rose-400' : 'text-rose-600'}`} />
                                     ) : (
-                                        users.map(u => {
-                                            const deptTheme = u.department ? getDepartmentTheme(u.department) : { bg: '#C9AA71', text: '#1C1B0E' };
-                                            const isMe = u.id === currentUser?.id;
-                                            const isSelected = selectedUserIds.includes(u.id);
-                                            const isPending = Boolean(u.approval_status && ['pending_hod', 'pending_admin'].includes(u.approval_status));
-                                            const approvalTicketUrl = u.pending_ticket_number 
-                                                ? `/tickets?search=${encodeURIComponent(u.pending_ticket_number)}` 
-                                                : `/tickets?search=${encodeURIComponent(u.email || u.name)}`;
+                                        <CheckCircle2 className={`h-4 w-4 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
+                                    )}
+                                    <span>{toastMessage.text}</span>
+                                </div>
+                                <button type="button" onClick={() => setToastMessage(null)} className="opacity-70 hover:opacity-100 cursor-pointer">
+                                    &times;
+                                </button>
+                            </div>
+                        )}
 
-                                            return (
-                                                <tr 
-                                                    key={u.id} 
-                                                    className={`hover:bg-[#1C1B0E]/40 transition-colors ${
-                                                        isSelected ? 'bg-[#C9AA71]/15' : ''
-                                                    } ${u.is_archived ? 'opacity-60 bg-red-950/10' : ''}`}
-                                                >
-                                                    {/* Select Row Checkbox */}
-                                                    <td className="w-12 py-3 px-3 text-center" onClick={e => e.stopPropagation()}>
-                                                        <input 
-                                                            type="checkbox"
-                                                            checked={isSelected}
-                                                            onChange={() => handleSelectUser(u.id)}
-                                                            className="w-4 h-4 rounded border-[#3B3929] bg-[#1C1B0E] text-[#C9AA71] accent-[#C9AA71] focus:ring-[#C9AA71] focus:ring-offset-0 cursor-pointer"
-                                                        />
-                                                    </td>
-                                                    {/* User & Staff Name */}
-                                                    <td className="py-3 px-4">
-                                                        <div className="flex items-center gap-3">
-                                                            <div 
-                                                                className="w-9 h-9 rounded-xl flex items-center justify-center font-extrabold text-sm shrink-0 border border-white/10 shadow-xs overflow-hidden"
-                                                                style={{ backgroundColor: deptTheme.bg, color: deptTheme.text }}
-                                                            >
-                                                                {(u.avatar_url || (u.avatar ? (u.avatar.startsWith('http') ? u.avatar : `/uploads/avatars/${u.avatar}`) : null)) ? (
-                                                                    <img 
-                                                                        src={u.avatar_url || (u.avatar.startsWith('http') ? u.avatar : `/uploads/avatars/${u.avatar}`)} 
-                                                                        alt={u.name} 
-                                                                        className="w-full h-full object-cover rounded-xl"
-                                                                    />
-                                                                ) : (
-                                                                    u.name.charAt(0).toUpperCase()
-                                                                )}
-                                                            </div>
-                                                            <div className="min-w-0">
-                                                                <div className="font-bold text-sm text-[#FAFAFA] flex items-center gap-2 flex-wrap">
-                                                                    <span>{u.staff_name || u.name}</span>
-                                                                    {u.is_hod && (
-                                                                        <span 
-                                                                            className="px-2 py-0.5 rounded text-[10px] font-black bg-amber-500/20 text-amber-300 border border-amber-500/40"
-                                                                            title={u.hod_title || 'Head of Department'}
-                                                                        >
-                                                                            👑 HOD {u.hod_title ? `(${u.hod_title})` : ''}
-                                                                        </span>
-                                                                    )}
-                                                                    {u.approval_status === 'pending_hod' && (
-                                                                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                                                                            PENDING HOD
-                                                                        </span>
-                                                                    )}
-                                                                    {u.approval_status === 'pending_admin' && (
-                                                                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-sky-500/20 text-sky-300 border border-sky-500/30">
-                                                                            PENDING ADMIN
-                                                                        </span>
-                                                                    )}
-                                                                    {u.approval_status === 'rejected' && (
-                                                                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-500/20 text-red-300 border border-red-500/30" title={u.rejection_reason || 'Pendaftaran ditolak'}>
-                                                                            DITOLAK
-                                                                        </span>
-                                                                    )}
-                                                                    {isMe && (
-                                                                        <span className="px-1.5 py-0.2 rounded text-[10px] font-extrabold bg-[#C9AA71] text-[#1C1B0E]">
-                                                                            YOU
-                                                                        </span>
-                                                                    )}
-                                                                    {u.is_archived && (
-                                                                        <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-red-500/20 text-red-300 border border-red-500/30">
-                                                                            ARCHIVED
-                                                                        </span>
-                                                                    )}
-                                                                </div>
-                                                                <div className="text-[11px] text-[#A19F8D] truncate">
-                                                                    {u.email}
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </td>
+                        {/* Batch Action Toolbar */}
+                        {selectedUserIds.length > 0 && (
+                            <div
+                                className={`rounded-2xl border-2 p-4 sm:p-5 shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-in fade-in slide-in-from-top-4 duration-300 ${
+                                    isDark
+                                        ? 'border-emerald-500/50 bg-slate-900/95'
+                                        : 'border-emerald-400 bg-emerald-50/90'
+                                }`}
+                            >
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white keep-white flex items-center justify-center font-black text-sm shadow-md shrink-0">
+                                        {selectedUserIds.length}
+                                    </div>
+                                    <div>
+                                        <div className={`font-extrabold text-sm sm:text-base flex items-center gap-2 flex-wrap ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                                            <span>
+                                                {selectedAdminUsers.length > 0 && selectedDeptUsers.length > 0
+                                                    ? `${selectedUserIds.length} Akun Dipilih (${selectedDeptUsers.length} Staf, ${selectedAdminUsers.length} Admin)`
+                                                    : selectedAdminUsers.length > 0
+                                                        ? `${selectedAdminUsers.length} Akun Administrator Dipilih`
+                                                        : `${selectedDeptUsers.length} Akun Staf Dipilih`}
+                                            </span>
+                                            <button
+                                                type="button"
+                                                onClick={handleDeselectAll}
+                                                className={`text-xs underline cursor-pointer ${isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'}`}
+                                            >
+                                                Batalkan
+                                            </button>
+                                        </div>
+                                        <p className={`text-xs mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                                            {statusFilter === 'archived'
+                                                ? 'Pulihkan massal akun yang dipilih agar aktif kembali.'
+                                                : selectedAdminUsers.length > 0
+                                                    ? 'Akun Administrator memiliki hak penuh inheren dan dilindungi dari pembatasan akses.'
+                                                    : 'Ubah izin massal atau archive (soft delete) akun staf terpilih dengan aman.'}
+                                        </p>
+                                    </div>
+                                </div>
 
-                                                    {/* Role */}
-                                                    <td className="py-3 px-4">
-                                                        {u.role === 'admin' ? (
-                                                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-[#C9AA71]/20 text-[#C9AA71] border border-[#C9AA71]/40">
-                                                                <ShieldCheck className="h-3.5 w-3.5" />
-                                                                Administrator
-                                                            </span>
-                                                        ) : (
-                                                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-sky-500/20 text-sky-300 border border-sky-500/40">
-                                                                <Building2 className="h-3.5 w-3.5" />
-                                                                Department
-                                                            </span>
-                                                        )}
-                                                    </td>
+                                <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
+                                    {statusFilter === 'archived' ? (
+                                        <button
+                                            type="button"
+                                            onClick={handleBatchRestore}
+                                            disabled={batchRestoreLoading}
+                                            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-extrabold bg-emerald-600 hover:bg-emerald-500 text-white keep-white transition-all shadow-md cursor-pointer disabled:opacity-50"
+                                        >
+                                            <RotateCcw className={`h-4 w-4 ${batchRestoreLoading ? 'animate-spin' : ''}`} />
+                                            <span>{batchRestoreLoading ? 'Memulihkan...' : `Pulihkan ${selectedUserIds.length} Akun`}</span>
+                                        </button>
+                                    ) : (
+                                        <>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleQuickToggleViewAllDepts(false)}
+                                                disabled={batchQuickProcessing || batchDeleteLoading || selectedDeptUsers.length === 0}
+                                                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer shadow-xs disabled:opacity-40 disabled:cursor-not-allowed ${
+                                                    isDark
+                                                        ? 'bg-amber-500/15 hover:bg-amber-500/25 border-amber-500/40 text-amber-300'
+                                                        : 'bg-amber-50 hover:bg-amber-100 border-amber-300 text-amber-800'
+                                                }`}
+                                                title={selectedDeptUsers.length === 0 ? 'Akun Administrator tidak dapat dibatasi departemennya' : "Matikan 'Bisa Melihat Semua Departemen' untuk staf terpilih"}
+                                            >
+                                                <Lock className="h-3.5 w-3.5" />
+                                                <span>Batasi Dept (OFF)</span>
+                                            </button>
 
-                                                    {/* Department & Subdiv */}
-                                                    <td className="py-3 px-4">
-                                                        {u.department ? (
-                                                            <SubdivisionTag
-                                                                department={u.department}
-                                                                subdivision={u.subdivision}
-                                                                size="sm"
+                                            <button
+                                                type="button"
+                                                onClick={() => handleQuickToggleViewAllDepts(true)}
+                                                disabled={batchQuickProcessing || batchDeleteLoading || selectedDeptUsers.length === 0}
+                                                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer shadow-xs disabled:opacity-40 disabled:cursor-not-allowed ${
+                                                    isDark
+                                                        ? 'bg-emerald-500/15 hover:bg-emerald-500/25 border-emerald-500/40 text-emerald-300'
+                                                        : 'bg-emerald-50 hover:bg-emerald-100 border-emerald-300 text-emerald-800'
+                                                }`}
+                                                title={selectedDeptUsers.length === 0 ? 'Akun Administrator sudah memiliki hak akses penuh' : "Nyalakan 'Bisa Melihat Semua Departemen' untuk staf terpilih"}
+                                            >
+                                                <Check className="h-3.5 w-3.5" />
+                                                <span>Buka Semua (ON)</span>
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    if (selectedDeptUsers.length === 0) {
+                                                        showToast(lang === 'id' ? 'Akun Administrator memiliki hak akses penuh inheren dan tidak dapat diubah izinnya via matriks staf.' : 'Administrator accounts have full inherent permissions.', true);
+                                                        return;
+                                                    }
+                                                    setIsBatchModalOpen(true);
+                                                }}
+                                                disabled={batchQuickProcessing || batchDeleteLoading || selectedDeptUsers.length === 0}
+                                                className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-extrabold bg-emerald-600 hover:bg-emerald-500 text-white keep-white transition-all shadow-md cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                                                title={selectedDeptUsers.length === 0 ? 'Izin Administrator tidak dapat diubah via matriks staf' : 'Atur hak akses granular staf terpilih'}
+                                            >
+                                                <ShieldCheck className="h-4 w-4" />
+                                                <span>Atur Izin...</span>
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    if (effectiveDeleteCount === 0) {
+                                                        showToast(lang === 'id' ? 'Akun Administrator dan akun sendiri dilindungi dari penghapusan massal.' : 'Administrator accounts and your own account are protected from batch deletion.', true);
+                                                        return;
+                                                    }
+                                                    setIsBatchDeleteModalOpen(true);
+                                                }}
+                                                disabled={batchQuickProcessing || batchDeleteLoading || effectiveDeleteCount === 0}
+                                                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-extrabold border transition-all shadow-xs cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+                                                    isDark
+                                                        ? 'bg-rose-500/20 hover:bg-rose-500/30 border-rose-500/40 text-rose-300'
+                                                        : 'bg-rose-50 hover:bg-rose-100 border-rose-300 text-rose-700'
+                                                }`}
+                                                title={effectiveDeleteCount === 0 ? 'Akun yang dipilih dilindungi dari penghapusan massal' : `Archive ${effectiveDeleteCount} akun staf yang dipilih`}
+                                            >
+                                                <Trash2 className="h-4 w-4" />
+                                                <span>Hapus / Archive ({effectiveDeleteCount})</span>
+                                            </button>
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Mobile View: Responsive Card List (block md:hidden) */}
+                        <div className="block md:hidden space-y-3">
+                            {users.length > 0 && (
+                                <div className={`flex items-center justify-between px-2 py-1 text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                    <label className={`flex items-center gap-2 cursor-pointer font-bold select-none ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
+                                        <input
+                                            type="checkbox"
+                                            checked={isAllSelected}
+                                            ref={el => { if (el) el.indeterminate = isSomeSelected; }}
+                                            onChange={handleSelectAll}
+                                            className={`w-4 h-4 rounded text-emerald-600 accent-emerald-600 focus:ring-emerald-500 cursor-pointer ${
+                                                isDark ? 'border-slate-700 bg-slate-900' : 'border-slate-300 bg-white'
+                                            }`}
+                                        />
+                                        <span>
+                                            {isAllSelected
+                                                ? 'Batalkan Semua'
+                                                : statusFilter === 'active'
+                                                    ? 'Pilih Semua Staf'
+                                                    : 'Pilih Semua Akun'}
+                                        </span>
+                                    </label>
+                                    <span className="text-[11px] font-medium">{users.length} akun</span>
+                                </div>
+                            )}
+
+                            {loading && users.length === 0 ? (
+                                <div
+                                    className={`rounded-2xl border p-8 text-center ${
+                                        isDark ? 'border-slate-800 bg-slate-900/80 text-slate-400' : 'border-slate-200 bg-white text-slate-500'
+                                    }`}
+                                >
+                                    <RefreshCw className="h-6 w-6 animate-spin text-emerald-500 mx-auto mb-2" />
+                                    <span>Memuat daftar akun...</span>
+                                </div>
+                            ) : users.length === 0 ? (
+                                <div
+                                    className={`rounded-2xl border p-8 text-center space-y-2 ${
+                                        isDark ? 'border-slate-800 bg-slate-900/80 text-slate-400' : 'border-slate-200 bg-white text-slate-500'
+                                    }`}
+                                >
+                                    <UsersIcon className={`h-8 w-8 mx-auto ${isDark ? 'text-slate-700' : 'text-slate-300'}`} />
+                                    <div>Tidak ada akun yang sesuai dengan filter.</div>
+                                </div>
+                            ) : (
+                                users.map(u => {
+                                    const deptTheme = u.department ? getDepartmentTheme(u.department) : { bg: '#059669', text: '#FFFFFF' };
+                                    const isMe = u.id === currentUser?.id;
+                                    const isSelected = selectedUserIds.includes(u.id);
+                                    const isPending = Boolean(u.approval_status && u.approval_status !== 'approved');
+                                    const approvalTicketUrl = u.pending_ticket_number
+                                        ? `/tickets?search=${encodeURIComponent(u.pending_ticket_number)}`
+                                        : `/tickets?search=${encodeURIComponent(u.email || u.name)}`;
+
+                                    return (
+                                        <div
+                                            key={u.id}
+                                            className={`rounded-2xl border transition-all p-3.5 space-y-2.5 shadow-sm ${
+                                                isSelected
+                                                    ? isDark
+                                                        ? 'border-emerald-500 bg-emerald-500/15 ring-1 ring-emerald-500/40'
+                                                        : 'border-emerald-500 bg-emerald-50 ring-1 ring-emerald-400'
+                                                    : u.is_archived
+                                                        ? isDark
+                                                            ? 'border-rose-900/40 bg-rose-950/20 opacity-80'
+                                                            : 'border-rose-200 bg-rose-50/50 opacity-85'
+                                                        : isDark
+                                                            ? 'border-slate-800 bg-slate-900/80'
+                                                            : 'border-slate-200 bg-white/95'
+                                            }`}
+                                        >
+                                            {/* Top Row */}
+                                            <div className="flex items-start justify-between gap-2.5">
+                                                <div className="flex items-center gap-2.5 min-w-0">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={isSelected}
+                                                        onChange={() => handleSelectUser(u.id)}
+                                                        className={`w-4 h-4 rounded text-emerald-600 accent-emerald-600 focus:ring-emerald-500 cursor-pointer shrink-0 mt-0.5 ${
+                                                            isDark ? 'border-slate-700 bg-slate-900' : 'border-slate-300 bg-white'
+                                                        }`}
+                                                    />
+                                                    <div
+                                                        className="w-9 h-9 rounded-xl flex items-center justify-center font-extrabold text-sm shrink-0 border border-white/10 shadow-xs overflow-hidden"
+                                                        style={{ backgroundColor: deptTheme.bg, color: deptTheme.text }}
+                                                    >
+                                                        {(u.avatar_url || (u.avatar ? (u.avatar.startsWith('http') ? u.avatar : `/uploads/avatars/${u.avatar}`) : null)) ? (
+                                                            <img
+                                                                src={u.avatar_url || (u.avatar.startsWith('http') ? u.avatar : `/uploads/avatars/${u.avatar}`)}
+                                                                alt={u.name}
+                                                                className="w-full h-full object-cover rounded-xl"
                                                             />
                                                         ) : (
-                                                            <span className="text-[#A19F8D] italic">Semua Departemen</span>
+                                                            u.name.charAt(0).toUpperCase()
                                                         )}
-                                                    </td>
-
-                                                    {/* WhatsApp status */}
-                                                    <td className="py-3 px-4">
-                                                        {u.whatsapp_number ? (
-                                                            <div className="flex items-center gap-1.5 text-[#E3D1AA]">
-                                                                <Phone className="h-3.5 w-3.5 text-emerald-400" />
-                                                                <span className="font-mono text-[11px]">{u.whatsapp_number}</span>
-                                                            </div>
-                                                        ) : (
-                                                            <span className="text-[#A19F8D]/60 text-[11px] italic">Belum terhubung</span>
-                                                        )}
-                                                    </td>
-
-                                                    {/* Actions */}
-                                                    <td className="py-3 px-4 text-right">
-                                                        <div className="flex items-center justify-end gap-1.5">
-                                                            {/* Shortcut to Approval Ticket if pending */}
-                                                            {isPending && (
-                                                                <Link
-                                                                    href={approvalTicketUrl}
-                                                                    title={lang === 'id' ? 'Tinjau & Setujui di Menu Approval Ticket' : 'Review & Approve in Approval Tickets'}
-                                                                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-sky-500/20 text-sky-300 hover:bg-sky-500/30 border border-sky-500/40 transition-all cursor-pointer mr-1"
-                                                                >
-                                                                    <ClipboardCheck className="h-3.5 w-3.5" />
-                                                                    <span>Review Approval</span>
-                                                                </Link>
+                                                    </div>
+                                                    <div className="min-w-0">
+                                                        <div className={`font-bold text-sm flex items-center gap-1.5 flex-wrap leading-tight ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
+                                                            <span className="truncate">{u.staff_name || u.name}</span>
+                                                            {isMe && (
+                                                                <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-emerald-600 text-white keep-white">
+                                                                    YOU
+                                                                </span>
                                                             )}
-
-                                                            {/* Quick Reset Password */}
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => handleResetPassword(u)}
-                                                                disabled={isPending}
-                                                                title={isPending ? (lang === 'id' ? 'Akun belum disetujui (Pending Approval)' : 'Account pending approval') : 'Reset Password 1-Klik'}
-                                                                className={`p-1.5 rounded-lg transition-all ${
-                                                                    isPending
-                                                                        ? 'text-gray-600 cursor-not-allowed opacity-40'
-                                                                        : 'text-[#A19F8D] hover:text-[#C9AA71] hover:bg-[#1C1B0E] cursor-pointer'
-                                                                }`}
-                                                            >
-                                                                <KeyRound className="h-4 w-4" />
-                                                            </button>
-
-                                                            {/* Edit */}
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => handleEditUser(u)}
-                                                                disabled={isPending}
-                                                                title={isPending ? (lang === 'id' ? 'Akun belum disetujui (Pending Approval)' : 'Account pending approval') : 'Edit Akun & Izin'}
-                                                                className={`p-1.5 rounded-lg transition-all ${
-                                                                    isPending
-                                                                        ? 'text-gray-600 cursor-not-allowed opacity-40'
-                                                                        : 'text-[#A19F8D] hover:text-[#FAFAFA] hover:bg-[#1C1B0E] cursor-pointer'
-                                                                }`}
-                                                            >
-                                                                <Edit className="h-4 w-4" />
-                                                            </button>
-
-                                                            {/* Quick Toggle HOD */}
-                                                            {u.role !== 'admin' && (
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => handleToggleHod(u)}
-                                                                    disabled={isPending}
-                                                                    title={
-                                                                        isPending
-                                                                            ? (lang === 'id' ? 'Akun belum disetujui (Pending Approval)' : 'Account pending approval')
-                                                                            : u.is_hod 
-                                                                                ? `Cabut Status HOD (${u.staff_name || u.name})` 
-                                                                                : `Jadikan HOD Departemen (${u.staff_name || u.name})`
-                                                                    }
-                                                                    className={`p-1.5 rounded-lg transition-all ${
-                                                                        isPending
-                                                                            ? 'text-gray-600 cursor-not-allowed opacity-40'
-                                                                            : u.is_hod 
-                                                                                ? 'text-amber-400 hover:text-amber-300 hover:bg-amber-400/10 cursor-pointer' 
-                                                                                : 'text-[#A19F8D] hover:text-amber-400 hover:bg-[#1C1B0E] cursor-pointer'
+                                                            {u.is_hod && (
+                                                                <span
+                                                                    className={`px-1.5 py-0.5 rounded text-[9px] font-black border ${
+                                                                        isDark
+                                                                            ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                                                                            : 'bg-amber-100 text-amber-800 border-amber-300'
                                                                     }`}
+                                                                    title={u.hod_title || 'Head of Department'}
                                                                 >
-                                                                    <span className="text-xs">👑</span>
-                                                                </button>
-                                                            )}
-
-                                                            {/* Archive (Soft Delete) or Restore */}
-                                                            {u.is_archived ? (
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => handleRestoreUser(u)}
-                                                                    title="Pulihkan Akun Ini"
-                                                                    className="p-1.5 rounded-lg text-emerald-400 hover:bg-emerald-500/20 transition-all cursor-pointer"
-                                                                >
-                                                                    <RotateCcw className="h-4 w-4" />
-                                                                </button>
-                                                            ) : (
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => handleArchiveUser(u)}
-                                                                    disabled={isMe}
-                                                                    title={isMe ? 'Anda tidak dapat meng-archive akun sendiri' : 'Archive (Soft Delete) Akun'}
-                                                                    className={`p-1.5 rounded-lg transition-all ${
-                                                                        isMe 
-                                                                            ? 'text-gray-600 cursor-not-allowed opacity-40' 
-                                                                            : 'text-[#A19F8D] hover:text-red-400 hover:bg-red-500/10 cursor-pointer'
-                                                                    }`}
-                                                                >
-                                                                    <Trash2 className="h-4 w-4" />
-                                                                </button>
+                                                                    👑 HOD
+                                                                </span>
                                                             )}
                                                         </div>
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })
-                                    )}
-                                </tbody>
-                            </table>
+                                                        <div className={`text-[11px] truncate mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                                            {u.email}
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Role Badge */}
+                                                <div className="shrink-0">
+                                                    {u.role === 'admin' ? (
+                                                        <span
+                                                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-extrabold border ${
+                                                                isDark
+                                                                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                                                                    : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                                            }`}
+                                                        >
+                                                            <ShieldCheck className="h-3 w-3" />
+                                                            Admin
+                                                        </span>
+                                                    ) : (
+                                                        <span
+                                                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold border ${
+                                                                isDark
+                                                                    ? 'bg-sky-500/20 text-sky-300 border-sky-500/40'
+                                                                    : 'bg-sky-50 text-sky-700 border-sky-200'
+                                                            }`}
+                                                        >
+                                                            <Building2 className="h-3 w-3" />
+                                                            Dept
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* Middle Row */}
+                                            <div className={`flex items-center justify-between gap-2 pt-1.5 border-t text-xs ${isDark ? 'border-slate-800' : 'border-slate-100'}`}>
+                                                <div className="min-w-0">
+                                                    {u.department ? (
+                                                        <SubdivisionTag
+                                                            department={u.department}
+                                                            subdivision={u.subdivision}
+                                                            size="xs"
+                                                        />
+                                                    ) : (
+                                                        <span className={`italic text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Semua Dept</span>
+                                                    )}
+                                                </div>
+
+                                                <div>
+                                                    {u.whatsapp_number ? (
+                                                        <div className={`flex items-center gap-1 text-[11px] font-mono ${isDark ? 'text-emerald-400' : 'text-emerald-700'}`}>
+                                                            <Phone className="h-3 w-3" />
+                                                            <span>{u.whatsapp_number}</span>
+                                                        </div>
+                                                    ) : (
+                                                        <span className={`text-[10px] italic ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>No WA</span>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* Bottom Row */}
+                                            <div className={`flex items-center justify-between gap-1 pt-1.5 border-t ${isDark ? 'border-slate-800/80' : 'border-slate-100'}`}>
+                                                <div className="flex items-center gap-1 text-[10px]">
+                                                    {u.approval_status === 'pending_hod' && (
+                                                        <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${isDark ? 'bg-amber-500/20 text-amber-300' : 'bg-amber-100 text-amber-800'}`}>Pending HOD</span>
+                                                    )}
+                                                    {u.approval_status === 'pending_admin' && (
+                                                        <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${isDark ? 'bg-sky-500/20 text-sky-300' : 'bg-sky-100 text-sky-800'}`}>Pending Admin</span>
+                                                    )}
+                                                    {u.approval_status === 'rejected' && (
+                                                        <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${isDark ? 'bg-rose-500/20 text-rose-300' : 'bg-rose-100 text-rose-800'}`}>Ditolak</span>
+                                                    )}
+                                                    {u.is_archived && (
+                                                        <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${isDark ? 'bg-rose-500/20 text-rose-300' : 'bg-rose-100 text-rose-800'}`}>Archived</span>
+                                                    )}
+                                                </div>
+
+                                                <div className="flex items-center gap-1">
+                                                    {isPending && (
+                                                        <Link
+                                                            href={approvalTicketUrl}
+                                                            title={lang === 'id' ? 'Tinjau & Setujui di Menu Approval Ticket' : 'Review & Approve in Approval Tickets'}
+                                                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold border transition-all cursor-pointer mr-0.5 ${
+                                                                isDark
+                                                                    ? 'bg-sky-500/20 text-sky-300 hover:bg-sky-500/30 border-sky-500/40'
+                                                                    : 'bg-sky-50 text-sky-700 hover:bg-sky-100 border-sky-200'
+                                                            }`}
+                                                        >
+                                                            <ClipboardCheck className="h-3 w-3" />
+                                                            <span>Review</span>
+                                                        </Link>
+                                                    )}
+
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleResetPassword(u)}
+                                                        disabled={isPending}
+                                                        title={isPending ? (lang === 'id' ? 'Akun belum disetujui (Pending Approval)' : 'Account pending approval') : 'Reset Password 1-Klik'}
+                                                        className={`p-1.5 rounded-lg transition-all ${
+                                                            isPending
+                                                                ? 'text-slate-500 cursor-not-allowed opacity-40'
+                                                                : isDark
+                                                                    ? 'text-slate-400 hover:text-emerald-400 hover:bg-slate-800 cursor-pointer'
+                                                                    : 'text-slate-500 hover:text-emerald-700 hover:bg-slate-100 cursor-pointer'
+                                                        }`}
+                                                    >
+                                                        <KeyRound className="h-3.5 w-3.5" />
+                                                    </button>
+
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleEditUser(u)}
+                                                        disabled={isPending}
+                                                        title={isPending ? (lang === 'id' ? 'Akun belum disetujui (Pending Approval)' : 'Account pending approval') : 'Edit Akun & Izin'}
+                                                        className={`p-1.5 rounded-lg transition-all ${
+                                                            isPending
+                                                                ? 'text-slate-500 cursor-not-allowed opacity-40'
+                                                                : isDark
+                                                                    ? 'text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer'
+                                                                    : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100 cursor-pointer'
+                                                        }`}
+                                                    >
+                                                        <Edit className="h-3.5 w-3.5" />
+                                                    </button>
+
+                                                    {u.role !== 'admin' && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleToggleHod(u)}
+                                                            disabled={isPending}
+                                                            title={
+                                                                isPending
+                                                                    ? (lang === 'id' ? 'Akun belum disetujui (Pending Approval)' : 'Account pending approval')
+                                                                    : u.is_hod
+                                                                        ? `Cabut Status HOD (${u.staff_name || u.name})`
+                                                                        : `Jadikan HOD Departemen (${u.staff_name || u.name})`
+                                                            }
+                                                            className={`p-1.5 rounded-lg transition-all ${
+                                                                isPending
+                                                                    ? 'text-slate-500 cursor-not-allowed opacity-40'
+                                                                    : u.is_hod
+                                                                        ? 'text-amber-500 hover:bg-amber-500/15 cursor-pointer'
+                                                                        : isDark
+                                                                            ? 'text-slate-400 hover:text-amber-400 hover:bg-slate-800 cursor-pointer'
+                                                                            : 'text-slate-500 hover:text-amber-600 hover:bg-slate-100 cursor-pointer'
+                                                            }`}
+                                                        >
+                                                            <span className="text-xs">👑</span>
+                                                        </button>
+                                                    )}
+
+                                                    {u.is_archived ? (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleRestoreUser(u)}
+                                                            title="Pulihkan Akun Ini"
+                                                            className={`p-1.5 rounded-lg transition-all cursor-pointer ${
+                                                                isDark ? 'text-emerald-400 hover:bg-emerald-500/20' : 'text-emerald-700 hover:bg-emerald-50'
+                                                            }`}
+                                                        >
+                                                            <RotateCcw className="h-3.5 w-3.5" />
+                                                        </button>
+                                                    ) : (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleArchiveUser(u)}
+                                                            disabled={isMe}
+                                                            title={isMe ? 'Anda tidak dapat meng-archive akun sendiri' : 'Archive (Soft Delete) Akun'}
+                                                            className={`p-1.5 rounded-lg transition-all ${
+                                                                isMe
+                                                                    ? 'text-slate-500 cursor-not-allowed opacity-40'
+                                                                    : isDark
+                                                                        ? 'text-slate-400 hover:text-rose-400 hover:bg-rose-500/15 cursor-pointer'
+                                                                        : 'text-slate-500 hover:text-rose-600 hover:bg-rose-50 cursor-pointer'
+                                                            }`}
+                                                        >
+                                                            <Trash2 className="h-3.5 w-3.5" />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })
+                            )}
                         </div>
-                    </div>
-                        </>
-                    ) : (
-                        <AuditTrailTab />
-                    )}
-                </main>
-            </div>
+
+                        {/* Desktop View: Compact Table (hidden md:block) */}
+                        <div
+                            className={`hidden md:block rounded-2xl border shadow-xl overflow-hidden ${
+                                isDark ? 'border-slate-800 bg-slate-900/80' : 'border-slate-200 bg-white/95'
+                            }`}
+                        >
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left border-collapse text-xs">
+                                    <thead>
+                                        <tr
+                                            className={`border-b uppercase tracking-wider font-bold ${
+                                                isDark
+                                                    ? 'border-slate-800 bg-slate-950/70 text-slate-400'
+                                                    : 'border-slate-200 bg-slate-50 text-slate-500'
+                                            }`}
+                                        >
+                                            <th className="w-12 py-3.5 px-3 text-center">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={isAllSelected}
+                                                    ref={el => { if (el) el.indeterminate = isSomeSelected; }}
+                                                    onChange={handleSelectAll}
+                                                    className={`w-4 h-4 rounded text-emerald-600 accent-emerald-600 focus:ring-emerald-500 cursor-pointer ${
+                                                        isDark ? 'border-slate-700 bg-slate-900' : 'border-slate-300 bg-white'
+                                                    }`}
+                                                    title={isAllSelected ? 'Batalkan semua pilihan' : statusFilter === 'active' ? 'Pilih semua staf departemen (Akun Admin dikecualikan)' : 'Pilih semua akun'}
+                                                />
+                                            </th>
+                                            <th className="py-3.5 px-4">Pengguna / Nama Staf</th>
+                                            <th className="py-3.5 px-4">Peran (Role)</th>
+                                            <th className="py-3.5 px-4">Departemen / Unit</th>
+                                            <th className="py-3.5 px-4">WhatsApp Bot</th>
+                                            <th className="py-3.5 px-4 text-right">Aksi</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className={`divide-y ${isDark ? 'divide-slate-800/80' : 'divide-slate-100'}`}>
+                                        {loading && users.length === 0 ? (
+                                            <tr>
+                                                <td colSpan={6} className={`py-16 text-center ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                                    <RefreshCw className="h-6 w-6 animate-spin text-emerald-500 mx-auto mb-2" />
+                                                    <span>Memuat daftar akun...</span>
+                                                </td>
+                                            </tr>
+                                        ) : users.length === 0 ? (
+                                            <tr>
+                                                <td colSpan={6} className={`py-16 text-center space-y-2 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                                    <UsersIcon className={`h-8 w-8 mx-auto ${isDark ? 'text-slate-700' : 'text-slate-300'}`} />
+                                                    <div>Tidak ada akun yang sesuai dengan filter.</div>
+                                                </td>
+                                            </tr>
+                                        ) : (
+                                            users.map(u => {
+                                                const deptTheme = u.department ? getDepartmentTheme(u.department) : { bg: '#059669', text: '#FFFFFF' };
+                                                const isMe = u.id === currentUser?.id;
+                                                const isSelected = selectedUserIds.includes(u.id);
+                                                const isPending = Boolean(u.approval_status && ['pending_hod', 'pending_admin'].includes(u.approval_status));
+                                                const approvalTicketUrl = u.pending_ticket_number
+                                                    ? `/tickets?search=${encodeURIComponent(u.pending_ticket_number)}`
+                                                    : `/tickets?search=${encodeURIComponent(u.email || u.name)}`;
+
+                                                return (
+                                                    <tr
+                                                        key={u.id}
+                                                        className={`transition-colors ${
+                                                            isSelected
+                                                                ? isDark ? 'bg-emerald-500/15' : 'bg-emerald-50/90'
+                                                                : u.is_archived
+                                                                    ? isDark ? 'opacity-65 bg-rose-950/15' : 'opacity-70 bg-rose-50/40'
+                                                                    : isDark ? 'hover:bg-slate-800/50' : 'hover:bg-slate-50/90'
+                                                        }`}
+                                                    >
+                                                        <td className="w-12 py-3 px-3 text-center" onClick={e => e.stopPropagation()}>
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={isSelected}
+                                                                onChange={() => handleSelectUser(u.id)}
+                                                                className={`w-4 h-4 rounded text-emerald-600 accent-emerald-600 focus:ring-emerald-500 cursor-pointer ${
+                                                                    isDark ? 'border-slate-700 bg-slate-900' : 'border-slate-300 bg-white'
+                                                                }`}
+                                                            />
+                                                        </td>
+
+                                                        {/* User & Staff Name */}
+                                                        <td className="py-3 px-4">
+                                                            <div className="flex items-center gap-3">
+                                                                <div
+                                                                    className="w-9 h-9 rounded-xl flex items-center justify-center font-extrabold text-sm shrink-0 border border-white/10 shadow-xs overflow-hidden"
+                                                                    style={{ backgroundColor: deptTheme.bg, color: deptTheme.text }}
+                                                                >
+                                                                    {(u.avatar_url || (u.avatar ? (u.avatar.startsWith('http') ? u.avatar : `/uploads/avatars/${u.avatar}`) : null)) ? (
+                                                                        <img
+                                                                            src={u.avatar_url || (u.avatar.startsWith('http') ? u.avatar : `/uploads/avatars/${u.avatar}`)}
+                                                                            alt={u.name}
+                                                                            className="w-full h-full object-cover rounded-xl"
+                                                                        />
+                                                                    ) : (
+                                                                        u.name.charAt(0).toUpperCase()
+                                                                    )}
+                                                                </div>
+                                                                <div className="min-w-0">
+                                                                    <div className={`font-bold text-sm flex items-center gap-2 flex-wrap ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
+                                                                        <span>{u.staff_name || u.name}</span>
+                                                                        {u.is_hod && (
+                                                                            <span
+                                                                                className={`px-2 py-0.5 rounded text-[10px] font-black border ${
+                                                                                    isDark
+                                                                                        ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                                                                                        : 'bg-amber-100 text-amber-800 border-amber-300'
+                                                                                }`}
+                                                                                title={u.hod_title || 'Head of Department'}
+                                                                            >
+                                                                                👑 HOD {u.hod_title ? `(${u.hod_title})` : ''}
+                                                                            </span>
+                                                                        )}
+                                                                        {u.approval_status === 'pending_hod' && (
+                                                                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${isDark ? 'bg-amber-500/20 text-amber-300 border-amber-500/30' : 'bg-amber-100 text-amber-800 border-amber-300'}`}>
+                                                                                PENDING HOD
+                                                                            </span>
+                                                                        )}
+                                                                        {u.approval_status === 'pending_admin' && (
+                                                                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${isDark ? 'bg-sky-500/20 text-sky-300 border-sky-500/30' : 'bg-sky-100 text-sky-800 border-sky-300'}`}>
+                                                                                PENDING ADMIN
+                                                                            </span>
+                                                                        )}
+                                                                        {u.approval_status === 'rejected' && (
+                                                                            <span
+                                                                                className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${isDark ? 'bg-rose-500/20 text-rose-300 border-rose-500/30' : 'bg-rose-100 text-rose-800 border-rose-300'}`}
+                                                                                title={u.rejection_reason || 'Pendaftaran ditolak'}
+                                                                            >
+                                                                                DITOLAK
+                                                                            </span>
+                                                                        )}
+                                                                        {isMe && (
+                                                                            <span className="px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-emerald-600 text-white keep-white">
+                                                                                YOU
+                                                                            </span>
+                                                                        )}
+                                                                        {u.is_archived && (
+                                                                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${isDark ? 'bg-rose-500/20 text-rose-300 border-rose-500/30' : 'bg-rose-100 text-rose-800 border-rose-300'}`}>
+                                                                                ARCHIVED
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                    <div className={`text-[11px] truncate ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                                                        {u.email}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </td>
+
+                                                        {/* Role */}
+                                                        <td className="py-3 px-4">
+                                                            {u.role === 'admin' ? (
+                                                                <span
+                                                                    className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold border ${
+                                                                        isDark
+                                                                            ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                                                                            : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                                                    }`}
+                                                                >
+                                                                    <ShieldCheck className="h-3.5 w-3.5" />
+                                                                    Administrator
+                                                                </span>
+                                                            ) : (
+                                                                <span
+                                                                    className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold border ${
+                                                                        isDark
+                                                                            ? 'bg-sky-500/20 text-sky-300 border-sky-500/40'
+                                                                            : 'bg-sky-50 text-sky-700 border-sky-200'
+                                                                    }`}
+                                                                >
+                                                                    <Building2 className="h-3.5 w-3.5" />
+                                                                    Department
+                                                                </span>
+                                                            )}
+                                                        </td>
+
+                                                        {/* Department & Subdiv */}
+                                                        <td className="py-3 px-4">
+                                                            {u.department ? (
+                                                                <SubdivisionTag
+                                                                    department={u.department}
+                                                                    subdivision={u.subdivision}
+                                                                    size="sm"
+                                                                />
+                                                            ) : (
+                                                                <span className={`italic ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Semua Departemen</span>
+                                                            )}
+                                                        </td>
+
+                                                        {/* WhatsApp status */}
+                                                        <td className="py-3 px-4">
+                                                            {u.whatsapp_number ? (
+                                                                <div className={`flex items-center gap-1.5 ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>
+                                                                    <Phone className="h-3.5 w-3.5 text-emerald-500" />
+                                                                    <span className="font-mono text-[11px] font-medium">{u.whatsapp_number}</span>
+                                                                </div>
+                                                            ) : (
+                                                                <span className={`text-[11px] italic ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Belum terhubung</span>
+                                                            )}
+                                                        </td>
+
+                                                        {/* Actions */}
+                                                        <td className="py-3 px-4 text-right">
+                                                            <div className="flex items-center justify-end gap-1.5">
+                                                                {isPending && (
+                                                                    <Link
+                                                                        href={approvalTicketUrl}
+                                                                        title={lang === 'id' ? 'Tinjau & Setujui di Menu Approval Ticket' : 'Review & Approve in Approval Tickets'}
+                                                                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all cursor-pointer mr-1 ${
+                                                                            isDark
+                                                                                ? 'bg-sky-500/20 text-sky-300 hover:bg-sky-500/30 border-sky-500/40'
+                                                                                : 'bg-sky-50 text-sky-700 hover:bg-sky-100 border-sky-200'
+                                                                        }`}
+                                                                    >
+                                                                        <ClipboardCheck className="h-3.5 w-3.5" />
+                                                                        <span>Review Approval</span>
+                                                                    </Link>
+                                                                )}
+
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleResetPassword(u)}
+                                                                    disabled={isPending}
+                                                                    title={isPending ? (lang === 'id' ? 'Akun belum disetujui (Pending Approval)' : 'Account pending approval') : 'Reset Password 1-Klik'}
+                                                                    className={`p-1.5 rounded-lg transition-all ${
+                                                                        isPending
+                                                                            ? 'text-slate-500 cursor-not-allowed opacity-40'
+                                                                            : isDark
+                                                                                ? 'text-slate-400 hover:text-emerald-400 hover:bg-slate-800 cursor-pointer'
+                                                                                : 'text-slate-500 hover:text-emerald-700 hover:bg-slate-100 cursor-pointer'
+                                                                    }`}
+                                                                >
+                                                                    <KeyRound className="h-4 w-4" />
+                                                                </button>
+
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleEditUser(u)}
+                                                                    disabled={isPending}
+                                                                    title={isPending ? (lang === 'id' ? 'Akun belum disetujui (Pending Approval)' : 'Account pending approval') : 'Edit Akun & Izin'}
+                                                                    className={`p-1.5 rounded-lg transition-all ${
+                                                                        isPending
+                                                                            ? 'text-slate-500 cursor-not-allowed opacity-40'
+                                                                            : isDark
+                                                                                ? 'text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer'
+                                                                                : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100 cursor-pointer'
+                                                                    }`}
+                                                                >
+                                                                    <Edit className="h-4 w-4" />
+                                                                </button>
+
+                                                                {u.role !== 'admin' && (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleToggleHod(u)}
+                                                                        disabled={isPending}
+                                                                        title={
+                                                                            isPending
+                                                                                ? (lang === 'id' ? 'Akun belum disetujui (Pending Approval)' : 'Account pending approval')
+                                                                                : u.is_hod
+                                                                                    ? `Cabut Status HOD (${u.staff_name || u.name})`
+                                                                                    : `Jadikan HOD Departemen (${u.staff_name || u.name})`
+                                                                        }
+                                                                        className={`p-1.5 rounded-lg transition-all ${
+                                                                            isPending
+                                                                                ? 'text-slate-500 cursor-not-allowed opacity-40'
+                                                                                : u.is_hod
+                                                                                    ? 'text-amber-500 hover:bg-amber-500/15 cursor-pointer'
+                                                                                    : isDark
+                                                                                        ? 'text-slate-400 hover:text-amber-400 hover:bg-slate-800 cursor-pointer'
+                                                                                        : 'text-slate-500 hover:text-amber-600 hover:bg-slate-100 cursor-pointer'
+                                                                        }`}
+                                                                    >
+                                                                        <span className="text-xs">👑</span>
+                                                                    </button>
+                                                                )}
+
+                                                                {u.is_archived ? (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleRestoreUser(u)}
+                                                                        title="Pulihkan Akun Ini"
+                                                                        className={`p-1.5 rounded-lg transition-all cursor-pointer ${
+                                                                            isDark ? 'text-emerald-400 hover:bg-emerald-500/20' : 'text-emerald-700 hover:bg-emerald-50'
+                                                                        }`}
+                                                                    >
+                                                                        <RotateCcw className="h-4 w-4" />
+                                                                    </button>
+                                                                ) : (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleArchiveUser(u)}
+                                                                        disabled={isMe}
+                                                                        title={isMe ? 'Anda tidak dapat meng-archive akun sendiri' : 'Archive (Soft Delete) Akun'}
+                                                                        className={`p-1.5 rounded-lg transition-all ${
+                                                                            isMe
+                                                                                ? 'text-slate-500 cursor-not-allowed opacity-40'
+                                                                                : isDark
+                                                                                    ? 'text-slate-400 hover:text-rose-400 hover:bg-rose-500/15 cursor-pointer'
+                                                                                    : 'text-slate-500 hover:text-rose-600 hover:bg-rose-50 cursor-pointer'
+                                                                        }`}
+                                                                    >
+                                                                        <Trash2 className="h-4 w-4" />
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </>
+                ) : (
+                    <AuditTrailTab />
+                )}
+            </main>
 
             {/* Mobile Bottom Navigation */}
             <MobileBottomNav currentTab="users" />
@@ -1332,45 +1519,65 @@ function UsersInner({ initialUsers, initialStats }) {
 
             {/* Batch Delete Confirmation Modal */}
             {isBatchDeleteModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs animate-in fade-in duration-200">
-                    <div className="w-full max-w-md rounded-2xl border border-rose-500/40 bg-[#1C1B0E] p-6 shadow-2xl space-y-4">
-                        <div className="flex items-center gap-3 text-rose-400">
-                            <div className="w-11 h-11 rounded-xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center shrink-0">
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-in fade-in duration-200">
+                    <div
+                        className={`w-full max-w-md rounded-2xl border p-6 shadow-2xl space-y-4 ${
+                            isDark ? 'border-rose-500/40 bg-slate-950 text-slate-100' : 'border-rose-200 bg-white text-slate-900'
+                        }`}
+                    >
+                        <div className="flex items-center gap-3 text-rose-500">
+                            <div
+                                className={`w-11 h-11 rounded-xl border flex items-center justify-center shrink-0 ${
+                                    isDark ? 'bg-rose-500/15 border-rose-500/30 text-rose-400' : 'bg-rose-50 border-rose-200 text-rose-600'
+                                }`}
+                            >
                                 <Trash2 className="h-5 w-5" />
                             </div>
                             <div>
-                                <h3 className="text-base font-extrabold text-[#FAFAFA]">
+                                <h3 className={`text-base font-extrabold ${isDark ? 'text-white' : 'text-slate-900'}`}>
                                     Archive (Soft Delete) Akun Massal
                                 </h3>
-                                <p className="text-xs text-[#A19F8D]">
+                                <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                                     Konfirmasi penonaktifan akun terpilih
                                 </p>
                             </div>
                         </div>
 
-                        <div className="p-3.5 rounded-xl bg-rose-950/20 border border-rose-500/30 text-xs space-y-2 text-[#FAFAFA]">
+                        <div
+                            className={`p-3.5 rounded-xl border text-xs space-y-2 ${
+                                isDark ? 'bg-rose-950/30 border-rose-500/30 text-slate-200' : 'bg-rose-50 border-rose-200 text-slate-800'
+                            }`}
+                        >
                             <p>
-                                Anda akan meng-archive <strong className="text-rose-300 font-bold">{effectiveDeleteCount} akun</strong>.
+                                Anda akan meng-archive <strong className={`font-bold ${isDark ? 'text-rose-300' : 'text-rose-700'}`}>{effectiveDeleteCount} akun</strong>.
                             </p>
-                            <p className="text-[11px] text-[#A19F8D] leading-relaxed">
+                            <p className={`text-[11px] leading-relaxed ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
                                 Akun yang di-archive tidak dapat login ke sistem lagi, namun seluruh riwayat isu, log penugasan, dan tiket tetap aman di database (Soft Delete). Anda dapat memulihkannya kapan saja di tab <strong>Archived</strong>.
                             </p>
                         </div>
 
                         {selectedIncludesSelf && (
-                            <div className="p-3 rounded-xl bg-amber-500/15 border border-amber-500/40 text-amber-200 text-xs flex items-start gap-2.5">
-                                <AlertCircle className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
+                            <div
+                                className={`p-3 rounded-xl border text-xs flex items-start gap-2.5 ${
+                                    isDark ? 'bg-amber-500/15 border-amber-500/40 text-amber-200' : 'bg-amber-50 border-amber-200 text-amber-900'
+                                }`}
+                            >
+                                <AlertCircle className={`h-4 w-4 shrink-0 mt-0.5 ${isDark ? 'text-amber-400' : 'text-amber-600'}`} />
                                 <div>
-                                    <span className="font-bold text-amber-300">Proteksi Keamanan:</span> Akun Anda sendiri ({currentUser?.name || 'Administrator'}) otomatis dilewati dan tidak akan di-archive.
+                                    <span className={`font-bold ${isDark ? 'text-amber-300' : 'text-amber-800'}`}>Proteksi Keamanan:</span> Akun Anda sendiri ({currentUser?.name || 'Administrator'}) otomatis dilewati dan tidak akan di-archive.
                                 </div>
                             </div>
                         )}
 
                         {selectedAdminUsers.length > 0 && (
-                            <div className="p-3 rounded-xl bg-sky-500/15 border border-sky-500/40 text-sky-200 text-xs flex items-start gap-2.5">
-                                <ShieldCheck className="h-4 w-4 text-sky-400 shrink-0 mt-0.5" />
+                            <div
+                                className={`p-3 rounded-xl border text-xs flex items-start gap-2.5 ${
+                                    isDark ? 'bg-sky-500/15 border-sky-500/40 text-sky-200' : 'bg-sky-50 border-sky-200 text-sky-900'
+                                }`}
+                            >
+                                <ShieldCheck className={`h-4 w-4 shrink-0 mt-0.5 ${isDark ? 'text-sky-400' : 'text-sky-600'}`} />
                                 <div>
-                                    <span className="font-bold text-sky-300">Proteksi Administrator:</span> {selectedAdminUsers.length} akun Administrator otomatis dilindungi dan tidak dapat di-archive secara massal.
+                                    <span className={`font-bold ${isDark ? 'text-sky-300' : 'text-sky-800'}`}>Proteksi Administrator:</span> {selectedAdminUsers.length} akun Administrator otomatis dilindungi dan tidak dapat di-archive secara massal.
                                 </div>
                             </div>
                         )}
@@ -1380,7 +1587,11 @@ function UsersInner({ initialUsers, initialStats }) {
                                 type="button"
                                 onClick={() => setIsBatchDeleteModalOpen(false)}
                                 disabled={batchDeleteLoading}
-                                className="px-4 py-2 rounded-xl border border-[#3B3929] bg-[#2A281E] text-xs font-bold text-[#A19F8D] hover:text-[#FAFAFA] hover:bg-[#3B3929] transition-all cursor-pointer disabled:opacity-50"
+                                className={`px-4 py-2 rounded-xl border text-xs font-bold transition-all cursor-pointer disabled:opacity-50 ${
+                                    isDark
+                                        ? 'border-slate-700 bg-slate-900 text-slate-300 hover:text-white hover:bg-slate-800'
+                                        : 'border-slate-300 bg-white text-slate-700 hover:text-slate-900 hover:bg-slate-100'
+                                }`}
                             >
                                 Batal
                             </button>
@@ -1388,7 +1599,7 @@ function UsersInner({ initialUsers, initialStats }) {
                                 type="button"
                                 onClick={handleConfirmBatchDelete}
                                 disabled={batchDeleteLoading || effectiveDeleteCount === 0}
-                                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-extrabold shadow-md hover:shadow-lg transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white keep-white text-xs font-extrabold shadow-md hover:shadow-lg transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
                             >
                                 {batchDeleteLoading ? (
                                     <>

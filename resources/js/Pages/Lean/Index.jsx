@@ -23,7 +23,6 @@ import {
     ExternalLink,
     LogIn,
     LogOut,
-    Power,
     MessageSquare,
     Table,
     LayoutGrid,
@@ -34,11 +33,7 @@ import {
     RotateCcw,
     BarChart3,
     Sparkles,
-    Sun,
-    Moon,
-    Compass,
     Wrench,
-    Wifi,
     WifiOff,
     CloudUpload,
     Send,
@@ -50,14 +45,11 @@ import {
     History,
     Lock,
     Award,
-    CalendarClock,
-    Ticket
+    CalendarClock
 } from 'lucide-react';
 import axios from 'axios';
-import { BotControlModal } from '@/Components/CampusFix/BotControlModal';
-import { MandatoryRealEmailModal } from '@/Components/CampusFix/MandatoryRealEmailModal';
-import NotificationDropdown from '@/Components/CampusFix/NotificationDropdown';
-import NotificationToast from '@/Components/CampusFix/NotificationToast';
+import { LeanHeader } from '@/Components/CampusFix/LeanHeader';
+import { useLeanTheme } from '@/hooks/useLeanTheme';
 import {
     EtaPickerField,
     toJakartaDatetimeLocal,
@@ -313,25 +305,8 @@ export default function LeanIndex({
         return () => window.removeEventListener('resize', handleResize);
     }, [viewMode]);
 
-    // Theme preference (dark / light) with LocalStorage persistence
-    const [theme, setTheme] = useState(() => {
-        try {
-            return localStorage.getItem('telunas_field_theme') || 'dark';
-        } catch (err) {
-            console.warn('[LeanIndex] Failed reading telunas_field_theme:', err);
-            return 'dark';
-        }
-    });
-
-    const isDark = theme === 'dark';
-
-    useEffect(() => {
-        try {
-            localStorage.setItem('telunas_field_theme', theme);
-        } catch (err) {
-            console.warn('[LeanIndex] Failed saving telunas_field_theme:', err);
-        }
-    }, [theme]);
+    // Theme preference (dark / light) synced across Lean pages & header
+    const { isDark } = useLeanTheme();
 
     const toggleColumn = (colId) => {
         setVisibleColumns((prev) => ({ ...prev, [colId]: !prev[colId] }));
@@ -368,27 +343,6 @@ export default function LeanIndex({
     const activeColumnCount = useMemo(() => {
         return Object.values(visibleColumns).filter(Boolean).length;
     }, [visibleColumns]);
-
-    // --- WhatsApp Bot V2 Control State ---
-    const [botControlModalOpen, setBotControlModalOpen] = useState(false);
-    const [botStatus, setBotStatus] = useState(null);
-
-    const fetchBotStatus = async () => {
-        try {
-            const res = await axios.get('/api/bot/status');
-            if (res.data) {
-                setBotStatus(res.data);
-            }
-        } catch (err) {
-            console.warn('[LeanIndex] Failed polling bot status:', err);
-        }
-    };
-
-    useEffect(() => {
-        fetchBotStatus();
-        const timer = setInterval(fetchBotStatus, 5000);
-        return () => clearInterval(timer);
-    }, []);
 
     // --- Real-time Auto-refresh Polling (Every 4 seconds for fresh issues sync) ---
     useEffect(() => {
@@ -1644,341 +1598,21 @@ export default function LeanIndex({
     return (
         <div className={`lean-root ${isDark ? 'lean-theme-dark text-slate-100' : 'lean-theme-light text-slate-800'} flex flex-col font-sans pb-24 md:pb-12 transition-colors duration-300 w-full max-w-full overflow-x-clip min-h-screen`}>
             <Head title="Dashboard — Telunas Issue Tracker" />
-            <NotificationToast />
-            <MandatoryRealEmailModal user={authUser} />
-
-            {/* TOP HEADER */}
-            <header className={`sticky top-0 z-40 backdrop-blur-md border-b px-2 sm:px-6 lg:px-8 py-2 sm:py-2.5 shadow-xs transition-colors duration-200 w-full max-w-full ${
-                isDark
-                    ? 'bg-slate-900/95 border-slate-800 shadow-slate-950/40'
-                    : 'bg-white/95 border-slate-200 shadow-slate-200/50'
-            }`}>
-                <div className="w-full flex items-center justify-between gap-1 sm:gap-3">
-                    {/* Brand (Left) */}
-                    <Link href="/" className="flex items-center gap-1.5 sm:gap-2.5 min-w-0 shrink group">
-                        <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg overflow-hidden flex items-center justify-center border shadow-xs shrink-0 ${
-                            isDark ? 'bg-slate-800 border-emerald-500/40' : 'bg-white border-emerald-200'
-                        }`}>
-                            <img src="/logo.png" alt="Telunas Resorts" className="w-full h-full object-contain p-0.5" />
-                        </div>
-                        <div className="min-w-0">
-                            <div className="flex items-center gap-1.5">
-                                <h1 className={`text-xs sm:text-sm font-bold tracking-tight truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                                    <span className="sm:hidden">Telunas</span>
-                                    <span className="hidden sm:inline">Telunas Issue Tracker</span>
-                                </h1>
-                                <span className={`text-[9px] sm:text-[10px] font-bold px-1.5 py-0.5 rounded-full border shrink-0 hidden lg:inline ${
-                                    isDark ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300' : 'bg-emerald-50 border-emerald-300 text-emerald-800'
-                                }`}>
-                                    {isEn ? 'Operations' : 'Operasional'}
-                                </span>
-                            </div>
-                            <p className={`text-[10px] sm:text-[11px] truncate hidden md:block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Telunas Resorts Tracker</p>
-                        </div>
-                    </Link>
-
-                    {/* View Mode Switcher (Tabel ERP / Kartu / Analisis) - Hidden on Mobile (Handled by Mobile Bottom Bar) */}
-                    <div className={`hidden md:flex items-center p-0.5 sm:p-1 rounded-xl border shrink-0 ${
-                        isDark ? 'bg-slate-950/80 border-slate-800' : 'bg-slate-100 border-slate-200 shadow-xs'
-                    }`}>
-                        <button
-                            type="button"
-                            onClick={() => setViewMode('table')}
-                            className={`flex items-center gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                                viewMode === 'table'
-                                    ? 'bg-emerald-600 text-white shadow-sm'
-                                    : isDark
-                                    ? 'text-slate-400 hover:text-slate-200'
-                                    : 'text-slate-600 hover:text-slate-900 hover:bg-white'
-                            }`}
-                            title={isEn ? 'ERP Spreadsheet Table View' : 'Tampilan Tabel Spreadsheet ERP'}
-                        >
-                            <Table className="w-3.5 h-3.5" />
-                            <span className="hidden sm:inline">{isEn ? 'ERP Table' : 'Tabel ERP'}</span>
-                            <span className="sm:hidden">{isEn ? 'Table' : 'Tabel'}</span>
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setViewMode('cards')}
-                            className={`flex items-center gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                                viewMode === 'cards'
-                                    ? 'bg-emerald-600 text-white shadow-sm'
-                                    : isDark
-                                    ? 'text-slate-400 hover:text-slate-200'
-                                    : 'text-slate-600 hover:text-slate-900 hover:bg-white'
-                            }`}
-                            title={isEn ? 'Visual Card View' : 'Tampilan Kartu Visual'}
-                        >
-                            <LayoutGrid className="w-3.5 h-3.5" />
-                            <span>{isEn ? 'Cards' : 'Kartu'}</span>
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setViewMode('analytics')}
-                            className={`flex items-center gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                                viewMode === 'analytics'
-                                    ? 'bg-emerald-600 text-white shadow-sm'
-                                    : isDark
-                                    ? 'text-slate-400 hover:text-slate-200'
-                                    : 'text-slate-600 hover:text-slate-900 hover:bg-white'
-                            }`}
-                            title={isEn ? 'Operational Statistics & Resort Map Analytics' : 'Analisa Statistik Operasional & Peta Resort'}
-                        >
-                            <BarChart3 className="w-3.5 h-3.5" />
-                            <span>{isEn ? 'Analytics' : 'Analisis'}</span>
-                        </button>
-                    </div>
-
-                    {/* Profile & Navigation Switcher & Bot Controls (Right - Fixed 1-Line Sleek App Bar) */}
-                    <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 ml-auto">
-                        {/* Offline / Outbox Status Pill */}
-                        <button
-                            type="button"
-                            onClick={async () => {
-                                const tickets = await getOutboxTickets();
-                                setOutboxTickets(tickets);
-                                setShowOutboxModal(true);
-                            }}
-                            className={`h-7 sm:h-8 flex items-center gap-1 px-1.5 sm:px-2.5 rounded-lg border text-xs font-bold transition-all shadow-xs cursor-pointer shrink-0 ${
-                                outboxCount > 0
-                                    ? 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border-amber-500/60 animate-pulse'
-                                    : isOnline
-                                    ? (isDark ? 'bg-slate-800/90 text-emerald-400 border-slate-700' : 'bg-white text-emerald-700 border-slate-200')
-                                    : 'bg-rose-950/70 text-rose-300 border-rose-600/50'
-                            }`}
-                            title={
-                                outboxCount > 0
-                                    ? (isEn ? `${outboxCount} ticket(s) saved on device. Click to view / sync.` : `${outboxCount} tiket tersimpan di HP. Klik untuk melihat / sinkronkan.`)
-                                    : isOnline
-                                    ? (isEn ? 'Online (Connected to Internet)' : 'Online (Terhubung ke Internet)')
-                                    : (isEn ? 'Offline (0 Bars / No Signal)' : 'Offline (0 Bar / Tanpa Sinyal)')
-                            }
-                        >
-                            {outboxCount > 0 ? (
-                                <>
-                                    <CloudUpload className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                                    <span className="text-[10px] sm:text-xs text-amber-300 font-extrabold">
-                                        {isEn ? `${outboxCount} queued` : `${outboxCount} di HP`}
-                                    </span>
-                                </>
-                            ) : isOnline ? (
-                                <>
-                                    <Wifi className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                                    <span className="text-[10px] sm:text-xs hidden sm:inline">Online</span>
-                                </>
-                            ) : (
-                                <>
-                                    <WifiOff className="w-3.5 h-3.5 text-rose-400 shrink-0" />
-                                    <span className="text-[10px] sm:text-xs">Offline</span>
-                                </>
-                            )}
-                        </button>
-
-                        {/* ID | EN Language Switcher */}
-                        <div
-                            className={`h-7 sm:h-8 flex items-center rounded-lg border p-0.5 text-[10px] sm:text-xs font-bold shadow-xs shrink-0 ${
-                                isDark
-                                    ? 'bg-slate-800/90 border-slate-700'
-                                    : 'bg-white border-slate-200'
-                            }`}
-                            role="group"
-                            aria-label={isEn ? 'Language switcher' : 'Pemilih bahasa'}
-                        >
-                            <button
-                                type="button"
-                                onClick={() => setLang('id')}
-                                className={`h-full px-1.5 sm:px-2 rounded-md transition-all cursor-pointer ${
-                                    lang === 'id'
-                                        ? 'bg-emerald-600 text-white shadow-xs'
-                                        : isDark
-                                        ? 'text-slate-400 hover:text-slate-200'
-                                        : 'text-slate-600 hover:text-slate-900'
-                                }`}
-                            >
-                                ID
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setLang('en')}
-                                className={`h-full px-1.5 sm:px-2 rounded-md transition-all cursor-pointer ${
-                                    lang === 'en'
-                                        ? 'bg-emerald-600 text-white shadow-xs'
-                                        : isDark
-                                        ? 'text-slate-400 hover:text-slate-200'
-                                        : 'text-slate-600 hover:text-slate-900'
-                                }`}
-                            >
-                                EN
-                            </button>
-                        </div>
-
-                        {/* Quick Theme Toggle (Icon Only) */}
-                        <button
-                            type="button"
-                            onClick={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')}
-                            className={`h-7 w-7 sm:h-8 sm:w-8 flex items-center justify-center rounded-lg border transition-all shadow-xs cursor-pointer shrink-0 ${
-                                isDark
-                                    ? 'bg-slate-800/90 hover:bg-slate-700 text-amber-300 border-slate-700'
-                                    : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200 hover:border-slate-300'
-                            }`}
-                            title={isDark ? (isEn ? 'Switch to Light Mode' : 'Beralih ke Mode Terang') : (isEn ? 'Switch to Dark Mode' : 'Beralih ke Mode Gelap')}
-                            aria-label={isEn ? 'Toggle Theme' : 'Toggle Tema'}
-                        >
-                            {isDark ? (
-                                <Sun className="w-3.5 h-3.5 text-amber-400" />
-                            ) : (
-                                <Moon className="w-3.5 h-3.5 text-slate-600" />
-                            )}
-                        </button>
-
-                        {/* WhatsApp Bot V2 Status (Interactive Control for Admin Only; Read-Only Status for Supervisors) */}
-                        {currentUser?.is_admin ? (
-                            <button
-                                type="button"
-                                onClick={() => setBotControlModalOpen(true)}
-                                className={`h-8 hidden sm:flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 rounded-lg border text-xs font-bold transition-all shadow-xs cursor-pointer shrink-0 ${
-                                    botStatus?.connected
-                                        ? (isDark ? 'bg-emerald-950/70 hover:bg-emerald-900/80 border-emerald-600/50 text-emerald-300' : 'bg-emerald-50 hover:bg-emerald-100 border-emerald-200 text-emerald-800')
-                                        : (isDark ? 'bg-rose-950/70 hover:bg-rose-900/80 border-rose-600/50 text-rose-300' : 'bg-rose-50 hover:bg-rose-100 border-rose-200 text-rose-800')
-                                }`}
-                                title={isEn ? 'Click to Control WA Bot (View Status / Stop / Start)' : 'Klik untuk Kontrol Bot WA (Lihat Status / Matikan / Nyalakan)'}
-                            >
-                                <span className={`w-2 h-2 rounded-full shrink-0 ${botStatus?.connected ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
-                                <span className="hidden lg:inline">Bot WA:</span>
-                                <span className="text-[10px] sm:text-xs">{botStatus?.connected ? 'Online' : 'Offline'}</span>
-                            </button>
-                        ) : (
-                            <div
-                                className={`h-8 hidden sm:flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 rounded-lg border text-xs font-bold shadow-xs shrink-0 ${
-                                    botStatus?.connected
-                                        ? (isDark ? 'bg-emerald-950/70 border-emerald-600/50 text-emerald-300' : 'bg-emerald-50 border-emerald-200 text-emerald-800')
-                                        : (isDark ? 'bg-rose-950/70 border-rose-600/50 text-rose-300' : 'bg-rose-50 border-rose-200 text-rose-800')
-                                }`}
-                                title={isEn ? 'WhatsApp Bot Connection Status (Bot control is Admin only)' : 'Status Koneksi WhatsApp Bot (Kontrol bot hanya untuk Administrator)'}
-                            >
-                                <span className={`w-2 h-2 rounded-full shrink-0 ${botStatus?.connected ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
-                                <span className="hidden lg:inline">Bot WA:</span>
-                                <span className="text-[10px] sm:text-xs">{botStatus?.connected ? 'Online' : 'Offline'}</span>
-                            </div>
-                        )}
-
-                        {currentUser ? (
-                            <>
-                                {/* Approval Tickets Link */}
-                                <Link
-                                    href="/tickets"
-                                    className={`h-7 w-7 sm:h-8 sm:w-auto sm:px-2.5 flex items-center justify-center gap-1.5 rounded-lg border text-xs font-bold transition-all shadow-xs shrink-0 ${
-                                        isDark
-                                            ? 'bg-slate-800/90 hover:bg-slate-700 text-slate-200 border-slate-700 hover:border-amber-500/50'
-                                            : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200 hover:border-slate-300'
-                                    }`}
-                                    title={isEn ? 'Approval Tickets' : 'Tiket Persetujuan'}
-                                    aria-label={isEn ? 'Approval Tickets' : 'Tiket Persetujuan'}
-                                >
-                                    <Ticket className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                                    <span className="hidden xl:inline">{isEn ? 'Tickets' : 'Tiket'}</span>
-                                </Link>
-
-                                {/* User Management & Audit Trail Link (Admin Only) */}
-                                {currentUser?.is_admin && (
-                                    <Link
-                                        href="/users"
-                                        className={`h-7 w-7 sm:h-8 sm:w-auto sm:px-2.5 flex items-center justify-center gap-1.5 rounded-lg border text-xs font-bold transition-all shadow-xs shrink-0 ${
-                                            isDark
-                                                ? 'bg-slate-800/90 hover:bg-slate-700 text-slate-200 border-slate-700 hover:border-sky-500/50'
-                                                : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200 hover:border-slate-300'
-                                        }`}
-                                        title={isEn ? 'User Management & Audit Trail' : 'Manajemen Pengguna & Audit Trail'}
-                                        aria-label={isEn ? 'User Management' : 'Manajemen Pengguna'}
-                                    >
-                                        <Users className="w-3.5 h-3.5 text-sky-500 shrink-0" />
-                                        <span className="hidden xl:inline">{isEn ? 'Users' : 'Pengguna'}</span>
-                                    </Link>
-                                )}
-
-                                {/* Notification Bell Dropdown */}
-                                <NotificationDropdown themeVariant="lean" isDark={isDark} />
-
-                                {/* Account Profile Link */}
-                                <Link
-                                    href="/profile"
-                                    className={`h-7 w-7 sm:h-8 sm:w-auto flex items-center justify-center gap-1.5 sm:px-2 rounded-lg border text-xs transition-all shadow-xs shrink-0 ${
-                                        isDark
-                                            ? 'bg-slate-800/90 hover:bg-slate-700 border-slate-700 hover:border-emerald-500/50 text-slate-200'
-                                            : 'bg-white hover:bg-slate-50 border-slate-200 hover:border-slate-300 text-slate-800'
-                                    }`}
-                                    title={isEn
-                                        ? `Profile Settings (${currentUser?.staff_name || myName})`
-                                        : `Pengaturan Profil (${currentUser?.staff_name || myName})`}
-                                    aria-label={isEn ? 'Account Profile' : 'Profil Akun'}
-                                >
-                                    {currentUser?.avatar_url ? (
-                                        <img
-                                            src={currentUser.avatar_url}
-                                            alt={currentUser?.staff_name || myName}
-                                            className="w-5 h-5 rounded-full object-cover shrink-0 border border-emerald-500/40"
-                                        />
-                                    ) : (
-                                        <span className="w-5 h-5 rounded-full bg-emerald-600 text-white text-[10px] font-bold flex items-center justify-center shrink-0">
-                                            {(currentUser?.staff_name || myName || 'S').charAt(0).toUpperCase()}
-                                        </span>
-                                    )}
-                                    <span className="font-bold truncate hidden sm:inline sm:max-w-[100px] text-xs">
-                                        {currentUser?.staff_name || myName}
-                                    </span>
-                                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border hidden xl:inline ${
-                                        currentUser?.is_admin
-                                            ? (isDark ? 'text-amber-300 bg-amber-950/80 border-amber-700/60' : 'text-amber-800 bg-amber-100 border-amber-300')
-                                            : (isDark ? 'text-emerald-400 bg-emerald-950/80 border-emerald-800/60' : 'text-emerald-800 bg-emerald-100 border-emerald-200')
-                                    }`}>
-                                        {currentUser?.is_admin
-                                            ? 'Admin'
-                                            : currentUser?.hod_title
-                                            ? currentUser.hod_title
-                                            : currentUser?.is_hod
-                                            ? `HOD ${formatDeptDisplay(myDept)}`
-                                            : currentUser?.subdivision
-                                            ? (currentUser.subdivision.toLowerCase() !== (myDept || '').toLowerCase()
-                                                ? `${currentUser.subdivision} (${formatDeptDisplay(myDept)})`
-                                                : currentUser.subdivision)
-                                            : formatDeptDisplay(myDept)}
-                                    </span>
-                                </Link>
-
-                                {/* Logout Button */}
-                                <button
-                                    type="button"
-                                    onClick={() => router.post(route('logout'))}
-                                    className={`h-7 w-7 sm:h-8 sm:w-8 flex items-center justify-center rounded-lg border transition-all shadow-xs cursor-pointer shrink-0 ${
-                                        isDark
-                                            ? 'bg-slate-800/90 hover:bg-rose-950/80 hover:text-rose-300 text-slate-300 border-slate-700 hover:border-rose-600/60'
-                                            : 'bg-white hover:bg-rose-50 hover:text-rose-700 text-slate-700 border-slate-200 hover:border-rose-300'
-                                    }`}
-                                    title={isEn ? 'Sign Out (Logout)' : 'Keluar dari Akun (Logout)'}
-                                    aria-label={isEn ? 'Sign Out' : 'Keluar dari Akun'}
-                                >
-                                    <LogOut className="w-3.5 h-3.5" />
-                                </button>
-                            </>
-                        ) : (
-                            <Link
-                                href={route('login')}
-                                className={`h-7 sm:h-8 flex items-center gap-1 px-2 rounded-lg border text-xs font-bold transition-all shadow-xs shrink-0 ${
-                                    isDark
-                                        ? 'bg-amber-950/60 hover:bg-amber-900/80 border-amber-500/50 text-amber-300'
-                                        : 'bg-amber-50 hover:bg-amber-100 border-amber-200 text-amber-800'
-                                }`}
-                                title={isEn ? 'Sign in to Your Account' : 'Masuk ke Akun Anda'}
-                            >
-                                <LogIn className="w-3 h-3 text-amber-600" />
-                                <span className="text-[10px] sm:text-xs">{isEn ? 'Sign In' : 'Masuk'}</span>
-                            </Link>
-                        )}
-                    </div>
-                </div>
-
-
-            </header>
+            <LeanHeader
+                activePage="dashboard"
+                viewMode={viewMode}
+                onViewModeChange={setViewMode}
+                currentUser={currentUser}
+                outboxProps={{
+                    outboxCount,
+                    isOnline,
+                    onOpenOutbox: async () => {
+                        const tickets = await getOutboxTickets();
+                        setOutboxTickets(tickets);
+                        setShowOutboxModal(true);
+                    },
+                }}
+            />
 
             {/* MAIN CONTENT CONTAINER */}
             <main className="w-full px-4 sm:px-6 lg:px-8 pt-4 flex-1">
@@ -1991,7 +1625,7 @@ export default function LeanIndex({
                             : 'bg-amber-50/95 border-amber-300 text-amber-950 shadow-sm'
                     }`}>
                         <div className="flex items-center gap-2.5 min-w-0">
-                            <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
+                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${isDark ? 'bg-amber-500/20 text-amber-400' : 'bg-amber-100 text-amber-700'}`}>
                                 <CloudUpload className="w-4 h-4 animate-bounce" />
                             </div>
                             <div className="min-w-0">
@@ -2848,10 +2482,10 @@ export default function LeanIndex({
                                                             className="w-full h-full object-cover group-hover/img:scale-105 transition-transform duration-300"
                                                         />
                                                         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent flex items-end justify-between p-2">
-                                                            <span className="text-[10px] text-white font-medium bg-black/60 px-2 py-0.5 rounded-md backdrop-blur-xs flex items-center gap-1">
+                                                            <span className="text-[10px] text-white keep-white font-medium bg-black/60 px-2 py-0.5 rounded-md backdrop-blur-xs flex items-center gap-1">
                                                                 <Eye className="w-3 h-3" /> {isEn ? 'Evidence Photo' : 'Foto Bukti'}
                                                             </span>
-                                                            <span className="text-[9px] text-slate-300 font-medium">{isEn ? 'Click to zoom' : 'Klik perbesar'}</span>
+                                                            <span className="text-[9px] text-slate-200 keep-white font-medium">{isEn ? 'Click to zoom' : 'Klik perbesar'}</span>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -3320,7 +2954,7 @@ export default function LeanIndex({
                                 <button
                                     type="submit"
                                     disabled={isSubmitting}
-                                    className={`w-full py-3 rounded-xl font-bold text-sm shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer ${
+                                    className={`w-full py-3 rounded-xl font-bold text-sm shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer keep-white ${
                                         !isOnline
                                             ? 'bg-amber-600 hover:bg-amber-500 text-white shadow-amber-900/40'
                                             : startInProgress
@@ -4921,17 +4555,6 @@ export default function LeanIndex({
                         </div>
                     </div>
                 </div>
-            )}
-
-            {/* BOT CONTROL MODAL (CONFIGURED FOR BOT V2 - ADMIN ONLY) */}
-            {currentUser?.is_admin && (
-                <BotControlModal
-                    open={botControlModalOpen}
-                    onOpenChange={setBotControlModalOpen}
-                    botStatus={botStatus}
-                    onRefreshStatus={fetchBotStatus}
-                    botVersion="v2"
-                />
             )}
 
             {/* MODAL: DELETE / SOFT DELETE ISSUE */}

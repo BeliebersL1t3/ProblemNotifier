@@ -445,7 +445,10 @@ input[type="range"]::-moz-range-thumb {
 }
 
 /* Ensure foreground content sits above backdrop overlay */
-.lean-root > header,
+.lean-root > header {
+  z-index: 40;
+}
+
 .lean-root > main,
 .lean-root > footer {
   position: relative;
@@ -533,7 +536,6 @@ input[type="range"]::-moz-range-thumb {
 .lean-theme-light button.bg-sky-600 *,
 .lean-theme-light .text-white.keep-white {
   color: #ffffff !important;
-  fill: currentColor;
 }
 
 /* Status Badges in Light Mode */
@@ -595,6 +597,11 @@ input[type="range"]::-moz-range-thumb {
 
 /* Light Mode Input & Hover Overrides */
 .lean-theme-light input[type="text"],
+.lean-theme-light input[type="email"],
+.lean-theme-light input[type="password"],
+.lean-theme-light input[type="search"],
+.lean-theme-light input[type="tel"],
+.lean-theme-light input[type="number"],
 .lean-theme-light input[type="date"],
 .lean-theme-light select,
 .lean-theme-light textarea {

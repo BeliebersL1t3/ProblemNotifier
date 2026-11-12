@@ -127,7 +127,7 @@ export default function NotificationDropdown({ isMobile = false, themeVariant = 
                     themeVariant === 'lean'
                         ? `h-7 w-7 sm:h-8 sm:w-8 flex items-center justify-center rounded-lg border shadow-xs ${
                             isOpen
-                                ? 'bg-emerald-600 text-white border-emerald-500'
+                                ? 'bg-emerald-600 text-white keep-white border-emerald-500'
                                 : isDark
                                 ? 'bg-slate-800/90 hover:bg-slate-700 text-slate-200 border-slate-700'
                                 : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200 hover:border-slate-300'
@@ -145,10 +145,12 @@ export default function NotificationDropdown({ isMobile = false, themeVariant = 
             >
                 <Bell className={themeVariant === 'lean' ? 'w-3.5 h-3.5 sm:w-4 sm:h-4' : (isMobile ? 'w-4 h-4' : 'w-5 h-5')} />
                 {data.unread_count > 0 && (
-                    <span className={`absolute flex items-center justify-center rounded-full bg-[#C9AA71] font-black text-[#1C1B0E] shadow-sm ring-1 ring-[#1C1B0E]/30 animate-pulse ${
-                        isMobile || themeVariant === 'lean'
-                            ? '-top-1 -right-1 h-3.5 w-3.5 text-[9px]' 
-                            : 'top-1 right-1 h-4 w-4 text-[10px]'
+                    <span className={`absolute flex items-center justify-center rounded-full font-black shadow-sm animate-pulse ${
+                        themeVariant === 'lean'
+                            ? 'bg-rose-600 text-white keep-white ring-1 ring-white/80 -top-1 -right-1 h-3.5 w-3.5 text-[9px]'
+                            : `bg-[#C9AA71] text-[#1C1B0E] ring-1 ring-[#1C1B0E]/30 ${
+                                isMobile ? '-top-1 -right-1 h-3.5 w-3.5 text-[9px]' : 'top-1 right-1 h-4 w-4 text-[10px]'
+                            }`
                     }`}>
                         {data.unread_count > 9 ? '9+' : data.unread_count}
                     </span>
@@ -165,16 +167,28 @@ export default function NotificationDropdown({ isMobile = false, themeVariant = 
                         aria-hidden="true"
                     />
 
-                    <div className="fixed sm:absolute left-3 right-3 sm:left-auto sm:right-0 top-14 sm:top-full sm:mt-2.5 max-w-sm mx-auto sm:mx-0 sm:w-96 rounded-2xl bg-[#2A281E] text-[#FAFAFA] shadow-2xl border border-[#3B3929] z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150 max-h-[calc(100vh-140px)] flex flex-col">
+                    <div className={`fixed sm:absolute left-3 right-3 sm:left-auto sm:right-0 top-14 sm:top-full sm:mt-2.5 max-w-sm mx-auto sm:mx-0 sm:w-96 rounded-2xl shadow-2xl border z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150 max-h-[calc(100vh-140px)] flex flex-col ${
+                        isDark
+                            ? 'bg-slate-900 text-slate-100 border-slate-700'
+                            : 'bg-white text-slate-900 border-slate-200'
+                    }`}>
                         {/* Ambient subtle glow */}
-                        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-8 pointer-events-none blur-[24px] opacity-25 rounded-full bg-[#C9AA71]" />
+                        <div className={`absolute top-0 left-1/2 -translate-x-1/2 w-48 h-8 pointer-events-none blur-[24px] opacity-25 rounded-full ${
+                            isDark ? 'bg-emerald-500' : 'bg-emerald-400'
+                        }`} />
 
                         {/* Header */}
-                        <div className="relative flex items-center justify-between px-4 py-3 border-b border-[#3B3929] bg-[#1C1B0E]/90 backdrop-blur-md shrink-0">
+                        <div className={`relative flex items-center justify-between px-4 py-3 border-b backdrop-blur-md shrink-0 ${
+                            isDark ? 'border-slate-800 bg-slate-950/90' : 'border-slate-200 bg-slate-50/95'
+                        }`}>
                             <div className="flex items-center gap-2">
-                                <span className="font-extrabold text-sm text-[#FAFAFA] tracking-tight">Notifikasi</span>
+                                <span className={`font-extrabold text-sm tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>Notifikasi</span>
                                 {data.unread_count > 0 && (
-                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-[#C9AA71]/20 text-[#C9AA71] border border-[#C9AA71]/40">
+                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold border ${
+                                        isDark
+                                            ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                                            : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                    }`}>
                                         {data.unread_count} baru
                                     </span>
                                 )}
@@ -187,8 +201,12 @@ export default function NotificationDropdown({ isMobile = false, themeVariant = 
                                     onClick={toggleSound}
                                     className={`p-1.5 rounded-lg border text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${
                                         soundActive
-                                            ? 'bg-[#C9AA71]/20 border-[#C9AA71]/40 text-[#E3D1AA] hover:bg-[#C9AA71]/30'
-                                            : 'bg-white/5 border-white/10 text-[#A19F8D] hover:text-[#FAFAFA]'
+                                            ? isDark
+                                                ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/30'
+                                                : 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100'
+                                            : isDark
+                                            ? 'bg-slate-800 border-slate-700 text-slate-400 hover:text-white'
+                                            : 'bg-white border-slate-200 text-slate-500 hover:text-slate-800'
                                     }`}
                                     title={soundActive ? 'Suara Notifikasi: Aktif (Klik untuk heningkan)' : 'Suara Notifikasi: Hening (Klik untuk bunyikan)'}
                                     aria-label="Toggle Sound"
@@ -200,7 +218,9 @@ export default function NotificationDropdown({ isMobile = false, themeVariant = 
                                 {data.unread_count > 0 && (
                                     <button
                                         onClick={markAllAsRead}
-                                        className="text-[11px] text-[#C9AA71] hover:text-[#E3D1AA] font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                                        className={`text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer ${
+                                            isDark ? 'text-emerald-400 hover:text-emerald-300' : 'text-emerald-700 hover:text-emerald-800'
+                                        }`}
                                     >
                                         <CheckCheck className="w-3.5 h-3.5" /> Tandai semua
                                     </button>
@@ -208,7 +228,9 @@ export default function NotificationDropdown({ isMobile = false, themeVariant = 
                                 <button
                                     type="button"
                                     onClick={() => setIsOpen(false)}
-                                    className="sm:hidden p-1 rounded-lg text-[#A19F8D] hover:text-[#FAFAFA] hover:bg-white/10 transition-colors"
+                                    className={`sm:hidden p-1 rounded-lg transition-colors ${
+                                        isDark ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-200/70'
+                                    }`}
                                     title="Tutup Notifikasi"
                                 >
                                     <X className="w-4 h-4" />
@@ -217,13 +239,19 @@ export default function NotificationDropdown({ isMobile = false, themeVariant = 
                         </div>
 
                         {/* Tabs */}
-                        <div className="flex border-b border-[#3B3929] bg-[#1C1B0E]/60 text-xs shrink-0">
+                        <div className={`flex border-b text-xs shrink-0 ${
+                            isDark ? 'border-slate-800 bg-slate-950/60' : 'border-slate-200 bg-slate-100/80'
+                        }`}>
                             <button
                                 onClick={() => setActiveTab('tickets')}
                                 className={`flex-1 py-2.5 px-3 text-center font-bold transition-all relative flex items-center justify-center gap-1.5 cursor-pointer ${
                                     activeTab === 'tickets'
-                                        ? 'text-[#C9AA71] bg-[#2A281E] border-b-2 border-[#C9AA71] shadow-inner'
-                                        : 'text-[#A19F8D] hover:text-[#FAFAFA] hover:bg-[#1C1B0E]/40'
+                                        ? isDark
+                                            ? 'text-emerald-400 bg-slate-900 border-b-2 border-emerald-500 shadow-inner'
+                                            : 'text-emerald-700 bg-white border-b-2 border-emerald-600 shadow-xs'
+                                        : isDark
+                                        ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/40'
+                                        : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
                                 }`}
                             >
                                 <Ticket className="w-3.5 h-3.5" />
@@ -237,8 +265,12 @@ export default function NotificationDropdown({ isMobile = false, themeVariant = 
                                 onClick={() => setActiveTab('issues')}
                                 className={`flex-1 py-2.5 px-3 text-center font-bold transition-all relative flex items-center justify-center gap-1.5 cursor-pointer ${
                                     activeTab === 'issues'
-                                        ? 'text-[#C9AA71] bg-[#2A281E] border-b-2 border-[#C9AA71] shadow-inner'
-                                        : 'text-[#A19F8D] hover:text-[#FAFAFA] hover:bg-[#1C1B0E]/40'
+                                        ? isDark
+                                            ? 'text-emerald-400 bg-slate-900 border-b-2 border-emerald-500 shadow-inner'
+                                            : 'text-emerald-700 bg-white border-b-2 border-emerald-600 shadow-xs'
+                                        : isDark
+                                        ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/40'
+                                        : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
                                 }`}
                             >
                                 <Clock className="w-3.5 h-3.5" />
@@ -251,15 +283,17 @@ export default function NotificationDropdown({ isMobile = false, themeVariant = 
 
                         {/* Push Notification Banner */}
                         {pushSupported && !pushSubscribed && (
-                            <div className="bg-[#1C1B0E] border-b border-[#3B3929] px-3.5 py-2 flex items-center justify-between gap-2 text-[11px] animate-in fade-in duration-200">
-                                <div className="flex items-center gap-1.5 text-[#E3D1AA]">
-                                    <BellRing className="w-3.5 h-3.5 text-[#C9AA71] shrink-0" />
+                            <div className={`border-b px-3.5 py-2 flex items-center justify-between gap-2 text-[11px] animate-in fade-in duration-200 ${
+                                isDark ? 'bg-slate-950 border-slate-800' : 'bg-emerald-50/70 border-emerald-200'
+                            }`}>
+                                <div className={`flex items-center gap-1.5 ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
+                                    <BellRing className={`w-3.5 h-3.5 shrink-0 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
                                     <span>Aktifkan pop-up di HP / PC</span>
                                 </div>
                                 <button
                                     onClick={handleEnablePush}
                                     disabled={pushLoading}
-                                    className="px-2.5 py-1 rounded-lg bg-[#C9AA71] text-[#1C1B0E] font-bold hover:bg-[#b89960] transition cursor-pointer text-[10px] shadow-sm disabled:opacity-60"
+                                    className="px-2.5 py-1 rounded-lg bg-emerald-600 text-white keep-white font-bold hover:bg-emerald-500 transition cursor-pointer text-[10px] shadow-sm disabled:opacity-60"
                                 >
                                     {pushLoading ? '...' : 'Aktifkan'}
                                 </button>
@@ -267,11 +301,13 @@ export default function NotificationDropdown({ isMobile = false, themeVariant = 
                         )}
 
                         {/* Notification Items List - scrollable */}
-                        <div className="overflow-y-auto flex-1 divide-y divide-[#3B3929]/50 text-xs overscroll-contain">
+                        <div className={`overflow-y-auto flex-1 divide-y text-xs overscroll-contain ${
+                            isDark ? 'divide-slate-800/80' : 'divide-slate-200'
+                        }`}>
                         {activeTab === 'tickets' && (
                             data.tickets.length === 0 ? (
-                                <div className="p-8 text-center text-[#A19F8D] space-y-2">
-                                    <Ticket className="w-8 h-8 mx-auto text-[#3B3929]" />
+                                <div className={`p-8 text-center space-y-2 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                    <Ticket className={`w-8 h-8 mx-auto ${isDark ? 'text-slate-700' : 'text-slate-300'}`} />
                                     <p className="text-xs">Belum ada tiket permohonan.</p>
                                 </div>
                             ) : (
@@ -281,34 +317,34 @@ export default function NotificationDropdown({ isMobile = false, themeVariant = 
                                         onClick={() => !item.is_read && markAsRead(item.id)}
                                         className={`p-3.5 transition flex items-start gap-3 cursor-pointer ${
                                             !item.is_read 
-                                                ? 'bg-[#C9AA71]/10 hover:bg-[#C9AA71]/15' 
-                                                : 'hover:bg-[#1C1B0E]/40'
+                                                ? isDark ? 'bg-emerald-500/10 hover:bg-emerald-500/15' : 'bg-emerald-50/70 hover:bg-emerald-50'
+                                                : isDark ? 'hover:bg-slate-800/60' : 'hover:bg-slate-50'
                                         }`}
                                     >
                                         <div className={`mt-0.5 p-1.5 rounded-lg flex-shrink-0 border ${
                                             item.type === 'ticket_approved'
-                                                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                                                ? isDark ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' : 'bg-emerald-100 text-emerald-700 border-emerald-200'
                                                 : item.type === 'ticket_rejected'
-                                                ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                                                ? isDark ? 'bg-rose-500/20 text-rose-300 border-rose-500/40' : 'bg-rose-100 text-rose-700 border-rose-200'
                                                 : item.type === 'hod_status_change'
-                                                ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-                                                : 'bg-[#C9AA71]/20 text-[#C9AA71] border-[#C9AA71]/40'
+                                                ? isDark ? 'bg-amber-500/20 text-amber-300 border-amber-500/40' : 'bg-amber-100 text-amber-700 border-amber-200'
+                                                : isDark ? 'bg-sky-500/20 text-sky-300 border-sky-500/40' : 'bg-sky-100 text-sky-700 border-sky-200'
                                         }`}>
                                             {item.type === 'hod_status_change' ? (
-                                                <Crown className="w-3.5 h-3.5 text-amber-300" />
+                                                <Crown className={`w-3.5 h-3.5 ${isDark ? 'text-amber-300' : 'text-amber-600'}`} />
                                             ) : (
                                                 <Ticket className="w-3.5 h-3.5" />
                                             )}
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                            <p className="font-bold text-xs text-[#FAFAFA] leading-tight">
+                                            <p className={`font-bold text-xs leading-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
                                                 {item.title}
                                             </p>
-                                            <p className="text-[#E3D1AA] text-[11px] mt-1 leading-snug">
+                                            <p className={`text-[11px] mt-1 leading-snug ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
                                                 {item.message}
                                             </p>
-                                             <div className="flex items-center justify-between mt-2 pt-1 border-t border-[#3B3929]/40 gap-2">
-                                                 <span className="text-[10px] text-[#A19F8D] shrink-0">
+                                             <div className={`flex items-center justify-between mt-2 pt-1 border-t gap-2 ${isDark ? 'border-slate-800/80' : 'border-slate-200/80'}`}>
+                                                 <span className={`text-[10px] shrink-0 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                                                      {new Date(item.created_at).toLocaleDateString('id-ID', { hour: '2-digit', minute: '2-digit' })}
                                                  </span>
                                                  <div className="flex items-center gap-2">
@@ -319,14 +355,18 @@ export default function NotificationDropdown({ isMobile = false, themeVariant = 
                                                                  e.stopPropagation();
                                                                  markAsRead(item.id);
                                                              }}
-                                                             className="text-[10px] text-[#C9AA71] hover:text-[#FAFAFA] flex items-center gap-1 font-semibold py-0.5 px-1.5 rounded bg-[#C9AA71]/10 hover:bg-[#C9AA71]/20 transition"
+                                                             className={`text-[10px] flex items-center gap-1 font-semibold py-0.5 px-1.5 rounded transition ${
+                                                                 isDark
+                                                                     ? 'text-emerald-300 hover:text-white bg-emerald-500/15 hover:bg-emerald-500/25'
+                                                                     : 'text-emerald-700 hover:text-emerald-900 bg-emerald-100 hover:bg-emerald-200/70'
+                                                             }`}
                                                              title="Tandai sudah dibaca"
                                                          >
                                                              <Check className="w-2.5 h-2.5" /> Tandai baca
                                                          </button>
                                                      ) : (
-                                                         <span className="text-[10px] text-[#A19F8D]/60 flex items-center gap-0.5 font-medium">
-                                                             <Check className="w-2.5 h-2.5 opacity-50" /> Dibaca
+                                                         <span className={`text-[10px] flex items-center gap-0.5 font-medium ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                                                             <Check className="w-2.5 h-2.5 opacity-60" /> Dibaca
                                                          </span>
                                                      )}
                                                      {item.link && (
@@ -337,7 +377,9 @@ export default function NotificationDropdown({ isMobile = false, themeVariant = 
                                                                  if (!item.is_read) markAsRead(item.id);
                                                                  setIsOpen(false);
                                                              }}
-                                                             className="text-[11px] text-[#C9AA71] hover:text-[#FAFAFA] font-bold flex items-center gap-0.5 hover:underline ml-1"
+                                                             className={`text-[11px] font-bold flex items-center gap-0.5 hover:underline ml-1 ${
+                                                                 isDark ? 'text-emerald-400 hover:text-emerald-300' : 'text-emerald-700 hover:text-emerald-900'
+                                                             }`}
                                                          >
                                                              {item.link.includes('profile') ? 'Lihat Profil' : item.link.includes('users') ? 'Kelola Akun' : 'Lihat Tiket'} <ExternalLink className="w-2.5 h-2.5" />
                                                          </Link>
@@ -352,8 +394,8 @@ export default function NotificationDropdown({ isMobile = false, themeVariant = 
 
                         {activeTab === 'issues' && (
                             data.issues.length === 0 ? (
-                                <div className="p-8 text-center text-[#A19F8D] space-y-2">
-                                    <Clock className="w-8 h-8 mx-auto text-[#3B3929]" />
+                                <div className={`p-8 text-center space-y-2 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                    <Clock className={`w-8 h-8 mx-auto ${isDark ? 'text-slate-700' : 'text-slate-300'}`} />
                                     <p className="text-xs">Belum ada update progres isu.</p>
                                 </div>
                             ) : (
@@ -363,22 +405,24 @@ export default function NotificationDropdown({ isMobile = false, themeVariant = 
                                         onClick={() => !item.is_read && markAsRead(item.id)}
                                         className={`p-3.5 transition flex items-start gap-3 cursor-pointer ${
                                             !item.is_read 
-                                                ? 'bg-[#C9AA71]/10 hover:bg-[#C9AA71]/15' 
-                                                : 'hover:bg-[#1C1B0E]/40'
+                                                ? isDark ? 'bg-emerald-500/10 hover:bg-emerald-500/15' : 'bg-emerald-50/70 hover:bg-emerald-50'
+                                                : isDark ? 'hover:bg-slate-800/60' : 'hover:bg-slate-50'
                                         }`}
                                     >
-                                        <div className="mt-0.5 p-1.5 rounded-lg bg-sky-500/20 text-sky-300 border border-sky-500/40 flex-shrink-0">
+                                        <div className={`mt-0.5 p-1.5 rounded-lg border flex-shrink-0 ${
+                                            isDark ? 'bg-sky-500/20 text-sky-300 border-sky-500/40' : 'bg-sky-100 text-sky-700 border-sky-200'
+                                        }`}>
                                             <Clock className="w-3.5 h-3.5" />
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                            <p className="font-bold text-xs text-[#FAFAFA] leading-tight">
+                                            <p className={`font-bold text-xs leading-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
                                                 {item.title}
                                             </p>
-                                            <p className="text-[#E3D1AA] text-[11px] mt-1 leading-snug">
+                                            <p className={`text-[11px] mt-1 leading-snug ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
                                                 {item.message}
                                             </p>
-                                            <div className="flex items-center justify-between mt-2 pt-1 border-t border-[#3B3929]/40 gap-2">
-                                                <span className="text-[10px] text-[#A19F8D] shrink-0">
+                                            <div className={`flex items-center justify-between mt-2 pt-1 border-t gap-2 ${isDark ? 'border-slate-800/80' : 'border-slate-200/80'}`}>
+                                                <span className={`text-[10px] shrink-0 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                                                     {new Date(item.created_at).toLocaleDateString('id-ID', { hour: '2-digit', minute: '2-digit' })}
                                                 </span>
                                                 <div className="flex items-center gap-2">
@@ -389,21 +433,27 @@ export default function NotificationDropdown({ isMobile = false, themeVariant = 
                                                                 e.stopPropagation();
                                                                 markAsRead(item.id);
                                                             }}
-                                                            className="text-[10px] text-[#C9AA71] hover:text-[#FAFAFA] flex items-center gap-1 font-semibold py-0.5 px-1.5 rounded bg-[#C9AA71]/10 hover:bg-[#C9AA71]/20 transition"
+                                                            className={`text-[10px] flex items-center gap-1 font-semibold py-0.5 px-1.5 rounded transition ${
+                                                                isDark
+                                                                    ? 'text-emerald-300 hover:text-white bg-emerald-500/15 hover:bg-emerald-500/25'
+                                                                    : 'text-emerald-700 hover:text-emerald-900 bg-emerald-100 hover:bg-emerald-200/70'
+                                                            }`}
                                                             title="Tandai sudah dibaca"
                                                         >
                                                             <Check className="w-2.5 h-2.5" /> Tandai baca
                                                         </button>
                                                     ) : (
-                                                        <span className="text-[10px] text-[#A19F8D]/60 flex items-center gap-0.5 font-medium">
-                                                            <Check className="w-2.5 h-2.5 opacity-50" /> Dibaca
+                                                        <span className={`text-[10px] flex items-center gap-0.5 font-medium ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                                                            <Check className="w-2.5 h-2.5 opacity-60" /> Dibaca
                                                         </span>
                                                     )}
                                                     {item.link && (
                                                         <Link
                                                             href={item.link}
                                                             onClick={(e) => handleIssueLinkClick(e, item)}
-                                                            className="text-[11px] text-[#C9AA71] hover:text-[#FAFAFA] font-bold flex items-center gap-0.5 hover:underline ml-1"
+                                                            className={`text-[11px] font-bold flex items-center gap-0.5 hover:underline ml-1 ${
+                                                                isDark ? 'text-emerald-400 hover:text-emerald-300' : 'text-emerald-700 hover:text-emerald-900'
+                                                            }`}
                                                         >
                                                             Lihat Isu <ExternalLink className="w-2.5 h-2.5" />
                                                         </Link>
@@ -418,11 +468,15 @@ export default function NotificationDropdown({ isMobile = false, themeVariant = 
                     </div>
 
                     {/* Footer */}
-                    <div className="p-3 bg-[#1C1B0E]/90 text-center border-t border-[#3B3929] shrink-0">
+                    <div className={`p-3 text-center border-t shrink-0 ${
+                        isDark ? 'bg-slate-950/90 border-slate-800' : 'bg-slate-50 border-slate-200'
+                    }`}>
                         <Link
                             href={route('tickets.index')}
                             onClick={() => setIsOpen(false)}
-                            className="text-xs font-bold text-[#C9AA71] hover:text-[#E3D1AA] transition-colors inline-flex items-center gap-1"
+                            className={`text-xs font-bold transition-colors inline-flex items-center gap-1 ${
+                                isDark ? 'text-emerald-400 hover:text-emerald-300' : 'text-emerald-700 hover:text-emerald-800'
+                            }`}
                         >
                             <span>{t('view_all_tickets') || 'Buka Semua Persetujuan Tiket'}</span>
                             <span>→</span>
