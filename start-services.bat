@@ -21,16 +21,15 @@ echo   [1] Start Tailscale Funnel (https://msi.taile8cc1e.ts.net)
 echo   [2] Stop Tailscale Funnel (Turn OFF public access)
 echo   [3] Start ngrok Tunnel (granola-outlying-cultivate.ngrok-free.dev)
 echo   [4] Start Laravel Queue Worker
-echo   [5] Start WhatsApp Bot
+echo   [5] Start WhatsApp Bot (bot-v2.js)
 echo   [6] Start Vite Dev Server (React HMR)
-echo   [7] Start All Core Services (Tailscale Funnel + Queue + Bot)
-echo   [8] Start All Core Services (ngrok Tunnel + Queue + Bot)
+echo   [7] Start All Core Services (Tailscale Funnel + Queue + Bot V2)
+echo   [8] Start All Core Services (ngrok Tunnel + Queue + Bot V2)
 echo   [9] Exit
-echo   [10] Start WhatsApp Bot V2 (New - bot-v2.js)
-echo   [11] Refresh Configuration Cache (Fix 500 error)
+echo   [10] Refresh Configuration Cache (Fix 500 error)
 echo.
 echo ========================================================
-set /p "CHOICE=Enter your choice [1-11]: "
+set /p "CHOICE=Enter your choice [1-10]: "
 
 if "%CHOICE%"=="1" goto START_TAILSCALE
 if "%CHOICE%"=="2" goto STOP_TAILSCALE
@@ -41,8 +40,7 @@ if "%CHOICE%"=="6" goto START_VITE
 if "%CHOICE%"=="7" goto START_ALL_TAILSCALE
 if "%CHOICE%"=="8" goto START_ALL_NGROK
 if "%CHOICE%"=="9" goto EXIT
-if "%CHOICE%"=="10" goto START_BOT_V2
-if "%CHOICE%"=="11" goto REFRESH_CONFIG
+if "%CHOICE%"=="10" goto REFRESH_CONFIG
 goto INVALID
 
 :START_TAILSCALE
@@ -89,16 +87,8 @@ goto MENU
 
 :START_BOT
 echo.
-echo Launching WhatsApp Bot in a new window...
-start "CampusFix - WhatsApp Bot" /D "%~dp0\whatsapp-bot" cmd /k "npm start"
-echo Done.
-timeout /t 2 >nul
-goto MENU
-
-:START_BOT_V2
-echo.
-echo Launching WhatsApp Bot V2 in a new window...
-start "CampusFix - WhatsApp Bot V2" /D "%~dp0\whatsapp-bot" cmd /k "npm run start:v2"
+echo Launching WhatsApp Bot V2 (bot-v2.js) in a new window...
+start "Telunas Issue Tracker - WhatsApp Bot V2" /D "%~dp0\whatsapp-bot" cmd /k "npm start"
 echo Done.
 timeout /t 2 >nul
 goto MENU

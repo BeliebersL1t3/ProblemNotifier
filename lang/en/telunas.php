@@ -51,7 +51,6 @@ return [
     'bot_win_popen_failed'         => 'Failed to launch the WhatsApp Bot background process (Windows popen failed).',
     'bot_unix_exec_failed'         => 'Failed to launch the WhatsApp Bot background process (exit code :code).',
     'bot_launch_v2_ok'             => 'Command to start WA Bot V2 sent successfully. The bot is booting in the background.',
-    'bot_launch_v1_ok'             => 'Command to start the bot sent successfully. The bot is booting in the background.',
 
     // Lean Dashboard & Workflow
     'lean_auth_required'           => 'Please sign in first to update issue statuses.',
@@ -83,8 +82,6 @@ return [
     'lean_transfer_same_dept_err'  => 'Please select a different department from the current one.',
     'lean_transfer_success'        => 'Issue successfully transferred to :dept.',
     'lean_destroy_success'         => 'Ticket deleted from the dashboard.',
-    'lean_reset_admin_only'        => 'Access denied: Only Administrators can reset all sandbox data.',
-    'lean_reset_success'           => 'All sandbox simulation data has been reset and the Google Sheets tabs have been cleared.',
     'lean_api_store_success'       => 'Lean issue created successfully!',
     'lean_issue_not_found'         => 'Issue not found.',
     'lean_api_claim_success'       => 'Ticket claimed by :taker.',
@@ -94,16 +91,5 @@ return [
     'sheets_webhook_missing'       => 'Google Sheets Webhook URL is not configured in (.env).',
     'sheets_sync_all_success'      => 'Successfully synced :count tickets to monthly tabs and staff directory to Google Sheets.',
     'sheets_sync_all_failed'       => 'Failed to send data to Google Sheets Webhook. Ensure the Webhook URL is active.',
-
-    // Discussion Controller (aligned responses)
-    'disc_unauthenticated'         => 'Unauthenticated.',
-    'disc_not_found'               => 'Issue not found.',
-    'disc_confidential_denied'     => 'Access denied. This ticket is confidential.',
-    'disc_access_denied'           => 'Access denied.',
-    'disc_locked'                  => 'Discussion room is locked (ticket is already Solved/Archived).',
-    'disc_msg_sent'                => 'Message sent successfully.',
-    'disc_dept_ready'              => 'Department :dept confirmed Ready to Work.',
-    'disc_pending_marked'          => 'Ticket marked as pending.',
-    'disc_solve_acc'               => 'Resolution approved (ACC) for department :dept.',
 ];
 

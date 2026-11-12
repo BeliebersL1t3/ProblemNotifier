@@ -1,15 +1,12 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import axios from 'axios';
-import { Plus, Search, CalendarPlus, BarChart3, LayoutDashboard, Calendar, User, X, Ticket, Globe, MessageSquare } from 'lucide-react';
+import { Plus, Search, BarChart3, LayoutDashboard, User, Users, X, Ticket, Globe, MessageSquare } from 'lucide-react';
 import { Button } from '@/Components/UI/Button';
 import { Link } from '@inertiajs/react';
 import { Input } from '@/Components/UI/Input';
-import { useIssues } from '@/context/IssuesContext';
-import { NewPeriodModal } from '@/Components/CampusFix/NewPeriodModal';
 import { MandatoryRealEmailModal } from '@/Components/CampusFix/MandatoryRealEmailModal';
 import { useSlashTransition } from '@/Components/CampusFix/SlashTransition';
 import { useLanguage } from '@/context/LanguageContext';
-import { useCalendarSync } from '@/context/CalendarSyncContext';
 import { useAuth } from '@/hooks/useAuth';
 import { Tooltip } from '@/Components/UI/Tooltip';
 import { getDepartmentTheme, getShortDepartmentName } from '@/constants/departments';
@@ -17,16 +14,13 @@ import NotificationDropdown from '@/Components/CampusFix/NotificationDropdown';
 import NotificationToast from '@/Components/CampusFix/NotificationToast';
 import { BotControlModal } from '@/Components/CampusFix/BotControlModal';
 
-export function CampusFixHeader({ mode = 'dashboard', query, onQueryChange, onReport, onEmergency, onNewPeriod, searchDropdown }) {
-    const { currentSheet } = useIssues();
+export function CampusFixHeader({ mode = 'dashboard', query, onQueryChange, onReport, searchDropdown }) {
     const { lang, setLang, t } = useLanguage();
-    const { formattedCountdown, isSyncing, canSync } = useCalendarSync();
-    const { user, isAdmin, department, staffName, canAccessAnalytics, canAccessCalendar, canViewAllDepartments, avatarUrl } = useAuth();
+    const { user, isAdmin, department, staffName, canViewAllDepartments, avatarUrl } = useAuth();
     const userDept = user?.department || department;
     const deptTheme = userDept ? getDepartmentTheme(userDept) : (isAdmin ? { bg: '#C9AA71', text: '#1C1B0E' } : { bg: '#607D8B', text: '#FFFFFF' });
     const [searchFocused, setSearchFocused] = useState(false);
     const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
-    const [periodModalOpen, setPeriodModalOpen] = useState(false);
     const [botControlModalOpen, setBotControlModalOpen] = useState(false);
     const [botStatus, setBotStatus] = useState(null);
     const [isScrolled, setIsScrolled] = useState(false);
@@ -50,11 +44,13 @@ export function CampusFixHeader({ mode = 'dashboard', query, onQueryChange, onRe
             let res;
             try {
                 res = await axios.get('/api/bot/status');
-            } catch {
+            } catch (apiErr) {
+                console.warn('[CampusFixHeader] /api/bot/status fallback to /bot/status:', apiErr?.message || apiErr);
                 res = await axios.get('/bot/status');
             }
             setBotStatus(res.data);
-        } catch {
+        } catch (err) {
+            console.warn('[CampusFixHeader] Failed checking bot status:', err?.message || err);
             setBotStatus({ connected: false });
         }
     }, []);
@@ -131,14 +127,6 @@ export function CampusFixHeader({ mode = 'dashboard', query, onQueryChange, onRe
         navigateWithSlash(href, title);
     };
 
-    const handlePeriodOpen = () => {
-        if (onNewPeriod) {
-            onNewPeriod();
-        } else {
-            setPeriodModalOpen(true);
-        }
-    };
-
     return (
         <>
             {/* Cinematic Background Dimming Overlay when search is focused */}
@@ -182,13 +170,7 @@ export function CampusFixHeader({ mode = 'dashboard', query, onQueryChange, onRe
                                 value={query || ''}
                                 onChange={(e) => onQueryChange(e.target.value)}
                                 onFocus={() => setSearchFocused(true)}
-                                placeholder={
-                                    mode === 'analytics'
-                                        ? t('search_analytics_placeholder')
-                                        : mode === 'calendar'
-                                            ? (t('search_calendar_placeholder') || 'Search tasks, dates, departments...')
-                                            : t('search_placeholder')
-                                }
+                                placeholder={t('search_placeholder')}
                                 aria-label="Search issues or locations"
                                 className="pl-9 pr-9 h-9 text-xs w-full bg-white/95 border-[#1C1B0E]/30 ring-2 ring-primary/40 text-[#1C1B0E] font-medium shadow-inner"
                             />
@@ -252,26 +234,6 @@ export function CampusFixHeader({ mode = 'dashboard', query, onQueryChange, onRe
                                     EN
                                 </button>
                             </div>
-
-
-                            {/* Mobile Universal Auto-Sync Indicator */}
-                            {canSync && (
-                                <Link
-                                    href="/calendar"
-                                    className="flex items-center gap-1 px-1.5 py-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 shrink-0 text-[10px] font-mono font-bold hover:bg-emerald-500/20 transition-all select-none"
-                                    title={lang === 'id' ? `Google Calendar Auto-Sync Universal (${formattedCountdown})` : `Universal Auto-Sync (${formattedCountdown})`}
-                                >
-                                    {isSyncing ? (
-                                        <span className="w-2 h-2 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin shrink-0" />
-                                    ) : (
-                                        <span className="relative flex h-1.5 w-1.5 shrink-0">
-                                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                                            <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
-                                        </span>
-                                    )}
-                                    <span>{formattedCountdown}</span>
-                                </Link>
-                            )}
 
                             {/* Mobile WhatsApp Bot Status Button */}
                             {botStatus === null ? (
@@ -364,16 +326,6 @@ export function CampusFixHeader({ mode = 'dashboard', query, onQueryChange, onRe
                                 );
                             })()}
 
-                            {/* Mobile Quick Link: Mode Lapangan */}
-                            <Link
-                                href="/lapangan"
-                                className="flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-800 font-bold text-[11px] transition-all shadow-xs shrink-0"
-                                title="Buka Mode Lapangan (Sandbox)"
-                            >
-                                <span className="text-xs">📱</span>
-                                <span className="font-semibold">Lapangan</span>
-                            </Link>
-
                             {/* Mobile Notification Bell Dropdown */}
                             <NotificationDropdown isMobile={true} />
 
@@ -421,8 +373,8 @@ export function CampusFixHeader({ mode = 'dashboard', query, onQueryChange, onRe
                 {/* Navigation Toggle (Desktop) */}
                 <div className="hidden md:flex bg-[#1C1B0E]/5 p-1 rounded-lg border border-[#1C1B0E]/10 shrink-0 transition-all duration-300">
                     <Link
-                        href="/dashboard"
-                        onClick={(e) => handleNav(e, '/dashboard', t('dashboard'))}
+                        href="/"
+                        onClick={(e) => handleNav(e, '/', t('dashboard'))}
                         className={`group flex items-center justify-center px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
                             mode === 'dashboard'
                                 ? 'bg-[#1C1B0E] text-[#E3D1AA] shadow-sm'
@@ -439,65 +391,26 @@ export function CampusFixHeader({ mode = 'dashboard', query, onQueryChange, onRe
                             {t('dashboard')}
                         </span>
                     </Link>
-                    {canAccessAnalytics ? (
-                        <Link
-                            href="/analytics"
-                            onClick={(e) => handleNav(e, '/analytics', t('analytics'))}
-                            className={`group flex items-center justify-center px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                                mode === 'analytics'
-                                    ? 'bg-[#1C1B0E] text-[#E3D1AA] shadow-sm'
-                                    : 'text-[#1C1B0E]/70 hover:text-[#1C1B0E] hover:bg-[#1C1B0E]/10'
-                            }`}
-                            title={t('analytics')}
-                        >
-                            <BarChart3 className="h-4 w-4 shrink-0" />
-                            <span className={`transition-all duration-300 ease-out overflow-hidden whitespace-nowrap ${
-                                searchFocused 
-                                    ? 'max-w-0 opacity-0 ml-0 group-hover:max-w-[100px] group-hover:opacity-100 group-hover:ml-1.5' 
-                                    : 'max-w-[100px] opacity-100 ml-1.5'
-                            }`}>
-                                {t('analytics')}
-                            </span>
-                        </Link>
-                    ) : (
-                        <div 
-                            className="flex items-center justify-center px-2.5 py-1.5 rounded-md text-sm font-medium text-[#1C1B0E]/40 cursor-not-allowed select-none gap-1 bg-[#1C1B0E]/5"
-                            title={lang === 'id' ? 'Akses Analytics dibatasi oleh Administrator (Barrier Aktif)' : 'Analytics access restricted by Administrator (Active Barrier)'}
-                        >
-                            <BarChart3 className="h-4 w-4 shrink-0 opacity-40" />
-                            <span className="text-[10px] font-bold text-amber-600">🚧</span>
-                        </div>
-                    )}
 
-                    {canAccessCalendar ? (
-                        <Link
-                            href="/calendar"
-                            onClick={(e) => handleNav(e, '/calendar', t('calendar_view') || 'Calendar')}
-                            className={`group flex items-center justify-center px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                                mode === 'calendar'
-                                    ? 'bg-[#1C1B0E] text-[#E3D1AA] shadow-sm'
-                                    : 'text-[#1C1B0E]/70 hover:text-[#1C1B0E] hover:bg-[#1C1B0E]/10'
-                            }`}
-                            title={t('calendar_view') || 'Calendar'}
-                        >
-                            <Calendar className="h-4 w-4 shrink-0" />
-                            <span className={`transition-all duration-300 ease-out overflow-hidden whitespace-nowrap ${
-                                searchFocused 
-                                    ? 'max-w-0 opacity-0 ml-0 group-hover:max-w-[100px] group-hover:opacity-100 group-hover:ml-1.5' 
-                                    : 'max-w-[100px] opacity-100 ml-1.5'
-                            }`}>
-                                {t('calendar_view') || 'Calendar'}
-                            </span>
-                        </Link>
-                    ) : (
-                        <div 
-                            className="flex items-center justify-center px-2.5 py-1.5 rounded-md text-sm font-medium text-[#1C1B0E]/40 cursor-not-allowed select-none gap-1 bg-[#1C1B0E]/5"
-                            title={lang === 'id' ? 'Akses Kalender dibatasi oleh Administrator (Barrier Aktif)' : 'Calendar access restricted by Administrator (Active Barrier)'}
-                        >
-                            <Calendar className="h-4 w-4 shrink-0 opacity-40" />
-                            <span className="text-[10px] font-bold text-amber-600">🚧</span>
-                        </div>
-                    )}
+                    <Link
+                        href="/?view=analytics"
+                        onClick={(e) => handleNav(e, '/?view=analytics', t('analytics'))}
+                        className={`group flex items-center justify-center px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                            mode === 'analytics'
+                                ? 'bg-[#1C1B0E] text-[#E3D1AA] shadow-sm'
+                                : 'text-[#1C1B0E]/70 hover:text-[#1C1B0E] hover:bg-[#1C1B0E]/10'
+                        }`}
+                        title={t('analytics')}
+                    >
+                        <BarChart3 className="h-4 w-4 shrink-0" />
+                        <span className={`transition-all duration-300 ease-out overflow-hidden whitespace-nowrap ${
+                            searchFocused 
+                                ? 'max-w-0 opacity-0 ml-0 group-hover:max-w-[100px] group-hover:opacity-100 group-hover:ml-1.5' 
+                                : 'max-w-[100px] opacity-100 ml-1.5'
+                        }`}>
+                            {t('analytics')}
+                        </span>
+                    </Link>
 
                     <Link
                         href="/tickets"
@@ -519,14 +432,27 @@ export function CampusFixHeader({ mode = 'dashboard', query, onQueryChange, onRe
                         </span>
                     </Link>
 
-                    {/* Quick Link to Lean Mode (Sandbox Lapangan) */}
-                    <Link
-                        href="/lapangan"
-                        className="group flex items-center justify-center px-2.5 py-1.5 rounded-md text-xs font-bold text-emerald-800 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 transition-colors ml-1 shadow-xs"
-                        title="Buka Mode Lapangan (Uji Coba Sandbox)"
-                    >
-                        <span>📱 Lapangan</span>
-                    </Link>
+                    {isAdmin && (
+                        <Link
+                            href="/users"
+                            onClick={(e) => handleNav(e, '/users', lang === 'id' ? 'Pengguna' : 'Users')}
+                            className={`group flex items-center justify-center px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                                mode === 'users'
+                                    ? 'bg-[#1C1B0E] text-[#E3D1AA] shadow-sm'
+                                    : 'text-[#1C1B0E]/70 hover:text-[#1C1B0E] hover:bg-[#1C1B0E]/10'
+                            }`}
+                            title={lang === 'id' ? 'Manajemen Pengguna & Audit' : 'User Management & Audit'}
+                        >
+                            <Users className="h-4 w-4 shrink-0" />
+                            <span className={`transition-all duration-300 ease-out overflow-hidden whitespace-nowrap ${
+                                searchFocused 
+                                    ? 'max-w-0 opacity-0 ml-0 group-hover:max-w-[100px] group-hover:opacity-100 group-hover:ml-1.5' 
+                                    : 'max-w-[100px] opacity-100 ml-1.5'
+                            }`}>
+                                {lang === 'id' ? 'Pengguna' : 'Users'}
+                            </span>
+                        </Link>
+                    )}
                 </div>
 
                 {/* Desktop Search Bar (Hidden on mobile, mobile uses expandable top row) */}
@@ -544,13 +470,7 @@ export function CampusFixHeader({ mode = 'dashboard', query, onQueryChange, onRe
                                 value={query || ''}
                                 onChange={(e) => onQueryChange(e.target.value)}
                                 onFocus={() => setSearchFocused(true)}
-                                placeholder={
-                                    mode === 'analytics'
-                                        ? t('search_analytics_placeholder')
-                                        : mode === 'calendar'
-                                            ? (t('search_calendar_placeholder') || 'Search tasks, dates, departments...')
-                                            : t('search_placeholder')
-                                }
+                                placeholder={t('search_placeholder')}
                                 aria-label="Search issues or locations"
                                 className={`pl-9 pr-9 transition-all duration-300 ${searchFocused ? 'ring-2 ring-primary border-primary' : ''}`}
                             />
@@ -575,30 +495,6 @@ export function CampusFixHeader({ mode = 'dashboard', query, onQueryChange, onRe
 
                 {/* Desktop Action Area: Hidden on mobile */}
                 <div className="hidden md:flex items-center justify-end gap-2.5 shrink-0 py-0.5">
-                    {/* Universal Google Calendar Auto-Sync Live Indicator */}
-                    {canSync && (
-                        <Link
-                            href="/calendar"
-                            className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold border border-emerald-500/30 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-500/20 hover:border-emerald-500/50 transition-all select-none shrink-0 shadow-xs"
-                            title={lang === 'id' ? `Google Calendar Auto-Sync Universal (Sinkronisasi otomatis berikutnya dalam ${formattedCountdown})` : `Universal Google Calendar Auto-Sync (Next in ${formattedCountdown})`}
-                        >
-                            {isSyncing ? (
-                                <span className="w-2.5 h-2.5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin shrink-0" />
-                            ) : (
-                                <span className="relative flex h-2 w-2 shrink-0">
-                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
-                                </span>
-                            )}
-                            <span className="text-[11px] font-bold tracking-tight hidden lg:inline">
-                                {isSyncing ? (lang === 'id' ? 'Menyinkronkan...' : 'Syncing...') : 'Auto-Sync'}
-                            </span>
-                            <span className="font-mono text-[10px] px-1.5 py-0.2 rounded bg-black/20 dark:bg-black/60 border border-emerald-500/30 font-bold text-emerald-700 dark:text-emerald-300 shadow-inner">
-                                {formattedCountdown}
-                            </span>
-                        </Link>
-                    )}
-
                     {/* ID | EN Switcher on Desktop */}
                     <div className="flex items-center rounded-lg border border-[#1C1B0E]/20 bg-[#1C1B0E]/10 p-0.5 text-xs font-bold shrink-0 mr-1">
                         <button
@@ -806,7 +702,6 @@ export function CampusFixHeader({ mode = 'dashboard', query, onQueryChange, onRe
                 </div>
             </div>
 
-            <NewPeriodModal open={periodModalOpen} onOpenChange={setPeriodModalOpen} mode={mode} />
             <MandatoryRealEmailModal user={user} />
             {isAdmin && (
                 <BotControlModal 

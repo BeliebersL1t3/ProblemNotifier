@@ -18,22 +18,11 @@ class WhatsAppBotLauncher
     }
 
     /**
-     * Resolve strict allowlisted bot version ('v1' or 'v2').
+     * Resolve bot runtime version (Bot V2 is the official runtime).
      */
     public function resolveVersion(?string $version = null): string
     {
-        $defaultVersion = strtolower(trim((string) config('services.bot.default_version', 'v2')));
-        if (!in_array($defaultVersion, ['v1', 'v2'], true)) {
-            $defaultVersion = 'v2';
-        }
-
-        if ($version === null || trim($version) === '') {
-            return $defaultVersion;
-        }
-
-        $candidate = strtolower(trim($version));
-
-        return in_array($candidate, ['v1', 'v2'], true) ? $candidate : $defaultVersion;
+        return 'v2';
     }
 
     /**
@@ -137,8 +126,8 @@ class WhatsAppBotLauncher
         }
 
         $botDir = base_path('whatsapp-bot');
-        $script = ($resolvedVersion === 'v2') ? 'bot-v2.js' : 'bot.js';
-        $logFile = $botDir . DIRECTORY_SEPARATOR . ($resolvedVersion === 'v2' ? 'bot_v2_runtime.log' : 'bot_runtime.log');
+        $script = 'bot-v2.js';
+        $logFile = $botDir . DIRECTORY_SEPARATOR . 'bot_v2_runtime.log';
         $scriptPath = $botDir . DIRECTORY_SEPARATOR . $script;
 
         if (!is_dir($botDir) || !file_exists($scriptPath)) {
@@ -184,9 +173,7 @@ class WhatsAppBotLauncher
             'already_running' => false,
             'version'         => $resolvedVersion,
             'state'           => 'booting',
-            'message'         => ($resolvedVersion === 'v2')
-                ? __('telunas.bot_launch_v2_ok')
-                : __('telunas.bot_launch_v1_ok'),
+            'message'         => __('telunas.bot_launch_v2_ok'),
         ];
     }
 }

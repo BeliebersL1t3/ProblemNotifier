@@ -30,10 +30,7 @@ export function UserModal({ isOpen, onClose, user = null, onSaved }) {
     const [permissions, setPermissions] = useState({
         can_view_all_departments: false,
         can_manage_issues: true,
-        can_access_analytics: true,
-        can_access_calendar: true,
         can_export_reports: true,
-        can_manage_categories: false,
     });
 
     const [loading, setLoading] = useState(false);
@@ -56,10 +53,7 @@ export function UserModal({ isOpen, onClose, user = null, onSaved }) {
                 setPermissions({
                     can_view_all_departments: user.permissions?.can_view_all_departments ?? (user.role === 'admin'),
                     can_manage_issues:        user.permissions?.can_manage_issues ?? true,
-                    can_access_analytics:     user.permissions?.can_access_analytics ?? true,
-                    can_access_calendar:      user.permissions?.can_access_calendar ?? true,
                     can_export_reports:       user.permissions?.can_export_reports ?? true,
-                    can_manage_categories:    user.permissions?.can_manage_categories ?? false,
                 });
             } else {
                 setName('');
@@ -75,10 +69,7 @@ export function UserModal({ isOpen, onClose, user = null, onSaved }) {
                 setPermissions({
                     can_view_all_departments: false,
                     can_manage_issues: true,
-                    can_access_analytics: true,
-                    can_access_calendar: true,
                     can_export_reports: true,
-                    can_manage_categories: false,
                 });
             }
             setActiveTab('general');
@@ -92,19 +83,13 @@ export function UserModal({ isOpen, onClose, user = null, onSaved }) {
             setPermissions({
                 can_view_all_departments: true,
                 can_manage_issues: true,
-                can_access_analytics: true,
-                can_access_calendar: true,
                 can_export_reports: true,
-                can_manage_categories: true,
             });
         } else {
             setPermissions({
                 can_view_all_departments: false,
                 can_manage_issues: true,
-                can_access_analytics: true,
-                can_access_calendar: true,
                 can_export_reports: true,
-                can_manage_categories: false,
             });
         }
     };
@@ -122,7 +107,7 @@ export function UserModal({ isOpen, onClose, user = null, onSaved }) {
     };
 
     // Calculate restrictions count
-    const restrictedKeys = Object.entries(permissions).filter(([key, val]) => !val && key !== 'can_manage_categories');
+    const restrictedKeys = Object.entries(permissions).filter(([, val]) => !val);
     const hasRestrictions = role !== 'admin' && restrictedKeys.length > 0;
 
     const handleSubmit = async (e) => {
@@ -163,7 +148,7 @@ export function UserModal({ isOpen, onClose, user = null, onSaved }) {
             whatsapp_number: whatsappNumber,
             is_hod: role === 'admin' ? false : isHod,
             hod_title: (role !== 'admin' && isHod) ? hodTitle : null,
-            permissions,
+            permissions: isEdit ? { ...(user?.permissions || {}), ...permissions } : permissions,
             ...(password ? { password } : {}),
         };
 
@@ -549,16 +534,6 @@ export function UserModal({ isOpen, onClose, user = null, onSaved }) {
                                         key: 'can_manage_issues',
                                         label: 'Penanganan Isu (Klaim, Pending, Selesai)',
                                         desc: 'Mengizinkan staf untuk klaim (In Progress), pending, dan menyelesaikan isu (khusus tugas departemennya sendiri).',
-                                    },
-                                    {
-                                        key: 'can_access_analytics',
-                                        label: 'Akses Halaman Analytics',
-                                        desc: 'Menampilkan tab analitik visual grafik performa resolusi departemen.',
-                                    },
-                                    {
-                                        key: 'can_access_calendar',
-                                        label: 'Akses Kalender Operasional',
-                                        desc: 'Menampilkan tab kalender jadwal penugasan resort.',
                                     },
                                     {
                                         key: 'can_export_reports',

@@ -36,22 +36,16 @@ return [
     ],
 
     'google' => [
-        'credentials_path'        => env('GOOGLE_CREDENTIALS_PATH', 'app/google-credentials.json'),
-        'spreadsheet_id'          => env('GOOGLE_SPREADSHEET_ID'),
-        'lean_spreadsheet_id'     => env('GOOGLE_LEAN_SPREADSHEET_ID', '1hF2X6DrcWvOv4h77T_B4pmcNklO2-Zq2CzAiAR-UYIg'),
-        'ops_spreadsheet_id'      => env('GOOGLE_OPS_SPREADSHEET_ID'),
-        'tickets_spreadsheet_id'  => env('GOOGLE_TICKETS_SPREADSHEET_ID'),
-        'audit_spreadsheet_id'    => env('GOOGLE_AUDIT_SPREADSHEET_ID', '11FJllelJdd37tR9dUnCawgU1iycm6bQOLMgHM2t-z84'),
-        'calendar_id'             => env('GOOGLE_CALENDAR_ID'),
-        'client_id'               => env('GOOGLE_CLIENT_ID'),
-        'client_secret'           => env('GOOGLE_CLIENT_SECRET'),
-        'redirect_uri'            => env('GOOGLE_REDIRECT_URI') ?: 'http://localhost:8000/auth/google/callback',
+        'credentials_path'       => env('GOOGLE_CREDENTIALS_PATH', 'app/google-credentials.json'),
+        'lean_spreadsheet_id'    => env('GOOGLE_LEAN_SPREADSHEET_ID', '1hF2X6DrcWvOv4h77T_B4pmcNklO2-Zq2CzAiAR-UYIg'),
+        'tickets_spreadsheet_id' => env('GOOGLE_TICKETS_SPREADSHEET_ID'),
+        'audit_spreadsheet_id'   => env('GOOGLE_AUDIT_SPREADSHEET_ID', '11FJllelJdd37tR9dUnCawgU1iycm6bQOLMgHM2t-z84'),
     ],
 
     'bot' => [
         'api_key'         => env('BOT_API_KEY'),
         'port'            => (int) env('BOT_PORT', 3000),
-        'default_version' => env('BOT_DEFAULT_VERSION', 'v2'),
+        'default_version' => 'v2',
     ],
 
     'webpush' => [

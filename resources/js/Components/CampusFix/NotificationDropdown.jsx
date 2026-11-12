@@ -16,7 +16,7 @@ import {
 } from '@/services/soundService';
 import { useNotificationFeed } from '@/hooks/useNotificationFeed';
 
-export default function NotificationDropdown({ isMobile = false }) {
+export default function NotificationDropdown({ isMobile = false, themeVariant = 'default', isDark = false }) {
     const { t } = useLanguage();
     const [isOpen, setIsOpen] = useState(false);
     const [activeTab, setActiveTab] = useState('tickets'); // 'tickets' | 'issues'
@@ -91,7 +91,9 @@ export default function NotificationDropdown({ isMobile = false }) {
             const issueId = u.searchParams.get('issue') || u.searchParams.get('id') || u.searchParams.get('search');
             const sheet = u.searchParams.get('sheet');
             if (issueId) return { issueId, sheet };
-        } catch (e) {}
+        } catch (e) {
+            console.warn('[NotificationDropdown] Invalid notification URL:', url, e);
+        }
         return null;
     };
 
@@ -102,7 +104,7 @@ export default function NotificationDropdown({ isMobile = false }) {
 
         const issueDetails = extractIssueDetails(item.link);
         if (issueDetails) {
-            const isAlreadyOnDashboard = window.location.pathname === '/' || window.location.pathname === '/dashboard';
+            const isAlreadyOnDashboard = window.location.pathname === '/' || window.location.pathname === '/lapangan';
             if (isAlreadyOnDashboard) {
                 e.preventDefault();
                 window.dispatchEvent(new CustomEvent('campusfix-open-issue', {
@@ -122,7 +124,15 @@ export default function NotificationDropdown({ isMobile = false }) {
                 type="button"
                 onClick={() => setIsOpen(!isOpen)}
                 className={`relative transition-all focus:outline-none cursor-pointer ${
-                    isMobile
+                    themeVariant === 'lean'
+                        ? `h-7 w-7 sm:h-8 sm:w-8 flex items-center justify-center rounded-lg border shadow-xs ${
+                            isOpen
+                                ? 'bg-emerald-600 text-white border-emerald-500'
+                                : isDark
+                                ? 'bg-slate-800/90 hover:bg-slate-700 text-slate-200 border-slate-700'
+                                : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200 hover:border-slate-300'
+                        }`
+                        : isMobile
                         ? isOpen
                             ? 'p-1.5 rounded-lg bg-[#1C1B0E] text-[#E3D1AA] border border-[#1C1B0E] shadow-sm'
                             : 'p-1.5 rounded-lg border border-[#1C1B0E]/20 bg-[#1C1B0E]/10 text-[#1C1B0E] hover:bg-[#1C1B0E]/20'
@@ -133,10 +143,10 @@ export default function NotificationDropdown({ isMobile = false }) {
                 title="Pusat Notifikasi"
                 aria-label="Pusat Notifikasi"
             >
-                <Bell className={isMobile ? "w-4 h-4" : "w-5 h-5"} />
+                <Bell className={themeVariant === 'lean' ? 'w-3.5 h-3.5 sm:w-4 sm:h-4' : (isMobile ? 'w-4 h-4' : 'w-5 h-5')} />
                 {data.unread_count > 0 && (
                     <span className={`absolute flex items-center justify-center rounded-full bg-[#C9AA71] font-black text-[#1C1B0E] shadow-sm ring-1 ring-[#1C1B0E]/30 animate-pulse ${
-                        isMobile 
+                        isMobile || themeVariant === 'lean'
                             ? '-top-1 -right-1 h-3.5 w-3.5 text-[9px]' 
                             : 'top-1 right-1 h-4 w-4 text-[10px]'
                     }`}>

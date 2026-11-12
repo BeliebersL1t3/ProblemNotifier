@@ -8,7 +8,6 @@ import {
     Check, CheckSquare, Square, MinusSquare, FileSpreadsheet, ClipboardCheck
 } from 'lucide-react';
 
-import { IssuesProvider } from '@/context/IssuesContext';
 import { useLanguage } from '@/context/LanguageContext';
 import { CampusFixHeader } from '@/Components/CampusFix/CampusFixHeader';
 import { MobileBottomNav } from '@/Components/CampusFix/MobileBottomNav';
@@ -20,11 +19,7 @@ import { DEPARTMENTS, getDepartmentTheme } from '@/constants/departments';
 import SubdivisionTag from '@/Components/CampusFix/SubdivisionTag';
 
 export default function UsersPage({ initialUsers = [], initialStats = {} }) {
-    return (
-        <IssuesProvider>
-            <UsersInner initialUsers={initialUsers} initialStats={initialStats} />
-        </IssuesProvider>
-    );
+    return <UsersInner initialUsers={initialUsers} initialStats={initialStats} />;
 }
 
 function UsersInner({ initialUsers, initialStats }) {
@@ -1313,7 +1308,7 @@ function UsersInner({ initialUsers, initialStats }) {
             </div>
 
             {/* Mobile Bottom Navigation */}
-            <MobileBottomNav />
+            <MobileBottomNav currentTab="users" />
 
             {/* User Modal (Create & Edit) */}
             <UserModal

@@ -179,23 +179,31 @@ class WebPushService
         }
         $deptList = array_unique(array_filter($deptList));
 
-        $query = User::where(function ($q) use ($deptList) {
-            if (in_array('ALL', $deptList, true) || empty($deptList)) {
-                $q->whereNotNull('id');
-            } else {
-                $q->whereIn('department', $deptList)
-                  ->orWhere('role', 'admin')
-                  ->orWhere('can_view_all_departments', 1);
-            }
-        });
+        $isAllDepts = in_array('ALL', $deptList, true) || empty($deptList);
+        $deptSet = array_map('mb_strtolower', $deptList);
 
-        // By default in local/testing environment, allow the actor to also receive push popups
         $notifyActor = $forceNotifyActor || env('WEBPUSH_NOTIFY_ACTOR', true);
-        if ($exceptUserId && !$notifyActor) {
-            $query->where('id', '!=', $exceptUserId);
-        }
 
-        $userIds = $query->pluck('id')->unique()->toArray();
+        $userIds = User::select(['id', 'role', 'department', 'permissions', 'is_active', 'approval_status'])
+            ->get()
+            ->filter(function (User $u) use ($isAllDepts, $deptSet, $exceptUserId, $notifyActor) {
+                if (!($u->is_active ?? true) || ($u->approval_status ?? 'approved') !== 'approved') {
+                    return false;
+                }
+                if ($exceptUserId && !$notifyActor && (int) $u->id === (int) $exceptUserId) {
+                    return false;
+                }
+                if ($isAllDepts || $u->isAdmin() || $u->hasPermission('can_view_all_departments')) {
+                    return true;
+                }
+                $uDept = mb_strtolower(trim((string) ($u->department ?? '')));
+                return $uDept !== '' && in_array($uDept, $deptSet, true);
+            })
+            ->pluck('id')
+            ->unique()
+            ->values()
+            ->toArray();
+
         return self::notifyUsers($userIds, $payload);
     }
 
@@ -222,7 +230,7 @@ class WebPushService
         $body = "Dept: {$dept} | Lokasi: {$location}" . (!empty($issue['reporter']) ? " | Pelapor: {$issue['reporter']}" : "");
 
         $issueId = $issue['id'] ?? '';
-        $url = $issueId ? "/dashboard?issue=" . urlencode($issueId) : "/dashboard";
+        $url = $issueId ? "/?issue=" . urlencode($issueId) : "/";
 
         $payload = [
             'title' => $title,
@@ -250,7 +258,7 @@ class WebPushService
         $issueId = $issue['id'] ?? '';
         $title = "👷 Isu Sedang Dikerjakan (#{$issueId})";
         $body = "{$takerName} mulai menangani: " . ($issue['title'] ?? 'Isu') . " di " . ($issue['location'] ?? 'lokasi');
-        $url = "/dashboard?issue=" . urlencode($issueId);
+        $url = "/?issue=" . urlencode($issueId);
 
         $payload = [
             'title' => $title,
@@ -276,7 +284,7 @@ class WebPushService
         $title = "⏸️ Isu Tertunda (Pending) (#{$issueId})";
         $reasonSnippet = !empty($reason) ? " Alasan: {$reason}" : '';
         $body = "Ditandai pending oleh {$pendingByName}.{$reasonSnippet}";
-        $url = "/dashboard?issue=" . urlencode($issueId);
+        $url = "/?issue=" . urlencode($issueId);
 
         $payload = [
             'title' => $title,
@@ -301,7 +309,7 @@ class WebPushService
         $issueId = $issue['id'] ?? '';
         $title = "✅ Isu Selesai (#{$issueId})";
         $body = "Diselesaikan oleh {$solverName}: " . ($issue['title'] ?? 'Isu');
-        $url = "/dashboard?issue=" . urlencode($issueId);
+        $url = "/?issue=" . urlencode($issueId);
 
         $payload = [
             'title' => $title,

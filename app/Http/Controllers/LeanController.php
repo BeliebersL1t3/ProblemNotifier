@@ -359,11 +359,15 @@ class LeanController extends Controller
         });
 
         $currentUser = $authUser ? [
-            'id'         => $authUser->id,
-            'name'       => $authUser->name,
-            'staff_name' => $authUser->staff_name ?: $authUser->name,
-            'department' => $authUser->department,
-            'is_admin'   => $authUser->role === 'admin',
+            'id'          => $authUser->id,
+            'name'        => $authUser->name,
+            'staff_name'  => $authUser->staff_name ?: $authUser->name,
+            'department'  => $authUser->department,
+            'subdivision' => $authUser->subdivision,
+            'is_admin'    => $authUser->role === 'admin',
+            'is_hod'      => (bool) $authUser->is_hod,
+            'hod_title'   => $authUser->hod_title,
+            'avatar_url'  => $authUser->avatar_url,
         ] : null;
 
         $spreadsheetId = config('services.google.lean_spreadsheet_id') ?: env('GOOGLE_LEAN_SPREADSHEET_ID', '1hF2X6DrcWvOv4h77T_B4pmcNklO2-Zq2CzAiAR-UYIg');
@@ -400,7 +404,7 @@ class LeanController extends Controller
     }
 
     /**
-     * Store a newly created lean issue in the sandbox.
+     * Store a newly created lean issue in the official tracker.
      */
     public function store(Request $request)
     {
@@ -1181,28 +1185,6 @@ class LeanController extends Controller
     {
         $result = app(\App\Services\LeanSheetDirectService::class)->reconcilePendingIssues();
         return response()->json($result);
-    }
-
-    /**
-     * Reset / purge all sandbox testing data.
-     */
-    public function reset(Request $request)
-    {
-        $user = $request->user();
-        if (!$user || !$user->isAdmin()) {
-            abort(403, __('telunas.lean_reset_admin_only'));
-        }
-
-        LeanIssue::truncate();
-        \App\Services\LeanSheetDirectService::markPendingClear();
-
-        try {
-            app(\App\Services\LeanSheetDirectService::class)->clearAllMonthlyData();
-        } catch (\Throwable $e) {
-            Log::error('LeanSheetDirectService clearAllMonthlyData failed on reset: ' . $e->getMessage());
-        }
-
-        return redirect()->back()->with('success', __('telunas.lean_reset_success'));
     }
 
     /**

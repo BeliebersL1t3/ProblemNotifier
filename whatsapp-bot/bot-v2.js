@@ -829,7 +829,7 @@ async function startSock() {
                     await reply(
                         `ℹ️ *TELUNAS TRACKER - GRUP INFORMASI (INFO-ONLY)* ℹ️\n\n` +
                         `Grup WhatsApp ini bersifat *Informasi & Pemberitahuan*.\n` +
-                        `Seluruh perubahan status (*Progress*, *Pending*, *Selesai*, dan *Alihkan Dept*) dilakukan melalui *Web Dashboard Telunas (/lapangan)*.\n\n` +
+                        `Seluruh perubahan status (*Progress*, *Pending*, *Selesai*, dan *Alihkan Dept*) dilakukan melalui *Web Dashboard Telunas*.\n\n` +
                         `Perintah baca yang masih tersedia:\n` +
                         `👉 *list menunggu / progress / pending / selesai* :\n` +
                         `   Mengirim daftar isu departemen ke Chat Pribadi (DM) Anda.\n` +
@@ -938,8 +938,8 @@ async function startSock() {
                     await reply(
                         `ℹ️ *WhatsApp Bot Bersifat Informasi (Info-Only)*\n` +
                         `_WhatsApp Group Is Notification-Only_\n\n` +
-                        `Pembaruan status (*Mulai Kerja / Progress / Pending / Selesai*) serta pengalihan departemen dilakukan melalui *Web Dashboard Telunas (/lapangan)* agar tim pelaksana, komentar progress, dan foto bukti tercatat rapi.\n` +
-                        `_Please update ticket status directly via the Web Dashboard (/lapangan)._`
+                        `Pembaruan status (*Mulai Kerja / Progress / Pending / Selesai*) serta pengalihan departemen dilakukan melalui *Web Dashboard Telunas* agar tim pelaksana, komentar progress, dan foto bukti tercatat rapi.\n` +
+                        `_Please update ticket status directly via the Web Dashboard._`
                     );
                     continue;
                 }
@@ -1296,7 +1296,7 @@ async function startSock() {
                         const deptKey = selectedDept.key;
                         const deptGroupJid = botConfig.departmentGroups[deptKey];
                         if (deptGroupJid && deptGroupJid !== targetLocGid) {
-                            const actionMsg = broadcastText + `ℹ️ _Pemberitahuan otomatis untuk departemen penangan (tindak lanjut dilakukan via Web Dashboard /lapangan)._`;
+                            const actionMsg = broadcastText + `ℹ️ _Pemberitahuan otomatis untuk departemen penangan (tindak lanjut dilakukan via Web Dashboard)._`;
                             try {
                                 if (state.data.photoBuffer) {
                                     await sock.sendMessage(deptGroupJid, { image: state.data.photoBuffer, caption: actionMsg });

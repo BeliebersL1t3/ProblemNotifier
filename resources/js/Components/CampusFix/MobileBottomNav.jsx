@@ -1,13 +1,11 @@
 import React from 'react';
-import { LayoutDashboard, Plus, Calendar, BarChart3, User, Lock } from 'lucide-react';
+import { LayoutDashboard, Plus, Ticket, BarChart3, User } from 'lucide-react';
 import { useSlashTransition } from '@/Components/CampusFix/SlashTransition';
 import { useLanguage } from '@/context/LanguageContext';
-import { useAuth } from '@/hooks/useAuth';
 
 export function MobileBottomNav({ currentTab = 'dashboard', onReport }) {
     const { t, lang } = useLanguage();
     const { navigateWithSlash } = useSlashTransition();
-    const { canAccessAnalytics, canAccessCalendar } = useAuth();
 
     const handleNav = (e, href, title) => {
         e.preventDefault();
@@ -19,7 +17,7 @@ export function MobileBottomNav({ currentTab = 'dashboard', onReport }) {
             e.preventDefault();
             onReport();
         } else {
-            handleNav(e, '/dashboard?report=1', t('report_issue') || 'Report Issue');
+            handleNav(e, '/?report=1', t('report_issue') || 'Report Issue');
         }
     };
 
@@ -27,15 +25,14 @@ export function MobileBottomNav({ currentTab = 'dashboard', onReport }) {
         {
             id: 'dashboard',
             label: t('dashboard') || 'Dashboard',
-            href: '/dashboard',
+            href: '/',
             icon: LayoutDashboard,
         },
         {
-            id: 'calendar',
-            label: lang === 'id' ? 'Kalender' : 'Calendar',
-            href: '/calendar',
-            icon: Calendar,
-            isLocked: !canAccessCalendar,
+            id: 'tickets',
+            label: t('tickets') || 'Tiket',
+            href: '/tickets',
+            icon: Ticket,
         },
         // Center item is the elevated + action button
         {
@@ -48,9 +45,8 @@ export function MobileBottomNav({ currentTab = 'dashboard', onReport }) {
         {
             id: 'analytics',
             label: t('analytics') || 'Analitik',
-            href: '/analytics',
+            href: '/?view=analytics',
             icon: BarChart3,
-            isLocked: !canAccessAnalytics,
         },
         {
             id: 'profile',
@@ -91,28 +87,6 @@ export function MobileBottomNav({ currentTab = 'dashboard', onReport }) {
 
                     const Icon = item.icon;
                     const isActive = currentTab === item.id;
-
-                    if (item.isLocked) {
-                        return (
-                            <button
-                                key={item.id}
-                                type="button"
-                                onClick={() => alert(lang === 'id' ? `Akses fitur ${item.label} dibatasi oleh Administrator.` : `${item.label} access restricted by Administrator.`)}
-                                className="flex flex-col items-center justify-end w-full opacity-40 select-none cursor-not-allowed group"
-                                title={`${item.label} (${lang === 'id' ? 'Dibatasi' : 'Restricted'})`}
-                            >
-                                <div className="relative flex items-center justify-center h-9 w-full">
-                                    <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-[#1C1B0E]/60 border border-[#3B3929]/50 relative">
-                                        <Icon className="w-4 h-4 text-[#A19F8D]" />
-                                        <Lock className="w-2.5 h-2.5 text-amber-400 absolute -bottom-0.5 -right-0.5" />
-                                    </div>
-                                </div>
-                                <span className="h-4 flex items-center justify-center text-[10px] mt-1 tracking-tight text-center truncate max-w-full px-0.5 font-medium text-[#A19F8D]">
-                                    {item.label}
-                                </span>
-                            </button>
-                        );
-                    }
 
                     return (
                         <a

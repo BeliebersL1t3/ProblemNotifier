@@ -84,8 +84,8 @@ self.addEventListener('fetch', (event) => {
                     if (cachedResponse) {
                         return cachedResponse;
                     }
-                    // Fallback to /lapangan or /dashboard cache if specific URL not cached
-                    const fallback = await cache.match('/lapangan') || await cache.match('/dashboard');
+                    // Fallback to root or /lapangan cache if specific URL not cached
+                    const fallback = await cache.match('/') || await cache.match('/lapangan');
                     if (fallback) {
                         return fallback;
                     }
@@ -185,7 +185,7 @@ self.addEventListener('push', (event) => {
         vibrate: payload.vibrate || [200, 100, 200],
         renotify: true,
         requireInteraction: !!payload.requireInteraction,
-        data: payload.data || { url: '/lapangan' },
+        data: payload.data || { url: '/' },
         timestamp: payload.timestamp || Date.now(),
     };
 
@@ -194,7 +194,7 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
     event.notification.close();
-    const targetUrl = (event.notification.data && event.notification.data.url) ? event.notification.data.url : '/lapangan';
+    const targetUrl = (event.notification.data && event.notification.data.url) ? event.notification.data.url : '/';
 
     event.waitUntil(
         clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {

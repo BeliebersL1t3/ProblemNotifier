@@ -22,7 +22,6 @@ import {
     playNotificationChime
 } from '@/services/soundService';
 
-import { IssuesProvider } from '@/context/IssuesContext';
 import { useLanguage } from '@/context/LanguageContext';
 import { CampusFixHeader } from '@/Components/CampusFix/CampusFixHeader';
 import { MobileBottomNav } from '@/Components/CampusFix/MobileBottomNav';
@@ -35,18 +34,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/Components/U
 import { formatToLocalPhone } from '@/utils/phone';
 
 export default function ProfilePage(props) {
-    return (
-        <IssuesProvider>
-            <ProfileInner {...props} />
-        </IssuesProvider>
-    );
+    return <ProfileInner {...props} />;
 }
 
 function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket, notifyWhatsAppTickets, status }) {
     const { t, lang } = useLanguage();
     const { 
         user, isAdmin, isHOD, isDeptUser, department, subdivision, staffName, whatsappNumber, avatarUrl, activeStaffRoster,
-        canViewAllDepartments, canManageIssues, canDeleteIssues, canExportReports, canAccessCalendar, canAccessAnalytics
+        canViewAllDepartments, canManageIssues, canDeleteIssues, canExportReports
     } = useAuth();
     const canDirectUpdateWa = isAdmin || isHOD;
     const currentDeptTheme = department ? getDepartmentTheme(department) : { bg: '#C9AA71', text: '#1C1B0E' };
@@ -753,24 +748,6 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
                                         <div className="p-2 rounded-lg bg-[#1C1B0E] border border-[#3B3929] flex items-center justify-between text-[11px]">
                                             <span className="text-[#FAFAFA] font-medium flex items-center gap-1.5">
                                                 <Check className="w-3.5 h-3.5 text-emerald-400" /> Ekspor Laporan (PDF & Excel)
-                                            </span>
-                                            <span className="text-emerald-400 font-bold text-[10px] bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">Aktif</span>
-                                        </div>
-                                    )}
-
-                                    {canAccessCalendar && !isAdmin && (
-                                        <div className="p-2 rounded-lg bg-[#1C1B0E] border border-[#3B3929] flex items-center justify-between text-[11px]">
-                                            <span className="text-[#FAFAFA] font-medium flex items-center gap-1.5">
-                                                <Check className="w-3.5 h-3.5 text-emerald-400" /> Akses Kalender Operasional
-                                            </span>
-                                            <span className="text-emerald-400 font-bold text-[10px] bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">Aktif</span>
-                                        </div>
-                                    )}
-
-                                    {canAccessAnalytics && !isAdmin && (
-                                        <div className="p-2 rounded-lg bg-[#1C1B0E] border border-[#3B3929] flex items-center justify-between text-[11px]">
-                                            <span className="text-[#FAFAFA] font-medium flex items-center gap-1.5">
-                                                <Check className="w-3.5 h-3.5 text-emerald-400" /> Akses Halaman Grafik Analitik
                                             </span>
                                             <span className="text-emerald-400 font-bold text-[10px] bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">Aktif</span>
                                         </div>
@@ -1865,7 +1842,7 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
                                 {lang === 'id' ? 'Alur Verifikasi & Sinkronisasi Data:' : 'Verification & Synchronization:'}
                             </p>
                             <p>1. Permohonan nama baru akan diverifikasi oleh <strong>{isHOD ? 'Admin Resort' : `HOD Departemen ${department || ''} & Admin Resort`}</strong>.</p>
-                            <p>2. Begitu disetujui, nama pada <strong>Excel / Google Sheets</strong> (termasuk riwayat pekerjaan & tiket yang pernah Anda tangani) otomatis diperbarui.</p>
+                            <p>2. Begitu disetujui, nama akun dan daftar staf untuk klaim <strong>WhatsApp Bot</strong> otomatis diperbarui.</p>
                         </div>
 
                         {/* Footer Buttons */}

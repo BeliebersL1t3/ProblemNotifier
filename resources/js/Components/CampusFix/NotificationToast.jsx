@@ -11,7 +11,9 @@ export default function NotificationToast() {
             try {
                 const isPopupEnabled = localStorage.getItem('campusfix_browser_popup_enabled') !== 'false';
                 if (!isPopupEnabled) return;
-            } catch (err) {}
+            } catch (err) {
+                console.warn('[NotificationToast] Unable to read localStorage popup preference:', err);
+            }
 
             const { notification, isEmergency } = e.detail || {};
             if (!notification) return;
@@ -51,10 +53,12 @@ export default function NotificationToast() {
                 const u = new URL(item.link, window.location.origin);
                 issueId = u.searchParams.get('issue') || u.searchParams.get('id') || u.searchParams.get('search');
                 sheet = u.searchParams.get('sheet');
-            } catch (e) {}
+            } catch (e) {
+                console.warn('[NotificationToast] Invalid toast notification URL:', item.link, e);
+            }
         }
 
-        const isAlreadyOnDashboard = window.location.pathname === '/' || window.location.pathname === '/dashboard';
+        const isAlreadyOnDashboard = window.location.pathname === '/' || window.location.pathname === '/lapangan';
         if (issueId && isAlreadyOnDashboard) {
             window.dispatchEvent(new CustomEvent('campusfix-open-issue', {
                 detail: { issueId, sheet }

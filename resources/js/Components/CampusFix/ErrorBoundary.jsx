@@ -46,7 +46,7 @@ export class ErrorBoundary extends React.Component {
                             </button>
                             <button
                                 type="button"
-                                onClick={() => { window.location.href = '/dashboard'; }}
+                                onClick={() => { window.location.href = '/'; }}
                                 className="flex-1 py-2.5 rounded-xl text-xs font-extrabold bg-[#C9AA71] text-[#1C1B0E] hover:scale-[1.02] transition-all flex items-center justify-center gap-2 shadow-lg cursor-pointer"
                             >
                                 Ke Dashboard

@@ -54,7 +54,7 @@ class DashboardNotification extends Model
             }
 
             // Targeted to Department users
-            if ($user->can_view_all_departments || $user->isAdmin()) {
+            if ($user->hasPermission('can_view_all_departments') || $user->isAdmin()) {
                 $q->orWhere('role_target', 'department_user');
             } elseif ($user->department) {
                 $q->orWhere(function ($deptQ) use ($user) {

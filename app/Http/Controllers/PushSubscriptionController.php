@@ -114,7 +114,7 @@ class PushSubscriptionController extends Controller
             'badge' => '/logo.png',
             'tag' => 'test-notification-' . time(),
             'data' => [
-                'url' => '/dashboard',
+                'url' => '/',
                 'isTest' => true,
             ],
         ];

@@ -2,23 +2,19 @@
 
 use App\Http\Controllers\ApprovalTicketController;
 use App\Http\Controllers\Auth\EmailUpdateController;
-use App\Http\Controllers\CategoryController;
-use App\Http\Controllers\ExportEmailController;
-use App\Http\Controllers\GoogleAuthController;
-use App\Http\Controllers\IssueController;
+use App\Http\Controllers\BotControlController;
+use App\Http\Controllers\LeanController;
 use App\Http\Controllers\NotificationController;
-use App\Http\Controllers\OperationsController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PushSubscriptionController;
-use App\Http\Controllers\ReportScheduleController;
+use App\Http\Controllers\TelunasWifiBypassController;
 use App\Http\Controllers\UserController;
-use Illuminate\Foundation\Application;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use Inertia\Inertia;
 
-Route::get('/', function () {
-    return redirect()->route('lean.index');
-})->middleware('auth');
+Route::get('/', [LeanController::class, 'index'])
+    ->middleware('auth')
+    ->name('dashboard');
 
 Route::get('/csrf-token', function () {
     return response()->json([
@@ -26,29 +22,11 @@ Route::get('/csrf-token', function () {
     ]);
 })->name('csrf.token');
 
-Route::get('/dashboard', function () {
-    return Inertia::render('Dashboard');
-})->middleware(['auth', 'verified'])->name('dashboard');
-
-Route::get('/analytics', function () {
-    $user = auth()->user();
-    if ($user && !$user->hasPermission('can_access_analytics')) {
-        return redirect()->route('dashboard')->with('error', 'Akses ke halaman Analytics dibatasi oleh Administrator.');
-    }
-    return Inertia::render('Analytics');
-})->middleware(['auth', 'verified'])->name('analytics');
-
-Route::get('/operations', function () {
-    return redirect()->route('calendar');
-})->middleware(['auth', 'verified'])->name('operations');
-
-Route::get('/calendar', function () {
-    $user = auth()->user();
-    if ($user && !$user->hasPermission('can_access_calendar')) {
-        return redirect()->route('dashboard')->with('error', 'Akses ke Kalender Operasional dibatasi oleh Administrator.');
-    }
-    return Inertia::render('Calendar');
-})->middleware(['auth', 'verified'])->name('calendar');
+// Legacy /dashboard deep links (Web Push / old bookmarks) redirect seamlessly to official '/' tracker
+Route::get('/dashboard', function (Request $request) {
+    $qs = $request->getQueryString();
+    return redirect($qs ? '/?' . $qs : '/');
+})->middleware('auth');
 
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
@@ -78,40 +56,21 @@ Route::middleware('auth')->group(function () {
     Route::post('/notifications/{id}/read', [NotificationController::class, 'markAsRead'])->name('notifications.read');
     Route::post('/notifications/read-all', [NotificationController::class, 'markAllAsRead'])->name('notifications.readAll');
 
-    // PDF Export Email Dispatch
-    Route::get('/api/export/recipients', [ExportEmailController::class, 'getRecipients'])->name('export.recipients');
-    Route::post('/api/export/email-pdf', [ExportEmailController::class, 'sendPdfReport'])->middleware('throttle:10,1')->name('export.emailPdf');
-    Route::get('/api/export/logs', [ExportEmailController::class, 'getExportLogs'])->middleware('throttle:30,1')->name('export.logs');
-
-    // Automated Monthly Report Scheduling (Admin & HOD)
-    Route::get('/api/report-schedule', [ReportScheduleController::class, 'getSettings'])->name('report.schedule.get');
-    Route::post('/api/report-schedule', [ReportScheduleController::class, 'updateSettings'])->name('report.schedule.update');
-    Route::post('/api/report-schedule/test', [ReportScheduleController::class, 'testDispatch'])->middleware('throttle:5,1')->name('report.schedule.test');
-
-    // Mandatory Real Email Transition
-    Route::post('/api/user/update-real-email', [EmailUpdateController::class, 'updateRealEmail'])->name('user.updateRealEmail');
-
-    // Google OAuth (Gmail API) Connection
-    Route::get('/auth/google/redirect', [GoogleAuthController::class, 'redirect'])->name('google.redirect');
-    Route::get('/auth/google/callback', [GoogleAuthController::class, 'callback'])->name('google.callback');
-    Route::post('/auth/google/disconnect', [GoogleAuthController::class, 'disconnect'])->name('google.disconnect');
-    Route::get('/api/google/status', [GoogleAuthController::class, 'status'])->name('google.status');
-    Route::get('/bot/status', [IssueController::class, 'getBotStatus'])->name('bot.status');
-
-    // WhatsApp Bot Lifecycle & Number Management (Admin Only)
-    Route::post('/api/bot/start', [IssueController::class, 'startBot'])->middleware('throttle:60,1');
-    Route::post('/api/bot/stop', [IssueController::class, 'stopBot'])->middleware('throttle:60,1');
-    Route::post('/api/bot/restart', [IssueController::class, 'restartBot'])->middleware('throttle:60,1');
-    Route::get('/api/bot/logs', [IssueController::class, 'getBotLogs'])->middleware('throttle:120,1');
-    Route::get('/api/bot/auth-state', [IssueController::class, 'getBotAuthState'])->middleware('throttle:120,1');
-    Route::get('/api/bot/auth-stats', [IssueController::class, 'getBotAuthStats'])->middleware('throttle:120,1');
-    Route::post('/api/bot/cleanup', [IssueController::class, 'cleanupBotAuth'])->middleware('throttle:30,1');
-    Route::post('/api/bot/pair-phone', [IssueController::class, 'pairBotPhone'])->middleware('throttle:30,1');
-    Route::post('/api/bot/unlink', [IssueController::class, 'unlinkBot'])->middleware('throttle:30,1');
-    Route::get('/api/bot/public-contact', [IssueController::class, 'getPublicBotContact'])->middleware('throttle:120,1');
+    // Bot Status & Lifecycle Control (Admin Only for lifecycle actions)
+    Route::get('/bot/status', [BotControlController::class, 'getBotStatus'])->name('bot.status');
+    Route::post('/api/bot/start', [BotControlController::class, 'startBot'])->middleware('throttle:60,1');
+    Route::post('/api/bot/stop', [BotControlController::class, 'stopBot'])->middleware('throttle:60,1');
+    Route::post('/api/bot/restart', [BotControlController::class, 'restartBot'])->middleware('throttle:60,1');
+    Route::get('/api/bot/logs', [BotControlController::class, 'getBotLogs'])->middleware('throttle:120,1');
+    Route::get('/api/bot/auth-state', [BotControlController::class, 'getBotAuthState'])->middleware('throttle:120,1');
+    Route::get('/api/bot/auth-stats', [BotControlController::class, 'getBotAuthStats'])->middleware('throttle:120,1');
+    Route::post('/api/bot/cleanup', [BotControlController::class, 'cleanupBotAuth'])->middleware('throttle:30,1');
+    Route::post('/api/bot/pair-phone', [BotControlController::class, 'pairBotPhone'])->middleware('throttle:30,1');
+    Route::post('/api/bot/unlink', [BotControlController::class, 'unlinkBot'])->middleware('throttle:30,1');
+    Route::get('/api/bot/public-contact', [BotControlController::class, 'getPublicBotContact'])->middleware('throttle:120,1');
 });
 
-// CampusFix API Endpoints
+// Telunas Issue Tracker API Endpoints
 Route::prefix('api')->group(function () {
     // Strictly Bot-Only Endpoints
     Route::middleware('bot.key')->group(function () {
@@ -119,60 +78,12 @@ Route::prefix('api')->group(function () {
         Route::post('/reset-whatsapp-password', [ProfileController::class, 'resetPasswordViaWhatsApp'])->middleware('throttle:15,1');
     });
 
-    // Endpoints Accessible by Logged-in Web Users OR Authenticated WhatsApp Bot
+    // Bot Status endpoint accessible by Logged-in Web Users OR Authenticated WhatsApp Bot
     Route::middleware('bot.or.auth')->group(function () {
-        Route::get('/issues', [IssueController::class, 'index']);
-        Route::get('/issues/lookup/{id?}', [IssueController::class, 'lookup']);
-        Route::post('/issues', [IssueController::class, 'store'])->middleware('throttle:45,1');
-        Route::match(['post', 'patch'], '/issues/{rowIndex}/update', [IssueController::class, 'update']);
-        Route::delete('/issues/{rowIndex}', [IssueController::class, 'destroy']);
-        Route::post('/issues/{rowIndex}/claim', [IssueController::class, 'claim']);
-        Route::post('/issues/{rowIndex}/pending', [IssueController::class, 'pending']);
-        Route::post('/issues/{rowIndex}/resolve', [IssueController::class, 'resolve']);
-        Route::post('/issues/{rowIndex}/restore', [IssueController::class, 'restore']);
-        Route::post('/issues/{rowIndex}/transfer', [IssueController::class, 'transfer']);
-        Route::post('/issues/{rowIndex}/category', [IssueController::class, 'updateCategory']);
-        Route::post('/issues/{rowIndex}/notify-empty-department', [IssueController::class, 'notifyEmptyDepartment']);
-        Route::post('/issues/{rowIndex}/mark-duplicate', [IssueController::class, 'markDuplicate']);
-
-        // Issue Discussion & Multi-Department Progressive Coordination
-        Route::get('/issues/{rowIndex}/discussion', [\App\Http\Controllers\IssueDiscussionController::class, 'getDiscussion']);
-        Route::post('/issues/{rowIndex}/discussion', [\App\Http\Controllers\IssueDiscussionController::class, 'postMessage'])->middleware('throttle:60,1');
-        Route::post('/issues/{rowIndex}/dept-ready', [\App\Http\Controllers\IssueDiscussionController::class, 'deptReady']);
-        Route::post('/issues/{rowIndex}/dept-solve', [\App\Http\Controllers\IssueDiscussionController::class, 'deptSolve']);
-        Route::post('/issues/{rowIndex}/dept-pending', [\App\Http\Controllers\IssueDiscussionController::class, 'deptPending']);
-
-        Route::get('/bot/status', [IssueController::class, 'getBotStatus']);
-
-        // Sheet (period/year) management
-        Route::get('/sheets', [IssueController::class, 'listSheets']);
-        Route::post('/sheets', [IssueController::class, 'createSheet']);
-        Route::delete('/sheets', [IssueController::class, 'deleteSheet']);
-
-        // Categories management
-        Route::get('/categories', [CategoryController::class, 'index']);
-        Route::post('/categories', [CategoryController::class, 'store']);
-        Route::post('/categories/delete-and-reassign', [CategoryController::class, 'destroyAndReassign']);
-
-        // Operations — Department Work Board
-        Route::get('/operations', [OperationsController::class, 'index']);
-        Route::post('/operations', [OperationsController::class, 'store']);
-        Route::get('/operations/calendar-access', [OperationsController::class, 'calendarAccess']);
-        Route::post('/operations/register-calendar-access', [OperationsController::class, 'registerCalendarAccess']);
-        Route::post('/operations/sync-calendar', [OperationsController::class, 'syncCalendar']);
-        Route::post('/operations/pull-calendar', [OperationsController::class, 'pullCalendar']);
-        Route::post('/operations/restore-task', [OperationsController::class, 'restoreTask']);
-        Route::get('/operations/calendar-logs', [OperationsController::class, 'calendarLogs']);
-        Route::get('/operations/calendar-sync-status', [OperationsController::class, 'getCalendarSyncStatus']);
-        Route::post('/operations/format-sheets', [OperationsController::class, 'formatSheets']);
-        Route::match(['patch', 'post'], '/operations/{rowIndex}', [OperationsController::class, 'update']);
-        Route::delete('/operations/{rowIndex}', [OperationsController::class, 'destroy']);
-
-        // Emergency Global Settings (SLA & Calculation Interval)
-        Route::get('/settings/emergency', [\App\Http\Controllers\EmergencySettingController::class, 'getSettings']);
-        Route::post('/settings/emergency', [\App\Http\Controllers\EmergencySettingController::class, 'updateSettings']);
+        Route::get('/bot/status', [BotControlController::class, 'getBotStatus']);
     });
-    // Admin User Management & Audit Logs
+
+    // Admin User Management, Audit Logs & Web Push Notifications
     Route::middleware('auth')->group(function () {
         Route::get('/users', [UserController::class, 'index']);
         Route::post('/users', [UserController::class, 'store']);
@@ -196,33 +107,32 @@ Route::prefix('api')->group(function () {
 });
 
 // Telunas Wi-Fi Restriction & Leader Bypass Routes
-Route::get('/telunas-wifi-required', [\App\Http\Controllers\TelunasWifiBypassController::class, 'show'])->name('telunas.wifi.required');
-Route::post('/telunas-wifi-bypass', [\App\Http\Controllers\TelunasWifiBypassController::class, 'verify'])->middleware('throttle:5,1')->name('telunas.wifi.bypass');
+Route::get('/telunas-wifi-required', [TelunasWifiBypassController::class, 'show'])->name('telunas.wifi.required');
+Route::post('/telunas-wifi-bypass', [TelunasWifiBypassController::class, 'verify'])->middleware('throttle:5,1')->name('telunas.wifi.bypass');
 
-// Lean Mode (Sandbox Lapangan) Routes — Mandatory Authentication
+// Official Issue Tracker Routes — Mandatory Authentication
 Route::middleware('auth')->group(function () {
-    Route::get('/lapangan', [\App\Http\Controllers\LeanController::class, 'index'])->name('lean.index');
-    Route::post('/lapangan/issues', [\App\Http\Controllers\LeanController::class, 'store'])->name('lean.store');
-    Route::post('/lapangan/issues/{issue}/acc', [\App\Http\Controllers\LeanController::class, 'acc'])->name('lean.acc');
-    Route::post('/lapangan/issues/{issue}/claim', [\App\Http\Controllers\LeanController::class, 'claim'])->name('lean.claim');
-    Route::post('/lapangan/issues/{issue}/progress', [\App\Http\Controllers\LeanController::class, 'updateProgress'])->name('lean.progress');
-    Route::post('/lapangan/issues/{issue}/pending', [\App\Http\Controllers\LeanController::class, 'pending'])->name('lean.pending');
-    Route::post('/lapangan/issues/{issue}/resolve', [\App\Http\Controllers\LeanController::class, 'resolve'])->name('lean.resolve');
-    Route::post('/lapangan/issues/{issue}/transfer', [\App\Http\Controllers\LeanController::class, 'transfer'])->name('lean.transfer');
-    Route::post('/lapangan/reset', [\App\Http\Controllers\LeanController::class, 'reset'])->name('lean.reset');
-    Route::delete('/lapangan/issues/{issue}', [\App\Http\Controllers\LeanController::class, 'destroy'])->name('lean.destroy');
-    Route::post('/lapangan/sync-sheets', [\App\Http\Controllers\LeanController::class, 'syncGoogleSheets'])->name('lean.sync.sheets');
-    Route::post('/lapangan/auto-sync', [\App\Http\Controllers\LeanController::class, 'autoSyncSheets'])->name('lean.auto.sync');
+    Route::get('/lapangan', [LeanController::class, 'index'])->name('lean.index');
+    Route::post('/lapangan/issues', [LeanController::class, 'store'])->name('lean.store');
+    Route::post('/lapangan/issues/{issue}/acc', [LeanController::class, 'acc'])->name('lean.acc');
+    Route::post('/lapangan/issues/{issue}/claim', [LeanController::class, 'claim'])->name('lean.claim');
+    Route::post('/lapangan/issues/{issue}/progress', [LeanController::class, 'updateProgress'])->name('lean.progress');
+    Route::post('/lapangan/issues/{issue}/pending', [LeanController::class, 'pending'])->name('lean.pending');
+    Route::post('/lapangan/issues/{issue}/resolve', [LeanController::class, 'resolve'])->name('lean.resolve');
+    Route::post('/lapangan/issues/{issue}/transfer', [LeanController::class, 'transfer'])->name('lean.transfer');
+    Route::delete('/lapangan/issues/{issue}', [LeanController::class, 'destroy'])->name('lean.destroy');
+    Route::post('/lapangan/sync-sheets', [LeanController::class, 'syncGoogleSheets'])->name('lean.sync.sheets');
+    Route::post('/lapangan/auto-sync', [LeanController::class, 'autoSyncSheets'])->name('lean.auto.sync');
 });
 
-// Dedicated Lean API endpoints for WhatsApp Bot V2 (Strictly protected by X-Bot-Key)
+// Dedicated API endpoints for WhatsApp Bot V2 (Strictly protected by X-Bot-Key)
 Route::middleware('bot.key')->group(function () {
-    Route::get('/api/lean/issues', [\App\Http\Controllers\LeanController::class, 'apiIndex'])->name('lean.api.index');
-    Route::post('/api/lean/issues', [\App\Http\Controllers\LeanController::class, 'apiStore'])->name('lean.api.store');
-    Route::post('/api/lean/issues/{id}/claim', [\App\Http\Controllers\LeanController::class, 'apiClaim'])->name('lean.api.claim');
-    Route::post('/api/lean/issues/{id}/resolve', [\App\Http\Controllers\LeanController::class, 'apiResolve'])->name('lean.api.resolve');
-    Route::post('/api/lean/issues/{id}/transfer', [\App\Http\Controllers\LeanController::class, 'apiTransfer'])->name('lean.api.transfer');
-    Route::post('/api/lean/issues/{id}/pending', [\App\Http\Controllers\LeanController::class, 'apiPending'])->name('lean.api.pending');
+    Route::get('/api/lean/issues', [LeanController::class, 'apiIndex'])->name('lean.api.index');
+    Route::post('/api/lean/issues', [LeanController::class, 'apiStore'])->name('lean.api.store');
+    Route::post('/api/lean/issues/{id}/claim', [LeanController::class, 'apiClaim'])->name('lean.api.claim');
+    Route::post('/api/lean/issues/{id}/resolve', [LeanController::class, 'apiResolve'])->name('lean.api.resolve');
+    Route::post('/api/lean/issues/{id}/transfer', [LeanController::class, 'apiTransfer'])->name('lean.api.transfer');
+    Route::post('/api/lean/issues/{id}/pending', [LeanController::class, 'apiPending'])->name('lean.api.pending');
 });
 
 require __DIR__.'/auth.php';

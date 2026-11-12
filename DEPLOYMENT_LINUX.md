@@ -125,9 +125,9 @@ sudo systemctl reload nginx
 
 ---
 
-## 5. Linux Crontab (Untuk Autosync Google Calendar)
+## 5. Linux Crontab (Penjadwalan Rekonsiliasi Sheets & Perawatan Sistem)
 
-Agar fitur sinkronisasi Google Calendar otomatis berjalan setiap 5 menit sesuai [routes/console.php](file:///c:/laragon/www/TelunasIssueTracker/routes/console.php):
+Agar fitur rekonsiliasi otomatis Google Sheets (`lean:reconcile-sheets`) dan pembersihan sesi (`session:prune`) berjalan sesuai [routes/console.php](file:///c:/laragon/www/TelunasIssueTracker/routes/console.php):
 
 Buka editor crontab:
 ```bash
@@ -159,8 +159,8 @@ npm install
 # (Contoh: BASE_URL=http://localhost)
 echo "BASE_URL=http://localhost" > .env
 
-# Jalankan bot dengan PM2
-pm2 start bot.js --name "telunas-bot"
+# Jalankan WhatsApp Bot V2 dengan PM2
+pm2 start bot-v2.js --name "telunas-bot"
 
 # Atur agar PM2 auto-start saat OS boot
 pm2 startup

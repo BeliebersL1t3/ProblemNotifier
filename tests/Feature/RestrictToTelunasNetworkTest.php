@@ -91,7 +91,7 @@ class RestrictToTelunasNetworkTest extends TestCase
     public function test_untrusted_external_ip_requesting_json_receives_403_json(): void
     {
         $response = $this->withServerVariables(['REMOTE_ADDR' => '114.124.50.60'])
-            ->getJson('/api/issues');
+            ->getJson('/api/lean/issues');
 
         $response->assertStatus(403);
         $response->assertJson([
@@ -126,7 +126,7 @@ class RestrictToTelunasNetworkTest extends TestCase
     {
         $response = $this->withServerVariables(['REMOTE_ADDR' => '114.124.50.60'])
             ->withHeaders(['X-Inertia' => 'true'])
-            ->get('/dashboard');
+            ->get('/');
 
         $response->assertStatus(409);
         $this->assertEquals(url('/telunas-wifi-required'), $response->headers->get('X-Inertia-Location'));

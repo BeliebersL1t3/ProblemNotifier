@@ -7,6 +7,8 @@ use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Redirect;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -106,10 +108,16 @@ class ProfileController extends Controller
             $user->save();
 
             try {
-                \Illuminate\Support\Facades\Http::withHeaders([
+                $botPort = (int) config('services.bot.port', 3000);
+                if ($botPort <= 0 || $botPort > 65535) {
+                    $botPort = 3000;
+                }
+                Http::withHeaders([
                     'X-Bot-Key' => config('services.bot.api_key'),
-                ])->timeout(1)->post('http://localhost:3000/sync-staff');
-            } catch (\Exception $e) {}
+                ])->timeout(1)->post("http://127.0.0.1:{$botPort}/sync-staff");
+            } catch (\Throwable $e) {
+                Log::info('Bot V2 staff sync skipped on profile WA update: ' . $e->getMessage());
+            }
 
             return Redirect::route('profile.edit')->with('status', 'whatsapp-updated');
         }

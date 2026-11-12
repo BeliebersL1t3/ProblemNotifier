@@ -18,7 +18,7 @@ import {
     Info, ArrowRight, HardDrive, Trash2, Sparkles
 } from 'lucide-react';
 
-export function BotControlModal({ open, onOpenChange, botStatus, onRefreshStatus, initialTab = 'status', botVersion = 'v1' }) {
+export function BotControlModal({ open, onOpenChange, botStatus, onRefreshStatus, initialTab = 'status', botVersion = 'v2' }) {
     const { lang } = useLanguage();
     const [activeTab, setActiveTab] = useState(initialTab); // 'status' | 'pair' | 'qr'
     const [actionLoading, setActionLoading] = useState(false);

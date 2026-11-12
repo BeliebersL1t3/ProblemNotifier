@@ -52,10 +52,6 @@ export function useAuth() {
         canViewAllDepartments: hasPermission('can_view_all_departments', true),
         canManageIssues:        hasPermission('can_manage_issues', true),
         canDeleteIssues:        isAdmin,
-        canAccessAnalytics:     hasPermission('can_access_analytics', true),
-        canAccessCalendar:      hasPermission('can_access_calendar', true),
-        canSyncCalendar:        isAdmin || Boolean(user?.is_hod),
         canExportReports:       hasPermission('can_export_reports', true),
-        canManageCategories:    hasPermission('can_manage_categories', false),
     };
 }

@@ -18,16 +18,6 @@ const PERMISSION_CONFIGS = [
         desc: 'Mengizinkan klaim, pending, dan penyelesaian isu (khusus tugas departemennya sendiri).',
     },
     {
-        key: 'can_access_analytics',
-        label: 'Akses Halaman Analytics',
-        desc: 'Menampilkan tab analitik visual grafik performa resolusi departemen.',
-    },
-    {
-        key: 'can_access_calendar',
-        label: 'Akses Kalender Operasional',
-        desc: 'Menampilkan tab kalender jadwal dan timeline kegiatan operasional.',
-    },
-    {
         key: 'can_export_reports',
         label: 'Ekspor Laporan (PDF & Excel)',
         desc: 'Mengizinkan pengunduhan rekap data tiket isu ke format dokumen PDF atau spreadsheet Excel (.xlsx).',
@@ -64,10 +54,7 @@ export function BatchPermissionsModal({
             // Lock to own department
             updated.can_view_all_departments = false;
             updated.can_manage_issues = true;
-            updated.can_access_analytics = true;
-            updated.can_access_calendar = true;
             updated.can_export_reports = true;
-            updated.can_manage_categories = false;
         } else if (presetName === 'open_dept_only') {
             // Only turn on can_view_all_departments, keep others
             PERMISSION_CONFIGS.forEach(p => { updated[p.key] = 'keep'; });

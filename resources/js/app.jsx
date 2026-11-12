@@ -19,7 +19,6 @@ router.on('invalid', (event) => {
 
 import { SlashProvider } from '@/Components/CampusFix/SlashTransition';
 import { LanguageProvider } from '@/context/LanguageContext';
-import { CalendarSyncProvider } from '@/context/CalendarSyncContext';
 import { ErrorBoundary } from '@/Components/CampusFix/ErrorBoundary';
 import { registerServiceWorker } from '@/services/webPushService';
 
@@ -43,11 +42,9 @@ createInertiaApp({
         root.render(
             <ErrorBoundary>
                 <LanguageProvider>
-                    <CalendarSyncProvider initialProps={props.initialPage?.props}>
-                        <SlashProvider>
-                            <App {...props} />
-                        </SlashProvider>
-                    </CalendarSyncProvider>
+                    <SlashProvider>
+                        <App {...props} />
+                    </SlashProvider>
                 </LanguageProvider>
             </ErrorBoundary>
         );

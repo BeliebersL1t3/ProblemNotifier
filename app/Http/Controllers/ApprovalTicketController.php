@@ -10,6 +10,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -148,18 +149,14 @@ class ApprovalTicketController extends Controller
             }
         }
 
-        // If user is Admin, they can apply immediately without ticket
+        // If user is Admin or HOD, they can apply immediately without ticket
         if ($user->isAdmin() || $user->isHOD()) {
             $user->whatsapp_number = $isUnlink ? null : $cleanPhone;
             if ($isUnlink) {
                 $user->notify_whatsapp_tickets = false;
             }
             $user->save();
-            try {
-                Http::withHeaders([
-                    'X-Bot-Key' => config('services.bot.api_key'),
-                ])->timeout(1)->post('http://localhost:3000/sync-staff');
-            } catch (\Throwable $e) {}
+            $this->syncStaffWithBot();
             return back()->with('status', 'whatsapp-updated');
         }
 
@@ -572,23 +569,12 @@ class ApprovalTicketController extends Controller
                                 'notes'         => $request->input('notes'),
                             ]
                         );
-
-                        // Option A: Update all occurrences across Google Sheets (active & past issues)
-                        try {
-                            app(\App\Services\GoogleService::class)->updateStaffNameInSheets($oldName, $newName);
-                        } catch (\Throwable $e) {
-                            \Illuminate\Support\Facades\Log::error("Failed to sync name change to Google Sheets: " . $e->getMessage());
-                        }
                     }
                     break;
             }
 
             // Sync WhatsApp bot memory in real-time
-            try {
-                Http::withHeaders([
-                    'X-Bot-Key' => config('services.bot.api_key'),
-                ])->timeout(1)->post('http://localhost:3000/sync-staff');
-            } catch (\Throwable $e) {}
+            $this->syncStaffWithBot();
 
             // Notify user
             TicketNotificationService::notifyUserResolution($ticket, true);
@@ -635,6 +621,22 @@ class ApprovalTicketController extends Controller
             TicketNotificationService::notifyUserResolution($ticket, false, $rejectionReason);
 
             return back()->with('success', "Tiket {$ticket->ticket_number} telah DITOLAK.");
+        }
+    }
+
+    private function syncStaffWithBot(): void
+    {
+        try {
+            $port = (int) config('services.bot.port', 3000);
+            if ($port <= 0 || $port > 65535) {
+                $port = 3000;
+            }
+
+            Http::withHeaders([
+                'X-Bot-Key' => config('services.bot.api_key'),
+            ])->timeout(1)->post("http://127.0.0.1:{$port}/sync-staff");
+        } catch (\Throwable $e) {
+            Log::info('Bot V2 staff sync skipped from approval ticket action: ' . $e->getMessage());
         }
     }
 

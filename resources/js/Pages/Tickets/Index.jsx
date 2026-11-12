@@ -7,7 +7,6 @@ import {
     Sparkles, ChevronRight, ArrowLeft, ExternalLink, Loader2
 } from 'lucide-react';
 
-import { IssuesProvider } from '@/context/IssuesContext';
 import { CampusFixHeader } from '@/Components/CampusFix/CampusFixHeader';
 import { MobileBottomNav } from '@/Components/CampusFix/MobileBottomNav';
 
@@ -19,11 +18,7 @@ import { DEPARTMENTS, getDepartmentTheme } from '@/constants/departments';
 import { formatToLocalPhone } from '@/utils/phone';
 
 export default function TicketsPage(props) {
-    return (
-        <IssuesProvider>
-            <TicketsInner {...props} />
-        </IssuesProvider>
-    );
+    return <TicketsInner {...props} />;
 }
 
 function TicketsInner({ 
@@ -1228,7 +1223,7 @@ function TicketsInner({
                 </Suspense>
             )}
 
-            <MobileBottomNav />
+            <MobileBottomNav currentTab="tickets" />
         </div>
     );
 }

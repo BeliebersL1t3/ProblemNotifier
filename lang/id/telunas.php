@@ -51,7 +51,6 @@ return [
     'bot_win_popen_failed'         => 'Gagal menjalankan proses Bot WhatsApp di background (Windows popen failed).',
     'bot_unix_exec_failed'         => 'Gagal menjalankan proses Bot WhatsApp di background (exit code :code).',
     'bot_launch_v2_ok'             => 'Perintah menyalakan Bot WA V2 berhasil dikirim. Bot sedang booting di background.',
-    'bot_launch_v1_ok'             => 'Perintah menyalakan bot berhasil dikirim. Bot sedang booting di background.',
 
     // Lean Dashboard & Workflow
     'lean_auth_required'           => 'Silakan login terlebih dahulu untuk mengubah status isu.',
@@ -83,8 +82,6 @@ return [
     'lean_transfer_same_dept_err'  => 'Pilih departemen lain yang berbeda dari departemen saat ini.',
     'lean_transfer_success'        => 'Isu berhasil dialihkan ke departemen :dept.',
     'lean_destroy_success'         => 'Tiket berhasil dihapus dari dashboard.',
-    'lean_reset_admin_only'        => 'Akses ditolak: Hanya Administrator yang dapat mereset seluruh data sandbox.',
-    'lean_reset_success'           => 'Seluruh data simulasi pengujian berhasil direset dan lembar kerja Google Sheets telah dibersihkan.',
     'lean_api_store_success'       => 'Laporan Lean berhasil dibuat!',
     'lean_issue_not_found'         => 'Isu tidak ditemukan.',
     'lean_api_claim_success'       => 'Tiket berhasil diambil oleh :taker.',
@@ -94,16 +91,5 @@ return [
     'sheets_webhook_missing'       => 'URL Webhook Google Sheets belum diatur di konfigurasi (.env).',
     'sheets_sync_all_success'      => 'Berhasil menyinkronkan :count tiket ke tab bulanan dan data staf ke Google Sheets.',
     'sheets_sync_all_failed'       => 'Gagal mengirim data ke Google Sheets Webhook. Pastikan URL Webhook aktif.',
-
-    // Discussion Controller (aligned responses)
-    'disc_unauthenticated'         => 'Belum login (Unauthenticated).',
-    'disc_not_found'               => 'Isu tidak ditemukan.',
-    'disc_confidential_denied'     => 'Akses ditolak. Tiket ini bersifat rahasia (Confidential).',
-    'disc_access_denied'           => 'Akses ditolak.',
-    'disc_locked'                  => 'Ruang diskusi telah dikunci (tiket sudah berstatus Solved/Archived).',
-    'disc_msg_sent'                => 'Pesan berhasil dikirim.',
-    'disc_dept_ready'              => 'Departemen :dept berhasil dinyatakan Siap Dikerjakan.',
-    'disc_pending_marked'          => 'Tiket berhasil dipending.',
-    'disc_solve_acc'               => 'Penyelesaian berhasil di-ACC untuk departemen :dept.',
 ];
 

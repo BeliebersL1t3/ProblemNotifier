@@ -8,7 +8,6 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use Illuminate\Support\Facades\Crypt;
 
 #[Hidden(['password', 'remember_token', 'google_access_token', 'google_refresh_token'])]
 class User extends Authenticatable
@@ -35,11 +34,6 @@ class User extends Authenticatable
         'whatsapp_number',
         'permissions',
         'avatar',
-        'google_id',
-        'google_email',
-        'google_access_token',
-        'google_refresh_token',
-        'google_token_expires_at',
     ];
 
     public const DEPARTMENT_SUBDIVISIONS = [
@@ -85,30 +79,14 @@ class User extends Authenticatable
             'is_active'               => 'boolean',
             'notify_whatsapp_tickets' => 'boolean',
             'rejected_at'             => 'datetime',
-            'google_token_expires_at' => 'datetime',
         ];
     }
 
     protected static function booted(): void
     {
-        static::saved(function ($user) {
+        static::saved(function () {
             \Illuminate\Support\Facades\Cache::forget('active_staff_roster');
             \Illuminate\Support\Facades\Cache::forget('archived_staff_names');
-
-            // Automatically grant Google Calendar access to active, non-dummy users
-            if (
-                $user->is_active &&
-                ($user->approval_status ?? 'approved') === 'approved' &&
-                !$user->hasDummyEmail() &&
-                !empty($user->email) &&
-                ($user->wasChanged('email') || $user->wasChanged('is_active') || $user->wasChanged('approval_status') || $user->wasRecentlyCreated)
-            ) {
-                try {
-                    app(\App\Services\GoogleService::class)->syncUserCalendarAcl($user->email, 'writer');
-                } catch (\Throwable $e) {
-                    \Illuminate\Support\Facades\Log::warning('Calendar ACL auto-sync error: ' . $e->getMessage());
-                }
-            }
         });
         static::deleted(function () {
             \Illuminate\Support\Facades\Cache::forget('active_staff_roster');
@@ -118,58 +96,6 @@ class User extends Authenticatable
             \Illuminate\Support\Facades\Cache::forget('active_staff_roster');
             \Illuminate\Support\Facades\Cache::forget('archived_staff_names');
         });
-    }
-
-    /**
-     * Safely decrypt Google access token, falling back to raw value if unencrypted or corrupted.
-     */
-    public function getGoogleAccessTokenAttribute($value): ?string
-    {
-        if (empty($value)) {
-            return null;
-        }
-
-        try {
-            return Crypt::decryptString($value);
-        } catch (\Throwable) {
-            return $value;
-        }
-    }
-
-    public function setGoogleAccessTokenAttribute($value): void
-    {
-        if (empty($value)) {
-            $this->attributes['google_access_token'] = null;
-            return;
-        }
-
-        $this->attributes['google_access_token'] = Crypt::encryptString($value);
-    }
-
-    /**
-     * Safely decrypt Google refresh token, falling back to raw value if unencrypted or corrupted.
-     */
-    public function getGoogleRefreshTokenAttribute($value): ?string
-    {
-        if (empty($value)) {
-            return null;
-        }
-
-        try {
-            return Crypt::decryptString($value);
-        } catch (\Throwable) {
-            return $value;
-        }
-    }
-
-    public function setGoogleRefreshTokenAttribute($value): void
-    {
-        if (empty($value)) {
-            $this->attributes['google_refresh_token'] = null;
-            return;
-        }
-
-        $this->attributes['google_refresh_token'] = Crypt::encryptString($value);
     }
 
     /**
@@ -196,18 +122,6 @@ class User extends Authenticatable
     public function getIsDummyEmailAttribute(): bool
     {
         return $this->hasDummyEmail();
-    }
-
-    /**
-     * Check if user has connected their Google account for Gmail dispatch.
-     */
-    public function hasGoogleMailConnected(): bool
-    {
-        try {
-            return !empty($this->google_refresh_token) || !empty($this->google_access_token);
-        } catch (\Throwable) {
-            return false;
-        }
     }
 
 
@@ -245,11 +159,6 @@ class User extends Authenticatable
 
         $perms = $this->permissions ?? \App\Http\Controllers\UserController::getDefaultPermissions($this->role ?? 'department');
         return !empty($perms[$permission]);
-    }
-
-    public function canSyncCalendar(): bool
-    {
-        return $this->isAdmin() || $this->isHOD();
     }
 
     public function canViewDepartment(string $department): bool

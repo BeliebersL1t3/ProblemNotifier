@@ -8,18 +8,8 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
-Schedule::command('calendar:sync-gcal')
-    ->everyTwoMinutes()
-    ->withoutOverlapping()
-    ->runInBackground();
-
 Schedule::command('lean:reconcile-sheets')
     ->everyMinute()
-    ->withoutOverlapping()
-    ->runInBackground();
-
-Schedule::command('report:send-monthly')
-    ->dailyAt('08:00')
     ->withoutOverlapping()
     ->runInBackground();
 

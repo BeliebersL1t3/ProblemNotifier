@@ -4,13 +4,11 @@ namespace Tests\Feature;
 
 use App\Models\LeanIssue;
 use App\Models\User;
-use App\Services\GoogleService;
 use App\Services\GoogleSheetsSyncService;
 use App\Services\LeanSheetDirectService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Config;
-use Mockery;
 use Tests\TestCase;
 
 class SecurityHardeningTest extends TestCase
@@ -96,74 +94,6 @@ class SecurityHardeningTest extends TestCase
         $this->assertTrue(\Illuminate\Support\Facades\Hash::check($tempPassword, $user->password));
     }
 
-    public function test_user_without_manage_issues_permission_cannot_store_issues(): void
-    {
-        $user = User::factory()->create([
-            'role'        => 'department',
-            'department'  => 'Housekeeping',
-            'permissions' => [
-                'can_manage_issues' => false,
-            ],
-        ]);
-
-        $response = $this->actingAs($user)->postJson('/api/issues', [
-            'title'       => 'Unauthorized Issue',
-            'description' => 'Test Desc',
-            'location'    => 'Villa 1',
-            'category'    => 'Maintenance',
-            'department'  => 'Housekeeping',
-            'reporter'    => 'Staff User',
-        ]);
-
-        $response->assertStatus(403)
-            ->assertJson([
-                'success' => false,
-            ]);
-    }
-
-    public function test_user_without_export_permission_cannot_send_pdf_report(): void
-    {
-        $user = User::factory()->create([
-            'role'        => 'department',
-            'permissions' => [
-                'can_export_reports' => false,
-            ],
-        ]);
-
-        $file = UploadedFile::fake()->create('report.pdf', 100, 'application/pdf');
-
-        $response = $this->actingAs($user)->postJson('/api/export/email-pdf', [
-            'pdf_file'   => $file,
-            'subject'    => 'Test Subject',
-            'recipients' => 'target@example.com',
-        ]);
-
-        $response->assertStatus(403)
-            ->assertJson([
-                'success' => false,
-            ]);
-    }
-
-    public function test_user_without_calendar_permission_cannot_modify_operations(): void
-    {
-        $user = User::factory()->create([
-            'role'        => 'department',
-            'permissions' => [
-                'can_access_calendar' => false,
-            ],
-        ]);
-
-        $response = $this->actingAs($user)->postJson('/api/operations', [
-            'dept'  => 'Engineer',
-            'title' => 'Unauthorized Task',
-        ]);
-
-        $response->assertStatus(403)
-            ->assertJson([
-                'success' => false,
-            ]);
-    }
-
     public function test_security_headers_are_present_on_web_requests(): void
     {
         $response = $this->get('/login');
@@ -203,40 +133,6 @@ class SecurityHardeningTest extends TestCase
         if (file_exists($avatarPath)) {
             @unlink($avatarPath);
         }
-    }
-
-    public function test_export_pdf_rejects_non_pdf_files(): void
-    {
-        $user = User::factory()->create([
-            'role'        => 'admin',
-            'is_active'   => true,
-            'permissions' => ['can_export_reports' => true],
-        ]);
-
-        $fakeExe = UploadedFile::fake()->create('malicious.exe', 500, 'application/x-msdownload');
-
-        $response = $this->actingAs($user)->postJson('/api/export/email-pdf', [
-            'pdf_file'   => $fakeExe,
-            'subject'    => 'Malicious file attempt',
-            'recipients' => 'admin@example.com',
-        ]);
-
-        $response->assertStatus(422)
-            ->assertJsonValidationErrors(['pdf_file']);
-    }
-
-    public function test_google_oauth_sanitizes_external_open_redirect(): void
-    {
-        $user = User::factory()->create([
-            'email' => 'admin@telunas.test',
-        ]);
-
-        $response = $this->actingAs($user)->get('/auth/google/redirect?return_to=https://attacker-controlled.site/evil');
-
-        // Target stored in session should be sanitized to dashboard instead of external domain
-        $sessionTarget = session('google_oauth_return_to');
-        $this->assertNotEquals('https://attacker-controlled.site/evil', $sessionTarget);
-        $this->assertEquals(route('dashboard'), $sessionTarget);
     }
 
     public function test_profile_update_cannot_bypass_whatsapp_ticket(): void
@@ -295,7 +191,7 @@ class SecurityHardeningTest extends TestCase
         // 1. With CSRF middleware active, a session request without CSRF token must receive 419
         $response = $this->withMiddleware([\App\Http\Middleware\VerifyCsrfToken::class])
             ->actingAs($user)
-            ->post('/api/issues', [
+            ->post('/lapangan/issues', [
                 'title' => 'CSRF Test Issue',
             ]);
 
@@ -304,13 +200,13 @@ class SecurityHardeningTest extends TestCase
         // 2. A bot request with valid X-Bot-Key bypasses CSRF even with middleware active
         $botKey = config('services.bot.api_key');
         $botResponse = $this->withMiddleware([\App\Http\Middleware\VerifyCsrfToken::class])
-            ->postJson('/api/issues', [
+            ->postJson('/api/lean/issues', [
                 'title' => 'Bot Test Issue',
             ], [
                 'X-Bot-Key' => $botKey,
             ]);
 
-        // Validation fails with 422 (because form fields are missing), proving CSRF was bypassed
+        // Validation fails with 422 (because required form fields are missing), proving CSRF was bypassed
         $this->assertNotEquals(419, $botResponse->status());
         $botResponse->assertStatus(422);
     }
@@ -419,10 +315,31 @@ class SecurityHardeningTest extends TestCase
         ]);
 
         $this->get('/')->assertRedirect('/login');
+        $this->get('/dashboard')->assertRedirect('/login');
         $this->get('/lapangan')->assertRedirect('/login');
         $this->postJson('/lapangan/issues', ['title' => 'Guest Spam'])->assertStatus(401);
-        $this->postJson('/lapangan/reset')->assertStatus(401);
         $this->deleteJson("/lapangan/issues/{$issue->id}")->assertStatus(401);
+    }
+
+    public function test_root_renders_lean_dashboard_and_legacy_dashboard_redirects_with_query_params(): void
+    {
+        $sheetMock = $this->createMock(LeanSheetDirectService::class);
+        $sheetMock->method('getMonthGids')->willReturn(['November' => 11111]);
+        $this->app->instance(LeanSheetDirectService::class, $sheetMock);
+
+        $user = User::factory()->create([
+            'role'            => 'department',
+            'department'      => 'Engineer',
+            'is_active'       => true,
+            'approval_status' => 'approved',
+        ]);
+
+        $this->actingAs($user)->get('/')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->component('Lean/Index'));
+
+        $this->actingAs($user)->get('/dashboard?dept=Engineer&issue=ENG-1')
+            ->assertRedirect('/?dept=Engineer&issue=ENG-1');
     }
 
     public function test_api_lean_endpoints_require_valid_bot_key(): void
@@ -438,11 +355,10 @@ class SecurityHardeningTest extends TestCase
             ->assertJson(['success' => true]);
     }
 
-    public function test_non_admin_cannot_reset_lapangan_or_delete_other_department_issue(): void
+    public function test_other_department_cannot_delete_lean_issue_and_owner_or_admin_can(): void
     {
         $sheetMock = $this->createMock(LeanSheetDirectService::class);
         $sheetMock->method('deleteSingleIssue')->willReturn(true);
-        $sheetMock->method('clearAllMonthlyData')->willReturn(true);
         $this->app->instance(LeanSheetDirectService::class, $sheetMock);
 
         $gasMock = $this->createMock(GoogleSheetsSyncService::class);
@@ -483,9 +399,8 @@ class SecurityHardeningTest extends TestCase
             'status'             => 'open',
         ]);
 
-        // Non-admin cannot reset sandbox
-        $this->actingAs($itUser)->postJson('/lapangan/reset')->assertStatus(403);
-        $this->actingAs($engUser)->postJson('/lapangan/reset')->assertStatus(403);
+        // Legacy sandbox reset endpoint has been permanently removed
+        $this->actingAs($adminUser)->postJson('/lapangan/reset')->assertStatus(404);
 
         // Other department user cannot delete Engineer issue
         $this->actingAs($itUser)->deleteJson("/lapangan/issues/{$engIssue->id}")->assertStatus(403);
@@ -500,9 +415,18 @@ class SecurityHardeningTest extends TestCase
         $this->assertSoftDeleted('lean_issues', ['id' => $engIssue->id]);
         $this->assertEquals('Budi Eng', $engIssue->deleted_by_name);
 
-        // Admin can reset sandbox
-        $this->actingAs($adminUser)->post('/lapangan/reset')->assertRedirect();
-        $this->assertEquals(0, LeanIssue::withTrashed()->count());
+        // Admin can also delete another department's issue
+        $otherIssue = LeanIssue::create([
+            'location'           => 'TPI Villa 2',
+            'title'              => 'AC tidak dingin',
+            'description'        => 'Periksa freon',
+            'target_departments' => ['Engineer'],
+            'reporter_name'      => 'Andi',
+            'reporter_dept'      => 'HK',
+            'status'             => 'open',
+        ]);
+        $this->actingAs($adminUser)->deleteJson("/lapangan/issues/{$otherIssue->id}")->assertOk();
+        $this->assertSoftDeleted('lean_issues', ['id' => $otherIssue->id]);
     }
 
     public function test_non_admin_cannot_control_bot_even_for_version_v2(): void

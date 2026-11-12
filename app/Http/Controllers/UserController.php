@@ -3,13 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\DashboardNotification;
+use App\Models\LeanIssue;
 use App\Models\User;
 use App\Models\UserAuditLog;
-use App\Services\GoogleService;
-use App\Services\IssueSheetRepository;
 use App\Services\TicketNotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\Rule;
@@ -18,6 +18,25 @@ use Inertia\Inertia;
 
 class UserController extends Controller
 {
+    /**
+     * Trigger real-time staff roster reload in WhatsApp Bot V2 (non-blocking).
+     */
+    private function syncStaffWithBot(): void
+    {
+        try {
+            $port = (int) config('services.bot.port', 3000);
+            if ($port <= 0 || $port > 65535) {
+                $port = 3000;
+            }
+
+            Http::withHeaders([
+                'X-Bot-Key' => config('services.bot.api_key'),
+            ])->timeout(1)->post("http://127.0.0.1:{$port}/sync-staff");
+        } catch (\Throwable $e) {
+            Log::info('Bot V2 staff sync skipped (bot offline / unreachable): ' . $e->getMessage());
+        }
+    }
+
     /**
      * Ensure only Administrators can access user management.
      */
@@ -38,10 +57,7 @@ class UserController extends Controller
             return [
                 'can_view_all_departments' => true,
                 'can_manage_issues'        => true,
-                'can_access_analytics'     => true,
-                'can_access_calendar'      => true,
                 'can_export_reports'       => true,
-                'can_manage_categories'    => true,
             ];
         }
 
@@ -49,10 +65,7 @@ class UserController extends Controller
         return [
             'can_view_all_departments' => false,
             'can_manage_issues'        => true,
-            'can_access_analytics'     => true,
-            'can_access_calendar'      => true,
             'can_export_reports'       => true,
-            'can_manage_categories'    => false,
         ];
     }
 
@@ -262,9 +275,7 @@ class UserController extends Controller
         ]);
 
         if (!empty($cleanPhone)) {
-            try {
-                \Illuminate\Support\Facades\Http::timeout(1)->post('http://127.0.0.1:3000/sync-staff');
-            } catch (\Throwable $e) {}
+            $this->syncStaffWithBot();
         }
 
         // Audit log
@@ -439,7 +450,7 @@ class UserController extends Controller
         }
 
         if (isset($validated['permissions'])) {
-            $user->permissions = $validated['permissions'];
+            $user->permissions = array_merge($user->permissions ?? [], $validated['permissions']);
         }
 
         $passwordChanged = false;
@@ -473,20 +484,8 @@ class UserController extends Controller
             $this->notifyHodOfTransferredStaffActiveIssues($user, $oldDepartment, $newDepartment);
         }
 
-        // If name was changed by Admin, update all occurrences across Google Sheets (Option A)
-        $oldName = $before['name'] ?? null;
-        if (!empty($oldName) && strcasecmp($oldName, $user->name) !== 0) {
-            try {
-                app(\App\Services\GoogleService::class)->updateStaffNameInSheets($oldName, $user->name);
-            } catch (\Throwable $e) {
-                \Illuminate\Support\Facades\Log::error("Failed to sync admin name change to Google Sheets: " . $e->getMessage());
-            }
-        }
-
         // Notify WhatsApp bot to sync staff memory in real-time
-        try {
-            \Illuminate\Support\Facades\Http::timeout(1)->post('http://127.0.0.1:3000/sync-staff');
-        } catch (\Throwable $e) {}
+        $this->syncStaffWithBot();
 
         $after = [
             'name'            => $user->name,
@@ -536,6 +535,7 @@ class UserController extends Controller
         $targetUsers = User::whereIn('id', $validated['user_ids'])->get();
         $updatedCount = 0;
         $updatedUsersList = [];
+        $affectedAccounts = [];
 
         foreach ($targetUsers as $target) {
             if ($target->isAdmin() || ($target->approval_status ?? 'approved') !== 'approved') {
@@ -687,9 +687,7 @@ class UserController extends Controller
 
         // Notify WhatsApp bot to sync staff in real-time if any account had a phone number
         if ($hasWhatsapp) {
-            try {
-                \Illuminate\Support\Facades\Http::timeout(1)->post('http://127.0.0.1:3000/sync-staff');
-            } catch (\Throwable $e) {}
+            $this->syncStaffWithBot();
         }
 
         // Record consolidated audit log
@@ -762,9 +760,7 @@ class UserController extends Controller
         }
 
         if ($hasWhatsapp) {
-            try {
-                \Illuminate\Support\Facades\Http::timeout(1)->post('http://127.0.0.1:3000/sync-staff');
-            } catch (\Throwable $e) {}
+            $this->syncStaffWithBot();
         }
 
         $restoredCount = count($restoredAccounts);
@@ -827,6 +823,8 @@ class UserController extends Controller
 
         $user->delete();
 
+        $this->syncStaffWithBot();
+
         UserAuditLog::record(
             auth()->user(),
             $user,
@@ -856,6 +854,8 @@ class UserController extends Controller
 
         $user = User::onlyTrashed()->findOrFail($id);
         $user->restore();
+
+        $this->syncStaffWithBot();
 
         UserAuditLog::record(
             auth()->user(),
@@ -1028,6 +1028,8 @@ class UserController extends Controller
         }
         $user->save();
 
+        $this->syncStaffWithBot();
+
         UserAuditLog::record(
             $actingAdmin,
             $user,
@@ -1058,66 +1060,66 @@ class UserController extends Controller
     private function notifyHodOfTransferredStaffActiveIssues(User $user, string $oldDepartment, string $newDepartment): void
     {
         try {
-            /** @var GoogleService $googleService */
-            $googleService = app(GoogleService::class);
-            $sheets = $googleService->listSheets();
-            $latestSheet = !empty($sheets) ? end($sheets) : 'Sheet1';
-            $rows = $googleService->readRows($latestSheet);
-            if (empty($rows) || count($rows) <= 1) {
+            $userNames = array_values(array_filter(array_unique([
+                mb_strtolower(trim((string) ($user->name ?? ''))),
+                mb_strtolower(trim((string) ($user->staff_name ?? ''))),
+            ])));
+
+            if (empty($userNames)) {
                 return;
             }
 
-            $userNames = array_map('strtolower', array_filter([
-                trim($user->name ?? ''),
-                trim($user->staff_name ?? '')
-            ]));
+            $normOldDept = LeanController::normalizeDepartment($oldDepartment);
+            $activeIssues = LeanIssue::whereIn('status', ['open', 'in_progress', 'pending'])
+                ->orderBy('created_at', 'desc')
+                ->get(['id', 'title', 'target_departments', 'claimed_by_name', 'claimed_by_dept', 'active_workers', 'initial_workers', 'progress_workers', 'created_at']);
 
             $activeIssuesCount = 0;
             $sampleTitles = [];
 
-            // Skip header row
-            for ($i = 1; $i < count($rows); $i++) {
-                $row = $rows[$i];
-                if (empty($row) || IssueSheetRepository::isArchived($row)) {
-                    continue;
-                }
-
-                $status = strtolower(trim($row[IssueSheetRepository::COL_STATUS] ?? ''));
-                if (!in_array($status, ['open', 'progress', 'pending'])) {
-                    continue;
-                }
-
-                $rawTaker = trim($row[IssueSheetRepository::COL_TAKER] ?? '');
-                if (empty($rawTaker)) {
-                    continue;
-                }
-
-                $cleanTaker = strtolower(trim(preg_replace('/\s*via\s+WhatsApp/i', '', $rawTaker)));
-                $baseTaker = trim(preg_replace('/\s*\([^)]*\)/', '', $cleanTaker));
-
-                $isTakerMatch = false;
-                foreach ($userNames as $uName) {
-                    if (strcasecmp($uName, $baseTaker) === 0 || stripos($baseTaker, $uName) !== false || stripos($uName, $baseTaker) !== false) {
-                        $isTakerMatch = true;
+            foreach ($activeIssues as $issue) {
+                $targets = is_array($issue->target_departments) ? $issue->target_departments : [];
+                $inOldDeptScope = false;
+                foreach ($targets as $t) {
+                    if ($normOldDept !== '' && strcasecmp(LeanController::normalizeDepartment((string) $t), $normOldDept) === 0) {
+                        $inOldDeptScope = true;
                         break;
                     }
                 }
+                if (!$inOldDeptScope && !empty($issue->claimed_by_dept) && $normOldDept !== '') {
+                    $inOldDeptScope = strcasecmp(LeanController::normalizeDepartment((string) $issue->claimed_by_dept), $normOldDept) === 0;
+                }
+                if (!$inOldDeptScope) {
+                    continue;
+                }
 
-                if ($isTakerMatch) {
-                    $assignedDepts = IssueSheetRepository::getAssignedDepartments($row);
-                    $originDept = trim($row[IssueSheetRepository::COL_ORIGIN_DEPT] ?? '');
-                    $normOldDept = IssueSheetRepository::normalizeDeptKey($oldDepartment);
-                    
-                    $inOldDeptScope = in_array($normOldDept, array_map(fn($d) => IssueSheetRepository::normalizeDeptKey($d), $assignedDepts))
-                        || (!empty($originDept) && IssueSheetRepository::normalizeDeptKey($originDept) === $normOldDept);
+                $workerCandidates = array_merge(
+                    !empty($issue->claimed_by_name) ? [$issue->claimed_by_name] : [],
+                    is_array($issue->active_workers) ? $issue->active_workers : [],
+                    is_array($issue->initial_workers) ? $issue->initial_workers : [],
+                    is_array($issue->progress_workers) ? $issue->progress_workers : []
+                );
 
-                    if ($inOldDeptScope) {
-                        $activeIssuesCount++;
-                        $issueId = trim($row[IssueSheetRepository::COL_ID] ?? "#{$i}");
-                        $issueTitle = trim($row[IssueSheetRepository::COL_TITLE] ?? 'Isu');
-                        if (count($sampleTitles) < 2) {
-                            $sampleTitles[] = "{$issueId} ({$issueTitle})";
+                $isWorkerMatch = false;
+                foreach ($workerCandidates as $rawWorker) {
+                    $cleanWorker = mb_strtolower(trim((string) preg_replace('/\s*via\s+WhatsApp/i', '', (string) $rawWorker)));
+                    $baseWorker = trim((string) preg_replace('/\s*\([^)]*\)/', '', $cleanWorker));
+                    if ($baseWorker === '') {
+                        continue;
+                    }
+                    foreach ($userNames as $uName) {
+                        if (strcasecmp($uName, $baseWorker) === 0 || stripos($baseWorker, $uName) !== false || stripos($uName, $baseWorker) !== false) {
+                            $isWorkerMatch = true;
+                            break 2;
                         }
+                    }
+                }
+
+                if ($isWorkerMatch) {
+                    $activeIssuesCount++;
+                    if (count($sampleTitles) < 2) {
+                        $issueCode = LeanController::formatIssueCode($issue);
+                        $sampleTitles[] = "#{$issueCode} ({$issue->title})";
                     }
                 }
             }
@@ -1126,7 +1128,7 @@ class UserController extends Controller
                 $staffDisplayName = $user->staff_name ?: $user->name;
                 $sampleText = implode(', ', $sampleTitles);
                 if ($activeIssuesCount > count($sampleTitles)) {
-                    $sampleText .= " dan " . ($activeIssuesCount - count($sampleTitles)) . " lainnya";
+                    $sampleText .= ' dan ' . ($activeIssuesCount - count($sampleTitles)) . ' lainnya';
                 }
 
                 // Send notification ONLY to HOD of the old department (admin receives only after HOD ACC)
@@ -1135,13 +1137,13 @@ class UserController extends Controller
                     'role_target' => 'hod',
                     'type'        => 'issue_progress',
                     'title'       => "⚠️ Staf Dimutasi: {$staffDisplayName} (Perlu Reassignment)",
-                    'message'     => "Staf {$staffDisplayName} telah dimutasi dari {$oldDepartment} ke {$newDepartment}. Terdapat {$activeIssuesCount} tiket aktif yang sebelumnya diklaim ({$sampleText}) dan memerlukan penugasan ulang oleh HOD.",
-                    'link'        => "/dashboard?dept=" . urlencode($oldDepartment) . "&filter=reassign_needed",
+                    'message'     => "Staf {$staffDisplayName} telah dimutasi dari {$oldDepartment} ke {$newDepartment}. Terdapat {$activeIssuesCount} tiket aktif yang sebelumnya ditangani ({$sampleText}) dan memerlukan penugasan ulang oleh HOD.",
+                    'link'        => '/?dept=' . urlencode($oldDepartment),
                     'is_read'     => false,
                 ]);
             }
         } catch (\Throwable $e) {
-            Log::warning("Failed to notify HOD of transferred staff active issues: " . $e->getMessage());
+            Log::warning('Failed to notify HOD of transferred staff active issues: ' . $e->getMessage());
         }
     }
 

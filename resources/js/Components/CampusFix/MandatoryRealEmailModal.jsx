@@ -131,9 +131,9 @@ export function MandatoryRealEmailModal({ user }) {
                             <ShieldCheck className="h-4 w-4 text-[#C9AA71] shrink-0 mt-0.5" />
                             <span>
                                 {lang === 'id' ? (
-                                    <>Email asli digunakan untuk <strong>laporan bulanan otomatis</strong> dan <strong>notifikasi resmi resort</strong>.</>
+                                    <>Email asli digunakan untuk <strong>keamanan verifikasi akun</strong> dan <strong>notifikasi resmi resort</strong>.</>
                                 ) : (
-                                    <>Your real email will be used for <strong>automated reports</strong> and <strong>official notifications</strong>.</>
+                                    <>Your real email will be used for <strong>account security verification</strong> and <strong>official notifications</strong>.</>
                                 )}
                             </span>
                         </div>
