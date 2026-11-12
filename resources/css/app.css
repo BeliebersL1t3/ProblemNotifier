@@ -415,8 +415,8 @@ input[type="range"]::-moz-range-thumb {
   background-repeat: repeat;
   background-size: 620px auto;
   background-position: top center;
-  opacity: 0.22;
-  filter: invert(1) brightness(0.75) contrast(0.82) blur(4px);
+  opacity: 0.34;
+  filter: invert(1) brightness(0.85) contrast(0.85) blur(4.5px);
   pointer-events: none;
   z-index: 0;
 }
@@ -426,10 +426,10 @@ input[type="range"]::-moz-range-thumb {
   position: fixed;
   inset: 0;
   background:
-    radial-gradient(circle at 14% 12%, rgba(16, 185, 129, 0.14) 0%, transparent 46%),
-    radial-gradient(circle at 86% 18%, rgba(14, 165, 233, 0.12) 0%, transparent 44%),
-    radial-gradient(circle at 52% 88%, rgba(20, 184, 166, 0.09) 0%, transparent 48%),
-    rgba(9, 15, 29, 0.52);
+    radial-gradient(circle at 14% 12%, rgba(16, 185, 129, 0.22) 0%, transparent 48%),
+    radial-gradient(circle at 86% 18%, rgba(14, 165, 233, 0.18) 0%, transparent 46%),
+    radial-gradient(circle at 52% 88%, rgba(20, 184, 166, 0.14) 0%, transparent 50%),
+    rgba(9, 15, 29, 0.38);
   pointer-events: none;
   z-index: 0;
 }
@@ -447,8 +447,8 @@ input[type="range"]::-moz-range-thumb {
   background-repeat: repeat;
   background-size: 620px auto;
   background-position: top center;
-  opacity: 0.28;
-  filter: blur(3.5px) contrast(0.8);
+  opacity: 0.38;
+  filter: blur(4px) contrast(0.82);
   pointer-events: none;
   z-index: 0;
 }
@@ -458,10 +458,10 @@ input[type="range"]::-moz-range-thumb {
   position: fixed;
   inset: 0;
   background:
-    radial-gradient(circle at 12% 10%, rgba(16, 185, 129, 0.15) 0%, transparent 46%),
-    radial-gradient(circle at 88% 16%, rgba(14, 165, 233, 0.12) 0%, transparent 44%),
-    radial-gradient(circle at 50% 88%, rgba(20, 184, 166, 0.10) 0%, transparent 48%),
-    rgba(248, 250, 252, 0.48);
+    radial-gradient(circle at 12% 10%, rgba(16, 185, 129, 0.20) 0%, transparent 48%),
+    radial-gradient(circle at 88% 16%, rgba(14, 165, 233, 0.16) 0%, transparent 46%),
+    radial-gradient(circle at 50% 88%, rgba(20, 184, 166, 0.14) 0%, transparent 50%),
+    rgba(248, 250, 252, 0.36);
   pointer-events: none;
   z-index: 0;
 }
@@ -797,144 +797,144 @@ input[type="range"]::-moz-range-thumb {
 /* 1. Sticky Glass Header (Tier 1: High Translucency Chrome) */
 .lean-theme-light .liquid-glass-header,
 .liquid-glass-header.liquid-glass-light {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.84) 0%, rgba(248, 250, 252, 0.72) 100%) !important;
-  backdrop-filter: blur(26px) saturate(195%) !important;
-  -webkit-backdrop-filter: blur(26px) saturate(195%) !important;
-  border-bottom-color: rgba(255, 255, 255, 0.82) !important;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.64) 0%, rgba(248, 250, 252, 0.48) 100%) !important;
+  backdrop-filter: blur(24px) saturate(210%) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(210%) !important;
+  border-bottom-color: rgba(255, 255, 255, 0.85) !important;
   box-shadow:
     inset 0 -1px 0 0 rgba(15, 23, 42, 0.06),
-    0 8px 28px -6px rgba(15, 23, 42, 0.08) !important;
+    0 8px 28px -6px rgba(15, 23, 42, 0.09) !important;
 }
 
 .lean-theme-dark .liquid-glass-header,
 .liquid-glass-header.liquid-glass-dark {
-  background: linear-gradient(180deg, rgba(15, 23, 42, 0.78) 0%, rgba(15, 23, 42, 0.66) 100%) !important;
-  backdrop-filter: blur(26px) saturate(195%) !important;
-  -webkit-backdrop-filter: blur(26px) saturate(195%) !important;
-  border-bottom-color: rgba(255, 255, 255, 0.14) !important;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.58) 0%, rgba(15, 23, 42, 0.42) 100%) !important;
+  backdrop-filter: blur(24px) saturate(210%) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(210%) !important;
+  border-bottom-color: rgba(255, 255, 255, 0.16) !important;
   box-shadow:
-    inset 0 -1px 0 0 rgba(255, 255, 255, 0.08),
-    0 10px 32px -6px rgba(0, 0, 0, 0.45) !important;
+    inset 0 -1px 0 0 rgba(255, 255, 255, 0.09),
+    0 10px 32px -6px rgba(0, 0, 0, 0.48) !important;
 }
 
 /* 2. Floating Mobile Pill Dock (Tier 1: iOS 26 Capsule) */
 .lean-theme-light .liquid-glass-dock,
 .liquid-glass-dock.liquid-glass-light {
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.82) 0%, rgba(255, 255, 255, 0.68) 55%, rgba(241, 245, 249, 0.78) 100%) !important;
-  backdrop-filter: blur(28px) saturate(200%) !important;
-  -webkit-backdrop-filter: blur(28px) saturate(200%) !important;
-  border-color: rgba(255, 255, 255, 0.90) !important;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.64) 0%, rgba(255, 255, 255, 0.46) 55%, rgba(241, 245, 249, 0.58) 100%) !important;
+  backdrop-filter: blur(26px) saturate(215%) !important;
+  -webkit-backdrop-filter: blur(26px) saturate(215%) !important;
+  border-color: rgba(255, 255, 255, 0.92) !important;
   box-shadow:
-    inset 0 1px 0 0 rgba(255, 255, 255, 0.96),
-    inset 0 -1px 0 0 rgba(255, 255, 255, 0.45),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.98),
+    inset 0 -1px 0 0 rgba(255, 255, 255, 0.48),
     0 14px 36px -6px rgba(15, 23, 42, 0.18),
     0 2px 8px rgba(15, 23, 42, 0.06) !important;
 }
 
 .lean-theme-dark .liquid-glass-dock,
 .liquid-glass-dock.liquid-glass-dark {
-  background: linear-gradient(135deg, rgba(30, 41, 59, 0.78) 0%, rgba(15, 23, 42, 0.68) 55%, rgba(15, 23, 42, 0.78) 100%) !important;
-  backdrop-filter: blur(28px) saturate(200%) !important;
-  -webkit-backdrop-filter: blur(28px) saturate(200%) !important;
-  border-color: rgba(255, 255, 255, 0.18) !important;
+  background: linear-gradient(135deg, rgba(30, 41, 59, 0.58) 0%, rgba(15, 23, 42, 0.44) 55%, rgba(15, 23, 42, 0.58) 100%) !important;
+  backdrop-filter: blur(26px) saturate(215%) !important;
+  -webkit-backdrop-filter: blur(26px) saturate(215%) !important;
+  border-color: rgba(255, 255, 255, 0.22) !important;
   box-shadow:
-    inset 0 1px 0 0 rgba(255, 255, 255, 0.28),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.32),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.09),
     0 16px 40px -6px rgba(0, 0, 0, 0.62) !important;
 }
 
-/* 3. Primary Liquid Glass Card (Tier 2: High-Readability Frosted Glass for Text & Data) */
+/* 3. Primary Liquid Glass Card (Tier 2: Translucent Frosted Glass over Soft Backdrop) */
 .lean-theme-light .liquid-glass-card,
 .liquid-glass-card.liquid-glass-light {
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.88) 0%, rgba(255, 255, 255, 0.78) 52%, rgba(248, 250, 252, 0.84) 100%) !important;
-  backdrop-filter: blur(24px) saturate(185%) !important;
-  -webkit-backdrop-filter: blur(24px) saturate(185%) !important;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.62) 0%, rgba(255, 255, 255, 0.46) 52%, rgba(248, 250, 252, 0.56) 100%) !important;
+  backdrop-filter: blur(22px) saturate(200%) !important;
+  -webkit-backdrop-filter: blur(22px) saturate(200%) !important;
   border-top-color: rgba(255, 255, 255, 0.94) !important;
-  border-right-color: rgba(226, 232, 240, 0.85) !important;
-  border-bottom-color: rgba(226, 232, 240, 0.80) !important;
+  border-right-color: rgba(255, 255, 255, 0.72) !important;
+  border-bottom-color: rgba(255, 255, 255, 0.68) !important;
   box-shadow:
     inset 0 1px 0 0 rgba(255, 255, 255, 0.98),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.45),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.42),
     0 10px 30px -6px rgba(15, 23, 42, 0.09) !important;
 }
 
 .lean-theme-light .liquid-glass-card:not([class*="border-l-"]),
 .liquid-glass-card.liquid-glass-light:not([class*="border-l-"]) {
-  border-left-color: rgba(255, 255, 255, 0.90) !important;
+  border-left-color: rgba(255, 255, 255, 0.88) !important;
 }
 
 .lean-theme-dark .liquid-glass-card,
 .liquid-glass-card.liquid-glass-dark {
-  background: linear-gradient(135deg, rgba(30, 41, 59, 0.82) 0%, rgba(15, 23, 42, 0.76) 55%, rgba(15, 23, 42, 0.84) 100%) !important;
-  backdrop-filter: blur(24px) saturate(185%) !important;
-  -webkit-backdrop-filter: blur(24px) saturate(185%) !important;
-  border-top-color: rgba(255, 255, 255, 0.22) !important;
-  border-right-color: rgba(255, 255, 255, 0.13) !important;
-  border-bottom-color: rgba(255, 255, 255, 0.10) !important;
+  background: linear-gradient(135deg, rgba(30, 41, 59, 0.56) 0%, rgba(15, 23, 42, 0.42) 55%, rgba(15, 23, 42, 0.54) 100%) !important;
+  backdrop-filter: blur(22px) saturate(200%) !important;
+  -webkit-backdrop-filter: blur(22px) saturate(200%) !important;
+  border-top-color: rgba(255, 255, 255, 0.24) !important;
+  border-right-color: rgba(255, 255, 255, 0.14) !important;
+  border-bottom-color: rgba(255, 255, 255, 0.11) !important;
   box-shadow:
-    inset 0 1px 0 0 rgba(255, 255, 255, 0.24),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.07),
-    0 12px 34px -6px rgba(0, 0, 0, 0.48) !important;
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.28),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 12px 34px -6px rgba(0, 0, 0, 0.46) !important;
 }
 
 .lean-theme-dark .liquid-glass-card:not([class*="border-l-"]),
 .liquid-glass-card.liquid-glass-dark:not([class*="border-l-"]) {
-  border-left-color: rgba(255, 255, 255, 0.16) !important;
+  border-left-color: rgba(255, 255, 255, 0.18) !important;
 }
 
 /* Interactive Card Hover Specular Boost */
 .lean-theme-light .liquid-glass-card.liquid-glass-interactive:hover {
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.94) 0%, rgba(255, 255, 255, 0.86) 52%, rgba(248, 250, 252, 0.92) 100%) !important;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.72) 0%, rgba(255, 255, 255, 0.56) 52%, rgba(248, 250, 252, 0.68) 100%) !important;
   box-shadow:
     inset 0 1px 0 0 rgba(255, 255, 255, 1),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.6),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.56),
     0 16px 38px -6px rgba(15, 23, 42, 0.14) !important;
 }
 
 .lean-theme-dark .liquid-glass-card.liquid-glass-interactive:hover {
-  background: linear-gradient(135deg, rgba(30, 41, 59, 0.88) 0%, rgba(15, 23, 42, 0.82) 55%, rgba(15, 23, 42, 0.90) 100%) !important;
+  background: linear-gradient(135deg, rgba(30, 41, 59, 0.66) 0%, rgba(15, 23, 42, 0.52) 55%, rgba(15, 23, 42, 0.64) 100%) !important;
   box-shadow:
-    inset 0 1px 0 0 rgba(255, 255, 255, 0.30),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.12),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.34),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.14),
     0 18px 42px -6px rgba(0, 0, 0, 0.58) !important;
 }
 
 /* Optional Tinted Frosted Variants (for KPI / Stat Highlights) */
 .lean-theme-light .liquid-glass-tint-emerald {
-  background: linear-gradient(135deg, rgba(236, 253, 245, 0.90) 0%, rgba(209, 250, 229, 0.78) 100%) !important;
+  background: linear-gradient(135deg, rgba(236, 253, 245, 0.68) 0%, rgba(209, 250, 229, 0.48) 100%) !important;
 }
 .lean-theme-dark .liquid-glass-tint-emerald {
-  background: linear-gradient(135deg, rgba(6, 78, 59, 0.72) 0%, rgba(15, 23, 42, 0.80) 100%) !important;
+  background: linear-gradient(135deg, rgba(6, 78, 59, 0.46) 0%, rgba(15, 23, 42, 0.52) 100%) !important;
 }
 
 .lean-theme-light .liquid-glass-tint-sky {
-  background: linear-gradient(135deg, rgba(240, 249, 255, 0.90) 0%, rgba(224, 242, 254, 0.78) 100%) !important;
+  background: linear-gradient(135deg, rgba(240, 249, 255, 0.68) 0%, rgba(224, 242, 254, 0.48) 100%) !important;
 }
 .lean-theme-dark .liquid-glass-tint-sky {
-  background: linear-gradient(135deg, rgba(12, 74, 110, 0.70) 0%, rgba(15, 23, 42, 0.80) 100%) !important;
+  background: linear-gradient(135deg, rgba(12, 74, 110, 0.44) 0%, rgba(15, 23, 42, 0.52) 100%) !important;
 }
 
 .lean-theme-light .liquid-glass-tint-amber {
-  background: linear-gradient(135deg, rgba(255, 251, 235, 0.90) 0%, rgba(254, 243, 199, 0.78) 100%) !important;
+  background: linear-gradient(135deg, rgba(255, 251, 235, 0.68) 0%, rgba(254, 243, 199, 0.48) 100%) !important;
 }
 .lean-theme-dark .liquid-glass-tint-amber {
-  background: linear-gradient(135deg, rgba(120, 53, 15, 0.68) 0%, rgba(15, 23, 42, 0.80) 100%) !important;
+  background: linear-gradient(135deg, rgba(120, 53, 15, 0.42) 0%, rgba(15, 23, 42, 0.52) 100%) !important;
 }
 
 .lean-theme-light .liquid-glass-tint-rose {
-  background: linear-gradient(135deg, rgba(255, 241, 242, 0.90) 0%, rgba(255, 228, 230, 0.78) 100%) !important;
+  background: linear-gradient(135deg, rgba(255, 241, 242, 0.68) 0%, rgba(255, 228, 230, 0.48) 100%) !important;
 }
 .lean-theme-dark .liquid-glass-tint-rose {
-  background: linear-gradient(135deg, rgba(136, 19, 55, 0.68) 0%, rgba(15, 23, 42, 0.80) 100%) !important;
+  background: linear-gradient(135deg, rgba(136, 19, 55, 0.44) 0%, rgba(15, 23, 42, 0.52) 100%) !important;
 }
 
 /* 4. Subtle Secondary Glass (Toolbars, Filter Bars, Switcher Capsules, Inner Boxes) */
 .lean-theme-light .liquid-glass-subtle,
 .liquid-glass-subtle.liquid-glass-light {
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.82) 0%, rgba(241, 245, 249, 0.74) 100%) !important;
-  backdrop-filter: blur(18px) saturate(175%) !important;
-  -webkit-backdrop-filter: blur(18px) saturate(175%) !important;
-  border-color: rgba(226, 232, 240, 0.85) !important;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.56) 0%, rgba(241, 245, 249, 0.42) 100%) !important;
+  backdrop-filter: blur(18px) saturate(190%) !important;
+  -webkit-backdrop-filter: blur(18px) saturate(190%) !important;
+  border-color: rgba(255, 255, 255, 0.78) !important;
   box-shadow:
     inset 0 1px 0 0 rgba(255, 255, 255, 0.92),
     0 4px 14px -4px rgba(15, 23, 42, 0.06) !important;
@@ -942,22 +942,22 @@ input[type="range"]::-moz-range-thumb {
 
 .lean-theme-dark .liquid-glass-subtle,
 .liquid-glass-subtle.liquid-glass-dark {
-  background: linear-gradient(135deg, rgba(30, 41, 59, 0.76) 0%, rgba(15, 23, 42, 0.70) 100%) !important;
-  backdrop-filter: blur(18px) saturate(175%) !important;
-  -webkit-backdrop-filter: blur(18px) saturate(175%) !important;
-  border-color: rgba(255, 255, 255, 0.13) !important;
+  background: linear-gradient(135deg, rgba(30, 41, 59, 0.48) 0%, rgba(15, 23, 42, 0.38) 100%) !important;
+  backdrop-filter: blur(18px) saturate(190%) !important;
+  -webkit-backdrop-filter: blur(18px) saturate(190%) !important;
+  border-color: rgba(255, 255, 255, 0.14) !important;
   box-shadow:
-    inset 0 1px 0 0 rgba(255, 255, 255, 0.16),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.18),
     0 6px 18px -4px rgba(0, 0, 0, 0.34) !important;
 }
 
 /* Frosted Glass Inputs & Selects inside Toolbars */
 .lean-theme-light select.liquid-glass-control,
 .lean-theme-light input.liquid-glass-control {
-  background-color: rgba(255, 255, 255, 0.86) !important;
-  backdrop-filter: blur(18px) saturate(175%) !important;
-  -webkit-backdrop-filter: blur(18px) saturate(175%) !important;
-  border-color: rgba(203, 213, 225, 0.85) !important;
+  background-color: rgba(255, 255, 255, 0.60) !important;
+  backdrop-filter: blur(18px) saturate(190%) !important;
+  -webkit-backdrop-filter: blur(18px) saturate(190%) !important;
+  border-color: rgba(255, 255, 255, 0.85) !important;
   box-shadow:
     inset 0 1px 0 0 rgba(255, 255, 255, 0.95),
     0 4px 12px -4px rgba(15, 23, 42, 0.06) !important;
@@ -965,19 +965,19 @@ input[type="range"]::-moz-range-thumb {
 
 .lean-theme-dark select.liquid-glass-control,
 .lean-theme-dark input.liquid-glass-control {
-  background-color: rgba(15, 23, 42, 0.78) !important;
-  backdrop-filter: blur(18px) saturate(175%) !important;
-  -webkit-backdrop-filter: blur(18px) saturate(175%) !important;
-  border-color: rgba(255, 255, 255, 0.15) !important;
+  background-color: rgba(15, 23, 42, 0.50) !important;
+  backdrop-filter: blur(18px) saturate(190%) !important;
+  -webkit-backdrop-filter: blur(18px) saturate(190%) !important;
+  border-color: rgba(255, 255, 255, 0.16) !important;
   box-shadow:
-    inset 0 1px 0 0 rgba(255, 255, 255, 0.18),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.20),
     0 6px 16px -4px rgba(0, 0, 0, 0.36) !important;
 }
 
 /* 5. Active Pill Highlight inside Mobile Dock / Switchers */
 .lean-theme-light .liquid-glass-active-pill,
 .liquid-glass-active-pill.liquid-glass-light {
-  background: linear-gradient(135deg, rgba(16, 185, 129, 0.18) 0%, rgba(255, 255, 255, 0.78) 100%) !important;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.18) 0%, rgba(255, 255, 255, 0.76) 100%) !important;
   border: 1px solid rgba(16, 185, 129, 0.32) !important;
   box-shadow:
     inset 0 1px 0 0 rgba(255, 255, 255, 0.92),
@@ -993,27 +993,27 @@ input[type="range"]::-moz-range-thumb {
     0 4px 16px -2px rgba(16, 185, 129, 0.25) !important;
 }
 
-/* 6. Translucent Modals & Dialogs (Tier 3: High Contrast Backdrop) */
+/* 6. Translucent Modals & Dialogs (Tier 3: Readable Translucent Glass) */
 .lean-theme-light .liquid-glass-modal,
 .liquid-glass-modal.liquid-glass-light {
-  background: linear-gradient(145deg, rgba(255, 255, 255, 0.94) 0%, rgba(248, 250, 252, 0.88) 55%, rgba(255, 255, 255, 0.92) 100%) !important;
-  backdrop-filter: blur(32px) saturate(195%) !important;
-  -webkit-backdrop-filter: blur(32px) saturate(195%) !important;
-  border-color: rgba(255, 255, 255, 0.92) !important;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.82) 0%, rgba(248, 250, 252, 0.72) 55%, rgba(255, 255, 255, 0.80) 100%) !important;
+  backdrop-filter: blur(30px) saturate(205%) !important;
+  -webkit-backdrop-filter: blur(30px) saturate(205%) !important;
+  border-color: rgba(255, 255, 255, 0.90) !important;
   box-shadow:
     inset 0 1px 0 0 rgba(255, 255, 255, 0.98),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.5),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.45),
     0 24px 60px -12px rgba(15, 23, 42, 0.28) !important;
 }
 
 .lean-theme-dark .liquid-glass-modal,
 .liquid-glass-modal.liquid-glass-dark {
-  background: linear-gradient(145deg, rgba(15, 23, 42, 0.90) 0%, rgba(15, 23, 42, 0.84) 55%, rgba(30, 41, 59, 0.88) 100%) !important;
-  backdrop-filter: blur(32px) saturate(195%) !important;
-  -webkit-backdrop-filter: blur(32px) saturate(195%) !important;
-  border-color: rgba(255, 255, 255, 0.16) !important;
+  background: linear-gradient(145deg, rgba(15, 23, 42, 0.76) 0%, rgba(15, 23, 42, 0.66) 55%, rgba(30, 41, 59, 0.74) 100%) !important;
+  backdrop-filter: blur(30px) saturate(205%) !important;
+  -webkit-backdrop-filter: blur(30px) saturate(205%) !important;
+  border-color: rgba(255, 255, 255, 0.18) !important;
   box-shadow:
-    inset 0 1px 0 0 rgba(255, 255, 255, 0.24),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.26),
     inset 0 0 0 1px rgba(255, 255, 255, 0.08),
     0 24px 64px -12px rgba(0, 0, 0, 0.72) !important;
 }
