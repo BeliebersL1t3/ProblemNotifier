@@ -47,6 +47,7 @@ class LeanIssue extends Model
         'progress_logs',
         'pending_reason',
         'pending_since',
+        'estimated_completion_at',
         'needs_sheets_sync',
         'sheets_synced_at',
         'sheets_sync_error',
@@ -66,9 +67,10 @@ class LeanIssue extends Model
         'needs_sheets_sync'  => 'boolean',
         'claimed_at'         => 'datetime',
         'resolved_at'        => 'datetime',
-        'ai_processed_at'    => 'datetime',
-        'pending_since'      => 'datetime',
-        'sheets_synced_at'   => 'datetime',
+        'ai_processed_at'         => 'datetime',
+        'pending_since'           => 'datetime',
+        'estimated_completion_at' => 'datetime',
+        'sheets_synced_at'        => 'datetime',
     ];
 
     protected static function booted(): void

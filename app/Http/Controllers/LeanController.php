@@ -12,6 +12,7 @@ use Inertia\Inertia;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class LeanController extends Controller
 {
@@ -194,6 +195,119 @@ class LeanController extends Controller
     }
 
     /**
+     * Parse optional Estimated Completion Time input, treating naive browser datetime-local values as Asia/Jakarta (WIB).
+     */
+    protected function parseEstimatedCompletionValue(mixed $value): ?Carbon
+    {
+        $raw = trim((string) ($value ?? ''));
+        if ($raw === '') {
+            return null;
+        }
+
+        try {
+            $parsed = Carbon::parse($raw, 'Asia/Jakarta');
+        } catch (\Throwable $t) {
+            Log::warning('Invalid estimated_completion_at input: ' . $raw, ['error' => $t->getMessage()]);
+            throw ValidationException::withMessages([
+                'estimated_completion_at' => [__('validation.date', ['attribute' => __('validation.attributes.estimated_completion_at')])],
+            ]);
+        }
+
+        return $parsed->setTimezone(config('app.timezone'))->startOfMinute();
+    }
+
+    /**
+     * Resolve whether estimated_completion_at is updated, preserved, or explicitly cleared on workflow actions.
+     */
+    protected function resolveEstimatedCompletionUpdate(
+        Request $request,
+        ?Carbon $currentEta,
+        bool $preserveWhenBlankWithoutClear = false
+    ): array {
+        $clearFlag = $request->has('clear_eta')
+            && filter_var($request->input('clear_eta'), FILTER_VALIDATE_BOOLEAN);
+
+        $previous = $currentEta
+            ? $currentEta->copy()->setTimezone(config('app.timezone'))->startOfMinute()
+            : null;
+
+        if ($clearFlag) {
+            return [
+                'eta'     => null,
+                'changed' => $previous !== null,
+                'cleared' => $previous !== null,
+            ];
+        }
+
+        if (!$request->exists('estimated_completion_at')) {
+            return [
+                'eta'     => $previous,
+                'changed' => false,
+                'cleared' => false,
+            ];
+        }
+
+        $raw = $request->input('estimated_completion_at');
+        if ($raw === null || trim((string) $raw) === '') {
+            if ($preserveWhenBlankWithoutClear) {
+                return [
+                    'eta'     => $previous,
+                    'changed' => false,
+                    'cleared' => false,
+                ];
+            }
+
+            return [
+                'eta'     => null,
+                'changed' => $previous !== null,
+                'cleared' => $previous !== null,
+            ];
+        }
+
+        $parsed = $this->parseEstimatedCompletionValue($raw);
+        $changed = ($previous?->timestamp) !== ($parsed?->timestamp);
+
+        return [
+            'eta'     => $parsed,
+            'changed' => $changed,
+            'cleared' => false,
+        ];
+    }
+
+    /**
+     * Format an ETA timestamp cleanly in Asia/Jakarta (WIB) for operational notifications and logs.
+     */
+    protected function formatEtaWib(?Carbon $eta): ?string
+    {
+        if (!$eta) {
+            return null;
+        }
+
+        return $eta->copy()->setTimezone('Asia/Jakarta')->format('d M Y, H:i') . ' WIB';
+    }
+
+    /**
+     * Evaluate resolved ticket SLA punctuality against estimated_completion_at.
+     */
+    protected function evaluateSlaStatus(LeanIssue $issue): array
+    {
+        if (!$issue->estimated_completion_at || !$issue->resolved_at) {
+            return [
+                'has_eta'    => (bool) $issue->estimated_completion_at,
+                'sla_status' => null,
+            ];
+        }
+
+        $etaMinute = $issue->estimated_completion_at->copy()->setTimezone(config('app.timezone'))->startOfMinute();
+        $resolvedMinute = $issue->resolved_at->copy()->setTimezone(config('app.timezone'))->startOfMinute();
+
+        return [
+            'has_eta'    => true,
+            'sla_status' => $resolvedMinute->lte($etaMinute) ? 'on_time' : 'overdue',
+        ];
+    }
+
+    /**
      * Display the mobile-first lean dashboard.
      */
     public function index(Request $request)
@@ -228,10 +342,11 @@ class LeanController extends Controller
                 'progress_workers'     => $item->progress_workers ?? [],
                 'active_workers'       => $item->active_workers ?? [],
                 'contributors'         => $item->contributors ?? [],
-                'progress_logs'        => $item->progress_logs ?? [],
-                'pending_reason'       => $item->pending_reason,
-                'pending_since'        => $item->pending_since ? $item->pending_since->toIso8601String() : null,
-                'resolved_by_name'     => $item->resolved_by_name,
+                'progress_logs'           => $item->progress_logs ?? [],
+                'pending_reason'          => $item->pending_reason,
+                'pending_since'           => $item->pending_since ? $item->pending_since->toIso8601String() : null,
+                'estimated_completion_at' => $item->estimated_completion_at ? $item->estimated_completion_at->toIso8601String() : null,
+                'resolved_by_name'        => $item->resolved_by_name,
                 'resolved_by_dept'     => $item->resolved_by_dept,
                 'resolved_at'          => $item->resolved_at ? $item->resolved_at->toIso8601String() : null,
                 'resolution_note'      => $item->resolution_note,
@@ -298,9 +413,10 @@ class LeanController extends Controller
             'reporter_name'      => 'required|string|max:100',
             'reporter_dept'      => 'nullable|string|max:100',
             'reporter_phone'     => 'nullable|string|max:30',
-            'image'              => 'nullable|image|max:10240',
-            'reported_at'        => 'nullable|date',
-            'start_in_progress'  => 'nullable',
+            'image'                   => 'nullable|image|max:10240',
+            'reported_at'             => 'nullable|date',
+            'start_in_progress'       => 'nullable',
+            'estimated_completion_at' => 'nullable|date',
         ]);
 
         $imageUrl = null;
@@ -351,33 +467,42 @@ class LeanController extends Controller
             $validated['reporter_dept'] ?? null
         );
 
+        $eta = $startInProgress
+            ? $this->parseEstimatedCompletionValue($request->input('estimated_completion_at'))
+            : null;
+
         $issue = new LeanIssue([
-            'location'           => $validated['location'],
-            'title'              => $validated['title'],
-            'description'        => $validated['description'] ?? null,
-            'target_departments' => $targetDepts,
-            'reporter_name'      => $validated['reporter_name'],
-            'reporter_dept'      => !empty($validated['reporter_dept']) ? $validated['reporter_dept'] : null,
-            'reporter_phone'     => $resolvedReporterPhone,
-            'image_url'          => $imageUrl,
-            'status'             => $startInProgress ? 'in_progress' : 'open',
-            'department_accs'    => $accs,
-            'claimed_by_name'    => $workerNames,
-            'claimed_by_dept'    => $startInProgress ? $receiverDept : null,
-            'claimed_at'         => $startInProgress ? Carbon::now('Asia/Jakarta') : null,
-            'initial_workers'    => $startInProgress ? $workersList : [],
-            'progress_workers'   => $startInProgress ? $workersList : [],
-            'active_workers'     => $startInProgress ? $workersList : [],
-            'contributors'       => $startInProgress ? $workersList : [],
+            'location'                => $validated['location'],
+            'title'                   => $validated['title'],
+            'description'             => $validated['description'] ?? null,
+            'target_departments'      => $targetDepts,
+            'reporter_name'           => $validated['reporter_name'],
+            'reporter_dept'           => !empty($validated['reporter_dept']) ? $validated['reporter_dept'] : null,
+            'reporter_phone'          => $resolvedReporterPhone,
+            'image_url'               => $imageUrl,
+            'status'                  => $startInProgress ? 'in_progress' : 'open',
+            'department_accs'         => $accs,
+            'claimed_by_name'         => $workerNames,
+            'claimed_by_dept'         => $startInProgress ? $receiverDept : null,
+            'claimed_at'              => $startInProgress ? Carbon::now(config('app.timezone')) : null,
+            'estimated_completion_at' => $eta,
+            'initial_workers'         => $startInProgress ? $workersList : [],
+            'progress_workers'        => $startInProgress ? $workersList : [],
+            'active_workers'          => $startInProgress ? $workersList : [],
+            'contributors'            => $startInProgress ? $workersList : [],
         ]);
 
         if ($startInProgress) {
+            $meta = ['workers' => $workersList, 'active_workers' => $workersList];
+            if ($eta) {
+                $meta['estimated_completion_at'] = $eta->toIso8601String();
+            }
             $issue->addProgressLog(
                 'claim',
                 $receiverName,
                 $receiverDept,
                 'Langsung mulai dikerjakan saat laporan dicatat.',
-                ['workers' => $workersList, 'active_workers' => $workersList]
+                $meta
             );
         }
 
@@ -459,18 +584,22 @@ class LeanController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'workers'         => 'nullable|array|min:1',
-            'workers.*'       => 'string|max:100',
-            'staff_name'      => 'nullable|string|max:255',
-            'dept'            => 'nullable|string|max:50',
-            'note'            => 'nullable|string|max:1000',
-            'notify_reporter' => 'nullable',
+            'workers'                 => 'nullable|array|min:1',
+            'workers.*'               => 'string|max:100',
+            'staff_name'              => 'nullable|string|max:255',
+            'dept'                    => 'nullable|string|max:50',
+            'note'                    => 'nullable|string|max:1000',
+            'notify_reporter'         => 'nullable',
+            'estimated_completion_at' => 'nullable|date',
+            'clear_eta'               => 'nullable',
         ], [
             'workers.min' => __('telunas.lean_workers_min_err'),
         ]);
         if ($validator->fails()) {
             return $this->actionErrorResponse($request, $validator->errors()->first(), 422, $validator->errors()->toArray());
         }
+
+        $etaUpdate = $this->resolveEstimatedCompletionUpdate($request, $issue->estimated_completion_at, false);
 
         $actorName = $user->staff_name ?: $user->name;
         $rawDept = $user->isAdmin() && $request->filled('dept')
@@ -523,21 +652,30 @@ class LeanController extends Controller
         $issue->claimed_by_name = $workersStr;
         $issue->claimed_by_dept = $dept;
         if (!$issue->claimed_at) {
-            $issue->claimed_at = Carbon::now('Asia/Jakarta');
+            $issue->claimed_at = Carbon::now(config('app.timezone'));
         }
         $issue->pending_reason = null;
         $issue->pending_since = null;
+        $issue->estimated_completion_at = $etaUpdate['eta'];
 
         $logType = $wasPending ? 'progress' : 'claim';
         $logMsg = $note !== ''
             ? $note
             : ($wasPending ? 'Melanjutkan kembali ke tahap Progress.' : 'Mulai dikerjakan.');
 
-        $issue->addProgressLog($logType, $actorName, $dept, $logMsg, [
+        $logMeta = [
             'workers'        => $workersList,
             'active_workers' => $workersList,
             'notified_wa'    => false,
-        ]);
+        ];
+        if ($etaUpdate['eta']) {
+            $logMeta['estimated_completion_at'] = $etaUpdate['eta']->toIso8601String();
+        }
+        if ($etaUpdate['cleared']) {
+            $logMeta['eta_cleared'] = true;
+        }
+
+        $issue->addProgressLog($logType, $actorName, $dept, $logMsg, $logMeta);
 
         $issue->save();
 
@@ -577,14 +715,24 @@ class LeanController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'comment'         => 'nullable|string|max:2000',
-            'workers'         => 'nullable|array',
-            'workers.*'       => 'string|max:100',
-            'notify_reporter' => 'nullable',
+            'comment'                 => 'nullable|string|max:2000',
+            'workers'                 => 'nullable|array',
+            'workers.*'               => 'string|max:100',
+            'notify_reporter'         => 'nullable',
+            'estimated_completion_at' => 'nullable|date',
+            'clear_eta'               => 'nullable',
         ]);
         if ($validator->fails()) {
             return $this->actionErrorResponse($request, $validator->errors()->first(), 422, $validator->errors()->toArray());
         }
+
+        $previousEta = $issue->estimated_completion_at
+            ? $issue->estimated_completion_at->copy()->setTimezone(config('app.timezone'))->startOfMinute()
+            : null;
+        $etaUpdate = $this->resolveEstimatedCompletionUpdate($request, $issue->estimated_completion_at, false);
+        $etaChanged = $etaUpdate['changed'];
+        $etaCleared = $etaUpdate['cleared'];
+        $newEta = $etaUpdate['eta'];
 
         $comment = trim((string) $request->input('comment', ''));
         $notifyReporter = $request->has('notify_reporter')
@@ -612,7 +760,7 @@ class LeanController extends Controller
         $addedWorkers = array_values(array_filter($newWorkers, fn ($w) => !in_array(mb_strtolower($w), $prevLower, true)));
         $removedWorkers = array_values(array_filter($previousWorkers, fn ($w) => !in_array(mb_strtolower($w), $newLower, true)));
 
-        if ($comment === '' && empty($addedWorkers) && empty($removedWorkers)) {
+        if ($comment === '' && empty($addedWorkers) && empty($removedWorkers) && !$etaChanged) {
             return $this->actionErrorResponse($request, __('telunas.lean_progress_empty_msg'), 422, [
                 'comment' => __('telunas.lean_progress_empty_err'),
             ]);
@@ -628,6 +776,7 @@ class LeanController extends Controller
         // Accumulate into historical progress & contributor rosters (do not remove past workers)
         $issue->progress_workers = LeanIssue::mergeUniqueNames($issue->progress_workers, $newWorkers);
         $issue->contributors = LeanIssue::mergeUniqueNames($issue->contributors, $newWorkers);
+        $issue->estimated_completion_at = $newEta;
 
         $diffParts = [];
         if (!empty($addedWorkers)) {
@@ -636,24 +785,45 @@ class LeanController extends Controller
         if (!empty($removedWorkers)) {
             $diffParts[] = 'Dikurangi: ' . implode(', ', $removedWorkers);
         }
+        if ($etaChanged) {
+            $diffParts[] = $etaCleared
+                ? 'Perkiraan selesai dikosongkan'
+                : 'Perkiraan selesai: ' . $this->formatEtaWib($newEta);
+        }
         $diffText = implode(' | ', $diffParts);
-        $fullMessage = $comment !== ''
-            ? ($diffText !== '' ? "{$comment} ({$diffText})" : $comment)
-            : "Perubahan tim pelaksana ({$diffText})";
+        if ($comment !== '') {
+            $fullMessage = $diffText !== '' ? "{$comment} ({$diffText})" : $comment;
+        } elseif (!empty($addedWorkers) || !empty($removedWorkers)) {
+            $fullMessage = "Perubahan tim pelaksana ({$diffText})";
+        } else {
+            $fullMessage = $etaCleared
+                ? 'Perkiraan waktu selesai dikosongkan.'
+                : 'Perkiraan waktu selesai diperbarui ke ' . $this->formatEtaWib($newEta) . '.';
+        }
 
-        $issue->addProgressLog('progress', $actorName, $actorDept, $fullMessage, [
+        $progressMeta = [
             'workers'         => $newWorkers,
             'added_workers'   => $addedWorkers,
             'removed_workers' => $removedWorkers,
             'notified_wa'     => $notifyReporter,
-        ]);
+        ];
+        if ($etaChanged) {
+            $progressMeta['previous_eta'] = $previousEta?->toIso8601String();
+            $progressMeta['estimated_completion_at'] = $newEta?->toIso8601String();
+            $progressMeta['eta_changed'] = true;
+            $progressMeta['eta_cleared'] = $etaCleared;
+        } elseif ($newEta) {
+            $progressMeta['estimated_completion_at'] = $newEta->toIso8601String();
+        }
+
+        $issue->addProgressLog('progress', $actorName, $actorDept, $fullMessage, $progressMeta);
 
         $issue->save();
 
         if ($notifyReporter) {
-            $this->notifyReporterProgress($issue, $actorName, $actorDept, $comment, $newWorkers, $addedWorkers, $removedWorkers);
+            $this->notifyReporterProgress($issue, $actorName, $actorDept, $comment, $newWorkers, $addedWorkers, $removedWorkers, $etaChanged, $etaCleared);
         }
-        $this->notifyGroupsProgress($issue, $actorName, $actorDept, $comment, $newWorkers, $addedWorkers, $removedWorkers);
+        $this->notifyGroupsProgress($issue, $actorName, $actorDept, $comment, $newWorkers, $addedWorkers, $removedWorkers, $etaChanged, $etaCleared);
 
         $this->syncIssueToSheets($issue, 'progress');
 
@@ -672,7 +842,9 @@ class LeanController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'reason' => 'required|string|max:1000',
+            'reason'                  => 'required|string|max:1000',
+            'estimated_completion_at' => 'nullable|date',
+            'clear_eta'               => 'nullable',
         ], [
             'reason.required' => __('telunas.lean_pending_reason_req'),
         ]);
@@ -680,6 +852,8 @@ class LeanController extends Controller
             return $this->actionErrorResponse($request, $validator->errors()->first(), 422, $validator->errors()->toArray());
         }
         $validated = $validator->validated();
+
+        $etaUpdate = $this->resolveEstimatedCompletionUpdate($request, $issue->estimated_completion_at, false);
 
         $reason = trim($validated['reason']);
         if ($reason === '') {
@@ -695,8 +869,17 @@ class LeanController extends Controller
         $issue->status = 'pending';
         $issue->pending_reason = $reason;
         $issue->resolution_note = "Pending: {$reason}";
+        $issue->estimated_completion_at = $etaUpdate['eta'];
         if (!$issue->pending_since) {
-            $issue->pending_since = Carbon::now('Asia/Jakarta');
+            $issue->pending_since = Carbon::now(config('app.timezone'));
+        }
+
+        $pendingMeta = ['pending_reason' => $reason];
+        if ($etaUpdate['eta']) {
+            $pendingMeta['estimated_completion_at'] = $etaUpdate['eta']->toIso8601String();
+        }
+        if ($etaUpdate['cleared']) {
+            $pendingMeta['eta_cleared'] = true;
         }
 
         $issue->addProgressLog(
@@ -704,7 +887,7 @@ class LeanController extends Controller
             $actorName,
             $actorDept,
             ($isUpdatePending ? 'Update alasan pending: ' : 'Ditunda (Pending): ') . $reason,
-            ['pending_reason' => $reason]
+            $pendingMeta
         );
 
         $issue->save();
@@ -777,7 +960,7 @@ class LeanController extends Controller
         $issue->status = 'resolved';
         $issue->resolved_by_name = $finalWorkersStr;
         $issue->resolved_by_dept = $dept;
-        $issue->resolved_at = Carbon::now('Asia/Jakarta');
+        $issue->resolved_at = Carbon::now(config('app.timezone'));
         $issue->resolution_note = $note;
         if ($resolutionImageUrl) {
             $issue->resolution_image_url = $resolutionImageUrl;
@@ -787,11 +970,18 @@ class LeanController extends Controller
         $issue->active_workers = [];
         $issue->contributors = LeanIssue::mergeUniqueNames($issue->contributors, $finalWorkers);
 
-        $issue->addProgressLog('resolved', $actorName, $dept, $note, [
+        $sla = $this->evaluateSlaStatus($issue);
+        $resolvedMeta = [
             'workers'      => $finalWorkers,
             'contributors' => $issue->contributors,
             'has_photo'    => (bool) $resolutionImageUrl,
-        ]);
+        ];
+        if ($issue->estimated_completion_at) {
+            $resolvedMeta['estimated_completion_at'] = $issue->estimated_completion_at->toIso8601String();
+            $resolvedMeta['sla_status'] = $sla['sla_status'];
+        }
+
+        $issue->addProgressLog('resolved', $actorName, $dept, $note, $resolvedMeta);
 
         $issue->save();
 
@@ -851,6 +1041,7 @@ class LeanController extends Controller
             'transferred_at'       => Carbon::now('Asia/Jakarta')->toIso8601String(),
         ];
 
+        $hadEta = $issue->estimated_completion_at !== null;
         $issue->target_departments = [$toDept];
         $issue->status = 'open';
         $issue->active_workers = [];
@@ -859,6 +1050,7 @@ class LeanController extends Controller
         $issue->claimed_at = null;
         $issue->pending_reason = null;
         $issue->pending_since = null;
+        $issue->estimated_completion_at = null;
         $issue->department_accs = [
             $toDept => [
                 'is_acc' => false,
@@ -868,16 +1060,21 @@ class LeanController extends Controller
         ];
         $issue->transfer_history = $history;
 
+        $transferMeta = [
+            'from_department' => $oldDept,
+            'to_department'   => $toDept,
+            'reason'          => $reason,
+        ];
+        if ($hadEta) {
+            $transferMeta['eta_cleared'] = true;
+        }
+
         $issue->addProgressLog(
             'transfer',
             $actorName,
             $actorDept,
             "Dialihkan dari {$oldDept} ke {$toDept}: {$reason}",
-            [
-                'from_department' => $oldDept,
-                'to_department'   => $toDept,
-                'reason'          => $reason,
-            ]
+            $transferMeta
         );
 
         $issue->save();
@@ -1063,16 +1260,17 @@ class LeanController extends Controller
                 'active_workers'       => $item->active_workers ?? [],
                 'contributors'         => $item->contributors ?? [],
                 'progress_logs'        => $item->progress_logs ?? [],
-                'pending_reason'       => $item->pending_reason,
-                'pending_since'        => $item->pending_since ? $item->pending_since->toIso8601String() : null,
-                'solver'               => $item->resolved_by_name,
+                'pending_reason'          => $item->pending_reason,
+                'pending_since'           => $item->pending_since ? $item->pending_since->toIso8601String() : null,
+                'estimated_completion_at' => $item->estimated_completion_at ? $item->estimated_completion_at->toIso8601String() : null,
+                'solver'                  => $item->resolved_by_name,
                 'resolved_by_dept'     => $item->resolved_by_dept,
-                'resolved_at'          => $item->resolved_at ? $item->resolved_at->format('d/m/Y H:i') . ' WIB' : null,
+                'resolved_at'          => $item->resolved_at ? $item->resolved_at->copy()->setTimezone('Asia/Jakarta')->format('d/m/Y H:i') . ' WIB' : null,
                 'resolved_at_raw'      => $item->resolved_at ? $item->resolved_at->toIso8601String() : null,
                 'fixDescription'       => $item->resolution_note,
                 'proofImageUrl'        => $item->resolution_image_url,
                 'transfer_history'     => $item->transfer_history ?? [],
-                'created_at'           => $item->created_at ? $item->created_at->format('d/m/Y H:i') . ' WIB' : null,
+                'created_at'           => $item->created_at ? $item->created_at->copy()->setTimezone('Asia/Jakarta')->format('d/m/Y H:i') . ' WIB' : null,
                 'created_at_raw'       => $item->created_at ? $item->created_at->toIso8601String() : null,
                 'created_at_human'     => $item->created_at ? $item->created_at->locale(app()->getLocale())->diffForHumans() : '',
             ];
@@ -1090,15 +1288,16 @@ class LeanController extends Controller
     public function apiStore(Request $request)
     {
         $validated = $request->validate([
-            'title'          => 'required|string|max:255',
-            'description'    => 'nullable|string|max:5000',
-            'location'       => 'required|string|max:255',
-            'department'     => 'required|string|max:100',
-            'reporter'       => 'required|string|max:255',
-            'reporter_dept'  => 'nullable|string|max:100',
-            'reporter_phone' => 'nullable|string|max:30',
-            'source'         => 'nullable|string|max:50',
-            'image'          => 'nullable|image|max:10240',
+            'title'                   => 'required|string|max:255',
+            'description'             => 'nullable|string|max:5000',
+            'location'                => 'required|string|max:255',
+            'department'              => 'required|string|max:100',
+            'reporter'                => 'required|string|max:255',
+            'reporter_dept'           => 'nullable|string|max:100',
+            'reporter_phone'          => 'nullable|string|max:30',
+            'source'                  => 'nullable|string|max:50',
+            'image'                   => 'nullable|image|max:10240',
+            'estimated_completion_at' => 'nullable|date',
         ]);
 
         $imageUrl = null;
@@ -1116,18 +1315,20 @@ class LeanController extends Controller
             $validated['reporter'],
             $reporterDept
         );
+        $eta = $this->parseEstimatedCompletionValue($request->input('estimated_completion_at'));
 
         $issue = LeanIssue::create([
-            'location'           => $validated['location'],
-            'title'              => $validated['title'],
-            'description'        => $validated['description'] ?? null,
-            'target_departments' => [$targetDept],
-            'reporter_name'      => $validated['reporter'],
-            'reporter_dept'      => $reporterDept,
-            'reporter_phone'     => $resolvedReporterPhone,
-            'image_url'          => $imageUrl,
-            'status'             => 'open',
-            'department_accs'    => [
+            'location'                => $validated['location'],
+            'title'                   => $validated['title'],
+            'description'             => $validated['description'] ?? null,
+            'target_departments'      => [$targetDept],
+            'reporter_name'           => $validated['reporter'],
+            'reporter_dept'           => $reporterDept,
+            'reporter_phone'          => $resolvedReporterPhone,
+            'image_url'               => $imageUrl,
+            'status'                  => 'open',
+            'estimated_completion_at' => $eta,
+            'department_accs'         => [
                 $targetDept => [
                     'is_acc' => false,
                     'acc_by' => null,
@@ -1161,9 +1362,10 @@ class LeanController extends Controller
                 'location'       => $issue->location,
                 'department'     => $targetDept,
                 'reporter'       => $issue->reporter_name,
-                'reporter_phone' => $issue->reporter_phone,
-                'status'         => 'open',
-                'imageUrl'       => $imageUrl,
+                'reporter_phone'          => $issue->reporter_phone,
+                'status'                  => 'open',
+                'estimated_completion_at' => $issue->estimated_completion_at ? $issue->estimated_completion_at->toIso8601String() : null,
+                'imageUrl'                => $imageUrl,
             ],
         ]);
     }
@@ -1177,6 +1379,12 @@ class LeanController extends Controller
         if (!$issue) {
             return response()->json(['success' => false, 'message' => __('telunas.lean_issue_not_found')], 404);
         }
+
+        $request->validate([
+            'estimated_completion_at' => 'nullable|date',
+            'clear_eta'               => 'nullable',
+        ]);
+        $etaUpdate = $this->resolveEstimatedCompletionUpdate($request, $issue->estimated_completion_at, true);
 
         $taker = $request->input('taker', 'Staf WhatsApp');
         $rawDept = $request->input('department', is_array($issue->target_departments) ? ($issue->target_departments[0] ?? '') : '');
@@ -1215,13 +1423,21 @@ class LeanController extends Controller
         $issue->status = 'in_progress';
         $issue->claimed_by_name = $taker;
         $issue->claimed_by_dept = $dept;
-        $issue->claimed_at = $issue->claimed_at ?: Carbon::now('Asia/Jakarta');
+        $issue->claimed_at = $issue->claimed_at ?: Carbon::now(config('app.timezone'));
         $issue->pending_reason = null;
         $issue->pending_since = null;
+        $issue->estimated_completion_at = $etaUpdate['eta'];
         $issue->department_accs = $accs;
         $logType = $wasPending ? 'progress' : 'claim';
         $logMsg = $wasPending ? 'Melanjutkan kembali ke tahap Progress via WhatsApp.' : 'Mulai dikerjakan via WhatsApp.';
-        $issue->addProgressLog($logType, $taker, $dept, $logMsg, ['workers' => $workersList]);
+        $apiClaimMeta = ['workers' => $workersList];
+        if ($etaUpdate['eta']) {
+            $apiClaimMeta['estimated_completion_at'] = $etaUpdate['eta']->toIso8601String();
+        }
+        if ($etaUpdate['cleared']) {
+            $apiClaimMeta['eta_cleared'] = true;
+        }
+        $issue->addProgressLog($logType, $taker, $dept, $logMsg, $apiClaimMeta);
         $issue->save();
 
         // Notify reporting staff DM centrally (bot replies directly in originating group)
@@ -1239,9 +1455,10 @@ class LeanController extends Controller
             'success' => true,
             'message' => __('telunas.lean_api_claim_success', ['taker' => $taker]),
             'data'    => [
-                'id'     => self::formatIssueCode($issue),
-                'status' => 'in_progress',
-                'taker'  => $taker,
+                'id'                      => self::formatIssueCode($issue),
+                'status'                  => 'in_progress',
+                'taker'                   => $taker,
+                'estimated_completion_at' => $issue->estimated_completion_at ? $issue->estimated_completion_at->toIso8601String() : null,
             ]
         ]);
     }
@@ -1264,13 +1481,19 @@ class LeanController extends Controller
         $issue->status = 'resolved';
         $issue->resolved_by_name = $solver;
         $issue->resolved_by_dept = $targetDept;
-        $issue->resolved_at = Carbon::now('Asia/Jakarta');
+        $issue->resolved_at = Carbon::now(config('app.timezone'));
         $issue->resolution_note = $fixDesc;
         $issue->pending_reason = null;
         $issue->pending_since = null;
         $issue->active_workers = [];
         $issue->contributors = LeanIssue::mergeUniqueNames($issue->contributors, $finalWorkers);
-        $issue->addProgressLog('resolved', $solver, $targetDept, $fixDesc, ['workers' => $finalWorkers]);
+        $sla = $this->evaluateSlaStatus($issue);
+        $apiResolveMeta = ['workers' => $finalWorkers];
+        if ($issue->estimated_completion_at) {
+            $apiResolveMeta['estimated_completion_at'] = $issue->estimated_completion_at->toIso8601String();
+            $apiResolveMeta['sla_status'] = $sla['sla_status'];
+        }
+        $issue->addProgressLog('resolved', $solver, $targetDept, $fixDesc, $apiResolveMeta);
         $issue->save();
 
         // Dispatch automated WhatsApp completion notification to the reporting staff
@@ -1287,9 +1510,10 @@ class LeanController extends Controller
             'success' => true,
             'message' => __('telunas.lean_api_resolve_success', ['solver' => $solver]),
             'data'    => [
-                'id'     => self::formatIssueCode($issue),
-                'status' => 'resolved',
-                'solver' => $solver,
+                'id'                      => self::formatIssueCode($issue),
+                'status'                  => 'resolved',
+                'solver'                  => $solver,
+                'estimated_completion_at' => $issue->estimated_completion_at ? $issue->estimated_completion_at->toIso8601String() : null,
             ]
         ]);
     }
@@ -1335,7 +1559,8 @@ class LeanController extends Controller
             'transferred_at'       => Carbon::now('Asia/Jakarta')->toIso8601String(),
         ];
 
-        // Update LeanIssue & reset ACC readiness for new department
+        // Update LeanIssue & reset ACC readiness + ETA for new department
+        $hadEta = $issue->estimated_completion_at !== null;
         $issue->target_departments = [$newDept];
         $issue->status = 'open';
         $issue->active_workers = [];
@@ -1344,6 +1569,7 @@ class LeanController extends Controller
         $issue->claimed_at = null;
         $issue->pending_reason = null;
         $issue->pending_since = null;
+        $issue->estimated_completion_at = null;
         $issue->department_accs = [
             $newDept => [
                 'is_acc' => false,
@@ -1352,7 +1578,13 @@ class LeanController extends Controller
             ],
         ];
         $issue->transfer_history = $history;
-        $issue->addProgressLog('transfer', $transferredBy, $oldDept, "Dialihkan dari {$oldDept} ke {$newDept}: {$reason}");
+        $issue->addProgressLog(
+            'transfer',
+            $transferredBy,
+            $oldDept,
+            "Dialihkan dari {$oldDept} ke {$newDept}: {$reason}",
+            $hadEta ? ['eta_cleared' => true] : []
+        );
         $issue->save();
 
         // Dispatch centralized reporter DM notification (bot handles group replies directly)
@@ -1396,6 +1628,12 @@ class LeanController extends Controller
             return response()->json(['success' => false, 'message' => __('telunas.lean_issue_not_found')], 404);
         }
 
+        $request->validate([
+            'estimated_completion_at' => 'nullable|date',
+            'clear_eta'               => 'nullable',
+        ]);
+        $etaUpdate = $this->resolveEstimatedCompletionUpdate($request, $issue->estimated_completion_at, true);
+
         $reason = trim((string) $request->input('reason', 'Tertunda')) ?: 'Tertunda';
         $actor = trim((string) ($request->input('actor') ?: $request->input('pending_by', 'Staf WhatsApp'))) ?: 'Staf WhatsApp';
         $dept = !empty($issue->target_departments) ? $issue->target_departments[0] : 'Umum';
@@ -1403,9 +1641,17 @@ class LeanController extends Controller
 
         $issue->status = 'pending';
         $issue->pending_reason = $reason;
-        $issue->pending_since = $issue->pending_since ?: Carbon::now('Asia/Jakarta');
+        $issue->pending_since = $issue->pending_since ?: Carbon::now(config('app.timezone'));
         $issue->resolution_note = "Pending: {$reason}";
-        $issue->addProgressLog('pending', $actor, $dept, "Ditunda (Pending): {$reason}", ['pending_reason' => $reason]);
+        $issue->estimated_completion_at = $etaUpdate['eta'];
+        $apiPendingMeta = ['pending_reason' => $reason];
+        if ($etaUpdate['eta']) {
+            $apiPendingMeta['estimated_completion_at'] = $etaUpdate['eta']->toIso8601String();
+        }
+        if ($etaUpdate['cleared']) {
+            $apiPendingMeta['eta_cleared'] = true;
+        }
+        $issue->addProgressLog('pending', $actor, $dept, "Ditunda (Pending): {$reason}", $apiPendingMeta);
         $issue->save();
 
         // Dispatch centralized reporter DM notification (bot handles group replies directly)
@@ -1422,9 +1668,10 @@ class LeanController extends Controller
             'success' => true,
             'message' => __('telunas.lean_api_pending_success'),
             'data'    => [
-                'id'     => self::formatIssueCode($issue),
-                'status' => 'pending',
-                'reason' => $reason,
+                'id'                      => self::formatIssueCode($issue),
+                'status'                  => 'pending',
+                'reason'                  => $reason,
+                'estimated_completion_at' => $issue->estimated_completion_at ? $issue->estimated_completion_at->toIso8601String() : null,
             ]
         ]);
     }
@@ -1447,6 +1694,8 @@ class LeanController extends Controller
         $workerLine = !empty($assignedWorkers)
             ? "🔧 *Ditugaskan Kepada:* {$assignedWorkers}\n"
             : "";
+        $etaFormatted = $this->formatEtaWib($issue->estimated_completion_at);
+        $etaLine = $etaFormatted ? "⏰ *Perkiraan Selesai:* {$etaFormatted}\n" : "";
 
         $message = "📋 *Laporan Diterima - Telunas Tracker*\n\n"
                  . "Halo *{$issue->reporter_name}*,\n"
@@ -1457,6 +1706,7 @@ class LeanController extends Controller
                  . "🏢 *Departemen Penangan:* {$receiverDept}\n"
                  . "👤 *Penerima Laporan:* {$receiverName}\n"
                  . $workerLine
+                 . $etaLine
                  . "📊 *Status Awal:* {$statusText}\n\n"
                  . "Kami akan terus mengabari perkembangan status laporan Anda (*dikerjakan, progress, pending, pengalihan,* hingga *selesai*) melalui WhatsApp ini. Terima kasih!";
 
@@ -1481,6 +1731,17 @@ class LeanController extends Controller
         $solverDisplay = $solverName ?: 'Tim Departemen';
         $deptDisplay = $solverDept ?: 'Resort';
         $noteText = !empty($note) ? "\n📝 *Catatan:* {$note}" : "";
+        $etaFormatted = $this->formatEtaWib($issue->estimated_completion_at);
+        $etaLine = '';
+        if ($etaFormatted) {
+            $sla = $this->evaluateSlaStatus($issue);
+            $slaTag = $sla['sla_status'] === 'on_time'
+                ? 'Tepat Waktu'
+                : ($sla['sla_status'] === 'overdue' ? 'Melewati Target' : '');
+            $etaLine = $slaTag !== ''
+                ? "\n⏰ *Target Awal:* {$etaFormatted} ({$slaTag})"
+                : "\n⏰ *Target Awal:* {$etaFormatted}";
+        }
 
         $message = "✅ *Laporan Selesai Ditangani - Telunas Tracker*\n\n"
                  . "Halo *{$issue->reporter_name}*,\n"
@@ -1488,7 +1749,7 @@ class LeanController extends Controller
                  . "📌 *Masalah:* {$issue->title}\n"
                  . "📍 *Lokasi:* {$issue->location}\n"
                  . "🏷️ *Kode Tiket:* #{$issueCode}\n"
-                 . "🔧 *Diselesaikan Oleh:* {$solverDisplay} ({$deptDisplay}){$noteText}\n\n"
+                 . "🔧 *Diselesaikan Oleh:* {$solverDisplay} ({$deptDisplay}){$noteText}{$etaLine}\n\n"
                  . "Terima kasih atas bantuan Anda dalam menjaga kenyamanan Telunas Resorts!";
 
         try {
@@ -1516,6 +1777,8 @@ class LeanController extends Controller
             ? "Laporan Anda kini kembali dalam tahap *Progress*:"
             : "Isu Anda kini berstatus *In Progress*:";
         $noteLine = $note !== '' ? "\n📝 *Catatan:* {$note}" : '';
+        $etaFormatted = $this->formatEtaWib($issue->estimated_completion_at);
+        $etaLine = $etaFormatted ? "\n⏰ *Perkiraan Selesai:* {$etaFormatted}" : '';
 
         $message = "{$titleHeader}\n\n"
                  . "Halo *{$issue->reporter_name}*,\n"
@@ -1524,7 +1787,7 @@ class LeanController extends Controller
                  . "📍 *Lokasi:* {$issue->location}\n"
                  . "🏷️ *Kode Tiket:* #{$issueCode}\n"
                  . "🏢 *Departemen:* {$dept}\n"
-                 . "👷 *Dikerjakan Oleh:* {$workersStr}{$noteLine}\n\n"
+                 . "👷 *Dikerjakan Oleh:* {$workersStr}{$etaLine}{$noteLine}\n\n"
                  . "Kami akan terus mengabari perkembangan penanganannya melalui WhatsApp ini.";
 
         try {
@@ -1545,7 +1808,9 @@ class LeanController extends Controller
         string $comment,
         array $activeWorkers,
         array $addedWorkers = [],
-        array $removedWorkers = []
+        array $removedWorkers = [],
+        bool $etaChanged = false,
+        bool $etaCleared = false
     ): void {
         $reporterPhone = $this->resolveIssueReporterPhone($issue);
         if (empty($reporterPhone)) {
@@ -1563,6 +1828,15 @@ class LeanController extends Controller
             $changeParts[] = '-Dikurangi: ' . implode(', ', $removedWorkers);
         }
         $teamChangeLine = !empty($changeParts) ? "\n🔄 *Perubahan Tim:* " . implode(' | ', $changeParts) : '';
+        $etaFormatted = $this->formatEtaWib($issue->estimated_completion_at);
+        $etaLine = '';
+        if ($etaChanged) {
+            $etaLine = $etaCleared
+                ? "\n⏰ *Perkiraan Selesai:* Dikosongkan"
+                : "\n⏰ *Perkiraan Selesai Diperbarui:* {$etaFormatted}";
+        } elseif ($etaFormatted) {
+            $etaLine = "\n⏰ *Perkiraan Selesai:* {$etaFormatted}";
+        }
 
         $message = "🔧 *Update Progress Laporan - Telunas Tracker*\n\n"
                  . "Halo *{$issue->reporter_name}*,\n"
@@ -1572,7 +1846,8 @@ class LeanController extends Controller
                  . "🏷️ *Kode Tiket:* #{$issueCode}\n"
                  . "👷 *Tim Aktif ({$dept}):* {$workersText}"
                  . $commentLine
-                 . $teamChangeLine . "\n"
+                 . $teamChangeLine
+                 . $etaLine . "\n"
                  . "👤 *Diperbarui Oleh:* {$actorName}";
 
         try {
@@ -1596,6 +1871,8 @@ class LeanController extends Controller
         $heading = $isUpdatePending
             ? "⏳ *Update Alasan Pending - Telunas Tracker*"
             : "⏳ *Laporan Ditunda Sementara (Pending) - Telunas Tracker*";
+        $etaFormatted = $this->formatEtaWib($issue->estimated_completion_at);
+        $etaLine = $etaFormatted ? "\n⏰ *Perkiraan Selesai / Lanjut:* {$etaFormatted}" : '';
 
         $message = "{$heading}\n\n"
                  . "Halo *{$issue->reporter_name}*,\n"
@@ -1604,7 +1881,7 @@ class LeanController extends Controller
                  . "📍 *Lokasi:* {$issue->location}\n"
                  . "🏷️ *Kode Tiket:* #{$issueCode}\n"
                  . "🏢 *Departemen:* {$dept}\n"
-                 . "📝 *Alasan Pending:* {$reason}\n"
+                 . "📝 *Alasan Pending:* {$reason}{$etaLine}\n"
                  . "👤 *Dicatat Oleh:* {$actorName}\n\n"
                  . "Tim akan kembali melanjutkan pengerjaan begitu kendala di atas teratasi.";
 
@@ -1657,6 +1934,8 @@ class LeanController extends Controller
         $statusText = $issue->status === 'in_progress'
             ? "⚡ *Langsung Dikerjakan* oleh {$assignedWorkers}"
             : "🕒 *Open (Menunggu Penanganan)*";
+        $etaFormatted = $this->formatEtaWib($issue->estimated_completion_at);
+        $etaLine = $etaFormatted ? "\n• *Perkiraan Selesai:* {$etaFormatted}" : '';
 
         $message = "📢 *LAPORAN MASALAH BARU (DASHBOARD)* 📢\n\n"
                  . "• *ID Tiket:* #{$issueCode}\n"
@@ -1665,7 +1944,7 @@ class LeanController extends Controller
                  . "• *Departemen Tujuan:* {$deptDisplay}\n"
                  . "• *Pelapor:* {$issue->reporter_name}{$reporterDeptDisplay}\n"
                  . "• *Dicatat Oleh:* {$receiverName}\n"
-                 . "• *Status Awal:* {$statusText}\n"
+                 . "• *Status Awal:* {$statusText}{$etaLine}\n"
                  . "• *Deskripsi:* {$descText}";
 
         try {
@@ -1694,13 +1973,15 @@ class LeanController extends Controller
             : "⚡ *TIKET MULAI DIKERJAKAN* ⚡";
         $statusLabel = $wasPending ? 'Progress' : 'In Progress';
         $noteLine = $note !== '' ? "\n• *Catatan:* {$note}" : '';
+        $etaFormatted = $this->formatEtaWib($issue->estimated_completion_at);
+        $etaLine = $etaFormatted ? "\n• *Perkiraan Selesai:* {$etaFormatted}" : '';
 
         $message = "{$heading}\n\n"
                  . "• *ID Tiket:* #{$issueCode}\n"
                  . "• *Masalah:* {$issue->title}\n"
                  . "• *Lokasi:* {$issue->location}\n"
                  . "• *Dikerjakan Oleh:* {$workersStr} ({$dept})\n"
-                 . "• *Status:* 🟡 {$statusLabel}{$noteLine}";
+                 . "• *Status:* 🟡 {$statusLabel}{$etaLine}{$noteLine}";
 
         try {
             TicketNotificationService::sendWhatsAppGroup([
@@ -1720,7 +2001,9 @@ class LeanController extends Controller
         string $comment,
         array $activeWorkers,
         array $addedWorkers = [],
-        array $removedWorkers = []
+        array $removedWorkers = [],
+        bool $etaChanged = false,
+        bool $etaCleared = false
     ): void {
         $issueCode = self::formatIssueCode($issue);
         $targetDepts = is_array($issue->target_departments) && !empty($issue->target_departments)
@@ -1736,6 +2019,15 @@ class LeanController extends Controller
             $changeParts[] = '-Dikurangi: ' . implode(', ', $removedWorkers);
         }
         $teamChangeLine = !empty($changeParts) ? "\n• *Perubahan Tim:* " . implode(' | ', $changeParts) : '';
+        $etaFormatted = $this->formatEtaWib($issue->estimated_completion_at);
+        $etaLine = '';
+        if ($etaChanged) {
+            $etaLine = $etaCleared
+                ? "\n• *Perkiraan Selesai:* Dikosongkan"
+                : "\n• *Perkiraan Selesai Diperbarui:* {$etaFormatted}";
+        } elseif ($etaFormatted) {
+            $etaLine = "\n• *Perkiraan Selesai:* {$etaFormatted}";
+        }
 
         $message = "🔧 *UPDATE PROGRESS PEKERJAAN* 🔧\n\n"
                  . "• *ID Tiket:* #{$issueCode}\n"
@@ -1743,7 +2035,8 @@ class LeanController extends Controller
                  . "• *Lokasi:* {$issue->location}\n"
                  . "• *Tim Aktif ({$dept}):* {$workersText}"
                  . $commentLine
-                 . $teamChangeLine . "\n"
+                 . $teamChangeLine
+                 . $etaLine . "\n"
                  . "• *Diperbarui Oleh:* {$actorName}";
 
         try {
@@ -1766,13 +2059,15 @@ class LeanController extends Controller
         $heading = $isUpdatePending
             ? "⏸️ *UPDATE ALASAN PENDING TIKET* ⏸️"
             : "⏸️ *TIKET DITANDAI PENDING / TERTUNDA* ⏸️";
+        $etaFormatted = $this->formatEtaWib($issue->estimated_completion_at);
+        $etaLine = $etaFormatted ? "\n• *Perkiraan Selesai / Lanjut:* {$etaFormatted}" : '';
 
         $message = "{$heading}\n\n"
                  . "• *ID Tiket:* #{$issueCode}\n"
                  . "• *Masalah:* {$issue->title}\n"
                  . "• *Lokasi:* {$issue->location}\n"
                  . "• *Departemen:* {$dept}\n"
-                 . "• *Alasan Pending:* {$reason}\n"
+                 . "• *Alasan Pending:* {$reason}{$etaLine}\n"
                  . "• *Dicatat Oleh:* {$actorName}";
 
         try {
@@ -1798,6 +2093,17 @@ class LeanController extends Controller
             ? implode(', ', $issue->contributors)
             : $solverDisplay;
         $noteLine = trim((string) $note) !== '' ? "\n• *Deskripsi Penyelesaian:* " . trim((string) $note) : '';
+        $etaFormatted = $this->formatEtaWib($issue->estimated_completion_at);
+        $etaLine = '';
+        if ($etaFormatted) {
+            $sla = $this->evaluateSlaStatus($issue);
+            $slaTag = $sla['sla_status'] === 'on_time'
+                ? 'Tepat Waktu'
+                : ($sla['sla_status'] === 'overdue' ? 'Melewati Target' : '');
+            $etaLine = $slaTag !== ''
+                ? "\n• *Target ETA:* {$etaFormatted} ({$slaTag})"
+                : "\n• *Target ETA:* {$etaFormatted}";
+        }
 
         $message = "✅ *TIKET TELAH SELESAI DITANGANI* ✅\n\n"
                  . "• *ID Tiket:* #{$issueCode}\n"
@@ -1805,7 +2111,7 @@ class LeanController extends Controller
                  . "• *Lokasi:* {$issue->location}\n"
                  . "• *Departemen:* {$deptDisplay}\n"
                  . "• *Diselesaikan Oleh:* {$solverDisplay}\n"
-                 . "• *Seluruh Kontributor:* {$contributorsList}{$noteLine}\n"
+                 . "• *Seluruh Kontributor:* {$contributorsList}{$noteLine}{$etaLine}\n"
                  . "• *Status:* 🟢 Selesai (Resolved)";
 
         try {

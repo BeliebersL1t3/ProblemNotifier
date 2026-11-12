@@ -31,9 +31,10 @@ return [
         'reason'        => 'alasan',
         'note'          => 'catatan penyelesaian',
         'to_department' => 'departemen tujuan',
-        'workers'       => 'pekerja',
-        'image'         => 'foto bukti',
-        'proof_image'   => 'foto bukti',
+        'workers'                 => 'pekerja',
+        'image'                   => 'foto bukti',
+        'proof_image'             => 'foto bukti',
+        'estimated_completion_at' => 'perkiraan waktu selesai',
     ],
 ];
 

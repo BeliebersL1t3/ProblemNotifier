@@ -63,7 +63,9 @@ import {
     X,
     Maximize2,
     ArrowUpRight,
+    CalendarClock,
 } from 'lucide-react';
+import { getEtaBadgeInfo, formatEtaDisplayWib } from '@/Components/CampusFix/EtaPickerField';
 import { TPI_MASTERPLAN_ZONES, TBR_MASTERPLAN_ZONES, resolveIssueResortAndZone } from '@/constants/locations';
 import { useLanguage } from '@/context/LanguageContext';
 
@@ -1422,6 +1424,22 @@ export function exportTelunasPdfReport({
     doc.text(`${stats.activeCount || 0} (${stats.activeRatio || 0}%)`, 18 + (boxWidth + 4) * 2, boxY + 14);
 
     let startY = 55;
+    if ((stats.withEtaCount || 0) > 0) {
+        const slaText = (stats.evaluatedSlaCount || 0) > 0
+            ? (isEn
+                ? `ETA SLA Punctuality: ${stats.onTimeResolvedCount || 0}/${stats.evaluatedSlaCount} On Time (${stats.onTimeRate}%)`
+                : `Ketepatan ETA (SLA): ${stats.onTimeResolvedCount || 0}/${stats.evaluatedSlaCount} Tepat Waktu (${stats.onTimeRate}%)`)
+            : (isEn ? 'ETA SLA Punctuality: No resolved ETA tickets yet' : 'Ketepatan ETA (SLA): Belum ada tiket selesai ber-ETA');
+        const overdueText = isEn
+            ? `Active Overdue ETA: ${stats.overdueActiveCount || 0} ticket(s) | Tickets with ETA: ${stats.withEtaCount}`
+            : `Aktif Melewati ETA: ${stats.overdueActiveCount || 0} tiket | Tiket Memiliki Target ETA: ${stats.withEtaCount}`;
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(7.5);
+        doc.setTextColor(71, 85, 105);
+        doc.text(`${slaText}   |   ${overdueText}`, 14, 54.5);
+        startY = 59;
+    }
 
     // 3. Table: Sebaran Beban per Departemen
     const deptRows = deptTargetData.map((d, idx) => [
@@ -1510,6 +1528,7 @@ export function exportTelunasPdfReport({
                 : i.status === 'pending'
                 ? (isEn ? 'Pending' : 'Tertunda')
                 : (isEn ? 'In Progress' : 'Progress'),
+            i.estimated_completion_at ? formatEtaDisplayWib(i.estimated_completion_at, isEn, true) : '-',
             i.pending_reason || '-',
         ]);
 
@@ -1517,21 +1536,22 @@ export function exportTelunasPdfReport({
             startY: startY,
             head: [
                 isEn
-                    ? ['Code', 'Location', 'Target Dept', 'Issue Title', 'Reporter', 'Status', 'Pending Notes']
-                    : ['Kode', 'Lokasi', 'Dept Dituju', 'Judul Masalah', 'Pelapor', 'Status', 'Catatan Pending'],
+                    ? ['Code', 'Location', 'Target Dept', 'Issue Title', 'Reporter', 'Status', 'Target ETA', 'Pending Notes']
+                    : ['Kode', 'Lokasi', 'Dept Dituju', 'Judul Masalah', 'Pelapor', 'Status', 'Target ETA', 'Catatan Pending'],
             ],
             body: activeRows,
             theme: 'grid',
-            headStyles: { fillColor: [190, 18, 60], fontSize: 8, fontStyle: 'bold' },
-            bodyStyles: { fontSize: 7.5 },
+            headStyles: { fillColor: [190, 18, 60], fontSize: 7.5, fontStyle: 'bold' },
+            bodyStyles: { fontSize: 7 },
             columnStyles: {
-                0: { cellWidth: 24, fontStyle: 'bold' },
-                1: { cellWidth: 25 },
-                2: { cellWidth: 25 },
-                3: { cellWidth: 45 },
-                4: { cellWidth: 20 },
-                5: { cellWidth: 18, halign: 'center', fontStyle: 'bold' },
-                6: { cellWidth: 'auto' },
+                0: { cellWidth: 22, fontStyle: 'bold' },
+                1: { cellWidth: 23 },
+                2: { cellWidth: 22 },
+                3: { cellWidth: 36 },
+                4: { cellWidth: 18 },
+                5: { cellWidth: 16, halign: 'center', fontStyle: 'bold' },
+                6: { cellWidth: 25 },
+                7: { cellWidth: 'auto' },
             },
             margin: { left: 14, right: 14 },
         });
@@ -1630,6 +1650,12 @@ export function LeanAnalyticsView({
     // 5. Hotspot Location Modal
     const [selectedLocationForModal, setSelectedLocationForModal] = useState(null);
     const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+    const [nowMs, setNowMs] = useState(() => Date.now());
+
+    useEffect(() => {
+        const timer = setInterval(() => setNowMs(Date.now()), 30000);
+        return () => clearInterval(timer);
+    }, []);
 
     // Preload resort maps
     useEffect(() => {
@@ -1683,6 +1709,35 @@ export function LeanAnalyticsView({
         const resolutionRate = total > 0 ? Math.round((resolved / total) * 100) : 0;
         const activeRatio = total > 0 ? Math.round((activeCount / total) * 100) : 0;
 
+        let withEtaCount = 0;
+        let overdueActiveCount = 0;
+        let evaluatedSlaCount = 0;
+        let onTimeResolvedCount = 0;
+        let lateResolvedCount = 0;
+
+        filteredIssues.forEach((issue) => {
+            if (!issue?.estimated_completion_at) return;
+            const etaBadge = getEtaBadgeInfo(issue, nowMs, isEn);
+            if (!etaBadge) return;
+            withEtaCount += 1;
+
+            if (issue.status === 'resolved') {
+                if (etaBadge.state === 'on_time') {
+                    evaluatedSlaCount += 1;
+                    onTimeResolvedCount += 1;
+                } else if (etaBadge.state === 'late_resolved') {
+                    evaluatedSlaCount += 1;
+                    lateResolvedCount += 1;
+                }
+            } else if (etaBadge.state === 'overdue') {
+                overdueActiveCount += 1;
+            }
+        });
+
+        const onTimeRate = evaluatedSlaCount > 0
+            ? Math.round((onTimeResolvedCount / evaluatedSlaCount) * 100)
+            : null;
+
         return {
             total,
             resolved,
@@ -1692,8 +1747,14 @@ export function LeanAnalyticsView({
             activeCount,
             resolutionRate,
             activeRatio,
+            withEtaCount,
+            overdueActiveCount,
+            evaluatedSlaCount,
+            onTimeResolvedCount,
+            lateResolvedCount,
+            onTimeRate,
         };
-    }, [filteredIssues]);
+    }, [filteredIssues, nowMs, isEn]);
 
     // Departemen Terbanyak Data (3 Modes)
     const deptMetrics = useMemo(() => {
@@ -2009,7 +2070,7 @@ export function LeanAnalyticsView({
                                 <Layers className="w-4 h-4" />
                             </div>
                         </div>
-                        <div className="mt-2 flex items-baseline gap-2">
+                        <div className="mt-2 flex items-baseline gap-2 flex-wrap">
                             <span className={`text-2xl font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>
                                 {stats.total}
                             </span>
@@ -2018,6 +2079,15 @@ export function LeanAnalyticsView({
                             }`}>
                                 {stats.resolutionRate}% {isEn ? 'Resolved' : 'Selesai'}
                             </span>
+                            {stats.evaluatedSlaCount > 0 && (
+                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                                    stats.onTimeRate >= 80
+                                        ? (isDark ? 'bg-sky-950/80 border-sky-800/60 text-sky-300' : 'bg-sky-100 border-sky-300 text-sky-800')
+                                        : (isDark ? 'bg-amber-950/80 border-amber-800/60 text-amber-300' : 'bg-amber-100 border-amber-300 text-amber-800')
+                                }`}>
+                                    {stats.onTimeRate}% {isEn ? 'On-Time SLA' : 'Tepat ETA'}
+                                </span>
+                            )}
                         </div>
                     </div>
                     <p className={`text-[11px] mt-2 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
@@ -2040,7 +2110,7 @@ export function LeanAnalyticsView({
                                 <Clock className="w-4 h-4" />
                             </div>
                         </div>
-                        <div className="mt-2 flex items-baseline gap-2">
+                        <div className="mt-2 flex items-baseline gap-2 flex-wrap">
                             <span className={`text-2xl font-black ${isDark ? 'text-rose-400' : 'text-rose-600'}`}>
                                 {stats.activeCount}
                             </span>
@@ -2049,6 +2119,13 @@ export function LeanAnalyticsView({
                             }`}>
                                 {stats.activeRatio}% Backlog
                             </span>
+                            {stats.overdueActiveCount > 0 && (
+                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                                    isDark ? 'bg-rose-950/90 border-rose-600/60 text-rose-300' : 'bg-rose-50 border-rose-400 text-rose-700'
+                                }`}>
+                                    {stats.overdueActiveCount} {isEn ? 'Overdue ETA' : 'Lewat ETA'}
+                                </span>
+                            )}
                         </div>
                     </div>
                     <p className={`text-[11px] mt-2 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
@@ -2199,6 +2276,53 @@ export function LeanAnalyticsView({
                     </p>
                 </div>
             </div>
+
+            {stats.withEtaCount > 0 && (
+                <div className={`px-4 py-3 rounded-2xl border backdrop-blur-md flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs ${
+                    isDark ? 'bg-slate-800/80 border-slate-700/80' : 'bg-white border-slate-200 shadow-sm'
+                }`}>
+                    <div className="flex items-center gap-2">
+                        <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
+                            isDark ? 'bg-sky-500/20 text-sky-400' : 'bg-sky-100 text-sky-700'
+                        }`}>
+                            <CalendarClock className="w-4 h-4" />
+                        </div>
+                        <div>
+                            <span className={`font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                                {isEn ? 'ETA & SLA Punctuality Overview' : 'Ringkasan Target Waktu Selesai (ETA) & SLA'}
+                            </span>
+                            <p className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                {isEn
+                                    ? `${stats.withEtaCount} ticket(s) have a target completion time in this period`
+                                    : `${stats.withEtaCount} tiket memiliki target waktu selesai pada periode ini`}
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                        {stats.evaluatedSlaCount > 0 && (
+                            <span className={`px-2.5 py-1 rounded-lg border text-[11px] font-bold ${
+                                stats.onTimeRate >= 80
+                                    ? (isDark ? 'bg-emerald-950/75 border-emerald-700/60 text-emerald-300' : 'bg-emerald-50 border-emerald-300 text-emerald-800')
+                                    : (isDark ? 'bg-amber-950/75 border-amber-700/60 text-amber-300' : 'bg-amber-50 border-amber-300 text-amber-800')
+                            }`}>
+                                {isEn
+                                    ? `On Time: ${stats.onTimeResolvedCount}/${stats.evaluatedSlaCount} (${stats.onTimeRate}%)`
+                                    : `Tepat Waktu: ${stats.onTimeResolvedCount}/${stats.evaluatedSlaCount} (${stats.onTimeRate}%)`}
+                            </span>
+                        )}
+                        <span className={`px-2.5 py-1 rounded-lg border text-[11px] font-bold ${
+                            stats.overdueActiveCount > 0
+                                ? (isDark ? 'bg-rose-950/75 border-rose-700/60 text-rose-300' : 'bg-rose-50 border-rose-300 text-rose-700')
+                                : (isDark ? 'bg-emerald-950/60 border-emerald-800/50 text-emerald-300' : 'bg-emerald-50 border-emerald-200 text-emerald-700')
+                        }`}>
+                            {stats.overdueActiveCount > 0
+                                ? (isEn ? `Active Overdue: ${stats.overdueActiveCount}` : `Aktif Lewat ETA: ${stats.overdueActiveCount}`)
+                                : (isEn ? 'All Active Tickets On Schedule' : 'Semua Tiket Aktif Sesuai ETA')}
+                        </span>
+                    </div>
+                </div>
+            )}
 
             {/* ========================================================= */}
             {/* 5. WIDGET MATRIKS DENAH LOKASI TBR DAN TPI                */}
@@ -2487,6 +2611,22 @@ export function LeanAnalyticsView({
                                             <span className={`text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                                                 Dept: {(iss.target_departments || []).map(formatDeptDisplay).join(', ') || (isEn ? 'General' : 'Umum')}
                                             </span>
+                                            {iss.estimated_completion_at && (() => {
+                                                const etaBadge = getEtaBadgeInfo(iss, nowMs, isEn);
+                                                if (!etaBadge) return null;
+                                                return (
+                                                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border flex items-center gap-1 ${
+                                                        etaBadge.isOverdue
+                                                            ? (isDark ? 'bg-rose-950/75 border-rose-600/50 text-rose-300' : 'bg-rose-50 border-rose-300 text-rose-700')
+                                                            : etaBadge.isOnTime
+                                                            ? (isDark ? 'bg-emerald-950/75 border-emerald-600/50 text-emerald-300' : 'bg-emerald-50 border-emerald-300 text-emerald-700')
+                                                            : (isDark ? 'bg-sky-950/75 border-sky-600/50 text-sky-300' : 'bg-sky-50 border-sky-200 text-sky-700')
+                                                    }`}>
+                                                        <CalendarClock className="w-2.5 h-2.5 shrink-0" />
+                                                        <span>{etaBadge.formattedTarget}</span>
+                                                    </span>
+                                                );
+                                            })()}
                                         </div>
                                         <h4 className={`text-xs font-bold truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>
                                             {iss.title}

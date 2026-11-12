@@ -84,6 +84,7 @@ class LeanSheetDirectService
             'Aktif di Dashboard',
             'Dihapus Oleh',
             'Waktu Dihapus',
+            'Perkiraan Selesai',
         ];
     }
 
@@ -124,7 +125,7 @@ class LeanSheetDirectService
     }
 
     /**
-     * Format a LeanIssue model into a 21-column array matching the Option 4B header.
+     * Format a LeanIssue model into a 22-column array matching the Option 4B + ETA header.
      */
     public function formatIssueRow(LeanIssue $issue): array
     {
@@ -195,6 +196,9 @@ class LeanSheetDirectService
         $deletedAt = ($issue->trashed() && $issue->deleted_at)
             ? Carbon::parse($issue->deleted_at)->setTimezone('Asia/Jakarta')->format('Y-m-d H:i')
             : '';
+        $estimatedCompletionAt = $issue->estimated_completion_at
+            ? Carbon::parse($issue->estimated_completion_at)->setTimezone('Asia/Jakarta')->format('Y-m-d H:i')
+            : '';
 
         return [
             $code,
@@ -218,6 +222,7 @@ class LeanSheetDirectService
             $isActive,
             $deletedBy,
             $deletedAt,
+            $estimatedCompletionAt,
         ];
     }
 
@@ -248,11 +253,11 @@ class LeanSheetDirectService
             }
             $sheetId = $gids[$monthName];
 
-            // 1. Update header values A1:U1 (21 columns)
+            // 1. Update header values A1:V1 (22 columns)
             $body = new ValueRange(['values' => $headers]);
             $service->spreadsheets_values->update(
                 $this->spreadsheetId,
-                "{$monthName}!A1:U1",
+                "{$monthName}!A1:V1",
                 $body,
                 ['valueInputOption' => 'USER_ENTERED']
             );
@@ -265,7 +270,7 @@ class LeanSheetDirectService
                         'startRowIndex' => 0,
                         'endRowIndex' => 1,
                         'startColumnIndex' => 0,
-                        'endColumnIndex' => 21,
+                        'endColumnIndex' => 22,
                     ],
                     'cell' => [
                         'userEnteredFormat' => [
@@ -291,16 +296,16 @@ class LeanSheetDirectService
                 ],
             ]);
 
-            // Clear stale values & formatting from legacy 22nd column (Column V) if present
-            $sheetColCount = $columnCounts[$monthName] ?? 21;
-            if ($sheetColCount > 21) {
+            // Clear stale values & formatting from legacy 23rd column (Column W) if present
+            $sheetColCount = $columnCounts[$monthName] ?? 22;
+            if ($sheetColCount > 22) {
                 $headerRequests[] = new \Google\Service\Sheets\Request([
                     'repeatCell' => [
                         'range' => [
                             'sheetId'          => $sheetId,
                             'startRowIndex'    => 0,
-                            'startColumnIndex' => 21,
-                            'endColumnIndex'   => min($sheetColCount, 22),
+                            'startColumnIndex' => 22,
+                            'endColumnIndex'   => min($sheetColCount, 23),
                         ],
                         'cell'   => new \Google\Service\Sheets\CellData(),
                         'fields' => 'userEnteredValue,userEnteredFormat',
@@ -370,7 +375,7 @@ class LeanSheetDirectService
             // Clear existing rows below header
             $service->spreadsheets_values->clear(
                 $this->spreadsheetId,
-                "{$monthName}!A2:U1000",
+                "{$monthName}!A2:V1000",
                 new \Google\Service\Sheets\ClearValuesRequest()
             );
 
@@ -379,7 +384,7 @@ class LeanSheetDirectService
                 $body = new ValueRange(['values' => $rows]);
                 $service->spreadsheets_values->update(
                     $this->spreadsheetId,
-                    "{$monthName}!A2:U{$endRow}",
+                    "{$monthName}!A2:V{$endRow}",
                     $body,
                     ['valueInputOption' => 'USER_ENTERED']
                 );
@@ -432,7 +437,7 @@ class LeanSheetDirectService
                 $body = new ValueRange(['values' => [$row]]);
                 $service->spreadsheets_values->update(
                     $this->spreadsheetId,
-                    "{$monthName}!A{$foundRowIndex}:U{$foundRowIndex}",
+                    "{$monthName}!A{$foundRowIndex}:V{$foundRowIndex}",
                     $body,
                     ['valueInputOption' => 'USER_ENTERED']
                 );
@@ -441,7 +446,7 @@ class LeanSheetDirectService
                 $body = new ValueRange(['values' => [$row]]);
                 $service->spreadsheets_values->append(
                     $this->spreadsheetId,
-                    "{$monthName}!A:U",
+                    "{$monthName}!A:V",
                     $body,
                     ['valueInputOption' => 'USER_ENTERED']
                 );
@@ -523,12 +528,12 @@ class LeanSheetDirectService
                 }
                 $service->spreadsheets_values->clear(
                     $this->spreadsheetId,
-                    "{$monthName}!A2:U1000",
+                    "{$monthName}!A2:V1000",
                     new \Google\Service\Sheets\ClearValuesRequest()
                 );
             }
 
-            // Ensure 21-column headers and teal formatting are present on all 12 tabs
+            // Ensure 22-column headers and teal formatting are present on all 12 tabs
             $this->setupHeadersAndFormatting();
             Cache::forget('lean_sheets_pending_clear');
 

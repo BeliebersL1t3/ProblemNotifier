@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\LeanIssue;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -94,13 +95,26 @@ class GoogleSheetsSyncService
             $mapsUrl = $match[0];
         }
 
+        $reportedWib = $issue->created_at
+            ? Carbon::parse($issue->created_at)->setTimezone('Asia/Jakarta')->format('Y-m-d H:i')
+            : '';
+        $claimedWib = $issue->claimed_at
+            ? Carbon::parse($issue->claimed_at)->setTimezone('Asia/Jakarta')->format('Y-m-d H:i')
+            : '';
+        $resolvedWib = $issue->resolved_at
+            ? Carbon::parse($issue->resolved_at)->setTimezone('Asia/Jakarta')->format('Y-m-d H:i')
+            : '';
+        $estimatedCompletion = $issue->estimated_completion_at
+            ? Carbon::parse($issue->estimated_completion_at)->setTimezone('Asia/Jakarta')->format('Y-m-d H:i')
+            : '';
+
         return [
             // Standard English Keys (Matches Apps Script Code.gs)
             'issue_code'           => $code,
             'month_tab'            => $monthTab,
             'tab_name'             => $monthTab,
             'year'                 => $year,
-            'reported_at'          => $issue->created_at ? $issue->created_at->format('Y-m-d H:i') : '',
+            'reported_at'          => $reportedWib,
             'reporter_name'        => $issue->reporter_name ?: '-',
             'reporter_dept'        => $issue->reporter_dept ?: '-',
             'location'             => $issue->location ?: '-',
@@ -115,12 +129,13 @@ class GoogleSheetsSyncService
             'deleted_by'           => $deletedBy,
             'deleted_at'           => $deletedAt,
             'image_url'            => '', // Foto ditiadakan di spreadsheet sesuai permintaan
-            'claimed_by'           => $issue->claimed_by_name ?: '',
-            'claimed_at'           => $issue->claimed_at ? $issue->claimed_at->format('Y-m-d H:i') : '',
-            'resolved_by'          => $issue->resolved_by_name ?: '',
-            'resolved_at'          => $issue->resolved_at ? $issue->resolved_at->format('Y-m-d H:i') : '',
-            'resolution_note'      => $issue->resolution_note ?: '',
-            'proof_image_url'      => '', // Foto ditiadakan di spreadsheet sesuai permintaan
+            'claimed_by'              => $issue->claimed_by_name ?: '',
+            'claimed_at'              => $claimedWib,
+            'resolved_by'             => $issue->resolved_by_name ?: '',
+            'resolved_at'             => $resolvedWib,
+            'resolution_note'         => $issue->resolution_note ?: '',
+            'estimated_completion_at' => $estimatedCompletion,
+            'proof_image_url'         => '', // Foto ditiadakan di spreadsheet sesuai permintaan
             'ai_category'          => '',
             'ai_sub_category'      => '',
             'ai_urgency'           => '',
@@ -132,7 +147,7 @@ class GoogleSheetsSyncService
             'kode_tiket'           => $code,
             'bulan_tab'            => $monthTab,
             'tahun'                => $year,
-            'waktu_lapor'          => $issue->created_at ? $issue->created_at->format('Y-m-d H:i') : '',
+            'waktu_lapor'          => $reportedWib,
             'pelapor'              => $issue->reporter_name ?: '-',
             'dept_pelapor'         => $issue->reporter_dept ?: '-',
             'lokasi'               => $issue->location ?: '-',
@@ -148,10 +163,11 @@ class GoogleSheetsSyncService
             'waktu_dihapus'        => $deletedAt,
             'foto_masalah_url'     => '',
             'diambil_oleh'         => $issue->claimed_by_name ?: '',
-            'waktu_ambil'          => $issue->claimed_at ? $issue->claimed_at->format('Y-m-d H:i') : '',
+            'waktu_ambil'          => $claimedWib,
             'diselesaikan_oleh'    => $issue->resolved_by_name ?: '',
-            'waktu_selesai'        => $issue->resolved_at ? $issue->resolved_at->format('Y-m-d H:i') : '',
+            'waktu_selesai'        => $resolvedWib,
             'catatan_penyelesaian' => $issue->resolution_note ?: '',
+            'perkiraan_selesai'    => $estimatedCompletion,
             'foto_selesai_url'     => '',
             'ai_kategori'          => '',
             'ai_sub_kategori'      => '',

@@ -50,10 +50,19 @@ import {
     ArrowRightLeft,
     History,
     Lock,
-    Award
+    Award,
+    CalendarClock
 } from 'lucide-react';
 import axios from 'axios';
 import { BotControlModal } from '@/Components/CampusFix/BotControlModal';
+import {
+    EtaPickerField,
+    toJakartaDatetimeLocal,
+    jakartaLocalToIso,
+    parseEtaTimestampMs,
+    formatEtaDisplayWib,
+    getEtaBadgeInfo,
+} from '@/Components/CampusFix/EtaPickerField';
 import { LeanAnalyticsView } from '@/Components/CampusFix/LeanAnalyticsView';
 import { resolveIssueResortAndZone } from '@/constants/locations';
 import { DEPARTMENT_STAFF, normalizeDepartment } from '@/constants/staff';
@@ -86,6 +95,7 @@ const DEFAULT_COLUMNS = {
     reporter: true,
     desc: true,
     status: true,
+    eta: true,
     time: true,
 };
 
@@ -111,6 +121,7 @@ export default function LeanIndex({
         { id: 'reporter', label: isEn ? 'Reporter Name' : 'Nama Pelapor', icon: '👤' },
         { id: 'desc', label: isEn ? 'Detailed Description' : 'Deskripsi Detail', icon: '📄' },
         { id: 'status', label: 'Status', icon: '🏷️' },
+        { id: 'eta', label: isEn ? 'Est. Completion' : 'Target Selesai', icon: '⏰' },
         { id: 'time', label: isEn ? 'Reported Time' : 'Waktu Pelaporan', icon: '🕒' },
     ], [isEn]);
 
@@ -386,6 +397,12 @@ export default function LeanIndex({
     const [issueToDelete, setIssueToDelete] = useState(null);
     const [isDeleting, setIsDeleting] = useState(false);
     const [actionNotice, setActionNotice] = useState(null);
+    const [nowMs, setNowMs] = useState(() => Date.now());
+
+    useEffect(() => {
+        const timer = setInterval(() => setNowMs(Date.now()), 30000);
+        return () => clearInterval(timer);
+    }, []);
 
     const showNotice = (type, text) => {
         setActionNotice({ type, text, id: Date.now() });
@@ -536,6 +553,7 @@ export default function LeanIndex({
     const [showStaffDropdown, setShowStaffDropdown] = useState(false);
     const [assignedWorkers, setAssignedWorkers] = useState([]);
     const [customWorkerInput, setCustomWorkerInput] = useState('');
+    const [formEta, setFormEta] = useState('');
 
     // Coworkers in the recording leader's department for assigning
     const myDeptTeammates = useMemo(() => {
@@ -748,14 +766,17 @@ export default function LeanIndex({
     const [claimWorkers, setClaimWorkers] = useState([]);
     const [claimCustomWorker, setClaimCustomWorker] = useState('');
     const [claimNote, setClaimNote] = useState('');
+    const [claimEta, setClaimEta] = useState('');
     const [claimNotifyReporter, setClaimNotifyReporter] = useState(true);
 
     const [progressComment, setProgressComment] = useState('');
     const [progressWorkers, setProgressWorkers] = useState([]);
     const [progressCustomWorker, setProgressCustomWorker] = useState('');
+    const [progressEta, setProgressEta] = useState('');
     const [progressNotifyReporter, setProgressNotifyReporter] = useState(true);
 
     const [pendingReason, setPendingReason] = useState('');
+    const [pendingEta, setPendingEta] = useState('');
 
     const [transferTargetDept, setTransferTargetDept] = useState('');
     const [transferReason, setTransferReason] = useState('');
@@ -814,6 +835,7 @@ export default function LeanIndex({
         const workersStr = startInProgress
             ? (assignedWorkers.length > 0 ? assignedWorkers.join(', ') : myName)
             : null;
+        const etaIso = startInProgress && formEta ? jakartaLocalToIso(formEta) : null;
 
         setIsSubmitting(true);
 
@@ -840,6 +862,7 @@ export default function LeanIndex({
                     reporter_phone: staffReporterPhone.trim(),
                     start_in_progress: startInProgress,
                     assigned_workers: workersStr,
+                    estimated_completion_at: etaIso,
                     imageBlob: compressed?.blob || formImage || null,
                     imageName: compressed?.file?.name || formImage?.name || 'offline_photo.jpg',
                     imagePreview: compressed?.dataUrl || formImagePreview,
@@ -860,6 +883,7 @@ export default function LeanIndex({
                 setStaffSearchQuery('');
                 setAssignedWorkers([]);
                 setCustomWorkerInput('');
+                setFormEta('');
                 setStartInProgress(false);
                 setShowStaffDropdown(false);
                 setIsSubmitting(false);
@@ -885,6 +909,9 @@ export default function LeanIndex({
                 if (workersStr) {
                     data.append('assigned_workers', workersStr);
                 }
+                if (etaIso) {
+                    data.append('estimated_completion_at', etaIso);
+                }
             }
             if (compressed?.file) {
                 data.append('image', compressed.file);
@@ -906,6 +933,7 @@ export default function LeanIndex({
                     setStaffSearchQuery('');
                     setAssignedWorkers([]);
                     setCustomWorkerInput('');
+                    setFormEta('');
                     setStartInProgress(false);
                     setShowStaffDropdown(false);
                     setIsSubmitting(false);
@@ -924,6 +952,7 @@ export default function LeanIndex({
                                 reporter_phone: staffReporterPhone.trim(),
                                 start_in_progress: startInProgress,
                                 assigned_workers: workersStr,
+                                estimated_completion_at: etaIso,
                                 imageBlob: compressed?.blob || formImage || null,
                                 imageName: compressed?.file?.name || formImage?.name || 'offline_photo.jpg',
                                 imagePreview: compressed?.dataUrl || formImagePreview,
@@ -931,6 +960,7 @@ export default function LeanIndex({
                             alert(isEn
                                 ? '⚠️ Connection dropped while sending. Your report has been safely queued offline on your device.'
                                 : '⚠️ Koneksi terputus saat pengiriman. Laporan telah diamankan di antrean offline HP Anda.');
+                            setFormEta('');
                             setShowReportModal(false);
                             await refreshOutbox();
                         } catch (saveErr) {
@@ -999,6 +1029,7 @@ export default function LeanIndex({
         setClaimWorkers(defaultWorkers);
         setClaimCustomWorker('');
         setClaimNote('');
+        setClaimEta(toJakartaDatetimeLocal(issue.estimated_completion_at));
         setClaimNotifyReporter(true);
         setShowClaimModal(issue);
     };
@@ -1012,12 +1043,15 @@ export default function LeanIndex({
         }
         const isResuming = showClaimModal.status === 'pending';
         const notifyOnResume = claimNotifyReporter;
+        const hadPriorEta = Boolean(showClaimModal.estimated_completion_at);
         setIsSubmitting(true);
         router.post(`/lapangan/issues/${showClaimModal.id}/claim`, {
             workers: claimWorkers,
             note: claimNote.trim(),
             dept: (myDept && myDept !== 'Supervisor') ? myDept : (showClaimModal.target_departments?.[0] || ''),
             notify_reporter: isResuming ? notifyOnResume : true,
+            estimated_completion_at: claimEta ? jakartaLocalToIso(claimEta) : null,
+            clear_eta: hadPriorEta && !claimEta,
         }, {
             preserveScroll: true,
             onSuccess: () => {
@@ -1025,6 +1059,7 @@ export default function LeanIndex({
                 setClaimWorkers([]);
                 setClaimCustomWorker('');
                 setClaimNote('');
+                setClaimEta('');
                 setClaimNotifyReporter(true);
                 setIsSubmitting(false);
                 showNotice(
@@ -1057,6 +1092,7 @@ export default function LeanIndex({
         setProgressWorkers(currentActive);
         setProgressCustomWorker('');
         setProgressComment('');
+        setProgressEta(toJakartaDatetimeLocal(issue.estimated_completion_at));
         setProgressNotifyReporter(true);
         setShowProgressModal(issue);
     };
@@ -1070,11 +1106,14 @@ export default function LeanIndex({
                 : 'Minimal harus ada 1 pekerja aktif saat status In Progress.');
             return;
         }
+        const hadPriorEta = Boolean(showProgressModal.estimated_completion_at);
         setIsSubmitting(true);
         router.post(`/lapangan/issues/${showProgressModal.id}/progress`, {
             comment: progressComment.trim(),
             workers: progressWorkers,
             notify_reporter: progressNotifyReporter,
+            estimated_completion_at: progressEta ? jakartaLocalToIso(progressEta) : null,
+            clear_eta: hadPriorEta && !progressEta,
         }, {
             preserveScroll: true,
             onSuccess: () => {
@@ -1082,6 +1121,7 @@ export default function LeanIndex({
                 setProgressComment('');
                 setProgressWorkers([]);
                 setProgressCustomWorker('');
+                setProgressEta('');
                 setIsSubmitting(false);
                 showNotice('success', progressNotifyReporter
                     ? (isEn ? 'Progress & team saved, WA update sent to reporter.' : 'Progress & tim disimpan, info WA dikirim ke pelapor.')
@@ -1099,6 +1139,7 @@ export default function LeanIndex({
     const openPendingModal = (issue) => {
         if (!issue) return;
         setPendingReason(issue.status === 'pending' ? (issue.pending_reason || '') : '');
+        setPendingEta(toJakartaDatetimeLocal(issue.estimated_completion_at));
         setShowPendingModal(issue);
     };
 
@@ -1109,14 +1150,18 @@ export default function LeanIndex({
             alert(isEn ? 'Pending reason is required.' : 'Alasan pending wajib diisi.');
             return;
         }
+        const hadPriorEta = Boolean(showPendingModal.estimated_completion_at);
         setIsSubmitting(true);
         router.post(`/lapangan/issues/${showPendingModal.id}/pending`, {
             reason: pendingReason.trim(),
+            estimated_completion_at: pendingEta ? jakartaLocalToIso(pendingEta) : null,
+            clear_eta: hadPriorEta && !pendingEta,
         }, {
             preserveScroll: true,
             onSuccess: () => {
                 setShowPendingModal(null);
                 setPendingReason('');
+                setPendingEta('');
                 setIsSubmitting(false);
                 showNotice('success', isEn
                     ? 'Issue status updated to Pending & reporter notified.'
@@ -1353,6 +1398,25 @@ export default function LeanIndex({
                 return new Date(a.created_at || 0) - new Date(b.created_at || 0);
             }
 
+            if (sortBy === 'eta_urgent') {
+                const aIsResolved = a.status === 'resolved';
+                const bIsResolved = b.status === 'resolved';
+                if (aIsResolved !== bIsResolved) {
+                    return aIsResolved ? 1 : -1;
+                }
+
+                const aEta = parseEtaTimestampMs(a.estimated_completion_at);
+                const bEta = parseEtaTimestampMs(b.estimated_completion_at);
+
+                if (aEta !== null && bEta !== null) {
+                    if (aEta !== bEta) return aEta - bEta;
+                } else if (aEta !== null || bEta !== null) {
+                    return aEta !== null ? -1 : 1;
+                }
+
+                return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+            }
+
             if (sortBy === 'waiting_acc') {
                 // Priority: tiket yang belum ACC dari semua departemen atau belum resolved
                 const aIsResolved = a.status === 'resolved';
@@ -1429,6 +1493,33 @@ export default function LeanIndex({
     const formatMainLocDisplay = (loc) => {
         if (isEn && loc === 'Kantor') return 'Office';
         return loc;
+    };
+
+    const getEtaChipClasses = (badge) => {
+        if (!badge) return '';
+        if (badge.state === 'overdue') {
+            return isDark
+                ? 'bg-rose-950/75 text-rose-300 border-rose-500/50'
+                : 'bg-rose-50 text-rose-700 border-rose-300';
+        }
+        if (badge.state === 'due_soon') {
+            return isDark
+                ? 'bg-amber-950/75 text-amber-300 border-amber-500/50'
+                : 'bg-amber-50 text-amber-800 border-amber-300';
+        }
+        if (badge.state === 'on_time') {
+            return isDark
+                ? 'bg-emerald-950/75 text-emerald-300 border-emerald-600/40'
+                : 'bg-emerald-50 text-emerald-700 border-emerald-300';
+        }
+        if (badge.state === 'late_resolved') {
+            return isDark
+                ? 'bg-amber-950/75 text-amber-300 border-amber-600/40'
+                : 'bg-amber-50 text-amber-800 border-amber-300';
+        }
+        return isDark
+            ? 'bg-sky-950/70 text-sky-300 border-sky-600/40'
+            : 'bg-sky-50 text-sky-700 border-sky-200';
     };
 
     return (
@@ -1912,6 +2003,7 @@ export default function LeanIndex({
                                 <option value="newest">{isEn ? '🕒 Newest' : '🕒 Terbaru'}</option>
                                 <option value="oldest">{isEn ? '⏳ Oldest' : '⏳ Terlama'}</option>
                                 <option value="status">{isEn ? '📊 Progress Status' : '📊 Status Progres'}</option>
+                                <option value="eta_urgent">{isEn ? '⏰ Urgent / Overdue ETA' : '⏰ Target Selesai Terdekat'}</option>
                                 <option value="waiting_acc">{isEn ? '🚨 Awaiting ACC' : '🚨 Menunggu ACC'}</option>
                             </select>
                         </div>
@@ -2172,6 +2264,7 @@ export default function LeanIndex({
                                         {visibleColumns.reporter && <th className="py-2.5 px-2 whitespace-nowrap">{isEn ? 'Reporter' : 'Pelapor'}</th>}
                                         {visibleColumns.desc && <th className="py-2.5 px-2 min-w-[130px] max-w-[180px]">{isEn ? 'Description' : 'Deskripsi'}</th>}
                                         {visibleColumns.status && <th className="py-2.5 px-2 whitespace-nowrap">Status</th>}
+                                        {visibleColumns.eta && <th className="py-2.5 px-2 whitespace-nowrap">{isEn ? 'Est. Completion' : 'Target Selesai'}</th>}
                                         {visibleColumns.time && <th className="py-2.5 px-2 whitespace-nowrap">{isEn ? 'Time' : 'Waktu'}</th>}
                                         <th className="py-2.5 px-1.5 text-center whitespace-nowrap">{isEn ? 'Action' : 'Aksi'}</th>
                                     </tr>
@@ -2343,6 +2436,31 @@ export default function LeanIndex({
                                                         )}
                                                     </td>
                                                 )}
+
+                                                {/* PERKIRAAN WAKTU SELESAI (ETA) */}
+                                                {visibleColumns.eta && (() => {
+                                                    const etaBadge = getEtaBadgeInfo(issue, nowMs, isEn);
+                                                    return (
+                                                        <td className="py-2 px-2 whitespace-nowrap">
+                                                            {etaBadge ? (
+                                                                <div
+                                                                    className={`inline-flex flex-col gap-0.5 px-1.5 py-0.5 rounded border text-[9.5px] leading-tight ${getEtaChipClasses(etaBadge)}`}
+                                                                    title={etaBadge.formattedFullTarget}
+                                                                >
+                                                                    <span className="font-bold flex items-center gap-1">
+                                                                        <CalendarClock className="w-2.5 h-2.5 shrink-0" />
+                                                                        <span>{etaBadge.formattedTarget}</span>
+                                                                    </span>
+                                                                    <span className="text-[9px] font-semibold opacity-90">
+                                                                        {etaBadge.statusLabel}
+                                                                    </span>
+                                                                </div>
+                                                            ) : (
+                                                                <span className="text-slate-400 text-[10px] italic">—</span>
+                                                            )}
+                                                        </td>
+                                                    );
+                                                })()}
 
                                                 {/* WAKTU PELAPORAN */}
                                                 {visibleColumns.time && (
@@ -2544,6 +2662,23 @@ export default function LeanIndex({
                                                             <span className="truncate max-w-[150px]">{issue.location}</span>
                                                         </span>
                                                     )}
+
+                                                    {/* Perkiraan Waktu Selesai (ETA) Badge */}
+                                                    {visibleColumns.eta && (() => {
+                                                        const etaBadge = getEtaBadgeInfo(issue, nowMs, isEn);
+                                                        if (!etaBadge) return null;
+                                                        return (
+                                                            <span
+                                                                className={`px-2 py-0.5 rounded-md font-bold text-[10px] flex items-center gap-1 border shadow-2xs ${getEtaChipClasses(etaBadge)}`}
+                                                                title={`${isEn ? 'Est. Completion' : 'Target Selesai'}: ${etaBadge.formattedFullTarget}`}
+                                                            >
+                                                                <CalendarClock className="w-3 h-3 shrink-0" />
+                                                                <span>{etaBadge.formattedTarget}</span>
+                                                                <span className="opacity-75">&bull;</span>
+                                                                <span>{etaBadge.statusLabel}</span>
+                                                            </span>
+                                                        );
+                                                    })()}
                                                 </div>
                                             </div>
 
@@ -3015,6 +3150,16 @@ export default function LeanIndex({
                                                 {isEn ? 'Assigned:' : 'Ditugaskan:'} <span className="font-bold text-white">{assignedWorkers.join(', ')}</span>
                                             </p>
                                         )}
+
+                                        <div className="pt-1">
+                                            <EtaPickerField
+                                                value={formEta}
+                                                onChange={setFormEta}
+                                                isEn={isEn}
+                                                isDark={isDark}
+                                                accent="amber"
+                                            />
+                                        </div>
                                     </div>
                                 )}
                             </div>
@@ -3349,6 +3494,14 @@ export default function LeanIndex({
                                     />
                                 </div>
 
+                                <EtaPickerField
+                                    value={claimEta}
+                                    onChange={setClaimEta}
+                                    isEn={isEn}
+                                    isDark={isDark}
+                                    accent={isResuming ? 'sky' : 'amber'}
+                                />
+
                                 {isResuming && (
                                     <label className="p-3 rounded-xl bg-emerald-950/30 border border-emerald-700/40 flex items-start gap-2.5 cursor-pointer select-none">
                                         <input
@@ -3511,6 +3664,14 @@ export default function LeanIndex({
                                     </div>
                                 </div>
 
+                                <EtaPickerField
+                                    value={progressEta}
+                                    onChange={setProgressEta}
+                                    isEn={isEn}
+                                    isDark={isDark}
+                                    accent="sky"
+                                />
+
                                 {/* WA Notify Toggle (Checked by default) */}
                                 <label className="p-3 rounded-xl bg-emerald-950/30 border border-emerald-700/40 flex items-start gap-2.5 cursor-pointer select-none">
                                     <input
@@ -3562,7 +3723,7 @@ export default function LeanIndex({
             {/* MODAL 2D: PENDING / TUNDA */}
             {showPendingModal && (
                 <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-                    <div className="w-full max-w-md bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-5 space-y-4">
+                    <div className="w-full max-w-md bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-5 space-y-4 max-h-[90vh] overflow-y-auto">
                         <div className="flex items-start justify-between">
                             <div>
                                 <h3 className="font-bold text-base text-white flex items-center gap-1.5">
@@ -3609,6 +3770,17 @@ export default function LeanIndex({
                                     className="w-full text-xs bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-orange-500"
                                 />
                             </div>
+
+                            <EtaPickerField
+                                value={pendingEta}
+                                onChange={setPendingEta}
+                                isEn={isEn}
+                                isDark={isDark}
+                                accent="orange"
+                                label={isEn
+                                    ? 'Estimated Completion / Resume Time (Optional • WIB)'
+                                    : 'Perkiraan Selesai / Ditangani Kembali (Opsional • WIB)'}
+                            />
 
                             <div className="pt-2 flex items-center gap-2">
                                 <button
@@ -3667,9 +3839,9 @@ export default function LeanIndex({
                             <form onSubmit={handleTransferSubmit} className="space-y-3.5">
                                 <div className="p-2.5 rounded-lg bg-indigo-950/30 border border-indigo-500/30 text-[11px] text-indigo-200 leading-relaxed">
                                     {isEn ? (
-                                        <>The issue will return to <strong>Open</strong> status for the new target department, current active team will be cleared while contributor history remains preserved, and the reporter will be notified via WA.</>
+                                        <>The issue will return to <strong>Open</strong> status for the new target department, current active team and ETA target will be cleared while contributor history remains preserved, and the reporter will be notified via WA.</>
                                     ) : (
-                                        <>Isu akan dikembalikan ke status <strong>Open</strong> untuk departemen tujuan baru, tim aktif saat ini dikosongkan, riwayat kontributor tetap aman, dan pelapor dikabari via WA.</>
+                                        <>Isu akan dikembalikan ke status <strong>Open</strong> untuk departemen tujuan baru, tim aktif &amp; target waktu selesai saat ini dikosongkan, riwayat kontributor tetap aman, dan pelapor dikabari via WA.</>
                                     )}
                                 </div>
 
@@ -4057,6 +4229,41 @@ export default function LeanIndex({
                                         </span>
                                     </div>
                                 )}
+
+                                {visibleColumns.eta && (() => {
+                                    const etaBadge = getEtaBadgeInfo(activeDetailIssue, nowMs, isEn);
+                                    return (
+                                        <div className={`p-2.5 rounded-xl border ${
+                                            isDark ? 'bg-slate-800/80 border-slate-700/80' : 'bg-slate-50 border-slate-200'
+                                        }`}>
+                                            <span className={`text-[10px] font-medium block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                                {isEn ? 'Estimated Completion' : 'Perkiraan Selesai (ETA)'}
+                                            </span>
+                                            {etaBadge ? (
+                                                <div className="mt-0.5 flex items-center justify-between gap-2 flex-wrap">
+                                                    <span className={`text-xs font-bold flex items-center gap-1 ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                                                        <CalendarClock className={`w-3.5 h-3.5 shrink-0 ${
+                                                            etaBadge.isOverdue
+                                                                ? 'text-rose-500'
+                                                                : etaBadge.isOnTime
+                                                                ? 'text-emerald-500'
+                                                                : 'text-sky-500'
+                                                        }`} />
+                                                        <span>{etaBadge.formattedFullTarget}</span>
+                                                    </span>
+                                                    <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${getEtaChipClasses(etaBadge)}`}>
+                                                        {etaBadge.statusLabel}
+                                                    </span>
+                                                </div>
+                                            ) : (
+                                                <span className={`text-xs italic flex items-center gap-1 mt-0.5 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                                                    <CalendarClock className="w-3.5 h-3.5 opacity-60 shrink-0" />
+                                                    <span>{isEn ? 'Not specified' : 'Belum ditentukan'}</span>
+                                                </span>
+                                            )}
+                                        </div>
+                                    );
+                                })()}
                             </div>
 
                             {/* Departemen Dituju & Penerima */}
@@ -4312,6 +4519,42 @@ export default function LeanIndex({
                                                         <p className={`text-[11px] leading-snug ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
                                                             {log.message}
                                                         </p>
+                                                    )}
+                                                    {(log.estimated_completion_at || log.eta_cleared || log.cleared_eta || log.sla_status) && (
+                                                        <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                                                            {log.estimated_completion_at && (
+                                                                <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold border ${
+                                                                    isDark ? 'bg-sky-950/70 text-sky-300 border-sky-700/60' : 'bg-sky-50 text-sky-800 border-sky-200'
+                                                                }`}>
+                                                                    <CalendarClock className="w-2.5 h-2.5 shrink-0" />
+                                                                    <span>
+                                                                        {isEn ? 'Target:' : 'Target:'}{' '}
+                                                                        {formatEtaDisplayWib(log.estimated_completion_at, isEn, false)}
+                                                                    </span>
+                                                                </span>
+                                                            )}
+                                                            {(log.eta_cleared || log.cleared_eta) && (
+                                                                <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold border ${
+                                                                    isDark ? 'bg-slate-800 text-slate-300 border-slate-700' : 'bg-slate-100 text-slate-700 border-slate-300'
+                                                                }`}>
+                                                                    <RotateCcw className="w-2.5 h-2.5 shrink-0" />
+                                                                    <span>{isEn ? 'ETA target cleared' : 'Target selesai dikosongkan'}</span>
+                                                                </span>
+                                                            )}
+                                                            {log.sla_status && (
+                                                                <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold border ${
+                                                                    log.sla_status === 'on_time'
+                                                                        ? (isDark ? 'bg-emerald-950/70 text-emerald-300 border-emerald-700/60' : 'bg-emerald-50 text-emerald-800 border-emerald-200')
+                                                                        : (isDark ? 'bg-amber-950/70 text-amber-300 border-amber-700/60' : 'bg-amber-50 text-amber-800 border-amber-200')
+                                                                }`}>
+                                                                    <span>
+                                                                        {log.sla_status === 'on_time'
+                                                                            ? (isEn ? 'SLA: On Time' : 'SLA: Tepat Waktu')
+                                                                            : (isEn ? 'SLA: Overdue' : 'SLA: Melewati Target')}
+                                                                    </span>
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                     )}
                                                     <div className="flex items-center justify-between gap-2 flex-wrap">
                                                         {Array.isArray(log.workers) && log.workers.length > 0 && (
@@ -4838,6 +5081,15 @@ export default function LeanIndex({
                                                     {new Date(item.createdAt).toLocaleTimeString(isEn ? 'en-US' : 'id-ID', { hour: '2-digit', minute: '2-digit' })}
                                                 </span>
                                             </div>
+                                            {item.estimated_completion_at && (
+                                                <div className="mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9.5px] font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                                                    <CalendarClock className="w-2.5 h-2.5 shrink-0" />
+                                                    <span>
+                                                        {isEn ? 'Target:' : 'Target:'}{' '}
+                                                        {formatEtaDisplayWib(item.estimated_completion_at, isEn, true)}
+                                                    </span>
+                                                </div>
+                                            )}
                                             {item.errorMessage && (
                                                 <p className="text-[10px] text-rose-400 mt-1 bg-rose-950/40 px-2 py-0.5 rounded border border-rose-800/40 truncate">
                                                     {isEn ? 'Failed:' : 'Gagal:'} {item.errorMessage}

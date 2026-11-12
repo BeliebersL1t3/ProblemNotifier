@@ -31,9 +31,10 @@ return [
         'reason'        => 'reason',
         'note'          => 'resolution note',
         'to_department' => 'target department',
-        'workers'       => 'workers',
-        'image'         => 'photo attachment',
-        'proof_image'   => 'proof image',
+        'workers'                 => 'workers',
+        'image'                   => 'photo attachment',
+        'proof_image'             => 'proof image',
+        'estimated_completion_at' => 'estimated completion time',
     ],
 ];
 

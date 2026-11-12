@@ -8,10 +8,10 @@ use Tests\TestCase;
 
 class LeanSheetDirectServiceTest extends TestCase
 {
-    public function test_get_headers_has_21_columns_matching_option_4b(): void
+    public function test_get_headers_has_22_columns_matching_option_4b_plus_eta(): void
     {
         $headers = LeanSheetDirectService::getHeaders();
-        $this->assertCount(21, $headers);
+        $this->assertCount(22, $headers);
         $this->assertEquals('Diambil Oleh (Pekerja Awal)', $headers[10]); // K
         $this->assertEquals('Pekerja Selama Progress', $headers[12]);     // M
         $this->assertEquals('Diselesaikan Oleh', $headers[13]);           // N
@@ -20,6 +20,7 @@ class LeanSheetDirectServiceTest extends TestCase
         $this->assertEquals('Aktif di Dashboard', $headers[18]);          // S
         $this->assertEquals('Dihapus Oleh', $headers[19]);                // T
         $this->assertEquals('Waktu Dihapus', $headers[20]);               // U
+        $this->assertEquals('Perkiraan Selesai', $headers[21]);           // V
         $this->assertNotContains('Riwayat Komentar & Log', $headers);
     }
 
@@ -42,7 +43,8 @@ class LeanSheetDirectServiceTest extends TestCase
             'resolved_by_name'   => 'Budi, Citra, Doni',
             'resolved_at'        => now(),
             'resolution_note'    => 'Pipa diganti dan dites aman',
-            'contributors'       => ['Andi', 'Budi', 'Citra', 'Doni'],
+            'contributors'            => ['Andi', 'Budi', 'Citra', 'Doni'],
+            'estimated_completion_at' => \Carbon\Carbon::parse('2026-11-12 17:30:00', 'Asia/Jakarta')->setTimezone('UTC'),
             'progress_logs'      => [
                 [
                     'type'       => 'progress',
@@ -66,7 +68,7 @@ class LeanSheetDirectServiceTest extends TestCase
         $issue->created_at = now();
 
         $row = $service->formatIssueRow($issue);
-        $this->assertCount(21, $row);
+        $this->assertCount(22, $row);
         $this->assertEquals('Andi, Budi', $row[10]);                  // K: Initial workers
         $this->assertEquals('Andi, Budi, Citra', $row[12]);           // M: Progress workers
         $this->assertEquals('Budi, Citra, Doni', $row[13]);           // N: Resolved by
@@ -77,6 +79,7 @@ class LeanSheetDirectServiceTest extends TestCase
         $this->assertEquals(1, $row[18]);  // S: Aktif di Dashboard = 1
         $this->assertEquals('', $row[19]); // T: Dihapus Oleh = ''
         $this->assertEquals('', $row[20]); // U: Waktu Dihapus = ''
+        $this->assertEquals('2026-11-12 17:30', $row[21]); // V: Perkiraan Selesai (WIB)
     }
 
     public function test_format_issue_row_trashed_has_status_0(): void
@@ -98,9 +101,10 @@ class LeanSheetDirectServiceTest extends TestCase
         $issue->deleted_at = now();
 
         $row = $service->formatIssueRow($issue);
-        $this->assertCount(21, $row);
+        $this->assertCount(22, $row);
         $this->assertEquals(0, $row[18]); // S: Aktif di Dashboard = 0
         $this->assertEquals('Supervisor Phillip', $row[19]); // T: Dihapus Oleh
         $this->assertNotEmpty($row[20]); // U: Waktu Dihapus
+        $this->assertEquals('', $row[21]); // V: Perkiraan Selesai = ''
     }
 }

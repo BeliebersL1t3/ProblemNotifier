@@ -13,13 +13,14 @@ class GoogleSheetsSyncServiceTest extends TestCase
         $service = app(GoogleSheetsSyncService::class);
 
         $issue = new LeanIssue([
-            'location'           => 'Villa 10 TBR',
-            'title'              => 'Lampu redup di teras',
-            'description'        => 'Lampu teras berkedip',
-            'target_departments' => ['Engineering'],
-            'reporter_name'      => 'Ahmad',
-            'reporter_dept'      => 'Housekeeping',
-            'status'             => 'open',
+            'location'                => 'Villa 10 TBR',
+            'title'                   => 'Lampu redup di teras',
+            'description'             => 'Lampu teras berkedip',
+            'target_departments'      => ['Engineering'],
+            'reporter_name'           => 'Ahmad',
+            'reporter_dept'           => 'Housekeeping',
+            'status'                  => 'open',
+            'estimated_completion_at' => \Carbon\Carbon::parse('2026-11-12 16:45:00', 'Asia/Jakarta')->setTimezone('UTC'),
         ]);
         $issue->id = 99;
         $issue->created_at = now();
@@ -31,6 +32,8 @@ class GoogleSheetsSyncServiceTest extends TestCase
         $this->assertEquals('Lampu redup di teras', $payload['title']);
         $this->assertEquals('Housekeeping', $payload['reporter_dept']);
         $this->assertEquals('Open', $payload['status']);
+        $this->assertEquals('2026-11-12 16:45', $payload['estimated_completion_at']);
+        $this->assertEquals('2026-11-12 16:45', $payload['perkiraan_selesai']);
         
         // Assert AI fields are empty strings and not populated with machine predictions
         $this->assertSame('', $payload['ai_category']);
