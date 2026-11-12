@@ -107,22 +107,22 @@ export function LeanHeader({
     const viewBtnClass = (targetView) => {
         const active = isDashboard && viewMode === targetView;
         if (active) {
-            return 'bg-emerald-600 text-white shadow-sm keep-white';
+            return 'bg-emerald-600 text-white shadow-sm keep-white ring-1 ring-white/25';
         }
         return isDark
-            ? 'text-slate-400 hover:text-slate-200'
-            : 'text-slate-600 hover:text-slate-900 hover:bg-white';
+            ? 'text-slate-300 hover:text-white hover:bg-white/10'
+            : 'text-slate-600 hover:text-slate-900 hover:bg-white/60';
     };
 
     const navChipBase =
         'h-7 sm:h-8 flex items-center justify-center gap-1.5 rounded-lg border text-xs font-bold transition-all shadow-xs shrink-0';
 
     const inactiveNavClass = isDark
-        ? 'bg-slate-800/90 hover:bg-slate-700 text-slate-200 border-slate-700'
-        : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200 hover:border-slate-300';
+        ? 'liquid-glass-subtle liquid-glass-dark hover:bg-white/10 text-slate-200 border-white/15'
+        : 'liquid-glass-subtle liquid-glass-light hover:bg-white/80 text-slate-700 border-white/75';
 
     const activeEmeraldNavClass =
-        'bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-500 shadow-sm ring-1 ring-emerald-400/40 keep-white';
+        'bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-400/70 shadow-sm ring-1 ring-white/30 keep-white';
 
     const outboxCount = outboxProps?.outboxCount ?? 0;
     const isOnline = outboxProps?.isOnline ?? true;
@@ -134,10 +134,8 @@ export function LeanHeader({
 
             {/* TOP HEADER */}
             <header
-                className={`sticky top-0 z-40 backdrop-blur-md border-b px-2 sm:px-6 lg:px-8 py-2 sm:py-2.5 shadow-xs transition-colors duration-200 w-full max-w-full ${
-                    isDark
-                        ? 'bg-slate-900/95 border-slate-800 shadow-slate-950/40'
-                        : 'bg-white/95 border-slate-200 shadow-slate-200/50'
+                className={`sticky top-0 z-40 border-b px-2 sm:px-6 lg:px-8 py-2 sm:py-2.5 transition-all duration-200 w-full max-w-full liquid-glass-header ${
+                    isDark ? 'liquid-glass-dark' : 'liquid-glass-light'
                 }`}
             >
                 <div className="w-full flex items-center justify-between gap-1 sm:gap-3">
@@ -182,8 +180,8 @@ export function LeanHeader({
 
                     {/* View Mode Switcher (Tabel ERP / Kartu / Analisis) */}
                     <div
-                        className={`hidden md:flex items-center p-0.5 sm:p-1 rounded-xl border shrink-0 ${
-                            isDark ? 'bg-slate-950/80 border-slate-800' : 'bg-slate-100 border-slate-200 shadow-xs'
+                        className={`hidden md:flex items-center p-0.5 sm:p-1 rounded-xl border shrink-0 liquid-glass-subtle ${
+                            isDark ? 'liquid-glass-dark' : 'liquid-glass-light'
                         }`}
                     >
                         <button
@@ -230,8 +228,8 @@ export function LeanHeader({
                                             : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-300 animate-pulse'
                                         : isOnline
                                         ? isDark
-                                            ? 'bg-slate-800/90 text-emerald-400 border-slate-700'
-                                            : 'bg-white text-emerald-700 border-slate-200'
+                                            ? 'liquid-glass-subtle liquid-glass-dark text-emerald-400'
+                                            : 'liquid-glass-subtle liquid-glass-light text-emerald-700'
                                         : isDark
                                         ? 'bg-rose-950/70 text-rose-300 border-rose-600/50'
                                         : 'bg-rose-50 text-rose-800 border-rose-200'
@@ -273,8 +271,8 @@ export function LeanHeader({
 
                         {/* ID | EN Language Switcher */}
                         <div
-                            className={`h-7 sm:h-8 flex items-center rounded-lg border p-0.5 text-[10px] sm:text-xs font-bold shadow-xs shrink-0 ${
-                                isDark ? 'bg-slate-800/90 border-slate-700' : 'bg-white border-slate-200'
+                            className={`h-7 sm:h-8 flex items-center rounded-lg border p-0.5 text-[10px] sm:text-xs font-bold shrink-0 liquid-glass-subtle ${
+                                isDark ? 'liquid-glass-dark' : 'liquid-glass-light'
                             }`}
                             role="group"
                             aria-label={isEn ? 'Language switcher' : 'Pemilih bahasa'}
@@ -286,7 +284,7 @@ export function LeanHeader({
                                     lang === 'id'
                                         ? 'bg-emerald-600 text-white shadow-xs keep-white'
                                         : isDark
-                                        ? 'text-slate-400 hover:text-slate-200'
+                                        ? 'text-slate-300 hover:text-white'
                                         : 'text-slate-600 hover:text-slate-900'
                                 }`}
                             >
@@ -299,7 +297,7 @@ export function LeanHeader({
                                     lang === 'en'
                                         ? 'bg-emerald-600 text-white shadow-xs keep-white'
                                         : isDark
-                                        ? 'text-slate-400 hover:text-slate-200'
+                                        ? 'text-slate-300 hover:text-white'
                                         : 'text-slate-600 hover:text-slate-900'
                                 }`}
                             >
@@ -311,10 +309,10 @@ export function LeanHeader({
                         <button
                             type="button"
                             onClick={toggleTheme}
-                            className={`h-7 w-7 sm:h-8 sm:w-8 flex items-center justify-center rounded-lg border transition-all shadow-xs cursor-pointer shrink-0 ${
+                            className={`h-7 w-7 sm:h-8 sm:w-8 flex items-center justify-center rounded-lg border transition-all cursor-pointer shrink-0 liquid-glass-subtle ${
                                 isDark
-                                    ? 'bg-slate-800/90 hover:bg-slate-700 text-amber-300 border-slate-700'
-                                    : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200 hover:border-slate-300'
+                                    ? 'liquid-glass-dark hover:bg-white/10 text-amber-300'
+                                    : 'liquid-glass-light hover:bg-white/80 text-slate-700'
                             }`}
                             title={
                                 isDark
@@ -521,10 +519,10 @@ export function LeanHeader({
                                 <button
                                     type="button"
                                     onClick={() => router.post(route('logout'))}
-                                    className={`h-7 w-7 sm:h-8 sm:w-8 flex items-center justify-center rounded-lg border transition-all shadow-xs cursor-pointer shrink-0 ${
+                                    className={`h-7 w-7 sm:h-8 sm:w-8 flex items-center justify-center rounded-lg border transition-all cursor-pointer shrink-0 liquid-glass-subtle ${
                                         isDark
-                                            ? 'bg-slate-800/90 hover:bg-rose-950/80 hover:text-rose-300 text-slate-300 border-slate-700 hover:border-rose-600/60'
-                                            : 'bg-white hover:bg-rose-50 hover:text-rose-700 text-slate-700 border-slate-200 hover:border-rose-300'
+                                            ? 'liquid-glass-dark hover:bg-rose-950/70 hover:text-rose-300 text-slate-300 hover:border-rose-500/60'
+                                            : 'liquid-glass-light hover:bg-rose-50/90 hover:text-rose-700 text-slate-700 hover:border-rose-300'
                                     }`}
                                     title={isEn ? 'Sign Out (Logout)' : 'Keluar dari Akun (Logout)'}
                                     aria-label={isEn ? 'Sign Out' : 'Keluar dari Akun'}

@@ -308,10 +308,10 @@ export function BotControlModal({ open, onOpenChange, botStatus, onRefreshStatus
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent
-                className={`sm:max-w-lg p-6 shadow-2xl z-[9999] max-h-[90vh] overflow-y-auto border rounded-2xl ${
+                className={`sm:max-w-lg p-6 shadow-2xl z-[9999] max-h-[90vh] overflow-y-auto border rounded-2xl liquid-glass-modal ${
                     isDark
-                        ? 'bg-slate-900 border-slate-800 text-slate-100'
-                        : 'bg-white border-slate-200 text-slate-900'
+                        ? 'liquid-glass-dark text-slate-100'
+                        : 'liquid-glass-light text-slate-900'
                 }`}
             >
                 <DialogHeader>
@@ -328,10 +328,10 @@ export function BotControlModal({ open, onOpenChange, botStatus, onRefreshStatus
 
                 {/* Tab Navigation */}
                 <div
-                    className={`flex items-center gap-1.5 p-1 rounded-xl border text-xs font-semibold mt-2 ${
+                    className={`flex items-center gap-1.5 p-1 rounded-xl border text-xs font-semibold mt-2 liquid-glass-subtle ${
                         isDark
-                            ? 'bg-slate-950 border-slate-800'
-                            : 'bg-slate-100 border-slate-200'
+                            ? 'liquid-glass-dark'
+                            : 'liquid-glass-light'
                     }`}
                 >
                     <button

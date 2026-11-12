@@ -1609,7 +1609,7 @@ export default function LeanIndex({
     };
 
     return (
-        <div className={`lean-root ${isDark ? 'lean-theme-dark text-slate-100' : 'lean-theme-light text-slate-800'} flex flex-col font-sans pb-24 md:pb-12 transition-colors duration-300 w-full max-w-full overflow-x-clip min-h-screen`}>
+        <div className={`lean-root ${isDark ? 'lean-theme-dark text-slate-100' : 'lean-theme-light text-slate-800'} flex flex-col font-sans pb-28 md:pb-12 transition-colors duration-300 w-full max-w-full overflow-x-clip min-h-screen`}>
             <Head title="Dashboard — Telunas Issue Tracker" />
             <LeanHeader
                 activePage="dashboard"
@@ -1632,10 +1632,10 @@ export default function LeanIndex({
 
                 {/* OUTBOX BANNER: TICKETS QUEUED IN PHONE STORAGE */}
                 {outboxCount > 0 && (
-                    <div className={`mb-4 p-3.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-md transition-all ${
+                    <div className={`mb-4 p-3.5 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-md transition-all liquid-glass-card liquid-glass-tint-amber ${
                         isDark
-                            ? 'bg-gradient-to-r from-amber-950/70 via-slate-900/90 to-amber-950/50 border-amber-500/60 text-amber-200'
-                            : 'bg-amber-50/95 border-amber-300 text-amber-950 shadow-sm'
+                            ? 'text-amber-200'
+                            : 'text-amber-950'
                     }`}>
                         <div className="flex items-center gap-2.5 min-w-0">
                             <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${isDark ? 'bg-amber-500/20 text-amber-400' : 'bg-amber-100 text-amber-700'}`}>
@@ -1707,10 +1707,10 @@ export default function LeanIndex({
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             placeholder={isEn ? 'Search ID, title, reporter, location...' : 'Cari ID, judul, pelapor, lokasi...'}
-                            className={`w-full text-xs rounded-xl pl-8 pr-7 py-2.5 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 shadow-sm transition-all border ${
+                            className={`w-full text-xs rounded-xl pl-8 pr-7 py-2.5 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 shadow-sm transition-all border liquid-glass-control ${
                                 isDark
-                                    ? 'bg-slate-800/90 border-slate-700 text-slate-200 placeholder-slate-500'
-                                    : 'bg-white/95 border-slate-300 text-slate-900 placeholder-slate-400 shadow-xs'
+                                    ? 'text-slate-200 placeholder-slate-500'
+                                    : 'text-slate-900 placeholder-slate-400'
                             }`}
                         />
                         {searchQuery && (
@@ -1732,10 +1732,10 @@ export default function LeanIndex({
                             <select
                                 value={selectedMonthFilter}
                                 onChange={(e) => setSelectedMonthFilter(e.target.value)}
-                                className={`w-full sm:w-auto text-xs font-semibold rounded-xl px-3 py-2 focus:ring-1 focus:ring-emerald-500 cursor-pointer shadow-sm border truncate ${
+                                className={`w-full sm:w-auto text-xs font-semibold rounded-xl px-3 py-2 focus:ring-1 focus:ring-emerald-500 cursor-pointer shadow-sm border truncate liquid-glass-control ${
                                     isDark
-                                        ? 'bg-slate-800/90 border-slate-700 text-slate-200'
-                                        : 'bg-white/95 border-slate-300 text-slate-800 shadow-xs'
+                                        ? 'text-slate-200'
+                                        : 'text-slate-800'
                                 }`}
                                 title={isEn ? 'Select Month Tab (12 Monthly Tabs)' : 'Pilih Tab Bulan (12 Tab Bulanan)'}
                             >
@@ -1760,10 +1760,10 @@ export default function LeanIndex({
                             <select
                                 value={selectedDeptFilter}
                                 onChange={(e) => setSelectedDeptFilter(e.target.value)}
-                                className={`w-full sm:w-auto text-xs font-semibold rounded-xl px-3 py-2 focus:ring-1 focus:ring-emerald-500 cursor-pointer shadow-sm border truncate ${
+                                className={`w-full sm:w-auto text-xs font-semibold rounded-xl px-3 py-2 focus:ring-1 focus:ring-emerald-500 cursor-pointer shadow-sm border truncate liquid-glass-control ${
                                     isDark
-                                        ? 'bg-slate-800/90 border-slate-700 text-slate-200'
-                                        : 'bg-white/95 border-slate-300 text-slate-800 shadow-xs'
+                                        ? 'text-slate-200'
+                                        : 'text-slate-800'
                                 }`}
                             >
                                 <option value="all">{isEn ? 'All Depts (All)' : 'Semua Dept (All)'}</option>
@@ -1775,14 +1775,14 @@ export default function LeanIndex({
 
                         {/* Sort Cepat Control */}
                         <div className="w-full sm:w-auto relative flex items-center">
-                            <ArrowUpDown className="w-3.5 h-3.5 text-emerald-500 absolute left-2.5 sm:left-3 pointer-events-none" />
+                            <ArrowUpDown className="w-3.5 h-3.5 text-emerald-500 absolute left-2.5 sm:left-3 pointer-events-none z-10" />
                             <select
                                 value={sortBy}
                                 onChange={(e) => setSortBy(e.target.value)}
-                                className={`w-full sm:w-auto text-xs font-semibold rounded-xl pl-7 sm:pl-8 pr-3 py-2 focus:ring-1 focus:ring-emerald-500 cursor-pointer shadow-sm border truncate ${
+                                className={`w-full sm:w-auto text-xs font-semibold rounded-xl pl-7 sm:pl-8 pr-3 py-2 focus:ring-1 focus:ring-emerald-500 cursor-pointer shadow-sm border truncate liquid-glass-control ${
                                     isDark
-                                        ? 'bg-slate-800/90 border-slate-700 text-slate-200 hover:border-slate-600'
-                                        : 'bg-white/95 border-slate-300 text-slate-800 shadow-xs hover:border-slate-400'
+                                        ? 'text-slate-200'
+                                        : 'text-slate-800'
                                 }`}
                                 title={isEn ? 'Quickly sort ticket list' : 'Urutkan daftar tiket secara cepat'}
                             >
@@ -1798,11 +1798,7 @@ export default function LeanIndex({
                         <div className="w-full md:w-auto col-span-2 md:col-span-1 md:ml-auto flex items-center justify-between md:justify-end gap-2">
                             {/* Compact Mobile Card / ERP Table Switcher */}
                             <div
-                                className={`inline-flex md:hidden items-center p-0.5 rounded-xl border shadow-xs ${
-                                    isDark
-                                        ? 'bg-slate-900/90 border-slate-700'
-                                        : 'bg-slate-100 border-slate-200'
-                                }`}
+                                className="inline-flex md:hidden items-center p-0.5 rounded-xl border shadow-xs liquid-glass-subtle"
                                 role="group"
                                 aria-label={isEn ? 'Switch list view' : 'Ubah tampilan daftar'}
                             >
@@ -1848,10 +1844,10 @@ export default function LeanIndex({
                             <button
                                 type="button"
                                 onClick={() => setShowColumnModal(true)}
-                                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all shadow-sm border ${
+                                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all shadow-sm border liquid-glass-subtle ${
                                     isDark
-                                        ? 'bg-slate-800/90 hover:bg-slate-700 border-slate-700 hover:border-emerald-500/50 text-slate-200'
-                                        : 'bg-white/95 hover:bg-slate-50 border-slate-300 hover:border-slate-400 text-slate-800 shadow-xs'
+                                        ? 'text-slate-200'
+                                        : 'text-slate-800'
                                 }`}
                                 title={isEn ? 'Choose which data/columns to display' : 'Pilih data/kolom apa saja yang ingin ditampilkan'}
                             >
@@ -1870,9 +1866,7 @@ export default function LeanIndex({
                 </div>
 
                 {/* Row 3: MULTI-SELECT STATUS CHECKLIST PILLS & PRESETS */}
-                <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 mb-4 p-2 sm:p-2.5 rounded-xl border backdrop-blur-md transition-all ${
-                    isDark ? 'bg-slate-800/60 border-slate-800' : 'bg-white/80 border-slate-200/90 shadow-xs'
-                }`}>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 mb-4 p-2 sm:p-2.5 rounded-2xl border transition-all liquid-glass-subtle">
                     {/* Status Checklist Pills: 4-Column Grid on Mobile (Non-scrollable, fits 100% width), Flex on Desktop */}
                     <div className="grid grid-cols-4 gap-1 sm:flex sm:items-center sm:gap-1.5 w-full sm:w-auto">
                         {/* Open Checkbox Pill */}
@@ -2040,7 +2034,7 @@ export default function LeanIndex({
                         monthGids={monthGids}
                     />
                 ) : filteredIssues.length === 0 ? (
-                    <div className="py-16 text-center border-2 border-dashed border-slate-800 rounded-2xl p-6">
+                    <div className="py-16 text-center border rounded-2xl p-6 liquid-glass-card">
                         <div className="w-12 h-12 rounded-full bg-slate-800 text-slate-500 flex items-center justify-center mx-auto mb-3">
                             <CheckCircle2 className="w-6 h-6" />
                         </div>
@@ -2073,9 +2067,7 @@ export default function LeanIndex({
                     </div>
                 ) : viewMode === 'table' ? (
                     /* --- VIEW 1: ERP SPREADSHEET TABLE --- */
-                    <div className={`rounded-2xl overflow-hidden border shadow-xl transition-all ${
-                        isDark ? 'bg-slate-800/90 border-slate-700/80' : 'bg-white border-slate-200 shadow-sm'
-                    }`}>
+                    <div className="rounded-2xl overflow-hidden border shadow-xl transition-all liquid-glass-card">
                         <div className="overflow-x-auto">
                             <table className="w-full text-left text-[11px] border-collapse">
                                 <thead>
@@ -2363,11 +2355,7 @@ export default function LeanIndex({
                                 <div
                                     key={issue.id}
                                     onClick={() => setSelectedDetailIssue(issue)}
-                                    className={`relative rounded-2xl border-2 border-l-[6px] transition-all duration-200 cursor-pointer flex flex-col justify-between overflow-hidden group hover:-translate-y-1.5 ${statusTheme.borderLeft} ${
-                                        isDark
-                                            ? 'bg-slate-800/95 border-slate-700/90 hover:border-slate-600 shadow-lg hover:shadow-2xl ring-1 ring-white/5'
-                                            : 'bg-white border-slate-300/90 hover:border-slate-400 shadow-md hover:shadow-xl ring-1 ring-slate-900/5'
-                                    }`}
+                                    className={`relative rounded-2xl border-2 border-l-[6px] transition-all duration-200 cursor-pointer flex flex-col justify-between overflow-hidden group hover:-translate-y-1.5 liquid-glass-card liquid-glass-interactive ${statusTheme.borderLeft}`}
                                     title={isEn ? 'Click card to view full issue details' : 'Klik kartu untuk melihat rincian lengkap isu'}
                                 >
                                     {/* Option 2: Top Status Accent Bar */}
@@ -2654,9 +2642,13 @@ export default function LeanIndex({
             {/* MODAL 1: REPORT ISSUE MODAL (DISCUSSION-VERIFIED WORKFLOW) */}
             {showReportModal && (
                 <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
-                    <div className="w-full max-w-lg bg-slate-900 border border-slate-700 rounded-t-2xl sm:rounded-2xl shadow-2xl overflow-hidden max-h-[92vh] flex flex-col">
+                    <div className={`w-full max-w-lg border rounded-t-2xl sm:rounded-2xl shadow-2xl overflow-hidden max-h-[92vh] flex flex-col liquid-glass-modal ${
+                        isDark ? 'liquid-glass-dark' : 'liquid-glass-light'
+                    }`}>
                         {/* Header */}
-                        <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/90">
+                        <div className={`p-4 border-b flex items-center justify-between liquid-glass-subtle ${
+                            isDark ? 'liquid-glass-dark border-white/10' : 'liquid-glass-light border-slate-200/70'
+                        }`}>
                             <div>
                                 <h3 className="font-bold text-base text-white flex items-center gap-1.5">
                                     <MessageSquare className="w-4 h-4 text-emerald-400" />
@@ -3055,7 +3047,9 @@ export default function LeanIndex({
 
                 return (
                     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-                        <div className="w-full max-w-md bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-5 space-y-4 max-h-[90vh] overflow-y-auto">
+                        <div className={`w-full max-w-md border rounded-2xl shadow-2xl p-5 space-y-4 max-h-[90vh] overflow-y-auto liquid-glass-modal ${
+                            isDark ? 'liquid-glass-dark' : 'liquid-glass-light'
+                        }`}>
                             <div className="flex items-start justify-between">
                                 <div>
                                     <h3 className="font-bold text-base text-white flex items-center gap-1.5">
@@ -3224,7 +3218,9 @@ export default function LeanIndex({
 
                 return (
                     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-                        <div className="w-full max-w-md bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-5 space-y-4 max-h-[90vh] overflow-y-auto">
+                        <div className={`w-full max-w-md border rounded-2xl shadow-2xl p-5 space-y-4 max-h-[90vh] overflow-y-auto liquid-glass-modal ${
+                            isDark ? 'liquid-glass-dark' : 'liquid-glass-light'
+                        }`}>
                             <div className="flex items-start justify-between">
                                 <div>
                                     <h3 className="font-bold text-base text-white flex items-center gap-1.5">
@@ -3395,7 +3391,9 @@ export default function LeanIndex({
 
                 return (
                     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-                        <div className="w-full max-w-md bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-5 space-y-4 max-h-[90vh] overflow-y-auto">
+                        <div className={`w-full max-w-md border rounded-2xl shadow-2xl p-5 space-y-4 max-h-[90vh] overflow-y-auto liquid-glass-modal ${
+                            isDark ? 'liquid-glass-dark' : 'liquid-glass-light'
+                        }`}>
                             <div className="flex items-start justify-between">
                                 <div>
                                     <h3 className="font-bold text-base text-white flex items-center gap-1.5">
@@ -3549,7 +3547,9 @@ export default function LeanIndex({
             {/* MODAL 2D: PENDING / TUNDA */}
             {showPendingModal && (
                 <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-                    <div className="w-full max-w-md bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-5 space-y-4 max-h-[90vh] overflow-y-auto">
+                    <div className={`w-full max-w-md border rounded-2xl shadow-2xl p-5 space-y-4 max-h-[90vh] overflow-y-auto liquid-glass-modal ${
+                        isDark ? 'liquid-glass-dark' : 'liquid-glass-light'
+                    }`}>
                         <div className="flex items-start justify-between">
                             <div>
                                 <h3 className="font-bold text-base text-white flex items-center gap-1.5">
@@ -3642,7 +3642,9 @@ export default function LeanIndex({
 
                 return (
                     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-                        <div className="w-full max-w-md bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-5 space-y-4">
+                        <div className={`w-full max-w-md border rounded-2xl shadow-2xl p-5 space-y-4 liquid-glass-modal ${
+                            isDark ? 'liquid-glass-dark' : 'liquid-glass-light'
+                        }`}>
                             <div className="flex items-start justify-between">
                                 <div>
                                     <h3 className="font-bold text-base text-white flex items-center gap-1.5">
@@ -3733,12 +3735,12 @@ export default function LeanIndex({
             {/* MODAL: DETAIL ISU LENGKAP (SESUAI PREFERENSI KOLOM ERP) */}
             {activeDetailIssue && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
-                    <div className={`w-full max-w-xl rounded-2xl border shadow-2xl overflow-hidden max-h-[90vh] flex flex-col animate-in zoom-in-95 ${
-                        isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'
+                    <div className={`w-full max-w-xl rounded-2xl border shadow-2xl overflow-hidden max-h-[90vh] flex flex-col animate-in zoom-in-95 liquid-glass-modal ${
+                        isDark ? 'liquid-glass-dark text-white' : 'liquid-glass-light text-slate-900'
                     }`}>
                         {/* Header Modal */}
-                        <div className={`p-4 border-b flex items-start justify-between gap-3 ${
-                            isDark ? 'border-slate-800 bg-slate-950/70' : 'border-slate-200 bg-slate-50'
+                        <div className={`p-4 border-b flex items-start justify-between gap-3 liquid-glass-subtle ${
+                            isDark ? 'liquid-glass-dark border-white/10' : 'liquid-glass-light border-slate-200/70'
                         }`}>
                             <div className="space-y-1">
                                 <div className="flex items-center gap-2 flex-wrap">
@@ -4500,12 +4502,12 @@ export default function LeanIndex({
             {/* MODAL 5: ERP COLUMN CUSTOMIZER */}
             {showColumnModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
-                    <div className={`w-full max-w-md rounded-2xl border shadow-2xl overflow-hidden flex flex-col ${
-                        isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'
+                    <div className={`w-full max-w-md rounded-2xl border shadow-2xl overflow-hidden flex flex-col liquid-glass-modal ${
+                        isDark ? 'liquid-glass-dark text-white' : 'liquid-glass-light text-slate-900'
                     }`}>
                         {/* Header */}
-                        <div className={`p-4 border-b flex items-center justify-between ${
-                            isDark ? 'border-slate-800' : 'border-slate-200'
+                        <div className={`p-4 border-b flex items-center justify-between liquid-glass-subtle ${
+                            isDark ? 'liquid-glass-dark border-white/10' : 'liquid-glass-light border-slate-200/70'
                         }`}>
                             <div className="flex items-center gap-2.5">
                                 <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold">
@@ -4613,7 +4615,9 @@ export default function LeanIndex({
             {/* MODAL: DELETE / SOFT DELETE ISSUE */}
             {issueToDelete && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-in fade-in">
-                    <div className="w-full max-w-md bg-slate-900 border border-rose-500/40 rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+                    <div className={`w-full max-w-md border rounded-2xl shadow-2xl overflow-hidden flex flex-col liquid-glass-modal ${
+                        isDark ? 'liquid-glass-dark' : 'liquid-glass-light'
+                    }`}>
                         <div className="p-4 border-b border-slate-800 bg-rose-950/30 flex items-center justify-between">
                             <div className="flex items-center gap-2.5">
                                 <div className="w-8 h-8 rounded-lg bg-rose-500/20 text-rose-400 flex items-center justify-center font-bold">
@@ -4714,12 +4718,12 @@ export default function LeanIndex({
             {/* MODAL 6: OFFLINE OUTBOX MODAL (HP LOCAL STORAGE QUEUE) */}
             {showOutboxModal && (
                 <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
-                    <div className={`w-full max-w-lg border rounded-t-2xl sm:rounded-2xl shadow-2xl overflow-hidden max-h-[85vh] flex flex-col ${
-                        isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'
+                    <div className={`w-full max-w-lg border rounded-t-2xl sm:rounded-2xl shadow-2xl overflow-hidden max-h-[85vh] flex flex-col liquid-glass-modal ${
+                        isDark ? 'liquid-glass-dark' : 'liquid-glass-light'
                     }`}>
                         {/* Header */}
-                        <div className={`p-4 border-b flex items-center justify-between ${
-                            isDark ? 'border-slate-800 bg-slate-950/60' : 'border-slate-200 bg-slate-50'
+                        <div className={`p-4 border-b flex items-center justify-between liquid-glass-subtle ${
+                            isDark ? 'liquid-glass-dark border-white/10' : 'liquid-glass-light border-slate-200/70'
                         }`}>
                             <div className="flex items-center gap-2.5">
                                 <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-500 flex items-center justify-center">
@@ -4857,7 +4861,9 @@ export default function LeanIndex({
 
             {/* FLOATING QUICK-RETURN TO TICKET BUTTON */}
             {returnTicket && viewMode === 'analytics' && (
-                <div className="fixed bottom-24 md:bottom-6 right-4 sm:right-6 z-50 flex items-center gap-2 bg-slate-900/95 border border-sky-500/60 shadow-2xl shadow-sky-950/50 rounded-2xl p-2 pl-3.5 backdrop-blur-md animate-in slide-in-from-bottom-4 duration-200">
+                <div className={`fixed bottom-28 md:bottom-6 right-4 sm:right-6 z-50 flex items-center gap-2 border rounded-2xl p-2 pl-3.5 shadow-2xl animate-in slide-in-from-bottom-4 duration-200 liquid-glass-pill ${
+                    isDark ? 'liquid-glass-dark text-sky-300' : 'liquid-glass-light text-sky-700'
+                }`}>
                     <button
                         type="button"
                         onClick={() => {
@@ -4865,7 +4871,9 @@ export default function LeanIndex({
                             setSelectedDetailIssue(returnTicket.issue);
                             setReturnTicket(null);
                         }}
-                        className="flex items-center gap-2 text-xs font-bold text-sky-300 hover:text-white transition-colors cursor-pointer"
+                        className={`flex items-center gap-2 text-xs font-bold transition-colors cursor-pointer ${
+                            isDark ? 'text-sky-300 hover:text-white' : 'text-sky-700 hover:text-sky-900'
+                        }`}
                     >
                         <ArrowLeft className="w-4 h-4 text-sky-400 animate-pulse" />
                         <span>{isEn ? 'Back to Ticket' : 'Kembali ke Tiket'} #{returnTicket.issue.issue_code || returnTicket.issue.id}</span>

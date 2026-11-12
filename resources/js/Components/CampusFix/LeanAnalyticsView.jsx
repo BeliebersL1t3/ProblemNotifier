@@ -503,19 +503,19 @@ function ResortZonePin({
 
             {/* Hover / Selected Tooltip Card */}
             {(isHovered || isSelected) && (
-                <div className={`absolute left-1/2 -translate-x-1/2 bottom-full mb-2.5 px-3 py-2 rounded-xl border text-[11px] whitespace-nowrap z-50 pointer-events-none backdrop-blur-md animate-in fade-in zoom-in-95 duration-150 ${
+                <div className={`absolute left-1/2 -translate-x-1/2 bottom-full mb-2.5 px-3.5 py-2.5 rounded-2xl border text-[11px] whitespace-nowrap z-50 pointer-events-none liquid-glass-pill animate-in fade-in zoom-in-95 duration-150 ${
                     isDark
-                        ? 'bg-slate-900/95 border-slate-700 text-white shadow-2xl'
-                        : 'bg-white/98 border-slate-200 text-slate-900 shadow-xl'
+                        ? 'liquid-glass-dark text-white'
+                        : 'liquid-glass-light text-slate-900'
                 }`}>
                     <div className="flex items-center gap-1.5 font-bold">
-                        <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                        <span className="w-2.5 h-2.5 rounded-full shrink-0 shadow-xs" style={{ backgroundColor: color }} />
                         <span className={isDark ? 'text-white' : 'text-slate-900'}>
                             #{zone.num} {zone.name}
                         </span>
                     </div>
                     <div className="text-[10px] flex items-center justify-between gap-3 pt-1">
-                        <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>
+                        <span className={isDark ? 'text-slate-300' : 'text-slate-600 font-medium'}>
                             {zone.enName || fallbackLabel}
                         </span>
                         <span className="font-semibold" style={{ color }}>
@@ -532,8 +532,8 @@ function ResortZonePin({
                             )}
                         </span>
                     </div>
-                    <div className={`absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-x-4 border-x-transparent border-t-4 ${
-                        isDark ? 'border-t-slate-900' : 'border-t-white'
+                    <div className={`absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-x-[5px] border-x-transparent border-t-[5px] ${
+                        isDark ? 'border-t-slate-900/75' : 'border-t-white/75'
                     }`} />
                 </div>
             )}
@@ -694,12 +694,12 @@ function TpiResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
     return (
         <div className="space-y-3">
             {/* Map Canvas with Controls HUD */}
-            <div className={`relative w-full rounded-2xl overflow-hidden border shadow-xl select-none group ${
-                isDark ? 'bg-slate-950 border-slate-700/80' : 'bg-slate-100 border-slate-300 shadow-md'
+            <div className={`relative w-full rounded-2xl overflow-hidden border shadow-xl select-none group liquid-glass-card ${
+                isDark ? 'border-slate-700/80' : 'border-slate-300 shadow-md'
             }`}>
                 {/* HUD Toolbar */}
-                <div className={`flex flex-wrap items-center justify-between gap-2 p-2 border-b text-xs backdrop-blur-md ${
-                    isDark ? 'bg-slate-900/90 border-slate-800 text-slate-300' : 'bg-slate-100/90 border-slate-200 text-slate-800'
+                <div className={`flex flex-wrap items-center justify-between gap-2 p-2 border-b text-xs liquid-glass-subtle ${
+                    isDark ? 'text-slate-300' : 'text-slate-800'
                 }`}>
                     <div className="flex items-center gap-1.5 flex-wrap">
                         <button
@@ -717,8 +717,8 @@ function TpiResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                         </button>
 
                         {/* Quick HD Zoom Chips */}
-                        <div className={`flex items-center rounded-lg border p-0.5 text-[10px] font-bold ${
-                            isDark ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200'
+                        <div className={`flex items-center rounded-lg border p-0.5 text-[10px] font-bold liquid-glass-subtle ${
+                            isDark ? 'liquid-glass-dark' : 'liquid-glass-light'
                         }`}>
                             <button
                                 type="button"
@@ -790,10 +790,10 @@ function TpiResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                         <button
                             type="button"
                             onClick={() => setIsFullscreen(true)}
-                            className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                            className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer liquid-glass-subtle ${
                                 isDark
-                                    ? 'bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700'
-                                    : 'bg-white hover:bg-slate-50 text-sky-700 border border-slate-300 shadow-2xs'
+                                    ? 'text-sky-300'
+                                    : 'text-sky-700'
                             }`}
                             title={isEn ? 'Open Map in Fullscreen' : 'Buka Denah di Layar Penuh'}
                         >
@@ -818,8 +818,8 @@ function TpiResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                 </div>
 
                 {/* Bottom Bar Info Legend */}
-                <div className={`px-4 py-2.5 border-t flex flex-wrap items-center justify-between text-xs gap-2 ${
-                    isDark ? 'bg-slate-900/95 border-slate-800 text-slate-400' : 'bg-white border-slate-200 text-slate-700'
+                <div className={`px-4 py-2.5 border-t flex flex-wrap items-center justify-between text-xs gap-2 liquid-glass-subtle ${
+                    isDark ? 'text-slate-400' : 'text-slate-700'
                 }`}>
                     <div className="flex items-center gap-2">
                         <span className={`font-semibold ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>
@@ -1087,12 +1087,12 @@ function TbrResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
     return (
         <div className="space-y-3">
             {/* Map Canvas with Controls HUD */}
-            <div className={`relative w-full rounded-2xl overflow-hidden border shadow-xl select-none group ${
-                isDark ? 'bg-slate-950 border-slate-700/80' : 'bg-slate-200/60 border-slate-300 shadow-md'
+            <div className={`relative w-full rounded-2xl overflow-hidden border shadow-xl select-none group liquid-glass-card ${
+                isDark ? 'border-slate-700/80' : 'border-slate-300 shadow-md'
             }`}>
                 {/* HUD Toolbar */}
-                <div className={`flex flex-wrap items-center justify-between gap-2 p-2 border-b text-xs backdrop-blur-md ${
-                    isDark ? 'bg-slate-900/90 border-slate-800 text-slate-300' : 'bg-white/95 border-slate-300 text-slate-800 shadow-xs'
+                <div className={`flex flex-wrap items-center justify-between gap-2 p-2 border-b text-xs liquid-glass-subtle ${
+                    isDark ? 'text-slate-300' : 'text-slate-800'
                 }`}>
                     <div className="flex items-center gap-1.5 flex-wrap">
                         <button
@@ -1110,8 +1110,8 @@ function TbrResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                         </button>
 
                         {/* Quick HD Zoom Chips */}
-                        <div className={`flex items-center rounded-lg border p-0.5 text-[10px] font-bold ${
-                            isDark ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200'
+                        <div className={`flex items-center rounded-lg border p-0.5 text-[10px] font-bold liquid-glass-subtle ${
+                            isDark ? 'liquid-glass-dark' : 'liquid-glass-light'
                         }`}>
                             <button
                                 type="button"
@@ -1183,10 +1183,10 @@ function TbrResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                         <button
                             type="button"
                             onClick={() => setIsFullscreen(true)}
-                            className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                            className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer liquid-glass-subtle ${
                                 isDark
-                                    ? 'bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700'
-                                    : 'bg-white hover:bg-slate-50 text-amber-800 border border-slate-300 shadow-2xs'
+                                    ? 'text-amber-300'
+                                    : 'text-amber-800'
                             }`}
                             title={isEn ? 'Open Map in Fullscreen' : 'Buka Denah di Layar Penuh'}
                         >
@@ -1211,8 +1211,8 @@ function TbrResortMap({ zones = [], onSelectZone, selectedZoneId, theme = 'dark'
                 </div>
 
                 {/* Bottom Bar Info Legend */}
-                <div className={`px-4 py-2.5 border-t flex flex-wrap items-center justify-between text-xs gap-2 ${
-                    isDark ? 'bg-slate-900/95 border-slate-800 text-slate-400' : 'bg-white border-slate-200 text-slate-700'
+                <div className={`px-4 py-2.5 border-t flex flex-wrap items-center justify-between text-xs gap-2 liquid-glass-subtle ${
+                    isDark ? 'text-slate-400' : 'text-slate-700'
                 }`}>
                     <div className="flex items-center gap-2">
                         <span className={`font-bold ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>
@@ -1985,9 +1985,7 @@ export function LeanAnalyticsView({
             {/* ========================================================= */}
             {/* 1. TOP CONTROL BAR (TIME FILTER + QUICK ACTIONS)           */}
             {/* ========================================================= */}
-            <div className={`border rounded-2xl p-3.5 sm:p-4 backdrop-blur transition-all ${
-                isDark ? 'bg-slate-900/95 border-slate-700/80 shadow-xl' : 'bg-white/95 border-slate-200 shadow-sm'
-            }`}>
+            <div className="border rounded-2xl p-3.5 sm:p-4 transition-all liquid-glass-card">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
                     {/* Time Filter Dropdown */}
                     <div className="flex items-center gap-2 flex-wrap">
@@ -1998,7 +1996,7 @@ export function LeanAnalyticsView({
                         <select
                             value={timeRange}
                             onChange={(e) => setTimeRange(e.target.value)}
-                            className={`text-xs font-semibold rounded-xl px-3 py-2 border shadow-sm cursor-pointer transition-all focus:ring-1 focus:ring-emerald-500 ${
+                            className={`text-xs font-semibold rounded-xl px-3 py-2 border shadow-sm cursor-pointer transition-all focus:ring-1 focus:ring-emerald-500 liquid-glass-control ${
                                 isDark ? 'bg-slate-800 border-slate-700 text-slate-200' : 'bg-white border-slate-300 text-slate-800'
                             }`}
                         >
@@ -2058,8 +2056,8 @@ export function LeanAnalyticsView({
             {/* ========================================================= */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
                 {/* KPI 1: Total Tiket */}
-                <div className={`p-4 rounded-2xl border shadow-sm relative overflow-hidden backdrop-blur-md transition-all flex flex-col justify-between ${
-                    isDark ? 'bg-slate-800/90 border-slate-700/80' : 'bg-white border-slate-200'
+                <div className={`p-4 rounded-2xl border shadow-sm relative overflow-hidden transition-all flex flex-col justify-between liquid-glass-card ${
+                    isDark ? 'border-slate-700/80' : 'border-slate-200'
                 }`}>
                     <div>
                         <div className="flex items-center justify-between">
@@ -2098,8 +2096,8 @@ export function LeanAnalyticsView({
                 </div>
 
                 {/* KPI 2: Tiket Belum Selesai (Backlog) */}
-                <div className={`p-4 rounded-2xl border shadow-sm relative overflow-hidden backdrop-blur-md transition-all flex flex-col justify-between ${
-                    isDark ? 'bg-slate-800/90 border-slate-700/80' : 'bg-white border-slate-200'
+                <div className={`p-4 rounded-2xl border shadow-sm relative overflow-hidden transition-all flex flex-col justify-between liquid-glass-card ${
+                    isDark ? 'border-slate-700/80' : 'border-slate-200'
                 }`}>
                     <div>
                         <div className="flex items-center justify-between">
@@ -2178,8 +2176,8 @@ export function LeanAnalyticsView({
                     }
 
                     return (
-                        <div className={`p-4 rounded-2xl border shadow-sm relative overflow-hidden backdrop-blur-md transition-all flex flex-col justify-between ${
-                            isDark ? 'bg-slate-800/90 border-slate-700/80' : 'bg-white border-slate-200'
+                        <div className={`p-4 rounded-2xl border shadow-sm relative overflow-hidden transition-all flex flex-col justify-between liquid-glass-card ${
+                            isDark ? 'border-slate-700/80' : 'border-slate-200'
                         }`}>
                             <div>
                                 <div className="flex items-center justify-between gap-1.5">
@@ -2226,8 +2224,8 @@ export function LeanAnalyticsView({
                     role="button"
                     tabIndex={0}
                     onClick={() => topHotspot && setSelectedLocationForModal(topHotspot)}
-                    className={`p-4 rounded-2xl border shadow-sm relative overflow-hidden backdrop-blur-md transition-all cursor-pointer group flex flex-col justify-between ${
-                        isDark ? 'bg-slate-800/90 border-slate-700/80 hover:border-amber-500/50' : 'bg-white border-slate-200 hover:border-amber-400'
+                    className={`p-4 rounded-2xl border shadow-sm relative overflow-hidden transition-all cursor-pointer group flex flex-col justify-between liquid-glass-card liquid-glass-interactive ${
+                        isDark ? 'border-slate-700/80 hover:border-amber-500/50' : 'border-slate-200 hover:border-amber-400'
                     }`}
                     title={topHotspot ? (isEn ? `Click for ticket details at ${topHotspot.location}` : `Klik untuk rincian tiket di ${topHotspot.location}`) : undefined}
                 >
@@ -2278,8 +2276,8 @@ export function LeanAnalyticsView({
             </div>
 
             {stats.withEtaCount > 0 && (
-                <div className={`px-4 py-3 rounded-2xl border backdrop-blur-md flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs ${
-                    isDark ? 'bg-slate-800/80 border-slate-700/80' : 'bg-white border-slate-200 shadow-sm'
+                <div className={`px-4 py-3 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs liquid-glass-card ${
+                    isDark ? 'border-slate-700/80' : 'border-slate-200 shadow-sm'
                 }`}>
                     <div className="flex items-center gap-2">
                         <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
@@ -2327,10 +2325,10 @@ export function LeanAnalyticsView({
             {/* ========================================================= */}
             {/* 5. WIDGET MATRIKS DENAH LOKASI TBR DAN TPI                */}
             {/* ========================================================= */}
-            <div className={`p-4 sm:p-5 rounded-2xl border shadow-sm space-y-4 backdrop-blur-md transition-all ${
-                isDark ? 'bg-slate-800/90 border-slate-700/80' : 'bg-white border-slate-200'
+            <div className={`p-4 sm:p-5 rounded-2xl border shadow-sm space-y-4 transition-all liquid-glass-card ${
+                isDark ? 'border-slate-700/80' : 'border-slate-200'
             }`}>
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-700/50">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-700/30">
                     <div>
                         <h3 className={`text-sm font-bold flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>
                             <Compass className="w-4 h-4 text-emerald-400" />
@@ -2344,8 +2342,8 @@ export function LeanAnalyticsView({
                     </div>
 
                     {/* Resort Map Tab Switcher */}
-                    <div className={`flex items-center p-1 rounded-xl border shrink-0 ${
-                        isDark ? 'bg-slate-950/80 border-slate-800' : 'bg-slate-100 border-slate-200'
+                    <div className={`flex items-center p-1 rounded-xl border shrink-0 liquid-glass-subtle ${
+                        isDark ? 'liquid-glass-dark' : 'liquid-glass-light'
                     }`}>
                         <button
                             type="button"
@@ -2385,8 +2383,8 @@ export function LeanAnalyticsView({
 
                         {/* Zone Inspector TPI */}
                         {selectedTpiZone && (
-                            <div className={`p-3.5 rounded-xl border shadow-lg animate-in fade-in duration-200 space-y-2 ${
-                                isDark ? 'bg-slate-900 border-emerald-500/40 text-white' : 'bg-emerald-50/70 border-emerald-300 text-slate-900'
+                            <div className={`p-3.5 rounded-2xl border shadow-lg animate-in fade-in duration-200 space-y-2 liquid-glass-card liquid-glass-tint-emerald ${
+                                isDark ? 'text-white' : 'text-slate-900'
                             }`}>
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-2">
@@ -2470,8 +2468,8 @@ export function LeanAnalyticsView({
 
                         {/* Zone Inspector TBR */}
                         {selectedTbrZone && (
-                            <div className={`p-3.5 rounded-xl border shadow-lg animate-in fade-in duration-200 space-y-2 ${
-                                isDark ? 'bg-slate-900 border-amber-500/40 text-white' : 'bg-amber-50/70 border-amber-300 text-slate-900'
+                            <div className={`p-3.5 rounded-2xl border shadow-lg animate-in fade-in duration-200 space-y-2 liquid-glass-card liquid-glass-tint-amber ${
+                                isDark ? 'text-white' : 'text-slate-900'
                             }`}>
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-2">
@@ -2547,13 +2545,13 @@ export function LeanAnalyticsView({
             {/* 6. MODAL DETAIL POPUP KETIKA LOKASI DI-KLIK               */}
             {/* ========================================================= */}
             {selectedLocationForModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-                    <div className={`w-full max-w-2xl max-h-[85vh] rounded-2xl border flex flex-col overflow-hidden shadow-2xl ${
-                        isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/65 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className={`w-full max-w-2xl max-h-[85vh] rounded-2xl border flex flex-col overflow-hidden shadow-2xl liquid-glass-modal ${
+                        isDark ? 'liquid-glass-dark text-white' : 'liquid-glass-light text-slate-900'
                     }`}>
                         {/* Modal Header */}
-                        <div className={`p-4 border-b flex items-center justify-between gap-3 ${
-                            isDark ? 'bg-slate-950/50 border-slate-700/60' : 'bg-slate-50 border-slate-200'
+                        <div className={`p-4 border-b flex items-center justify-between gap-3 liquid-glass-subtle ${
+                            isDark ? 'liquid-glass-dark border-white/10' : 'liquid-glass-light border-slate-200/70'
                         }`}>
                             <div className="flex items-center gap-2">
                                 <div className="w-8 h-8 rounded-xl bg-rose-500/20 text-rose-400 flex items-center justify-center">

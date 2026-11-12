@@ -180,15 +180,15 @@ export function UserModal({ isOpen, onClose, user = null, onSaved }) {
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className={`relative w-full max-w-2xl rounded-2xl border shadow-2xl flex flex-col max-h-[90vh] overflow-hidden ${
+            <div className={`relative w-full max-w-2xl rounded-2xl border shadow-2xl flex flex-col max-h-[90vh] overflow-hidden liquid-glass-modal ${
                 isDark
-                    ? 'border-slate-700 bg-slate-900 text-slate-100'
-                    : 'border-slate-200 bg-white text-slate-900'
+                    ? 'liquid-glass-dark text-slate-100'
+                    : 'liquid-glass-light text-slate-900'
             }`}>
 
                 {/* Modal Header */}
-                <div className={`flex items-center justify-between px-6 py-4 border-b ${
-                    isDark ? 'border-slate-800 bg-slate-950/70' : 'border-slate-200 bg-slate-50/90'
+                <div className={`flex items-center justify-between px-6 py-4 border-b liquid-glass-subtle ${
+                    isDark ? 'liquid-glass-dark border-white/10' : 'liquid-glass-light border-slate-200/70'
                 }`}>
                     <div className="flex items-center gap-3">
                         <div className={`p-2.5 rounded-xl border ${
@@ -221,8 +221,8 @@ export function UserModal({ isOpen, onClose, user = null, onSaved }) {
                 </div>
 
                 {/* Tab Navigation */}
-                <div className={`flex border-b px-6 gap-2 text-xs font-bold overflow-x-auto ${
-                    isDark ? 'border-slate-800 bg-slate-950/40' : 'border-slate-200 bg-slate-50'
+                <div className={`flex border-b px-6 gap-2 text-xs font-bold overflow-x-auto liquid-glass-subtle ${
+                    isDark ? 'liquid-glass-dark border-white/10' : 'liquid-glass-light border-slate-200/70'
                 }`}>
                     <button
                         type="button"

@@ -433,7 +433,7 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
         <div
             className={`lean-root ${
                 isDark ? 'lean-theme-dark text-slate-100' : 'lean-theme-light text-slate-800'
-            } min-h-screen flex flex-col font-sans pb-24 md:pb-12 transition-colors duration-300 w-full max-w-full overflow-x-clip selection:bg-emerald-500 selection:text-white`}
+            } min-h-screen flex flex-col font-sans pb-28 md:pb-12 transition-colors duration-300 w-full max-w-full overflow-x-clip selection:bg-emerald-500 selection:text-white`}
         >
             <Head title={`${t('profile') || 'Profil'} — Telunas Resort`} />
 
@@ -451,11 +451,7 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
 
                 {/* Header Banner */}
                 <div
-                    className={`rounded-2xl p-6 sm:p-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5 border shadow-lg transition-colors ${
-                        isDark
-                            ? 'border-slate-800 bg-slate-900/80 backdrop-blur-md'
-                            : 'border-slate-200 bg-white/95 shadow-slate-200/60'
-                    }`}
+                    className="rounded-2xl p-6 sm:p-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5 border shadow-lg transition-colors liquid-glass-card"
                 >
                     <div className="flex items-start sm:items-center gap-5">
                         {/* Interactive Avatar in Banner */}
@@ -582,11 +578,7 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
                 {/* Admin Control Hub Banner (Visible only for Administrator) */}
                 {isAdmin && (
                     <div
-                        className={`rounded-2xl border p-6 shadow-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 relative overflow-hidden ${
-                            isDark
-                                ? 'border-emerald-500/30 bg-slate-900/90 backdrop-blur-md'
-                                : 'border-emerald-200 bg-emerald-50/70 shadow-slate-200/60'
-                        }`}
+                        className="rounded-2xl border p-6 shadow-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 relative overflow-hidden liquid-glass-card liquid-glass-tint-emerald"
                     >
                         <div className="flex items-center gap-4">
                             <div
@@ -629,11 +621,7 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
                     {/* Account Details Card */}
                     <div className="lg:col-span-1 space-y-6">
                         <div
-                            className={`rounded-2xl border p-6 shadow-lg space-y-4 ${
-                                isDark
-                                    ? 'border-slate-800 bg-slate-900/80 backdrop-blur-md'
-                                    : 'border-slate-200 bg-white/95 shadow-slate-200/60'
-                            }`}
+                            className="rounded-2xl border p-6 shadow-lg space-y-4 liquid-glass-card"
                         >
                             <div className={`flex items-center gap-2 pb-3 border-b ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
                                 <Shield className={`h-5 w-5 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
@@ -773,11 +761,7 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
 
                         {/* Active Account Permissions Card */}
                         <div
-                            className={`rounded-2xl border p-5 shadow-lg space-y-3 ${
-                                isDark
-                                    ? 'border-slate-800 bg-slate-900/70 backdrop-blur-md'
-                                    : 'border-slate-200 bg-white/95 shadow-slate-200/60'
-                            }`}
+                            className="rounded-2xl border p-5 shadow-lg space-y-3 liquid-glass-card"
                         >
                             <div className="flex items-center gap-2">
                                 <ShieldCheck className={`h-4 w-4 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
@@ -875,11 +859,7 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
                         {/* Scope Roster Card (if department user) */}
                         {department && deptStaffRoster.length > 0 && (
                             <div
-                                className={`rounded-2xl border p-5 shadow-lg space-y-3 ${
-                                    isDark
-                                        ? 'border-slate-800 bg-slate-900/70 backdrop-blur-md'
-                                        : 'border-slate-200 bg-white/95 shadow-slate-200/60'
-                                }`}
+                                className="rounded-2xl border p-5 shadow-lg space-y-3 liquid-glass-card"
                             >
                                 <div className="flex items-center gap-2">
                                     <Building2 className={`h-4 w-4 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
@@ -914,11 +894,7 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
                     <div className="lg:col-span-2 space-y-6">
                         {/* Profile Photo Card */}
                         <div
-                            className={`rounded-2xl border p-6 sm:p-8 shadow-lg space-y-6 ${
-                                isDark
-                                    ? 'border-slate-800 bg-slate-900/80 backdrop-blur-md'
-                                    : 'border-slate-200 bg-white/95 shadow-slate-200/60'
-                            }`}
+                            className="rounded-2xl border p-6 sm:p-8 shadow-lg space-y-6 liquid-glass-card"
                         >
                             <div className={`flex items-center justify-between gap-4 pb-4 border-b flex-wrap ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
                                 <div className="flex items-center gap-2.5">
@@ -1108,11 +1084,7 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
 
                         {/* WhatsApp Linking Card */}
                         <div
-                            className={`rounded-2xl border p-6 sm:p-8 shadow-lg space-y-6 ${
-                                isDark
-                                    ? 'border-slate-800 bg-slate-900/80 backdrop-blur-md'
-                                    : 'border-slate-200 bg-white/95 shadow-slate-200/60'
-                            }`}
+                            className="rounded-2xl border p-6 sm:p-8 shadow-lg space-y-6 liquid-glass-card"
                         >
                             <div className={`flex items-center justify-between gap-4 pb-4 border-b flex-wrap ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
                                 <div className="flex items-center gap-2.5">
@@ -1333,11 +1305,7 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
                         {/* Web Push Pop-up Notifications Card (HP & PC) — gated by WEB_NOTIFICATIONS_ENABLED */}
                         {webNotificationsEnabled && (
                         <div
-                            className={`rounded-2xl border p-6 sm:p-8 shadow-lg space-y-6 ${
-                                isDark
-                                    ? 'border-slate-800 bg-slate-900/80 backdrop-blur-md'
-                                    : 'border-slate-200 bg-white/95 shadow-slate-200/60'
-                            }`}
+                            className="rounded-2xl border p-6 sm:p-8 shadow-lg space-y-6 liquid-glass-card"
                         >
                             <div className={`flex items-center justify-between gap-4 pb-4 border-b flex-wrap ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
                                 <div className="flex items-center gap-2.5">
@@ -1589,11 +1557,7 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
                         {/* WhatsApp Bot System Management Card (Admin Only) */}
                         {isAdmin && (
                             <div
-                                className={`rounded-2xl border-2 p-6 sm:p-8 shadow-lg space-y-5 relative overflow-hidden ${
-                                    isDark
-                                        ? 'border-emerald-500/35 bg-slate-900/90 backdrop-blur-md'
-                                        : 'border-emerald-200 bg-white/95 shadow-slate-200/60'
-                                }`}
+                                className="rounded-2xl border-2 p-6 sm:p-8 shadow-lg space-y-5 relative overflow-hidden liquid-glass-card liquid-glass-tint-emerald"
                             >
                                 <div className="absolute top-0 right-0 w-48 h-48 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
 
@@ -1649,9 +1613,7 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
 
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 relative z-10">
                                     <div
-                                        className={`p-3.5 rounded-xl border space-y-1 ${
-                                            isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'
-                                        }`}
+                                        className="p-3.5 rounded-xl border space-y-1 liquid-glass-subtle"
                                     >
                                         <span className={`text-[11px] font-semibold flex items-center gap-1.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                                             <Phone className={`w-3.5 h-3.5 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
@@ -1666,9 +1628,7 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
                                     </div>
 
                                     <div
-                                        className={`p-3.5 rounded-xl border flex flex-col justify-center space-y-2 ${
-                                            isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'
-                                        }`}
+                                        className="p-3.5 rounded-xl border flex flex-col justify-center space-y-2 liquid-glass-subtle"
                                     >
                                         <span className={`text-[11px] font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                                             {lang === 'id' ? 'Aksi Pengelolaan Admin' : 'Admin Actions'}
@@ -1731,11 +1691,7 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
                         {/* Notification Preferences Card (WhatsApp ticket alerts — gated by APPROVAL_TICKETS_ENABLED) */}
                         {approvalTicketsEnabled && (
                         <div
-                            className={`rounded-2xl border p-6 sm:p-8 shadow-lg space-y-4 ${
-                                isDark
-                                    ? 'border-slate-800 bg-slate-900/80 backdrop-blur-md'
-                                    : 'border-slate-200 bg-white/95 shadow-slate-200/60'
-                            } ${!hasWhatsapp ? 'opacity-90' : ''}`}
+                            className={`rounded-2xl border p-6 sm:p-8 shadow-lg space-y-4 liquid-glass-card ${!hasWhatsapp ? 'opacity-90' : ''}`}
                         >
                             <div className="flex items-center justify-between gap-4 flex-wrap">
                                 <div className="flex items-center gap-2.5">
@@ -1817,11 +1773,7 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
 
                         {/* Password Form Card */}
                         <div
-                            className={`rounded-2xl border p-6 sm:p-8 shadow-lg space-y-6 ${
-                                isDark
-                                    ? 'border-slate-800 bg-slate-900/80 backdrop-blur-md'
-                                    : 'border-slate-200 bg-white/95 shadow-slate-200/60'
-                            }`}
+                            className="rounded-2xl border p-6 sm:p-8 shadow-lg space-y-6 liquid-glass-card"
                         >
                             <div className={`flex items-center gap-2.5 pb-4 border-b ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
                                 <KeyRound className={`h-5 w-5 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
@@ -2092,10 +2044,10 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
             {/* Modal: Ajukan Pindah Departemen */}
             <Dialog open={isTransferModalOpen} onOpenChange={setIsTransferModalOpen}>
                 <DialogContent
-                    className={`max-w-md p-6 rounded-2xl shadow-2xl border ${
+                    className={`max-w-md p-6 rounded-2xl shadow-2xl border liquid-glass-modal ${
                         isDark
-                            ? 'bg-slate-900 border-slate-800 text-slate-100'
-                            : 'bg-white border-slate-200 text-slate-900'
+                            ? 'liquid-glass-dark text-slate-100'
+                            : 'liquid-glass-light text-slate-900'
                     }`}
                 >
                     <DialogHeader>
@@ -2266,10 +2218,10 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
             {/* Name Change Request Modal */}
             <Dialog open={isNameModalOpen} onOpenChange={setIsNameModalOpen}>
                 <DialogContent
-                    className={`sm:max-w-md p-6 shadow-2xl rounded-2xl border ${
+                    className={`sm:max-w-md p-6 shadow-2xl rounded-2xl border liquid-glass-modal ${
                         isDark
-                            ? 'bg-slate-900 border-slate-800 text-slate-100'
-                            : 'bg-white border-slate-200 text-slate-900'
+                            ? 'liquid-glass-dark text-slate-100'
+                            : 'liquid-glass-light text-slate-900'
                     }`}
                 >
                     <DialogHeader>

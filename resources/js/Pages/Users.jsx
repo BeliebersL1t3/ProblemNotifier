@@ -334,7 +334,7 @@ function UsersInner({ initialUsers, initialStats }) {
         <div
             className={`lean-root ${
                 isDark ? 'lean-theme-dark text-slate-100' : 'lean-theme-light text-slate-800'
-            } min-h-screen flex flex-col font-sans pb-24 md:pb-12 transition-colors duration-300 w-full max-w-full overflow-x-clip selection:bg-emerald-500 selection:text-white`}
+            } min-h-screen flex flex-col font-sans pb-28 md:pb-12 transition-colors duration-300 w-full max-w-full overflow-x-clip selection:bg-emerald-500 selection:text-white`}
         >
             <Head title={lang === 'id' ? 'Kelola Akun & Hak Akses' : 'User Management'} />
 
@@ -343,11 +343,7 @@ function UsersInner({ initialUsers, initialStats }) {
             <main className="mx-auto w-full max-w-[1600px] 2xl:max-w-[1760px] flex-1 space-y-5 px-4 pt-6 sm:px-6 lg:px-8">
                 {/* Header Banner & Breadcrumbs */}
                 <div
-                    className={`rounded-2xl p-5 sm:p-7 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border shadow-lg transition-colors ${
-                        isDark
-                            ? 'bg-slate-900/80 border-slate-800 backdrop-blur-md'
-                            : 'bg-white/95 border-slate-200 shadow-slate-200/60'
-                    }`}
+                    className={`rounded-2xl p-5 sm:p-7 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border shadow-lg transition-colors liquid-glass-card`}
                 >
                     <div className="flex items-center gap-4">
                         <Link
@@ -398,7 +394,7 @@ function UsersInner({ initialUsers, initialStats }) {
                 {/* Primary Tab Navigation: Users Management vs Audit Trail & Spreadsheet */}
                 <div
                     className={`grid grid-cols-2 sm:flex sm:items-center gap-2 border-b pb-3 ${
-                        isDark ? 'border-slate-800' : 'border-slate-200'
+                        isDark ? 'border-white/10' : 'border-slate-200/70'
                     }`}
                 >
                     <button
@@ -408,8 +404,8 @@ function UsersInner({ initialUsers, initialStats }) {
                             activeMainTab === 'users'
                                 ? 'bg-emerald-600 border-emerald-500 text-white keep-white shadow-md shadow-emerald-600/20'
                                 : isDark
-                                    ? 'bg-slate-900/70 text-slate-400 hover:text-white hover:bg-slate-800 border-slate-800'
-                                    : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 border-slate-200'
+                                    ? 'liquid-glass-subtle text-slate-300 hover:text-white'
+                                    : 'liquid-glass-subtle text-slate-600 hover:text-slate-900'
                         }`}
                     >
                         <UsersIcon className="h-4 w-4 shrink-0" />
@@ -434,8 +430,8 @@ function UsersInner({ initialUsers, initialStats }) {
                             activeMainTab === 'audit'
                                 ? 'bg-emerald-600 border-emerald-500 text-white keep-white shadow-md shadow-emerald-600/20'
                                 : isDark
-                                    ? 'bg-slate-900/70 text-slate-400 hover:text-white hover:bg-slate-800 border-slate-800'
-                                    : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 border-slate-200'
+                                    ? 'liquid-glass-subtle text-slate-300 hover:text-white'
+                                    : 'liquid-glass-subtle text-slate-600 hover:text-slate-900'
                         }`}
                     >
                         <Activity className={`h-4 w-4 shrink-0 ${activeMainTab === 'audit' ? 'text-white' : 'text-emerald-500'}`} />
@@ -465,14 +461,10 @@ function UsersInner({ initialUsers, initialStats }) {
                                     setRoleFilter('all');
                                     setHodFilter(false);
                                 }}
-                                className={`rounded-xl border p-3.5 space-y-1 cursor-pointer transition-all hover:scale-[1.01] ${
+                                className={`rounded-2xl border p-3.5 space-y-1 cursor-pointer transition-all hover:scale-[1.01] liquid-glass-card liquid-glass-interactive ${
                                     statusFilter === 'active' && roleFilter === 'all' && !hodFilter
-                                        ? isDark
-                                            ? 'border-emerald-500 bg-emerald-500/15 ring-1 ring-emerald-500/60 shadow-md'
-                                            : 'border-emerald-500 bg-emerald-50 ring-1 ring-emerald-400 shadow-sm'
-                                        : isDark
-                                            ? 'border-slate-800 bg-slate-900/80 hover:bg-slate-800/70'
-                                            : 'border-slate-200 bg-white/95 hover:bg-slate-50 shadow-xs'
+                                        ? 'liquid-glass-tint-emerald outline-2 outline-emerald-500 -outline-offset-2'
+                                        : ''
                                 }`}
                                 title={lang === 'id' ? 'Klik untuk tampilkan semua akun aktif' : 'Click to show all active accounts'}
                             >
@@ -498,14 +490,10 @@ function UsersInner({ initialUsers, initialStats }) {
                                         setHodFilter(false);
                                     }
                                 }}
-                                className={`rounded-xl border p-3.5 space-y-1 cursor-pointer transition-all hover:scale-[1.01] ${
+                                className={`rounded-2xl border p-3.5 space-y-1 cursor-pointer transition-all hover:scale-[1.01] liquid-glass-card liquid-glass-interactive liquid-glass-tint-emerald ${
                                     roleFilter === 'admin' && !hodFilter && statusFilter === 'active'
-                                        ? isDark
-                                            ? 'border-emerald-400 bg-emerald-500/20 ring-1 ring-emerald-400 shadow-md'
-                                            : 'border-emerald-500 bg-emerald-50 ring-1 ring-emerald-400 shadow-sm'
-                                        : isDark
-                                            ? 'border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/15'
-                                            : 'border-emerald-200 bg-emerald-50/50 hover:bg-emerald-50 shadow-xs'
+                                        ? 'outline-2 outline-emerald-400 -outline-offset-2'
+                                        : ''
                                 }`}
                                 title={lang === 'id' ? 'Klik untuk filter akun Administrator' : 'Click to filter Administrator accounts'}
                             >
@@ -531,14 +519,10 @@ function UsersInner({ initialUsers, initialStats }) {
                                         setHodFilter(false);
                                     }
                                 }}
-                                className={`rounded-xl border p-3.5 space-y-1 cursor-pointer transition-all hover:scale-[1.01] ${
+                                className={`rounded-2xl border p-3.5 space-y-1 cursor-pointer transition-all hover:scale-[1.01] liquid-glass-card liquid-glass-interactive liquid-glass-tint-sky ${
                                     roleFilter === 'department' && !hodFilter && statusFilter === 'active'
-                                        ? isDark
-                                            ? 'border-sky-400 bg-sky-500/25 ring-1 ring-sky-400 shadow-md'
-                                            : 'border-sky-500 bg-sky-50 ring-1 ring-sky-400 shadow-sm'
-                                        : isDark
-                                            ? 'border-sky-500/30 bg-sky-500/10 hover:bg-sky-500/15'
-                                            : 'border-sky-200 bg-sky-50/50 hover:bg-sky-50 shadow-xs'
+                                        ? 'outline-2 outline-sky-400 -outline-offset-2'
+                                        : ''
                                 }`}
                                 title={lang === 'id' ? 'Klik untuk filter akun Departemen' : 'Click to filter Department accounts'}
                             >
@@ -565,14 +549,10 @@ function UsersInner({ initialUsers, initialStats }) {
                                         setHodFilter(true);
                                     }
                                 }}
-                                className={`rounded-xl border p-3.5 space-y-1 cursor-pointer transition-all hover:scale-[1.01] ${
+                                className={`rounded-2xl border p-3.5 space-y-1 cursor-pointer transition-all hover:scale-[1.01] liquid-glass-card liquid-glass-interactive liquid-glass-tint-amber ${
                                     (hodFilter || roleFilter === 'hod') && statusFilter === 'active'
-                                        ? isDark
-                                            ? 'border-amber-400 bg-amber-500/25 ring-1 ring-amber-400 shadow-md'
-                                            : 'border-amber-500 bg-amber-50 ring-1 ring-amber-400 shadow-sm'
-                                        : isDark
-                                            ? 'border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/15'
-                                            : 'border-amber-200 bg-amber-50/60 hover:bg-amber-50 shadow-xs'
+                                        ? 'outline-2 outline-amber-400 -outline-offset-2'
+                                        : ''
                                 }`}
                                 title={lang === 'id' ? 'Klik untuk filter hanya akun HOD' : 'Click to filter HOD accounts'}
                             >
@@ -596,14 +576,10 @@ function UsersInner({ initialUsers, initialStats }) {
                                         setStatusFilter('archived');
                                     }
                                 }}
-                                className={`col-span-2 sm:col-span-1 rounded-xl border p-3.5 space-y-1 cursor-pointer transition-all hover:scale-[1.01] ${
+                                className={`col-span-2 sm:col-span-1 rounded-2xl border p-3.5 space-y-1 cursor-pointer transition-all hover:scale-[1.01] liquid-glass-card liquid-glass-interactive ${
                                     statusFilter === 'archived'
-                                        ? isDark
-                                            ? 'border-rose-400 bg-rose-500/20 ring-1 ring-rose-400 shadow-md'
-                                            : 'border-rose-500 bg-rose-50 ring-1 ring-rose-400 shadow-sm'
-                                        : isDark
-                                            ? 'border-slate-800 bg-slate-900/80 hover:bg-slate-800/70'
-                                            : 'border-slate-200 bg-white/95 hover:bg-slate-50 shadow-xs'
+                                        ? 'liquid-glass-tint-rose outline-2 outline-rose-400 -outline-offset-2'
+                                        : ''
                                 }`}
                                 title={lang === 'id' ? 'Klik untuk filter akun yang di-archive' : 'Click to filter archived accounts'}
                             >
@@ -621,9 +597,7 @@ function UsersInner({ initialUsers, initialStats }) {
 
                         {/* Filter & Search Bar */}
                         <div
-                            className={`rounded-2xl border p-3.5 sm:p-4 shadow-lg space-y-3 ${
-                                isDark ? 'border-slate-800 bg-slate-900/80' : 'border-slate-200 bg-white/95'
-                            }`}
+                            className="rounded-2xl border p-3.5 sm:p-4 shadow-lg space-y-3 liquid-glass-card"
                         >
                             {/* Top: Full-Width Search Input */}
                             <div className="relative w-full">
@@ -633,10 +607,10 @@ function UsersInner({ initialUsers, initialStats }) {
                                     value={searchQuery}
                                     onChange={e => setSearchQuery(e.target.value)}
                                     placeholder={lang === 'id' ? 'Cari nama, email, departemen, nomor WA...' : 'Search name, email, department, phone...'}
-                                    className={`w-full rounded-xl border pl-10 pr-4 py-2.5 text-xs font-medium focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none transition-colors ${
+                                    className={`w-full rounded-xl border pl-10 pr-4 py-2.5 text-xs font-medium focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none transition-colors liquid-glass-control ${
                                         isDark
-                                            ? 'bg-slate-950 border-slate-700 text-slate-100 placeholder-slate-500'
-                                            : 'bg-white border-slate-300 text-slate-900 placeholder-slate-400'
+                                            ? 'text-slate-100 placeholder-slate-500'
+                                            : 'text-slate-900 placeholder-slate-400'
                                     }`}
                                 />
                             </div>
@@ -657,10 +631,10 @@ function UsersInner({ initialUsers, initialStats }) {
                                                 setRoleFilter(val);
                                             }
                                         }}
-                                        className={`w-full rounded-xl border px-3 py-2 text-xs font-medium focus:border-emerald-500 focus:outline-none cursor-pointer truncate ${
+                                        className={`w-full rounded-xl border px-3 py-2 text-xs font-medium focus:border-emerald-500 focus:outline-none cursor-pointer truncate liquid-glass-control ${
                                             isDark
-                                                ? 'bg-slate-950 border-slate-700 text-slate-100'
-                                                : 'bg-white border-slate-300 text-slate-900'
+                                                ? 'text-slate-100'
+                                                : 'text-slate-900'
                                         }`}
                                     >
                                         <option value="all">Semua Role</option>
@@ -673,10 +647,10 @@ function UsersInner({ initialUsers, initialStats }) {
                                     <select
                                         value={deptFilter}
                                         onChange={e => setDeptFilter(e.target.value)}
-                                        className={`w-full rounded-xl border px-3 py-2 text-xs font-medium focus:border-emerald-500 focus:outline-none cursor-pointer truncate ${
+                                        className={`w-full rounded-xl border px-3 py-2 text-xs font-medium focus:border-emerald-500 focus:outline-none cursor-pointer truncate liquid-glass-control ${
                                             isDark
-                                                ? 'bg-slate-950 border-slate-700 text-slate-100'
-                                                : 'bg-white border-slate-300 text-slate-900'
+                                                ? 'text-slate-100'
+                                                : 'text-slate-900'
                                         }`}
                                     >
                                         <option value="all">Semua Dept</option>
@@ -688,9 +662,7 @@ function UsersInner({ initialUsers, initialStats }) {
 
                                 {/* Status Filter Tabs (Aktif / Archived) */}
                                 <div
-                                    className={`flex items-center rounded-xl border p-1 text-xs font-bold shrink-0 ${
-                                        isDark ? 'border-slate-800 bg-slate-950' : 'border-slate-200 bg-slate-100'
-                                    }`}
+                                    className="flex items-center rounded-xl border p-1 text-xs font-bold shrink-0 liquid-glass-subtle"
                                 >
                                     <button
                                         type="button"
@@ -752,11 +724,7 @@ function UsersInner({ initialUsers, initialStats }) {
                         {/* Batch Action Toolbar */}
                         {selectedUserIds.length > 0 && (
                             <div
-                                className={`rounded-2xl border-2 p-4 sm:p-5 shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-in fade-in slide-in-from-top-4 duration-300 ${
-                                    isDark
-                                        ? 'border-emerald-500/50 bg-slate-900/95'
-                                        : 'border-emerald-400 bg-emerald-50/90'
-                                }`}
+                                className="rounded-2xl border-2 p-4 sm:p-5 shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-in fade-in slide-in-from-top-4 duration-300 liquid-glass-card liquid-glass-tint-emerald"
                             >
                                 <div className="flex items-center gap-3">
                                     <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white keep-white flex items-center justify-center font-black text-sm shadow-md shrink-0">
@@ -903,8 +871,8 @@ function UsersInner({ initialUsers, initialStats }) {
 
                             {loading && users.length === 0 ? (
                                 <div
-                                    className={`rounded-2xl border p-8 text-center ${
-                                        isDark ? 'border-slate-800 bg-slate-900/80 text-slate-400' : 'border-slate-200 bg-white text-slate-500'
+                                    className={`rounded-2xl border p-8 text-center liquid-glass-card ${
+                                        isDark ? 'text-slate-400' : 'text-slate-500'
                                     }`}
                                 >
                                     <RefreshCw className="h-6 w-6 animate-spin text-emerald-500 mx-auto mb-2" />
@@ -912,8 +880,8 @@ function UsersInner({ initialUsers, initialStats }) {
                                 </div>
                             ) : users.length === 0 ? (
                                 <div
-                                    className={`rounded-2xl border p-8 text-center space-y-2 ${
-                                        isDark ? 'border-slate-800 bg-slate-900/80 text-slate-400' : 'border-slate-200 bg-white text-slate-500'
+                                    className={`rounded-2xl border p-8 text-center space-y-2 liquid-glass-card ${
+                                        isDark ? 'text-slate-400' : 'text-slate-500'
                                     }`}
                                 >
                                     <UsersIcon className={`h-8 w-8 mx-auto ${isDark ? 'text-slate-700' : 'text-slate-300'}`} />
@@ -932,18 +900,12 @@ function UsersInner({ initialUsers, initialStats }) {
                                     return (
                                         <div
                                             key={u.id}
-                                            className={`rounded-2xl border transition-all p-3.5 space-y-2.5 shadow-sm ${
+                                            className={`rounded-2xl border transition-all p-3.5 space-y-2.5 shadow-sm liquid-glass-card liquid-glass-interactive ${
                                                 isSelected
-                                                    ? isDark
-                                                        ? 'border-emerald-500 bg-emerald-500/15 ring-1 ring-emerald-500/40'
-                                                        : 'border-emerald-500 bg-emerald-50 ring-1 ring-emerald-400'
+                                                    ? 'liquid-glass-tint-emerald outline-2 outline-emerald-500 -outline-offset-2'
                                                     : u.is_archived
-                                                        ? isDark
-                                                            ? 'border-rose-900/40 bg-rose-950/20 opacity-80'
-                                                            : 'border-rose-200 bg-rose-50/50 opacity-85'
-                                                        : isDark
-                                                            ? 'border-slate-800 bg-slate-900/80'
-                                                            : 'border-slate-200 bg-white/95'
+                                                        ? 'liquid-glass-tint-rose opacity-85'
+                                                        : ''
                                             }`}
                                         >
                                             {/* Top Row */}
@@ -1181,9 +1143,7 @@ function UsersInner({ initialUsers, initialStats }) {
 
                         {/* Desktop View: Compact Table (hidden md:block) */}
                         <div
-                            className={`hidden md:block rounded-2xl border shadow-xl overflow-hidden ${
-                                isDark ? 'border-slate-800 bg-slate-900/80' : 'border-slate-200 bg-white/95'
-                            }`}
+                            className="hidden md:block rounded-2xl border shadow-xl overflow-hidden liquid-glass-card"
                         >
                             <div className="overflow-x-auto">
                                 <table className="w-full text-left border-collapse text-xs">
@@ -1528,8 +1488,8 @@ function UsersInner({ initialUsers, initialStats }) {
             {isBatchDeleteModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-in fade-in duration-200">
                     <div
-                        className={`w-full max-w-md rounded-2xl border p-6 shadow-2xl space-y-4 ${
-                            isDark ? 'border-rose-500/40 bg-slate-950 text-slate-100' : 'border-rose-200 bg-white text-slate-900'
+                        className={`w-full max-w-md rounded-2xl border p-6 shadow-2xl space-y-4 liquid-glass-modal ${
+                            isDark ? 'liquid-glass-dark text-slate-100' : 'liquid-glass-light text-slate-900'
                         }`}
                     >
                         <div className="flex items-center gap-3 text-rose-500">
