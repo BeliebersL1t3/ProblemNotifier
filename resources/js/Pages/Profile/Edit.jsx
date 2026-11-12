@@ -7,7 +7,7 @@ import {
     Phone, MessageSquare, Check, Smartphone, Unlink, Trash2,
     Users as UsersIcon, ChevronRight, ShieldAlert, Camera, UploadCloud,
     Image as ImageIcon, X, Ticket, Clock, ArrowRightLeft, Globe, Crown,
-    ExternalLink, Bell, BellRing, Volume2, VolumeX
+    ExternalLink, Bell, BellRing, Volume2, VolumeX, Wifi, WifiOff
 } from 'lucide-react';
 import {
     isPushNotificationSupported,
@@ -54,6 +54,24 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
     const [isLoggingOut, setIsLoggingOut] = useState(false);
     const passwordInput = useRef(null);
     const currentPasswordInput = useRef(null);
+
+    // Device Online / Offline Status
+    const [isDeviceOnline, setIsDeviceOnline] = useState(() =>
+        typeof navigator !== 'undefined' ? navigator.onLine : true
+    );
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return undefined;
+        const updateOnlineStatus = () => {
+            setIsDeviceOnline(typeof navigator !== 'undefined' ? navigator.onLine : true);
+        };
+        window.addEventListener('online', updateOnlineStatus);
+        window.addEventListener('offline', updateOnlineStatus);
+        return () => {
+            window.removeEventListener('online', updateOnlineStatus);
+            window.removeEventListener('offline', updateOnlineStatus);
+        };
+    }, []);
 
     // Admin WhatsApp Bot Control State
     const [botModalOpen, setBotModalOpen] = useState(false);
@@ -520,6 +538,86 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
                                 <Mail className="h-3.5 w-3.5" />
                                 {user?.email}
                             </p>
+
+                            {/* Live Connectivity & Admin Bot Status Pills */}
+                            <div className="mt-2.5 flex items-center gap-2 flex-wrap">
+                                <span
+                                    role="status"
+                                    aria-live="polite"
+                                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border shadow-xs ${
+                                        isDeviceOnline
+                                            ? isDark
+                                                ? 'bg-emerald-950/60 border-emerald-500/45 text-emerald-300'
+                                                : 'bg-emerald-50/90 border-emerald-300 text-emerald-700'
+                                            : isDark
+                                            ? 'bg-rose-950/60 border-rose-500/45 text-rose-300'
+                                            : 'bg-rose-50/90 border-rose-300 text-rose-700'
+                                    }`}
+                                    title={
+                                        isDeviceOnline
+                                            ? (lang === 'id' ? 'Perangkat terhubung ke internet' : 'Device connected to internet')
+                                            : (lang === 'id' ? 'Tidak ada koneksi internet' : 'No internet connection')
+                                    }
+                                >
+                                    <span
+                                        className={`w-2 h-2 rounded-full ${
+                                            isDeviceOnline ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'
+                                        }`}
+                                    />
+                                    {isDeviceOnline ? (
+                                        <Wifi className={`h-3 w-3 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
+                                    ) : (
+                                        <WifiOff className={`h-3 w-3 ${isDark ? 'text-rose-400' : 'text-rose-600'}`} />
+                                    )}
+                                    <span>{isDeviceOnline ? 'Online' : 'Offline'}</span>
+                                </span>
+
+                                {isAdmin && (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setBotModalTab(adminBotStatus?.connected ? 'status' : 'pair');
+                                            setBotModalOpen(true);
+                                        }}
+                                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border transition-all shadow-xs cursor-pointer hover:scale-[1.02] ${
+                                            adminBotStatus === null
+                                                ? isDark
+                                                    ? 'bg-slate-800/70 border-slate-700 text-slate-300'
+                                                    : 'bg-slate-100/80 border-slate-300 text-slate-600'
+                                                : adminBotStatus?.connected
+                                                ? isDark
+                                                    ? 'bg-emerald-950/60 hover:bg-emerald-900/70 border-emerald-500/45 text-emerald-300'
+                                                    : 'bg-emerald-50/90 hover:bg-emerald-100 border-emerald-300 text-emerald-700'
+                                                : isDark
+                                                ? 'bg-rose-950/60 hover:bg-rose-900/70 border-rose-500/45 text-rose-300'
+                                                : 'bg-rose-50/90 hover:bg-rose-100 border-rose-300 text-rose-700'
+                                        }`}
+                                        title={
+                                            lang === 'id'
+                                                ? 'Klik untuk membuka kontrol & status Bot WhatsApp'
+                                                : 'Click to open WhatsApp Bot status & controls'
+                                        }
+                                    >
+                                        <span
+                                            className={`w-2 h-2 rounded-full ${
+                                                adminBotStatus === null
+                                                    ? 'bg-slate-400 animate-pulse'
+                                                    : adminBotStatus?.connected
+                                                    ? 'bg-emerald-500 animate-pulse'
+                                                    : 'bg-rose-500'
+                                            }`}
+                                        />
+                                        <MessageSquare className="h-3 w-3" />
+                                        <span>
+                                            {adminBotStatus === null
+                                                ? (lang === 'id' ? 'Bot WA: Mengecek...' : 'Bot WA: Checking...')
+                                                : adminBotStatus?.connected
+                                                ? 'Bot WA: Online'
+                                                : 'Bot WA: Offline'}
+                                        </span>
+                                    </button>
+                                )}
+                            </div>
 
                             {/* Banner Quick Preview Action Bar */}
                             {avatarPreview && (

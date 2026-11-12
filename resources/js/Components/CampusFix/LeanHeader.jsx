@@ -124,8 +124,25 @@ export function LeanHeader({
     const activeEmeraldNavClass =
         'bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-400/70 shadow-sm ring-1 ring-white/30 keep-white';
 
+    const [browserOnline, setBrowserOnline] = useState(() =>
+        typeof navigator !== 'undefined' ? navigator.onLine : true
+    );
+
+    useEffect(() => {
+        if (outboxProps || typeof window === 'undefined') return undefined;
+        const syncNetworkState = () => {
+            setBrowserOnline(typeof navigator !== 'undefined' ? navigator.onLine : true);
+        };
+        window.addEventListener('online', syncNetworkState);
+        window.addEventListener('offline', syncNetworkState);
+        return () => {
+            window.removeEventListener('online', syncNetworkState);
+            window.removeEventListener('offline', syncNetworkState);
+        };
+    }, [outboxProps]);
+
     const outboxCount = outboxProps?.outboxCount ?? 0;
-    const isOnline = outboxProps?.isOnline ?? true;
+    const isOnline = outboxProps ? Boolean(outboxProps.isOnline) : browserOnline;
 
     return (
         <>
@@ -216,8 +233,8 @@ export function LeanHeader({
 
                     {/* Right Action Bar */}
                     <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 ml-auto">
-                        {/* Offline / Outbox Status Pill (Dashboard Outbox Hook) */}
-                        {outboxProps && (
+                        {/* Offline / Outbox Status Pill (Interactive on Dashboard with Outbox, Live Status Pill on other pages) */}
+                        {outboxProps ? (
                             <button
                                 type="button"
                                 onClick={outboxProps.onOpenOutbox}
@@ -267,6 +284,42 @@ export function LeanHeader({
                                     </>
                                 )}
                             </button>
+                        ) : (
+                            <div
+                                role="status"
+                                aria-live="polite"
+                                aria-label={isOnline ? 'Online' : 'Offline'}
+                                className={`h-7 sm:h-8 flex items-center gap-1 px-1.5 sm:px-2.5 rounded-lg border text-xs font-bold transition-all shadow-xs shrink-0 ${
+                                    isOnline
+                                        ? isDark
+                                            ? 'liquid-glass-subtle liquid-glass-dark text-emerald-400'
+                                            : 'liquid-glass-subtle liquid-glass-light text-emerald-700'
+                                        : isDark
+                                        ? 'bg-rose-950/70 text-rose-300 border-rose-600/50'
+                                        : 'bg-rose-50 text-rose-800 border-rose-200'
+                                }`}
+                                title={
+                                    isOnline
+                                        ? isEn
+                                            ? 'Online (Connected to Internet)'
+                                            : 'Online (Terhubung ke Internet)'
+                                        : isEn
+                                        ? 'Offline (0 Bars / No Signal)'
+                                        : 'Offline (0 Bar / Tanpa Sinyal)'
+                                }
+                            >
+                                {isOnline ? (
+                                    <>
+                                        <Wifi className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                                        <span className="text-[10px] sm:text-xs hidden sm:inline">Online</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <WifiOff className={`w-3.5 h-3.5 shrink-0 ${isDark ? 'text-rose-400' : 'text-rose-600'}`} />
+                                        <span className="text-[10px] sm:text-xs">Offline</span>
+                                    </>
+                                )}
+                            </div>
                         )}
 
                         {/* ID | EN Language Switcher */}
