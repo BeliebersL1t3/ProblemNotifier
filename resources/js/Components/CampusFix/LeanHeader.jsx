@@ -163,7 +163,13 @@ export function LeanHeader({
                                 isDark ? 'bg-slate-800 border-emerald-500/40' : 'bg-white border-emerald-200'
                             }`}
                         >
-                            <img src="/logo.png" alt="Telunas Resorts" className="w-full h-full object-contain p-0.5" />
+                            <img
+                                src="/logo.png"
+                                alt="Telunas Resorts"
+                                className={`w-full h-full object-contain p-0.5 transition-[filter] duration-200 ${
+                                    isDark ? 'invert hue-rotate-180 brightness-110' : ''
+                                }`}
+                            />
                         </div>
                         <div className="min-w-0">
                             <div className="flex items-center gap-1.5">
