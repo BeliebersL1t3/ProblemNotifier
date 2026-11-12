@@ -160,14 +160,14 @@ export function LeanHeader({
                     <Link href="/" className="flex items-center gap-1.5 sm:gap-2.5 min-w-0 shrink group">
                         <div
                             className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg overflow-hidden flex items-center justify-center border shadow-xs shrink-0 ${
-                                isDark ? 'bg-slate-800 border-emerald-500/40' : 'bg-white border-emerald-200'
+                                isDark ? 'bg-slate-900/90 border-emerald-400/50' : 'bg-white border-emerald-200'
                             }`}
                         >
                             <img
                                 src="/logo.png"
                                 alt="Telunas Resorts"
                                 className={`w-full h-full object-contain p-0.5 transition-[filter] duration-200 ${
-                                    isDark ? 'invert hue-rotate-180 brightness-110' : ''
+                                    isDark ? 'brightness-0 invert' : ''
                                 }`}
                             />
                         </div>
