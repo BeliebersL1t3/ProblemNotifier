@@ -306,7 +306,7 @@ export default function LeanIndex({
     }, [viewMode]);
 
     // Theme preference (dark / light) synced across Lean pages & header
-    const { isDark } = useLeanTheme();
+    const { theme, isDark } = useLeanTheme();
 
     const toggleColumn = (colId) => {
         setVisibleColumns((prev) => ({ ...prev, [colId]: !prev[colId] }));
