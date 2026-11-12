@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, usePage } from '@inertiajs/react';
 import { 
     Users as UsersIcon, Plus, Search, Shield, ShieldCheck, ShieldAlert, 
     KeyRound, Building2, Phone, CheckCircle2, AlertCircle, Edit, Trash2, 
@@ -24,6 +24,8 @@ export default function UsersPage({ initialUsers = [], initialStats = {} }) {
 }
 
 function UsersInner({ initialUsers, initialStats }) {
+    const { props: pageProps } = usePage();
+    const approvalTicketsEnabled = Boolean(pageProps?.features?.approval_tickets);
     const { lang } = useLanguage();
     const { isDark } = useLeanTheme();
     const { user: currentUser } = useAuth();
@@ -227,7 +229,12 @@ function UsersInner({ initialUsers, initialStats }) {
 
     const handleEditUser = (u) => {
         if (u.approval_status && u.approval_status !== 'approved') {
-            showToast(lang === 'id' ? 'Akun belum disetujui (Pending). Modifikasi data akun hanya dapat diproses melalui menu Approval Tickets.' : 'Account is pending approval. Modifications must be processed via Approval Tickets.', true);
+            showToast(
+                approvalTicketsEnabled
+                    ? (lang === 'id' ? 'Akun belum disetujui (Pending). Modifikasi data akun hanya dapat diproses melalui menu Approval Tickets.' : 'Account is pending approval. Modifications must be processed via Approval Tickets.')
+                    : (lang === 'id' ? 'Akun masih berstatus pending dan belum aktif sehingga belum dapat dimodifikasi.' : 'Account is pending activation and cannot be modified yet.'),
+                true
+            );
             return;
         }
         setSelectedUser(u);
@@ -1063,7 +1070,7 @@ function UsersInner({ initialUsers, initialStats }) {
                                                 </div>
 
                                                 <div className="flex items-center gap-1">
-                                                    {isPending && (
+                                                    {approvalTicketsEnabled && isPending && (
                                                         <Link
                                                             href={approvalTicketUrl}
                                                             title={lang === 'id' ? 'Tinjau & Setujui di Menu Approval Ticket' : 'Review & Approve in Approval Tickets'}
@@ -1377,7 +1384,7 @@ function UsersInner({ initialUsers, initialStats }) {
                                                         {/* Actions */}
                                                         <td className="py-3 px-4 text-right">
                                                             <div className="flex items-center justify-end gap-1.5">
-                                                                {isPending && (
+                                                                {approvalTicketsEnabled && isPending && (
                                                                     <Link
                                                                         href={approvalTicketUrl}
                                                                         title={lang === 'id' ? 'Tinjau & Setujui di Menu Approval Ticket' : 'Review & Approve in Approval Tickets'}

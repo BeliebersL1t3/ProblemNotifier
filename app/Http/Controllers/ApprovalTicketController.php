@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\ApprovalTicket;
 use App\Models\User;
 use App\Services\TicketNotificationService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -18,10 +19,28 @@ use Inertia\Response;
 class ApprovalTicketController extends Controller
 {
     /**
+     * Determine whether the Approval Tickets module is currently enabled.
+     */
+    protected function isApprovalTicketsEnabled(): bool
+    {
+        return filter_var(config('telunas.approval_tickets_enabled', false), FILTER_VALIDATE_BOOLEAN);
+    }
+
+    /**
      * Display ticket listing with role-based filtering
      */
-    public function index(Request $request): Response
+    public function index(Request $request): Response|RedirectResponse|JsonResponse
     {
+        if (!$this->isApprovalTicketsEnabled()) {
+            if ($request->wantsJson() && !$request->header('X-Inertia')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => __('telunas.approval_tickets_disabled_short'),
+                ], 403);
+            }
+
+            return redirect()->route('dashboard')->with('status', __('telunas.approval_tickets_disabled'));
+        }
         $user = Auth::user();
         $query = ApprovalTicket::with(['user', 'hod', 'admin'])->latest();
 
@@ -121,6 +140,10 @@ class ApprovalTicketController extends Controller
      */
     public function storeWhatsappTicket(Request $request): RedirectResponse
     {
+        if (!$this->isApprovalTicketsEnabled()) {
+            abort(403, __('telunas.approval_tickets_disabled_short'));
+        }
+
         $user = Auth::user();
 
         $request->validate([
@@ -198,6 +221,10 @@ class ApprovalTicketController extends Controller
      */
     public function storePasswordResetTicket(Request $request): RedirectResponse
     {
+        if (!$this->isApprovalTicketsEnabled()) {
+            abort(403, __('telunas.approval_tickets_disabled_short'));
+        }
+
         $user = Auth::user();
 
         $request->validate([
@@ -245,6 +272,10 @@ class ApprovalTicketController extends Controller
      */
     public function storeDepartmentTransferTicket(Request $request): RedirectResponse
     {
+        if (!$this->isApprovalTicketsEnabled()) {
+            abort(403, __('telunas.approval_tickets_disabled_short'));
+        }
+
         $user = Auth::user();
 
         $request->validate([
@@ -305,6 +336,10 @@ class ApprovalTicketController extends Controller
      */
     public function storeNameChangeTicket(Request $request): RedirectResponse
     {
+        if (!$this->isApprovalTicketsEnabled()) {
+            abort(403, __('telunas.approval_tickets_disabled_short'));
+        }
+
         $user = Auth::user();
 
         $request->validate([
@@ -362,6 +397,10 @@ class ApprovalTicketController extends Controller
      */
     public function hodAction(Request $request, $id): RedirectResponse
     {
+        if (!$this->isApprovalTicketsEnabled()) {
+            abort(403, __('telunas.approval_tickets_disabled_short'));
+        }
+
         $user = Auth::user();
         $ticket = ApprovalTicket::findOrFail($id);
 
@@ -442,6 +481,10 @@ class ApprovalTicketController extends Controller
      */
     public function adminAction(Request $request, $id): RedirectResponse
     {
+        if (!$this->isApprovalTicketsEnabled()) {
+            abort(403, __('telunas.approval_tickets_disabled_short'));
+        }
+
         $user = Auth::user();
         if (!$user->isAdmin()) {
             abort(403, 'Hanya Admin yang dapat memberikan ACC Final pada tiket.');
@@ -658,6 +701,10 @@ class ApprovalTicketController extends Controller
      */
     public function exportData(Request $request)
     {
+        if (!$this->isApprovalTicketsEnabled()) {
+            return response()->json(['success' => false, 'message' => __('telunas.approval_tickets_disabled_short')], 403);
+        }
+
         $user = Auth::user();
         if (!$user || !$user->isAdmin()) {
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
@@ -700,6 +747,10 @@ class ApprovalTicketController extends Controller
      */
     public function syncSheet(\App\Services\TicketSheetService $service)
     {
+        if (!$this->isApprovalTicketsEnabled()) {
+            return response()->json(['success' => false, 'message' => __('telunas.approval_tickets_disabled_short')], 403);
+        }
+
         $user = Auth::user();
         if (!$user || !$user->isAdmin()) {
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
@@ -723,8 +774,12 @@ class ApprovalTicketController extends Controller
     /**
      * Check WhatsApp number status for HOD / Admin when reviewing tickets
      */
-    public function checkWhatsAppNumber(Request $request): \Illuminate\Http\JsonResponse
+    public function checkWhatsAppNumber(Request $request): JsonResponse
     {
+        if (!$this->isApprovalTicketsEnabled()) {
+            return response()->json(['success' => false, 'message' => __('telunas.approval_tickets_disabled_short')], 403);
+        }
+
         $user = Auth::user();
         if (!$user || (!$user->isAdmin() && !$user->isHOD())) {
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);

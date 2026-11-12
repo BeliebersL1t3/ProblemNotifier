@@ -10,6 +10,8 @@ return [
     'account_inactive'             => 'Akun Anda saat ini dinonaktifkan. Silakan hubungi Admin.',
     'registration_disabled'        => 'Pendaftaran akun mandiri saat ini dinonaktifkan oleh Administrator. Silakan hubungi Admin untuk pembuatan akun.',
     'registration_disabled_short'  => 'Pendaftaran akun mandiri saat ini sedang dinonaktifkan.',
+    'approval_tickets_disabled'    => 'Fitur Tiket Persetujuan saat ini sedang dinonaktifkan. Silakan hubungi Administrator untuk perubahan data akun atau profil.',
+    'approval_tickets_disabled_short' => 'Pengajuan tiket persetujuan saat ini sedang dinonaktifkan. Silakan hubungi Administrator.',
 
     // Login OTP & Session
     'otp_whatsapp_missing'         => 'Akun Anda belum memiliki nomor WhatsApp terdaftar untuk verifikasi OTP login. Silakan hubungi Administrator.',

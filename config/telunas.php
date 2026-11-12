@@ -72,6 +72,16 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Approval Tickets Workflow Toggle
+    |--------------------------------------------------------------------------
+    | Controls visibility and access to the multi-tier Approval Tickets module
+    | (/tickets) and self-service profile approval requests while preserving all
+    | underlying models, routes, and data for future re-activation.
+    */
+    'approval_tickets_enabled' => filter_var(env('APPROVAL_TICKETS_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
+
+    /*
+    |--------------------------------------------------------------------------
     | Google Sheets Webhook Integration
     |--------------------------------------------------------------------------
     | Webhook endpoints deployed via Google Apps Script for live data synchronization.

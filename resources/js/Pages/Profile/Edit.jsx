@@ -41,6 +41,7 @@ export default function ProfilePage(props) {
 function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket, notifyWhatsAppTickets, status }) {
     const { props: pageProps } = usePage();
     const webNotificationsEnabled = Boolean(pageProps?.features?.web_notifications);
+    const approvalTicketsEnabled = Boolean(pageProps?.features?.approval_tickets);
     const { t, lang } = useLanguage();
     const { isDark } = useLeanTheme();
     const {
@@ -650,7 +651,7 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
                                 <div>
                                     <div className="flex items-center justify-between gap-2 mb-1">
                                         <p className={`font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{t('staff_name_label') || 'Nama Tampilan'}</p>
-                                        {!pendingNameTicket && (
+                                        {approvalTicketsEnabled && !pendingNameTicket && (
                                             <button
                                                 type="button"
                                                 onClick={() => {
@@ -671,7 +672,7 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
                                     <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>{staffName || user?.name || '-'}</p>
 
                                     {/* Pending Name Change Ticket Alert */}
-                                    {pendingNameTicket && (
+                                    {approvalTicketsEnabled && pendingNameTicket && (
                                         <div
                                             className={`mt-2.5 p-2.5 rounded-xl border text-xs space-y-1 ${
                                                 isDark
@@ -714,7 +715,7 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
                                                 subdivision={subdivision}
                                                 size="md"
                                             />
-                                            {!isAdmin && !pendingTransferTicket && (
+                                            {approvalTicketsEnabled && !isAdmin && !pendingTransferTicket && (
                                                 <button
                                                     type="button"
                                                     onClick={() => setIsTransferModalOpen(true)}
@@ -731,7 +732,7 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
                                         </div>
 
                                         {/* Pending Transfer Alert */}
-                                        {pendingTransferTicket && (
+                                        {approvalTicketsEnabled && pendingTransferTicket && (
                                             <div
                                                 className={`mt-3 p-3 rounded-xl border text-xs space-y-1 ${
                                                     isDark
@@ -751,6 +752,20 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
                                                 </p>
                                             </div>
                                         )}
+                                    </div>
+                                )}
+
+                                {!approvalTicketsEnabled && (
+                                    <div
+                                        className={`p-2.5 rounded-xl border text-[11px] leading-relaxed ${
+                                            isDark
+                                                ? 'bg-slate-950/70 border-slate-800 text-slate-400'
+                                                : 'bg-slate-50 border-slate-200 text-slate-600'
+                                        }`}
+                                    >
+                                        {lang === 'id'
+                                            ? 'Perubahan nama tampilan maupun mutasi departemen saat ini dikelola langsung oleh Administrator.'
+                                            : 'Display name updates and department transfers are currently managed directly by the Administrator.'}
                                     </div>
                                 )}
                             </div>
@@ -1147,7 +1162,7 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
                             </div>
 
                             {/* Pending Ticket Notice Banner */}
-                            {pendingTicket && (pendingTicket.type === 'whatsapp_change' || pendingTicket.type === 'whatsapp_unlink') && (
+                            {approvalTicketsEnabled && pendingTicket && (pendingTicket.type === 'whatsapp_change' || pendingTicket.type === 'whatsapp_unlink') && (
                                 <div
                                     className={`p-4 rounded-xl border text-xs space-y-1.5 animate-in fade-in duration-200 ${
                                         isDark
@@ -1168,6 +1183,29 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
                                 </div>
                             )}
 
+                            {!canDirectUpdateWa && !approvalTicketsEnabled ? (
+                                <div
+                                    className={`p-4 rounded-xl border text-xs space-y-1.5 ${
+                                        isDark
+                                            ? 'bg-slate-950/80 border-slate-800 text-slate-300'
+                                            : 'bg-slate-50 border-slate-200 text-slate-700'
+                                    }`}
+                                >
+                                    <div className={`flex items-center gap-2 font-bold ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
+                                        <ShieldAlert className={`w-4 h-4 shrink-0 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
+                                        <span>
+                                            {lang === 'id'
+                                                ? 'Perubahan Nomor WhatsApp Dikelola Administrator'
+                                                : 'WhatsApp Number Changes Managed by Administrator'}
+                                        </span>
+                                    </div>
+                                    <p className={`leading-relaxed ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                                        {lang === 'id'
+                                            ? 'Pengajuan perubahan atau pelepasan nomor WhatsApp melalui tiket persetujuan sedang dinonaktifkan sementara. Silakan hubungi Administrator untuk mendaftarkan, mengganti, atau melepas nomor WhatsApp akun Anda.'
+                                            : 'Self-service WhatsApp update and unlink requests via approval tickets are currently disabled. Please contact an Administrator to register, update, or unlink your account WhatsApp number.'}
+                                    </p>
+                                </div>
+                            ) : (
                             <form onSubmit={handleWhatsAppUpdate} className="space-y-4">
                                 {(waSuccessful || status === 'whatsapp-ticket-submitted' || status === 'whatsapp-updated') && (
                                     <div
@@ -1289,6 +1327,7 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
                                     </button>
                                 </div>
                             </form>
+                            )}
                         </div>
 
                         {/* Web Push Pop-up Notifications Card (HP & PC) — gated by WEB_NOTIFICATIONS_ENABLED */}
@@ -1689,7 +1728,8 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
                             </div>
                         )}
 
-                        {/* Notification Preferences Card */}
+                        {/* Notification Preferences Card (WhatsApp ticket alerts — gated by APPROVAL_TICKETS_ENABLED) */}
+                        {approvalTicketsEnabled && (
                         <div
                             className={`rounded-2xl border p-6 sm:p-8 shadow-lg space-y-4 ${
                                 isDark
@@ -1773,6 +1813,7 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
                                 </p>
                             )}
                         </div>
+                        )}
 
                         {/* Password Form Card */}
                         <div
@@ -1786,12 +1827,18 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
                                 <KeyRound className={`h-5 w-5 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
                                 <div>
                                     <h2 className={`text-base sm:text-lg font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                                        {isAdmin ? 'Ganti Kata Sandi (Langsung)' : 'Permohonan Reset Kata Sandi'}
+                                        {isAdmin
+                                            ? (lang === 'id' ? 'Ganti Kata Sandi (Langsung)' : 'Change Password (Direct)')
+                                            : approvalTicketsEnabled
+                                                ? (lang === 'id' ? 'Permohonan Reset Kata Sandi' : 'Password Reset Request')
+                                                : (lang === 'id' ? 'Reset Kata Sandi' : 'Password Reset')}
                                     </h2>
                                     <p className={`text-xs mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                                         {isAdmin
-                                            ? 'Sebagai Admin, Anda dapat mengganti kata sandi Anda secara langsung.'
-                                            : 'Sesuai SOP Telunas, permohonan reset password staf akan ditinjau oleh HOD sebelum disetujui Admin.'}
+                                            ? (lang === 'id' ? 'Sebagai Admin, Anda dapat mengganti kata sandi Anda secara langsung.' : 'As Admin, you can update your password directly.')
+                                            : approvalTicketsEnabled
+                                                ? (lang === 'id' ? 'Sesuai SOP Telunas, permohonan reset password staf akan ditinjau oleh HOD sebelum disetujui Admin.' : 'Per Telunas SOP, staff password reset requests are reviewed by HOD before Admin approval.')
+                                                : (lang === 'id' ? 'Penggantian atau reset kata sandi akun staf dikelola langsung oleh Administrator.' : 'Staff password resets or changes are handled directly by the Administrator.')}
                                     </p>
                                 </div>
                             </div>
@@ -1908,6 +1955,28 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
                                         </button>
                                     </div>
                                 </form>
+                            ) : !approvalTicketsEnabled ? (
+                                <div
+                                    className={`p-4 rounded-xl border text-xs space-y-2 ${
+                                        isDark
+                                            ? 'bg-slate-950/80 border-slate-800 text-slate-300'
+                                            : 'bg-slate-50 border-slate-200 text-slate-700'
+                                    }`}
+                                >
+                                    <div className={`flex items-center gap-2 font-bold ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
+                                        <ShieldAlert className={`w-4 h-4 shrink-0 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
+                                        <span>
+                                            {lang === 'id'
+                                                ? 'Reset Kata Sandi Dikelola Administrator'
+                                                : 'Password Resets Managed by Administrator'}
+                                        </span>
+                                    </div>
+                                    <p className={`leading-relaxed ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                                        {lang === 'id'
+                                            ? 'Pengajuan reset kata sandi melalui sistem tiket persetujuan sedang dinonaktifkan sementara. Hubungi Administrator untuk reset kata sandi 1-klik, atau gunakan fitur reset password melalui WhatsApp Bot jika nomor WhatsApp Anda sudah terhubung.'
+                                            : 'Password reset requests via approval tickets are currently disabled. Please contact an Administrator for a direct reset, or use the WhatsApp Bot password reset feature if your WhatsApp number is linked.'}
+                                    </p>
+                                </div>
                             ) : (
                                 /* Non-Admin 2-Tier Password Reset Ticketing Flow */
                                 <div className="space-y-4">
@@ -2018,6 +2087,8 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
 
             <MobileBottomNav currentTab="profile" />
 
+            {approvalTicketsEnabled && (
+                <>
             {/* Modal: Ajukan Pindah Departemen */}
             <Dialog open={isTransferModalOpen} onOpenChange={setIsTransferModalOpen}>
                 <DialogContent
@@ -2338,6 +2409,8 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
                     </form>
                 </DialogContent>
             </Dialog>
+                </>
+            )}
 
             {/* Admin Bot Control & Number Management Modal */}
             {isAdmin && (

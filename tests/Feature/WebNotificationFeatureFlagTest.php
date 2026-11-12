@@ -66,14 +66,6 @@ class WebNotificationFeatureFlagTest extends TestCase
             );
 
         $this->actingAs($admin)
-            ->get(route('tickets.index'))
-            ->assertOk()
-            ->assertInertia(fn (Assert $page) => $page
-                ->component('Tickets/Index')
-                ->where('features.web_notifications', false)
-            );
-
-        $this->actingAs($admin)
             ->get(route('users.index'))
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
@@ -86,6 +78,16 @@ class WebNotificationFeatureFlagTest extends TestCase
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('Profile/Edit')
+                ->where('features.web_notifications', false)
+            );
+
+        Config::set('telunas.approval_tickets_enabled', true);
+
+        $this->actingAs($admin)
+            ->get(route('tickets.index'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Tickets/Index')
                 ->where('features.web_notifications', false)
             );
     }

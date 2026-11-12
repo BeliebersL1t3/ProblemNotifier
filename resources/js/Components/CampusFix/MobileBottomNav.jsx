@@ -1,12 +1,16 @@
 import React from 'react';
-import { router } from '@inertiajs/react';
-import { LayoutDashboard, Plus, Ticket, BarChart3, User } from 'lucide-react';
+import { router, usePage } from '@inertiajs/react';
+import { LayoutDashboard, Plus, Ticket, BarChart3, User, Users } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
 import { useLeanTheme } from '@/hooks/useLeanTheme';
+import { useAuth } from '@/hooks/useAuth';
 
 export function MobileBottomNav({ currentTab = 'dashboard', onReport }) {
     const { t, lang } = useLanguage();
     const { isDark } = useLeanTheme();
+    const { props: pageProps } = usePage();
+    const { isAdmin } = useAuth();
+    const approvalTicketsEnabled = Boolean(pageProps?.features?.approval_tickets);
 
     const handleNav = (e, href) => {
         e.preventDefault();
@@ -22,40 +26,77 @@ export function MobileBottomNav({ currentTab = 'dashboard', onReport }) {
         }
     };
 
-    const navItems = [
-        {
-            id: 'dashboard',
-            label: t('dashboard') || 'Dashboard',
-            href: '/',
-            icon: LayoutDashboard,
-        },
-        {
-            id: 'tickets',
-            label: t('tickets') || 'Tiket',
-            href: '/tickets',
-            icon: Ticket,
-        },
-        // Center item is the elevated + action button
-        {
-            id: 'report',
-            isAction: true,
-            label: lang === 'id' ? 'Lapor' : 'Report',
-            onClick: handleReportClick,
-            icon: Plus,
-        },
-        {
-            id: 'analytics',
-            label: t('analytics') || (lang === 'id' ? 'Analisis' : 'Analytics'),
-            href: '/?view=analytics',
-            icon: BarChart3,
-        },
-        {
-            id: 'profile',
-            label: t('profile') || (lang === 'id' ? 'Profil' : 'Profile'),
-            href: '/profile',
-            icon: User,
-        },
-    ];
+    const reportActionItem = {
+        id: 'report',
+        isAction: true,
+        label: lang === 'id' ? 'Lapor' : 'Report',
+        onClick: handleReportClick,
+        icon: Plus,
+    };
+
+    const dashboardItem = {
+        id: 'dashboard',
+        label: t('dashboard') || 'Dashboard',
+        href: '/',
+        icon: LayoutDashboard,
+    };
+
+    const analyticsItem = {
+        id: 'analytics',
+        label: t('analytics') || (lang === 'id' ? 'Analisis' : 'Analytics'),
+        href: '/?view=analytics',
+        icon: BarChart3,
+    };
+
+    const profileItem = {
+        id: 'profile',
+        label: t('profile') || (lang === 'id' ? 'Profil' : 'Profile'),
+        href: '/profile',
+        icon: User,
+    };
+
+    // Keep mobile navigation balanced & symmetrical across roles and feature flags:
+    // - When approval tickets are active: [Dashboard, Tickets, +, Analytics, Profile] (5 cols)
+    // - When tickets are hidden & Admin:  [Dashboard, Users, +, Analytics, Profile] (5 cols)
+    // - When tickets are hidden & Staff:  [Dashboard, Analytics, Profile, + Lapor] (4 cols, inline CTA)
+    let navItems;
+    let hasCenterFloatingAction = true;
+
+    if (approvalTicketsEnabled) {
+        navItems = [
+            dashboardItem,
+            {
+                id: 'tickets',
+                label: t('tickets') || 'Tiket',
+                href: '/tickets',
+                icon: Ticket,
+            },
+            reportActionItem,
+            analyticsItem,
+            profileItem,
+        ];
+    } else if (isAdmin) {
+        navItems = [
+            dashboardItem,
+            {
+                id: 'users',
+                label: lang === 'id' ? 'Pengguna' : 'Users',
+                href: '/users',
+                icon: Users,
+            },
+            reportActionItem,
+            analyticsItem,
+            profileItem,
+        ];
+    } else {
+        hasCenterFloatingAction = false;
+        navItems = [
+            dashboardItem,
+            analyticsItem,
+            profileItem,
+            reportActionItem,
+        ];
+    }
 
     return (
         <nav
@@ -67,9 +108,39 @@ export function MobileBottomNav({ currentTab = 'dashboard', onReport }) {
             }`}
             style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.35rem)' }}
         >
-            <div className="grid grid-cols-5 items-end max-w-md mx-auto w-full px-1 pt-2 pb-1 relative">
+            <div
+                className={`grid ${
+                    hasCenterFloatingAction ? 'grid-cols-5' : 'grid-cols-4'
+                } items-end max-w-md mx-auto w-full px-1 pt-2 pb-1 relative`}
+            >
                 {navItems.map((item) => {
                     if (item.isAction) {
+                        if (!hasCenterFloatingAction) {
+                            return (
+                                <button
+                                    key="action-report"
+                                    type="button"
+                                    onClick={item.onClick}
+                                    className="flex flex-col items-center justify-end w-full select-none group cursor-pointer"
+                                    title={item.label}
+                                    aria-label={item.label}
+                                >
+                                    <div className="relative flex items-center justify-center h-9 w-full">
+                                        <div className="w-9 h-9 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white keep-white flex items-center justify-center shadow-[0_4px_12px_rgba(16,185,129,0.35)] group-active:scale-90 transition-all">
+                                            <Plus className="w-5 h-5 text-white keep-white stroke-[2.6] group-hover:rotate-90 transition-transform duration-300" />
+                                        </div>
+                                    </div>
+                                    <span
+                                        className={`h-4 flex items-center justify-center text-[10px] font-bold mt-1 tracking-tight text-center truncate max-w-full px-0.5 ${
+                                            isDark ? 'text-emerald-400' : 'text-emerald-700'
+                                        }`}
+                                    >
+                                        {item.label}
+                                    </span>
+                                </button>
+                            );
+                        }
+
                         return (
                             <div key="action-report" className="flex flex-col items-center justify-end w-full relative">
                                 <div className="relative flex items-center justify-center h-9 w-full">
@@ -82,7 +153,7 @@ export function MobileBottomNav({ currentTab = 'dashboard', onReport }) {
                                         title={item.label}
                                         aria-label={item.label}
                                     >
-                                        <Plus className="w-6 h-6 text-white stroke-[2.8] group-hover:rotate-90 transition-transform duration-300" />
+                                        <Plus className="w-6 h-6 text-white keep-white stroke-[2.8] group-hover:rotate-90 transition-transform duration-300" />
                                     </button>
                                 </div>
                                 <span

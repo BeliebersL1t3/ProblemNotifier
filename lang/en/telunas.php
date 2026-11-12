@@ -10,6 +10,8 @@ return [
     'account_inactive'             => 'Your account is currently deactivated. Please contact the Administrator.',
     'registration_disabled'        => 'Self-registration is currently disabled by the Administrator. Please contact Admin to create an account.',
     'registration_disabled_short'  => 'Self-registration is currently disabled.',
+    'approval_tickets_disabled'    => 'The Approval Tickets feature is currently disabled. Please contact the Administrator for account or profile changes.',
+    'approval_tickets_disabled_short' => 'Approval ticket submission is currently disabled. Please contact the Administrator.',
 
     // Login OTP & Session
     'otp_whatsapp_missing'         => 'Your account does not have a registered WhatsApp number for login OTP verification. Please contact the Administrator.',

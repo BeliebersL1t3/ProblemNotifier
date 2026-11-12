@@ -34,6 +34,7 @@ export function LeanHeader({
     const authUser = pageProps?.auth?.user || null;
     const effectiveUser = currentUser || authUser;
     const webNotificationsEnabled = Boolean(pageProps?.features?.web_notifications);
+    const approvalTicketsEnabled = Boolean(pageProps?.features?.approval_tickets);
 
     const { lang, setLang } = useLanguage();
     const isEn = lang === 'en';
@@ -394,29 +395,31 @@ export function LeanHeader({
 
                         {effectiveUser ? (
                             <>
-                                {/* Approval Tickets Link */}
-                                <Link
-                                    href="/tickets"
-                                    className={`${navChipBase} ${
-                                        isTickets
-                                            ? `w-7 sm:w-auto px-0 sm:px-2.5 ${activeEmeraldNavClass}`
-                                            : `w-7 sm:w-auto sm:px-2.5 ${inactiveNavClass} ${
-                                                  isDark ? 'hover:border-amber-500/50' : ''
-                                              }`
-                                    }`}
-                                    title={isEn ? 'Approval Tickets' : 'Tiket Persetujuan'}
-                                    aria-label={isEn ? 'Approval Tickets' : 'Tiket Persetujuan'}
-                                    aria-current={isTickets ? 'page' : undefined}
-                                >
-                                    <Ticket
-                                        className={`w-3.5 h-3.5 shrink-0 ${
-                                            isTickets ? 'text-white' : 'text-amber-500'
+                                {/* Approval Tickets Link (Controlled by APPROVAL_TICKETS_ENABLED feature flag) */}
+                                {approvalTicketsEnabled && (
+                                    <Link
+                                        href="/tickets"
+                                        className={`${navChipBase} ${
+                                            isTickets
+                                                ? `w-7 sm:w-auto px-0 sm:px-2.5 ${activeEmeraldNavClass}`
+                                                : `w-7 sm:w-auto sm:px-2.5 ${inactiveNavClass} ${
+                                                      isDark ? 'hover:border-amber-500/50' : ''
+                                                  }`
                                         }`}
-                                    />
-                                    <span className={isTickets ? 'hidden sm:inline' : 'hidden xl:inline'}>
-                                        {isEn ? 'Tickets' : 'Tiket'}
-                                    </span>
-                                </Link>
+                                        title={isEn ? 'Approval Tickets' : 'Tiket Persetujuan'}
+                                        aria-label={isEn ? 'Approval Tickets' : 'Tiket Persetujuan'}
+                                        aria-current={isTickets ? 'page' : undefined}
+                                    >
+                                        <Ticket
+                                            className={`w-3.5 h-3.5 shrink-0 ${
+                                                isTickets ? 'text-white' : 'text-amber-500'
+                                            }`}
+                                        />
+                                        <span className={isTickets ? 'hidden sm:inline' : 'hidden xl:inline'}>
+                                            {isEn ? 'Tickets' : 'Tiket'}
+                                        </span>
+                                    </Link>
+                                )}
 
                                 {/* User Management & Audit Trail Link (Admin Only) */}
                                 {isAdmin && (

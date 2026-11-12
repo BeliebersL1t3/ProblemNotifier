@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\ApprovalTicket;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Config;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
@@ -14,6 +15,8 @@ class ApprovalTicketAccessTest extends TestCase
 
     public function test_regular_user_can_view_own_account_registration_ticket(): void
     {
+        Config::set('telunas.approval_tickets_enabled', true);
+
         $user = User::factory()->create([
             'role' => 'department',
             'department' => 'Facility',
@@ -44,6 +47,8 @@ class ApprovalTicketAccessTest extends TestCase
 
     public function test_regular_user_cannot_view_other_users_account_registration_ticket(): void
     {
+        Config::set('telunas.approval_tickets_enabled', true);
+
         $userA = User::factory()->create([
             'role' => 'department',
             'department' => 'Facility',
@@ -88,6 +93,8 @@ class ApprovalTicketAccessTest extends TestCase
 
     public function test_ticket_id_filter_works_for_own_ticket(): void
     {
+        Config::set('telunas.approval_tickets_enabled', true);
+
         $user = User::factory()->create([
             'role' => 'department',
             'department' => 'Facility',

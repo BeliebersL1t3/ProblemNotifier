@@ -34,6 +34,7 @@ class HandleInertiaRequests extends Middleware
             'locale' => app()->getLocale(),
             'features' => [
                 'web_notifications' => (bool) config('telunas.web_notifications_enabled', false),
+                'approval_tickets' => (bool) config('telunas.approval_tickets_enabled', false),
             ],
             'auth' => [
                 'user' => $request->user(),
@@ -100,7 +101,7 @@ class HandleInertiaRequests extends Middleware
                         ->all();
                 });
             },
-            'tickets_sheet_url' => config('services.google.tickets_spreadsheet_id')
+            'tickets_sheet_url' => (config('telunas.approval_tickets_enabled', false) && config('services.google.tickets_spreadsheet_id'))
                 ? 'https://docs.google.com/spreadsheets/d/' . config('services.google.tickets_spreadsheet_id') . '/edit?usp=sharing'
                 : null,
         ];

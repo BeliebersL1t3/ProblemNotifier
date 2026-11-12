@@ -21,14 +21,21 @@ class ProfileController extends Controller
     public function edit(Request $request): Response
     {
         $user = $request->user();
+        $approvalTicketsEnabled = filter_var(config('telunas.approval_tickets_enabled', false), FILTER_VALIDATE_BOOLEAN);
 
-        $pendingTickets = \App\Models\ApprovalTicket::where('user_id', $user->id)
-            ->whereIn('status', ['pending_hod', 'pending_admin'])
-            ->get();
+        $pendingTransferTicket = null;
+        $pendingNameTicket = null;
+        $pendingWaOrPwdTicket = null;
 
-        $pendingTransferTicket = $pendingTickets->firstWhere('type', 'department_transfer');
-        $pendingNameTicket = $pendingTickets->firstWhere('type', 'name_change');
-        $pendingWaOrPwdTicket = $pendingTickets->whereIn('type', ['whatsapp_change', 'whatsapp_unlink', 'password_reset'])->first();
+        if ($approvalTicketsEnabled) {
+            $pendingTickets = \App\Models\ApprovalTicket::where('user_id', $user->id)
+                ->whereIn('status', ['pending_hod', 'pending_admin'])
+                ->get();
+
+            $pendingTransferTicket = $pendingTickets->firstWhere('type', 'department_transfer');
+            $pendingNameTicket = $pendingTickets->firstWhere('type', 'name_change');
+            $pendingWaOrPwdTicket = $pendingTickets->whereIn('type', ['whatsapp_change', 'whatsapp_unlink', 'password_reset'])->first();
+        }
 
         return Inertia::render('Profile/Edit', [
             'mustVerifyEmail' => $user instanceof MustVerifyEmail,
@@ -61,12 +68,18 @@ class ProfileController extends Controller
      */
     public function updateWhatsApp(Request $request): RedirectResponse
     {
+        $user = $request->user();
+        $approvalTicketsEnabled = filter_var(config('telunas.approval_tickets_enabled', false), FILTER_VALIDATE_BOOLEAN);
+
+        if (!$approvalTicketsEnabled && !$user->isAdmin() && !$user->isHOD()) {
+            abort(403, __('telunas.approval_tickets_disabled_short'));
+        }
+
         $request->validate([
             'whatsapp_number' => ['nullable', 'string', 'max:30'],
             'reason' => ['nullable', 'string', 'max:500'],
         ]);
 
-        $user = $request->user();
         $rawPhone = trim($request->input('whatsapp_number', ''));
         $clean = null;
 

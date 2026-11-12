@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
@@ -129,6 +130,7 @@ class WhatsAppStaffApiTest extends TestCase
 
     public function test_regular_user_updating_whatsapp_creates_approval_ticket(): void
     {
+        Config::set('telunas.approval_tickets_enabled', true);
         Http::fake();
 
         $user = User::factory()->create([
