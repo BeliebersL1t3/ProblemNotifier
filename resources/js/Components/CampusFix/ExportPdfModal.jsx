@@ -59,6 +59,17 @@ export function ExportPdfModal({
     const [isPreviewLoading, setIsPreviewLoading] = useState(false);
     const [isExporting, setIsExporting] = useState(false);
 
+    // Freeze/snapshot issues dataset on modal open so background 4s polling does not trigger PDF rebuilds
+    const [modalIssues, setModalIssues] = useState(issues);
+    const prevOpenRef = useRef(false);
+
+    useEffect(() => {
+        if (open && !prevOpenRef.current) {
+            setModalIssues(issues);
+        }
+        prevOpenRef.current = open;
+    }, [open, issues]);
+
     const logoImgRef = useRef(null);
 
     // Preload logo for jsPDF without transparent canvas artifacts
@@ -83,9 +94,9 @@ export function ExportPdfModal({
         }
     }, []);
 
-    // Filter issues based on user selection in modal
+    // Filter issues based on user selection in modal (using stable modalIssues snapshot)
     const filteredIssues = useMemo(() => {
-        return (issues || []).filter((issue) => {
+        return (modalIssues || []).filter((issue) => {
             // Status match
             const statusKey = issue.status === 'solved' ? 'resolved' : (issue.status || 'open');
             if (!selectedStatuses.includes(statusKey)) return false;
@@ -107,7 +118,7 @@ export function ExportPdfModal({
 
             return true;
         });
-    }, [issues, selectedStatuses, selectedDept, selectedPriority]);
+    }, [modalIssues, selectedStatuses, selectedDept, selectedPriority]);
 
     const displayIssues = useMemo(() => {
         if (limit === 'All') return filteredIssues;
@@ -461,17 +472,19 @@ export function ExportPdfModal({
             try {
                 const doc = buildPdfDocument();
                 const blob = doc.output('blob');
-                if (previewUrl) {
-                    URL.revokeObjectURL(previewUrl);
-                }
                 const url = URL.createObjectURL(blob);
-                setPreviewUrl(url);
+                setPreviewUrl((prev) => {
+                    if (prev) {
+                        URL.revokeObjectURL(prev);
+                    }
+                    return url;
+                });
             } catch (err) {
                 console.error('[ExportPdfModal] Failed generating preview:', err);
             } finally {
                 setIsPreviewLoading(false);
             }
-        }, 320);
+        }, 250);
 
         return () => clearTimeout(timer);
     }, [
@@ -690,18 +703,34 @@ export function ExportPdfModal({
                             </label>
                         </div>
 
-                        {/* Record count summary pill */}
+                        {/* Record count summary pill & sync button */}
                         <div
                             className={`p-3 rounded-2xl border text-xs flex items-center justify-between ${
                                 isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
                             }`}
                         >
-                            <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>
-                                {isEn ? 'Total issues to export:' : 'Total isu yang diekspor:'}
-                            </span>
-                            <span className={`font-extrabold ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
-                                {displayIssues.length} {isEn ? 'issues' : 'isu'}
-                            </span>
+                            <div>
+                                <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>
+                                    {isEn ? 'Total issues to export:' : 'Total isu yang diekspor:'}
+                                </span>
+                                <span className={`ml-1.5 font-extrabold ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
+                                    {displayIssues.length} {isEn ? 'issues' : 'isu'}
+                                </span>
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={() => setModalIssues(issues)}
+                                className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer border ${
+                                    isDark
+                                        ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
+                                        : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border-slate-200'
+                                }`}
+                                title={isEn ? 'Sync latest issues from live dashboard' : 'Tarik data isu paling mutakhir dari dashboard'}
+                            >
+                                <RefreshCw className="w-3 h-3" />
+                                <span>{isEn ? 'Sync' : 'Sinkronkan'}</span>
+                            </button>
                         </div>
                     </div>
 
@@ -716,6 +745,12 @@ export function ExportPdfModal({
                             <div className="flex items-center gap-2">
                                 <span className="inline-block w-2 h-2 rounded-full bg-emerald-500" />
                                 <span>{isEn ? 'Preview: A4 Landscape Report' : 'Pratinjau: Laporan A4 Landscape'}</span>
+                                {isPreviewLoading && (
+                                    <span className="inline-flex items-center gap-1.5 text-[11px] text-amber-500 font-medium ml-2 animate-pulse">
+                                        <Loader2 className="w-3 h-3 animate-spin" />
+                                        <span>{isEn ? 'Updating...' : 'Memperbarui...'}</span>
+                                    </span>
+                                )}
                             </div>
 
                             {previewUrl && (
@@ -737,10 +772,10 @@ export function ExportPdfModal({
 
                         {/* Content viewport */}
                         <div className="flex-1 relative p-2 sm:p-3 overflow-hidden flex flex-col">
-                            {isPreviewLoading && (
-                                <div className="absolute inset-0 z-20 bg-slate-950/60 backdrop-blur-xs flex flex-col items-center justify-center text-white gap-3 rounded-2xl">
-                                    <Loader2 className="w-8 h-8 animate-spin text-emerald-400" />
-                                    <span className="text-xs font-bold text-slate-200">
+                            {!previewUrl && isPreviewLoading && (
+                                <div className="absolute inset-0 z-20 bg-slate-100 dark:bg-slate-950 flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 gap-3 rounded-2xl">
+                                    <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
+                                    <span className="text-xs font-bold text-slate-600 dark:text-slate-300">
                                         {isEn ? 'Rendering A4 Landscape Preview...' : 'Menyusun Pratinjau PDF A4 Landscape...'}
                                     </span>
                                 </div>
