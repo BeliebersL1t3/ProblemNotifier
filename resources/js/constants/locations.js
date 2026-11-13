@@ -358,6 +358,13 @@ export function resolveIssueResortAndZone(issue) {
     }
 
     const isTbr = loc.includes('tbr') || loc.includes('beach resort') || title.includes('tbr');
+    const isTpi = loc.includes('tpi') || loc.includes('private island') || title.includes('tpi') || Boolean(loc.match(/#(\d+)/));
+
+    // If neither TPI nor TBR is explicitly specified, it is an unmapped general/operational issue (not on map)
+    if (!isTbr && !isTpi) {
+        return { resort: null, zoneId: null, zoneName: null, isOffice: false };
+    }
+
     const resort = isTbr ? 'TBR' : 'TPI';
 
     let matchedKey = null;
@@ -413,11 +420,8 @@ export function resolveIssueResortAndZone(issue) {
                     break;
                 }
             }
-            if (!matchedKey) {
-                matchedKey = 'tbr_beach_front';
-            }
         }
-        matchedZone = TBR_MASTERPLAN_ZONES.find(z => z.id === matchedKey);
+        matchedZone = matchedKey ? TBR_MASTERPLAN_ZONES.find(z => z.id === matchedKey) : null;
     } else {
         // TPI matching against 22 official masterplan facilities
         if (loc.includes('bukit') || fullText.includes('vila bukit') || fullText.includes('villa bukit') || fullText.includes('ridge')) {
@@ -433,15 +437,12 @@ export function resolveIssueResortAndZone(issue) {
                     break;
                 }
             }
-            if (!matchedKey) {
-                matchedKey = 'restaurant_office';
-            }
         }
-        matchedZone = TPI_MASTERPLAN_ZONES.find(z => z.id === matchedKey);
+        matchedZone = matchedKey ? TPI_MASTERPLAN_ZONES.find(z => z.id === matchedKey) : null;
     }
 
     return {
-        resort, // 'TPI' or 'TBR'
+        resort: matchedZone ? resort : null,
         zoneId: matchedKey,
         zoneName: matchedZone ? matchedZone.name : null,
         zone: matchedZone,
