@@ -50,6 +50,9 @@ export function ExportPdfModal({
 
     const [selectedStatuses, setSelectedStatuses] = useState(['open', 'in_progress', 'pending', 'resolved']);
     const [selectedDept, setSelectedDept] = useState('all');
+    const [selectedLocation, setSelectedLocation] = useState('all');
+    const [selectedSlaStatus, setSelectedSlaStatus] = useState('all');
+    const [sortOrder, setSortOrder] = useState('newest');
     const [limit, setLimit] = useState('All');
     const [includeKpiSummary, setIncludeKpiSummary] = useState(true);
     const [includePendingTimeline, setIncludePendingTimeline] = useState(true);
@@ -68,6 +71,17 @@ export function ExportPdfModal({
         }
         prevOpenRef.current = open;
     }, [open, issues]);
+
+    // Extract unique locations from modalIssues
+    const availableLocations = useMemo(() => {
+        const set = new Set();
+        (modalIssues || []).forEach((i) => {
+            if (i.location && typeof i.location === 'string' && i.location.trim()) {
+                set.add(i.location.trim());
+            }
+        });
+        return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+    }, [modalIssues]);
 
     const logoImgRef = useRef(null);
 
@@ -93,9 +107,9 @@ export function ExportPdfModal({
         }
     }, []);
 
-    // Filter issues based on user selection in modal (using stable modalIssues snapshot)
+    // Filter & sort issues based on user selection in modal (using stable modalIssues snapshot)
     const filteredIssues = useMemo(() => {
-        return (modalIssues || []).filter((issue) => {
+        const result = (modalIssues || []).filter((issue) => {
             // Status match
             const statusKey = issue.status === 'solved' ? 'resolved' : (issue.status || 'open');
             if (!selectedStatuses.includes(statusKey)) return false;
@@ -109,9 +123,67 @@ export function ExportPdfModal({
                 if (!match) return false;
             }
 
+            // Location match
+            if (selectedLocation !== 'all') {
+                if (String(issue.location || '').trim().toLowerCase() !== selectedLocation.toLowerCase()) {
+                    return false;
+                }
+            }
+
+            // SLA / ETA Status match
+            if (selectedSlaStatus !== 'all') {
+                const rawEta = issue.estimated_completion_at || issue.estimatedCompletionAt;
+                const hasEta = !!rawEta;
+                if (selectedSlaStatus === 'has_eta' && !hasEta) return false;
+                if (selectedSlaStatus === 'no_eta' && hasEta) return false;
+
+                if (selectedSlaStatus === 'overdue' || selectedSlaStatus === 'on_time') {
+                    if (!hasEta) return false;
+                    const etaMs = new Date(rawEta).getTime();
+                    const resolvedMs = (issue.resolved_at || issue.solved_at || issue.solvedAt)
+                        ? new Date(issue.resolved_at || issue.solved_at || issue.solvedAt).getTime()
+                        : null;
+
+                    const isSolved = issue.status === 'resolved' || issue.status === 'solved';
+                    let isOverdue = false;
+                    if (isSolved) {
+                        isOverdue = resolvedMs ? resolvedMs > etaMs : false;
+                    } else {
+                        isOverdue = Date.now() > etaMs;
+                    }
+
+                    if (selectedSlaStatus === 'overdue' && !isOverdue) return false;
+                    if (selectedSlaStatus === 'on_time' && isOverdue) return false;
+                }
+            }
+
             return true;
         });
-    }, [modalIssues, selectedStatuses, selectedDept]);
+
+        // Apply sort order
+        return result.sort((a, b) => {
+            const timeA = new Date(a.created_at || a.reported_at || a.reportedAt || 0).getTime();
+            const timeB = new Date(b.created_at || b.reported_at || b.reportedAt || 0).getTime();
+
+            if (sortOrder === 'oldest') {
+                return timeA - timeB;
+            }
+            if (sortOrder === 'eta_closest') {
+                const rawEtaA = a.estimated_completion_at || a.estimatedCompletionAt;
+                const rawEtaB = b.estimated_completion_at || b.estimatedCompletionAt;
+                const etaA = rawEtaA ? new Date(rawEtaA).getTime() : Infinity;
+                const etaB = rawEtaB ? new Date(rawEtaB).getTime() : Infinity;
+                return etaA - etaB;
+            }
+            if (sortOrder === 'duration') {
+                const durA = (a.resolved_at ? new Date(a.resolved_at).getTime() : Date.now()) - timeA;
+                const durB = (b.resolved_at ? new Date(b.resolved_at).getTime() : Date.now()) - timeB;
+                return durB - durA;
+            }
+            // default newest
+            return timeB - timeA;
+        });
+    }, [modalIssues, selectedStatuses, selectedDept, selectedLocation, selectedSlaStatus, sortOrder]);
 
     const displayIssues = useMemo(() => {
         if (limit === 'All') return filteredIssues;
@@ -374,7 +446,6 @@ export function ExportPdfModal({
                 cleanProblem,
                 sanitizePdfText(i.location || '-'),
                 combinedDeptTags,
-                sanitizePdfText(i.category || '-'),
                 sanitizePdfText(i.reporter_name || i.reporter || '-'),
                 statusStr,
                 etaCell,
@@ -386,7 +457,7 @@ export function ExportPdfModal({
                 tableData.push([
                     {
                         content: `Pending Reason: ${sanitizePdfText(reason)}`,
-                        colSpan: 12,
+                        colSpan: 11,
                         styles: {
                             fillColor: [255, 247, 237],
                             textColor: [194, 65, 12],
@@ -404,7 +475,7 @@ export function ExportPdfModal({
                     content: isEn
                         ? 'No records found matching the selected filter criteria.'
                         : 'Tidak ada laporan isu yang cocok dengan kriteria filter yang dipilih.',
-                    colSpan: 12,
+                    colSpan: 11,
                     styles: { halign: 'center', textColor: [120, 120, 120], fontStyle: 'italic', cellPadding: 8 },
                 },
             ]);
@@ -423,7 +494,6 @@ export function ExportPdfModal({
                 'Problem\n(Judul & Ket)',
                 'Location',
                 'Dept (ACC)',
-                'Category',
                 'Reporter',
                 'Status',
                 'Target Selesai\n(ETA / SLA)',
@@ -451,17 +521,16 @@ export function ExportPdfModal({
                 2: { cellWidth: 22 }, // Taken / Petugas
                 3: { cellWidth: 22 }, // Solved / Penyelesai
                 4: { cellWidth: 16 }, // Time Solve
-                5: { cellWidth: 46 }, // Problem (Judul & Ket)
-                6: { cellWidth: 20 }, // Location
+                5: { cellWidth: 56 }, // Problem (Judul & Ket - broadened)
+                6: { cellWidth: 24 }, // Location
                 7: { cellWidth: 30 }, // Dept (ACC)
-                8: { cellWidth: 17 }, // Category
-                9: { cellWidth: 20 }, // Reporter
-                10: { cellWidth: 18, fontStyle: 'bold', halign: 'center' }, // Status
-                11: { cellWidth: 28, halign: 'center' }, // Target Selesai (ETA)
+                8: { cellWidth: 20 }, // Reporter
+                9: { cellWidth: 18, fontStyle: 'bold', halign: 'center' }, // Status
+                10: { cellWidth: 31, halign: 'center' }, // Target Selesai (ETA)
             },
             didParseCell: function (data) {
-                // Color code Status column (Index 10)
-                if (data.section === 'body' && data.column.index === 10) {
+                // Color code Status column (Index 9)
+                if (data.section === 'body' && data.column.index === 9) {
                     const st = String(data.cell.raw || '');
                     if (st === 'SOLVED') {
                         data.cell.styles.textColor = [22, 163, 74]; // Emerald
@@ -473,8 +542,8 @@ export function ExportPdfModal({
                         data.cell.styles.textColor = [220, 38, 38]; // Red
                     }
                 }
-                // Color code Target Selesai (ETA) column (Index 11)
-                if (data.section === 'body' && data.column.index === 11) {
+                // Color code Target Selesai (ETA) column (Index 10)
+                if (data.section === 'body' && data.column.index === 10) {
                     const text = String(data.cell.raw || '');
                     if (text.includes('[Overdue]') || text.includes('[Lewat Target]')) {
                         data.cell.styles.textColor = [220, 38, 38]; // Red
@@ -547,6 +616,9 @@ export function ExportPdfModal({
         displayIssues,
         selectedStatuses,
         selectedDept,
+        selectedLocation,
+        selectedSlaStatus,
+        sortOrder,
         includeKpiSummary,
         includePendingTimeline,
         timeLabel,
@@ -676,6 +748,75 @@ export function ExportPdfModal({
                                             {d === 'Umum' && isEn ? 'General' : d}
                                         </SelectItem>
                                     ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        {/* Location Scope */}
+                        <div>
+                            <label className={`block text-xs font-bold uppercase tracking-wider mb-1.5 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                                {isEn ? 'Location / Area' : 'Cakupan Lokasi'}
+                            </label>
+                            <Select value={selectedLocation} onValueChange={setSelectedLocation}>
+                                <SelectTrigger
+                                    className={`w-full rounded-xl text-xs font-medium border liquid-glass-control ${
+                                        isDark ? 'border-slate-800 text-white' : 'border-slate-300 text-slate-900'
+                                    }`}
+                                >
+                                    <SelectValue placeholder={isEn ? 'All Locations' : 'Semua Lokasi'} />
+                                </SelectTrigger>
+                                <SelectContent className={isDark ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-800'}>
+                                    <SelectItem value="all">{isEn ? 'All Locations (Entire Resort)' : 'Semua Lokasi (Seluruh Area)'}</SelectItem>
+                                    {availableLocations.map((loc) => (
+                                        <SelectItem key={loc} value={loc}>
+                                            {loc}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        {/* ETA / SLA Punctuality Status */}
+                        <div>
+                            <label className={`block text-xs font-bold uppercase tracking-wider mb-1.5 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                                {isEn ? 'ETA / SLA Punctuality' : 'Ketepatan Target (SLA)'}
+                            </label>
+                            <Select value={selectedSlaStatus} onValueChange={setSelectedSlaStatus}>
+                                <SelectTrigger
+                                    className={`w-full rounded-xl text-xs font-medium border liquid-glass-control ${
+                                        isDark ? 'border-slate-800 text-white' : 'border-slate-300 text-slate-900'
+                                    }`}
+                                >
+                                    <SelectValue placeholder={isEn ? 'All SLA Status' : 'Semua Status SLA'} />
+                                </SelectTrigger>
+                                <SelectContent className={isDark ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-800'}>
+                                    <SelectItem value="all">{isEn ? 'All Tickets (All SLA Status)' : 'Semua Tiket (Seluruh SLA)'}</SelectItem>
+                                    <SelectItem value="overdue">{isEn ? 'Overdue Only (Late)' : 'Lewat Target Saja (Terlambat)'}</SelectItem>
+                                    <SelectItem value="on_time">{isEn ? 'On Time Only (Met SLA)' : 'Tepat Waktu Saja (Sesuai SLA)'}</SelectItem>
+                                    <SelectItem value="has_eta">{isEn ? 'With Target Date (Has ETA)' : 'Memiliki Target Tanggal (Ada ETA)'}</SelectItem>
+                                    <SelectItem value="no_eta">{isEn ? 'Without Target Date (No ETA)' : 'Tanpa Target Tanggal (Belum Ada ETA)'}</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        {/* Sort Order */}
+                        <div>
+                            <label className={`block text-xs font-bold uppercase tracking-wider mb-1.5 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                                {isEn ? 'Sort Order' : 'Urutan Data'}
+                            </label>
+                            <Select value={sortOrder} onValueChange={setSortOrder}>
+                                <SelectTrigger
+                                    className={`w-full rounded-xl text-xs font-medium border liquid-glass-control ${
+                                        isDark ? 'border-slate-800 text-white' : 'border-slate-300 text-slate-900'
+                                    }`}
+                                >
+                                    <SelectValue placeholder={isEn ? 'Newest First' : 'Terbaru Dahulu'} />
+                                </SelectTrigger>
+                                <SelectContent className={isDark ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-800'}>
+                                    <SelectItem value="newest">{isEn ? 'Newest Reported First' : 'Terbaru Dilaporkan'}</SelectItem>
+                                    <SelectItem value="oldest">{isEn ? 'Oldest Reported First' : 'Terlama Dilaporkan'}</SelectItem>
+                                    <SelectItem value="eta_closest">{isEn ? 'Closest Target ETA' : 'Target Selesai Terdekat'}</SelectItem>
+                                    <SelectItem value="duration">{isEn ? 'Longest Duration / Pending' : 'Durasi Penanganan Terlama'}</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
