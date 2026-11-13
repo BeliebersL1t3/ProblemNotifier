@@ -50,7 +50,6 @@ export function ExportPdfModal({
 
     const [selectedStatuses, setSelectedStatuses] = useState(['open', 'in_progress', 'pending', 'resolved']);
     const [selectedDept, setSelectedDept] = useState('all');
-    const [selectedPriority, setSelectedPriority] = useState('all');
     const [limit, setLimit] = useState('All');
     const [includeKpiSummary, setIncludeKpiSummary] = useState(true);
     const [includePendingTimeline, setIncludePendingTimeline] = useState(true);
@@ -110,15 +109,9 @@ export function ExportPdfModal({
                 if (!match) return false;
             }
 
-            // Priority match
-            if (selectedPriority !== 'all') {
-                const p = String(issue.priority || 'low').toLowerCase();
-                if (p !== selectedPriority.toLowerCase()) return false;
-            }
-
             return true;
         });
-    }, [modalIssues, selectedStatuses, selectedDept, selectedPriority]);
+    }, [modalIssues, selectedStatuses, selectedDept]);
 
     const displayIssues = useMemo(() => {
         if (limit === 'All') return filteredIssues;
@@ -324,7 +317,6 @@ export function ExportPdfModal({
                 sanitizePdfText(i.category || '-'),
                 sanitizePdfText(i.reporter_name || i.reporter || '-'),
                 statusStr,
-                String(i.priority || 'LOW').toUpperCase(),
             ]);
 
             // Sub-row: Pending Reason / Delay Timeline
@@ -333,7 +325,7 @@ export function ExportPdfModal({
                 tableData.push([
                     {
                         content: `Pending Reason: ${sanitizePdfText(reason)}`,
-                        colSpan: 12,
+                        colSpan: 11,
                         styles: {
                             fillColor: [255, 247, 237],
                             textColor: [194, 65, 12],
@@ -351,7 +343,7 @@ export function ExportPdfModal({
                     content: isEn
                         ? 'No records found matching the selected filter criteria.'
                         : 'Tidak ada laporan isu yang cocok dengan kriteria filter yang dipilih.',
-                    colSpan: 12,
+                    colSpan: 11,
                     styles: { halign: 'center', textColor: [120, 120, 120], fontStyle: 'italic', cellPadding: 8 },
                 },
             ]);
@@ -373,7 +365,6 @@ export function ExportPdfModal({
                 'Category',
                 'Reporter',
                 'Status',
-                'Priority',
             ]],
             body: tableData,
             theme: 'grid',
@@ -395,16 +386,15 @@ export function ExportPdfModal({
             columnStyles: {
                 0: { cellWidth: 17, halign: 'center', fontStyle: 'bold' }, // ID
                 1: { cellWidth: 22 }, // Submitted
-                2: { cellWidth: 21 }, // Taken
-                3: { cellWidth: 21 }, // Solved
-                4: { cellWidth: 16 }, // Time Solve
-                5: { cellWidth: 47 }, // Problem (fills to 277mm)
-                6: { cellWidth: 20 }, // Location
-                7: { cellWidth: 32 }, // Dept / Tags
+                2: { cellWidth: 22 }, // Taken
+                3: { cellWidth: 22 }, // Solved
+                4: { cellWidth: 17 }, // Time Solve
+                5: { cellWidth: 65 }, // Problem (broadened for clear descriptions)
+                6: { cellWidth: 24 }, // Location
+                7: { cellWidth: 33 }, // Dept / Tags
                 8: { cellWidth: 18 }, // Category
                 9: { cellWidth: 21 }, // Reporter
-                10: { cellWidth: 22, fontStyle: 'bold', halign: 'center' }, // Status
-                11: { cellWidth: 20, fontStyle: 'bold', halign: 'center' }, // Priority
+                10: { cellWidth: 16, fontStyle: 'bold', halign: 'center' }, // Status
             },
             didParseCell: function (data) {
                 // Color code Status column (Index 10)
@@ -418,15 +408,6 @@ export function ExportPdfModal({
                         data.cell.styles.textColor = [234, 88, 12]; // Orange
                     } else if (st === 'OPEN') {
                         data.cell.styles.textColor = [220, 38, 38]; // Red
-                    }
-                }
-                // Color code Priority column (Index 11)
-                if (data.section === 'body' && data.column.index === 11) {
-                    const pr = String(data.cell.raw || '');
-                    if (pr === 'CRITICAL') {
-                        data.cell.styles.textColor = [220, 38, 38];
-                    } else if (pr === 'HIGH') {
-                        data.cell.styles.textColor = [234, 88, 12];
                     }
                 }
             },
@@ -492,7 +473,6 @@ export function ExportPdfModal({
         displayIssues,
         selectedStatuses,
         selectedDept,
-        selectedPriority,
         includeKpiSummary,
         includePendingTimeline,
         timeLabel,
@@ -622,29 +602,6 @@ export function ExportPdfModal({
                                             {d === 'Umum' && isEn ? 'General' : d}
                                         </SelectItem>
                                     ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-
-                        {/* Priority Scope */}
-                        <div>
-                            <label className={`block text-xs font-bold uppercase tracking-wider mb-1.5 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                                {isEn ? 'Priority Level' : 'Tingkat Prioritas'}
-                            </label>
-                            <Select value={selectedPriority} onValueChange={setSelectedPriority}>
-                                <SelectTrigger
-                                    className={`w-full rounded-xl text-xs font-medium border liquid-glass-control ${
-                                        isDark ? 'border-slate-800 text-white' : 'border-slate-300 text-slate-900'
-                                    }`}
-                                >
-                                    <SelectValue placeholder={isEn ? 'All Priorities' : 'Semua Prioritas'} />
-                                </SelectTrigger>
-                                <SelectContent className={isDark ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-800'}>
-                                    <SelectItem value="all">{isEn ? 'All Priorities (Semua)' : 'Semua Prioritas (Semua)'}</SelectItem>
-                                    <SelectItem value="critical">{isEn ? 'Critical Only' : 'Kritis (Critical)'}</SelectItem>
-                                    <SelectItem value="high">{isEn ? 'High Priority' : 'Tinggi (High)'}</SelectItem>
-                                    <SelectItem value="medium">{isEn ? 'Medium' : 'Sedang (Medium)'}</SelectItem>
-                                    <SelectItem value="low">{isEn ? 'Low' : 'Rendah (Low)'}</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
