@@ -274,11 +274,6 @@ function UsersInner({ initialUsers, initialStats }) {
     };
 
     const handleResetPassword = async (targetUser) => {
-        if (targetUser.approval_status && targetUser.approval_status !== 'approved') {
-            showToast(lang === 'id' ? 'Akun belum disetujui (Pending). Tidak dapat mereset password akun ini.' : 'Account is pending approval. Cannot reset password for this account.', true);
-            return;
-        }
-
         const confirmMsg = lang === 'id'
             ? `Reset password untuk ${targetUser.name}?\nSistem akan membuat password baru dan mencatatnya ke audit log.`
             : `Reset password for ${targetUser.name}?\nThe system will generate a new password and log the action.`;
