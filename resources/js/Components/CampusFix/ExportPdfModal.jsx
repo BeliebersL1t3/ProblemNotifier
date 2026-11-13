@@ -257,47 +257,76 @@ export function ExportPdfModal({
             const rawCode = String(i.issue_code || i.id || '').replace(/^TEL-|^LEAN-/, '');
             const reportedTime = formatDateTime(i.created_at || i.reported_at || i.reportedAt);
 
-            // Taken Cell: date + worker name
+            // Problem: Title + Description
+            let problemText = '';
+            if (i.title && i.description && i.title.trim().toLowerCase() !== i.description.trim().toLowerCase()) {
+                problemText = `${i.title.trim()}\n${i.description.trim()}`;
+            } else {
+                problemText = i.title || i.description || '-';
+            }
+            const cleanProblem = sanitizePdfText(problemText);
+
+            // Taken Cell: date + worker name(s)
             let takenCell = '-';
             const takenTime = i.in_progress_at || i.claimed_at || i.taken_at || i.takenAt;
-            const workerList = Array.isArray(i.active_workers) && i.active_workers.length > 0
+            const activeWorkerList = Array.isArray(i.active_workers) && i.active_workers.length > 0
                 ? i.active_workers
-                : (i.claimed_by_name ? [i.claimed_by_name] : []);
-            const primaryWorker = workerList.length > 0 ? workerList[0].split(' ')[0] : '';
+                : (Array.isArray(i.progress_workers) && i.progress_workers.length > 0
+                    ? i.progress_workers
+                    : (i.claimed_by_name ? [i.claimed_by_name] : []));
+            const shortWorkerNames = activeWorkerList.map((w) => String(w).split(' ')[0]).join(', ');
 
             if (takenTime) {
-                takenCell = primaryWorker ? `${formatDateTime(takenTime)}\n[${primaryWorker}]` : formatDateTime(takenTime);
+                takenCell = shortWorkerNames ? `${formatDateTime(takenTime)}\n[${shortWorkerNames}]` : formatDateTime(takenTime);
             } else if (i.status === 'in_progress') {
-                takenCell = primaryWorker ? `[PROGRESS]\n${primaryWorker}` : '[PROGRESS]';
+                takenCell = shortWorkerNames ? `[PROGRESS]\n${shortWorkerNames}` : '[PROGRESS]';
             } else if (i.status === 'pending') {
-                takenCell = '[PENDING]';
+                takenCell = shortWorkerNames ? `[PENDING]\n${shortWorkerNames}` : '[PENDING]';
             }
 
-            // Solved Cell: date + resolver name
+            // Solved Cell: date + resolver name(s)
             let solvedCell = '-';
             const solvedTime = i.resolved_at || i.solved_at || i.solvedAt;
-            const resolverList = Array.isArray(i.final_workers) && i.final_workers.length > 0
+            const finalWorkerList = Array.isArray(i.final_workers) && i.final_workers.length > 0
                 ? i.final_workers
-                : (i.resolved_by_name ? [i.resolved_by_name] : []);
-            const primaryResolver = resolverList.length > 0 ? resolverList[0].split(' ')[0] : '';
+                : (i.resolved_by_name ? [i.resolved_by_name] : activeWorkerList);
+            const shortResolverNames = finalWorkerList.map((w) => String(w).split(' ')[0]).join(', ');
 
             if (solvedTime) {
-                solvedCell = primaryResolver ? `${formatDateTime(solvedTime)}\n[${primaryResolver}]` : formatDateTime(solvedTime);
+                solvedCell = shortResolverNames ? `${formatDateTime(solvedTime)}\n[${shortResolverNames}]` : formatDateTime(solvedTime);
             } else if (i.status === 'resolved' || i.status === 'solved') {
-                solvedCell = primaryResolver ? `[SOLVED]\n${primaryResolver}` : '[SOLVED]';
+                solvedCell = shortResolverNames ? `[SOLVED]\n${shortResolverNames}` : '[SOLVED]';
             }
 
             // Duration / Time Solve
             const duration = cleanDuration(i.duration_label || i.time_to_solve || i.durationLabel);
 
-            // Departments & Tags
+            // Departments with ACC Status & Tags
             const targetDepts = Array.isArray(i.target_departments)
                 ? i.target_departments
                 : (i.department ? [i.department] : []);
+            const accs = (typeof i.department_accs === 'object' && i.department_accs !== null)
+                ? i.department_accs
+                : {};
+
+            const deptLines = targetDepts.map((dept) => {
+                const isClaimed = i.claimed_by_dept && (i.claimed_by_dept.toLowerCase() === dept.toLowerCase());
+                const isAcc = accs[dept]?.is_acc || isClaimed;
+                const isWorking = i.status === 'in_progress' && isClaimed;
+
+                let tag = '';
+                if (isWorking) {
+                    tag = isEn ? ' [Working]' : ' [Dikerjakan]';
+                } else if (isAcc) {
+                    tag = ' [ACC]';
+                }
+                return `${dept}${tag}`;
+            });
+
             const taggedDepts = Array.isArray(i.tagged_departments) ? i.tagged_departments : [];
-            const deptLines = [];
-            if (targetDepts.length > 0) deptLines.push(`Dept: ${targetDepts.join(', ')}`);
-            if (taggedDepts.length > 0) deptLines.push(`Tag: ${taggedDepts.join(', ')}`);
+            if (taggedDepts.length > 0) {
+                deptLines.push(`Tag: ${taggedDepts.join(', ')}`);
+            }
             const combinedDeptTags = sanitizePdfText(deptLines.join('\n')) || '-';
 
             // Status string
@@ -305,18 +334,50 @@ export function ExportPdfModal({
             if (statusStr === 'IN_PROGRESS') statusStr = 'PROGRESS';
             if (statusStr === 'RESOLVED') statusStr = 'SOLVED';
 
+            // ETA (Target Selesai) Cell with SLA status
+            let etaCell = '-';
+            const rawEta = i.estimated_completion_at || i.estimatedCompletionAt;
+            if (rawEta) {
+                const etaFormatted = formatDateTime(rawEta);
+                const etaTimeMs = new Date(rawEta).getTime();
+                const resolvedTimeMs = (i.resolved_at || i.solved_at || i.solvedAt)
+                    ? new Date(i.resolved_at || i.solved_at || i.solvedAt).getTime()
+                    : null;
+
+                if (i.status === 'resolved' || i.status === 'solved') {
+                    if (resolvedTimeMs && !isNaN(resolvedTimeMs) && !isNaN(etaTimeMs)) {
+                        const onTime = resolvedTimeMs <= etaTimeMs;
+                        etaCell = onTime
+                            ? `${etaFormatted}\n[${isEn ? 'On Time' : 'Tepat Waktu'}]`
+                            : `${etaFormatted}\n[${isEn ? 'Overdue' : 'Lewat Target'}]`;
+                    } else {
+                        etaCell = etaFormatted;
+                    }
+                } else {
+                    if (!isNaN(etaTimeMs)) {
+                        const isOverdue = Date.now() > etaTimeMs;
+                        etaCell = isOverdue
+                            ? `${etaFormatted}\n[${isEn ? 'Overdue' : 'Lewat Target'}]`
+                            : `${etaFormatted}\n[${isEn ? 'Target' : 'Target'}]`;
+                    } else {
+                        etaCell = etaFormatted;
+                    }
+                }
+            }
+
             tableData.push([
                 rawCode,
                 reportedTime,
                 takenCell,
                 solvedCell,
                 duration,
-                sanitizePdfText(i.title || i.description || '-'),
+                cleanProblem,
                 sanitizePdfText(i.location || '-'),
                 combinedDeptTags,
                 sanitizePdfText(i.category || '-'),
                 sanitizePdfText(i.reporter_name || i.reporter || '-'),
                 statusStr,
+                etaCell,
             ]);
 
             // Sub-row: Pending Reason / Delay Timeline
@@ -325,7 +386,7 @@ export function ExportPdfModal({
                 tableData.push([
                     {
                         content: `Pending Reason: ${sanitizePdfText(reason)}`,
-                        colSpan: 11,
+                        colSpan: 12,
                         styles: {
                             fillColor: [255, 247, 237],
                             textColor: [194, 65, 12],
@@ -343,7 +404,7 @@ export function ExportPdfModal({
                     content: isEn
                         ? 'No records found matching the selected filter criteria.'
                         : 'Tidak ada laporan isu yang cocok dengan kriteria filter yang dipilih.',
-                    colSpan: 11,
+                    colSpan: 12,
                     styles: { halign: 'center', textColor: [120, 120, 120], fontStyle: 'italic', cellPadding: 8 },
                 },
             ]);
@@ -356,15 +417,16 @@ export function ExportPdfModal({
             head: [[
                 'ID',
                 'Submitted\n(Tgl & Waktu)',
-                'Taken\n(Tgl & Waktu)',
-                'Solved\n(Tgl & Waktu)',
+                'Taken / Petugas\n(Tgl & Waktu)',
+                'Solved / Penyelesai\n(Tgl & Waktu)',
                 'Time Solve',
-                'Problem',
+                'Problem\n(Judul & Ket)',
                 'Location',
-                'Dept / Tags',
+                'Dept (ACC)',
                 'Category',
                 'Reporter',
                 'Status',
+                'Target Selesai\n(ETA / SLA)',
             ]],
             body: tableData,
             theme: 'grid',
@@ -384,17 +446,18 @@ export function ExportPdfModal({
                 fillColor: [250, 248, 242], // Warm cream
             },
             columnStyles: {
-                0: { cellWidth: 17, halign: 'center', fontStyle: 'bold' }, // ID
+                0: { cellWidth: 16, halign: 'center', fontStyle: 'bold' }, // ID
                 1: { cellWidth: 22 }, // Submitted
-                2: { cellWidth: 22 }, // Taken
-                3: { cellWidth: 22 }, // Solved
-                4: { cellWidth: 17 }, // Time Solve
-                5: { cellWidth: 65 }, // Problem (broadened for clear descriptions)
-                6: { cellWidth: 24 }, // Location
-                7: { cellWidth: 33 }, // Dept / Tags
-                8: { cellWidth: 18 }, // Category
-                9: { cellWidth: 21 }, // Reporter
-                10: { cellWidth: 16, fontStyle: 'bold', halign: 'center' }, // Status
+                2: { cellWidth: 22 }, // Taken / Petugas
+                3: { cellWidth: 22 }, // Solved / Penyelesai
+                4: { cellWidth: 16 }, // Time Solve
+                5: { cellWidth: 46 }, // Problem (Judul & Ket)
+                6: { cellWidth: 20 }, // Location
+                7: { cellWidth: 30 }, // Dept (ACC)
+                8: { cellWidth: 17 }, // Category
+                9: { cellWidth: 20 }, // Reporter
+                10: { cellWidth: 18, fontStyle: 'bold', halign: 'center' }, // Status
+                11: { cellWidth: 28, halign: 'center' }, // Target Selesai (ETA)
             },
             didParseCell: function (data) {
                 // Color code Status column (Index 10)
@@ -408,6 +471,17 @@ export function ExportPdfModal({
                         data.cell.styles.textColor = [234, 88, 12]; // Orange
                     } else if (st === 'OPEN') {
                         data.cell.styles.textColor = [220, 38, 38]; // Red
+                    }
+                }
+                // Color code Target Selesai (ETA) column (Index 11)
+                if (data.section === 'body' && data.column.index === 11) {
+                    const text = String(data.cell.raw || '');
+                    if (text.includes('[Overdue]') || text.includes('[Lewat Target]')) {
+                        data.cell.styles.textColor = [220, 38, 38]; // Red
+                        data.cell.styles.fontStyle = 'bold';
+                    } else if (text.includes('[On Time]') || text.includes('[Tepat Waktu]')) {
+                        data.cell.styles.textColor = [22, 163, 74]; // Emerald
+                        data.cell.styles.fontStyle = 'bold';
                     }
                 }
             },
