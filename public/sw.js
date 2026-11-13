@@ -1,10 +1,10 @@
 /**
- * Telunas Fix - Offline-First Service Worker (v6)
+ * Telunas Fix - Offline-First Service Worker (v7)
  * Caches app shell, Vite build assets, maps, and handles offline outbox & web push.
  */
 
-const SHELL_CACHE_NAME = 'telunas-shell-v6';
-const MAPS_CACHE_NAME = 'telunas-maps-v6';
+const SHELL_CACHE_NAME = 'telunas-shell-v7';
+const MAPS_CACHE_NAME = 'telunas-maps-v7';
 
 const PRECACHE_ASSETS = [
     '/logo.png',

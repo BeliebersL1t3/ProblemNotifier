@@ -4248,127 +4248,129 @@ export default function LeanIndex({
                                 </div>
                             )}
 
-                            {/* Timeline Komentar Progress & Aktivitas */}
-                            {activeDetailIssue.progress_logs && activeDetailIssue.progress_logs.length > 0 && (
-                                <div className={`p-3 rounded-xl border space-y-2 text-xs ${
-                                    isDark ? 'bg-slate-900/90 border-sky-900/50' : 'bg-sky-50/60 border-sky-200'
-                                }`}>
-                                    <div className={`flex items-center gap-1.5 font-bold ${isDark ? 'text-sky-400' : 'text-sky-800'}`}>
-                                        <History className="w-3.5 h-3.5" />
-                                        <span>{isEn ? `Comments & Activity Timeline (${activeDetailIssue.progress_logs.length})` : `Timeline Komentar & Aktivitas (${activeDetailIssue.progress_logs.length})`}</span>
-                                    </div>
-                                    <div className="space-y-1.5 pl-2.5 border-l-2 border-sky-500/40">
-                                        {activeDetailIssue.progress_logs.map((log, idx) => {
-                                            const prevLog = idx > 0 ? activeDetailIssue.progress_logs[idx - 1] : null;
-                                            const isResumedFromPendingLog = log.type === 'claim' && (
-                                                prevLog?.type === 'pending' ||
-                                                String(log.message || '').toLowerCase().includes('dari status pending')
-                                            );
-                                            const effectiveLogType = isResumedFromPendingLog ? 'progress' : log.type;
+                            {/* Timeline Komentar Progress & Aktivitas (Eksklusif progres teknis & komentar, tidak menduplikasi pengalihan departemen) */}
+                            {(() => {
+                                const activityLogs = (activeDetailIssue.progress_logs || []).filter(log => log.type !== 'transfer');
+                                if (activityLogs.length === 0) return null;
 
-                                            const badgeStyles = isDark ? ({
-                                                claim: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
-                                                progress: 'bg-sky-500/20 text-sky-300 border-sky-500/30',
-                                                pending: 'bg-orange-500/20 text-orange-300 border-orange-500/30',
-                                                transfer: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30',
-                                                resolved: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
-                                            }[effectiveLogType] || 'bg-slate-500/20 text-slate-300 border-slate-500/30') : ({
-                                                claim: 'bg-amber-100 text-amber-800 border-amber-300',
-                                                progress: 'bg-sky-100 text-sky-800 border-sky-300',
-                                                pending: 'bg-orange-100 text-orange-800 border-orange-300',
-                                                transfer: 'bg-indigo-100 text-indigo-800 border-indigo-300',
-                                                resolved: 'bg-emerald-100 text-emerald-800 border-emerald-300',
-                                            }[effectiveLogType] || 'bg-slate-100 text-slate-700 border-slate-300');
+                                return (
+                                    <div className={`p-3 rounded-xl border space-y-2 text-xs ${
+                                        isDark ? 'bg-slate-900/90 border-sky-900/50' : 'bg-sky-50/60 border-sky-200'
+                                    }`}>
+                                        <div className={`flex items-center gap-1.5 font-bold ${isDark ? 'text-sky-400' : 'text-sky-800'}`}>
+                                            <History className="w-3.5 h-3.5" />
+                                            <span>{isEn ? `Comments & Activity Timeline (${activityLogs.length})` : `Timeline Komentar & Aktivitas (${activityLogs.length})`}</span>
+                                        </div>
+                                        <div className="space-y-1.5 pl-2.5 border-l-2 border-sky-500/40">
+                                            {activityLogs.map((log, idx) => {
+                                                const prevLog = idx > 0 ? activityLogs[idx - 1] : null;
+                                                const isResumedFromPendingLog = log.type === 'claim' && (
+                                                    prevLog?.type === 'pending' ||
+                                                    String(log.message || '').toLowerCase().includes('dari status pending')
+                                                );
+                                                const effectiveLogType = isResumedFromPendingLog ? 'progress' : log.type;
 
-                                            const typeText = {
-                                                claim: isEn ? 'Claim / Start' : 'Claim / Kerja',
-                                                progress: 'Progress',
-                                                pending: 'Pending',
-                                                transfer: isEn ? 'Transferred' : 'Dialihkan',
-                                                resolved: isEn ? 'Resolved' : 'Selesai',
-                                            }[effectiveLogType] || effectiveLogType;
+                                                const badgeStyles = isDark ? ({
+                                                    claim: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
+                                                    progress: 'bg-sky-500/20 text-sky-300 border-sky-500/30',
+                                                    pending: 'bg-orange-500/20 text-orange-300 border-orange-500/30',
+                                                    resolved: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
+                                                }[effectiveLogType] || 'bg-slate-500/20 text-slate-300 border-slate-500/30') : ({
+                                                    claim: 'bg-amber-100 text-amber-800 border-amber-300',
+                                                    progress: 'bg-sky-100 text-sky-800 border-sky-300',
+                                                    pending: 'bg-orange-100 text-orange-800 border-orange-300',
+                                                    resolved: 'bg-emerald-100 text-emerald-800 border-emerald-300',
+                                                }[effectiveLogType] || 'bg-slate-100 text-slate-700 border-slate-300');
 
-                                            return (
-                                                <div key={log.id || idx} className={`p-2 rounded-lg border space-y-1 ${
-                                                    isDark ? 'bg-slate-950/60 border-slate-800' : 'bg-white border-sky-200 shadow-2xs'
-                                                }`}>
-                                                    <div className="flex items-center justify-between gap-2 flex-wrap">
-                                                        <div className="flex items-center gap-1.5">
-                                                            <span className={`px-1.5 py-0.2 rounded text-[9.5px] font-bold border ${badgeStyles}`}>
-                                                                {typeText}
+                                                const typeText = {
+                                                    claim: isEn ? 'Claim / Start' : 'Claim / Kerja',
+                                                    progress: 'Progress',
+                                                    pending: 'Pending',
+                                                    resolved: isEn ? 'Resolved' : 'Selesai',
+                                                }[effectiveLogType] || effectiveLogType;
+
+                                                return (
+                                                    <div key={log.id || idx} className={`p-2 rounded-lg border space-y-1 ${
+                                                        isDark ? 'bg-slate-950/60 border-slate-800' : 'bg-white border-sky-200 shadow-2xs'
+                                                    }`}>
+                                                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                                                            <div className="flex items-center gap-1.5">
+                                                                <span className={`px-1.5 py-0.2 rounded text-[9.5px] font-bold border ${badgeStyles}`}>
+                                                                    {typeText}
+                                                                </span>
+                                                                <span className={`font-bold text-[11px] ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
+                                                                    {log.actor}
+                                                                </span>
+                                                                {log.actor_dept && (
+                                                                    <span className={`text-[10px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                                                                        ({formatDeptDisplay(log.actor_dept)})
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            <span className={`text-[10px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                                                                {formatDateTimeId(log.created_at)}
                                                             </span>
-                                                            <span className={`font-bold text-[11px] ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
-                                                                {log.actor}
-                                                            </span>
-                                                            {log.actor_dept && (
-                                                                <span className={`text-[10px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                                                                    ({formatDeptDisplay(log.actor_dept)})
+                                                        </div>
+                                                        {log.message && (
+                                                            <p className={`text-[11px] leading-snug ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                                                                {log.message}
+                                                            </p>
+                                                        )}
+                                                        {(log.estimated_completion_at || log.eta_cleared || log.cleared_eta || log.sla_status) && (
+                                                            <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                                                                {log.estimated_completion_at && (
+                                                                    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold border ${
+                                                                        isDark ? 'bg-sky-950/70 text-sky-300 border-sky-700/60' : 'bg-sky-50 text-sky-800 border-sky-200'
+                                                                    }`}>
+                                                                        <CalendarClock className="w-2.5 h-2.5 shrink-0" />
+                                                                        <span>
+                                                                            {isEn ? 'Target:' : 'Target:'}{' '}
+                                                                            {formatEtaDisplayWib(log.estimated_completion_at, isEn, false)}
+                                                                        </span>
+                                                                    </span>
+                                                                )}
+                                                                {(log.eta_cleared || log.cleared_eta) && (
+                                                                    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold border ${
+                                                                        isDark ? 'bg-slate-800 text-slate-300 border-slate-700' : 'bg-slate-100 text-slate-700 border-slate-300'
+                                                                    }`}>
+                                                                        <RotateCcw className="w-2.5 h-2.5 shrink-0" />
+                                                                        <span>{isEn ? 'ETA target cleared' : 'Target selesai dikosongkan'}</span>
+                                                                    </span>
+                                                                )}
+                                                                {log.sla_status && (
+                                                                    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold border ${
+                                                                        log.sla_status === 'on_time'
+                                                                            ? (isDark ? 'bg-emerald-950/70 text-emerald-300 border-emerald-700/60' : 'bg-emerald-50 text-emerald-800 border-emerald-200')
+                                                                            : (isDark ? 'bg-amber-950/70 text-amber-300 border-amber-700/60' : 'bg-amber-50 text-amber-800 border-amber-200')
+                                                                    }`}>
+                                                                        <span>
+                                                                            {log.sla_status === 'on_time'
+                                                                                ? (isEn ? 'SLA: On Time' : 'SLA: Tepat Waktu')
+                                                                                : (isEn ? 'SLA: Overdue' : 'SLA: Melewati Target')}
+                                                                        </span>
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                                                            {Array.isArray(log.workers) && log.workers.length > 0 && (
+                                                                <span className={`text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                                                    {isEn ? 'Team:' : 'Tim:'} <strong className={isDark ? 'text-slate-300' : 'text-slate-700'}>{log.workers.join(', ')}</strong>
+                                                                </span>
+                                                            )}
+                                                            {log.notified_wa && (
+                                                                <span className="text-[9.5px] text-emerald-400 font-semibold ml-auto">
+                                                                    {isEn ? 'Reporter WA Sent ✓' : 'WA Pelapor Terkirim ✓'}
                                                                 </span>
                                                             )}
                                                         </div>
-                                                        <span className={`text-[10px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                                                            {formatDateTimeId(log.created_at)}
-                                                        </span>
                                                     </div>
-                                                    {log.message && (
-                                                        <p className={`text-[11px] leading-snug ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                                                            {log.message}
-                                                        </p>
-                                                    )}
-                                                    {(log.estimated_completion_at || log.eta_cleared || log.cleared_eta || log.sla_status) && (
-                                                        <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-                                                            {log.estimated_completion_at && (
-                                                                <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold border ${
-                                                                    isDark ? 'bg-sky-950/70 text-sky-300 border-sky-700/60' : 'bg-sky-50 text-sky-800 border-sky-200'
-                                                                }`}>
-                                                                    <CalendarClock className="w-2.5 h-2.5 shrink-0" />
-                                                                    <span>
-                                                                        {isEn ? 'Target:' : 'Target:'}{' '}
-                                                                        {formatEtaDisplayWib(log.estimated_completion_at, isEn, false)}
-                                                                    </span>
-                                                                </span>
-                                                            )}
-                                                            {(log.eta_cleared || log.cleared_eta) && (
-                                                                <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold border ${
-                                                                    isDark ? 'bg-slate-800 text-slate-300 border-slate-700' : 'bg-slate-100 text-slate-700 border-slate-300'
-                                                                }`}>
-                                                                    <RotateCcw className="w-2.5 h-2.5 shrink-0" />
-                                                                    <span>{isEn ? 'ETA target cleared' : 'Target selesai dikosongkan'}</span>
-                                                                </span>
-                                                            )}
-                                                            {log.sla_status && (
-                                                                <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold border ${
-                                                                    log.sla_status === 'on_time'
-                                                                        ? (isDark ? 'bg-emerald-950/70 text-emerald-300 border-emerald-700/60' : 'bg-emerald-50 text-emerald-800 border-emerald-200')
-                                                                        : (isDark ? 'bg-amber-950/70 text-amber-300 border-amber-700/60' : 'bg-amber-50 text-amber-800 border-amber-200')
-                                                                }`}>
-                                                                    <span>
-                                                                        {log.sla_status === 'on_time'
-                                                                            ? (isEn ? 'SLA: On Time' : 'SLA: Tepat Waktu')
-                                                                            : (isEn ? 'SLA: Overdue' : 'SLA: Melewati Target')}
-                                                                    </span>
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                    )}
-                                                    <div className="flex items-center justify-between gap-2 flex-wrap">
-                                                        {Array.isArray(log.workers) && log.workers.length > 0 && (
-                                                            <span className={`text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                                                                {isEn ? 'Team:' : 'Tim:'} <strong className={isDark ? 'text-slate-300' : 'text-slate-700'}>{log.workers.join(', ')}</strong>
-                                                            </span>
-                                                        )}
-                                                        {log.notified_wa && (
-                                                            <span className="text-[9.5px] text-emerald-400 font-semibold ml-auto">
-                                                                {isEn ? 'Reporter WA Sent ✓' : 'WA Pelapor Terkirim ✓'}
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
+                                                );
+                                            })}
+                                        </div>
                                     </div>
-                                </div>
-                            )}
+                                );
+                            })()}
 
                             {/* Riwayat Pengalihan Departemen (Transfer History) */}
                             {activeDetailIssue.transfer_history && activeDetailIssue.transfer_history.length > 0 && (
