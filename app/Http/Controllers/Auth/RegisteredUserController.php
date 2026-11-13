@@ -83,13 +83,13 @@ class RegisteredUserController extends Controller
         if ($conflict) {
             $approvalStatus = $conflict->approval_status ?? 'approved';
 
-            if ($approvalStatus === 'pending_hod') {
+            if ($approvalStatus === 'pending_hod' || $approvalStatus === 'pending_admin') {
                 return response()->json([
                     'valid' => true,
                     'available' => false,
                     'exists_on_wa' => null,
                     'bot_online' => null,
-                    'message' => 'Nomor WhatsApp ini sudah terdaftar dan sedang dalam proses menunggu persetujuan HOD (Pending Approval). Silakan tunggu konfirmasi.',
+                    'message' => 'Nomor WhatsApp ini sudah terdaftar dan sedang dalam proses menunggu persetujuan Admin (Pending Approval). Silakan tunggu konfirmasi.',
                 ]);
             }
 
@@ -200,9 +200,7 @@ class RegisteredUserController extends Controller
                     $existing = User::where('email', $value)->first();
                     if ($existing) {
                         $status = $existing->approval_status ?? 'approved';
-                        if ($status === 'pending_hod') {
-                            $fail('Email ini sudah terdaftar dan sedang dalam proses menunggu persetujuan HOD. Silakan tunggu konfirmasi.');
-                        } elseif ($status === 'pending_admin') {
+                        if ($status === 'pending_hod' || $status === 'pending_admin') {
                             $fail('Email ini sudah terdaftar dan sedang dalam proses menunggu persetujuan Admin. Silakan tunggu konfirmasi.');
                         } elseif ($status !== 'rejected') {
                             $fail('Email ini sudah terdaftar di sistem. Silakan gunakan email lain atau hubungi Admin.');
@@ -227,10 +225,7 @@ class RegisteredUserController extends Controller
                     $conflict = User::whereIn('whatsapp_number', array_unique([$canonicalPhone, $zeroPhone]))->first();
                     if ($conflict) {
                         $status = $conflict->approval_status ?? 'approved';
-                        if ($status === 'pending_hod') {
-                            $fail('Nomor WhatsApp ini sudah terdaftar dan sedang menunggu persetujuan HOD. Silakan tunggu konfirmasi.');
-                            return;
-                        } elseif ($status === 'pending_admin') {
+                        if ($status === 'pending_hod' || $status === 'pending_admin') {
                             $fail('Nomor WhatsApp ini sudah terdaftar dan sedang menunggu persetujuan Admin. Silakan tunggu konfirmasi.');
                             return;
                         } elseif ($status !== 'rejected') {
@@ -280,7 +275,7 @@ class RegisteredUserController extends Controller
                 'whatsapp_number'         => $zeroPhone,
                 'role'                    => 'department',
                 'is_active'               => false,
-                'approval_status'         => 'pending_hod',
+                'approval_status'         => 'pending_admin',
                 'rejection_reason'        => null,
                 'rejected_by'             => null,
                 'rejected_at'             => null,
@@ -310,7 +305,7 @@ class RegisteredUserController extends Controller
                 'whatsapp_number'         => $zeroPhone,
                 'role'                    => 'department',
                 'is_active'               => false,
-                'approval_status'         => 'pending_hod',
+                'approval_status'         => 'pending_admin',
                 'notify_whatsapp_tickets' => true,
                 'permissions'             => \App\Http\Controllers\UserController::getDefaultPermissions('department'),
             ]);
@@ -340,14 +335,14 @@ class RegisteredUserController extends Controller
             'staff_name'      => $user->name,
             'email'           => $user->email,
             'requested_value' => $zeroPhone,
-            'status'          => 'pending_hod',
+            'status'          => 'pending_admin',
             'reason'          => $isReRegistration
                 ? 'Pendaftaran ulang akun mandiri dari Web Dashboard (setelah sebelumnya ditolak)'
                 : 'Pendaftaran akun mandiri dari Web Dashboard',
         ]);
 
-        // Notify HODs of the department
-        \App\Services\TicketNotificationService::notifyHods($ticket, $isReRegistration ? 'Pendaftaran Ulang Akun' : 'Pendaftaran Akun Baru');
+        // Notify Admins
+        \App\Services\TicketNotificationService::notifyAdmins($ticket, $isReRegistration ? 'Pendaftaran Ulang Akun' : 'Pendaftaran Akun Baru');
 
         // Notify Admins for monitoring
         \App\Services\TicketNotificationService::notifyAdminsNewRegistration($ticket);

@@ -562,10 +562,6 @@ export function LeanHeader({
                                     >
                                         {isAdmin
                                             ? 'Admin'
-                                            : effectiveUser?.hod_title
-                                            ? effectiveUser.hod_title
-                                            : effectiveUser?.is_hod
-                                            ? `HOD ${formatDeptDisplay(displayDept)}`
                                             : effectiveUser?.subdivision
                                             ? effectiveUser.subdivision.toLowerCase() !== (displayDept || '').toLowerCase()
                                                 ? `${effectiveUser.subdivision} (${formatDeptDisplay(displayDept)})`

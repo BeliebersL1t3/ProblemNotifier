@@ -38,7 +38,7 @@ export function useAuth() {
     return {
         user,
         isAdmin,
-        isHOD: Boolean(user?.is_hod),
+        isHOD: false,
         isDeptUser: user?.role === 'department',
         department: user?.department ?? null,
         subdivision: user?.subdivision ?? null,

@@ -61,13 +61,13 @@ class RegistrationTest extends TestCase
         $this->assertDatabaseHas('users', [
             'email' => 'test@example.com',
             'department' => 'Kitchen',
-            'approval_status' => 'pending_hod',
+            'approval_status' => 'pending_admin',
             'is_active' => false,
         ]);
         $this->assertDatabaseHas('approval_tickets', [
             'type' => 'account_registration',
             'email' => 'test@example.com',
-            'status' => 'pending_hod',
+            'status' => 'pending_admin',
         ]);
 
         $registeredUser = \App\Models\User::where('email', 'test@example.com')->first();
@@ -149,7 +149,7 @@ class RegistrationTest extends TestCase
         $rejectedUser->refresh();
         $this->assertEquals('Updated Name', $rejectedUser->name);
         $this->assertEquals('Front Office', $rejectedUser->department);
-        $this->assertEquals('pending_hod', $rejectedUser->approval_status);
+        $this->assertEquals('pending_admin', $rejectedUser->approval_status);
         $this->assertFalse($rejectedUser->is_active);
         $this->assertNull($rejectedUser->rejection_reason);
 
@@ -158,7 +158,7 @@ class RegistrationTest extends TestCase
             'user_id' => $rejectedUser->id,
             'type' => 'account_registration',
             'department' => 'Front Office',
-            'status' => 'pending_hod',
+            'status' => 'pending_admin',
         ]);
 
         // Check audit log recorded
@@ -173,22 +173,22 @@ class RegistrationTest extends TestCase
         Config::set('telunas.registration_enabled', true);
 
         \App\Models\User::factory()->create([
-            'email' => 'pending_hod@example.com',
+            'email' => 'pending_admin@example.com',
             'whatsapp_number' => '081299990002',
-            'approval_status' => 'pending_hod',
+            'approval_status' => 'pending_admin',
             'is_active' => false,
         ]);
 
-        // Phone check should be unavailable and mention pending HOD
+        // Phone check should be unavailable and mention pending Admin
         $resPhone = $this->postJson('/register/check-phone', ['phone' => '081299990002']);
         $resPhone->assertStatus(200);
         $this->assertFalse($resPhone->json('available'));
-        $this->assertStringContainsString('HOD', $resPhone->json('message'));
+        $this->assertStringContainsString('Admin', $resPhone->json('message'));
 
         // Registration form submission should fail with error
         $response = $this->post('/register', [
             'name' => 'Someone',
-            'email' => 'pending_hod@example.com',
+            'email' => 'pending_admin@example.com',
             'password' => 'password123',
             'password_confirmation' => 'password123',
             'department' => 'Kitchen',

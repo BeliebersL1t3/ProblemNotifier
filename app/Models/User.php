@@ -132,7 +132,7 @@ class User extends Authenticatable
 
     public function isHOD(): bool
     {
-        return (bool)$this->is_hod;
+        return false;
     }
 
     public function isDepartmentUser(): bool

@@ -25,8 +25,6 @@ export function UserModal({ isOpen, onClose, user = null, onSaved }) {
     const [subdivision, setSubdivision] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
-    const [isHod, setIsHod] = useState(false);
-    const [hodTitle, setHodTitle] = useState('');
 
     // Granular permissions
     const [permissions, setPermissions] = useState({
@@ -49,8 +47,6 @@ export function UserModal({ isOpen, onClose, user = null, onSaved }) {
                 setRole(user.role || 'department');
                 setDepartment(user.department || '');
                 setSubdivision(user.subdivision || '');
-                setIsHod(Boolean(user.is_hod));
-                setHodTitle(user.hod_title || '');
                 setPassword('');
                 setPermissions({
                     can_view_all_departments: user.permissions?.can_view_all_departments ?? (user.role === 'admin'),
@@ -65,8 +61,6 @@ export function UserModal({ isOpen, onClose, user = null, onSaved }) {
                 setRole('department');
                 setDepartment('HR');
                 setSubdivision('');
-                setIsHod(false);
-                setHodTitle('');
                 setPassword('telunas123');
                 setPermissions({
                     can_view_all_departments: false,
@@ -127,7 +121,7 @@ export function UserModal({ isOpen, onClose, user = null, onSaved }) {
                 setActiveTab('role');
                 return;
             }
-            if (!isHod && availableSubdivisions.length > 1 && !subdivision.trim()) {
+            if (availableSubdivisions.length > 1 && !subdivision.trim()) {
                 setErrorMessage(`Staf biasa wajib memilih salah satu unit kerja / subdivisi di bawah departemen ${department}.`);
                 setActiveTab('role');
                 return;
@@ -148,8 +142,8 @@ export function UserModal({ isOpen, onClose, user = null, onSaved }) {
             department: role === 'admin' ? null : department,
             subdivision: effectiveSubdivision,
             whatsapp_number: whatsappNumber,
-            is_hod: role === 'admin' ? false : isHod,
-            hod_title: (role !== 'admin' && isHod) ? hodTitle : null,
+            is_hod: false,
+            hod_title: null,
             permissions: isEdit ? { ...(user?.permissions || {}), ...permissions } : permissions,
             ...(password ? { password } : {}),
         };
@@ -440,15 +434,13 @@ export function UserModal({ isOpen, onClose, user = null, onSaved }) {
                                         <div>
                                             <div className="flex items-center justify-between mb-1">
                                                 <label className={`block text-xs font-bold uppercase tracking-wider ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                                                    Subdivisi / Unit Spesifik {availableSubdivisions.length > 1 && !isHod ? (
+                                                    Subdivisi / Unit Spesifik {availableSubdivisions.length > 1 ? (
                                                         <span className={`font-extrabold ${isDark ? 'text-rose-400' : 'text-rose-600'}`}>* (Wajib)</span>
-                                                    ) : (isHod ? (
-                                                        <span className={`font-normal normal-case ${isDark ? 'text-amber-300' : 'text-amber-700'}`}>(Opsional untuk HOD)</span>
                                                     ) : (
                                                         <span className={`font-normal normal-case ${isDark ? 'text-emerald-400' : 'text-emerald-700'}`}>(Otomatis)</span>
-                                                    ))}
+                                                    )}
                                                 </label>
-                                                {availableSubdivisions.length > 1 && !isHod && (
+                                                {availableSubdivisions.length > 1 && (
                                                     <span className={`text-[10px] font-medium ${isDark ? 'text-amber-400' : 'text-amber-700'}`}>Wajib pilih unit kerja</span>
                                                 )}
                                             </div>
@@ -469,72 +461,25 @@ export function UserModal({ isOpen, onClose, user = null, onSaved }) {
                                                         value={subdivision}
                                                         onChange={e => setSubdivision(e.target.value)}
                                                         className={`w-full rounded-xl border px-3.5 py-2.5 text-xs font-medium focus:outline-none transition-all ${
-                                                            !isHod && !subdivision
+                                                            !subdivision
                                                                 ? 'border-amber-500/60 focus:border-amber-400 ring-1 ring-amber-500/30'
                                                                 : isDark
                                                                 ? 'border-slate-700 focus:border-emerald-500'
                                                                 : 'border-slate-300 focus:border-emerald-600'
                                                         } ${isDark ? 'bg-slate-950 text-white' : 'bg-white text-slate-900'}`}
                                                     >
-                                                        {isHod ? (
-                                                            <option value="">Semua Subdivisi (Seluruh {department})</option>
-                                                        ) : (
-                                                            <option value="">-- Pilih Unit Spesifik (Wajib) --</option>
-                                                        )}
+                                                        <option value="">-- Pilih Unit Spesifik (Wajib) --</option>
                                                         {availableSubdivisions.map(s => (
                                                             <option key={s} value={s}>{s}</option>
                                                         ))}
                                                     </select>
                                                     <p className={`text-[11px] mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                                                        {isHod
-                                                            ? `Sebagai HOD, Anda dapat memilih "Semua Subdivisi" untuk memegang wewenang seluruh ${department}, atau pilih unit khusus jika diperlukan.`
-                                                            : `Staf operasional ${department} wajib ditempatkan pada salah satu unit kerja spesifik.`}
+                                                        Staf operasional {department} wajib ditempatkan pada salah satu unit kerja spesifik.
                                                     </p>
                                                 </>
                                             )}
                                         </div>
                                     )}
-
-                                    {/* HOD Hierarchy Assignment */}
-                                    <div className={`p-3.5 rounded-xl border mt-3 space-y-3 ${
-                                        isDark ? 'bg-slate-800/70 border-slate-700' : 'bg-slate-50 border-slate-200'
-                                    }`}>
-                                        <div className="flex items-center justify-between">
-                                            <div>
-                                                <div className={`text-xs font-bold flex items-center gap-1.5 ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                                                    👑 Head of Department (HOD)
-                                                </div>
-                                                <div className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-                                                    HOD berhak mereview & menyetujui tiket staf dan akun baru di {department || 'departemen ini'}.
-                                                </div>
-                                            </div>
-                                            <label className="relative inline-flex items-center cursor-pointer">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={isHod}
-                                                    onChange={e => setIsHod(e.target.checked)}
-                                                    className="sr-only peer"
-                                                />
-                                                <div className={`w-11 h-6 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600 ${
-                                                    isDark ? 'bg-slate-700' : 'bg-slate-300'
-                                                }`}></div>
-                                            </label>
-                                        </div>
-                                        {isHod && (
-                                            <div className={`pt-2 border-t ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
-                                                <label className={`block text-xs font-bold uppercase tracking-wider mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                                                    Gelar / Jabatan HOD (Opsional)
-                                                </label>
-                                                <Input
-                                                    type="text"
-                                                    value={hodTitle}
-                                                    onChange={e => setHodTitle(e.target.value)}
-                                                    placeholder="Contoh: Head of Engineering, HR Manager"
-                                                    className={isDark ? 'bg-slate-950 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'}
-                                                />
-                                            </div>
-                                        )}
-                                    </div>
                                 </>
                             )}
                         </div>

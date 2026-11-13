@@ -35,7 +35,6 @@ function UsersInner({ initialUsers, initialStats }) {
     const [searchQuery, setSearchQuery] = useState('');
     const [roleFilter, setRoleFilter] = useState('all');
     const [deptFilter, setDeptFilter] = useState('all');
-    const [hodFilter, setHodFilter] = useState(false);
     const [statusFilter, setStatusFilter] = useState('active'); // 'active' | 'archived'
     const [loading, setLoading] = useState(false);
 
@@ -199,7 +198,6 @@ function UsersInner({ initialUsers, initialStats }) {
             const params = new URLSearchParams();
             if (searchQuery) params.append('q', searchQuery);
             if (roleFilter !== 'all') params.append('role', roleFilter);
-            if (hodFilter) params.append('is_hod', '1');
             if (deptFilter !== 'all') params.append('department', deptFilter);
             if (statusFilter) params.append('status', statusFilter);
 
@@ -220,7 +218,7 @@ function UsersInner({ initialUsers, initialStats }) {
             fetchUsers();
         }, 250);
         return () => clearTimeout(timer);
-    }, [searchQuery, roleFilter, deptFilter, statusFilter, hodFilter]);
+    }, [searchQuery, roleFilter, deptFilter, statusFilter]);
 
     const handleCreateUser = () => {
         setSelectedUser(null);
@@ -311,24 +309,6 @@ function UsersInner({ initialUsers, initialStats }) {
         }
     };
 
-    const handleToggleHod = async (targetUser) => {
-        if (targetUser.approval_status && targetUser.approval_status !== 'approved') {
-            showToast(lang === 'id' ? 'Akun belum disetujui (Pending). Tidak dapat mengubah status HOD.' : 'Account is pending approval. Cannot change HOD status.', true);
-            return;
-        }
-
-        try {
-            const res = await axios.post(`/api/users/${targetUser.id}/toggle-hod`);
-            if (res.data?.success) {
-                showToast(res.data.message);
-                setUsers(prev => prev.map(u => u.id === targetUser.id ? { ...u, is_hod: res.data.is_hod } : u));
-            } else {
-                showToast(res.data?.message || 'Gagal mengubah status HOD', true);
-            }
-        } catch (e) {
-            showToast(e.response?.data?.message || 'Terjadi kesalahan sistem', true);
-        }
-    };
 
     return (
         <div
@@ -452,17 +432,16 @@ function UsersInner({ initialUsers, initialStats }) {
 
                 {activeMainTab === 'users' ? (
                     <>
-                        {/* Quick Stats Grid - 5 Balanced Columns, All Clickable with Two-Way Filter Sync */}
-                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                        {/* Quick Stats Grid - 4 Balanced Columns, All Clickable with Two-Way Filter Sync */}
+                        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                             {/* Total Akun Stat Card */}
                             <div
                                 onClick={() => {
                                     setStatusFilter('active');
                                     setRoleFilter('all');
-                                    setHodFilter(false);
                                 }}
                                 className={`rounded-2xl border p-3.5 space-y-1 cursor-pointer transition-all hover:scale-[1.01] liquid-glass-card liquid-glass-interactive ${
-                                    statusFilter === 'active' && roleFilter === 'all' && !hodFilter
+                                    statusFilter === 'active' && roleFilter === 'all'
                                         ? 'liquid-glass-tint-emerald outline-2 outline-emerald-500 -outline-offset-2'
                                         : ''
                                 }`}
@@ -470,7 +449,7 @@ function UsersInner({ initialUsers, initialStats }) {
                             >
                                 <div className={`text-[11px] font-bold uppercase tracking-wider flex items-center justify-between ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                                     <span>{lang === 'id' ? 'Total Akun' : 'Total Accounts'}</span>
-                                    {statusFilter === 'active' && roleFilter === 'all' && !hodFilter && (
+                                    {statusFilter === 'active' && roleFilter === 'all' && (
                                         <span className="text-[9px] font-black bg-emerald-600 text-white keep-white px-1.5 py-0.5 rounded">
                                             AKTIF
                                         </span>
@@ -482,16 +461,15 @@ function UsersInner({ initialUsers, initialStats }) {
                             {/* Admin Stat Card */}
                             <div
                                 onClick={() => {
-                                    if (roleFilter === 'admin' && !hodFilter && statusFilter === 'active') {
+                                    if (roleFilter === 'admin' && statusFilter === 'active') {
                                         setRoleFilter('all');
                                     } else {
                                         setStatusFilter('active');
                                         setRoleFilter('admin');
-                                        setHodFilter(false);
                                     }
                                 }}
                                 className={`rounded-2xl border p-3.5 space-y-1 cursor-pointer transition-all hover:scale-[1.01] liquid-glass-card liquid-glass-interactive liquid-glass-tint-emerald ${
-                                    roleFilter === 'admin' && !hodFilter && statusFilter === 'active'
+                                    roleFilter === 'admin' && statusFilter === 'active'
                                         ? 'outline-2 outline-emerald-400 -outline-offset-2'
                                         : ''
                                 }`}
@@ -499,7 +477,7 @@ function UsersInner({ initialUsers, initialStats }) {
                             >
                                 <div className={`text-[11px] font-bold uppercase tracking-wider flex items-center justify-between ${isDark ? 'text-emerald-400' : 'text-emerald-700'}`}>
                                     <span>Admin</span>
-                                    {roleFilter === 'admin' && !hodFilter && statusFilter === 'active' && (
+                                    {roleFilter === 'admin' && statusFilter === 'active' && (
                                         <span className="text-[9px] font-black bg-emerald-600 text-white keep-white px-1.5 py-0.5 rounded">
                                             AKTIF
                                         </span>
@@ -508,63 +486,32 @@ function UsersInner({ initialUsers, initialStats }) {
                                 <div className={`text-xl font-extrabold ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>{stats.total_admins ?? 0}</div>
                             </div>
 
-                            {/* Departemen Stat Card */}
+                            {/* User Biasa / Departemen Stat Card */}
                             <div
                                 onClick={() => {
-                                    if (roleFilter === 'department' && !hodFilter && statusFilter === 'active') {
+                                    if (roleFilter === 'department' && statusFilter === 'active') {
                                         setRoleFilter('all');
                                     } else {
                                         setStatusFilter('active');
                                         setRoleFilter('department');
-                                        setHodFilter(false);
                                     }
                                 }}
                                 className={`rounded-2xl border p-3.5 space-y-1 cursor-pointer transition-all hover:scale-[1.01] liquid-glass-card liquid-glass-interactive liquid-glass-tint-sky ${
-                                    roleFilter === 'department' && !hodFilter && statusFilter === 'active'
+                                    roleFilter === 'department' && statusFilter === 'active'
                                         ? 'outline-2 outline-sky-400 -outline-offset-2'
                                         : ''
                                 }`}
-                                title={lang === 'id' ? 'Klik untuk filter akun Departemen' : 'Click to filter Department accounts'}
+                                title={lang === 'id' ? 'Klik untuk filter akun User Biasa / Departemen' : 'Click to filter Department accounts'}
                             >
                                 <div className={`text-[11px] font-bold uppercase tracking-wider flex items-center justify-between ${isDark ? 'text-sky-400' : 'text-sky-700'}`}>
-                                    <span>Departemen</span>
-                                    {roleFilter === 'department' && !hodFilter && statusFilter === 'active' && (
+                                    <span>{lang === 'id' ? 'User Biasa / Staf' : 'Department Staff'}</span>
+                                    {roleFilter === 'department' && statusFilter === 'active' && (
                                         <span className="text-[9px] font-black bg-sky-600 text-white keep-white px-1.5 py-0.5 rounded">
                                             AKTIF
                                         </span>
                                     )}
                                 </div>
                                 <div className={`text-xl font-extrabold ${isDark ? 'text-sky-300' : 'text-sky-700'}`}>{stats.total_departments ?? 0}</div>
-                            </div>
-
-                            {/* HOD Stat Card */}
-                            <div
-                                onClick={() => {
-                                    if ((hodFilter || roleFilter === 'hod') && statusFilter === 'active') {
-                                        setRoleFilter('all');
-                                        setHodFilter(false);
-                                    } else {
-                                        setStatusFilter('active');
-                                        setRoleFilter('all');
-                                        setHodFilter(true);
-                                    }
-                                }}
-                                className={`rounded-2xl border p-3.5 space-y-1 cursor-pointer transition-all hover:scale-[1.01] liquid-glass-card liquid-glass-interactive liquid-glass-tint-amber ${
-                                    (hodFilter || roleFilter === 'hod') && statusFilter === 'active'
-                                        ? 'outline-2 outline-amber-400 -outline-offset-2'
-                                        : ''
-                                }`}
-                                title={lang === 'id' ? 'Klik untuk filter hanya akun HOD' : 'Click to filter HOD accounts'}
-                            >
-                                <div className={`text-[11px] font-bold uppercase tracking-wider flex items-center justify-between ${isDark ? 'text-amber-400' : 'text-amber-700'}`}>
-                                    <span>👑 HOD</span>
-                                    {(hodFilter || roleFilter === 'hod') && statusFilter === 'active' && (
-                                        <span className="text-[9px] font-black bg-amber-600 text-white keep-white px-1.5 py-0.5 rounded">
-                                            AKTIF
-                                        </span>
-                                    )}
-                                </div>
-                                <div className={`text-xl font-extrabold ${isDark ? 'text-amber-300' : 'text-amber-700'}`}>{stats.total_hod ?? 0}</div>
                             </div>
 
                             {/* Di-Archive Stat Card */}
@@ -576,7 +523,7 @@ function UsersInner({ initialUsers, initialStats }) {
                                         setStatusFilter('archived');
                                     }
                                 }}
-                                className={`col-span-2 sm:col-span-1 rounded-2xl border p-3.5 space-y-1 cursor-pointer transition-all hover:scale-[1.01] liquid-glass-card liquid-glass-interactive ${
+                                className={`rounded-2xl border p-3.5 space-y-1 cursor-pointer transition-all hover:scale-[1.01] liquid-glass-card liquid-glass-interactive ${
                                     statusFilter === 'archived'
                                         ? 'liquid-glass-tint-rose outline-2 outline-rose-400 -outline-offset-2'
                                         : ''
@@ -620,17 +567,8 @@ function UsersInner({ initialUsers, initialStats }) {
                                 <div className="grid grid-cols-2 gap-2 flex-1">
                                     {/* Role Filter */}
                                     <select
-                                        value={hodFilter ? 'hod' : roleFilter}
-                                        onChange={e => {
-                                            const val = e.target.value;
-                                            if (val === 'hod') {
-                                                setRoleFilter('all');
-                                                setHodFilter(true);
-                                            } else {
-                                                setHodFilter(false);
-                                                setRoleFilter(val);
-                                            }
-                                        }}
+                                        value={roleFilter}
+                                        onChange={e => setRoleFilter(e.target.value)}
                                         className={`w-full rounded-xl border px-3 py-2 text-xs font-medium focus:border-emerald-500 focus:outline-none cursor-pointer truncate liquid-glass-control ${
                                             isDark
                                                 ? 'text-slate-100'
@@ -639,8 +577,7 @@ function UsersInner({ initialUsers, initialStats }) {
                                     >
                                         <option value="all">Semua Role</option>
                                         <option value="admin">Administrator</option>
-                                        <option value="department">Department</option>
-                                        <option value="hod">👑 HOD ({stats.total_hod ?? 0})</option>
+                                        <option value="department">User Biasa / Staf</option>
                                     </select>
 
                                     {/* Department Filter */}
@@ -941,18 +878,6 @@ function UsersInner({ initialUsers, initialStats }) {
                                                                     YOU
                                                                 </span>
                                                             )}
-                                                            {u.is_hod && (
-                                                                <span
-                                                                    className={`px-1.5 py-0.5 rounded text-[9px] font-black border ${
-                                                                        isDark
-                                                                            ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-                                                                            : 'bg-amber-100 text-amber-800 border-amber-300'
-                                                                    }`}
-                                                                    title={u.hod_title || 'Head of Department'}
-                                                                >
-                                                                    👑 HOD
-                                                                </span>
-                                                            )}
                                                         </div>
                                                         <div className={`text-[11px] truncate mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                                                             {u.email}
@@ -1017,10 +942,7 @@ function UsersInner({ initialUsers, initialStats }) {
                                             {/* Bottom Row */}
                                             <div className={`flex items-center justify-between gap-1 pt-1.5 border-t ${isDark ? 'border-slate-800/80' : 'border-slate-100'}`}>
                                                 <div className="flex items-center gap-1 text-[10px]">
-                                                    {u.approval_status === 'pending_hod' && (
-                                                        <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${isDark ? 'bg-amber-500/20 text-amber-300' : 'bg-amber-100 text-amber-800'}`}>Pending HOD</span>
-                                                    )}
-                                                    {u.approval_status === 'pending_admin' && (
+                                                    {(u.approval_status === 'pending_admin' || u.approval_status === 'pending_hod') && (
                                                         <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${isDark ? 'bg-sky-500/20 text-sky-300' : 'bg-sky-100 text-sky-800'}`}>Pending Admin</span>
                                                     )}
                                                     {u.approval_status === 'rejected' && (
@@ -1078,32 +1000,6 @@ function UsersInner({ initialUsers, initialStats }) {
                                                     >
                                                         <Edit className="h-3.5 w-3.5" />
                                                     </button>
-
-                                                    {u.role !== 'admin' && (
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => handleToggleHod(u)}
-                                                            disabled={isPending}
-                                                            title={
-                                                                isPending
-                                                                    ? (lang === 'id' ? 'Akun belum disetujui (Pending Approval)' : 'Account pending approval')
-                                                                    : u.is_hod
-                                                                        ? `Cabut Status HOD (${u.staff_name || u.name})`
-                                                                        : `Jadikan HOD Departemen (${u.staff_name || u.name})`
-                                                            }
-                                                            className={`p-1.5 rounded-lg transition-all ${
-                                                                isPending
-                                                                    ? 'text-slate-500 cursor-not-allowed opacity-40'
-                                                                    : u.is_hod
-                                                                        ? 'text-amber-500 hover:bg-amber-500/15 cursor-pointer'
-                                                                        : isDark
-                                                                            ? 'text-slate-400 hover:text-amber-400 hover:bg-slate-800 cursor-pointer'
-                                                                            : 'text-slate-500 hover:text-amber-600 hover:bg-slate-100 cursor-pointer'
-                                                            }`}
-                                                        >
-                                                            <span className="text-xs">👑</span>
-                                                        </button>
-                                                    )}
 
                                                     {u.is_archived ? (
                                                         <button
@@ -1241,24 +1137,7 @@ function UsersInner({ initialUsers, initialStats }) {
                                                                 <div className="min-w-0">
                                                                     <div className={`font-bold text-sm flex items-center gap-2 flex-wrap ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
                                                                         <span>{u.staff_name || u.name}</span>
-                                                                        {u.is_hod && (
-                                                                            <span
-                                                                                className={`px-2 py-0.5 rounded text-[10px] font-black border ${
-                                                                                    isDark
-                                                                                        ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-                                                                                        : 'bg-amber-100 text-amber-800 border-amber-300'
-                                                                                }`}
-                                                                                title={u.hod_title || 'Head of Department'}
-                                                                            >
-                                                                                👑 HOD {u.hod_title ? `(${u.hod_title})` : ''}
-                                                                            </span>
-                                                                        )}
-                                                                        {u.approval_status === 'pending_hod' && (
-                                                                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${isDark ? 'bg-amber-500/20 text-amber-300 border-amber-500/30' : 'bg-amber-100 text-amber-800 border-amber-300'}`}>
-                                                                                PENDING HOD
-                                                                            </span>
-                                                                        )}
-                                                                        {u.approval_status === 'pending_admin' && (
+                                                                        {(u.approval_status === 'pending_admin' || u.approval_status === 'pending_hod') && (
                                                                             <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${isDark ? 'bg-sky-500/20 text-sky-300 border-sky-500/30' : 'bg-sky-100 text-sky-800 border-sky-300'}`}>
                                                                                 PENDING ADMIN
                                                                             </span>
@@ -1390,32 +1269,6 @@ function UsersInner({ initialUsers, initialStats }) {
                                                                 >
                                                                     <Edit className="h-4 w-4" />
                                                                 </button>
-
-                                                                {u.role !== 'admin' && (
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() => handleToggleHod(u)}
-                                                                        disabled={isPending}
-                                                                        title={
-                                                                            isPending
-                                                                                ? (lang === 'id' ? 'Akun belum disetujui (Pending Approval)' : 'Account pending approval')
-                                                                                : u.is_hod
-                                                                                    ? `Cabut Status HOD (${u.staff_name || u.name})`
-                                                                                    : `Jadikan HOD Departemen (${u.staff_name || u.name})`
-                                                                        }
-                                                                        className={`p-1.5 rounded-lg transition-all ${
-                                                                            isPending
-                                                                                ? 'text-slate-500 cursor-not-allowed opacity-40'
-                                                                                : u.is_hod
-                                                                                    ? 'text-amber-500 hover:bg-amber-500/15 cursor-pointer'
-                                                                                    : isDark
-                                                                                        ? 'text-slate-400 hover:text-amber-400 hover:bg-slate-800 cursor-pointer'
-                                                                                        : 'text-slate-500 hover:text-amber-600 hover:bg-slate-100 cursor-pointer'
-                                                                        }`}
-                                                                    >
-                                                                        <span className="text-xs">👑</span>
-                                                                    </button>
-                                                                )}
 
                                                                 {u.is_archived ? (
                                                                     <button

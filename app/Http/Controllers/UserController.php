@@ -222,15 +222,14 @@ class UserController extends Controller
 
         $role = $validated['role'];
         $permissions = $validated['permissions'] ?? self::getDefaultPermissions($role);
-        $isHod = $request->boolean('is_hod');
         $department = $validated['department'] ?? null;
         $subdivision = $validated['subdivision'] ?? null;
 
         if ($role !== 'admin' && !empty($department)) {
             $availableSubs = User::getSubdivisionsForDepartment($department);
-            if (!$isHod && count($availableSubs) > 1 && empty($subdivision)) {
+            if (count($availableSubs) > 1 && empty($subdivision)) {
                 return back()->withErrors([
-                    'subdivision' => "Staf biasa di departemen {$department} wajib memilih salah satu unit kerja / subdivisi spesifik."
+                    'subdivision' => "Staf di departemen {$department} wajib memilih salah satu unit kerja / subdivisi spesifik."
                 ]);
             }
             if (count($availableSubs) === 1 && empty($subdivision)) {
@@ -266,8 +265,8 @@ class UserController extends Controller
             'department'      => $department,
             'subdivision'     => $subdivision,
             'whatsapp_number' => $cleanPhone,
-            'is_hod'          => $isHod,
-            'hod_title'       => $validated['hod_title'] ?? null,
+            'is_hod'          => false,
+            'hod_title'       => null,
             'approval_status' => 'approved',
             'is_active'       => true,
             'notify_whatsapp_tickets' => true,
@@ -407,16 +406,15 @@ class UserController extends Controller
         }
 
         $newRole = $validated['role'];
-        $newIsHod = $request->has('is_hod') ? $request->boolean('is_hod') : (bool) $user->is_hod;
         $department = $validated['department'] ?? null;
         $subdivision = $validated['subdivision'] ?? null;
 
         if ($newRole !== 'admin' && !empty($department)) {
             $availableSubs = User::getSubdivisionsForDepartment($department);
-            if (!$newIsHod && count($availableSubs) > 1 && empty($subdivision)) {
+            if (count($availableSubs) > 1 && empty($subdivision)) {
                 return response()->json([
                     'success' => false,
-                    'message' => "Staf biasa di departemen {$department} wajib memilih salah satu unit kerja / subdivisi spesifik.",
+                    'message' => "Staf di departemen {$department} wajib memilih salah satu unit kerja / subdivisi spesifik.",
                 ], 422);
             }
             if (count($availableSubs) === 1 && empty($subdivision)) {
@@ -433,15 +431,8 @@ class UserController extends Controller
         }
 
         $actingAdmin = auth()->user();
-        $wasHod = (bool) $user->is_hod;
-        if ($request->has('is_hod')) {
-            $user->is_hod = $request->boolean('is_hod');
-        }
-        if ($request->has('hod_title')) {
-            $user->hod_title = $user->is_hod ? $request->input('hod_title') : null;
-        } elseif (!$user->is_hod) {
-            $user->hod_title = null;
-        }
+        $user->is_hod = false;
+        $user->hod_title = null;
         if ($request->has('is_active')) {
             $user->is_active = $request->boolean('is_active');
         }
@@ -465,16 +456,6 @@ class UserController extends Controller
         // Dispatch updated credentials via WhatsApp DM, or fallback to email
         if ($passwordChanged && !empty($validated['password'])) {
             $this->dispatchUserCredentials($user, $validated['password'], false);
-        }
-
-        // If HOD status was changed, notify user and other admins with acting admin info
-        if ($wasHod !== (bool) $user->is_hod) {
-            \App\Services\TicketNotificationService::notifyHodStatusChange(
-                $user,
-                (bool) $user->is_hod,
-                $actingAdmin,
-                $user->hod_title
-            );
         }
 
         // If department was changed, notify HOD of old department if this staff has active claimed issues needing reassignment
@@ -1011,46 +992,10 @@ class UserController extends Controller
     {
         $this->ensureAdmin();
 
-        $actingAdmin = auth()->user();
-        $user = User::withTrashed()->findOrFail($id);
-
-        if (($user->approval_status ?? 'approved') !== 'approved') {
-            return response()->json([
-                'success' => false,
-                'message' => 'Tidak dapat mengubah status HOD untuk akun yang belum disetujui (Pending).',
-            ], 422);
-        }
-        $user->is_hod = !$user->is_hod;
-        if ($request->filled('hod_title')) {
-            $user->hod_title = $request->input('hod_title');
-        } elseif (!$user->is_hod) {
-            $user->hod_title = null;
-        }
-        $user->save();
-
-        $this->syncStaffWithBot();
-
-        UserAuditLog::record(
-            $actingAdmin,
-            $user,
-            $user->is_hod ? 'USER_PROMOTED_HOD' : 'USER_DEMOTED_HOD',
-            ['is_hod' => $user->is_hod, 'hod_title' => $user->hod_title]
-        );
-
-        // Notify user about HOD status change and who did it
-        \App\Services\TicketNotificationService::notifyHodStatusChange(
-            $user,
-            (bool) $user->is_hod,
-            $actingAdmin,
-            $user->hod_title
-        );
-
         return response()->json([
-            'success' => true,
-            'message' => $user->is_hod ? "Akun {$user->name} dijadikan HOD." : "Status HOD {$user->name} dicabut.",
-            'is_hod'  => $user->is_hod,
-            'hod_title' => $user->hod_title,
-        ]);
+            'success' => false,
+            'message' => 'Fitur HOD saat ini dinonaktifkan. Struktur akun hanya Admin dan User Biasa.',
+        ], 400);
     }
 
     /**
@@ -1134,16 +1079,16 @@ class UserController extends Controller
                 // Send notification ONLY to HOD of the old department (admin receives only after HOD ACC)
                 DashboardNotification::create([
                     'department'  => $oldDepartment,
-                    'role_target' => 'hod',
+                    'role_target' => null,
                     'type'        => 'issue_progress',
                     'title'       => "⚠️ Staf Dimutasi: {$staffDisplayName} (Perlu Reassignment)",
-                    'message'     => "Staf {$staffDisplayName} telah dimutasi dari {$oldDepartment} ke {$newDepartment}. Terdapat {$activeIssuesCount} tiket aktif yang sebelumnya ditangani ({$sampleText}) dan memerlukan penugasan ulang oleh HOD.",
+                    'message'     => "Staf {$staffDisplayName} telah dimutasi dari {$oldDepartment} ke {$newDepartment}. Terdapat {$activeIssuesCount} tiket aktif yang sebelumnya ditangani ({$sampleText}) dan memerlukan penugasan ulang.",
                     'link'        => '/?dept=' . urlencode($oldDepartment),
                     'is_read'     => false,
                 ]);
             }
         } catch (\Throwable $e) {
-            Log::warning('Failed to notify HOD of transferred staff active issues: ' . $e->getMessage());
+            Log::warning('Failed to notify of transferred staff active issues: ' . $e->getMessage());
         }
     }
 

@@ -45,10 +45,10 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
     const { t, lang } = useLanguage();
     const { isDark } = useLeanTheme();
     const {
-        user, isAdmin, isHOD, isDeptUser, department, subdivision, staffName, whatsappNumber, avatarUrl, activeStaffRoster,
+        user, isAdmin, isDeptUser, department, subdivision, staffName, whatsappNumber, avatarUrl, activeStaffRoster,
         canViewAllDepartments, canManageIssues, canDeleteIssues, canExportReports
     } = useAuth();
-    const canDirectUpdateWa = isAdmin || isHOD;
+    const canDirectUpdateWa = isAdmin;
     const currentDeptTheme = department ? getDepartmentTheme(department) : { bg: '#059669', text: '#FFFFFF' };
 
     const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -776,9 +776,7 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
                                             <div className={`text-[10px] flex items-center gap-1 pt-0.5 ${isDark ? 'text-indigo-300/70' : 'text-indigo-700'}`}>
                                                 <span>⏳</span>
                                                 <span>
-                                                    {pendingNameTicket.status === 'pending_hod'
-                                                        ? (lang === 'id' ? 'Menunggu persetujuan HOD' : 'Pending HOD review')
-                                                        : (lang === 'id' ? 'Menunggu persetujuan ACC Admin' : 'Pending Admin final approval')}
+                                                    {lang === 'id' ? 'Menunggu persetujuan Admin' : 'Pending Admin approval'}
                                                 </span>
                                             </div>
                                         </div>
@@ -834,7 +832,7 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
                                                     Tujuan: <strong>{pendingTransferTicket.requested_value?.replace('::', ' — Subdivisi: ')}</strong>
                                                 </p>
                                                 <p className={`text-[10px] ${isDark ? 'text-teal-300/70' : 'text-teal-700'}`}>
-                                                    Status: Menunggu ACC <strong>{pendingTransferTicket.status === 'pending_hod' ? 'HOD Departemen Asal' : 'Admin'}</strong>
+                                                    Status: Menunggu ACC <strong>Admin</strong>
                                                 </p>
                                             </div>
                                         )}
@@ -882,19 +880,6 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
                                     </div>
                                 )}
 
-                                {isHOD && (
-                                    <div
-                                        className={`p-2.5 rounded-xl border flex items-start gap-2.5 ${
-                                            isDark ? 'bg-amber-500/10 border-amber-500/30' : 'bg-amber-50 border-amber-200'
-                                        }`}
-                                    >
-                                        <Crown className={`w-4 h-4 shrink-0 mt-0.5 ${isDark ? 'text-amber-400' : 'text-amber-600'}`} />
-                                        <div>
-                                            <p className={`font-bold ${isDark ? 'text-amber-200' : 'text-amber-900'}`}>Head of Department (HOD)</p>
-                                            <p className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Pimpinan departemen dengan wewenang persetujuan tiket dan manajemen tim.</p>
-                                        </div>
-                                    </div>
-                                )}
 
                                 {canViewAllDepartments && !isAdmin && (
                                     <div
@@ -1245,7 +1230,7 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
                                         <span>Permohonan Perubahan WhatsApp (#{pendingTicket.ticket_number})</span>
                                     </div>
                                     <p>
-                                        Permohonan nomor baru <strong>{pendingTicket.requested_value || 'Pelepasan Nomor'}</strong> sedang menunggu persetujuan <strong>{pendingTicket.status === 'pending_hod' ? 'HOD Departemen' : 'Admin'}</strong>.
+                                        Permohonan nomor baru <strong>{pendingTicket.requested_value || 'Pelepasan Nomor'}</strong> sedang menunggu persetujuan <strong>Admin</strong>.
                                     </p>
                                     <p className={`text-[11px] pt-1 border-t ${isDark ? 'text-amber-300/90 border-amber-500/30' : 'text-amber-800 border-amber-200'}`}>
                                         ℹ️ Nomor WhatsApp Anda saat ini <strong>({user?.whatsapp_number || '-'})</strong> tetap aktif digunakan sistem hingga permohonan disetujui.
@@ -1289,7 +1274,7 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
                                         <span>
                                             {canDirectUpdateWa
                                                 ? (lang === 'id' ? 'Nomor WhatsApp berhasil diperbarui secara langsung!' : 'WhatsApp number updated directly!')
-                                                : (lang === 'id' ? 'Tiket permohonan perubahan nomor WhatsApp telah dikirim ke HOD!' : 'WhatsApp update ticket submitted to HOD!')}
+                                                : (lang === 'id' ? 'Tiket permohonan perubahan nomor WhatsApp telah dikirim ke Admin!' : 'WhatsApp update ticket submitted to Admin!')}
                                         </span>
                                     </div>
                                 )}
@@ -1350,11 +1335,11 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
                                 <p className={`text-[11px] leading-relaxed ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                                     💡 {canDirectUpdateWa
                                         ? (lang === 'id'
-                                            ? `Sebagai ${isAdmin ? 'Administrator' : 'Head of Department (HOD)'}, nomor WhatsApp Anda langsung aktif dan disinkronkan ke sistem & bot tanpa tiket permohonan.`
-                                            : `As ${isAdmin ? 'Administrator' : 'Head of Department (HOD)'}, your WhatsApp number is directly updated and synced to the system and bot without approval tickets.`)
+                                            ? 'Sebagai Administrator, nomor WhatsApp Anda langsung aktif dan disinkronkan ke sistem & bot.'
+                                            : 'As Administrator, your WhatsApp number is directly updated and synced to the system and bot.')
                                         : (lang === 'id'
-                                            ? 'Perubahan nomor WhatsApp memerlukan persetujuan HOD Departemen dan Admin. Nomor lama Anda tetap aktif selama masa verifikasi.'
-                                            : 'WhatsApp number change requires approval from your Department HOD and Admin. Your current number remains active during verification.')}
+                                            ? 'Perubahan data akun dikelola langsung oleh Administrator.'
+                                            : 'Account updates are managed directly by the Administrator.')}
                                 </p>
 
                                 <div className="pt-2 flex items-center justify-between gap-3 flex-wrap">
@@ -1390,7 +1375,7 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
                                                 <span>
                                                     {canDirectUpdateWa
                                                         ? (user?.whatsapp_number ? (lang === 'id' ? 'Perbarui Nomor' : 'Update Number') : (lang === 'id' ? 'Simpan Nomor' : 'Save Number'))
-                                                        : (lang === 'id' ? 'Ajukan Perubahan ke HOD' : 'Submit Request to HOD')}
+                                                        : (lang === 'id' ? 'Ajukan Perubahan ke Admin' : 'Submit Request to Admin')}
                                                 </span>
                                             </>
                                         )}
@@ -1887,7 +1872,7 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
                                         {isAdmin
                                             ? (lang === 'id' ? 'Sebagai Admin, Anda dapat mengganti kata sandi Anda secara langsung.' : 'As Admin, you can update your password directly.')
                                             : approvalTicketsEnabled
-                                                ? (lang === 'id' ? 'Sesuai SOP Telunas, permohonan reset password staf akan ditinjau oleh HOD sebelum disetujui Admin.' : 'Per Telunas SOP, staff password reset requests are reviewed by HOD before Admin approval.')
+                                                ? (lang === 'id' ? 'Sesuai SOP Telunas, permohonan reset password staf akan ditinjau dan disetujui Admin.' : 'Per Telunas SOP, staff password reset requests are reviewed and approved by Admin.')
                                                 : (lang === 'id' ? 'Penggantian atau reset kata sandi akun staf dikelola langsung oleh Administrator.' : 'Staff password resets or changes are handled directly by the Administrator.')}
                                     </p>
                                 </div>
@@ -2043,7 +2028,7 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
                                                 <span>Tiket Reset Password Sedang Diproses (#{pendingTicket.ticket_number})</span>
                                             </div>
                                             <p>
-                                                Permohonan reset kata sandi Anda saat ini sedang dalam tahap peninjauan <strong>{pendingTicket.status === 'pending_hod' ? 'HOD Departemen' : 'Admin'}</strong>.
+                                                Permohonan reset kata sandi Anda saat ini sedang dalam tahap peninjauan <strong>Admin</strong>.
                                             </p>
                                             <p className={`text-[11px] pt-1 border-t ${isDark ? 'text-amber-300/90 border-amber-500/30' : 'text-amber-800 border-amber-200'}`}>
                                                 Anda akan menerima kata sandi baru atau konfirmasi setelah tiket disetujui.
@@ -2060,7 +2045,7 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
                                                     }`}
                                                 >
                                                     <CheckCircle2 className={`h-4 w-4 shrink-0 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
-                                                    <span>Permohonan tiket reset password telah berhasil diajukan ke HOD!</span>
+                                                    <span>Permohonan tiket reset password telah berhasil diajukan ke Admin!</span>
                                                 </div>
                                             )}
 
@@ -2121,7 +2106,7 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
                                                     ) : (
                                                         <>
                                                             <KeyRound className="h-4 w-4" />
-                                                            <span>Ajukan Reset Password ke HOD</span>
+                                                            <span>Ajukan Reset Password ke Admin</span>
                                                         </>
                                                     )}
                                                 </button>
@@ -2257,21 +2242,10 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
                         >
                             <p className={`font-bold flex items-center gap-1.5 ${isDark ? 'text-emerald-400' : 'text-emerald-700'}`}>
                                 <ShieldAlert className={`w-3.5 h-3.5 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
-                                {isHOD ? 'Alur Persetujuan Mutasi Pimpinan:' : 'Alur Persetujuan Bertingkat:'}
+                                Alur Persetujuan Mutasi:
                             </p>
-                            {isHOD ? (
-                                <>
-                                    <p>1. Sebagai <strong>Head of Department (HOD)</strong>, tiket Anda otomatis langsung diteruskan ke <strong>Admin Resort</strong> untuk ACC final.</p>
-                                    <p>2. Admin Resort akan menentukan penetapan status pimpinan Anda di departemen baru.</p>
-                                    <p>3. Riwayat isu yang pernah Anda tangani sebelumnya tetap dapat dilihat (Read-Only).</p>
-                                </>
-                            ) : (
-                                <>
-                                    <p>1. Permohonan akan ditinjau & diverifikasi oleh <strong>HOD Departemen {department}</strong>.</p>
-                                    <p>2. Setelah disetujui HOD, <strong>Admin Resort</strong> akan memberikan ACC final.</p>
-                                    <p>3. Riwayat isu yang pernah Anda tangani sebelumnya tetap dapat dilihat (Read-Only).</p>
-                                </>
-                            )}
+                            <p>1. Permohonan mutasi akan langsung ditinjau & diverifikasi oleh <strong>Admin Resort</strong> untuk persetujuan final.</p>
+                            <p>2. Riwayat isu yang pernah Anda tangani sebelumnya tetap dapat dilihat (Read-Only).</p>
                         </div>
 
                         {/* Footer Buttons */}
@@ -2304,7 +2278,7 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
                                 ) : (
                                     <>
                                         <ArrowRightLeft className="h-3.5 w-3.5" />
-                                        <span>Kirim Permohonan ke HOD</span>
+                                        <span>Kirim Permohonan ke Admin</span>
                                     </>
                                 )}
                             </button>
@@ -2417,7 +2391,7 @@ function ProfileInner({ pendingTicket, pendingTransferTicket, pendingNameTicket,
                                 <ShieldCheck className={`w-3.5 h-3.5 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
                                 {lang === 'id' ? 'Alur Verifikasi & Sinkronisasi Data:' : 'Verification & Synchronization:'}
                             </p>
-                            <p>1. Permohonan nama baru akan diverifikasi oleh <strong>{isHOD ? 'Admin Resort' : `HOD Departemen ${department || ''} & Admin Resort`}</strong>.</p>
+                            <p>1. Permohonan nama baru akan diverifikasi langsung oleh <strong>Admin Resort</strong>.</p>
                             <p>2. Begitu disetujui, nama akun dan daftar staf untuk klaim <strong>WhatsApp Bot</strong> otomatis diperbarui.</p>
                         </div>
 
