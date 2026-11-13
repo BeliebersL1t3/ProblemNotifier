@@ -68,6 +68,7 @@ import {
 import { getEtaBadgeInfo, formatEtaDisplayWib } from '@/Components/CampusFix/EtaPickerField';
 import { TPI_MASTERPLAN_ZONES, TBR_MASTERPLAN_ZONES, resolveIssueResortAndZone } from '@/constants/locations';
 import { useLanguage } from '@/context/LanguageContext';
+import { ExportPdfModal } from '@/Components/CampusFix/ExportPdfModal';
 
 const DEPARTMENT_COLORS = {
     'Engineer': '#38bdf8',          // Sky
@@ -1650,6 +1651,7 @@ export function LeanAnalyticsView({
     // 5. Hotspot Location Modal
     const [selectedLocationForModal, setSelectedLocationForModal] = useState(null);
     const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+    const [isExportPdfModalOpen, setIsExportPdfModalOpen] = useState(false);
     const [nowMs, setNowMs] = useState(() => Date.now());
 
     useEffect(() => {
@@ -1923,61 +1925,47 @@ export function LeanAnalyticsView({
         };
     }, [filteredIssues]);
 
-    // Handle Download PDF
+    const timeLabels = useMemo(() => (isEn
+        ? {
+              all: 'All Months (All Tabs)',
+              today: 'Today',
+              '7d': 'Last 7 Days',
+              '30d': 'Last 30 Days',
+              month_1: 'January',
+              month_2: 'February',
+              month_3: 'March',
+              month_4: 'April',
+              month_5: 'May',
+              month_6: 'June',
+              month_7: 'July',
+              month_8: 'August',
+              month_9: 'September',
+              month_10: 'October',
+              month_11: 'November',
+              month_12: 'December',
+          }
+        : {
+              all: 'Semua Bulan (Semua Tab)',
+              today: 'Hari Ini',
+              '7d': '7 Hari Terakhir',
+              '30d': '30 Hari Terakhir',
+              month_1: 'Bulan Januari',
+              month_2: 'Bulan Februari',
+              month_3: 'Bulan Maret',
+              month_4: 'Bulan April',
+              month_5: 'Bulan Mei',
+              month_6: 'Bulan Juni',
+              month_7: 'Bulan Juli',
+              month_8: 'Bulan Agustus',
+              month_9: 'Bulan September',
+              month_10: 'Bulan Oktober',
+              month_11: 'Bulan November',
+              month_12: 'Bulan Desember',
+          }), [isEn]);
+
+    // Handle Download PDF: Open official landscape export modal with interactive preview
     const handleDownloadPdf = () => {
-        setIsDownloadingPdf(true);
-        try {
-            const timeLabels = isEn
-                ? {
-                      all: 'All Months (All Tabs)',
-                      today: 'Today',
-                      '7d': 'Last 7 Days',
-                      '30d': 'Last 30 Days',
-                      month_1: 'January',
-                      month_2: 'February',
-                      month_3: 'March',
-                      month_4: 'April',
-                      month_5: 'May',
-                      month_6: 'June',
-                      month_7: 'July',
-                      month_8: 'August',
-                      month_9: 'September',
-                      month_10: 'October',
-                      month_11: 'November',
-                      month_12: 'December',
-                  }
-                : {
-                      all: 'Semua Bulan (Semua Tab)',
-                      today: 'Hari Ini',
-                      '7d': '7 Hari Terakhir',
-                      '30d': '30 Hari Terakhir',
-                      month_1: 'Bulan Januari',
-                      month_2: 'Bulan Februari',
-                      month_3: 'Bulan Maret',
-                      month_4: 'Bulan April',
-                      month_5: 'Bulan Mei',
-                      month_6: 'Bulan Juni',
-                      month_7: 'Bulan Juli',
-                      month_8: 'Bulan Agustus',
-                      month_9: 'Bulan September',
-                      month_10: 'Bulan Oktober',
-                      month_11: 'Bulan November',
-                      month_12: 'Bulan Desember',
-                  };
-            exportTelunasPdfReport({
-                filteredIssues,
-                stats,
-                timeLabel: timeLabels[timeRange] || timeRange,
-                deptTargetData: deptMetrics.targetList,
-                hotspotList,
-                lang,
-            });
-        } catch (err) {
-            console.error('Error generating PDF:', err);
-            alert((isEn ? 'Failed to generate PDF: ' : 'Gagal membuat PDF: ') + err.message);
-        } finally {
-            setIsDownloadingPdf(false);
-        }
+        setIsExportPdfModalOpen(true);
     };
 
     return (
@@ -2040,12 +2028,11 @@ export function LeanAnalyticsView({
                         <button
                             type="button"
                             onClick={handleDownloadPdf}
-                            disabled={isDownloadingPdf}
-                            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white keep-white shadow-sm transition-all cursor-pointer disabled:opacity-50"
-                            title={isEn ? 'Download Official Telunas Summary Report (Print-ready PDF)' : 'Download Laporan Rekapitulasi Resmi Telunas (PDF Siap Cetak)'}
+                            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white keep-white shadow-sm transition-all cursor-pointer hover:scale-[1.02] active:scale-95"
+                            title={isEn ? 'Open Official Telunas Landscape PDF Export (Classic Report with Preview)' : 'Buka Ekspor PDF Resmi Telunas (Format Klasik Landscape & Pratinjau)'}
                         >
                             <Download className="w-4 h-4 shrink-0 text-white" />
-                            <span className="text-white">{isDownloadingPdf ? (isEn ? 'Generating PDF...' : 'Menyiapkan PDF...') : 'Download PDF'}</span>
+                            <span className="text-white">Download PDF</span>
                         </button>
                     </div>
                 </div>
@@ -2662,6 +2649,18 @@ export function LeanAnalyticsView({
                     </div>
                 </div>
             )}
+
+            {/* OFFICIAL TELUNAS LANDSCAPE PDF EXPORT MODAL WITH LIVE PREVIEW */}
+            <ExportPdfModal
+                open={isExportPdfModalOpen}
+                onOpenChange={setIsExportPdfModalOpen}
+                issues={filteredIssues}
+                departments={departments}
+                timeLabel={timeLabels[timeRange] || timeRange}
+                stats={stats}
+                deptTargetData={deptMetrics.targetList}
+                hotspotList={hotspotList}
+            />
         </div>
     );
 }
