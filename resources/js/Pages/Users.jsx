@@ -5,7 +5,7 @@ import {
     Users as UsersIcon, Plus, Search, Shield, ShieldCheck, ShieldAlert, 
     KeyRound, Building2, Phone, CheckCircle2, AlertCircle, Edit, Trash2, 
     RefreshCw, RotateCcw, Activity, Eye, Filter, Lock, ArrowLeft,
-    Check, CheckSquare, Square, MinusSquare, FileSpreadsheet, ClipboardCheck
+    Check, CheckSquare, Square, MinusSquare, FileSpreadsheet
 } from 'lucide-react';
 
 import { useLanguage } from '@/context/LanguageContext';
@@ -24,8 +24,6 @@ export default function UsersPage({ initialUsers = [], initialStats = {} }) {
 }
 
 function UsersInner({ initialUsers, initialStats }) {
-    const { props: pageProps } = usePage();
-    const approvalTicketsEnabled = Boolean(pageProps?.features?.approval_tickets);
     const { lang } = useLanguage();
     const { isDark } = useLeanTheme();
     const { user: currentUser } = useAuth();
@@ -226,15 +224,6 @@ function UsersInner({ initialUsers, initialStats }) {
     };
 
     const handleEditUser = (u) => {
-        if (u.approval_status && u.approval_status !== 'approved') {
-            showToast(
-                approvalTicketsEnabled
-                    ? (lang === 'id' ? 'Akun belum disetujui (Pending). Modifikasi data akun hanya dapat diproses melalui menu Approval Tickets.' : 'Account is pending approval. Modifications must be processed via Approval Tickets.')
-                    : (lang === 'id' ? 'Akun masih berstatus pending dan belum aktif sehingga belum dapat dimodifikasi.' : 'Account is pending activation and cannot be modified yet.'),
-                true
-            );
-            return;
-        }
         setSelectedUser(u);
         setIsUserModalOpen(true);
     };
@@ -829,10 +818,6 @@ function UsersInner({ initialUsers, initialStats }) {
                                     const deptTheme = u.department ? getDepartmentTheme(u.department) : { bg: '#059669', text: '#FFFFFF' };
                                     const isMe = u.id === currentUser?.id;
                                     const isSelected = selectedUserIds.includes(u.id);
-                                    const isPending = Boolean(u.approval_status && u.approval_status !== 'approved');
-                                    const approvalTicketUrl = u.pending_ticket_number
-                                        ? `/tickets?search=${encodeURIComponent(u.pending_ticket_number)}`
-                                        : `/tickets?search=${encodeURIComponent(u.email || u.name)}`;
 
                                     return (
                                         <div
@@ -942,44 +927,20 @@ function UsersInner({ initialUsers, initialStats }) {
                                             {/* Bottom Row */}
                                             <div className={`flex items-center justify-between gap-1 pt-1.5 border-t ${isDark ? 'border-slate-800/80' : 'border-slate-100'}`}>
                                                 <div className="flex items-center gap-1 text-[10px]">
-                                                    {(u.approval_status === 'pending_admin' || u.approval_status === 'pending_hod') && (
-                                                        <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${isDark ? 'bg-sky-500/20 text-sky-300' : 'bg-sky-100 text-sky-800'}`}>Pending Admin</span>
-                                                    )}
-                                                    {u.approval_status === 'rejected' && (
-                                                        <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${isDark ? 'bg-rose-500/20 text-rose-300' : 'bg-rose-100 text-rose-800'}`}>Ditolak</span>
-                                                    )}
                                                     {u.is_archived && (
                                                         <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${isDark ? 'bg-rose-500/20 text-rose-300' : 'bg-rose-100 text-rose-800'}`}>Archived</span>
                                                     )}
                                                 </div>
 
                                                 <div className="flex items-center gap-1">
-                                                    {approvalTicketsEnabled && isPending && (
-                                                        <Link
-                                                            href={approvalTicketUrl}
-                                                            title={lang === 'id' ? 'Tinjau & Setujui di Menu Approval Ticket' : 'Review & Approve in Approval Tickets'}
-                                                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold border transition-all cursor-pointer mr-0.5 ${
-                                                                isDark
-                                                                    ? 'bg-sky-500/20 text-sky-300 hover:bg-sky-500/30 border-sky-500/40'
-                                                                    : 'bg-sky-50 text-sky-700 hover:bg-sky-100 border-sky-200'
-                                                            }`}
-                                                        >
-                                                            <ClipboardCheck className="h-3 w-3" />
-                                                            <span>Review</span>
-                                                        </Link>
-                                                    )}
-
                                                     <button
                                                         type="button"
                                                         onClick={() => handleResetPassword(u)}
-                                                        disabled={isPending}
-                                                        title={isPending ? (lang === 'id' ? 'Akun belum disetujui (Pending Approval)' : 'Account pending approval') : 'Reset Password 1-Klik'}
+                                                        title="Reset Password 1-Klik"
                                                         className={`p-1.5 rounded-lg transition-all ${
-                                                            isPending
-                                                                ? 'text-slate-500 cursor-not-allowed opacity-40'
-                                                                : isDark
-                                                                    ? 'text-slate-400 hover:text-emerald-400 hover:bg-slate-800 cursor-pointer'
-                                                                    : 'text-slate-500 hover:text-emerald-700 hover:bg-slate-100 cursor-pointer'
+                                                            isDark
+                                                                ? 'text-slate-400 hover:text-emerald-400 hover:bg-slate-800 cursor-pointer'
+                                                                : 'text-slate-500 hover:text-emerald-700 hover:bg-slate-100 cursor-pointer'
                                                         }`}
                                                     >
                                                         <KeyRound className="h-3.5 w-3.5" />
@@ -988,14 +949,11 @@ function UsersInner({ initialUsers, initialStats }) {
                                                     <button
                                                         type="button"
                                                         onClick={() => handleEditUser(u)}
-                                                        disabled={isPending}
-                                                        title={isPending ? (lang === 'id' ? 'Akun belum disetujui (Pending Approval)' : 'Account pending approval') : 'Edit Akun & Izin'}
+                                                        title="Edit Akun & Izin"
                                                         className={`p-1.5 rounded-lg transition-all ${
-                                                            isPending
-                                                                ? 'text-slate-500 cursor-not-allowed opacity-40'
-                                                                : isDark
-                                                                    ? 'text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer'
-                                                                    : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100 cursor-pointer'
+                                                            isDark
+                                                                ? 'text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer'
+                                                                : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100 cursor-pointer'
                                                         }`}
                                                     >
                                                         <Edit className="h-3.5 w-3.5" />
@@ -1090,10 +1048,6 @@ function UsersInner({ initialUsers, initialStats }) {
                                                 const deptTheme = u.department ? getDepartmentTheme(u.department) : { bg: '#059669', text: '#FFFFFF' };
                                                 const isMe = u.id === currentUser?.id;
                                                 const isSelected = selectedUserIds.includes(u.id);
-                                                const isPending = Boolean(u.approval_status && ['pending_hod', 'pending_admin'].includes(u.approval_status));
-                                                const approvalTicketUrl = u.pending_ticket_number
-                                                    ? `/tickets?search=${encodeURIComponent(u.pending_ticket_number)}`
-                                                    : `/tickets?search=${encodeURIComponent(u.email || u.name)}`;
 
                                                 return (
                                                     <tr
@@ -1137,19 +1091,6 @@ function UsersInner({ initialUsers, initialStats }) {
                                                                 <div className="min-w-0">
                                                                     <div className={`font-bold text-sm flex items-center gap-2 flex-wrap ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
                                                                         <span>{u.staff_name || u.name}</span>
-                                                                        {(u.approval_status === 'pending_admin' || u.approval_status === 'pending_hod') && (
-                                                                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${isDark ? 'bg-sky-500/20 text-sky-300 border-sky-500/30' : 'bg-sky-100 text-sky-800 border-sky-300'}`}>
-                                                                                PENDING ADMIN
-                                                                            </span>
-                                                                        )}
-                                                                        {u.approval_status === 'rejected' && (
-                                                                            <span
-                                                                                className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${isDark ? 'bg-rose-500/20 text-rose-300 border-rose-500/30' : 'bg-rose-100 text-rose-800 border-rose-300'}`}
-                                                                                title={u.rejection_reason || 'Pendaftaran ditolak'}
-                                                                            >
-                                                                                DITOLAK
-                                                                            </span>
-                                                                        )}
                                                                         {isMe && (
                                                                             <span className="px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-emerald-600 text-white keep-white">
                                                                                 YOU
@@ -1223,32 +1164,14 @@ function UsersInner({ initialUsers, initialStats }) {
                                                         {/* Actions */}
                                                         <td className="py-3 px-4 text-right">
                                                             <div className="flex items-center justify-end gap-1.5">
-                                                                {approvalTicketsEnabled && isPending && (
-                                                                    <Link
-                                                                        href={approvalTicketUrl}
-                                                                        title={lang === 'id' ? 'Tinjau & Setujui di Menu Approval Ticket' : 'Review & Approve in Approval Tickets'}
-                                                                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all cursor-pointer mr-1 ${
-                                                                            isDark
-                                                                                ? 'bg-sky-500/20 text-sky-300 hover:bg-sky-500/30 border-sky-500/40'
-                                                                                : 'bg-sky-50 text-sky-700 hover:bg-sky-100 border-sky-200'
-                                                                        }`}
-                                                                    >
-                                                                        <ClipboardCheck className="h-3.5 w-3.5" />
-                                                                        <span>Review Approval</span>
-                                                                    </Link>
-                                                                )}
-
                                                                 <button
                                                                     type="button"
                                                                     onClick={() => handleResetPassword(u)}
-                                                                    disabled={isPending}
-                                                                    title={isPending ? (lang === 'id' ? 'Akun belum disetujui (Pending Approval)' : 'Account pending approval') : 'Reset Password 1-Klik'}
+                                                                    title="Reset Password 1-Klik"
                                                                     className={`p-1.5 rounded-lg transition-all ${
-                                                                        isPending
-                                                                            ? 'text-slate-500 cursor-not-allowed opacity-40'
-                                                                            : isDark
-                                                                                ? 'text-slate-400 hover:text-emerald-400 hover:bg-slate-800 cursor-pointer'
-                                                                                : 'text-slate-500 hover:text-emerald-700 hover:bg-slate-100 cursor-pointer'
+                                                                        isDark
+                                                                            ? 'text-slate-400 hover:text-emerald-400 hover:bg-slate-800 cursor-pointer'
+                                                                            : 'text-slate-500 hover:text-emerald-700 hover:bg-slate-100 cursor-pointer'
                                                                     }`}
                                                                 >
                                                                     <KeyRound className="h-4 w-4" />
@@ -1257,14 +1180,11 @@ function UsersInner({ initialUsers, initialStats }) {
                                                                 <button
                                                                     type="button"
                                                                     onClick={() => handleEditUser(u)}
-                                                                    disabled={isPending}
-                                                                    title={isPending ? (lang === 'id' ? 'Akun belum disetujui (Pending Approval)' : 'Account pending approval') : 'Edit Akun & Izin'}
+                                                                    title="Edit Akun & Izin"
                                                                     className={`p-1.5 rounded-lg transition-all ${
-                                                                        isPending
-                                                                            ? 'text-slate-500 cursor-not-allowed opacity-40'
-                                                                            : isDark
-                                                                                ? 'text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer'
-                                                                                : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100 cursor-pointer'
+                                                                        isDark
+                                                                            ? 'text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer'
+                                                                            : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100 cursor-pointer'
                                                                     }`}
                                                                 >
                                                                     <Edit className="h-4 w-4" />

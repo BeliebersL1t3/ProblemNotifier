@@ -38,9 +38,9 @@ Route::middleware('auth')->group(function () {
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
     Route::get('/users', [UserController::class, 'index'])->name('users.index');
 
-    // Approval Tickets
-    Route::get('/tickets', [ApprovalTicketController::class, 'index'])->name('tickets.index');
-    Route::redirect('/approvals', '/tickets');
+    // Approval Tickets - Disabled and Redirected to Dashboard
+    Route::redirect('/tickets', '/')->name('tickets.index');
+    Route::redirect('/approvals', '/');
     Route::get('/tickets/export-data', [ApprovalTicketController::class, 'exportData'])->name('tickets.exportData');
     Route::post('/tickets/sync-sheet', [ApprovalTicketController::class, 'syncSheet'])->name('tickets.syncSheet');
     Route::post('/tickets/whatsapp', [ApprovalTicketController::class, 'storeWhatsappTicket'])->name('tickets.whatsapp');
