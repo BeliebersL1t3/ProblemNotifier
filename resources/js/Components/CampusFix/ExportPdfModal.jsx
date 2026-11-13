@@ -17,7 +17,8 @@ import {
 } from '@/Components/UI/Select';
 import {
     Loader2, Download, FileText, Filter, RefreshCw, CheckCircle2,
-    Clock, AlertTriangle, Layers, Building2, SlidersHorizontal, Check, X
+    Clock, AlertTriangle, Layers, Building2, SlidersHorizontal, Check, X,
+    ExternalLink
 } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
 import { useLeanTheme } from '@/hooks/useLeanTheme';
@@ -51,7 +52,7 @@ export function ExportPdfModal({
     const [selectedDept, setSelectedDept] = useState('all');
     const [selectedPriority, setSelectedPriority] = useState('all');
     const [limit, setLimit] = useState('All');
-    const [includeExecSummary, setIncludeExecSummary] = useState(true);
+    const [includeKpiSummary, setIncludeKpiSummary] = useState(true);
     const [includePendingTimeline, setIncludePendingTimeline] = useState(true);
 
     const [previewUrl, setPreviewUrl] = useState(null);
@@ -166,7 +167,7 @@ export function ExportPdfModal({
         });
     };
 
-    // PDF Builder Engine (A4 Landscape)
+    // PDF Builder Engine (A4 Landscape - Classic Single-Flow Layout)
     const buildPdfDocument = () => {
         const doc = new jsPDF('landscape', 'mm', 'a4');
         const pageWidth = doc.internal.pageSize.getWidth();
@@ -174,50 +175,45 @@ export function ExportPdfModal({
         const resolvedPeriod = timeLabel || (isEn ? 'All Months' : 'Semua Bulan');
 
         // =========================================================================
-        // PAGE 1: EXECUTIVE SUMMARY & ANALYTICS (IF ENABLED)
+        // KOP RESMI TELUNAS RESORTS (PAGE 1)
         // =========================================================================
-        if (includeExecSummary) {
-            // Logo top left
-            if (logoImgRef.current) {
-                try {
-                    doc.addImage(logoImgRef.current, 'JPEG', 14, 10, 26, 26);
-                } catch (e) {
-                    console.warn('[ExportPdfModal] Failed to add image to jsPDF:', e);
-                }
+        // Logo top left
+        if (logoImgRef.current) {
+            try {
+                doc.addImage(logoImgRef.current, 'JPEG', 10, 8, 22, 22);
+            } catch (e) {
+                console.warn('[ExportPdfModal] Failed to add image to jsPDF:', e);
             }
+        }
 
-            // Company & Address header
-            doc.setFont('helvetica', 'normal');
-            doc.setFontSize(8);
-            doc.setTextColor(100, 116, 139);
-            doc.text('PT Island Connections International - Telunas Resorts', 44, 14);
-            doc.text('Ruko Imperium Superblok Blok B No 35&36, Jl. Sudirman, Taman Baloi, Batam Kota, Riau Islands 29432', 44, 18.5);
-            doc.text(isEn ? 'Official Operational Issue Tracking & Resolution Report' : 'Laporan Resmi Penanganan & Rekapitulasi Isu Operasional', 44, 23);
+        // Company & Address header
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.setTextColor(100, 116, 139);
+        doc.text('PT Island Connections International - Telunas Resorts', 36, 12);
+        doc.text('Ruko Imperium Superblok Blok B No 35&36, Jl. Sudirman, Taman Baloi, Batam Kota, Riau Islands 29432', 36, 16);
+        doc.text(
+            isEn
+                ? 'Official Operational Issue Tracking & Resolution Report'
+                : 'Laporan Resmi Penanganan & Rekapitulasi Isu Operasional',
+            36,
+            20
+        );
 
-            // Document Title
-            doc.setFont('helvetica', 'bold');
-            doc.setFontSize(11);
-            doc.setTextColor(28, 27, 14); // #1C1B0E
-            doc.text(
-                isEn
-                    ? `OPERATIONAL SUMMARY & ANALYTICS — Period: ${resolvedPeriod}`
-                    : `RINGKASAN OPERASIONAL & ANALISIS — Periode: ${resolvedPeriod}`,
-                44,
-                29
-            );
+        // Document Title & Filter Period
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9.5);
+        doc.setTextColor(28, 27, 14); // #1C1B0E
+        const deptLabel = selectedDept === 'all' ? (isEn ? 'All Depts' : 'Semua Dept') : selectedDept;
+        doc.text(
+            `Issue Tracking Report — Period: ${resolvedPeriod} | Filter: ${deptLabel}`,
+            36,
+            25
+        );
 
-            // Decorative separator line
-            doc.setDrawColor(200, 180, 150);
-            doc.setLineWidth(0.6);
-            doc.line(14, 38, pageWidth - 14, 38);
-
-            // KPI Cards row (4 boxes)
-            const boxY = 42;
-            const boxGap = 5;
-            const numBoxes = 4;
-            const boxWidth = (pageWidth - 28 - (boxGap * (numBoxes - 1))) / numBoxes;
-            const boxHeight = 19;
-
+        // Optional Compact 1-line KPI strip
+        let startY = 28;
+        if (includeKpiSummary) {
             const totalCount = stats.total || filteredIssues.length || 0;
             const resCount = stats.resolved || filteredIssues.filter((i) => i.status === 'resolved' || i.status === 'solved').length;
             const resRate = totalCount > 0 ? Math.round((resCount / totalCount) * 100) : 0;
@@ -227,168 +223,30 @@ export function ExportPdfModal({
                 ? `${stats.onTimeResolvedCount || 0}/${stats.evaluatedSlaCount} (${stats.onTimeRate || 0}%)`
                 : '-';
 
-            // Card 1: Total Tiket
-            doc.setFillColor(248, 250, 252);
-            doc.setDrawColor(226, 232, 240);
-            doc.roundedRect(14, boxY, boxWidth, boxHeight, 2, 2, 'FD');
-            doc.setFont('helvetica', 'normal');
-            doc.setFontSize(7.5);
-            doc.setTextColor(100, 116, 139);
-            doc.text(isEn ? 'TOTAL TICKETS' : 'TOTAL TIKET', 18, boxY + 6);
+            const summaryY = 27.5;
+            const summaryHeight = 6.5;
+
+            doc.setFillColor(250, 248, 242); // Warm cream
+            doc.setDrawColor(227, 209, 170); // Tan border
+            doc.setLineWidth(0.3);
+            doc.roundedRect(10, summaryY, pageWidth - 20, summaryHeight, 1.5, 1.5, 'FD');
+
             doc.setFont('helvetica', 'bold');
-            doc.setFontSize(13);
-            doc.setTextColor(15, 23, 42);
-            doc.text(String(totalCount), 18, boxY + 14);
-
-            // Card 2: Selesai (Resolved)
-            doc.setFillColor(240, 253, 244);
-            doc.setDrawColor(187, 247, 208);
-            doc.roundedRect(14 + (boxWidth + boxGap), boxY, boxWidth, boxHeight, 2, 2, 'FD');
-            doc.setFont('helvetica', 'normal');
             doc.setFontSize(7.5);
-            doc.setTextColor(22, 101, 52);
-            doc.text(isEn ? 'RESOLVED TICKETS' : 'TIKET SELESAI', 18 + (boxWidth + boxGap), boxY + 6);
-            doc.setFont('helvetica', 'bold');
-            doc.setFontSize(13);
-            doc.setTextColor(21, 128, 61);
-            doc.text(`${resCount} (${resRate}%)`, 18 + (boxWidth + boxGap), boxY + 14);
+            doc.setTextColor(28, 27, 14);
 
-            // Card 3: Belum Selesai (Backlog)
-            doc.setFillColor(255, 241, 242);
-            doc.setDrawColor(254, 205, 211);
-            doc.roundedRect(14 + (boxWidth + boxGap) * 2, boxY, boxWidth, boxHeight, 2, 2, 'FD');
-            doc.setFont('helvetica', 'normal');
-            doc.setFontSize(7.5);
-            doc.setTextColor(159, 18, 57);
-            doc.text(isEn ? 'UNRESOLVED (BACKLOG)' : 'BELUM SELESAI (BACKLOG)', 18 + (boxWidth + boxGap) * 2, boxY + 6);
-            doc.setFont('helvetica', 'bold');
-            doc.setFontSize(13);
-            doc.setTextColor(225, 29, 72);
-            doc.text(`${unresCount} (${backlogRate}%)`, 18 + (boxWidth + boxGap) * 2, boxY + 14);
+            const summaryLine = isEn
+                ? `TOTAL: ${totalCount} issues  |  SOLVED: ${resCount} (${resRate}%)  |  BACKLOG: ${unresCount} (${backlogRate}%)  |  ETA PUNCTUALITY: ${slaText}`
+                : `TOTAL: ${totalCount} tiket  |  SELESAI: ${resCount} (${resRate}%)  |  BELUM SELESAI: ${unresCount} (${backlogRate}%)  |  KETEPATAN SLA: ${slaText}`;
 
-            // Card 4: Ketepatan ETA / SLA
-            doc.setFillColor(240, 249, 255);
-            doc.setDrawColor(186, 230, 253);
-            doc.roundedRect(14 + (boxWidth + boxGap) * 3, boxY, boxWidth, boxHeight, 2, 2, 'FD');
-            doc.setFont('helvetica', 'normal');
-            doc.setFontSize(7.5);
-            doc.setTextColor(3, 105, 161);
-            doc.text(isEn ? 'ETA SLA PUNCTUALITY' : 'KETEPATAN TARGET (SLA)', 18 + (boxWidth + boxGap) * 3, boxY + 6);
-            doc.setFont('helvetica', 'bold');
-            doc.setFontSize(13);
-            doc.setTextColor(2, 132, 199);
-            doc.text(slaText, 18 + (boxWidth + boxGap) * 3, boxY + 14);
+            doc.text(summaryLine, 14, summaryY + 4.5);
 
-            // Side-by-side Tables: Sebaran Departemen (Left) & Hotspot Lokasi (Right)
-            const deptRows = (deptTargetData || []).slice(0, 7).map((d, idx) => [
-                idx + 1,
-                d.name === 'Umum' && isEn ? 'General' : d.name,
-                d.total,
-                d.resolved,
-                d.active,
-                `${d.backlogRate}%`,
-            ]);
-
-            const hotspotRows = (hotspotList || []).slice(0, 7).map((h, idx) => [
-                idx + 1,
-                h.location === 'Lainnya' && isEn ? 'Other' : h.location,
-                h.resort || '-',
-                h.total,
-                h.openCount,
-            ]);
-
-            const leftTableWidth = 145;
-            const rightTableX = 14 + leftTableWidth + 6;
-            const rightTableWidth = pageWidth - 14 - rightTableX;
-
-            autoTable(doc, {
-                startY: 66,
-                head: [
-                    isEn
-                        ? ['#', 'Target Department', 'Total', 'Solved', 'Active', 'Backlog %']
-                        : ['#', 'Departemen Dituju', 'Total', 'Selesai', 'Aktif', 'Rasio Backlog'],
-                ],
-                body: deptRows.length > 0 ? deptRows : [['-', isEn ? 'No department data' : 'Tidak ada data', 0, 0, 0, '0%']],
-                theme: 'striped',
-                headStyles: { fillColor: [227, 209, 170], textColor: [28, 27, 14], fontSize: 7.5, fontStyle: 'bold' },
-                bodyStyles: { fontSize: 7.5 },
-                columnStyles: {
-                    0: { cellWidth: 8, halign: 'center' },
-                    1: { cellWidth: 54 },
-                    2: { cellWidth: 18, halign: 'center' },
-                    3: { cellWidth: 20, halign: 'center', textColor: [21, 128, 61] },
-                    4: { cellWidth: 20, halign: 'center', textColor: [225, 29, 72] },
-                    5: { cellWidth: 25, halign: 'center', fontStyle: 'bold' },
-                },
-                margin: { left: 14, right: pageWidth - 14 - leftTableWidth },
-            });
-
-            autoTable(doc, {
-                startY: 66,
-                head: [
-                    isEn
-                        ? ['#', 'Top Location', 'Resort', 'Total', 'Open']
-                        : ['#', 'Lokasi Terbanyak', 'Resort', 'Total', 'Belum Selesai'],
-                ],
-                body: hotspotRows.length > 0 ? hotspotRows : [['-', isEn ? 'No location data' : 'Tidak ada data', '-', 0, 0]],
-                theme: 'striped',
-                headStyles: { fillColor: [51, 65, 85], textColor: [255, 255, 255], fontSize: 7.5, fontStyle: 'bold' },
-                bodyStyles: { fontSize: 7.5 },
-                columnStyles: {
-                    0: { cellWidth: 8, halign: 'center' },
-                    1: { cellWidth: 48 },
-                    2: { cellWidth: 22, halign: 'center' },
-                    3: { cellWidth: 18, halign: 'center' },
-                    4: { cellWidth: 22, halign: 'center', textColor: [225, 29, 72], fontStyle: 'bold' },
-                },
-                margin: { left: rightTableX, right: 14 },
-            });
-
-            // Transition text to detailed table
-            doc.setFont('helvetica', 'italic');
-            doc.setFontSize(8);
-            doc.setTextColor(100, 116, 139);
-            doc.text(
-                isEn
-                    ? '-> Detailed 12-column operational issue records continue on the following page(s)...'
-                    : '-> Daftar tabel rinci 12-kolom seluruh laporan isu operasional dilanjutkan pada halaman berikutnya...',
-                14,
-                pageHeight - 12
-            );
-
-            // Add page for the classic detailed issues table
-            doc.addPage('landscape');
+            startY = 36.5;
         }
 
         // =========================================================================
-        // PAGE 2+: CLASSIC DETAILED 12-COLUMN ISSUE TRACKING TABLE
+        // CLASSIC DETAILED 12-COLUMN ISSUE TRACKING TABLE (STARTS ON PAGE 1)
         // =========================================================================
-        // Page Header for Table
-        if (logoImgRef.current) {
-            try {
-                doc.addImage(logoImgRef.current, 'JPEG', 10, 8, 22, 22);
-            } catch (e) {
-                console.warn('[ExportPdfModal] Failed to add image to jsPDF:', e);
-            }
-        }
-
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(8);
-        doc.setTextColor(100, 100, 100);
-        doc.text('PT Island Connections International - Telunas Resorts', 36, 12);
-        doc.text('Ruko Imperium Superblok Blok B No 35&36, Jl. Sudirman, Batam Kota, Riau Islands 29432', 36, 16);
-        doc.text('Telunas Resorts Issue Tracking & Resolution Report', 36, 20);
-
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(9.5);
-        doc.setTextColor(28, 27, 14); // #1C1B0E
-        doc.text(
-            `Issue Tracking Report — Period: ${resolvedPeriod} | Filter: ${selectedDept === 'all' ? 'All Depts' : selectedDept}`,
-            36,
-            25.5
-        );
-
-        // Prepare table body data
         const tableData = [];
 
         displayIssues.forEach((i) => {
@@ -489,8 +347,9 @@ export function ExportPdfModal({
         }
 
         autoTable(doc, {
-            startY: 30,
-            margin: { left: 10, right: 10, bottom: 20 },
+            startY: startY,
+            margin: { left: 10, right: 10, bottom: 15 },
+            showHead: 'everyPage',
             head: [[
                 'ID',
                 'Submitted\n(Tgl & Waktu)',
@@ -528,7 +387,7 @@ export function ExportPdfModal({
                 2: { cellWidth: 21 }, // Taken
                 3: { cellWidth: 21 }, // Solved
                 4: { cellWidth: 16 }, // Time Solve
-                5: { cellWidth: 42 }, // Problem
+                5: { cellWidth: 47 }, // Problem (fills to 277mm)
                 6: { cellWidth: 20 }, // Location
                 7: { cellWidth: 32 }, // Dept / Tags
                 8: { cellWidth: 18 }, // Category
@@ -570,23 +429,17 @@ export function ExportPdfModal({
                 doc.setFontSize(7.5);
                 doc.setFont('helvetica', 'italic');
                 doc.setTextColor(150, 150, 150);
-                doc.text(str, data.settings.margin.left, pHeight - 8);
+                doc.text(str, data.settings.margin.left, pHeight - 6);
 
-                // Footer Right: Title & Record Count
+                // Footer Right: Title, Record Count & Page Number
                 doc.setFont('helvetica', 'bold');
-                doc.setFontSize(8.5);
+                doc.setFontSize(7.5);
                 doc.setTextColor(100, 100, 100);
 
-                const titleText = `Official Issue Report (${resolvedPeriod})`;
-                const totalText = `Total Records: ${displayIssues.length}`;
+                const footerRight = `Official Issue Report (${resolvedPeriod}) | Total: ${displayIssues.length} | Page ${data.pageNumber}`;
+                const footerRightWidth = doc.getTextWidth(footerRight);
 
-                const titleWidth = doc.getTextWidth(titleText);
-                const totalWidth = doc.getTextWidth(totalText);
-
-                doc.text(titleText, pWidth - data.settings.margin.right - titleWidth, pHeight - 11);
-                doc.setFont('helvetica', 'normal');
-                doc.setFontSize(7.5);
-                doc.text(totalText, pWidth - data.settings.margin.right - totalWidth, pHeight - 7);
+                doc.text(footerRight, pWidth - data.settings.margin.right - footerRightWidth, pHeight - 6);
             },
         });
 
@@ -627,7 +480,7 @@ export function ExportPdfModal({
         selectedStatuses,
         selectedDept,
         selectedPriority,
-        includeExecSummary,
+        includeKpiSummary,
         includePendingTimeline,
         timeLabel,
     ]);
@@ -675,8 +528,8 @@ export function ExportPdfModal({
                                 </DialogTitle>
                                 <DialogDescription className={`text-xs mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                                     {isEn
-                                        ? 'A4 Landscape official Telunas issue tracking report with executive analytics & 12-column table.'
-                                        : 'Format A4 Landscape resmi Telunas Resorts dengan ringkasan eksekutif dan tabel rinci 12 kolom.'}
+                                        ? 'Official Telunas Resorts 12-column issue tracking report (A4 Landscape).'
+                                        : 'Laporan resmi pelacakan isu operasional 12 kolom Telunas Resorts (A4 Landscape).'}
                                 </DialogDescription>
                             </div>
                         </div>
@@ -815,12 +668,12 @@ export function ExportPdfModal({
                             <label className="flex items-center gap-2.5 cursor-pointer text-xs font-semibold select-none">
                                 <input
                                     type="checkbox"
-                                    checked={includeExecSummary}
-                                    onChange={(e) => setIncludeExecSummary(e.target.checked)}
+                                    checked={includeKpiSummary}
+                                    onChange={(e) => setIncludeKpiSummary(e.target.checked)}
                                     className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 w-4 h-4 cursor-pointer"
                                 />
                                 <span className={isDark ? 'text-slate-200' : 'text-slate-800'}>
-                                    {isEn ? 'Page 1: Executive KPI & Department Summary' : 'Halaman 1: Ringkasan Eksekutif & Beban Dept'}
+                                    {isEn ? 'Include KPI Summary Header Strip' : 'Sertakan Baris Ringkasan KPI di Atas Tabel'}
                                 </span>
                             </label>
 
@@ -853,30 +706,61 @@ export function ExportPdfModal({
                     </div>
 
                     {/* Right Live Preview Area */}
-                    <div className="lg:col-span-8 flex flex-col h-full bg-slate-900/90 relative overflow-hidden min-h-[350px]">
-                        {isPreviewLoading && (
-                            <div className="absolute inset-0 z-20 bg-slate-950/70 backdrop-blur-xs flex flex-col items-center justify-center text-white gap-3">
-                                <Loader2 className="w-8 h-8 animate-spin text-emerald-400" />
-                                <span className="text-xs font-bold text-slate-200">
-                                    {isEn ? 'Rendering A4 Landscape Preview...' : 'Menyusun Pratinjau PDF A4 Landscape...'}
-                                </span>
+                    <div className="lg:col-span-8 flex flex-col h-full bg-slate-100 dark:bg-slate-950 relative overflow-hidden min-h-[350px]">
+                        {/* Top bar with Paper Info and Open in New Tab action */}
+                        <div
+                            className={`px-4 py-2 border-b flex items-center justify-between text-xs font-semibold ${
+                                isDark ? 'border-slate-800 bg-slate-900/90 text-slate-300' : 'border-slate-200 bg-white/90 text-slate-600'
+                            }`}
+                        >
+                            <div className="flex items-center gap-2">
+                                <span className="inline-block w-2 h-2 rounded-full bg-emerald-500" />
+                                <span>{isEn ? 'Preview: A4 Landscape Report' : 'Pratinjau: Laporan A4 Landscape'}</span>
                             </div>
-                        )}
 
-                        {previewUrl ? (
-                            <iframe
-                                src={previewUrl}
-                                title="Telunas PDF Preview"
-                                className="w-full h-full flex-1 border-0"
-                            />
-                        ) : (
-                            <div className="flex-1 flex flex-col items-center justify-center text-slate-400 p-8 text-center">
-                                <FileText className="w-12 h-12 text-slate-600 mb-3" />
-                                <p className="text-sm font-bold text-slate-300">
-                                    {isEn ? 'Pratinjau PDF Sedang Disiapkan' : 'Pratinjau PDF Sedang Disiapkan'}
-                                </p>
-                            </div>
-                        )}
+                            {previewUrl && (
+                                <button
+                                    type="button"
+                                    onClick={() => window.open(previewUrl, '_blank')}
+                                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+                                        isDark
+                                            ? 'hover:bg-slate-800 text-slate-300 hover:text-white'
+                                            : 'hover:bg-slate-100 text-slate-600 hover:text-slate-900'
+                                    }`}
+                                    title={isEn ? 'Open full document in new tab' : 'Buka dokumen penuh di tab baru'}
+                                >
+                                    <ExternalLink className="w-3.5 h-3.5" />
+                                    <span>{isEn ? 'Open Fullscreen' : 'Buka Tab Baru'}</span>
+                                </button>
+                            )}
+                        </div>
+
+                        {/* Content viewport */}
+                        <div className="flex-1 relative p-2 sm:p-3 overflow-hidden flex flex-col">
+                            {isPreviewLoading && (
+                                <div className="absolute inset-0 z-20 bg-slate-950/60 backdrop-blur-xs flex flex-col items-center justify-center text-white gap-3 rounded-2xl">
+                                    <Loader2 className="w-8 h-8 animate-spin text-emerald-400" />
+                                    <span className="text-xs font-bold text-slate-200">
+                                        {isEn ? 'Rendering A4 Landscape Preview...' : 'Menyusun Pratinjau PDF A4 Landscape...'}
+                                    </span>
+                                </div>
+                            )}
+
+                            {previewUrl ? (
+                                <iframe
+                                    src={`${previewUrl}#toolbar=0&navpanes=0&scrollbar=1&view=FitH`}
+                                    title="Telunas PDF Preview"
+                                    className="w-full h-full flex-1 rounded-xl bg-white shadow-md border border-slate-300 dark:border-slate-800"
+                                />
+                            ) : (
+                                <div className="flex-1 flex flex-col items-center justify-center text-slate-400 p-8 text-center">
+                                    <FileText className="w-12 h-12 text-slate-400 dark:text-slate-600 mb-3" />
+                                    <p className="text-sm font-bold text-slate-600 dark:text-slate-300">
+                                        {isEn ? 'Preparing PDF Preview...' : 'Pratinjau PDF Sedang Disiapkan'}
+                                    </p>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
 
