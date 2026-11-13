@@ -145,9 +145,9 @@ class UserController extends Controller
                 'department'            => $user->department,
                 'subdivision'           => $user->subdivision,
                 'whatsapp_number'       => $user->whatsapp_number,
-                'is_hod'                => (bool) $user->is_hod,
-                'hod_title'             => $user->hod_title,
-                'approval_status'       => $user->approval_status ?? 'approved',
+                'is_hod'                => false,
+                'hod_title'             => null,
+                'approval_status'       => ($user->approval_status === 'pending_hod' ? 'pending_admin' : ($user->approval_status ?? 'approved')),
                 'pending_ticket_number' => $ticket?->ticket_number,
                 'pending_ticket_id'     => $ticket?->id,
                 'is_active'             => (bool) ($user->is_active ?? true),
@@ -171,7 +171,7 @@ class UserController extends Controller
                 COUNT(*) as total_users,
                 SUM(CASE WHEN role = "admin" THEN 1 ELSE 0 END) as total_admins,
                 SUM(CASE WHEN role = "department" THEN 1 ELSE 0 END) as total_departments,
-                SUM(CASE WHEN is_hod = 1 THEN 1 ELSE 0 END) as total_hod,
+                0 as total_hod,
                 SUM(CASE WHEN whatsapp_number IS NOT NULL AND whatsapp_number != "" THEN 1 ELSE 0 END) as total_whatsapp
             ')
             ->first();
@@ -288,7 +288,7 @@ class UserController extends Controller
                     'email'       => $user->email,
                     'role'        => $user->role,
                     'department'  => $user->department,
-                    'is_hod'      => $user->is_hod,
+                    'is_hod'      => false,
                     'permissions' => $permissions,
                 ]
             ]
@@ -353,7 +353,7 @@ class UserController extends Controller
             'department'      => $user->department,
             'subdivision'     => $user->subdivision,
             'whatsapp_number' => $user->whatsapp_number,
-            'is_hod'          => $user->is_hod,
+            'is_hod'          => false,
             'is_active'       => $user->is_active,
             'permissions'     => $user->permissions,
         ];

@@ -200,7 +200,7 @@ class ProfileController extends Controller
     {
         $users = \App\Models\User::activeApproved()
             ->whereNotNull('whatsapp_number')
-            ->select('id', 'name', 'staff_name', 'department', 'subdivision', 'role', 'whatsapp_number', 'permissions', 'is_hod')
+            ->select('id', 'name', 'staff_name', 'department', 'subdivision', 'role', 'whatsapp_number', 'permissions')
             ->get();
 
         return response()->json([

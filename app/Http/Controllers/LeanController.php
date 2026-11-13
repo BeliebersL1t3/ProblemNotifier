@@ -365,8 +365,8 @@ class LeanController extends Controller
             'department'  => $authUser->department,
             'subdivision' => $authUser->subdivision,
             'is_admin'    => $authUser->role === 'admin',
-            'is_hod'      => (bool) $authUser->is_hod,
-            'hod_title'   => $authUser->hod_title,
+            'is_hod'      => false,
+            'hod_title'   => null,
             'avatar_url'  => $authUser->avatar_url,
         ] : null;
 
