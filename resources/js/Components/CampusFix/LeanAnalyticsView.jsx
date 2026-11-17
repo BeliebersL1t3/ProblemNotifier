@@ -1643,6 +1643,8 @@ export function LeanAnalyticsView({
     }, [activeMonthName, monthGids, spreadsheetUrl]);
     // 2. Customizable Department Mode: 'target_issues' | 'reporters' | 'backlog_ratio'
     const [deptMode, setDeptMode] = useState('target_issues');
+    // 2.1. Trend Chart Period Mode: '6m' | '1y' | 'semester' | 'yearly'
+    const [trendPeriodMode, setTrendPeriodMode] = useState('6m');
     // 3. Spatial Map Tab: 'tpi' | 'tbr'
     const [activeMapTab, setActiveMapTab] = useState('tpi');
     // 4. Interactive Zone Selection
@@ -1868,11 +1870,108 @@ export function LeanAnalyticsView({
     // -------------------------------------------------------------
     // Executive Visual Charts Data
     // -------------------------------------------------------------
-    // 1. Monthly Issue Volume Trend (Masuk vs Selesai)
-    const monthlyTrendData = useMemo(() => {
+    // 1. Issue Volume Trend Data (Supports '6m' | '1y' | 'semester' | 'yearly')
+    const trendChartData = useMemo(() => {
         const monthNamesId = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agt', 'Sep', 'Okt', 'Nov', 'Des'];
         const monthNamesEn = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
+        if (trendPeriodMode === 'yearly') {
+            // Group by calendar year
+            const yearMap = {};
+            (issues || []).forEach((issue) => {
+                if (!issue.created_at) return;
+                const d = new Date(issue.created_at);
+                if (isNaN(d.getTime())) return;
+                const y = String(d.getFullYear());
+                if (!yearMap[y]) {
+                    yearMap[y] = { name: y, fullName: isEn ? `Year ${y}` : `Tahun ${y}`, total: 0, resolved: 0 };
+                }
+                yearMap[y].total += 1;
+                if (issue.status === 'resolved') {
+                    yearMap[y].resolved += 1;
+                }
+            });
+            const result = Object.values(yearMap).sort((a, b) => a.name.localeCompare(b.name));
+            return result.length > 0 ? result : [{ name: '2026', total: 0, resolved: 0 }];
+        }
+
+        if (trendPeriodMode === 'semester') {
+            // Group by Semester: S1 (Jan - Jun) vs S2 (Jul - Des)
+            const semMap = {};
+            (issues || []).forEach((issue) => {
+                if (!issue.created_at) return;
+                const d = new Date(issue.created_at);
+                if (isNaN(d.getTime())) return;
+                const y = d.getFullYear();
+                const m = d.getMonth();
+                const semNum = m < 6 ? 1 : 2;
+                const key = `${y}-S${semNum}`;
+                if (!semMap[key]) {
+                    const semLabel = semNum === 1
+                        ? (isEn ? `S1 ${y} (Jan-Jun)` : `S1 ${y} (Jan-Jun)`)
+                        : (isEn ? `S2 ${y} (Jul-Dec)` : `S2 ${y} (Jul-Des)`);
+                    semMap[key] = {
+                        key,
+                        name: semLabel,
+                        fullName: semLabel,
+                        total: 0,
+                        resolved: 0,
+                    };
+                }
+                semMap[key].total += 1;
+                if (issue.status === 'resolved') {
+                    semMap[key].resolved += 1;
+                }
+            });
+            const result = Object.values(semMap).sort((a, b) => a.key.localeCompare(b.key));
+            return result.length > 0 ? result : [
+                { name: isEn ? 'S1 (Jan-Jun)' : 'S1 (Jan-Jun)', total: 0, resolved: 0 },
+                { name: isEn ? 'S2 (Jul-Dec)' : 'S2 (Jul-Des)', total: 0, resolved: 0 },
+            ];
+        }
+
+        if (trendPeriodMode === '1y') {
+            // 1 Year Full: 12 months (Jan s.d. Des) for the latest year in data
+            let targetYear = 2026;
+            for (const issue of (issues || [])) {
+                if (issue.created_at) {
+                    const d = new Date(issue.created_at);
+                    if (!isNaN(d.getTime())) {
+                        targetYear = Math.max(targetYear, d.getFullYear());
+                    }
+                }
+            }
+
+            const yearMonths = [];
+            for (let m = 0; m < 12; m++) {
+                yearMonths.push({
+                    monthIndex: m,
+                    name: isEn ? monthNamesEn[m] : monthNamesId[m],
+                    fullName: `${isEn ? monthNamesEn[m] : monthNamesId[m]} ${targetYear}`,
+                    total: 0,
+                    resolved: 0,
+                });
+            }
+
+            (issues || []).forEach((issue) => {
+                if (!issue.created_at) return;
+                const d = new Date(issue.created_at);
+                if (isNaN(d.getTime())) return;
+                if (d.getFullYear() === targetYear) {
+                    const m = d.getMonth();
+                    if (yearMonths[m]) {
+                        yearMonths[m].total += 1;
+                        if (issue.status === 'resolved') {
+                            yearMonths[m].resolved += 1;
+                        }
+                    }
+                }
+            });
+
+            return yearMonths;
+        }
+
+        // Default '6m': Last 6 active monthly entries
         const map = {};
         (issues || []).forEach((issue) => {
             if (!issue.created_at) return;
@@ -1896,8 +1995,9 @@ export function LeanAnalyticsView({
             }
         });
 
-        return Object.values(map).sort((a, b) => a.key.localeCompare(b.key));
-    }, [issues, isEn]);
+        const sorted = Object.values(map).sort((a, b) => a.key.localeCompare(b.key));
+        return sorted.length > 6 ? sorted.slice(-6) : sorted;
+    }, [issues, trendPeriodMode, isEn]);
 
     // 2. SLA Target Completion Donut Data
     const slaDonutData = useMemo(() => {
@@ -2416,26 +2516,44 @@ export function LeanAnalyticsView({
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                    {/* CHART 1: Monthly Issue Trend (Composed Bar + Line) */}
+                    {/* CHART 1: Monthly Issue Trend (Composed Bar + Line with Period Switcher) */}
                     <div className={`p-4 sm:p-5 rounded-2xl border shadow-sm transition-all liquid-glass-card min-w-0 flex flex-col justify-between ${
                         isDark ? 'border-slate-700/80 bg-slate-900/40' : 'border-slate-200 bg-white/70'
                     }`}>
-                        <div className="flex items-center justify-between pb-3 border-b border-slate-700/20 mb-3">
+                        <div className="flex items-center justify-between pb-3 border-b border-slate-700/20 mb-3 gap-2 flex-wrap">
                             <div className="flex items-center gap-2">
-                                <TrendingUp className="w-4 h-4 text-sky-400" />
+                                <TrendingUp className="w-4 h-4 text-sky-400 shrink-0" />
                                 <h4 className={`text-xs sm:text-sm font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                                    {isEn ? 'Monthly Issue Volume Trend' : 'Tren Volume Isu Bulanan'}
+                                    {trendPeriodMode === 'yearly'
+                                        ? (isEn ? 'Yearly Issue Volume Trend' : 'Tren Volume Isu Tahunan')
+                                        : trendPeriodMode === 'semester'
+                                        ? (isEn ? 'Semester Volume Trend (6 Months)' : 'Tren Volume per 6 Bulan (Semester)')
+                                        : trendPeriodMode === '1y'
+                                        ? (isEn ? 'Full Year Trend (12 Months)' : 'Tren Volume 1 Tahun Penuh (12 Bulan)')
+                                        : (isEn ? 'Last 6 Months Trend' : 'Tren Volume Isu (6 Bulan Terakhir)')}
                                 </h4>
                             </div>
-                            <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${
-                                isDark ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-600'
-                            }`}>
-                                {isEn ? 'New vs Resolved' : 'Masuk vs Selesai'}
-                            </span>
+
+                            {/* Interactive Period Switcher */}
+                            <select
+                                value={trendPeriodMode}
+                                onChange={(e) => setTrendPeriodMode(e.target.value)}
+                                className={`text-[10.5px] font-semibold rounded-lg px-2.5 py-1 border shadow-2xs cursor-pointer transition-all focus:ring-1 focus:ring-sky-500 ${
+                                    isDark
+                                        ? 'bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700'
+                                        : 'bg-white border-slate-300 text-slate-800 hover:bg-slate-50'
+                                }`}
+                                title={isEn ? 'Select trend aggregation period' : 'Pilih periode agregasi tren'}
+                            >
+                                <option value="6m">{isEn ? '📅 Last 6 Months' : '📅 6 Bulan Terakhir'}</option>
+                                <option value="1y">{isEn ? '🗓️ Full Year (12 Mos)' : '🗓️ 1 Tahun (12 Bulan)'}</option>
+                                <option value="semester">{isEn ? '🌓 Half-Yearly (Semesters)' : '🌓 Per 6 Bulan (Semester)'}</option>
+                                <option value="yearly">{isEn ? '📆 Yearly (Annual)' : '📆 Per Tahun (Tahunan)'}</option>
+                            </select>
                         </div>
                         <div className="w-full h-[240px]">
                             <ResponsiveContainer width="100%" height="100%">
-                                <ComposedChart data={monthlyTrendData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                                <ComposedChart data={trendChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                                     <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#334155' : '#e2e8f0'} opacity={0.6} />
                                     <XAxis
                                         dataKey="name"
@@ -2465,7 +2583,7 @@ export function LeanAnalyticsView({
                                         name={isEn ? 'New Issues' : 'Isu Masuk'}
                                         fill="#38bdf8"
                                         radius={[4, 4, 0, 0]}
-                                        barSize={18}
+                                        barSize={trendPeriodMode === '1y' ? 12 : (trendPeriodMode === 'yearly' || trendPeriodMode === 'semester' ? 32 : 18)}
                                     />
                                     <Line
                                         type="monotone"
