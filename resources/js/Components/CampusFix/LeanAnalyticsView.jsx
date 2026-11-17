@@ -64,7 +64,13 @@ import {
     Maximize2,
     ArrowUpRight,
     CalendarClock,
+    Settings,
+    Copy,
+    CheckCheck,
+    Loader2,
+    PlusCircle,
 } from 'lucide-react';
+import axios from 'axios';
 import { getEtaBadgeInfo, formatEtaDisplayWib } from '@/Components/CampusFix/EtaPickerField';
 import { TPI_MASTERPLAN_ZONES, TBR_MASTERPLAN_ZONES, resolveIssueResortAndZone } from '@/constants/locations';
 import { useLanguage } from '@/context/LanguageContext';
@@ -1634,13 +1640,14 @@ export function LeanAnalyticsView({
 
     // Dynamic Google Sheet URL with #gid anchor to open the exact month tab
     const dynamicSheetUrl = useMemo(() => {
+        const defaultSheetUrl = yearlySpreadsheets?.[2026]?.url || spreadsheetUrl;
         const gid = monthGids?.[activeMonthName];
-        const baseUrl = (spreadsheetUrl || '').split('#')[0];
+        const baseUrl = (defaultSheetUrl || '').split('#')[0];
         if (gid !== undefined && gid !== null && gid !== '') {
             return `${baseUrl}#gid=${gid}`;
         }
-        return spreadsheetUrl;
-    }, [activeMonthName, monthGids, spreadsheetUrl]);
+        return defaultSheetUrl;
+    }, [activeMonthName, monthGids, spreadsheetUrl, yearlySpreadsheets]);
     // 2. Customizable Department Mode: 'target_issues' | 'reporters' | 'backlog_ratio'
     const [deptMode, setDeptMode] = useState('target_issues');
     // 2.1. Trend Chart Period Mode: '6m' | '1y' | 'semester' | 'yearly'
@@ -1655,6 +1662,84 @@ export function LeanAnalyticsView({
     const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
     const [isExportPdfModalOpen, setIsExportPdfModalOpen] = useState(false);
     const [nowMs, setNowMs] = useState(() => Date.now());
+
+    // 6. Yearly Spreadsheets Management State
+    const [isSpreadsheetModalOpen, setIsSpreadsheetModalOpen] = useState(false);
+    const [yearlySpreadsheets, setYearlySpreadsheets] = useState({});
+    const [botEmail, setBotEmail] = useState('campusfix-bot@campusfix-504605.iam.gserviceaccount.com');
+    const [newSheetYear, setNewSheetYear] = useState('2025');
+    const [newSheetUrl, setNewSheetUrl] = useState('');
+    const [isConnectingSheet, setIsConnectingSheet] = useState(false);
+    const [sheetConnectMessage, setSheetConnectMessage] = useState(null);
+    const [copiedBotEmail, setCopiedBotEmail] = useState(false);
+
+    const fetchSpreadsheets = useCallback(async () => {
+        try {
+            const res = await axios.get('/lapangan/spreadsheets');
+            if (res.data?.success) {
+                setYearlySpreadsheets(res.data.yearly_spreadsheets || {});
+                if (res.data.bot_email) {
+                    setBotEmail(res.data.bot_email);
+                }
+            }
+        } catch (err) {
+            console.error('Failed to fetch spreadsheets config', err);
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchSpreadsheets();
+    }, [fetchSpreadsheets]);
+
+    const handleConnectSheet = async (e) => {
+        e?.preventDefault();
+        const trimmedUrl = newSheetUrl.trim();
+        if (!trimmedUrl) {
+            setSheetConnectMessage({
+                type: 'error',
+                text: isEn ? 'Please enter a valid Google Spreadsheet URL or ID.' : 'Harap masukkan URL atau ID Google Spreadsheet yang valid.',
+            });
+            return;
+        }
+
+        setIsConnectingSheet(true);
+        setSheetConnectMessage(null);
+        try {
+            const res = await axios.post('/lapangan/spreadsheets/connect', {
+                year: parseInt(newSheetYear, 10),
+                url: trimmedUrl,
+            });
+
+            if (res.data?.success) {
+                setSheetConnectMessage({
+                    type: 'success',
+                    text: res.data.message || (isEn ? 'Spreadsheet connected and formatted successfully!' : 'Spreadsheet berhasil dihubungkan dan diformat!'),
+                });
+                setNewSheetUrl('');
+                await fetchSpreadsheets();
+            } else {
+                setSheetConnectMessage({
+                    type: 'error',
+                    text: res.data?.message || (isEn ? 'Failed to connect spreadsheet.' : 'Gagal menghubungkan spreadsheet.'),
+                });
+            }
+        } catch (err) {
+            console.error('Error connecting spreadsheet:', err);
+            const errMsg = err.response?.data?.message || err.message || (isEn ? 'Error connecting spreadsheet. Please ensure the bot has Editor access.' : 'Gagal menghubungkan spreadsheet. Pastikan bot memiliki akses Editor.');
+            setSheetConnectMessage({
+                type: 'error',
+                text: errMsg,
+            });
+        } finally {
+            setIsConnectingSheet(false);
+        }
+    };
+
+    const handleCopyBotEmail = () => {
+        navigator.clipboard?.writeText(botEmail);
+        setCopiedBotEmail(true);
+        setTimeout(() => setCopiedBotEmail(false), 2500);
+    };
 
     useEffect(() => {
         const timer = setInterval(() => setNowMs(Date.now()), 30000);
@@ -2197,7 +2282,7 @@ export function LeanAnalyticsView({
                         </select>
                     </div>
 
-                    {/* Quick Actions Bar: Ke Sheet Utama & Download PDF */}
+                    {/* Quick Actions Bar: Ke Sheet Utama, Kelola Sheet & Download PDF */}
                     <div className="flex items-center gap-2 flex-wrap justify-end">
                         {/* Tombol Ke Sheet Utama (Dinamis per Tab Bulan) */}
                         <a
@@ -2211,6 +2296,24 @@ export function LeanAnalyticsView({
                             <span className="text-white">{isEn ? `Open Sheet (${activeMonthDisplayName})` : `Ke Sheet (${activeMonthName})`}</span>
                             <ExternalLink className="w-3.5 h-3.5 opacity-90 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform text-white" />
                         </a>
+
+                        {/* Tombol Kelola Sheet Tahunan */}
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setIsSpreadsheetModalOpen(true);
+                                setSheetConnectMessage(null);
+                            }}
+                            className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold border shadow-sm transition-all cursor-pointer ${
+                                isDark 
+                                    ? 'bg-slate-800 hover:bg-slate-700 text-emerald-400 border-slate-700' 
+                                    : 'bg-white hover:bg-slate-50 text-emerald-700 border-slate-300'
+                            }`}
+                            title={isEn ? 'Manage Yearly Google Spreadsheets' : 'Kelola Google Spreadsheet Tahunan'}
+                        >
+                            <Settings className="w-4 h-4 shrink-0" />
+                            <span>{isEn ? 'Manage Sheets' : 'Kelola Sheet'}</span>
+                        </button>
 
                         {/* Tombol Download PDF */}
                         <button
@@ -3138,6 +3241,273 @@ export function LeanAnalyticsView({
                                     )}
                                 </div>
                             ))}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* YEARLY GOOGLE SPREADSHEET MANAGER MODAL */}
+            {isSpreadsheetModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div
+                        className={`border rounded-2xl max-w-2xl w-full p-5 max-h-[90vh] flex flex-col shadow-2xl overflow-hidden ${
+                            isDark ? 'bg-slate-900 border-slate-700/80 text-white' : 'bg-white border-slate-200 text-slate-900'
+                        }`}
+                    >
+                        {/* Header */}
+                        <div className="flex items-center justify-between pb-3.5 border-b border-slate-700/60 shrink-0">
+                            <div className="flex items-center gap-2.5">
+                                <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+                                    <FileSpreadsheet className="w-4 h-4" />
+                                </div>
+                                <div>
+                                    <h3 className="text-sm font-bold">
+                                        {isEn ? 'Yearly Google Spreadsheet Manager' : 'Kelola Google Spreadsheet Tahunan'}
+                                    </h3>
+                                    <p className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                        {isEn
+                                            ? 'Link separate Google Spreadsheets for each operating year (2025, 2026, etc.)'
+                                            : 'Tautkan file Google Spreadsheet terpisah untuk tiap tahun operasional'}
+                                    </p>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setIsSpreadsheetModalOpen(false)}
+                                className={`p-1.5 rounded-lg transition-colors ${
+                                    isDark ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'
+                                }`}
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        {/* Modal Body (Scrollable) */}
+                        <div className="py-4 overflow-y-auto space-y-4 flex-1 text-xs pr-1">
+                            {/* Alert Message if any */}
+                            {sheetConnectMessage && (
+                                <div
+                                    className={`p-3 rounded-xl border flex items-start gap-2.5 text-xs ${
+                                        sheetConnectMessage.type === 'success'
+                                            ? isDark
+                                                ? 'bg-emerald-950/50 border-emerald-700/60 text-emerald-300'
+                                                : 'bg-emerald-50 border-emerald-300 text-emerald-800'
+                                            : isDark
+                                            ? 'bg-rose-950/50 border-rose-700/60 text-rose-300'
+                                            : 'bg-rose-50 border-rose-300 text-rose-800'
+                                    }`}
+                                >
+                                    {sheetConnectMessage.type === 'success' ? (
+                                        <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400 mt-0.5" />
+                                    ) : (
+                                        <AlertTriangle className="w-4 h-4 shrink-0 text-rose-400 mt-0.5" />
+                                    )}
+                                    <div className="flex-1 font-medium">{sheetConnectMessage.text}</div>
+                                </div>
+                            )}
+
+                            {/* Section 1: How to connect (Google Service Account sharing) */}
+                            <div
+                                className={`p-3.5 rounded-xl border space-y-2.5 ${
+                                    isDark ? 'bg-slate-800/60 border-slate-700/70' : 'bg-slate-50 border-slate-200'
+                                }`}
+                            >
+                                <div className="flex items-center gap-1.5 font-bold text-emerald-400">
+                                    <Info className="w-3.5 h-3.5" />
+                                    <span>{isEn ? 'How to Add a Yearly Spreadsheet:' : 'Panduan Menghubungkan Spreadsheet Baru:'}</span>
+                                </div>
+                                <ol className="list-decimal list-inside space-y-1.5 text-[11px] leading-relaxed opacity-90">
+                                    <li>
+                                        {isEn ? 'Create a new Google Sheet in your personal Google Drive (e.g. named ' : 'Buat file Google Sheet baru di Google Drive Anda (contoh: '}
+                                        <span className="font-semibold text-emerald-300">Telunas Issue Tracker - 2025</span>).
+                                    </li>
+                                    <li>
+                                        {isEn ? "Click 'Share' on your Google Sheet and invite this Service Account bot as " : "Klik tombol 'Share' (Bagikan) dan tambahkan bot Service Account ini sebagai "}
+                                        <span className="font-bold underline text-amber-300">Editor</span>:
+                                    </li>
+                                </ol>
+
+                                {/* Monospace Bot Email Box with 1-Click Copy */}
+                                <div className="flex items-center gap-2 pt-1">
+                                    <div
+                                        className={`flex-1 font-mono text-[11px] px-3 py-2 rounded-lg border truncate select-all ${
+                                            isDark ? 'bg-slate-950 border-slate-700 text-emerald-400' : 'bg-white border-slate-300 text-emerald-700'
+                                        }`}
+                                    >
+                                        {botEmail}
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={handleCopyBotEmail}
+                                        className={`shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg font-bold text-xs transition-all ${
+                                            copiedBotEmail
+                                                ? 'bg-emerald-600 text-white'
+                                                : isDark
+                                                ? 'bg-slate-700 hover:bg-slate-600 text-slate-200'
+                                                : 'bg-slate-200 hover:bg-slate-300 text-slate-800'
+                                        }`}
+                                    >
+                                        {copiedBotEmail ? (
+                                            <>
+                                                <CheckCheck className="w-3.5 h-3.5" />
+                                                <span>{isEn ? 'Copied!' : 'Tersalin!'}</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Copy className="w-3.5 h-3.5" />
+                                                <span>{isEn ? 'Copy Email' : 'Salin Email'}</span>
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
+                                <p className={`text-[10px] italic ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                    {isEn
+                                        ? '✨ Once shared, our bot will automatically create 12 monthly tabs (Januari - Desember), apply standard teal headers, and sync the tickets.'
+                                        : '✨ Setelah dibagikan, bot otomatis membuat 12 tab bulanan (Januari - Desember), menerapkan header teal standar, dan menyinkronkan tiket.'}
+                                </p>
+                            </div>
+
+                            {/* Section 2: Form to Connect */}
+                            <form
+                                onSubmit={handleConnectSheet}
+                                className={`p-3.5 rounded-xl border space-y-3 ${
+                                    isDark ? 'bg-slate-800/40 border-slate-700/70' : 'bg-slate-50/70 border-slate-200'
+                                }`}
+                            >
+                                <h4 className="font-bold flex items-center gap-1.5">
+                                    <PlusCircle className="w-3.5 h-3.5 text-emerald-400" />
+                                    <span>{isEn ? 'Connect New Year Spreadsheet' : 'Hubungkan Spreadsheet Tahun Baru'}</span>
+                                </h4>
+                                <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5">
+                                    <div className="sm:col-span-1">
+                                        <label className={`block text-[10px] font-semibold mb-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                                            {isEn ? 'Year' : 'Tahun'}
+                                        </label>
+                                        <select
+                                            value={newSheetYear}
+                                            onChange={(e) => setNewSheetYear(e.target.value)}
+                                            className={`w-full px-3 py-2 rounded-lg text-xs font-semibold border ${
+                                                isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-800'
+                                            }`}
+                                        >
+                                            <option value="2025">2025</option>
+                                            <option value="2024">2024</option>
+                                            <option value="2026">2026</option>
+                                            <option value="2027">2027</option>
+                                            <option value="2028">2028</option>
+                                        </select>
+                                    </div>
+                                    <div className="sm:col-span-3">
+                                        <label className={`block text-[10px] font-semibold mb-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                                            {isEn ? 'Google Spreadsheet URL or Sheet ID' : 'URL atau ID Google Spreadsheet'}
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={newSheetUrl}
+                                            onChange={(e) => setNewSheetUrl(e.target.value)}
+                                            placeholder="https://docs.google.com/spreadsheets/d/1.../edit"
+                                            className={`w-full px-3 py-2 rounded-lg text-xs border font-mono ${
+                                                isDark ? 'bg-slate-900 border-slate-700 text-white placeholder-slate-500' : 'bg-white border-slate-300 text-slate-800 placeholder-slate-400'
+                                            }`}
+                                        />
+                                    </div>
+                                </div>
+                                <div className="flex justify-end pt-1">
+                                    <button
+                                        type="submit"
+                                        disabled={isConnectingSheet}
+                                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white shadow-sm transition-all cursor-pointer"
+                                    >
+                                        {isConnectingSheet ? (
+                                            <>
+                                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                <span>{isEn ? 'Configuring 12 tabs & syncing...' : 'Menyiapkan 12 tab & sinkronisasi...'}</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <FileSpreadsheet className="w-3.5 h-3.5" />
+                                                <span>{isEn ? 'Connect & Auto-Format 12 Tabs' : 'Hubungkan & Format 12 Tab'}</span>
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
+                            </form>
+
+                            {/* Section 3: List of Connected Yearly Spreadsheets */}
+                            <div className="space-y-2 pt-1">
+                                <h4 className="font-bold flex items-center justify-between text-xs">
+                                    <span className="flex items-center gap-1.5">
+                                        <Layers className="w-3.5 h-3.5 text-sky-400" />
+                                        <span>{isEn ? 'Connected Yearly Spreadsheets' : 'Spreadsheet Tahunan Terhubung'}</span>
+                                    </span>
+                                    <span className="text-[10px] opacity-75">
+                                        {Object.keys(yearlySpreadsheets).length} {isEn ? 'connected' : 'terhubung'}
+                                    </span>
+                                </h4>
+
+                                <div className="space-y-2">
+                                    {Object.entries(yearlySpreadsheets).map(([year, info]) => (
+                                        <div
+                                            key={year}
+                                            className={`p-3 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                                                isDark ? 'bg-slate-800/80 border-slate-700/80' : 'bg-slate-50 border-slate-200'
+                                            }`}
+                                        >
+                                            <div className="space-y-1 min-w-0 flex-1">
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <span className="font-bold text-sm text-emerald-400">
+                                                        {year}
+                                                    </span>
+                                                    {info.is_default ? (
+                                                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                                                            isDark ? 'bg-emerald-950/80 border-emerald-700 text-emerald-300' : 'bg-emerald-100 border-emerald-300 text-emerald-800'
+                                                        }`}>
+                                                            {isEn ? 'Default / Live' : 'Utama / Aktif'}
+                                                        </span>
+                                                    ) : (
+                                                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                                                            isDark ? 'bg-sky-950/80 border-sky-700 text-sky-300' : 'bg-sky-100 border-sky-300 text-sky-800'
+                                                        }`}>
+                                                            {isEn ? 'Connected' : 'Terkoneksi'}
+                                                        </span>
+                                                    )}
+                                                    <span className={`text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                                        12 {isEn ? 'monthly tabs ready' : 'tab bulanan siap'}
+                                                    </span>
+                                                </div>
+                                                <div className="text-[10px] font-mono text-slate-400 truncate max-w-md">
+                                                    ID: {info.spreadsheet_id}
+                                                </div>
+                                            </div>
+
+                                            <div className="flex items-center gap-2 self-end sm:self-center">
+                                                <a
+                                                    href={info.url}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition-all"
+                                                >
+                                                    <span>{isEn ? 'Open Sheet' : 'Buka Sheet'}</span>
+                                                    <ExternalLink className="w-3 h-3" />
+                                                </a>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Footer */}
+                        <div className="pt-3 border-t border-slate-700/60 flex justify-end shrink-0">
+                            <button
+                                type="button"
+                                onClick={() => setIsSpreadsheetModalOpen(false)}
+                                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                                    isDark ? 'bg-slate-800 hover:bg-slate-700 text-white' : 'bg-slate-200 hover:bg-slate-300 text-slate-800'
+                                }`}
+                            >
+                                {isEn ? 'Close' : 'Tutup'}
+                            </button>
                         </div>
                     </div>
                 </div>
