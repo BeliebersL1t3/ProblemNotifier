@@ -346,6 +346,13 @@ class LeanSheetDirectService
             }
         }
 
+        $configs = $this->getYearlySpreadsheets();
+        if (isset($configs[(string) $year])) {
+            $configs[(string) $year]['synced_issues_count'] = $totalSynced;
+            $configs[(string) $year]['updated_at'] = Carbon::now('Asia/Jakarta')->toDateTimeString();
+            file_put_contents($this->getYearlySpreadsheetsConfigPath(), json_encode($configs, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+        }
+
         return [
             'success' => true,
             'year' => $year,
