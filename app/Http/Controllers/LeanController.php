@@ -1198,6 +1198,7 @@ class LeanController extends Controller
         return response()->json([
             'success' => true,
             'data' => $configs,
+            'yearly_spreadsheets' => $configs,
             'bot_email' => 'campusfix-bot@campusfix-504605.iam.gserviceaccount.com',
         ]);
     }
@@ -1217,6 +1218,10 @@ class LeanController extends Controller
             (int) $validated['year'],
             (string) $validated['url']
         );
+
+        $configs = $service->getYearlySpreadsheets();
+        $result['yearly_spreadsheets'] = $configs;
+        $result['data'] = $configs;
 
         return response()->json($result, $result['success'] ? 200 : 422);
     }

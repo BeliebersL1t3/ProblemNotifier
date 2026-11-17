@@ -1702,7 +1702,8 @@ export function LeanAnalyticsView({
         try {
             const res = await axios.get('/lapangan/spreadsheets');
             if (res.data?.success) {
-                setYearlySpreadsheets(res.data.yearly_spreadsheets || {});
+                const sheets = res.data.yearly_spreadsheets || res.data.data || {};
+                setYearlySpreadsheets(sheets);
                 if (res.data.bot_email) {
                     setBotEmail(res.data.bot_email);
                 }
@@ -1715,6 +1716,12 @@ export function LeanAnalyticsView({
     useEffect(() => {
         fetchSpreadsheets();
     }, [fetchSpreadsheets]);
+
+    useEffect(() => {
+        if (isSpreadsheetModalOpen) {
+            fetchSpreadsheets();
+        }
+    }, [isSpreadsheetModalOpen, fetchSpreadsheets]);
 
     const handleConnectSheet = async (e) => {
         e?.preventDefault();
@@ -1741,6 +1748,10 @@ export function LeanAnalyticsView({
                     text: res.data.message || (isEn ? 'Spreadsheet connected and formatted successfully!' : 'Spreadsheet berhasil dihubungkan dan diformat!'),
                 });
                 setNewSheetUrl('');
+                const updatedSheets = res.data.yearly_spreadsheets || res.data.data;
+                if (updatedSheets) {
+                    setYearlySpreadsheets(updatedSheets);
+                }
                 await fetchSpreadsheets();
             } else {
                 setSheetConnectMessage({
@@ -3543,6 +3554,11 @@ export function LeanAnalyticsView({
                                                     <span className="font-bold text-sm text-emerald-400">
                                                         {year}
                                                     </span>
+                                                    {info.title && (
+                                                        <span className={`text-xs font-semibold truncate max-w-xs ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
+                                                            • {info.title}
+                                                        </span>
+                                                    )}
                                                     {info.is_default ? (
                                                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
                                                             isDark ? 'bg-emerald-950/80 border-emerald-700 text-emerald-300' : 'bg-emerald-100 border-emerald-300 text-emerald-800'
@@ -3558,6 +3574,11 @@ export function LeanAnalyticsView({
                                                     )}
                                                     <span className={`text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                                                         12 {isEn ? 'monthly tabs ready' : 'tab bulanan siap'}
+                                                        {info.synced_issues_count !== undefined && (
+                                                            <span className="ml-1 text-emerald-400 font-semibold">
+                                                                ({info.synced_issues_count} {isEn ? 'issues synced' : 'tiket disinkronkan'})
+                                                            </span>
+                                                        )}
                                                     </span>
                                                 </div>
                                                 <div className="text-[10px] font-mono text-slate-400 truncate max-w-md">
