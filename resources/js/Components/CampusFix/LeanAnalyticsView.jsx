@@ -1865,6 +1865,94 @@ export function LeanAnalyticsView({
 
     const topHotspot = hotspotList[0] || null;
 
+    // -------------------------------------------------------------
+    // Executive Visual Charts Data
+    // -------------------------------------------------------------
+    // 1. Monthly Issue Volume Trend (Masuk vs Selesai)
+    const monthlyTrendData = useMemo(() => {
+        const monthNamesId = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agt', 'Sep', 'Okt', 'Nov', 'Des'];
+        const monthNamesEn = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+        const map = {};
+        (issues || []).forEach((issue) => {
+            if (!issue.created_at) return;
+            const d = new Date(issue.created_at);
+            if (isNaN(d.getTime())) return;
+            const y = d.getFullYear();
+            const m = d.getMonth();
+            const key = `${y}-${String(m + 1).padStart(2, '0')}`;
+            if (!map[key]) {
+                map[key] = {
+                    key,
+                    name: isEn ? monthNamesEn[m] : monthNamesId[m],
+                    fullName: `${isEn ? monthNamesEn[m] : monthNamesId[m]} ${y}`,
+                    total: 0,
+                    resolved: 0,
+                };
+            }
+            map[key].total += 1;
+            if (issue.status === 'resolved') {
+                map[key].resolved += 1;
+            }
+        });
+
+        return Object.values(map).sort((a, b) => a.key.localeCompare(b.key));
+    }, [issues, isEn]);
+
+    // 2. SLA Target Completion Donut Data
+    const slaDonutData = useMemo(() => {
+        const onTime = stats.onTimeResolvedCount || 0;
+        const late = (stats.lateResolvedCount || 0) + (stats.overdueActiveCount || 0);
+        const activeScheduled = Math.max(0, (stats.withEtaCount || 0) - onTime - late);
+
+        const data = [
+            {
+                name: isEn ? 'On Time' : 'Tepat Waktu',
+                value: onTime,
+                color: '#10b981', // emerald-500
+            },
+            {
+                name: isEn ? 'Late / Overdue' : 'Lewat Target',
+                value: late,
+                color: '#f43f5e', // rose-500
+            },
+            {
+                name: isEn ? 'On Schedule' : 'Sesuai Jadwal',
+                value: activeScheduled,
+                color: '#0284c7', // sky-600
+            },
+        ].filter((d) => d.value > 0);
+
+        return data.length > 0 ? data : [{ name: isEn ? 'No Data' : 'Belum Ada', value: 1, color: '#94a3b8' }];
+    }, [stats, isEn]);
+
+    // 3. Department Workload Data (Stacked Bar: Resolved vs Active)
+    const deptWorkloadChartData = useMemo(() => {
+        return (deptMetrics.targetList || [])
+            .slice(0, 6)
+            .map((d) => ({
+                name: formatDeptDisplay(d.name),
+                resolved: d.resolved,
+                active: d.active,
+                total: d.total,
+            }))
+            .reverse();
+    }, [deptMetrics.targetList]);
+
+    // 4. Top Hotspot Locations Data
+    const hotspotChartData = useMemo(() => {
+        return (hotspotList || [])
+            .slice(0, 6)
+            .map((h) => ({
+                location: h.location,
+                shortName: h.location.length > 16 ? `${h.location.substring(0, 16)}...` : h.location,
+                total: h.total,
+                resolved: h.resolvedCount,
+                open: h.openCount,
+            }))
+            .reverse();
+    }, [hotspotList]);
+
     // Spatial Map Data for TPI & TBR
     const spatialHotspots = useMemo(() => {
         const tpiZones = {};
@@ -2308,6 +2396,293 @@ export function LeanAnalyticsView({
                     </div>
                 </div>
             )}
+
+            {/* ========================================================= */}
+            {/* 4.5. EXECUTIVE OPERATIONS VISUAL CHARTS (THE BIG 4)        */}
+            {/* ========================================================= */}
+            <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h3 className={`text-sm font-bold flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                            <BarChart2 className="w-4 h-4 text-sky-400" />
+                            {isEn ? 'Executive Operations Analytics' : 'Grafik Analisis Operasional Eksekutif'}
+                        </h3>
+                        <p className={`text-[11px] mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                            {isEn
+                                ? 'Visual intelligence for monthly issue trends, SLA target compliance, department workloads, and facility hotspots'
+                                : 'Visualisasi tren isu bulanan, kepatuhan target SLA, beban kerja departemen, dan titik kritis fasilitas'}
+                        </p>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    {/* CHART 1: Monthly Issue Trend (Composed Bar + Line) */}
+                    <div className={`p-4 sm:p-5 rounded-2xl border shadow-sm transition-all liquid-glass-card min-w-0 flex flex-col justify-between ${
+                        isDark ? 'border-slate-700/80 bg-slate-900/40' : 'border-slate-200 bg-white/70'
+                    }`}>
+                        <div className="flex items-center justify-between pb-3 border-b border-slate-700/20 mb-3">
+                            <div className="flex items-center gap-2">
+                                <TrendingUp className="w-4 h-4 text-sky-400" />
+                                <h4 className={`text-xs sm:text-sm font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                                    {isEn ? 'Monthly Issue Volume Trend' : 'Tren Volume Isu Bulanan'}
+                                </h4>
+                            </div>
+                            <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${
+                                isDark ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-600'
+                            }`}>
+                                {isEn ? 'New vs Resolved' : 'Masuk vs Selesai'}
+                            </span>
+                        </div>
+                        <div className="w-full h-[240px]">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <ComposedChart data={monthlyTrendData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                                    <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#334155' : '#e2e8f0'} opacity={0.6} />
+                                    <XAxis
+                                        dataKey="name"
+                                        tick={{ fill: isDark ? '#94a3b8' : '#64748b', fontSize: 11 }}
+                                        axisLine={{ stroke: isDark ? '#334155' : '#cbd5e1' }}
+                                        tickLine={false}
+                                    />
+                                    <YAxis
+                                        allowDecimals={false}
+                                        tick={{ fill: isDark ? '#94a3b8' : '#64748b', fontSize: 11 }}
+                                        axisLine={{ stroke: isDark ? '#334155' : '#cbd5e1' }}
+                                        tickLine={false}
+                                    />
+                                    <RechartsTooltip
+                                        contentStyle={{
+                                            backgroundColor: isDark ? '#0f172a' : '#ffffff',
+                                            borderColor: isDark ? '#334155' : '#e2e8f0',
+                                            borderRadius: '0.75rem',
+                                            fontSize: '11px',
+                                            color: isDark ? '#f8fafc' : '#0f172a',
+                                        }}
+                                        itemStyle={{ color: isDark ? '#f8fafc' : '#0f172a' }}
+                                    />
+                                    <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '6px' }} />
+                                    <Bar
+                                        dataKey="total"
+                                        name={isEn ? 'New Issues' : 'Isu Masuk'}
+                                        fill="#38bdf8"
+                                        radius={[4, 4, 0, 0]}
+                                        barSize={18}
+                                    />
+                                    <Line
+                                        type="monotone"
+                                        dataKey="resolved"
+                                        name={isEn ? 'Resolved' : 'Selesai'}
+                                        stroke="#10b981"
+                                        strokeWidth={2.5}
+                                        dot={{ r: 3.5, fill: '#10b981' }}
+                                        activeDot={{ r: 5 }}
+                                    />
+                                </ComposedChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </div>
+
+                    {/* CHART 2: SLA Target Compliance (Donut) */}
+                    <div className={`p-4 sm:p-5 rounded-2xl border shadow-sm transition-all liquid-glass-card min-w-0 flex flex-col justify-between ${
+                        isDark ? 'border-slate-700/80 bg-slate-900/40' : 'border-slate-200 bg-white/70'
+                    }`}>
+                        <div className="flex items-center justify-between pb-3 border-b border-slate-700/20 mb-3">
+                            <div className="flex items-center gap-2">
+                                <Clock className="w-4 h-4 text-emerald-400" />
+                                <h4 className={`text-xs sm:text-sm font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                                    {isEn ? 'SLA Target Compliance' : 'Kepatuhan Target SLA'}
+                                </h4>
+                            </div>
+                            <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${
+                                (stats.onTimeRate ?? 0) >= 80
+                                    ? isDark ? 'bg-emerald-950/80 text-emerald-300' : 'bg-emerald-100 text-emerald-800'
+                                    : isDark ? 'bg-amber-950/80 text-amber-300' : 'bg-amber-100 text-amber-800'
+                            }`}>
+                                {stats.onTimeRate !== null ? `${stats.onTimeRate}% ${isEn ? 'On Time' : 'Tepat Waktu'}` : (isEn ? 'No Data' : 'Belum Ada')}
+                            </span>
+                        </div>
+                        <div className="relative w-full h-[240px] flex items-center justify-center">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <PieChart>
+                                    <Pie
+                                        data={slaDonutData}
+                                        dataKey="value"
+                                        nameKey="name"
+                                        cx="50%"
+                                        cy="50%"
+                                        innerRadius={55}
+                                        outerRadius={80}
+                                        paddingAngle={4}
+                                    >
+                                        {slaDonutData.map((entry, idx) => (
+                                            <Cell key={`sla-cell-${idx}`} fill={entry.color} />
+                                        ))}
+                                    </Pie>
+                                    <RechartsTooltip
+                                        contentStyle={{
+                                            backgroundColor: isDark ? '#0f172a' : '#ffffff',
+                                            borderColor: isDark ? '#334155' : '#e2e8f0',
+                                            borderRadius: '0.75rem',
+                                            fontSize: '11px',
+                                            color: isDark ? '#f8fafc' : '#0f172a',
+                                        }}
+                                        itemStyle={{ color: isDark ? '#f8fafc' : '#0f172a' }}
+                                    />
+                                    <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '6px' }} />
+                                </PieChart>
+                            </ResponsiveContainer>
+                            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none pb-6">
+                                <span className={`text-xl font-extrabold ${
+                                    (stats.onTimeRate ?? 0) >= 80 ? 'text-emerald-500' : 'text-amber-500'
+                                }`}>
+                                    {stats.onTimeRate !== null ? `${stats.onTimeRate}%` : '-'}
+                                </span>
+                                <span className={`text-[10px] font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                    {isEn ? 'On Time' : 'Tepat Waktu'}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* CHART 3: Department Workload (Horizontal Stacked Bar) */}
+                    <div className={`p-4 sm:p-5 rounded-2xl border shadow-sm transition-all liquid-glass-card min-w-0 flex flex-col justify-between ${
+                        isDark ? 'border-slate-700/80 bg-slate-900/40' : 'border-slate-200 bg-white/70'
+                    }`}>
+                        <div className="flex items-center justify-between pb-3 border-b border-slate-700/20 mb-3">
+                            <div className="flex items-center gap-2">
+                                <Building2 className="w-4 h-4 text-amber-400" />
+                                <h4 className={`text-xs sm:text-sm font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                                    {isEn ? 'Workload per Department' : 'Beban Kerja per Departemen'}
+                                </h4>
+                            </div>
+                            <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${
+                                isDark ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-600'
+                            }`}>
+                                {isEn ? 'Top 6 Departments' : 'Top 6 Departemen'}
+                            </span>
+                        </div>
+                        <div className="w-full h-[240px]">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart
+                                    layout="vertical"
+                                    data={deptWorkloadChartData}
+                                    margin={{ top: 5, right: 20, left: 10, bottom: 5 }}
+                                >
+                                    <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#334155' : '#e2e8f0'} opacity={0.6} horizontal={false} />
+                                    <XAxis
+                                        type="number"
+                                        allowDecimals={false}
+                                        tick={{ fill: isDark ? '#94a3b8' : '#64748b', fontSize: 11 }}
+                                        axisLine={{ stroke: isDark ? '#334155' : '#cbd5e1' }}
+                                        tickLine={false}
+                                    />
+                                    <YAxis
+                                        type="category"
+                                        dataKey="name"
+                                        width={95}
+                                        tick={{ fill: isDark ? '#e2e8f0' : '#334155', fontSize: 11 }}
+                                        axisLine={{ stroke: isDark ? '#334155' : '#cbd5e1' }}
+                                        tickLine={false}
+                                    />
+                                    <RechartsTooltip
+                                        contentStyle={{
+                                            backgroundColor: isDark ? '#0f172a' : '#ffffff',
+                                            borderColor: isDark ? '#334155' : '#e2e8f0',
+                                            borderRadius: '0.75rem',
+                                            fontSize: '11px',
+                                            color: isDark ? '#f8fafc' : '#0f172a',
+                                        }}
+                                        itemStyle={{ color: isDark ? '#f8fafc' : '#0f172a' }}
+                                    />
+                                    <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '6px' }} />
+                                    <Bar
+                                        dataKey="resolved"
+                                        name={isEn ? 'Resolved' : 'Selesai'}
+                                        stackId="deptStack"
+                                        fill="#10b981"
+                                        barSize={16}
+                                    />
+                                    <Bar
+                                        dataKey="active"
+                                        name={isEn ? 'Active / Backlog' : 'Sedang Berjalan'}
+                                        stackId="deptStack"
+                                        fill="#f59e0b"
+                                        radius={[0, 4, 4, 0]}
+                                        barSize={16}
+                                    />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </div>
+
+                    {/* CHART 4: Top Hotspot Locations (Horizontal Ranked Bar) */}
+                    <div className={`p-4 sm:p-5 rounded-2xl border shadow-sm transition-all liquid-glass-card min-w-0 flex flex-col justify-between ${
+                        isDark ? 'border-slate-700/80 bg-slate-900/40' : 'border-slate-200 bg-white/70'
+                    }`}>
+                        <div className="flex items-center justify-between pb-3 border-b border-slate-700/20 mb-3">
+                            <div className="flex items-center gap-2">
+                                <MapPin className="w-4 h-4 text-indigo-400" />
+                                <h4 className={`text-xs sm:text-sm font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                                    {isEn ? 'Top Incident Locations' : 'Hotspot Lokasi Insiden Terbanyak'}
+                                </h4>
+                            </div>
+                            <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${
+                                isDark ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-600'
+                            }`}>
+                                {isEn ? 'Top 6 Facilities' : 'Top 6 Fasilitas'}
+                            </span>
+                        </div>
+                        <div className="w-full h-[240px]">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart
+                                    layout="vertical"
+                                    data={hotspotChartData}
+                                    margin={{ top: 5, right: 30, left: 10, bottom: 5 }}
+                                >
+                                    <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#334155' : '#e2e8f0'} opacity={0.6} horizontal={false} />
+                                    <XAxis
+                                        type="number"
+                                        allowDecimals={false}
+                                        tick={{ fill: isDark ? '#94a3b8' : '#64748b', fontSize: 11 }}
+                                        axisLine={{ stroke: isDark ? '#334155' : '#cbd5e1' }}
+                                        tickLine={false}
+                                    />
+                                    <YAxis
+                                        type="category"
+                                        dataKey="shortName"
+                                        width={110}
+                                        tick={{ fill: isDark ? '#e2e8f0' : '#334155', fontSize: 10 }}
+                                        axisLine={{ stroke: isDark ? '#334155' : '#cbd5e1' }}
+                                        tickLine={false}
+                                    />
+                                    <RechartsTooltip
+                                        formatter={(value, name, item) => [
+                                            `${value} ${isEn ? 'incidents' : 'insiden'}`,
+                                            item?.payload?.location || name
+                                        ]}
+                                        contentStyle={{
+                                            backgroundColor: isDark ? '#0f172a' : '#ffffff',
+                                            borderColor: isDark ? '#334155' : '#e2e8f0',
+                                            borderRadius: '0.75rem',
+                                            fontSize: '11px',
+                                            color: isDark ? '#f8fafc' : '#0f172a',
+                                        }}
+                                        itemStyle={{ color: isDark ? '#f8fafc' : '#0f172a' }}
+                                    />
+                                    <Bar
+                                        dataKey="total"
+                                        name={isEn ? 'Total Incidents' : 'Total Insiden'}
+                                        fill="#6366f1"
+                                        radius={[0, 4, 4, 0]}
+                                        barSize={16}
+                                    >
+                                        <LabelList dataKey="total" position="right" fill={isDark ? '#e2e8f0' : '#334155'} fontSize={10} fontWeight={600} />
+                                    </Bar>
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
             {/* ========================================================= */}
             {/* 5. WIDGET MATRIKS DENAH LOKASI TBR DAN TPI                */}
