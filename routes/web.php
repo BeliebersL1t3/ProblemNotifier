@@ -123,6 +123,8 @@ Route::middleware('auth')->group(function () {
     Route::delete('/lapangan/issues/{issue}', [LeanController::class, 'destroy'])->name('lean.destroy');
     Route::post('/lapangan/sync-sheets', [LeanController::class, 'syncGoogleSheets'])->name('lean.sync.sheets');
     Route::post('/lapangan/auto-sync', [LeanController::class, 'autoSyncSheets'])->name('lean.auto.sync');
+    Route::get('/lapangan/spreadsheets', [LeanController::class, 'getSpreadsheetsConfig'])->name('lean.spreadsheets.index');
+    Route::post('/lapangan/spreadsheets/connect', [LeanController::class, 'connectSpreadsheet'])->name('lean.spreadsheets.connect');
 });
 
 // Dedicated API endpoints for WhatsApp Bot V2 (Strictly protected by X-Bot-Key)

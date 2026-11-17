@@ -1188,6 +1188,40 @@ class LeanController extends Controller
     }
 
     /**
+     * Get list of connected yearly Google Spreadsheets and bot service account email.
+     */
+    public function getSpreadsheetsConfig(Request $request)
+    {
+        $service = app(\App\Services\LeanSheetDirectService::class);
+        $configs = $service->getYearlySpreadsheets();
+
+        return response()->json([
+            'success' => true,
+            'data' => $configs,
+            'bot_email' => 'campusfix-bot@campusfix-504605.iam.gserviceaccount.com',
+        ]);
+    }
+
+    /**
+     * Connect a Google Spreadsheet for a given year and format/sync it.
+     */
+    public function connectSpreadsheet(Request $request)
+    {
+        $validated = $request->validate([
+            'year' => 'required|integer|min:2020|max:2035',
+            'url'  => 'required|string',
+        ]);
+
+        $service = app(\App\Services\LeanSheetDirectService::class);
+        $result = $service->connectYearlySpreadsheet(
+            (int) $validated['year'],
+            (string) $validated['url']
+        );
+
+        return response()->json($result, $result['success'] ? 200 : 422);
+    }
+
+    /**
      * Helper to format human-readable issue codes like ENG-221026-1
      */
     public static function formatIssueCode($issue)

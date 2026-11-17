@@ -60,6 +60,300 @@ class LeanSheetDirectService
         return "https://docs.google.com/spreadsheets/d/{$this->spreadsheetId}/edit?usp=sharing";
     }
 
+    public static function extractSpreadsheetId(string $input): ?string
+    {
+        $input = trim($input);
+        if (empty($input)) return null;
+
+        if (preg_match('/spreadsheets\/d\/([a-zA-Z0-9-_]+)/', $input, $matches)) {
+            return $matches[1];
+        }
+
+        if (preg_match('/^[a-zA-Z0-9-_]{20,}$/', $input)) {
+            return $input;
+        }
+
+        return null;
+    }
+
+    public function getYearlySpreadsheetsConfigPath(): string
+    {
+        return storage_path('app/yearly_spreadsheets.json');
+    }
+
+    public function getYearlySpreadsheets(): array
+    {
+        $path = $this->getYearlySpreadsheetsConfigPath();
+        $configs = [];
+
+        if (file_exists($path)) {
+            $content = file_get_contents($path);
+            $decoded = json_decode($content, true);
+            if (is_array($decoded)) {
+                $configs = $decoded;
+            }
+        }
+
+        if (!isset($configs['2026'])) {
+            $configs['2026'] = [
+                'year' => 2026,
+                'spreadsheet_id' => $this->spreadsheetId,
+                'url' => "https://docs.google.com/spreadsheets/d/{$this->spreadsheetId}/edit?usp=sharing",
+                'title' => 'Telunas Lean Issues - 2026',
+                'is_default' => true,
+                'updated_at' => '2026-11-17 12:00:00',
+            ];
+        }
+
+        return $configs;
+    }
+
+    public function getSpreadsheetIdForYear(?int $year = null): string
+    {
+        $year = $year ?: (int) date('Y');
+        $configs = $this->getYearlySpreadsheets();
+        return $configs[(string) $year]['spreadsheet_id'] ?? $this->spreadsheetId;
+    }
+
+    public function getSpreadsheetUrlForYear(?int $year = null): string
+    {
+        $id = $this->getSpreadsheetIdForYear($year);
+        return "https://docs.google.com/spreadsheets/d/{$id}/edit?usp=sharing";
+    }
+
+    public function connectYearlySpreadsheet(int $year, string $inputUrlOrId): array
+    {
+        $sheetId = self::extractSpreadsheetId($inputUrlOrId);
+        if (!$sheetId) {
+            return [
+                'success' => false,
+                'message' => 'Format URL atau Spreadsheet ID tidak valid. Pastikan tautan berasal dari Google Sheets.',
+            ];
+        }
+
+        try {
+            $service = $this->getSheetsService();
+            $meta = $service->spreadsheets->get($sheetId);
+            $sheetTitle = $meta->getProperties()->getTitle() ?: "Telunas Lean Issues - {$year}";
+        } catch (\Throwable $e) {
+            Log::error("Failed to access Google Spreadsheet {$sheetId}: " . $e->getMessage());
+            return [
+                'success' => false,
+                'message' => 'Gagal mengakses Google Spreadsheet. Pastikan file telah di-share ke email bot: campusfix-bot@campusfix-504605.iam.gserviceaccount.com sebagai Editor.',
+                'error_detail' => $e->getMessage(),
+            ];
+        }
+
+        try {
+            $this->setupYearlySpreadsheetStructure($sheetId);
+            $syncResult = $this->syncIssuesForYear($year, $sheetId);
+
+            $configs = $this->getYearlySpreadsheets();
+            $configs[(string) $year] = [
+                'year' => $year,
+                'spreadsheet_id' => $sheetId,
+                'url' => "https://docs.google.com/spreadsheets/d/{$sheetId}/edit?usp=sharing",
+                'title' => $sheetTitle,
+                'is_default' => ($year === 2026),
+                'synced_issues_count' => $syncResult['total_synced'] ?? 0,
+                'updated_at' => Carbon::now('Asia/Jakarta')->toDateTimeString(),
+            ];
+
+            file_put_contents($this->getYearlySpreadsheetsConfigPath(), json_encode($configs, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+
+            return [
+                'success' => true,
+                'message' => "Spreadsheet untuk tahun {$year} berhasil terhubung, 12 tab bulanan diformat, dan {$syncResult['total_synced']} tiket disinkronkan.",
+                'data' => $configs[(string) $year],
+            ];
+        } catch (\Throwable $e) {
+            Log::error("Failed to setup yearly spreadsheet {$sheetId}: " . $e->getMessage());
+            return [
+                'success' => false,
+                'message' => 'Berhasil mengakses file, namun gagal memformat tab atau menyinkronkan data: ' . $e->getMessage(),
+            ];
+        }
+    }
+
+    public function setupYearlySpreadsheetStructure(string $sheetId): void
+    {
+        $service = $this->getSheetsService();
+        $meta = $service->spreadsheets->get($sheetId);
+        $existingTabs = [];
+        foreach ($meta->getSheets() as $s) {
+            $p = $s->getProperties();
+            $existingTabs[$p->getTitle()] = (int) $p->getSheetId();
+        }
+
+        $addRequests = [];
+        foreach (self::MONTH_NAMES as $monthName) {
+            if (!isset($existingTabs[$monthName])) {
+                $addRequests[] = new \Google\Service\Sheets\Request([
+                    'addSheet' => [
+                        'properties' => [
+                            'title' => $monthName,
+                            'gridProperties' => [
+                                'rowCount' => 1000,
+                                'columnCount' => 22,
+                            ],
+                        ],
+                    ],
+                ]);
+            }
+        }
+
+        if (!empty($addRequests)) {
+            $batch = new \Google\Service\Sheets\BatchUpdateSpreadsheetRequest(['requests' => $addRequests]);
+            $service->spreadsheets->batchUpdate($sheetId, $batch);
+
+            $meta = $service->spreadsheets->get($sheetId);
+            $existingTabs = [];
+            foreach ($meta->getSheets() as $s) {
+                $p = $s->getProperties();
+                $existingTabs[$p->getTitle()] = (int) $p->getSheetId();
+            }
+        }
+
+        $this->setupHeadersAndFormattingForTargetSheet($sheetId, $existingTabs);
+    }
+
+    public function setupHeadersAndFormattingForTargetSheet(string $sheetId, array $gids): void
+    {
+        $service = $this->getSheetsService();
+        $headers = [self::getHeaders()];
+        $headerRequests = [];
+
+        foreach (self::MONTH_NAMES as $monthName) {
+            if (!isset($gids[$monthName])) {
+                continue;
+            }
+            $tabGid = $gids[$monthName];
+
+            $body = new ValueRange(['values' => $headers]);
+            $service->spreadsheets_values->update(
+                $sheetId,
+                "{$monthName}!A1:V1",
+                $body,
+                ['valueInputOption' => 'USER_ENTERED']
+            );
+
+            $headerRequests[] = new \Google\Service\Sheets\Request([
+                'repeatCell' => [
+                    'range' => [
+                        'sheetId' => $tabGid,
+                        'startRowIndex' => 0,
+                        'endRowIndex' => 1,
+                        'startColumnIndex' => 0,
+                        'endColumnIndex' => 22,
+                    ],
+                    'cell' => [
+                        'userEnteredFormat' => [
+                            'backgroundColor' => [
+                                'red'   => 0.075,
+                                'green' => 0.306,
+                                'blue'  => 0.290,
+                            ],
+                            'textFormat' => [
+                                'bold' => true,
+                                'foregroundColor' => [
+                                    'red' => 1.0,
+                                    'green' => 1.0,
+                                    'blue' => 1.0,
+                                ],
+                                'fontSize' => 10,
+                            ],
+                            'horizontalAlignment' => 'CENTER',
+                            'verticalAlignment'   => 'MIDDLE',
+                        ],
+                    ],
+                    'fields' => 'userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,verticalAlignment)',
+                ],
+            ]);
+
+            $headerRequests[] = new \Google\Service\Sheets\Request([
+                'updateDimensionProperties' => [
+                    'range' => [
+                        'sheetId' => $tabGid,
+                        'dimension' => 'ROWS',
+                        'startIndex' => 0,
+                        'endIndex' => 1,
+                    ],
+                    'properties' => [
+                        'pixelSize' => 34,
+                    ],
+                    'fields' => 'pixelSize',
+                ],
+            ]);
+        }
+
+        if (!empty($headerRequests)) {
+            $batch = new BatchUpdateSpreadsheetRequest(['requests' => $headerRequests]);
+            $service->spreadsheets->batchUpdate($sheetId, $batch);
+        }
+    }
+
+    public function syncIssuesForYear(int $year, ?string $targetSheetId = null): array
+    {
+        $targetSheetId = $targetSheetId ?: $this->getSpreadsheetIdForYear($year);
+        $service = $this->getSheetsService();
+        $meta = $service->spreadsheets->get($targetSheetId);
+        $gids = [];
+        foreach ($meta->getSheets() as $s) {
+            $p = $s->getProperties();
+            $gids[$p->getTitle()] = (int) $p->getSheetId();
+        }
+
+        $issues = LeanIssue::whereYear('created_at', $year)
+            ->whereNull('deleted_at')
+            ->orderBy('id', 'asc')
+            ->get();
+
+        $byMonth = [];
+        foreach (self::MONTH_NAMES as $monthName) {
+            $byMonth[$monthName] = [];
+        }
+
+        foreach ($issues as $issue) {
+            $monthName = self::getMonthNameForDate($issue->created_at);
+            if (!isset($byMonth[$monthName])) {
+                $byMonth[$monthName] = [];
+            }
+            $byMonth[$monthName][] = $this->formatIssueRow($issue);
+        }
+
+        $totalSynced = 0;
+        foreach ($byMonth as $monthName => $rows) {
+            if (!isset($gids[$monthName])) {
+                continue;
+            }
+
+            $service->spreadsheets_values->clear(
+                $targetSheetId,
+                "{$monthName}!A2:V1000",
+                new \Google\Service\Sheets\ClearValuesRequest()
+            );
+
+            if (!empty($rows)) {
+                $endRow = count($rows) + 1;
+                $body = new ValueRange(['values' => $rows]);
+                $service->spreadsheets_values->update(
+                    $targetSheetId,
+                    "{$monthName}!A2:V{$endRow}",
+                    $body,
+                    ['valueInputOption' => 'USER_ENTERED']
+                );
+                $totalSynced += count($rows);
+            }
+        }
+
+        return [
+            'success' => true,
+            'year' => $year,
+            'total_synced' => $totalSynced,
+            'spreadsheet_id' => $targetSheetId,
+        ];
+    }
+
     public static function getHeaders(): array
     {
         return [
