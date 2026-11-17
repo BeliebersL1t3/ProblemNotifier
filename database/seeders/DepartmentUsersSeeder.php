@@ -8,328 +8,252 @@ use Illuminate\Support\Facades\Hash;
 
 class DepartmentUsersSeeder extends Seeder
 {
+    /**
+     * Run the database seeds to sync active users:
+     * - Preserves users with real emails and numbers
+     * - Purges obsolete dummy accounts without phone numbers
+     * - Creates active roster of staff accounts for all Telunas departments
+     */
     public function run(): void
     {
-        $password = Hash::make('telunas123');
+        $defaultPassword = Hash::make('telunas123');
 
-        $accounts = [
-            // ── ADMIN ──────────────────────────────────────────────────────────
+        // 1. Whitelist of real accounts to preserve
+        $preservedEmails = [
+            'pilipbiyik@gmail.com',
+            'humaspmkv@gmail.com',
+            'recruitment@telunasbeach.com',
+            'dedy@telunas.com',
+            'noobmastermc@student.ub.ac.id',
+            'noobmastermc@gmail.com',
+            'phillipus.zerah.s@gmail.com',
+            'akusayangortu64@gmail.com',
+            'gacor123@gmail.com',
+        ];
+
+        // 2. Ensure all preserved accounts are active, approved, and non-HOD
+        User::whereIn('email', $preservedEmails)->update([
+            'is_active' => true,
+            'approval_status' => 'approved',
+            'is_hod' => false,
+            'hod_title' => null,
+        ]);
+
+        // 3. Delete old obsolete dummy accounts
+        User::whereNotIn('email', $preservedEmails)->delete();
+
+        // 4. New active staff accounts roster (covering all Telunas departments & subdivisions)
+        $newStaffAccounts = [
+            // ── ENGINEER / MAINTENANCE ──────────────────────────────────────────
             [
-                'name'        => 'Admin Telunas',
-                'email'       => 'admin@telunas.com',
-                'role'        => 'admin',
-                'department'  => null,
-                'subdivision' => null,
-                'staff_name'  => 'Admin Telunas',
+                'name'            => 'Budi Engineer',
+                'staff_name'      => 'Budi Engineer',
+                'email'           => 'budi.eng@telunas.com',
+                'role'            => 'department',
+                'department'      => 'Engineer',
+                'subdivision'     => 'Engineer',
+                'whatsapp_number' => '081234567101',
+            ],
+            [
+                'name'            => 'Wawan Engineer',
+                'staff_name'      => 'Wawan Engineer',
+                'email'           => 'wawan.eng@telunas.com',
+                'role'            => 'department',
+                'department'      => 'Engineer',
+                'subdivision'     => 'Engineer',
+                'whatsapp_number' => '081234567117',
             ],
 
-            // ── 1. HR GROUP (Subdivisions: HR, Legal, LnD, Transportasi) ───────
+            // ── HOUSEKEEPING (HK + PEST CONTROL) ───────────────────────────────
             [
-                'name'        => 'Bambang HR',
-                'email'       => 'BambangHR@telunas.com',
-                'role'        => 'department',
-                'department'  => 'HR',
-                'subdivision' => 'HR',
-                'staff_name'  => 'Bambang HR',
+                'name'            => 'Siti Housekeeping',
+                'staff_name'      => 'Siti HK',
+                'email'           => 'siti.hk@telunas.com',
+                'role'            => 'department',
+                'department'      => 'HK',
+                'subdivision'     => 'HK',
+                'whatsapp_number' => '081234567102',
             ],
             [
-                'name'            => 'Dedy',
-                'email'           => 'dedy@telunas.com',
+                'name'            => 'Wahyu PestControl',
+                'staff_name'      => 'Wahyu PestControl',
+                'email'           => 'wahyu.pest@telunas.com',
+                'role'            => 'department',
+                'department'      => 'HK',
+                'subdivision'     => 'Pest Control',
+                'whatsapp_number' => '081234567103',
+            ],
+
+            // ── KITCHEN ────────────────────────────────────────────────────────
+            [
+                'name'            => 'Chef Ricky Kitchen',
+                'staff_name'      => 'Chef Ricky',
+                'email'           => 'ricky.kitchen@telunas.com',
+                'role'            => 'department',
+                'department'      => 'Kitchen',
+                'subdivision'     => 'Kitchen',
+                'whatsapp_number' => '081234567104',
+            ],
+
+            // ── IT & TECHNOLOGY ────────────────────────────────────────────────
+            [
+                'name'            => 'Rian IT',
+                'staff_name'      => 'Rian IT',
+                'email'           => 'rian.it@telunas.com',
+                'role'            => 'department',
+                'department'      => 'IT',
+                'subdivision'     => 'IT',
+                'whatsapp_number' => '081234567105',
+            ],
+
+            // ── PROCUREMENT ────────────────────────────────────────────────────
+            [
+                'name'            => 'Doni Procurement',
+                'staff_name'      => 'Doni Procurement',
+                'email'           => 'doni.proc@telunas.com',
+                'role'            => 'department',
+                'department'      => 'Procurement',
+                'subdivision'     => 'Procurement',
+                'whatsapp_number' => '081234567106',
+            ],
+
+            // ── FINANCE ────────────────────────────────────────────────────────
+            [
+                'name'            => 'Dewi Finance',
+                'staff_name'      => 'Dewi Finance',
+                'email'           => 'dewi.fin@telunas.com',
+                'role'            => 'department',
+                'department'      => 'Finance',
+                'subdivision'     => 'Finance',
+                'whatsapp_number' => '081234567107',
+            ],
+
+            // ── RESERVASI & MARKETING ──────────────────────────────────────────
+            [
+                'name'            => 'Maya Reservasi',
+                'staff_name'      => 'Maya Reservasi',
+                'email'           => 'maya.res@telunas.com',
+                'role'            => 'department',
+                'department'      => 'Reservasi',
+                'subdivision'     => 'Reservasi',
+                'whatsapp_number' => '081234567108',
+            ],
+            [
+                'name'            => 'Sarah Marketing',
+                'staff_name'      => 'Sarah Marketing',
+                'email'           => 'sarah.mkt@telunas.com',
+                'role'            => 'department',
+                'department'      => 'Reservasi',
+                'subdivision'     => 'Marketing',
+                'whatsapp_number' => '081234567109',
+            ],
+
+            // ── GUEST RELATIONS (GR) ───────────────────────────────────────────
+            [
+                'name'            => 'Wayan GRE',
+                'staff_name'      => 'Wayan GRE',
+                'email'           => 'wayan.gre@telunas.com',
+                'role'            => 'department',
+                'department'      => 'GR',
+                'subdivision'     => 'GRE',
+                'whatsapp_number' => '081234567110',
+            ],
+            [
+                'name'            => 'Anto Service',
+                'staff_name'      => 'Anto Service',
+                'email'           => 'anto.service@telunas.com',
+                'role'            => 'department',
+                'department'      => 'GR',
+                'subdivision'     => 'Service',
+                'whatsapp_number' => '081234567111',
+            ],
+            [
+                'name'            => 'Lia Bar',
+                'staff_name'      => 'Lia Bar',
+                'email'           => 'lia.bar@telunas.com',
+                'role'            => 'department',
+                'department'      => 'GR',
+                'subdivision'     => 'Bar',
+                'whatsapp_number' => '081234567118',
+            ],
+            [
+                'name'            => 'Sari Spa',
+                'staff_name'      => 'Sari Spa',
+                'email'           => 'sari.spa@telunas.com',
+                'role'            => 'department',
+                'department'      => 'GR',
+                'subdivision'     => 'Spa',
+                'whatsapp_number' => '081234567119',
+            ],
+
+            // ── HR SUBDIVISIONS (LEGAL, LND, TRANSPORTASI) ─────────────────────
+            [
+                'name'            => 'Hendro Legal',
+                'staff_name'      => 'Hendro Legal',
+                'email'           => 'hendro.legal@telunas.com',
                 'role'            => 'department',
                 'department'      => 'HR',
-                'subdivision'     => 'HR',
-                'staff_name'      => 'Dedy HR',
-                'whatsapp_number' => '081372897921',
+                'subdivision'     => 'Legal',
+                'whatsapp_number' => '081234567115',
             ],
             [
-                'name'        => 'Hendro Legal',
-                'email'       => 'HendroLegal@telunas.com',
-                'role'        => 'department',
-                'department'  => 'HR',
-                'subdivision' => 'Legal',
-                'staff_name'  => 'Hendro Legal',
+                'name'            => 'Putri LnD',
+                'staff_name'      => 'Putri LnD',
+                'email'           => 'putri.lnd@telunas.com',
+                'role'            => 'department',
+                'department'      => 'HR',
+                'subdivision'     => 'LnD',
+                'whatsapp_number' => '081234567116',
             ],
             [
-                'name'        => 'Putri LnD',
-                'email'       => 'PutriLnD@telunas.com',
-                'role'        => 'department',
-                'department'  => 'HR',
-                'subdivision' => 'LnD',
-                'staff_name'  => 'Putri LnD',
-            ],
-            [
-                'name'        => 'Arif Transportasi',
-                'email'       => 'ArifTransportasi@telunas.com',
-                'role'        => 'department',
-                'department'  => 'HR',
-                'subdivision' => 'Transportasi',
-                'staff_name'  => 'Captain Arif',
-            ],
-            // Backward-compat email alias for Arif
-            [
-                'name'        => 'Arif Transportasi',
-                'email'       => 'ArifTekong@telunas.com',
-                'role'        => 'department',
-                'department'  => 'HR',
-                'subdivision' => 'Transportasi',
-                'staff_name'  => 'Captain Arif',
+                'name'            => 'Captain Taufik',
+                'staff_name'      => 'Captain Taufik',
+                'email'           => 'taufik.boat@telunas.com',
+                'role'            => 'department',
+                'department'      => 'HR',
+                'subdivision'     => 'Transportasi',
+                'whatsapp_number' => '081234567112',
             ],
 
-            // ── 2. GR GROUP (Subdivisions: GRE, Service, TIrek, Spa, Bar) ──────
+            // ── FASILITAS & SECURITY ───────────────────────────────────────────
             [
-                'name'        => 'Wawan GRE',
-                'email'       => 'WawanGRE@telunas.com',
-                'role'        => 'department',
-                'department'  => 'GR',
-                'subdivision' => 'GRE',
-                'staff_name'  => 'Wawan GRE',
-            ],
-            [
-                'name'        => 'Wawan GRE',
-                'email'       => 'WawanGR@telunas.com',
-                'role'        => 'department',
-                'department'  => 'GR',
-                'subdivision' => 'GRE',
-                'staff_name'  => 'Wawan GRE',
-            ],
-            [
-                'name'        => 'Anto Service',
-                'email'       => 'AntoService@telunas.com',
-                'role'        => 'department',
-                'department'  => 'GR',
-                'subdivision' => 'Service',
-                'staff_name'  => 'Anto Service',
-            ],
-            [
-                'name'        => 'Lia Bar',
-                'email'       => 'LiaBar@telunas.com',
-                'role'        => 'department',
-                'department'  => 'GR',
-                'subdivision' => 'Bar',
-                'staff_name'  => 'Lia Bar',
-            ],
-            [
-                'name'        => 'Sari Spa',
-                'email'       => 'SariSpa@telunas.com',
-                'role'        => 'department',
-                'department'  => 'GR',
-                'subdivision' => 'Spa',
-                'staff_name'  => 'Sari Spa',
-            ],
-            [
-                'name'        => 'Fajar TiRek',
-                'email'       => 'FajarTiRek@telunas.com',
-                'role'        => 'department',
-                'department'  => 'GR',
-                'subdivision' => 'TIrek',
-                'staff_name'  => 'Fajar TiRek',
+                'name'            => 'Joko Security',
+                'staff_name'      => 'Joko Security',
+                'email'           => 'joko.sec@telunas.com',
+                'role'            => 'department',
+                'department'      => 'Fasilitas',
+                'subdivision'     => 'Security',
+                'whatsapp_number' => '081234567113',
             ],
 
-            // ── 3. OE (Operational Excellence) ─────────────────────────────────
+            // ── OE (OPERATIONAL EXCELLENCE) ────────────────────────────────────
             [
-                'name'        => 'Dimas OE',
-                'email'       => 'DimasOE@telunas.com',
-                'role'        => 'department',
-                'department'  => 'OE',
-                'subdivision' => 'OE',
-                'staff_name'  => 'Dimas OE',
-            ],
-            [
-                'name'        => 'Taufik OE',
-                'email'       => 'TaufikOE@telunas.com',
-                'role'        => 'department',
-                'department'  => 'OE',
-                'subdivision' => 'OE',
-                'staff_name'  => 'Taufik OE',
-            ],
-
-            // ── 4. KITCHEN (Formerly F&B) ──────────────────────────────────────
-            [
-                'name'        => 'Ricky Kitchen',
-                'email'       => 'RickyKitchen@telunas.com',
-                'role'        => 'department',
-                'department'  => 'Kitchen',
-                'subdivision' => 'Kitchen',
-                'staff_name'  => 'Chef Ricky',
-            ],
-            [
-                'name'        => 'Ricky Kitchen',
-                'email'       => 'RickyFnB@telunas.com',
-                'role'        => 'department',
-                'department'  => 'Kitchen',
-                'subdivision' => 'Kitchen',
-                'staff_name'  => 'Chef Ricky',
-            ],
-            [
-                'name'        => 'Bayu Kitchen',
-                'email'       => 'BayuKitchen@telunas.com',
-                'role'        => 'department',
-                'department'  => 'Kitchen',
-                'subdivision' => 'Kitchen',
-                'staff_name'  => 'Bayu Kitchen',
-            ],
-            [
-                'name'        => 'Bayu Kitchen',
-                'email'       => 'BayuFnB@telunas.com',
-                'role'        => 'department',
-                'department'  => 'Kitchen',
-                'subdivision' => 'Kitchen',
-                'staff_name'  => 'Bayu Kitchen',
-            ],
-
-            // ── 5. HK (Housekeeping & Pest Control) ────────────────────────────
-            [
-                'name'        => 'Siti HK',
-                'email'       => 'SitiHK@telunas.com',
-                'role'        => 'department',
-                'department'  => 'HK',
-                'subdivision' => 'HK',
-                'staff_name'  => 'Siti HK',
-            ],
-            [
-                'name'        => 'Wahyu PestControl',
-                'email'       => 'WahyuPestControl@telunas.com',
-                'role'        => 'department',
-                'department'  => 'HK',
-                'subdivision' => 'Pest Control',
-                'staff_name'  => 'Wahyu Pest Control',
-            ],
-
-            // ── 6. IT ──────────────────────────────────────────────────────────
-            [
-                'name'        => 'Reza IT',
-                'email'       => 'RezaIT@telunas.com',
-                'role'        => 'department',
-                'department'  => 'IT',
-                'subdivision' => 'IT',
-                'staff_name'  => 'Reza IT',
-            ],
-            [
-                'name'        => 'Dani IT',
-                'email'       => 'DaniIT@telunas.com',
-                'role'        => 'department',
-                'department'  => 'IT',
-                'subdivision' => 'IT',
-                'staff_name'  => 'Dani IT',
-            ],
-
-            // ── 7. PROCUREMENT ─────────────────────────────────────────────────
-            [
-                'name'        => 'Ratna Procurement',
-                'email'       => 'RatnaProcurement@telunas.com',
-                'role'        => 'department',
-                'department'  => 'Procurement',
-                'subdivision' => 'Procurement',
-                'staff_name'  => 'Ratna Procurement',
-            ],
-            [
-                'name'        => 'Budi Procurement',
-                'email'       => 'BudiProcurement@telunas.com',
-                'role'        => 'department',
-                'department'  => 'Procurement',
-                'subdivision' => 'Procurement',
-                'staff_name'  => 'Budi Procurement',
-            ],
-
-            // ── 8. FINANCE ─────────────────────────────────────────────────────
-            [
-                'name'        => 'Iwan Finance',
-                'email'       => 'IwanFinance@telunas.com',
-                'role'        => 'department',
-                'department'  => 'Finance',
-                'subdivision' => 'Finance',
-                'staff_name'  => 'Iwan Finance',
-            ],
-            [
-                'name'        => 'Ratna Finance',
-                'email'       => 'RatnaFinance@telunas.com',
-                'role'        => 'department',
-                'department'  => 'Finance',
-                'subdivision' => 'Finance',
-                'staff_name'  => 'Ratna Finance',
-            ],
-
-            // ── 9. RESERVASI (Subdivisions: Reservasi, Sales, Marketing) ───────
-            [
-                'name'        => 'Maya Reservasi',
-                'email'       => 'MayaReservasi@telunas.com',
-                'role'        => 'department',
-                'department'  => 'Reservasi',
-                'subdivision' => 'Reservasi',
-                'staff_name'  => 'Maya Reservasi',
-            ],
-            [
-                'name'        => 'Clarissa Sales',
-                'email'       => 'ClarissaSales@telunas.com',
-                'role'        => 'department',
-                'department'  => 'Reservasi',
-                'subdivision' => 'Sales',
-                'staff_name'  => 'Clarissa Sales',
-            ],
-            [
-                'name'        => 'Ana Marketing',
-                'email'       => 'AnaMarketing@telunas.com',
-                'role'        => 'department',
-                'department'  => 'Reservasi',
-                'subdivision' => 'Marketing',
-                'staff_name'  => 'Ana Marketing',
-            ],
-            [
-                'name'        => 'Ana Marketing',
-                'email'       => 'AnaSales@telunas.com',
-                'role'        => 'department',
-                'department'  => 'Reservasi',
-                'subdivision' => 'Marketing',
-                'staff_name'  => 'Ana Marketing',
-            ],
-
-            // ── 10. ENGINEER ───────────────────────────────────────────────────
-            [
-                'name'        => 'Dimas Engineer',
-                'email'       => 'DimasEngineer@telunas.com',
-                'role'        => 'department',
-                'department'  => 'Engineer',
-                'subdivision' => 'Engineer',
-                'staff_name'  => 'Dimas Engineer',
-            ],
-            [
-                'name'        => 'Budi Engineer',
-                'email'       => 'BudiEngineer@telunas.com',
-                'role'        => 'department',
-                'department'  => 'Engineer',
-                'subdivision' => 'Engineer',
-                'staff_name'  => 'Budi Engineer',
-            ],
-
-            // ── 11. FASILITAS (Subdivisions: Fasilitas, Security) ──────────────
-            [
-                'name'        => 'Anto Fasilitas',
-                'email'       => 'AntoFasilitas@telunas.com',
-                'role'        => 'department',
-                'department'  => 'Fasilitas',
-                'subdivision' => 'Fasilitas',
-                'staff_name'  => 'Anto Fasilitas',
-            ],
-            [
-                'name'        => 'Joko Security',
-                'email'       => 'JokoSecurity@telunas.com',
-                'role'        => 'department',
-                'department'  => 'Fasilitas',
-                'subdivision' => 'Security',
-                'staff_name'  => 'Joko Security',
+                'name'            => 'Hendra OE',
+                'staff_name'      => 'Hendra OE',
+                'email'           => 'hendra.oe@telunas.com',
+                'role'            => 'department',
+                'department'      => 'OE',
+                'subdivision'     => 'OE',
+                'whatsapp_number' => '081234567114',
             ],
         ];
 
-        foreach ($accounts as $account) {
+        foreach ($newStaffAccounts as $account) {
             User::updateOrCreate(
                 ['email' => $account['email']],
                 array_merge($account, [
-                    'password'     => $password,
-                    'raw_password' => 'telunas123',
+                    'password'        => $defaultPassword,
+                    'is_active'       => true,
+                    'approval_status' => 'approved',
+                    'is_hod'          => false,
+                    'hod_title'       => null,
+                    'permissions'     => [
+                        'can_view_all_departments' => false,
+                        'can_manage_issues'        => true,
+                        'can_export_reports'       => true,
+                    ],
                 ])
             );
         }
-
-        $this->command->info('✅ ' . count($accounts) . ' department accounts seeded successfully.');
     }
 }
