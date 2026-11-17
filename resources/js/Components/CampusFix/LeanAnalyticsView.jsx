@@ -1593,6 +1593,9 @@ export function LeanAnalyticsView({
 
     const formatDeptDisplay = (name) => (name === 'Umum' && isEn ? 'General' : name);
 
+    // 0. Global Year Filter (Default to '2026' active operational year per Option A)
+    const [selectedYear, setSelectedYear] = useState('2026');
+
     // 1. Time / Month Filter
     const [timeRange, setTimeRange] = useState('all');
 
@@ -1638,16 +1641,6 @@ export function LeanAnalyticsView({
         return enMap[activeMonthName] || activeMonthName;
     }, [activeMonthName, isEn]);
 
-    // Dynamic Google Sheet URL with #gid anchor to open the exact month tab
-    const dynamicSheetUrl = useMemo(() => {
-        const defaultSheetUrl = yearlySpreadsheets?.[2026]?.url || spreadsheetUrl;
-        const gid = monthGids?.[activeMonthName];
-        const baseUrl = (defaultSheetUrl || '').split('#')[0];
-        if (gid !== undefined && gid !== null && gid !== '') {
-            return `${baseUrl}#gid=${gid}`;
-        }
-        return defaultSheetUrl;
-    }, [activeMonthName, monthGids, spreadsheetUrl, yearlySpreadsheets]);
     // 2. Customizable Department Mode: 'target_issues' | 'reporters' | 'backlog_ratio'
     const [deptMode, setDeptMode] = useState('target_issues');
     // 2.1. Trend Chart Period Mode: '6m' | '1y' | 'semester' | 'yearly'
@@ -1672,6 +1665,38 @@ export function LeanAnalyticsView({
     const [isConnectingSheet, setIsConnectingSheet] = useState(false);
     const [sheetConnectMessage, setSheetConnectMessage] = useState(null);
     const [copiedBotEmail, setCopiedBotEmail] = useState(false);
+
+    // Dynamic available years list derived from issues and connected yearly spreadsheets
+    const availableYears = useMemo(() => {
+        const yearSet = new Set();
+        (issues || []).forEach((iss) => {
+            if (iss?.created_at) {
+                const yr = new Date(iss.created_at).getFullYear();
+                if (!isNaN(yr)) yearSet.add(yr);
+            }
+        });
+        Object.keys(yearlySpreadsheets || {}).forEach((yr) => {
+            const num = parseInt(yr, 10);
+            if (!isNaN(num)) yearSet.add(num);
+        });
+        yearSet.add(2026);
+        return Array.from(yearSet).sort((a, b) => b - a);
+    }, [issues, yearlySpreadsheets]);
+
+    // Dynamic Google Sheet URL with #gid anchor to open the exact month tab and year
+    const dynamicSheetUrl = useMemo(() => {
+        const targetYearNum = selectedYear !== 'all' ? parseInt(selectedYear, 10) : 2026;
+        const targetSpreadsheetUrl =
+            yearlySpreadsheets?.[targetYearNum]?.url ||
+            yearlySpreadsheets?.[2026]?.url ||
+            spreadsheetUrl;
+        const gid = monthGids?.[activeMonthName];
+        const baseUrl = (targetSpreadsheetUrl || '').split('#')[0];
+        if (gid !== undefined && gid !== null && gid !== '') {
+            return `${baseUrl}#gid=${gid}`;
+        }
+        return targetSpreadsheetUrl;
+    }, [activeMonthName, monthGids, spreadsheetUrl, yearlySpreadsheets, selectedYear]);
 
     const fetchSpreadsheets = useCallback(async () => {
         try {
@@ -1761,15 +1786,23 @@ export function LeanAnalyticsView({
         else if (focusMapRequest.resort === 'TPI') setActiveMapTab('tpi');
     }, [focusMapRequest]);
 
-    // Filter issues by time
+    // Filter issues by year and time range
     const filteredIssues = useMemo(() => {
-        if (timeRange === 'all') return issues;
-
         const now = new Date();
         return issues.filter((i) => {
             if (!i.created_at) return true;
             const issueDate = new Date(i.created_at);
             if (isNaN(issueDate.getTime())) return true;
+
+            // 1. Year filter
+            if (selectedYear !== 'all') {
+                if (issueDate.getFullYear() !== parseInt(selectedYear, 10)) {
+                    return false;
+                }
+            }
+
+            // 2. Time range / monthly tab filter
+            if (timeRange === 'all') return true;
 
             if (timeRange === 'today') {
                 return issueDate.toDateString() === now.toDateString();
@@ -1785,7 +1818,7 @@ export function LeanAnalyticsView({
             }
             return true;
         });
-    }, [issues, timeRange]);
+    }, [issues, timeRange, selectedYear]);
 
     // KPI Metrics calculation
     const stats = useMemo(() => {
@@ -1988,12 +2021,13 @@ export function LeanAnalyticsView({
                 const d = new Date(issue.created_at);
                 if (isNaN(d.getTime())) return;
                 const y = d.getFullYear();
+                if (selectedYear !== 'all' && y !== parseInt(selectedYear, 10)) return;
                 const m = d.getMonth();
                 const semNum = m < 6 ? 1 : 2;
                 const key = `${y}-S${semNum}`;
                 if (!semMap[key]) {
                     const semLabel = semNum === 1
-                        ? (isEn ? `S1 ${y} (Jan-Jun)` : `S1 ${y} (Jan-Jun)`)
+                        ? `S1 ${y} (Jan-Jun)`
                         : (isEn ? `S2 ${y} (Jul-Dec)` : `S2 ${y} (Jul-Des)`);
                     semMap[key] = {
                         key,
@@ -2010,19 +2044,21 @@ export function LeanAnalyticsView({
             });
             const result = Object.values(semMap).sort((a, b) => a.key.localeCompare(b.key));
             return result.length > 0 ? result : [
-                { name: isEn ? 'S1 (Jan-Jun)' : 'S1 (Jan-Jun)', total: 0, resolved: 0 },
+                { name: 'S1 (Jan-Jun)', total: 0, resolved: 0 },
                 { name: isEn ? 'S2 (Jul-Dec)' : 'S2 (Jul-Des)', total: 0, resolved: 0 },
             ];
         }
 
         if (trendPeriodMode === '1y') {
-            // 1 Year Full: 12 months (Jan s.d. Des) for the latest year in data
-            let targetYear = 2026;
-            for (const issue of (issues || [])) {
-                if (issue.created_at) {
-                    const d = new Date(issue.created_at);
-                    if (!isNaN(d.getTime())) {
-                        targetYear = Math.max(targetYear, d.getFullYear());
+            // 1 Year Full: 12 months (Jan s.d. Des) for selected year or latest year
+            let targetYear = selectedYear !== 'all' ? parseInt(selectedYear, 10) : 2026;
+            if (selectedYear === 'all') {
+                for (const issue of (issues || [])) {
+                    if (issue.created_at) {
+                        const d = new Date(issue.created_at);
+                        if (!isNaN(d.getTime())) {
+                            targetYear = Math.max(targetYear, d.getFullYear());
+                        }
                     }
                 }
             }
@@ -2063,6 +2099,7 @@ export function LeanAnalyticsView({
             const d = new Date(issue.created_at);
             if (isNaN(d.getTime())) return;
             const y = d.getFullYear();
+            if (selectedYear !== 'all' && y !== parseInt(selectedYear, 10)) return;
             const m = d.getMonth();
             const key = `${y}-${String(m + 1).padStart(2, '0')}`;
             if (!map[key]) {
@@ -2082,7 +2119,7 @@ export function LeanAnalyticsView({
 
         const sorted = Object.values(map).sort((a, b) => a.key.localeCompare(b.key));
         return sorted.length > 6 ? sorted.slice(-6) : sorted;
-    }, [issues, trendPeriodMode, isEn]);
+    }, [issues, trendPeriodMode, isEn, selectedYear]);
 
     // 2. SLA Target Completion Donut Data
     const slaDonutData = useMemo(() => {
@@ -2198,43 +2235,55 @@ export function LeanAnalyticsView({
         };
     }, [filteredIssues]);
 
-    const timeLabels = useMemo(() => (isEn
-        ? {
-              all: 'All Months (All Tabs)',
-              today: 'Today',
-              '7d': 'Last 7 Days',
-              '30d': 'Last 30 Days',
-              month_1: 'January',
-              month_2: 'February',
-              month_3: 'March',
-              month_4: 'April',
-              month_5: 'May',
-              month_6: 'June',
-              month_7: 'July',
-              month_8: 'August',
-              month_9: 'September',
-              month_10: 'October',
-              month_11: 'November',
-              month_12: 'December',
-          }
-        : {
-              all: 'Semua Bulan (Semua Tab)',
-              today: 'Hari Ini',
-              '7d': '7 Hari Terakhir',
-              '30d': '30 Hari Terakhir',
-              month_1: 'Bulan Januari',
-              month_2: 'Bulan Februari',
-              month_3: 'Bulan Maret',
-              month_4: 'Bulan April',
-              month_5: 'Bulan Mei',
-              month_6: 'Bulan Juni',
-              month_7: 'Bulan Juli',
-              month_8: 'Bulan Agustus',
-              month_9: 'Bulan September',
-              month_10: 'Bulan Oktober',
-              month_11: 'Bulan November',
-              month_12: 'Bulan Desember',
-          }), [isEn]);
+    const timeLabels = useMemo(() => {
+        const base = isEn
+            ? {
+                  all: 'All Months (All Tabs)',
+                  today: 'Today',
+                  '7d': 'Last 7 Days',
+                  '30d': 'Last 30 Days',
+                  month_1: 'January',
+                  month_2: 'February',
+                  month_3: 'March',
+                  month_4: 'April',
+                  month_5: 'May',
+                  month_6: 'June',
+                  month_7: 'July',
+                  month_8: 'August',
+                  month_9: 'September',
+                  month_10: 'October',
+                  month_11: 'November',
+                  month_12: 'December',
+              }
+            : {
+                  all: 'Semua Bulan (Semua Tab)',
+                  today: 'Hari Ini',
+                  '7d': '7 Hari Terakhir',
+                  '30d': '30 Hari Terakhir',
+                  month_1: 'Bulan Januari',
+                  month_2: 'Bulan Februari',
+                  month_3: 'Bulan Maret',
+                  month_4: 'Bulan April',
+                  month_5: 'Bulan Mei',
+                  month_6: 'Bulan Juni',
+                  month_7: 'Bulan Juli',
+                  month_8: 'Bulan Agustus',
+                  month_9: 'Bulan September',
+                  month_10: 'Bulan Oktober',
+                  month_11: 'Bulan November',
+                  month_12: 'Bulan Desember',
+              };
+
+        const yearLabel = selectedYear === 'all'
+            ? (isEn ? 'All Years' : 'Semua Tahun')
+            : (isEn ? `Year ${selectedYear}` : `Tahun ${selectedYear}`);
+
+        const result = {};
+        for (const [k, v] of Object.entries(base)) {
+            result[k] = `${yearLabel} • ${v}`;
+        }
+        return result;
+    }, [isEn, selectedYear]);
 
     // Handle Download PDF: Open official landscape export modal with interactive preview
     const handleDownloadPdf = () => {
@@ -2248,52 +2297,88 @@ export function LeanAnalyticsView({
             {/* ========================================================= */}
             <div className="border rounded-2xl p-3.5 sm:p-4 transition-all liquid-glass-card">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-                    {/* Time Filter Dropdown */}
+                    {/* Filter Controls (Year Filter + Time / Month Filter) */}
                     <div className="flex items-center gap-2 flex-wrap">
-                        <span className={`text-xs font-semibold flex items-center gap-1.5 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-                            <Clock className="w-3.5 h-3.5 text-emerald-500" />
-                            {isEn ? 'Report Period:' : 'Periode Laporan:'}
-                        </span>
-                        <select
-                            value={timeRange}
-                            onChange={(e) => setTimeRange(e.target.value)}
-                            className={`text-xs font-semibold rounded-xl px-3 py-2 border shadow-sm cursor-pointer transition-all focus:ring-1 focus:ring-emerald-500 liquid-glass-control ${
-                                isDark ? 'bg-slate-800 border-slate-700 text-slate-200' : 'bg-white border-slate-300 text-slate-800'
-                            }`}
-                        >
-                            <option value="all">{isEn ? '📅 All Months (All Tabs)' : '📅 Semua Bulan (Semua Tab)'}</option>
-                            <option value="today">{isEn ? '⚡ Today' : '⚡ Hari Ini'}</option>
-                            <option value="7d">{isEn ? '🕒 Last 7 Days' : '🕒 7 Hari Terakhir'}</option>
-                            <option value="30d">{isEn ? '🗓️ Last 30 Days' : '🗓️ 30 Hari Terakhir'}</option>
-                            <optgroup label={isEn ? 'Monthly Spreadsheet Tabs' : 'Tab Bulanan Spreadsheet'}>
-                                <option value="month_1">{isEn ? 'Month 01 - January' : 'Bulan 01 - Januari'}</option>
-                                <option value="month_2">{isEn ? 'Month 02 - February' : 'Bulan 02 - Februari'}</option>
-                                <option value="month_3">{isEn ? 'Month 03 - March' : 'Bulan 03 - Maret'}</option>
-                                <option value="month_4">{isEn ? 'Month 04 - April' : 'Bulan 04 - April'}</option>
-                                <option value="month_5">{isEn ? 'Month 05 - May' : 'Bulan 05 - Mei'}</option>
-                                <option value="month_6">{isEn ? 'Month 06 - June' : 'Bulan 06 - Juni'}</option>
-                                <option value="month_7">{isEn ? 'Month 07 - July' : 'Bulan 07 - Juli'}</option>
-                                <option value="month_8">{isEn ? 'Month 08 - August' : 'Bulan 08 - Agustus'}</option>
-                                <option value="month_9">{isEn ? 'Month 09 - September' : 'Bulan 09 - September'}</option>
-                                <option value="month_10">{isEn ? 'Month 10 - October' : 'Bulan 10 - Oktober'}</option>
-                                <option value="month_11">{isEn ? 'Month 11 - November' : 'Bulan 11 - November'}</option>
-                                <option value="month_12">{isEn ? 'Month 12 - December' : 'Bulan 12 - Desember'}</option>
-                            </optgroup>
-                        </select>
+                        {/* 1. Global Year Filter Dropdown */}
+                        <div className="flex items-center gap-1.5">
+                            <span className={`text-xs font-semibold flex items-center gap-1.5 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                                <Calendar className="w-3.5 h-3.5 text-emerald-500" />
+                                {isEn ? 'Year:' : 'Tahun:'}
+                            </span>
+                            <select
+                                value={selectedYear}
+                                onChange={(e) => setSelectedYear(e.target.value)}
+                                className={`text-xs font-semibold rounded-xl px-3 py-2 border shadow-sm cursor-pointer transition-all focus:ring-1 focus:ring-emerald-500 liquid-glass-control ${
+                                    isDark ? 'bg-slate-800 border-slate-700 text-slate-200' : 'bg-white border-slate-300 text-slate-800'
+                                }`}
+                                title={isEn ? 'Filter by Operating Year' : 'Filter berdasarkan Tahun Operasional'}
+                            >
+                                <option value="all">{isEn ? '📅 All Years' : '📅 Semua Tahun'}</option>
+                                {availableYears.map((yr) => (
+                                    <option key={yr} value={String(yr)}>
+                                        {yr === 2026
+                                            ? `✨ ${isEn ? 'Year' : 'Tahun'} ${yr} (${isEn ? 'Live' : 'Aktif'})`
+                                            : `📁 ${isEn ? 'Year' : 'Tahun'} ${yr}`}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+
+                        {/* 2. Time Filter Dropdown */}
+                        <div className="flex items-center gap-1.5">
+                            <span className={`text-xs font-semibold flex items-center gap-1.5 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                                <Clock className="w-3.5 h-3.5 text-emerald-500" />
+                                {isEn ? 'Period:' : 'Periode:'}
+                            </span>
+                            <select
+                                value={timeRange}
+                                onChange={(e) => setTimeRange(e.target.value)}
+                                className={`text-xs font-semibold rounded-xl px-3 py-2 border shadow-sm cursor-pointer transition-all focus:ring-1 focus:ring-emerald-500 liquid-glass-control ${
+                                    isDark ? 'bg-slate-800 border-slate-700 text-slate-200' : 'bg-white border-slate-300 text-slate-800'
+                                }`}
+                            >
+                                <option value="all">{isEn ? '📅 All Months (All Tabs)' : '📅 Semua Bulan (Semua Tab)'}</option>
+                                <option value="today">{isEn ? '⚡ Today' : '⚡ Hari Ini'}</option>
+                                <option value="7d">{isEn ? '🕒 Last 7 Days' : '🕒 7 Hari Terakhir'}</option>
+                                <option value="30d">{isEn ? '🗓️ Last 30 Days' : '🗓️ 30 Hari Terakhir'}</option>
+                                <optgroup label={isEn ? 'Monthly Spreadsheet Tabs' : 'Tab Bulanan Spreadsheet'}>
+                                    <option value="month_1">{isEn ? 'Month 01 - January' : 'Bulan 01 - Januari'}</option>
+                                    <option value="month_2">{isEn ? 'Month 02 - February' : 'Bulan 02 - Februari'}</option>
+                                    <option value="month_3">{isEn ? 'Month 03 - March' : 'Bulan 03 - Maret'}</option>
+                                    <option value="month_4">{isEn ? 'Month 04 - April' : 'Bulan 04 - April'}</option>
+                                    <option value="month_5">{isEn ? 'Month 05 - May' : 'Bulan 05 - Mei'}</option>
+                                    <option value="month_6">{isEn ? 'Month 06 - June' : 'Bulan 06 - Juni'}</option>
+                                    <option value="month_7">{isEn ? 'Month 07 - July' : 'Bulan 07 - Juli'}</option>
+                                    <option value="month_8">{isEn ? 'Month 08 - August' : 'Bulan 08 - Agustus'}</option>
+                                    <option value="month_9">{isEn ? 'Month 09 - September' : 'Bulan 09 - September'}</option>
+                                    <option value="month_10">{isEn ? 'Month 10 - October' : 'Bulan 10 - Oktober'}</option>
+                                    <option value="month_11">{isEn ? 'Month 11 - November' : 'Bulan 11 - November'}</option>
+                                    <option value="month_12">{isEn ? 'Month 12 - December' : 'Bulan 12 - Desember'}</option>
+                                </optgroup>
+                            </select>
+                        </div>
                     </div>
 
                     {/* Quick Actions Bar: Ke Sheet Utama, Kelola Sheet & Download PDF */}
                     <div className="flex items-center gap-2 flex-wrap justify-end">
-                        {/* Tombol Ke Sheet Utama (Dinamis per Tab Bulan) */}
+                        {/* Tombol Ke Sheet Utama (Dinamis per Tab Bulan & Tahun) */}
                         <a
                             href={dynamicSheetUrl}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white keep-white shadow-sm transition-all cursor-pointer group"
-                            title={isEn ? `Open Google Sheet: ${activeMonthDisplayName} Tab` : `Buka Google Sheet: Tab ${activeMonthName}`}
+                            title={
+                                isEn
+                                    ? `Open Google Sheet: ${activeMonthDisplayName} Tab (${selectedYear !== 'all' ? selectedYear : '2026'})`
+                                    : `Buka Google Sheet: Tab ${activeMonthName} (${selectedYear !== 'all' ? selectedYear : '2026'})`
+                            }
                         >
                             <FileSpreadsheet className="w-4 h-4 shrink-0 text-white" />
-                            <span className="text-white">{isEn ? `Open Sheet (${activeMonthDisplayName})` : `Ke Sheet (${activeMonthName})`}</span>
+                            <span className="text-white">
+                                {isEn
+                                    ? `Open Sheet (${activeMonthDisplayName}${selectedYear !== 'all' ? ` '${String(selectedYear).slice(-2)}` : ''})`
+                                    : `Ke Sheet (${activeMonthName}${selectedYear !== 'all' ? ` '${String(selectedYear).slice(-2)}` : ''})`}
+                            </span>
                             <ExternalLink className="w-3.5 h-3.5 opacity-90 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform text-white" />
                         </a>
 
