@@ -13,11 +13,24 @@ import { Mail, ShieldCheck, AlertCircle, Loader2, CheckCircle2, ArrowRight, Lock
 import { useLanguage } from '@/context/LanguageContext';
 import { useLeanTheme } from '@/hooks/useLeanTheme';
 
+const getSkipStorageKey = (userId) => (userId ? `skip_real_email_prompt_user_${userId}` : null);
+
+const readSkipFromSession = (userId) => {
+    const key = getSkipStorageKey(userId);
+    if (!key || typeof window === 'undefined') return false;
+    try {
+        return window.sessionStorage.getItem(key) === '1';
+    } catch (err) {
+        console.warn('[MandatoryRealEmailModal] Failed reading skip state from sessionStorage:', err);
+        return false;
+    }
+};
+
 export function MandatoryRealEmailModal({ user }) {
     const { lang } = useLanguage?.() || { lang: 'id' };
     const { isDark } = useLeanTheme();
     const isDummy = Boolean(user?.is_dummy_email);
-    const [isOpen, setIsOpen] = useState(isDummy);
+    const [isOpen, setIsOpen] = useState(() => isDummy && !readSkipFromSession(user?.id));
     const [email, setEmail] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -25,15 +38,36 @@ export function MandatoryRealEmailModal({ user }) {
     const [isSuccess, setIsSuccess] = useState(false);
 
     useEffect(() => {
-        setIsOpen(Boolean(user?.is_dummy_email));
-    }, [user?.is_dummy_email]);
+        setIsOpen(Boolean(user?.is_dummy_email) && !readSkipFromSession(user?.id));
+    }, [user?.id, user?.is_dummy_email]);
 
     if (!user || !isDummy) {
         return null;
     }
 
+    const handleSkip = () => {
+        if (isLoading || isLoggingOut) return;
+        const key = getSkipStorageKey(user?.id);
+        if (key && typeof window !== 'undefined') {
+            try {
+                window.sessionStorage.setItem(key, '1');
+            } catch (err) {
+                console.warn('[MandatoryRealEmailModal] Failed saving skip state to sessionStorage:', err);
+            }
+        }
+        setIsOpen(false);
+    };
+
     const handleLogout = () => {
         setIsLoggingOut(true);
+        const key = getSkipStorageKey(user?.id);
+        if (key && typeof window !== 'undefined') {
+            try {
+                window.sessionStorage.removeItem(key);
+            } catch (err) {
+                console.warn('[MandatoryRealEmailModal] Failed clearing skip state on logout:', err);
+            }
+        }
         const logoutUrl = typeof route === 'function' ? route('logout') : '/logout';
         router.post(logoutUrl, {}, {
             onSuccess: () => {
@@ -97,16 +131,21 @@ export function MandatoryRealEmailModal({ user }) {
     };
 
     return (
-        <Dialog open={isOpen} onOpenChange={() => { /* Prevent closing on outside click */ }}>
-            <DialogContent 
-                showClose={false}
+        <Dialog
+            open={isOpen}
+            onOpenChange={(nextOpen) => {
+                if (!nextOpen) {
+                    handleSkip();
+                }
+            }}
+        >
+            <DialogContent
+                showClose={!isLoading && !isLoggingOut}
                 className={`max-w-md border p-0 overflow-hidden rounded-2xl shadow-2xl ${
                     isDark
                         ? 'bg-slate-900 border-emerald-500/40 text-slate-100'
                         : 'bg-white border-slate-200 text-slate-900'
                 }`}
-                onPointerDownOutside={(e) => e.preventDefault()}
-                onEscapeKeyDown={(e) => e.preventDefault()}
             >
                 {/* Header Banner with Lean Styling */}
                 <div className={`px-6 pt-6 pb-4 border-b ${
@@ -225,23 +264,38 @@ export function MandatoryRealEmailModal({ user }) {
                                 </span>
                             </div>
 
-                            <Button
-                                type="submit"
-                                disabled={isLoading || isLoggingOut || !email.trim()}
-                                className="w-full bg-emerald-600 hover:bg-emerald-500 text-white keep-white font-bold py-2.5 text-xs rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
-                            >
-                                {isLoading ? (
-                                    <>
-                                        <Loader2 className="h-4 w-4 animate-spin" />
-                                        <span>{lang === 'id' ? 'Memverifikasi & Menyimpan...' : 'Verifying & Saving...'}</span>
-                                    </>
-                                ) : (
-                                    <>
-                                        <span>{lang === 'id' ? 'Hubungkan Email & Lanjutkan' : 'Connect Email & Continue'}</span>
-                                        <ArrowRight className="h-4 w-4" />
-                                    </>
-                                )}
-                            </Button>
+                            <div className="space-y-2">
+                                <Button
+                                    type="submit"
+                                    disabled={isLoading || isLoggingOut || !email.trim()}
+                                    className="w-full bg-emerald-600 hover:bg-emerald-500 text-white keep-white font-bold py-2.5 text-xs rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
+                                >
+                                    {isLoading ? (
+                                        <>
+                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                            <span>{lang === 'id' ? 'Memverifikasi & Menyimpan...' : 'Verifying & Saving...'}</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <span>{lang === 'id' ? 'Hubungkan Email & Lanjutkan' : 'Connect Email & Continue'}</span>
+                                            <ArrowRight className="h-4 w-4" />
+                                        </>
+                                    )}
+                                </Button>
+
+                                <button
+                                    type="button"
+                                    onClick={handleSkip}
+                                    disabled={isLoading || isLoggingOut}
+                                    className={`w-full py-2 px-3 rounded-xl text-xs font-semibold border transition-colors cursor-pointer disabled:opacity-50 ${
+                                        isDark
+                                            ? 'bg-slate-800/80 hover:bg-slate-700 border-slate-700 text-slate-300 hover:text-white'
+                                            : 'bg-slate-50 hover:bg-slate-100 border-slate-300 text-slate-700 hover:text-slate-900'
+                                    }`}
+                                >
+                                    {lang === 'id' ? 'Lewati Dulu (Nanti Saja)' : 'Skip for Now'}
+                                </button>
+                            </div>
 
                             <div className={`pt-2 border-t flex items-center justify-between text-xs ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
                                 <span className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
