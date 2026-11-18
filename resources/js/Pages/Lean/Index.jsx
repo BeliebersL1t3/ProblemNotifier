@@ -318,6 +318,33 @@ export default function LeanIndex({
         }
     }, [viewMode]);
 
+    // Card Grid Columns preference (1 | 2 | 3 | 4), persisted in localStorage
+    const [cardGridCols, setCardGridCols] = useState(() => {
+        try {
+            const saved = parseInt(localStorage.getItem('lean_card_grid_cols') || '', 10);
+            if ([1, 2, 3, 4].includes(saved)) return saved;
+        } catch (err) {
+            console.warn('[LeanIndex] Failed reading lean_card_grid_cols:', err);
+        }
+        return 3;
+    });
+
+    useEffect(() => {
+        try {
+            localStorage.setItem('lean_card_grid_cols', String(cardGridCols));
+        } catch (err) {
+            console.warn('[LeanIndex] Failed saving lean_card_grid_cols:', err);
+        }
+    }, [cardGridCols]);
+
+    const CARD_GRID_CLASSES = {
+        1: 'grid-cols-1 gap-4',
+        2: 'grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5',
+        3: 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5',
+        4: 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-3.5',
+    };
+    const isCompactCard = cardGridCols === 4;
+
     // Theme preference (dark / light) synced across Lean pages & header
     const { theme, isDark } = useLeanTheme();
 
@@ -1832,6 +1859,46 @@ export default function LeanIndex({
                                 </button>
                             </div>
 
+                            {/* Card Grid Density Switcher (Desktop, Cards View Only) */}
+                            {viewMode === 'cards' && (
+                                <div
+                                    className={`hidden md:inline-flex items-center gap-0.5 p-1 rounded-xl border shadow-sm liquid-glass-subtle shrink-0 ${
+                                        isDark ? 'text-slate-300' : 'text-slate-700'
+                                    }`}
+                                    role="group"
+                                    aria-label={isEn ? 'Cards per row' : 'Jumlah kartu per baris'}
+                                    title={isEn ? 'Number of cards per row' : 'Jumlah kartu per baris'}
+                                >
+                                    <span className={`px-1.5 flex items-center gap-1 text-[11px] font-semibold select-none ${
+                                        isDark ? 'text-slate-400' : 'text-slate-500'
+                                    }`}>
+                                        <LayoutGrid className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                                        <span className="hidden lg:inline">Grid</span>
+                                    </span>
+                                    {[1, 2, 3, 4].map((cols) => {
+                                        const isActive = cardGridCols === cols;
+                                        return (
+                                            <button
+                                                key={cols}
+                                                type="button"
+                                                onClick={() => setCardGridCols(cols)}
+                                                aria-pressed={isActive}
+                                                title={isEn ? `${cols} card${cols > 1 ? 's' : ''} per row` : `${cols} kartu per baris`}
+                                                className={`w-6 h-6 rounded-lg text-[11px] font-bold flex items-center justify-center transition-all cursor-pointer ${
+                                                    isActive
+                                                        ? 'bg-emerald-600 text-white keep-white shadow-xs'
+                                                        : isDark
+                                                        ? 'text-slate-400 hover:text-white hover:bg-slate-800/80'
+                                                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
+                                                }`}
+                                            >
+                                                {cols}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            )}
+
                             <button
                                 type="button"
                                 onClick={() => setShowReportModal(true)}
@@ -2317,7 +2384,7 @@ export default function LeanIndex({
                     </div>
                 ) : (
                     /* --- VIEW 2: VISUAL CARD VIEW (MODERN RESPONSIVE GRID - OPTION 1 & 2) --- */
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-5">
+                    <div className={`grid ${CARD_GRID_CLASSES[cardGridCols] || CARD_GRID_CLASSES[3]}`}>
                         {filteredIssues.map((issue) => {
                             const accs = issue.department_accs || {};
 
@@ -2355,22 +2422,24 @@ export default function LeanIndex({
                                 <div
                                     key={issue.id}
                                     onClick={() => setSelectedDetailIssue(issue)}
-                                    className={`relative rounded-2xl border-2 border-l-[6px] transition-all duration-200 cursor-pointer flex flex-col justify-between overflow-hidden group hover:-translate-y-1.5 liquid-glass-card liquid-glass-interactive ${statusTheme.borderLeft}`}
+                                    className={`relative border-2 transition-all duration-200 cursor-pointer flex flex-col justify-between overflow-hidden group hover:-translate-y-1.5 liquid-glass-card liquid-glass-interactive ${
+                                        isCompactCard ? 'rounded-xl border-l-[5px]' : 'rounded-2xl border-l-[6px]'
+                                    } ${statusTheme.borderLeft}`}
                                     title={isEn ? 'Click card to view full issue details' : 'Klik kartu untuk melihat rincian lengkap isu'}
                                 >
                                     {/* Option 2: Top Status Accent Bar */}
-                                    <div className={`h-1.5 w-full shrink-0 ${statusTheme.topBar}`} />
+                                    <div className={`${isCompactCard ? 'h-1' : 'h-1.5'} w-full shrink-0 ${statusTheme.topBar}`} />
 
                                     <div>
                                         {/* Option 2: Card Header Plate with Divider */}
-                                        <div className={`p-3.5 sm:p-4 border-b transition-colors ${statusTheme.headerBg} ${
+                                        <div className={`${isCompactCard ? 'p-2.5' : 'p-3.5 sm:p-4'} border-b transition-colors ${statusTheme.headerBg} ${
                                             isDark ? 'border-slate-700/70' : 'border-slate-200/90'
                                         }`}>
                                             <div className="flex items-start justify-between gap-2">
                                                 <div className="flex items-center gap-1.5 flex-wrap">
                                                     {/* ID Isu */}
                                                     {visibleColumns.id && (
-                                                        <span className={`px-2 py-0.5 rounded-md font-mono font-bold text-xs border shadow-2xs ${
+                                                        <span className={`${isCompactCard ? 'px-1.5 py-0.5 text-[11px]' : 'px-2 py-0.5 text-xs'} rounded-md font-mono font-bold border shadow-2xs ${
                                                             isDark ? 'bg-slate-900 border-slate-700 text-amber-300' : 'bg-white border-slate-300 text-slate-800 font-extrabold'
                                                         }`}>
                                                             #{issue.issue_code || ('LEAN-' + issue.id)}
@@ -2453,11 +2522,13 @@ export default function LeanIndex({
                                         </div>
 
                                         {/* Card Body Content */}
-                                        <div className="p-3.5 sm:p-4 space-y-3">
+                                        <div className={isCompactCard ? 'p-2.5 space-y-2' : 'p-3.5 sm:p-4 space-y-3'}>
                                             {/* Title & Location Meta */}
-                                            <div className="space-y-1.5">
+                                            <div className={isCompactCard ? 'space-y-1' : 'space-y-1.5'}>
                                                 {visibleColumns.title && (
-                                                    <h4 className={`font-bold text-sm leading-snug line-clamp-2 group-hover:text-emerald-500 transition-colors ${
+                                                    <h4 className={`font-bold leading-snug line-clamp-2 group-hover:text-emerald-500 transition-colors ${
+                                                        isCompactCard ? 'text-[13px]' : 'text-sm'
+                                                    } ${
                                                         isDark ? 'text-white' : 'text-slate-900'
                                                     }`}>
                                                         {issue.title}
@@ -2473,7 +2544,13 @@ export default function LeanIndex({
                                                                 : 'bg-emerald-50 text-emerald-800 border-emerald-200'
                                                         }`}>
                                                             <MapPin className="w-3 h-3 text-emerald-500 shrink-0" />
-                                                            <span className="truncate max-w-[150px]">{issue.location}</span>
+                                                            <span className={`truncate ${
+                                                                cardGridCols === 1
+                                                                    ? 'max-w-[320px]'
+                                                                    : isCompactCard
+                                                                    ? 'max-w-[115px]'
+                                                                    : 'max-w-[150px]'
+                                                            }`}>{issue.location}</span>
                                                         </span>
                                                     )}
 
@@ -2483,13 +2560,13 @@ export default function LeanIndex({
                                                         if (!etaBadge) return null;
                                                         return (
                                                             <span
-                                                                className={`px-2 py-0.5 rounded-md font-bold text-[10px] flex items-center gap-1 border shadow-2xs ${getEtaChipClasses(etaBadge)}`}
+                                                                className={`px-2 py-0.5 rounded-md font-bold text-[10px] flex items-center gap-1 border shadow-2xs max-w-full ${getEtaChipClasses(etaBadge)}`}
                                                                 title={`${isEn ? 'Est. Completion' : 'Target Selesai'}: ${etaBadge.formattedFullTarget}`}
                                                             >
                                                                 <CalendarClock className="w-3 h-3 shrink-0" />
-                                                                <span>{etaBadge.formattedTarget}</span>
+                                                                <span className="truncate">{etaBadge.formattedTarget}</span>
                                                                 <span className="opacity-75">&bull;</span>
-                                                                <span>{etaBadge.statusLabel}</span>
+                                                                <span className="truncate">{etaBadge.statusLabel}</span>
                                                             </span>
                                                         );
                                                     })()}
@@ -2498,7 +2575,9 @@ export default function LeanIndex({
 
                                             {/* Description Snippet */}
                                             {visibleColumns.desc && issue.description && (
-                                                <p className={`text-xs leading-relaxed line-clamp-2 p-2.5 rounded-lg border text-ellipsis ${
+                                                <p className={`leading-relaxed line-clamp-2 rounded-lg border text-ellipsis ${
+                                                    isCompactCard ? 'text-[11px] p-2' : 'text-xs p-2.5'
+                                                } ${
                                                     isDark
                                                         ? 'bg-slate-900/60 text-slate-300 border-slate-700/60'
                                                         : 'bg-slate-50/80 text-slate-600 border-slate-200'
@@ -2515,7 +2594,9 @@ export default function LeanIndex({
                                                             e.stopPropagation();
                                                             setLightboxImage(issue.image_url);
                                                         }}
-                                                        className="group/img relative rounded-lg overflow-hidden border border-slate-300 dark:border-slate-700/60 w-full h-32 bg-slate-950/50 block shadow-xs"
+                                                        className={`group/img relative rounded-lg overflow-hidden border border-slate-300 dark:border-slate-700/60 w-full bg-slate-950/50 block shadow-xs ${
+                                                            isCompactCard ? 'h-24' : 'h-32'
+                                                        }`}
                                                     >
                                                         <img
                                                             src={issue.image_url}
@@ -2583,7 +2664,7 @@ export default function LeanIndex({
                                     </div>
 
                                     {/* Card Footer: Pelapor & Assignee Info with Subtle Tint */}
-                                    <div className={`p-3.5 sm:p-4 pt-2.5 border-t flex items-center justify-between gap-2 text-xs transition-colors ${
+                                    <div className={`${isCompactCard ? 'p-2.5 pt-2 text-[11px]' : 'p-3.5 sm:p-4 pt-2.5 text-xs'} border-t flex items-center justify-between gap-2 transition-colors ${
                                         isDark ? 'bg-slate-900/40 border-slate-700/70' : 'bg-slate-50/70 border-slate-200/90'
                                     }`}>
                                         {/* Pelapor */}
@@ -2596,7 +2677,7 @@ export default function LeanIndex({
                                                 </div>
                                                 <span className={`text-[11px] truncate ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
                                                     <strong className={isDark ? 'text-white' : 'text-slate-900'}>{issue.reporter_name}</strong>
-                                                    {issue.reporter_dept && (
+                                                    {issue.reporter_dept && !isCompactCard && (
                                                         <span className={`text-[10px] ml-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>({formatDeptDisplay(issue.reporter_dept)})</span>
                                                     )}
                                                 </span>
@@ -2606,14 +2687,18 @@ export default function LeanIndex({
                                         {/* Status / Worker Badge */}
                                         <div className="shrink-0 flex items-center gap-1 flex-wrap justify-end">
                                             {issue.status === 'pending' && issue.pending_reason && (
-                                                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded border max-w-[170px] truncate ${
+                                                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded border truncate ${
+                                                    isCompactCard ? 'max-w-[105px]' : 'max-w-[170px]'
+                                                } ${
                                                     isDark ? 'bg-orange-950/60 text-orange-300 border-orange-800/50' : 'bg-orange-50 text-orange-800 border-orange-200'
                                                 }`} title={`Pending: ${issue.pending_reason}`}>
                                                     ⏳ {issue.pending_reason}
                                                 </span>
                                             )}
                                             {((Array.isArray(issue.active_workers) && issue.active_workers.length > 0) || issue.claimed_by_name) && (
-                                                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded border flex items-center gap-1 max-w-[180px] truncate ${
+                                                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded border flex items-center gap-1 truncate ${
+                                                    isCompactCard ? 'max-w-[110px]' : 'max-w-[180px]'
+                                                } ${
                                                     isDark ? 'bg-amber-950/60 text-amber-300 border-amber-800/40' : 'bg-amber-50 text-amber-800 border-amber-200'
                                                 }`} title={`${isEn ? 'Team' : 'Tim'}: ${(issue.active_workers?.length ? issue.active_workers.join(', ') : issue.claimed_by_name)}`}>
                                                     <Users className="w-2.5 h-2.5 shrink-0" />
