@@ -1843,44 +1843,8 @@ export default function LeanIndex({
                             </select>
                         </div>
 
-                        {/* Actions group: Mobile View Switcher, Desktop New Report & Column Customizer */}
-                        <div className="w-full md:w-auto col-span-2 md:col-span-1 md:ml-auto flex items-center justify-between md:justify-end gap-2">
-                            {/* Compact Mobile Card / ERP Table Switcher */}
-                            <div
-                                className="inline-flex md:hidden items-center p-0.5 rounded-xl border shadow-xs liquid-glass-subtle"
-                                role="group"
-                                aria-label={isEn ? 'Switch list view' : 'Ubah tampilan daftar'}
-                            >
-                                <button
-                                    type="button"
-                                    onClick={() => handleViewModeChange('cards')}
-                                    className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                                        viewMode === 'cards'
-                                            ? 'bg-emerald-600 text-white keep-white shadow-xs'
-                                            : isDark
-                                            ? 'text-slate-400 hover:text-slate-200'
-                                            : 'text-slate-600 hover:text-slate-900'
-                                    }`}
-                                >
-                                    <LayoutGrid className="w-3.5 h-3.5 shrink-0" />
-                                    <span>{isEn ? 'Cards' : 'Kartu'}</span>
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => handleViewModeChange('table')}
-                                    className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                                        viewMode === 'table'
-                                            ? 'bg-emerald-600 text-white keep-white shadow-xs'
-                                            : isDark
-                                            ? 'text-slate-400 hover:text-slate-200'
-                                            : 'text-slate-600 hover:text-slate-900'
-                                    }`}
-                                >
-                                    <Table className="w-3.5 h-3.5 shrink-0" />
-                                    <span>{isEn ? 'Table' : 'Tabel'}</span>
-                                </button>
-                            </div>
-
+                        {/* Actions group: Desktop Grid Switcher, Desktop New Report & Column Customizer */}
+                        <div className="w-full sm:w-auto md:ml-auto flex items-center justify-end gap-2">
                             {/* Card Grid Density Switcher (Desktop, Cards View Only) */}
                             {viewMode === 'cards' && (
                                 <div
@@ -1933,7 +1897,7 @@ export default function LeanIndex({
                             <button
                                 type="button"
                                 onClick={() => setShowColumnModal(true)}
-                                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all shadow-sm border liquid-glass-subtle ${
+                                className={`w-full sm:w-auto flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all shadow-sm border liquid-glass-subtle ${
                                     isDark
                                         ? 'text-slate-200'
                                         : 'text-slate-800'
@@ -5474,11 +5438,10 @@ export default function LeanIndex({
 
             {/* UNIFIED MOBILE BOTTOM NAVIGATION */}
             <MobileBottomNav
-                currentTab={viewMode === 'analytics' ? 'analytics' : 'dashboard'}
+                currentTab={viewMode}
                 onReport={() => setShowReportModal(true)}
-                onSelectDashboard={() =>
-                    handleViewModeChange(viewMode === 'analytics' ? lastListViewRef.current : viewMode)
-                }
+                onSelectCards={() => handleViewModeChange('cards')}
+                onSelectTable={() => handleViewModeChange('table')}
                 onSelectAnalytics={() => handleViewModeChange('analytics')}
             />
 

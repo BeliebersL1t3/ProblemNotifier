@@ -1,26 +1,35 @@
 import React from 'react';
-import { router, usePage } from '@inertiajs/react';
-import { LayoutDashboard, Plus, Ticket, BarChart3, User, Users } from 'lucide-react';
+import { router } from '@inertiajs/react';
+import { LayoutGrid, Table, Plus, BarChart3, User } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
 import { useLeanTheme } from '@/hooks/useLeanTheme';
-import { useAuth } from '@/hooks/useAuth';
 
 export function MobileBottomNav({
-    currentTab = 'dashboard',
+    currentTab = 'cards',
     onReport,
+    onSelectCards = null,
+    onSelectTable = null,
     onSelectDashboard = null,
     onSelectAnalytics = null,
 }) {
     const { t, lang } = useLanguage();
     const { isDark } = useLeanTheme();
-    const { props: pageProps } = usePage();
-    const { isAdmin } = useAuth();
-    const approvalTicketsEnabled = Boolean(pageProps?.features?.approval_tickets);
+    const isEn = lang === 'en';
 
     const handleNav = (e, item) => {
         e.preventDefault();
-        if (item.id === 'dashboard' && typeof onSelectDashboard === 'function') {
-            onSelectDashboard();
+        if (item.id === 'cards') {
+            if (typeof onSelectCards === 'function') {
+                onSelectCards();
+                return;
+            }
+            if (typeof onSelectDashboard === 'function') {
+                onSelectDashboard();
+                return;
+            }
+        }
+        if (item.id === 'table' && typeof onSelectTable === 'function') {
+            onSelectTable();
             return;
         }
         if (item.id === 'analytics' && typeof onSelectAnalytics === 'function') {
@@ -39,77 +48,41 @@ export function MobileBottomNav({
         }
     };
 
-    const reportActionItem = {
-        id: 'report',
-        isAction: true,
-        label: lang === 'id' ? 'Lapor' : 'Report',
-        onClick: handleReportClick,
-        icon: Plus,
-    };
-
-    const dashboardItem = {
-        id: 'dashboard',
-        label: t('dashboard') || 'Dashboard',
-        href: '/',
-        icon: LayoutDashboard,
-    };
-
-    const analyticsItem = {
-        id: 'analytics',
-        label: t('analytics') || (lang === 'id' ? 'Analisis' : 'Analytics'),
-        href: '/?view=analytics',
-        icon: BarChart3,
-    };
-
-    const profileItem = {
-        id: 'profile',
-        label: t('profile') || (lang === 'id' ? 'Profil' : 'Profile'),
-        href: '/profile',
-        icon: User,
-    };
-
-    // Keep mobile navigation balanced & symmetrical across roles and feature flags:
-    // - When approval tickets are active: [Dashboard, Tickets, +, Analytics, Profile] (5 cols)
-    // - When tickets are hidden & Admin:  [Dashboard, Users, +, Analytics, Profile] (5 cols)
-    // - When tickets are hidden & Staff:  [Dashboard, Analytics, Profile, + Lapor] (4 cols, inline CTA)
-    let navItems;
-    let hasCenterFloatingAction = true;
-
-    if (approvalTicketsEnabled) {
-        navItems = [
-            dashboardItem,
-            {
-                id: 'tickets',
-                label: t('tickets') || 'Tiket',
-                href: '/tickets',
-                icon: Ticket,
-            },
-            reportActionItem,
-            analyticsItem,
-            profileItem,
-        ];
-    } else if (isAdmin) {
-        navItems = [
-            dashboardItem,
-            {
-                id: 'users',
-                label: lang === 'id' ? 'Pengguna' : 'Users',
-                href: '/users',
-                icon: Users,
-            },
-            reportActionItem,
-            analyticsItem,
-            profileItem,
-        ];
-    } else {
-        hasCenterFloatingAction = false;
-        navItems = [
-            dashboardItem,
-            analyticsItem,
-            profileItem,
-            reportActionItem,
-        ];
-    }
+    // Unified 5-button symmetrical bottom navigation across all roles:
+    // [ Kartu ] [ Tabel ] [ (+) Lapor ] [ Analisis ] [ Profil ]
+    const navItems = [
+        {
+            id: 'cards',
+            label: isEn ? 'Cards' : 'Kartu',
+            href: '/?view=cards',
+            icon: LayoutGrid,
+        },
+        {
+            id: 'table',
+            label: isEn ? 'Table' : 'Tabel',
+            href: '/?view=table',
+            icon: Table,
+        },
+        {
+            id: 'report',
+            isAction: true,
+            label: isEn ? 'Report' : 'Lapor',
+            onClick: handleReportClick,
+            icon: Plus,
+        },
+        {
+            id: 'analytics',
+            label: t('analytics') || (isEn ? 'Analytics' : 'Analisis'),
+            href: '/?view=analytics',
+            icon: BarChart3,
+        },
+        {
+            id: 'profile',
+            label: t('profile') || (isEn ? 'Profile' : 'Profil'),
+            href: '/profile',
+            icon: User,
+        },
+    ];
 
     return (
         <>
@@ -127,11 +100,7 @@ export function MobileBottomNav({
                 }`}
                 style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.65rem)' }}
             >
-                <div
-                    className={`grid ${
-                        hasCenterFloatingAction ? 'grid-cols-5' : 'grid-cols-4'
-                    } items-center gap-0.5 max-w-md mx-auto w-full px-1.5 py-1.5 relative`}
-                >
+                <div className="grid grid-cols-5 items-end gap-0.5 max-w-md mx-auto w-full px-1.5 py-1.5 relative">
                     {navItems.map((item) => {
                         if (item.isAction) {
                             return (
@@ -139,15 +108,15 @@ export function MobileBottomNav({
                                     key="action-report"
                                     type="button"
                                     onClick={item.onClick}
-                                    className="flex flex-col items-center justify-center w-full py-1 rounded-[20px] select-none group cursor-pointer"
+                                    className="flex flex-col items-center justify-center w-full pb-1 pt-0 rounded-[20px] select-none group cursor-pointer"
                                     title={item.label}
                                     aria-label={item.label}
                                 >
-                                    <div className="w-9 h-9 rounded-full bg-emerald-600/95 hover:bg-emerald-500 text-white keep-white flex items-center justify-center ring-1 ring-white/45 shadow-[0_4px_16px_rgba(16,185,129,0.42),inset_0_1px_0_rgba(255,255,255,0.45)] group-active:scale-90 group-hover:scale-105 transition-all">
-                                        <Plus className="w-5 h-5 text-white keep-white stroke-[2.7] group-hover:rotate-90 transition-transform duration-300" />
+                                    <div className="w-11 h-11 -mt-3.5 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white keep-white flex items-center justify-center ring-2 ring-white/60 shadow-[0_6px_20px_rgba(16,185,129,0.48),inset_0_1px_0_rgba(255,255,255,0.5)] group-active:scale-90 group-hover:scale-105 transition-all">
+                                        <Plus className="w-5 h-5 text-white keep-white stroke-[2.8] group-hover:rotate-90 transition-transform duration-300" />
                                     </div>
                                     <span
-                                        className={`text-[10px] font-bold mt-0.5 leading-tight tracking-tight text-center truncate max-w-full px-0.5 ${
+                                        className={`text-[10px] font-extrabold mt-0.5 leading-tight tracking-tight text-center truncate max-w-full px-0.5 ${
                                             isDark ? 'text-emerald-300' : 'text-emerald-700'
                                         }`}
                                     >
@@ -158,7 +127,9 @@ export function MobileBottomNav({
                         }
 
                         const Icon = item.icon;
-                        const isActive = currentTab === item.id;
+                        const isActive =
+                            currentTab === item.id ||
+                            (currentTab === 'dashboard' && item.id === 'cards');
 
                         return (
                             <a
