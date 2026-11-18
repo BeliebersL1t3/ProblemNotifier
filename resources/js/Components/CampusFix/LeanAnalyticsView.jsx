@@ -2140,17 +2140,17 @@ export function LeanAnalyticsView({
 
         const data = [
             {
-                name: isEn ? 'On Time' : 'Tepat Waktu',
+                name: isEn ? 'Resolved On Time' : 'Selesai Tepat Waktu',
                 value: onTime,
                 color: '#10b981', // emerald-500
             },
             {
-                name: isEn ? 'Late / Overdue' : 'Lewat Target',
+                name: isEn ? 'Late / Overdue' : 'Lewat Target (Telat / Overdue)',
                 value: late,
                 color: '#f43f5e', // rose-500
             },
             {
-                name: isEn ? 'On Schedule' : 'Sesuai Jadwal',
+                name: isEn ? 'Active (On Track)' : 'Berjalan (Masih Aman)',
                 value: activeScheduled,
                 color: '#0284c7', // sky-600
             },
