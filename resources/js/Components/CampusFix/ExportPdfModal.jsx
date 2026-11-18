@@ -19,7 +19,7 @@ import {
     Loader2, Download, FileText, Filter, RefreshCw, CheckCircle2,
     Clock, AlertTriangle, Layers, Building2, SlidersHorizontal, Check, X,
     ExternalLink, ZoomIn, ZoomOut, Maximize2, Minimize2, PanelLeftClose,
-    PanelLeftOpen, RotateCcw
+    PanelLeftOpen, RotateCcw, Calendar
 } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
 import { useLeanTheme } from '@/hooks/useLeanTheme';
@@ -36,10 +36,33 @@ const STATUS_OPTIONS = [
 const LIMIT_OPTIONS = [15, 30, 50, 100, 200, 'All'];
 const ZOOM_LEVELS = [75, 100, 125, 150, 175, 200];
 
+const TIME_RANGE_OPTIONS = [
+    { id: 'all', labelId: 'Semua Bulan (Semua Tab)', labelEn: 'All Months (All Tabs)' },
+    { id: 'today', labelId: 'Hari Ini', labelEn: 'Today' },
+    { id: '7d', labelId: '7 Hari Terakhir', labelEn: 'Last 7 Days' },
+    { id: '30d', labelId: '30 Hari Terakhir', labelEn: 'Last 30 Days' },
+    { id: 'month_1', labelId: 'Bulan Januari', labelEn: 'January' },
+    { id: 'month_2', labelId: 'Bulan Februari', labelEn: 'February' },
+    { id: 'month_3', labelId: 'Bulan Maret', labelEn: 'March' },
+    { id: 'month_4', labelId: 'Bulan April', labelEn: 'April' },
+    { id: 'month_5', labelId: 'Bulan Mei', labelEn: 'May' },
+    { id: 'month_6', labelId: 'Bulan Juni', labelEn: 'June' },
+    { id: 'month_7', labelId: 'Bulan Juli', labelEn: 'July' },
+    { id: 'month_8', labelId: 'Bulan Agustus', labelEn: 'August' },
+    { id: 'month_9', labelId: 'Bulan September', labelEn: 'September' },
+    { id: 'month_10', labelId: 'Bulan Oktober', labelEn: 'October' },
+    { id: 'month_11', labelId: 'Bulan November', labelEn: 'November' },
+    { id: 'month_12', labelId: 'Bulan Desember', labelEn: 'December' },
+];
+
 export function ExportPdfModal({
     open,
     onOpenChange,
     issues = [],
+    allIssues = null,
+    initialYear = 'all',
+    initialTimeRange = 'all',
+    availableYears = [],
     departments = [],
     timeLabel = '',
     stats = {},
@@ -50,6 +73,10 @@ export function ExportPdfModal({
     const isEn = lang === 'en';
     const { isDark } = useLeanTheme();
 
+    const sourceIssues = Array.isArray(allIssues) ? allIssues : issues;
+
+    const [selectedYear, setSelectedYear] = useState(String(initialYear || 'all'));
+    const [selectedTimeRange, setSelectedTimeRange] = useState(initialTimeRange || 'all');
     const [selectedStatuses, setSelectedStatuses] = useState(['open', 'in_progress', 'pending', 'resolved']);
     const [selectedDept, setSelectedDept] = useState('all');
     const [selectedLocation, setSelectedLocation] = useState('all');
@@ -92,29 +119,92 @@ export function ExportPdfModal({
     const canZoomOut = previewZoom === 'fit' || previewZoom > ZOOM_LEVELS[0];
 
     // Freeze/snapshot issues dataset on modal open so background 4s polling does not trigger PDF rebuilds
-    const [modalIssues, setModalIssues] = useState(issues);
+    const [modalIssues, setModalIssues] = useState(sourceIssues);
     const prevOpenRef = useRef(false);
 
     useEffect(() => {
         if (open && !prevOpenRef.current) {
-            setModalIssues(issues);
+            setModalIssues(sourceIssues);
+            setSelectedYear(String(initialYear || 'all'));
+            setSelectedTimeRange(initialTimeRange || 'all');
             setIsFullscreen(false);
             setIsSidebarOpen(true);
             setPreviewZoom('fit');
         }
         prevOpenRef.current = open;
-    }, [open, issues]);
+    }, [open, sourceIssues, initialYear, initialTimeRange]);
 
-    // Extract unique locations from modalIssues
+    // Derive sorted year options from availableYears prop + modalIssues
+    const yearOptions = useMemo(() => {
+        const yearSet = new Set();
+        (availableYears || []).forEach((yr) => {
+            const num = parseInt(yr, 10);
+            if (!isNaN(num)) yearSet.add(num);
+        });
+        (modalIssues || []).forEach((iss) => {
+            const rawDate = iss?.created_at || iss?.reported_at || iss?.reportedAt;
+            if (rawDate) {
+                const yr = new Date(rawDate).getFullYear();
+                if (!isNaN(yr)) yearSet.add(yr);
+            }
+        });
+        if (selectedYear !== 'all') {
+            const num = parseInt(selectedYear, 10);
+            if (!isNaN(num)) yearSet.add(num);
+        }
+        return Array.from(yearSet).sort((a, b) => b - a);
+    }, [availableYears, modalIssues, selectedYear]);
+
+    // Filter modalIssues by selectedYear and selectedTimeRange
+    const periodFilteredIssues = useMemo(() => {
+        const now = new Date();
+        return (modalIssues || []).filter((issue) => {
+            const rawDate = issue.created_at || issue.reported_at || issue.reportedAt;
+            if (!rawDate) return true;
+            const issueDate = new Date(rawDate);
+            if (isNaN(issueDate.getTime())) return true;
+
+            if (selectedYear !== 'all') {
+                if (issueDate.getFullYear() !== parseInt(selectedYear, 10)) {
+                    return false;
+                }
+            }
+
+            if (selectedTimeRange === 'all') return true;
+            if (selectedTimeRange === 'today') {
+                return issueDate.toDateString() === now.toDateString();
+            }
+            if (selectedTimeRange === '7d') {
+                return now.getTime() - issueDate.getTime() <= 7 * 24 * 60 * 60 * 1000;
+            }
+            if (selectedTimeRange === '30d') {
+                return now.getTime() - issueDate.getTime() <= 30 * 24 * 60 * 60 * 1000;
+            }
+            if (selectedTimeRange.startsWith('month_')) {
+                const mNum = parseInt(selectedTimeRange.replace('month_', ''), 10);
+                return issueDate.getMonth() + 1 === mNum;
+            }
+            return true;
+        });
+    }, [modalIssues, selectedYear, selectedTimeRange]);
+
+    // Extract unique locations from periodFilteredIssues
     const availableLocations = useMemo(() => {
         const set = new Set();
-        (modalIssues || []).forEach((i) => {
+        periodFilteredIssues.forEach((i) => {
             if (i.location && typeof i.location === 'string' && i.location.trim()) {
                 set.add(i.location.trim());
             }
         });
         return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
-    }, [modalIssues]);
+    }, [periodFilteredIssues]);
+
+    // Reset selectedLocation if it no longer exists in the newly selected year/period
+    useEffect(() => {
+        if (selectedLocation !== 'all' && !availableLocations.includes(selectedLocation)) {
+            setSelectedLocation('all');
+        }
+    }, [availableLocations, selectedLocation]);
 
     const logoImgRef = useRef(null);
 
@@ -140,9 +230,9 @@ export function ExportPdfModal({
         }
     }, []);
 
-    // Filter & sort issues based on user selection in modal (using stable modalIssues snapshot)
+    // Filter & sort issues based on user selection in modal (using stable periodFilteredIssues snapshot)
     const filteredIssues = useMemo(() => {
-        const result = (modalIssues || []).filter((issue) => {
+        const result = periodFilteredIssues.filter((issue) => {
             // Status match
             const statusKey = issue.status === 'solved' ? 'resolved' : (issue.status || 'open');
             if (!selectedStatuses.includes(statusKey)) return false;
@@ -216,13 +306,68 @@ export function ExportPdfModal({
             // default newest
             return timeB - timeA;
         });
-    }, [modalIssues, selectedStatuses, selectedDept, selectedLocation, selectedSlaStatus, sortOrder]);
+    }, [periodFilteredIssues, selectedStatuses, selectedDept, selectedLocation, selectedSlaStatus, sortOrder]);
 
     const displayIssues = useMemo(() => {
         if (limit === 'All') return filteredIssues;
         const num = parseInt(limit, 10);
         return isNaN(num) ? filteredIssues : filteredIssues.slice(0, num);
     }, [filteredIssues, limit]);
+
+    // Dynamic period label derived from modal's selectedYear & selectedTimeRange
+    const resolvedPeriod = useMemo(() => {
+        const yrText = selectedYear === 'all'
+            ? (isEn ? 'All Years' : 'Semua Tahun')
+            : (isEn ? `Year ${selectedYear}` : `Tahun ${selectedYear}`);
+        const trOpt = TIME_RANGE_OPTIONS.find((o) => o.id === selectedTimeRange);
+        const trText = trOpt
+            ? (isEn ? trOpt.labelEn : trOpt.labelId)
+            : (timeLabel || (isEn ? 'All Months' : 'Semua Bulan'));
+        return `${yrText} • ${trText}`;
+    }, [selectedYear, selectedTimeRange, isEn, timeLabel]);
+
+    // Dynamic KPI summary stats recomputed from filteredIssues inside the modal
+    const computedStats = useMemo(() => {
+        const total = filteredIssues.length;
+        const resolved = filteredIssues.filter((i) => i.status === 'resolved' || i.status === 'solved').length;
+        const activeCount = total - resolved;
+        const resolutionRate = total > 0 ? Math.round((resolved / total) * 100) : 0;
+        const backlogRate = total > 0 ? Math.round((activeCount / total) * 100) : 0;
+
+        let evaluatedSlaCount = 0;
+        let onTimeResolvedCount = 0;
+
+        filteredIssues.forEach((issue) => {
+            const isRes = issue.status === 'resolved' || issue.status === 'solved';
+            const rawEta = issue.estimated_completion_at || issue.estimatedCompletionAt;
+            if (!isRes || !rawEta) return;
+
+            const etaMs = new Date(rawEta).getTime();
+            const rawRes = issue.resolved_at || issue.solved_at || issue.solvedAt || issue.updated_at;
+            const resMs = rawRes ? new Date(rawRes).getTime() : NaN;
+            if (isNaN(etaMs) || isNaN(resMs)) return;
+
+            evaluatedSlaCount += 1;
+            if (resMs <= etaMs) {
+                onTimeResolvedCount += 1;
+            }
+        });
+
+        const onTimeRate = evaluatedSlaCount > 0
+            ? Math.round((onTimeResolvedCount / evaluatedSlaCount) * 100)
+            : 0;
+
+        return {
+            total,
+            resolved,
+            activeCount,
+            resolutionRate,
+            backlogRate,
+            evaluatedSlaCount,
+            onTimeResolvedCount,
+            onTimeRate,
+        };
+    }, [filteredIssues]);
 
     // Helpers
     const formatDateTime = (val) => {
@@ -281,7 +426,6 @@ export function ExportPdfModal({
         const doc = new jsPDF('landscape', 'mm', 'a4');
         const pageWidth = doc.internal.pageSize.getWidth();
         const pageHeight = doc.internal.pageSize.getHeight();
-        const resolvedPeriod = timeLabel || (isEn ? 'All Months' : 'Semua Bulan');
 
         // =========================================================================
         // KOP RESMI TELUNAS RESORTS (PAGE 1)
@@ -320,16 +464,16 @@ export function ExportPdfModal({
             25
         );
 
-        // Optional Compact 1-line KPI strip
+        // Optional Compact 1-line KPI strip (dynamically computed from modal filters)
         let startY = 28;
         if (includeKpiSummary) {
-            const totalCount = stats.total || filteredIssues.length || 0;
-            const resCount = stats.resolved || filteredIssues.filter((i) => i.status === 'resolved' || i.status === 'solved').length;
-            const resRate = totalCount > 0 ? Math.round((resCount / totalCount) * 100) : 0;
-            const unresCount = stats.activeCount || (totalCount - resCount);
-            const backlogRate = totalCount > 0 ? Math.round((unresCount / totalCount) * 100) : 0;
-            const slaText = (stats.evaluatedSlaCount || 0) > 0
-                ? `${stats.onTimeResolvedCount || 0}/${stats.evaluatedSlaCount} (${stats.onTimeRate || 0}%)`
+            const totalCount = computedStats.total;
+            const resCount = computedStats.resolved;
+            const resRate = computedStats.resolutionRate;
+            const unresCount = computedStats.activeCount;
+            const backlogRate = computedStats.backlogRate;
+            const slaText = computedStats.evaluatedSlaCount > 0
+                ? `${computedStats.onTimeResolvedCount}/${computedStats.evaluatedSlaCount} (${computedStats.onTimeRate}%)`
                 : '-';
 
             const summaryY = 27.5;
@@ -647,6 +791,8 @@ export function ExportPdfModal({
     }, [
         open,
         displayIssues,
+        selectedYear,
+        selectedTimeRange,
         selectedStatuses,
         selectedDept,
         selectedLocation,
@@ -654,7 +800,8 @@ export function ExportPdfModal({
         sortOrder,
         includeKpiSummary,
         includePendingTimeline,
-        timeLabel,
+        resolvedPeriod,
+        computedStats,
     ]);
 
     // Handle Download Action
@@ -663,7 +810,9 @@ export function ExportPdfModal({
         try {
             const doc = buildPdfDocument();
             const dateSlug = new Date().toISOString().slice(0, 10);
-            const periodSlug = (timeLabel || 'Report').replace(/[^a-zA-Z0-9]/g, '_');
+            const periodSlug = (resolvedPeriod || 'Report')
+                .replace(/[^a-zA-Z0-9]+/g, '_')
+                .replace(/^_|_$/g, '');
             doc.save(`Telunas_Issue_Report_${periodSlug}_${dateSlug}.pdf`);
             onOpenChange(false);
         } catch (err) {
@@ -678,6 +827,11 @@ export function ExportPdfModal({
         isDark
             ? 'bg-slate-900 border-slate-700 text-slate-100 hover:bg-slate-800/90'
             : 'bg-white border-slate-300 text-slate-900 hover:bg-slate-50'
+    }`;
+    const headerPillTriggerClass = `h-8 w-auto rounded-full px-3 py-1 text-xs font-bold border shadow-2xs transition-colors gap-1.5 ${
+        isDark
+            ? 'bg-amber-950/60 border-amber-500/40 text-amber-300 hover:bg-amber-950/90'
+            : 'bg-amber-50 border-amber-300 text-amber-900 hover:bg-amber-100/80'
     }`;
     const selectContentClass = isDark
         ? 'bg-slate-900 border-slate-700 text-slate-100'
@@ -703,10 +857,10 @@ export function ExportPdfModal({
             >
                 {/* Header */}
                 <DialogHeader className={`px-6 pr-12 py-3.5 border-b flex-shrink-0 ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
-                    <div className="flex items-center justify-between gap-4">
-                        <div className="flex items-center gap-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="flex items-center gap-3 min-w-0">
                             <div
-                                className={`w-10 h-10 rounded-2xl flex items-center justify-center border shadow-xs ${
+                                className={`w-10 h-10 rounded-2xl flex items-center justify-center border shadow-xs shrink-0 ${
                                     isDark
                                         ? 'bg-rose-500/15 text-rose-400 border-rose-500/30'
                                         : 'bg-rose-50 text-rose-700 border-rose-200'
@@ -714,11 +868,11 @@ export function ExportPdfModal({
                             >
                                 <FileText className="w-5 h-5" />
                             </div>
-                            <div>
-                                <DialogTitle className={`text-base sm:text-lg font-extrabold ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                            <div className="min-w-0">
+                                <DialogTitle className={`text-base sm:text-lg font-extrabold truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>
                                     {isEn ? 'Export Official PDF Report (Classic Landscape)' : 'Ekspor Laporan PDF Resmi (Format Klasik Landscape)'}
                                 </DialogTitle>
-                                <DialogDescription className={`text-xs mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                <DialogDescription className={`text-xs mt-0.5 truncate ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                                     {isEn
                                         ? 'Official Telunas Resorts 12-column issue tracking report (A4 Landscape).'
                                         : 'Laporan resmi pelacakan isu operasional 12 kolom Telunas Resorts (A4 Landscape).'}
@@ -726,15 +880,51 @@ export function ExportPdfModal({
                             </div>
                         </div>
 
-                        <span
-                            className={`hidden sm:inline-flex px-3 py-1 rounded-full text-xs font-bold border ${
-                                isDark
-                                    ? 'bg-amber-500/15 text-amber-300 border-amber-500/30'
-                                    : 'bg-amber-50 text-amber-800 border-amber-300'
-                            }`}
-                        >
-                            {timeLabel || (isEn ? 'All Months' : 'Semua Bulan')}
-                        </span>
+                        {/* Interactive Year + Period Pill Selectors */}
+                        <div className="flex items-center gap-2 flex-wrap sm:justify-end shrink-0">
+                            {/* Year Selector */}
+                            <Select value={selectedYear} onValueChange={setSelectedYear}>
+                                <SelectTrigger
+                                    className={`${headerPillTriggerClass} min-w-[126px]`}
+                                    title={isEn ? 'Select report year' : 'Pilih tahun laporan'}
+                                >
+                                    <span className="inline-flex items-center gap-1.5">
+                                        <Calendar className="w-3.5 h-3.5 shrink-0 opacity-80" />
+                                        <SelectValue placeholder={isEn ? 'Select Year' : 'Pilih Tahun'} />
+                                    </span>
+                                </SelectTrigger>
+                                <SelectContent className={selectContentClass}>
+                                    <SelectItem value="all" className={selectItemClass}>
+                                        {isEn ? 'All Years' : 'Semua Tahun'}
+                                    </SelectItem>
+                                    {yearOptions.map((yr) => (
+                                        <SelectItem key={yr} value={String(yr)} className={selectItemClass}>
+                                            {isEn ? `Year ${yr}` : `Tahun ${yr}`}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+
+                            {/* Month / Period Selector */}
+                            <Select value={selectedTimeRange} onValueChange={setSelectedTimeRange}>
+                                <SelectTrigger
+                                    className={`${headerPillTriggerClass} min-w-[170px]`}
+                                    title={isEn ? 'Select report month or period' : 'Pilih bulan atau periode laporan'}
+                                >
+                                    <span className="inline-flex items-center gap-1.5">
+                                        <Clock className="w-3.5 h-3.5 shrink-0 opacity-80" />
+                                        <SelectValue placeholder={isEn ? 'All Months' : 'Semua Bulan'} />
+                                    </span>
+                                </SelectTrigger>
+                                <SelectContent className={selectContentClass}>
+                                    {TIME_RANGE_OPTIONS.map((opt) => (
+                                        <SelectItem key={opt.id} value={opt.id} className={selectItemClass}>
+                                            {isEn ? opt.labelEn : opt.labelId}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
                     </div>
                 </DialogHeader>
 
@@ -926,7 +1116,7 @@ export function ExportPdfModal({
 
                             <button
                                 type="button"
-                                onClick={() => setModalIssues(issues)}
+                                onClick={() => setModalIssues(sourceIssues)}
                                 className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer border ${
                                     isDark
                                         ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'

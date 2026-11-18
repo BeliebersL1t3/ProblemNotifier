@@ -3624,6 +3624,10 @@ export function LeanAnalyticsView({
                 open={isExportPdfModalOpen}
                 onOpenChange={setIsExportPdfModalOpen}
                 issues={filteredIssues}
+                allIssues={issues}
+                initialYear={selectedYear}
+                initialTimeRange={timeRange}
+                availableYears={availableYears}
                 departments={departments}
                 timeLabel={timeLabels[timeRange] || timeRange}
                 stats={stats}
