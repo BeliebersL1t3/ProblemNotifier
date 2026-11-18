@@ -7,8 +7,19 @@ import TextInput from '@/Components/TextInput';
 import GuestLayout from '@/Layouts/GuestLayout';
 import { useLanguage } from '@/context/LanguageContext';
 import { Head, Link, router, useForm } from '@inertiajs/react';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { AlertTriangle, CheckCircle2, Loader2, Power } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+    AlertTriangle,
+    Bug,
+    CheckCircle2,
+    KeyRound,
+    Loader2,
+    LogIn,
+    Power,
+    Search,
+    Shield,
+    Users,
+} from 'lucide-react';
 
 const MAX_BOT_POLL_ATTEMPTS = 12;
 const BOT_POLL_INTERVAL_MS = 2000;
@@ -21,6 +32,8 @@ export default function Login({
     botRecoveryState = null,
     botRecoveryExpiresAt = 0,
     serverNow = 0,
+    devDebugAuthEnabled = false,
+    devDebugAccounts = [],
 }) {
     const { lang } = useLanguage();
     const isEn = lang === 'en';
@@ -351,8 +364,227 @@ export default function Login({
         </button>
     ) : null;
 
+    // Local-only Debug Account Panel state & handlers
+    const [debugSearch, setDebugSearch] = useState('');
+    const [debugRoleFilter, setDebugRoleFilter] = useState('all'); // 'all' | 'admin' | 'staff'
+    const [quickLoginUserId, setQuickLoginUserId] = useState(null);
+
+    const filteredDebugAccounts = useMemo(() => {
+        if (!devDebugAuthEnabled || !Array.isArray(devDebugAccounts)) return [];
+        const q = debugSearch.trim().toLowerCase();
+        return devDebugAccounts.filter((acc) => {
+            if (debugRoleFilter === 'admin' && acc.role !== 'admin') return false;
+            if (debugRoleFilter === 'staff' && acc.role === 'admin') return false;
+            if (!q) return true;
+            return (
+                String(acc.name || '').toLowerCase().includes(q) ||
+                String(acc.email || '').toLowerCase().includes(q) ||
+                String(acc.department || '').toLowerCase().includes(q) ||
+                String(acc.subdivision || '').toLowerCase().includes(q) ||
+                String(acc.role || '').toLowerCase().includes(q)
+            );
+        });
+    }, [devDebugAuthEnabled, devDebugAccounts, debugSearch, debugRoleFilter]);
+
+    const handleFillDebugAccount = (acc) => {
+        setData({
+            ...data,
+            email: acc.email || '',
+            password: acc.dev_password || '',
+        });
+    };
+
+    const handleDevQuickLogin = (acc) => {
+        if (quickLoginUserId !== null || !acc?.id) return;
+        setQuickLoginUserId(acc.id);
+        router.post(
+            route('dev.quick-login'),
+            { user_id: acc.id },
+            {
+                preserveScroll: true,
+                onError: (err) => {
+                    console.error('[Login] Dev quick login failed:', err);
+                    setQuickLoginUserId(null);
+                },
+                onFinish: () => {
+                    setQuickLoginUserId(null);
+                },
+            }
+        );
+    };
+
+    const devDebugPanel =
+        devDebugAuthEnabled && Array.isArray(devDebugAccounts) && devDebugAccounts.length > 0 ? (
+            <div className="flex w-full flex-col overflow-hidden rounded-2xl border border-amber-300/60 bg-white/95 text-gray-900 shadow-[0_20px_50px_rgba(0,0,0,0.3)] backdrop-blur-md max-h-[540px]">
+                {/* Header */}
+                <div className="border-b border-gray-200 bg-amber-50/90 px-4 py-3">
+                    <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                            <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-amber-500/15 text-amber-700 border border-amber-300">
+                                <Bug className="h-4 w-4" />
+                            </span>
+                            <div>
+                                <h4 className="text-xs font-extrabold text-gray-900 tracking-tight">
+                                    {isEn ? 'Debug Account Switcher' : 'Panel Debug Akun'}
+                                </h4>
+                                <p className="text-[10px] font-semibold text-amber-700">
+                                    LOCAL + APP_DEBUG ONLY
+                                </p>
+                            </div>
+                        </div>
+                        <span className="rounded-full bg-amber-100 border border-amber-300 px-2 py-0.5 text-[10px] font-bold text-amber-800">
+                            {filteredDebugAccounts.length}/{devDebugAccounts.length}
+                        </span>
+                    </div>
+
+                    {/* Search & Role Filter */}
+                    <div className="mt-2.5 flex items-center gap-1.5">
+                        <div className="relative flex-1">
+                            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
+                            <input
+                                type="text"
+                                value={debugSearch}
+                                onChange={(e) => setDebugSearch(e.target.value)}
+                                placeholder={isEn ? 'Search name, email, dept...' : 'Cari nama, email, dept...'}
+                                className="w-full rounded-lg border border-gray-200 bg-white py-1.5 pl-8 pr-2.5 text-[11px] text-gray-800 placeholder-gray-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                            />
+                        </div>
+                        <div className="inline-flex rounded-lg border border-gray-200 bg-white p-0.5 text-[10px] font-bold">
+                            {[
+                                { id: 'all', label: isEn ? 'All' : 'Semua' },
+                                { id: 'admin', label: 'Admin' },
+                                { id: 'staff', label: 'Staff' },
+                            ].map((tab) => (
+                                <button
+                                    key={tab.id}
+                                    type="button"
+                                    onClick={() => setDebugRoleFilter(tab.id)}
+                                    className={`rounded-md px-2 py-1 transition-all cursor-pointer ${
+                                        debugRoleFilter === tab.id
+                                            ? 'bg-indigo-600 text-white shadow-2xs'
+                                            : 'text-gray-500 hover:text-gray-900'
+                                    }`}
+                                >
+                                    {tab.label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Scrollable Account List */}
+                <div className="flex-1 overflow-y-auto divide-y divide-gray-100 p-2 space-y-1.5">
+                    {filteredDebugAccounts.length === 0 ? (
+                        <div className="py-10 text-center text-xs text-gray-400">
+                            {isEn ? 'No matching accounts found.' : 'Tidak ada akun yang cocok.'}
+                        </div>
+                    ) : (
+                        filteredDebugAccounts.map((acc) => {
+                            const isAdmin = acc.role === 'admin';
+                            const isLoggingIn = quickLoginUserId === acc.id;
+                            const isSelectedInForm = data.email === acc.email;
+
+                            return (
+                                <div
+                                    key={acc.id}
+                                    className={`rounded-xl border p-2.5 transition-all ${
+                                        isSelectedInForm
+                                            ? 'border-indigo-400 bg-indigo-50/60 shadow-2xs'
+                                            : 'border-gray-200/90 bg-gray-50/60 hover:border-indigo-300 hover:bg-white'
+                                    }`}
+                                >
+                                    <div className="flex items-start justify-between gap-2">
+                                        <div className="min-w-0 flex-1">
+                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                                <span className="truncate text-xs font-bold text-gray-900">
+                                                    {acc.name}
+                                                </span>
+                                                {isAdmin ? (
+                                                    <span className="inline-flex items-center gap-0.5 rounded-full bg-rose-100 border border-rose-200 px-1.5 py-0.2 text-[9px] font-bold text-rose-700">
+                                                        <Shield className="h-2.5 w-2.5" />
+                                                        Admin
+                                                    </span>
+                                                ) : (
+                                                    <span className="inline-flex items-center gap-0.5 rounded-full bg-sky-100 border border-sky-200 px-1.5 py-0.2 text-[9px] font-bold text-sky-800">
+                                                        <Users className="h-2.5 w-2.5" />
+                                                        {acc.department || acc.role || 'Staff'}
+                                                        {acc.subdivision && acc.subdivision !== acc.department
+                                                            ? ` • ${acc.subdivision}`
+                                                            : ''}
+                                                    </span>
+                                                )}
+                                                {acc.is_hod && (
+                                                    <span className="rounded-full bg-amber-100 border border-amber-300 px-1.5 py-0.2 text-[9px] font-bold text-amber-800">
+                                                        HOD
+                                                    </span>
+                                                )}
+                                                {!acc.is_active && (
+                                                    <span className="rounded-full bg-gray-200 px-1.5 py-0.2 text-[9px] font-bold text-gray-600">
+                                                        Nonaktif
+                                                    </span>
+                                                )}
+                                            </div>
+
+                                            <p className="mt-0.5 truncate font-mono text-[10.5px] text-gray-600 select-all">
+                                                {acc.email}
+                                            </p>
+
+                                            <div className="mt-1 flex items-center gap-1.5">
+                                                <KeyRound className="h-3 w-3 shrink-0 text-gray-400" />
+                                                {acc.dev_password ? (
+                                                    <span className="rounded bg-emerald-50 border border-emerald-200 px-1.5 py-0.2 font-mono text-[10px] font-bold text-emerald-700 select-all">
+                                                        {acc.dev_password}
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-[10px] italic text-gray-400">
+                                                        {isEn ? 'Custom Password (Hashed)' : 'Password Pribadi (Hash)'}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        <div className="flex flex-col gap-1 shrink-0">
+                                            <button
+                                                type="button"
+                                                onClick={() => handleFillDebugAccount(acc)}
+                                                className="rounded-lg border border-gray-300 bg-white px-2 py-1 text-[10px] font-bold text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer"
+                                                title={isEn ? 'Fill email & default password into form' : 'Isi email & password ke form login'}
+                                            >
+                                                {isEn ? 'Fill' : 'Isi'}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleDevQuickLogin(acc)}
+                                                disabled={!acc.is_active || quickLoginUserId !== null}
+                                                className="inline-flex items-center justify-center gap-1 rounded-lg bg-indigo-600 px-2 py-1 text-[10px] font-bold text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors cursor-pointer"
+                                                title={isEn ? '1-click local dev login (bypasses OTP)' : 'Login dev 1-klik (lewati OTP WA)'}
+                                            >
+                                                {isLoggingIn ? (
+                                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                                ) : (
+                                                    <LogIn className="h-3 w-3" />
+                                                )}
+                                                <span>{isEn ? 'Login' : 'Masuk'}</span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })
+                    )}
+                </div>
+
+                {/* Footer Hint */}
+                <div className="border-t border-gray-200 bg-gray-50 px-3 py-2 text-[10px] text-gray-500 leading-snug">
+                    {isEn
+                        ? 'Auto-hidden in production (APP_ENV !== local or APP_DEBUG=false). "Login" bypasses WA OTP for local testing.'
+                        : 'Otomatis hilang di production. Tombol "Masuk" langsung login tanpa OTP WA khusus untuk testing lokal.'}
+                </div>
+            </div>
+        ) : null;
+
     return (
-        <GuestLayout leftBottomAction={leftRecoveryButton}>
+        <GuestLayout leftBottomAction={leftRecoveryButton} rightSidePanel={devDebugPanel}>
             <Head title={isEn ? 'Sign In — Telunas Issue Tracker' : 'Masuk — Telunas Issue Tracker'} />
 
             <div className="mb-6">

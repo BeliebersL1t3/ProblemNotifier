@@ -28,6 +28,12 @@ Route::middleware('guest')->group(function () {
     Route::post('login', [AuthenticatedSessionController::class, 'store'])
         ->middleware('throttle:10,1');
 
+    if (app()->environment('local') && (bool) config('app.debug')) {
+        Route::post('dev/quick-login', [AuthenticatedSessionController::class, 'devQuickLogin'])
+            ->middleware('throttle:30,1')
+            ->name('dev.quick-login');
+    }
+
     Route::post('login/bot-start', [LoginOtpController::class, 'startBotForRecovery'])
         ->middleware('throttle:6,1')
         ->name('login.bot.start');
