@@ -9,6 +9,7 @@ import {
     RefreshCw, 
     X, 
     ChevronRight, 
+    ChevronDown,
     User, 
     MapPin, 
     Building2, 
@@ -344,6 +345,27 @@ export default function LeanIndex({
         4: 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-3.5',
     };
     const isCompactCard = cardGridCols === 4;
+
+    // Mobile Table View Mode ('compact' | 'spreadsheet'), persisted in localStorage
+    const [mobileTableMode, setMobileTableMode] = useState(() => {
+        try {
+            const saved = localStorage.getItem('lean_mobile_table_mode');
+            if (saved === 'compact' || saved === 'spreadsheet') return saved;
+        } catch (err) {
+            console.warn('[LeanIndex] Failed reading lean_mobile_table_mode:', err);
+        }
+        return 'compact';
+    });
+
+    useEffect(() => {
+        try {
+            localStorage.setItem('lean_mobile_table_mode', mobileTableMode);
+        } catch (err) {
+            console.warn('[LeanIndex] Failed saving lean_mobile_table_mode:', err);
+        }
+    }, [mobileTableMode]);
+
+    const [expandedMobileRowId, setExpandedMobileRowId] = useState(null);
 
     // Theme preference (dark / light) synced across Lean pages & header
     const { theme, isDark } = useLeanTheme();
@@ -2133,9 +2155,629 @@ export default function LeanIndex({
                         </div>
                     </div>
                 ) : viewMode === 'table' ? (
-                    /* --- VIEW 1: ERP SPREADSHEET TABLE --- */
+                    /* --- VIEW 1: ERP SPREADSHEET TABLE (HYBRID MOBILE + FULL DESKTOP) --- */
                     <div className="rounded-2xl overflow-hidden border shadow-xl transition-all liquid-glass-card">
-                        <div className="overflow-x-auto">
+                        {/* MOBILE-ONLY HYBRID TABLE SWITCHER & VIEWS (< 768px) */}
+                        <div className="md:hidden">
+                            {/* Top Switcher Bar: Ringkas vs Geser Penuh */}
+                            <div className={`px-3 py-2 border-b flex items-center justify-between gap-2 ${
+                                isDark
+                                    ? 'bg-slate-900/90 border-slate-700/80 text-slate-300'
+                                    : 'bg-slate-50/95 border-slate-200 text-slate-600'
+                            }`}>
+                                <div className="flex items-center gap-1.5 text-[10.5px] font-semibold min-w-0 truncate">
+                                    {mobileTableMode === 'compact' ? (
+                                        <span className="truncate">
+                                            {isEn
+                                                ? `${filteredIssues.length} rows • Tap ▾ to expand`
+                                                : `${filteredIssues.length} baris • Ketuk ▾ untuk detail`}
+                                        </span>
+                                    ) : (
+                                        <span className={`inline-flex items-center gap-1 truncate ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
+                                            <ArrowRightLeft className="w-3 h-3 shrink-0" />
+                                            <span>{isEn ? 'Swipe columns horizontally' : 'Geser kolom ke samping'}</span>
+                                        </span>
+                                    )}
+                                </div>
+
+                                <div
+                                    className={`inline-flex items-center p-0.5 rounded-lg border shrink-0 ${
+                                        isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200 shadow-2xs'
+                                    }`}
+                                    role="group"
+                                    aria-label={isEn ? 'Mobile table style' : 'Mode tabel mobile'}
+                                >
+                                    <button
+                                        type="button"
+                                        onClick={() => setMobileTableMode('compact')}
+                                        className={`px-2 py-1 rounded-md text-[10px] font-bold transition-all cursor-pointer ${
+                                            mobileTableMode === 'compact'
+                                                ? 'bg-emerald-600 text-white keep-white shadow-2xs'
+                                                : isDark
+                                                ? 'text-slate-400 hover:text-slate-200'
+                                                : 'text-slate-600 hover:text-slate-900'
+                                        }`}
+                                    >
+                                        {isEn ? 'Compact' : 'Ringkas'}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setMobileTableMode('spreadsheet')}
+                                        className={`px-2 py-1 rounded-md text-[10px] font-bold transition-all cursor-pointer ${
+                                            mobileTableMode === 'spreadsheet'
+                                                ? 'bg-emerald-600 text-white keep-white shadow-2xs'
+                                                : isDark
+                                                ? 'text-slate-400 hover:text-slate-200'
+                                                : 'text-slate-600 hover:text-slate-900'
+                                        }`}
+                                    >
+                                        {isEn ? 'Full Swipe' : 'Geser Penuh'}
+                                    </button>
+                                </div>
+                            </div>
+
+                            {mobileTableMode === 'compact' ? (
+                                /* --- MOBILE MODE A: COMPACT EXPANDABLE TABLE (ZERO HORIZONTAL SCROLL) --- */
+                                <table className="w-full table-fixed text-left text-[11px] border-collapse">
+                                    <thead>
+                                        <tr className={`font-bold border-b uppercase tracking-wider text-[9.5px] ${
+                                            isDark ? 'bg-slate-900/70 text-slate-400 border-slate-700/80' : 'bg-slate-100/90 text-slate-600 border-slate-200'
+                                        }`}>
+                                            <th className="py-2 pl-3 pr-1.5 w-auto">{isEn ? 'Ticket / Issue' : 'Tiket / Masalah'}</th>
+                                            <th className="py-2 px-1.5 w-[88px] text-right">Status</th>
+                                            <th className="py-2 pl-0.5 pr-2 w-[30px] text-center" aria-label="Expand" />
+                                        </tr>
+                                    </thead>
+                                    <tbody className={`divide-y ${isDark ? 'divide-slate-700/60' : 'divide-slate-200'}`}>
+                                        {filteredIssues.map((issue) => {
+                                            const accs = issue.department_accs || {};
+                                            const isExpanded = expandedMobileRowId === issue.id;
+                                            const etaBadge = visibleColumns.eta ? getEtaBadgeInfo(issue, nowMs, isEn) : null;
+                                            const statusStripe = {
+                                                open: 'border-l-rose-500',
+                                                in_progress: 'border-l-sky-500',
+                                                pending: 'border-l-amber-500',
+                                                resolved: 'border-l-emerald-500',
+                                            }[issue.status] || 'border-l-slate-400';
+
+                                            const targetDepts = issue.target_departments || [];
+
+                                            return (
+                                                <React.Fragment key={`m-compact-${issue.id}`}>
+                                                    <tr
+                                                        onClick={() => setSelectedDetailIssue(issue)}
+                                                        className={`border-l-[3px] cursor-pointer transition-colors ${statusStripe} ${
+                                                            isExpanded
+                                                                ? isDark
+                                                                    ? 'bg-slate-800/70'
+                                                                    : 'bg-emerald-50/40'
+                                                                : isDark
+                                                                ? 'hover:bg-slate-800/40'
+                                                                : 'hover:bg-slate-50/80'
+                                                        }`}
+                                                    >
+                                                        {/* Col 1: ID + Title + Micro Meta */}
+                                                        <td className="py-2.5 pl-2.5 pr-1.5 align-top min-w-0">
+                                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                                                {visibleColumns.id && (
+                                                                    <span className={`font-mono font-bold text-[10px] ${
+                                                                        isDark ? 'text-amber-300' : 'text-amber-700'
+                                                                    }`}>
+                                                                        #{issue.issue_code || ('LEAN-' + issue.id)}
+                                                                    </span>
+                                                                )}
+                                                                {visibleColumns.time && (
+                                                                    <span className={`text-[9.5px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                                                        • {formatRelativeTime(issue.created_at, issue.created_at_human)}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+
+                                                            {visibleColumns.title && (
+                                                                <p className={`mt-0.5 font-bold text-[11.5px] leading-snug line-clamp-1 ${
+                                                                    isDark ? 'text-white' : 'text-slate-900'
+                                                                }`}>
+                                                                    {issue.title}
+                                                                </p>
+                                                            )}
+
+                                                            <div className="mt-1 flex items-center gap-1 flex-wrap">
+                                                                {visibleColumns.location && issue.location && (
+                                                                    <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9px] font-semibold max-w-[130px] truncate border ${
+                                                                        isDark
+                                                                            ? 'bg-emerald-950/70 text-emerald-300 border-emerald-800/60'
+                                                                            : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                                                    }`}>
+                                                                        <MapPin className="w-2.5 h-2.5 shrink-0 text-emerald-500" />
+                                                                        <span className="truncate">{issue.location}</span>
+                                                                    </span>
+                                                                )}
+                                                                {visibleColumns.dept && targetDepts.length > 0 && (
+                                                                    <span className={`px-1.5 py-0.2 rounded text-[9px] font-semibold border truncate max-w-[90px] ${
+                                                                        isDark
+                                                                            ? 'bg-slate-800 border-slate-700 text-slate-300'
+                                                                            : 'bg-slate-100 border-slate-200 text-slate-700'
+                                                                    }`}>
+                                                                        {formatDeptDisplay(targetDepts[0])}{targetDepts.length > 1 ? ` +${targetDepts.length - 1}` : ''}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </td>
+
+                                                        {/* Col 2: Status + Mini ETA */}
+                                                        <td className="py-2.5 px-1.5 align-top text-right whitespace-nowrap">
+                                                            <div className="inline-flex flex-col items-end gap-1">
+                                                                {visibleColumns.status && (
+                                                                    <>
+                                                                        {issue.status === 'open' && (
+                                                                            <span className={`px-1.5 py-0.5 rounded-full text-[9.5px] font-bold inline-flex items-center gap-1 border ${
+                                                                                isDark ? 'bg-rose-500/20 text-rose-300 border-rose-500/40' : 'bg-rose-100 text-rose-800 border-rose-300'
+                                                                            }`}>
+                                                                                <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                                                                                Open
+                                                                            </span>
+                                                                        )}
+                                                                        {issue.status === 'in_progress' && (
+                                                                            <span className={`px-1.5 py-0.5 rounded-full text-[9.5px] font-bold inline-flex items-center gap-1 border ${
+                                                                                isDark ? 'bg-amber-500/20 text-amber-300 border-amber-500/40' : 'bg-amber-100 text-amber-800 border-amber-300'
+                                                                            }`}>
+                                                                                <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                                                                                {isEn ? 'Prog' : 'Progress'}
+                                                                            </span>
+                                                                        )}
+                                                                        {issue.status === 'pending' && (
+                                                                            <span className={`px-1.5 py-0.5 rounded-full text-[9.5px] font-bold inline-flex items-center gap-1 border ${
+                                                                                isDark ? 'bg-orange-500/20 text-orange-300 border-orange-500/40' : 'bg-orange-100 text-orange-800 border-orange-300'
+                                                                            }`}>
+                                                                                <span className="w-1.5 h-1.5 rounded-full bg-orange-500" />
+                                                                                {isEn ? 'Pending' : 'Tunda'}
+                                                                            </span>
+                                                                        )}
+                                                                        {issue.status === 'resolved' && (
+                                                                            <span className={`px-1.5 py-0.5 rounded-full text-[9.5px] font-bold inline-flex items-center gap-1 border ${
+                                                                                isDark ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' : 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                                                            }`}>
+                                                                                <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600" />
+                                                                                {isEn ? 'Done' : 'Selesai'}
+                                                                            </span>
+                                                                        )}
+                                                                    </>
+                                                                )}
+
+                                                                {etaBadge && (
+                                                                    <span
+                                                                        className={`px-1.5 py-0.2 rounded border text-[8.5px] font-bold truncate max-w-[82px] ${getEtaChipClasses(etaBadge)}`}
+                                                                        title={etaBadge.formattedFullTarget}
+                                                                    >
+                                                                        {etaBadge.isOverdue
+                                                                            ? (isEn ? 'Overdue' : 'Lewat ETA')
+                                                                            : etaBadge.formattedTarget}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </td>
+
+                                                        {/* Col 3: Expand Drawer Chevron */}
+                                                        <td
+                                                            className="py-2.5 pl-0.5 pr-1.5 align-middle text-center"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setExpandedMobileRowId(isExpanded ? null : issue.id);
+                                                            }}
+                                                        >
+                                                            <button
+                                                                type="button"
+                                                                aria-expanded={isExpanded}
+                                                                aria-label={isEn ? 'Toggle row details' : 'Buka/tutup detail baris'}
+                                                                className={`p-1 rounded-lg transition-colors cursor-pointer ${
+                                                                    isExpanded
+                                                                        ? isDark
+                                                                            ? 'bg-emerald-500/20 text-emerald-300'
+                                                                            : 'bg-emerald-100 text-emerald-700'
+                                                                        : isDark
+                                                                        ? 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                                                                        : 'text-slate-500 hover:bg-slate-200/70 hover:text-slate-900'
+                                                                }`}
+                                                            >
+                                                                <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+
+                                                    {/* Expanded Inline Sub-Row */}
+                                                    {isExpanded && (
+                                                        <tr className={`border-l-[3px] ${statusStripe} ${
+                                                            isDark ? 'bg-slate-900/70' : 'bg-slate-50/90'
+                                                        }`}>
+                                                            <td colSpan={3} className="px-3 pb-3 pt-1.5 space-y-2.5">
+                                                                {visibleColumns.desc && issue.description && (
+                                                                    <p className={`text-[11px] leading-relaxed p-2 rounded-lg border ${
+                                                                        isDark
+                                                                            ? 'bg-slate-950/60 border-slate-800 text-slate-300'
+                                                                            : 'bg-white border-slate-200 text-slate-700'
+                                                                    }`}>
+                                                                        {issue.description}
+                                                                    </p>
+                                                                )}
+
+                                                                <div className="grid grid-cols-2 gap-2 text-[10.5px]">
+                                                                    {visibleColumns.reporter && (
+                                                                        <div>
+                                                                            <span className={`block text-[9px] uppercase font-bold ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                                                                                {isEn ? 'Reporter' : 'Pelapor'}
+                                                                            </span>
+                                                                            <span className={`font-semibold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
+                                                                                {issue.reporter_name}
+                                                                            </span>
+                                                                            {issue.reporter_dept && (
+                                                                                <span className={`block text-[9.5px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                                                                    {formatDeptDisplay(issue.reporter_dept)}
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+                                                                    )}
+
+                                                                    {visibleColumns.location && (
+                                                                        <div>
+                                                                            <span className={`block text-[9px] uppercase font-bold ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                                                                                {isEn ? 'Location' : 'Lokasi'}
+                                                                            </span>
+                                                                            <span className={`font-semibold ${isDark ? 'text-emerald-300' : 'text-emerald-800'}`}>
+                                                                                {issue.location || '-'}
+                                                                            </span>
+                                                                        </div>
+                                                                    )}
+
+                                                                    {visibleColumns.dept && targetDepts.length > 0 && (
+                                                                        <div className="col-span-2">
+                                                                            <span className={`block text-[9px] uppercase font-bold mb-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                                                                                {isEn ? 'Target Department' : 'Departemen Tujuan'}
+                                                                            </span>
+                                                                            <div className="flex flex-wrap gap-1">
+                                                                                {targetDepts.map((dept) => {
+                                                                                    const isThisDeptClaimed = issue.claimed_by_dept && (
+                                                                                        issue.claimed_by_dept.toLowerCase() === dept.toLowerCase()
+                                                                                    );
+                                                                                    const isThisAcc = accs[dept]?.is_acc || isThisDeptClaimed;
+                                                                                    const isWorking = issue.status === 'in_progress' && isThisDeptClaimed;
+                                                                                    return (
+                                                                                        <span
+                                                                                            key={dept}
+                                                                                            className={`px-1.5 py-0.5 rounded text-[9.5px] font-semibold border ${
+                                                                                                isWorking
+                                                                                                    ? isDark
+                                                                                                        ? 'bg-amber-950/80 border-amber-500 text-amber-200'
+                                                                                                        : 'bg-amber-100 border-amber-400 text-amber-900'
+                                                                                                    : isThisAcc
+                                                                                                    ? isDark
+                                                                                                        ? 'bg-emerald-950/80 border-emerald-600 text-emerald-300'
+                                                                                                        : 'bg-emerald-100 border-emerald-400 text-emerald-800'
+                                                                                                    : isDark
+                                                                                                    ? 'bg-slate-900 border-slate-700 text-slate-300'
+                                                                                                    : 'bg-white border-slate-300 text-slate-700'
+                                                                                            }`}
+                                                                                        >
+                                                                                            {formatDeptDisplay(dept)} {isWorking ? (isEn ? '🟡 Working' : '🟡 Dikerjakan') : isThisAcc ? '✓' : ''}
+                                                                                        </span>
+                                                                                    );
+                                                                                })}
+                                                                            </div>
+                                                                        </div>
+                                                                    )}
+
+                                                                    {etaBadge && (
+                                                                        <div className="col-span-2">
+                                                                            <span className={`block text-[9px] uppercase font-bold mb-0.5 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                                                                                {isEn ? 'Target Completion (ETA)' : 'Target Selesai (ETA)'}
+                                                                            </span>
+                                                                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded border text-[10px] font-bold ${getEtaChipClasses(etaBadge)}`}>
+                                                                                <CalendarClock className="w-3 h-3 shrink-0" />
+                                                                                <span>{etaBadge.formattedTarget} • {etaBadge.statusLabel}</span>
+                                                                            </span>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+
+                                                                {visibleColumns.photo && issue.image_url && (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            setLightboxImage(issue.image_url);
+                                                                        }}
+                                                                        className={`inline-flex items-center gap-2 p-1.5 pr-2.5 rounded-lg border text-[10.5px] font-semibold cursor-pointer ${
+                                                                            isDark
+                                                                                ? 'border-slate-700 bg-slate-900/80 text-emerald-300'
+                                                                                : 'border-slate-300 bg-white/90 text-emerald-700'
+                                                                        }`}
+                                                                    >
+                                                                        <img src={issue.image_url} alt="" className="w-8 h-8 rounded object-cover" />
+                                                                        <span className="inline-flex items-center gap-1">
+                                                                            <Eye className="w-3 h-3" />
+                                                                            {isEn ? 'View Evidence Photo' : 'Lihat Foto Bukti'}
+                                                                        </span>
+                                                                    </button>
+                                                                )}
+
+                                                                <div className={`flex items-center justify-between gap-2 pt-1.5 border-t ${
+                                                                    isDark ? 'border-slate-800' : 'border-slate-200/80'
+                                                                }`}>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => setSelectedDetailIssue(issue)}
+                                                                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white keep-white font-bold text-[10.5px] shadow-xs cursor-pointer"
+                                                                    >
+                                                                        <Eye className="w-3 h-3" />
+                                                                        <span>{isEn ? 'Full Details' : 'Lihat Rincian'}</span>
+                                                                    </button>
+
+                                                                    {canManageIssue(issue) && (
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                setIssueToDelete(issue);
+                                                                            }}
+                                                                            className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-[10.5px] font-semibold cursor-pointer ${
+                                                                                isDark
+                                                                                    ? 'bg-rose-500/10 text-rose-400 border-rose-500/30'
+                                                                                    : 'bg-rose-50 text-rose-700 border-rose-200'
+                                                                            }`}
+                                                                        >
+                                                                            <Trash2 className="w-3 h-3" />
+                                                                            <span>{isEn ? 'Delete' : 'Hapus'}</span>
+                                                                        </button>
+                                                                    )}
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    )}
+                                                </React.Fragment>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            ) : (
+                                /* --- MOBILE MODE B: STICKY-COLUMN SPREADSHEET (STATUS PULLED FORWARD) --- */
+                                <div className="relative">
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left text-[10.5px] border-collapse">
+                                            <thead>
+                                                <tr className={`font-bold border-b uppercase tracking-wider text-[9.5px] ${
+                                                    isDark ? 'bg-slate-900 text-slate-300 border-slate-700/80' : 'bg-slate-100 text-slate-700 border-slate-200'
+                                                }`}>
+                                                    <th className={`sticky left-0 z-20 py-2 px-2.5 min-w-[148px] max-w-[162px] border-r shadow-[4px_0_8px_-4px_rgba(0,0,0,0.18)] ${
+                                                        isDark ? 'bg-slate-900 border-slate-700/80' : 'bg-slate-100 border-slate-200'
+                                                    }`}>
+                                                        {isEn ? 'ID & Issue' : 'ID & Masalah'}
+                                                    </th>
+                                                    {visibleColumns.status && <th className="py-2 px-2 whitespace-nowrap">Status</th>}
+                                                    {visibleColumns.location && <th className="py-2 px-2 whitespace-nowrap">{isEn ? 'Location' : 'Lokasi'}</th>}
+                                                    {visibleColumns.dept && <th className="py-2 px-2 whitespace-nowrap">{isEn ? 'Department' : 'Departemen'}</th>}
+                                                    {visibleColumns.eta && <th className="py-2 px-2 whitespace-nowrap">{isEn ? 'Target ETA' : 'Target Selesai'}</th>}
+                                                    {visibleColumns.reporter && <th className="py-2 px-2 whitespace-nowrap">{isEn ? 'Reporter' : 'Pelapor'}</th>}
+                                                    {visibleColumns.desc && <th className="py-2 px-2 min-w-[140px]">{isEn ? 'Description' : 'Deskripsi'}</th>}
+                                                    {visibleColumns.photo && <th className="py-2 px-1.5 text-center whitespace-nowrap">{isEn ? 'Photo' : 'Foto'}</th>}
+                                                    {visibleColumns.time && <th className="py-2 px-2 whitespace-nowrap">{isEn ? 'Time' : 'Waktu'}</th>}
+                                                    <th className="py-2 px-2 text-center whitespace-nowrap">{isEn ? 'Action' : 'Aksi'}</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className={`divide-y font-medium ${isDark ? 'divide-slate-700/60' : 'divide-slate-200'}`}>
+                                                {filteredIssues.map((issue) => {
+                                                    const accs = issue.department_accs || {};
+                                                    const etaBadge = visibleColumns.eta ? getEtaBadgeInfo(issue, nowMs, isEn) : null;
+
+                                                    return (
+                                                        <tr
+                                                            key={`m-sheet-${issue.id}`}
+                                                            onClick={() => setSelectedDetailIssue(issue)}
+                                                            className={`cursor-pointer transition-colors ${
+                                                                isDark ? 'hover:bg-slate-800/60' : 'hover:bg-slate-50'
+                                                            }`}
+                                                        >
+                                                            {/* Sticky First Column: ID + Title */}
+                                                            <td className={`sticky left-0 z-10 py-2 px-2.5 min-w-[148px] max-w-[162px] border-r shadow-[4px_0_8px_-4px_rgba(0,0,0,0.16)] ${
+                                                                isDark ? 'bg-slate-900 border-slate-700/80' : 'bg-white border-slate-200'
+                                                            }`}>
+                                                                {visibleColumns.id && (
+                                                                    <div className={`font-mono font-bold text-[10px] leading-tight ${
+                                                                        isDark ? 'text-amber-300' : 'text-amber-700'
+                                                                    }`}>
+                                                                        #{issue.issue_code || ('LEAN-' + issue.id)}
+                                                                    </div>
+                                                                )}
+                                                                {visibleColumns.title && (
+                                                                    <div className={`font-semibold text-[11px] leading-snug line-clamp-1 mt-0.5 ${
+                                                                        isDark ? 'text-white' : 'text-slate-900'
+                                                                    }`} title={issue.title}>
+                                                                        {issue.title}
+                                                                    </div>
+                                                                )}
+                                                            </td>
+
+                                                            {/* Col 2: Status (Pulled Forward) */}
+                                                            {visibleColumns.status && (
+                                                                <td className="py-2 px-2 whitespace-nowrap">
+                                                                    {issue.status === 'open' && (
+                                                                        <span className={`px-1.5 py-0.5 rounded-full text-[9.5px] font-semibold inline-flex items-center gap-1 border ${
+                                                                            isDark ? 'bg-rose-500/20 text-rose-300 border-rose-500/40' : 'bg-rose-100 text-rose-800 border-rose-300'
+                                                                        }`}>
+                                                                            <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                                                                            Open
+                                                                        </span>
+                                                                    )}
+                                                                    {issue.status === 'in_progress' && (
+                                                                        <span className={`px-1.5 py-0.5 rounded-full text-[9.5px] font-semibold inline-flex items-center gap-1 border ${
+                                                                            isDark ? 'bg-amber-500/20 text-amber-300 border-amber-500/40' : 'bg-amber-100 text-amber-800 border-amber-300'
+                                                                        }`}>
+                                                                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                                                                            {isEn ? 'Progress' : 'Progress'}
+                                                                        </span>
+                                                                    )}
+                                                                    {issue.status === 'pending' && (
+                                                                        <span className={`px-1.5 py-0.5 rounded-full text-[9.5px] font-semibold inline-flex items-center gap-1 border ${
+                                                                            isDark ? 'bg-orange-500/20 text-orange-300 border-orange-500/40' : 'bg-orange-100 text-orange-800 border-orange-300'
+                                                                        }`}>
+                                                                            <span className="w-1.5 h-1.5 rounded-full bg-orange-500" />
+                                                                            {isEn ? 'Pending' : 'Tertunda'}
+                                                                        </span>
+                                                                    )}
+                                                                    {issue.status === 'resolved' && (
+                                                                        <span className={`px-1.5 py-0.5 rounded-full text-[9.5px] font-semibold inline-flex items-center gap-1 border ${
+                                                                            isDark ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' : 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                                                        }`}>
+                                                                            <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600" />
+                                                                            {isEn ? 'Resolved' : 'Selesai'}
+                                                                        </span>
+                                                                    )}
+                                                                </td>
+                                                            )}
+
+                                                            {/* Col 3: Location */}
+                                                            {visibleColumns.location && (
+                                                                <td className="py-2 px-2 whitespace-nowrap">
+                                                                    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded font-bold text-[9.5px] max-w-[140px] truncate border ${
+                                                                        isDark
+                                                                            ? 'bg-emerald-950/80 text-emerald-300 border-emerald-800/60'
+                                                                            : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                                                    }`}>
+                                                                        <MapPin className="w-2.5 h-2.5 text-emerald-500 shrink-0" />
+                                                                        <span className="truncate">{issue.location}</span>
+                                                                    </span>
+                                                                </td>
+                                                            )}
+
+                                                            {/* Col 4: Department */}
+                                                            {visibleColumns.dept && (
+                                                                <td className="py-2 px-2 whitespace-nowrap">
+                                                                    <div className="flex flex-wrap gap-1">
+                                                                        {(issue.target_departments || []).map((dept) => {
+                                                                            const isThisDeptClaimed = issue.claimed_by_dept && (
+                                                                                issue.claimed_by_dept.toLowerCase() === dept.toLowerCase()
+                                                                            );
+                                                                            const isThisAcc = accs[dept]?.is_acc || isThisDeptClaimed;
+                                                                            const isWorking = issue.status === 'in_progress' && isThisDeptClaimed;
+                                                                            return (
+                                                                                <span
+                                                                                    key={dept}
+                                                                                    className={`px-1.5 py-0.5 rounded text-[9px] font-semibold border ${
+                                                                                        isWorking
+                                                                                            ? isDark
+                                                                                                ? 'bg-amber-950/80 border-amber-500 text-amber-200'
+                                                                                                : 'bg-amber-100 border-amber-400 text-amber-900'
+                                                                                            : isThisAcc
+                                                                                            ? isDark
+                                                                                                ? 'bg-emerald-950/80 border-emerald-600 text-emerald-300'
+                                                                                                : 'bg-emerald-100 border-emerald-400 text-emerald-800'
+                                                                                            : isDark
+                                                                                            ? 'bg-slate-900 border-slate-700 text-slate-300'
+                                                                                            : 'bg-slate-100 border-slate-300 text-slate-700'
+                                                                                    }`}
+                                                                                >
+                                                                                    {formatDeptDisplay(dept)} {isWorking ? '🟡' : isThisAcc ? '✓' : ''}
+                                                                                </span>
+                                                                            );
+                                                                        })}
+                                                                    </div>
+                                                                </td>
+                                                            )}
+
+                                                            {/* Col 5: Target ETA */}
+                                                            {visibleColumns.eta && (
+                                                                <td className="py-2 px-2 whitespace-nowrap">
+                                                                    {etaBadge ? (
+                                                                        <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-[9px] font-bold ${getEtaChipClasses(etaBadge)}`}>
+                                                                            <CalendarClock className="w-2.5 h-2.5 shrink-0" />
+                                                                            <span>{etaBadge.formattedTarget}</span>
+                                                                        </span>
+                                                                    ) : (
+                                                                        <span className="text-slate-400 text-[10px]">—</span>
+                                                                    )}
+                                                                </td>
+                                                            )}
+
+                                                            {/* Col 6: Reporter */}
+                                                            {visibleColumns.reporter && (
+                                                                <td className="py-2 px-2 whitespace-nowrap">
+                                                                    <div className={`font-semibold text-[10.5px] leading-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                                                                        {issue.reporter_name}
+                                                                    </div>
+                                                                    <div className={`text-[9px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                                                        {issue.reporter_dept ? formatDeptDisplay(issue.reporter_dept) : (isEn ? 'Staff' : 'Staf')}
+                                                                    </div>
+                                                                </td>
+                                                            )}
+
+                                                            {/* Col 7: Description */}
+                                                            {visibleColumns.desc && (
+                                                                <td className={`py-2 px-2 max-w-[160px] truncate ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+                                                                    {issue.description || <span className="text-slate-400 italic">-</span>}
+                                                                </td>
+                                                            )}
+
+                                                            {/* Col 8: Photo */}
+                                                            {visibleColumns.photo && (
+                                                                <td className="py-2 px-1.5 text-center">
+                                                                    {issue.image_url ? (
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                setLightboxImage(issue.image_url);
+                                                                            }}
+                                                                            className={`w-7 h-7 rounded overflow-hidden border inline-block ${
+                                                                                isDark ? 'border-slate-700' : 'border-slate-300'
+                                                                            }`}
+                                                                        >
+                                                                            <img src={issue.image_url} alt="" className="w-full h-full object-cover" />
+                                                                        </button>
+                                                                    ) : (
+                                                                        <span className="text-slate-400 text-[10px]">-</span>
+                                                                    )}
+                                                                </td>
+                                                            )}
+
+                                                            {/* Col 9: Time */}
+                                                            {visibleColumns.time && (
+                                                                <td className={`py-2 px-2 whitespace-nowrap text-[9.5px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                                                    {formatRelativeTime(issue.created_at, issue.created_at_human)}
+                                                                </td>
+                                                            )}
+
+                                                            {/* Col 10: Delete Action */}
+                                                            <td className="py-2 px-2 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                                                                {canManageIssue(issue) ? (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => setIssueToDelete(issue)}
+                                                                        className={`p-1 rounded-md border ${
+                                                                            isDark
+                                                                                ? 'bg-rose-500/10 text-rose-400 border-rose-500/30'
+                                                                                : 'bg-rose-50 text-rose-700 border-rose-200'
+                                                                        }`}
+                                                                    >
+                                                                        <Trash2 className="w-3 h-3" />
+                                                                    </button>
+                                                                ) : (
+                                                                    <span className="text-slate-400">—</span>
+                                                                )}
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    {/* Subtle right-edge scroll fade cue */}
+                                    <div className={`pointer-events-none absolute top-0 right-0 bottom-0 w-4 bg-gradient-to-l ${
+                                        isDark ? 'from-slate-950/60 to-transparent' : 'from-slate-200/60 to-transparent'
+                                    }`} />
+                                </div>
+                            )}
+                        </div>
+
+                        {/* DESKTOP FULL 11-COLUMN ERP SPREADSHEET TABLE (md+, UNCHANGED) */}
+                        <div className="hidden md:block overflow-x-auto">
                             <table className="w-full text-left text-[11px] border-collapse">
                                 <thead>
                                     <tr className={`font-bold border-b uppercase tracking-wider text-[10px] ${
