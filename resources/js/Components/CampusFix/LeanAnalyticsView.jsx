@@ -1645,6 +1645,32 @@ export function LeanAnalyticsView({
     const [deptMode, setDeptMode] = useState('target_issues');
     // 2.1. Trend Chart Period Mode: '6m' | '1y' | 'semester' | 'yearly'
     const [trendPeriodMode, setTrendPeriodMode] = useState('6m');
+    // 2.2. Chart 3 (Workload per Department) Controls: Top N / All + Multi-Department Picker
+    const [deptChartLimit, setDeptChartLimit] = useState('6');
+    const [deptChartSelectedDepts, setDeptChartSelectedDepts] = useState(null); // null = automatic Top N, string[] = custom multi-select
+    const [deptChartIncludeZero, setDeptChartIncludeZero] = useState(false);
+    const [isDeptChartPickerOpen, setIsDeptChartPickerOpen] = useState(false);
+    const deptChartPickerRef = useRef(null);
+
+    useEffect(() => {
+        if (!isDeptChartPickerOpen) return;
+        const handleClickOutside = (event) => {
+            if (deptChartPickerRef.current && !deptChartPickerRef.current.contains(event.target)) {
+                setIsDeptChartPickerOpen(false);
+            }
+        };
+        const handleKeyDown = (event) => {
+            if (event.key === 'Escape') {
+                setIsDeptChartPickerOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        document.addEventListener('keydown', handleKeyDown);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+            document.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [isDeptChartPickerOpen]);
     // 3. Spatial Map Tab: 'tpi' | 'tbr'
     const [activeMapTab, setActiveMapTab] = useState('tpi');
     // 4. Interactive Zone Selection
@@ -1930,15 +1956,20 @@ export function LeanAnalyticsView({
             reporterMap[repDept].total += 1;
         });
 
-        // Mode 1: Isu Terbanyak (Beban Ditugaskan)
-        const targetList = Object.values(targetMap)
-            .filter((d) => d.total > 0)
+        // Full target department list (including 0-issue master departments) for multi-select filtering
+        const allTargetList = Object.values(targetMap)
             .map((d) => ({
                 ...d,
                 pct: stats.total > 0 ? Math.round((d.total / stats.total) * 100) : 0,
                 backlogRate: d.total > 0 ? Math.round((d.active / d.total) * 100) : 0,
             }))
-            .sort((a, b) => b.total - a.total);
+            .sort((a, b) => {
+                if (b.total !== a.total) return b.total - a.total;
+                return a.name.localeCompare(b.name);
+            });
+
+        // Mode 1: Isu Terbanyak (Beban Ditugaskan)
+        const targetList = allTargetList.filter((d) => d.total > 0);
 
         // Mode 2: Pelapor Terbanyak (Dept Asal Pelapor)
         const reporterList = Object.values(reporterMap)
@@ -1957,6 +1988,7 @@ export function LeanAnalyticsView({
 
         return {
             targetList,
+            allTargetList,
             reporterList,
             backlogList,
         };
@@ -2160,17 +2192,79 @@ export function LeanAnalyticsView({
     }, [stats, isEn]);
 
     // 3. Department Workload Data (Stacked Bar: Resolved vs Active)
+    // Supports Top N / All limit, custom multi-department selection, and optional 0-issue departments
+    const deptWorkloadFilteredItems = useMemo(() => {
+        if (Array.isArray(deptChartSelectedDepts)) {
+            const selectedSet = new Set(deptChartSelectedDepts);
+            return (deptMetrics.allTargetList || []).filter((d) => selectedSet.has(d.name));
+        }
+        const sourceList = deptChartIncludeZero
+            ? (deptMetrics.allTargetList || [])
+            : (deptMetrics.targetList || []);
+        if (deptChartLimit === 'all') {
+            return sourceList;
+        }
+        const limitNum = parseInt(deptChartLimit, 10) || 6;
+        return sourceList.slice(0, limitNum);
+    }, [deptMetrics.allTargetList, deptMetrics.targetList, deptChartSelectedDepts, deptChartIncludeZero, deptChartLimit]);
+
     const deptWorkloadChartData = useMemo(() => {
-        return (deptMetrics.targetList || [])
-            .slice(0, 6)
+        return deptWorkloadFilteredItems
             .map((d) => ({
+                rawName: d.name,
                 name: formatDeptDisplay(d.name),
                 resolved: d.resolved,
                 active: d.active,
                 total: d.total,
             }))
             .reverse();
-    }, [deptMetrics.targetList]);
+    }, [deptWorkloadFilteredItems]);
+
+    const deptWorkloadActiveNamesSet = useMemo(
+        () => new Set(deptWorkloadFilteredItems.map((d) => d.name)),
+        [deptWorkloadFilteredItems]
+    );
+
+    const deptChecklistOptions = useMemo(() => {
+        const all = deptMetrics.allTargetList || [];
+        if (deptChartIncludeZero) return all;
+        return all.filter((d) => d.total > 0 || deptWorkloadActiveNamesSet.has(d.name));
+    }, [deptMetrics.allTargetList, deptChartIncludeZero, deptWorkloadActiveNamesSet]);
+
+    const zeroIssueDeptCount = useMemo(
+        () => (deptMetrics.allTargetList || []).filter((d) => d.total === 0).length,
+        [deptMetrics.allTargetList]
+    );
+
+    const deptWorkloadChartHeight = useMemo(
+        () => Math.max(240, deptWorkloadChartData.length * 38 + 56),
+        [deptWorkloadChartData.length]
+    );
+
+    const handleToggleDeptChartItem = useCallback((deptName) => {
+        setDeptChartSelectedDepts((prev) => {
+            const baseList = Array.isArray(prev)
+                ? prev
+                : deptWorkloadFilteredItems.map((d) => d.name);
+            if (baseList.includes(deptName)) {
+                return baseList.filter((name) => name !== deptName);
+            }
+            return [...baseList, deptName];
+        });
+    }, [deptWorkloadFilteredItems]);
+
+    const handleSelectAllDeptChart = useCallback(() => {
+        const pool = deptChartIncludeZero
+            ? (deptMetrics.allTargetList || [])
+            : (deptMetrics.targetList || []);
+        setDeptChartSelectedDepts(pool.map((d) => d.name));
+    }, [deptChartIncludeZero, deptMetrics.allTargetList, deptMetrics.targetList]);
+
+    const handleResetDeptChart = useCallback(() => {
+        setDeptChartSelectedDepts(null);
+        setDeptChartLimit('6');
+        setDeptChartIncludeZero(false);
+    }, []);
 
     // 4. Top Hotspot Locations Data
     const hotspotChartData = useMemo(() => {
@@ -2861,74 +2955,276 @@ export function LeanAnalyticsView({
                     </div>
 
                     {/* CHART 3: Department Workload (Horizontal Stacked Bar) */}
-                    <div className={`p-4 sm:p-5 rounded-2xl border shadow-sm transition-all liquid-glass-card min-w-0 flex flex-col justify-between ${
+                    <div className={`p-4 sm:p-5 rounded-2xl border shadow-sm transition-all liquid-glass-card min-w-0 flex flex-col justify-between relative ${
+                        isDeptChartPickerOpen ? 'z-40' : 'z-0'
+                    } ${
                         isDark ? 'border-slate-700/80 bg-slate-900/40' : 'border-slate-200 bg-white/70'
                     }`}>
-                        <div className="flex items-center justify-between pb-3 border-b border-slate-700/20 mb-3">
-                            <div className="flex items-center gap-2">
-                                <Building2 className="w-4 h-4 text-amber-400" />
-                                <h4 className={`text-xs sm:text-sm font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                        <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-700/20 mb-3">
+                            <div className="flex items-center gap-2 min-w-0">
+                                <Building2 className="w-4 h-4 text-amber-400 shrink-0" />
+                                <h4 className={`text-xs sm:text-sm font-bold truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>
                                     {isEn ? 'Workload per Department' : 'Beban Kerja per Departemen'}
                                 </h4>
                             </div>
-                            <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${
-                                isDark ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-600'
-                            }`}>
-                                {isEn ? 'Top 6 Departments' : 'Top 6 Departemen'}
-                            </span>
-                        </div>
-                        <div className="w-full h-[240px]">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart
-                                    layout="vertical"
-                                    data={deptWorkloadChartData}
-                                    margin={{ top: 5, right: 20, left: 10, bottom: 5 }}
+
+                            {/* Interactive Controls: Top N / All Dropdown + Multi-Department Checklist Popover */}
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                                <select
+                                    aria-label={isEn ? 'Department display limit' : 'Batas jumlah departemen'}
+                                    value={Array.isArray(deptChartSelectedDepts) ? 'custom' : deptChartLimit}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        if (val === 'custom') return;
+                                        setDeptChartSelectedDepts(null);
+                                        setDeptChartLimit(val);
+                                    }}
+                                    className={`text-[11px] font-semibold rounded-lg px-2 py-1 border cursor-pointer transition-colors focus:outline-none focus:ring-1 focus:ring-emerald-500 ${
+                                        isDark
+                                            ? 'bg-slate-800 border-slate-700 text-slate-200 hover:border-slate-600'
+                                            : 'bg-white border-slate-300 text-slate-700 hover:border-slate-400'
+                                    }`}
                                 >
-                                    <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#334155' : '#e2e8f0'} opacity={0.6} horizontal={false} />
-                                    <XAxis
-                                        type="number"
-                                        allowDecimals={false}
-                                        tick={{ fill: isDark ? '#94a3b8' : '#64748b', fontSize: 11 }}
-                                        axisLine={{ stroke: isDark ? '#334155' : '#cbd5e1' }}
-                                        tickLine={false}
-                                    />
-                                    <YAxis
-                                        type="category"
-                                        dataKey="name"
-                                        width={95}
-                                        tick={{ fill: isDark ? '#e2e8f0' : '#334155', fontSize: 11 }}
-                                        axisLine={{ stroke: isDark ? '#334155' : '#cbd5e1' }}
-                                        tickLine={false}
-                                    />
-                                    <RechartsTooltip
-                                        contentStyle={{
-                                            backgroundColor: isDark ? '#0f172a' : '#ffffff',
-                                            borderColor: isDark ? '#334155' : '#e2e8f0',
-                                            borderRadius: '0.75rem',
-                                            fontSize: '11px',
-                                            color: isDark ? '#f8fafc' : '#0f172a',
-                                        }}
-                                        itemStyle={{ color: isDark ? '#f8fafc' : '#0f172a' }}
-                                    />
-                                    <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '6px' }} />
-                                    <Bar
-                                        dataKey="resolved"
-                                        name={isEn ? 'Resolved' : 'Selesai'}
-                                        stackId="deptStack"
-                                        fill="#10b981"
-                                        barSize={16}
-                                    />
-                                    <Bar
-                                        dataKey="active"
-                                        name={isEn ? 'Active / Backlog' : 'Sedang Berjalan'}
-                                        stackId="deptStack"
-                                        fill="#f59e0b"
-                                        radius={[0, 4, 4, 0]}
-                                        barSize={16}
-                                    />
-                                </BarChart>
-                            </ResponsiveContainer>
+                                    {Array.isArray(deptChartSelectedDepts) && (
+                                        <option value="custom">
+                                            {isEn ? `Custom (${deptWorkloadChartData.length})` : `Kustom (${deptWorkloadChartData.length})`}
+                                        </option>
+                                    )}
+                                    <option value="5">{isEn ? 'Top 5 Depts' : 'Top 5 Dept'}</option>
+                                    <option value="6">{isEn ? 'Top 6 Depts' : 'Top 6 Dept'}</option>
+                                    <option value="10">{isEn ? 'Top 10 Depts' : 'Top 10 Dept'}</option>
+                                    <option value="all">{isEn ? 'All Depts' : 'Semua Dept'}</option>
+                                </select>
+
+                                <div className="relative" ref={deptChartPickerRef}>
+                                    <button
+                                        type="button"
+                                        aria-expanded={isDeptChartPickerOpen}
+                                        onClick={() => setIsDeptChartPickerOpen((prev) => !prev)}
+                                        className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-lg border transition-colors cursor-pointer ${
+                                            Array.isArray(deptChartSelectedDepts)
+                                                ? (isDark
+                                                    ? 'bg-emerald-950/80 border-emerald-600/70 text-emerald-300 hover:bg-emerald-900/70'
+                                                    : 'bg-emerald-50 border-emerald-400 text-emerald-700 hover:bg-emerald-100')
+                                                : (isDark
+                                                    ? 'bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700'
+                                                    : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50')
+                                        }`}
+                                        title={isEn ? 'Select specific departments to compare' : 'Pilih beberapa departemen tertentu untuk dibandingkan'}
+                                    >
+                                        <Filter className="w-3 h-3 shrink-0" />
+                                        <span>
+                                            {Array.isArray(deptChartSelectedDepts)
+                                                ? (isEn ? `${deptWorkloadChartData.length} Selected` : `${deptWorkloadChartData.length} Dipilih`)
+                                                : (isEn ? 'Pick Depts' : 'Pilih Dept')}
+                                        </span>
+                                        <ChevronDown className={`w-3 h-3 shrink-0 transition-transform ${isDeptChartPickerOpen ? 'rotate-180' : ''}`} />
+                                    </button>
+
+                                    {isDeptChartPickerOpen && (
+                                        <div className={`absolute right-0 mt-1.5 w-64 max-w-[calc(100vw-3rem)] rounded-xl border shadow-2xl z-50 overflow-hidden ${
+                                            isDark
+                                                ? 'bg-slate-900 border-slate-700 text-slate-100'
+                                                : 'bg-white border-slate-200 text-slate-800'
+                                        }`}>
+                                            <div className={`flex items-center justify-between px-3 py-2 border-b ${
+                                                isDark ? 'border-slate-800 bg-slate-900/90' : 'border-slate-100 bg-slate-50'
+                                            }`}>
+                                                <span className={`text-[11px] font-bold ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
+                                                    {isEn ? 'Compare Departments' : 'Pilih Departemen'}
+                                                </span>
+                                                <div className="flex items-center gap-2">
+                                                    <button
+                                                        type="button"
+                                                        onClick={handleSelectAllDeptChart}
+                                                        className={`text-[10px] font-semibold cursor-pointer ${
+                                                            isDark ? 'text-emerald-400 hover:text-emerald-300' : 'text-emerald-600 hover:text-emerald-700'
+                                                        }`}
+                                                    >
+                                                        {isEn ? 'All' : 'Semua'}
+                                                    </button>
+                                                    <span className={isDark ? 'text-slate-700' : 'text-slate-300'}>|</span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={handleResetDeptChart}
+                                                        className={`inline-flex items-center gap-0.5 text-[10px] font-semibold cursor-pointer ${
+                                                            isDark ? 'text-slate-400 hover:text-slate-200' : 'text-slate-500 hover:text-slate-800'
+                                                        }`}
+                                                    >
+                                                        <RotateCcw className="w-2.5 h-2.5" />
+                                                        {isEn ? 'Reset' : 'Reset'}
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            <div className="max-h-56 overflow-y-auto p-1.5 space-y-0.5">
+                                                {deptChecklistOptions.length === 0 ? (
+                                                    <p className={`text-[11px] text-center py-4 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                                        {isEn ? 'No departments available.' : 'Belum ada data departemen.'}
+                                                    </p>
+                                                ) : (
+                                                    deptChecklistOptions.map((dept) => {
+                                                        const isChecked = deptWorkloadActiveNamesSet.has(dept.name);
+                                                        return (
+                                                            <button
+                                                                key={dept.name}
+                                                                type="button"
+                                                                onClick={() => handleToggleDeptChartItem(dept.name)}
+                                                                className={`w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg text-left text-xs transition-colors cursor-pointer ${
+                                                                    isChecked
+                                                                        ? (isDark ? 'bg-emerald-950/60 text-emerald-200 hover:bg-emerald-950/80' : 'bg-emerald-50 text-emerald-900 hover:bg-emerald-100/80')
+                                                                        : (isDark ? 'text-slate-300 hover:bg-slate-800' : 'text-slate-700 hover:bg-slate-100')
+                                                                }`}
+                                                            >
+                                                                <span className="flex items-center gap-2 min-w-0">
+                                                                    {isChecked ? (
+                                                                        <CheckSquare className={`w-3.5 h-3.5 shrink-0 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
+                                                                    ) : (
+                                                                        <Square className={`w-3.5 h-3.5 shrink-0 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
+                                                                    )}
+                                                                    <span className="truncate font-medium">
+                                                                        {formatDeptDisplay(dept.name)}
+                                                                    </span>
+                                                                </span>
+                                                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${
+                                                                    dept.total > 0
+                                                                        ? (isDark ? 'bg-slate-800 text-slate-300' : 'bg-slate-200/80 text-slate-700')
+                                                                        : (isDark ? 'bg-slate-800/60 text-slate-500' : 'bg-slate-100 text-slate-400')
+                                                                }`}>
+                                                                    {dept.total}
+                                                                </span>
+                                                            </button>
+                                                        );
+                                                    })
+                                                )}
+                                            </div>
+
+                                            {zeroIssueDeptCount > 0 && (
+                                                <div className={`px-3 py-2 border-t ${
+                                                    isDark ? 'border-slate-800 bg-slate-900/90' : 'border-slate-100 bg-slate-50'
+                                                }`}>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setDeptChartIncludeZero((prev) => !prev)}
+                                                        className={`w-full flex items-center justify-between text-[11px] font-medium cursor-pointer ${
+                                                            isDark ? 'text-slate-300 hover:text-white' : 'text-slate-600 hover:text-slate-900'
+                                                        }`}
+                                                    >
+                                                        <span className="flex items-center gap-1.5">
+                                                            {deptChartIncludeZero ? (
+                                                                <CheckSquare className={`w-3.5 h-3.5 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
+                                                            ) : (
+                                                                <Square className={`w-3.5 h-3.5 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
+                                                            )}
+                                                            <span>{isEn ? 'Show 0-issue depts' : 'Tampilkan dept 0 isu'}</span>
+                                                        </span>
+                                                        <span className={`text-[10px] font-semibold ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                                                            +{zeroIssueDeptCount}
+                                                        </span>
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {(Array.isArray(deptChartSelectedDepts) || deptChartIncludeZero || deptChartLimit !== '6') && (
+                                    <button
+                                        type="button"
+                                        onClick={handleResetDeptChart}
+                                        className={`p-1 rounded-lg border transition-colors cursor-pointer ${
+                                            isDark
+                                                ? 'bg-slate-800 border-slate-700 text-slate-400 hover:text-white hover:bg-slate-700'
+                                                : 'bg-white border-slate-300 text-slate-500 hover:text-slate-800 hover:bg-slate-100'
+                                        }`}
+                                        title={isEn ? 'Reset to Top 6' : 'Reset ke Top 6'}
+                                        aria-label={isEn ? 'Reset department chart filter' : 'Reset filter grafik departemen'}
+                                    >
+                                        <X className="w-3.5 h-3.5" />
+                                    </button>
+                                )}
+                            </div>
                         </div>
+
+                        {deptWorkloadChartData.length === 0 ? (
+                            <div className="w-full h-[240px] flex flex-col items-center justify-center text-center gap-2.5 px-4">
+                                <Building2 className={`w-8 h-8 ${isDark ? 'text-slate-600' : 'text-slate-300'}`} />
+                                <p className={`text-xs font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                    {Array.isArray(deptChartSelectedDepts)
+                                        ? (isEn ? 'No departments selected to display.' : 'Belum ada departemen yang dipilih untuk ditampilkan.')
+                                        : (isEn ? 'No department workload data in this period.' : 'Belum ada data beban kerja departemen pada periode ini.')}
+                                </p>
+                                {Array.isArray(deptChartSelectedDepts) && (
+                                    <button
+                                        type="button"
+                                        onClick={handleResetDeptChart}
+                                        className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors cursor-pointer ${
+                                            isDark
+                                                ? 'bg-emerald-950/70 border-emerald-700 text-emerald-300 hover:bg-emerald-900/80'
+                                                : 'bg-emerald-50 border-emerald-300 text-emerald-700 hover:bg-emerald-100'
+                                        }`}
+                                    >
+                                        <RotateCcw className="w-3.5 h-3.5" />
+                                        {isEn ? 'Show Top 6 Departments' : 'Tampilkan Top 6 Departemen'}
+                                    </button>
+                                )}
+                            </div>
+                        ) : (
+                            <div className="w-full max-h-[440px] overflow-y-auto pr-1">
+                                <div style={{ height: `${deptWorkloadChartHeight}px`, width: '100%' }}>
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <BarChart
+                                            layout="vertical"
+                                            data={deptWorkloadChartData}
+                                            margin={{ top: 5, right: 20, left: 10, bottom: 5 }}
+                                        >
+                                            <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#334155' : '#e2e8f0'} opacity={0.6} horizontal={false} />
+                                            <XAxis
+                                                type="number"
+                                                allowDecimals={false}
+                                                tick={{ fill: isDark ? '#94a3b8' : '#64748b', fontSize: 11 }}
+                                                axisLine={{ stroke: isDark ? '#334155' : '#cbd5e1' }}
+                                                tickLine={false}
+                                            />
+                                            <YAxis
+                                                type="category"
+                                                dataKey="name"
+                                                width={105}
+                                                tick={{ fill: isDark ? '#e2e8f0' : '#334155', fontSize: 11 }}
+                                                axisLine={{ stroke: isDark ? '#334155' : '#cbd5e1' }}
+                                                tickLine={false}
+                                            />
+                                            <RechartsTooltip
+                                                contentStyle={{
+                                                    backgroundColor: isDark ? '#0f172a' : '#ffffff',
+                                                    borderColor: isDark ? '#334155' : '#e2e8f0',
+                                                    borderRadius: '0.75rem',
+                                                    fontSize: '11px',
+                                                    color: isDark ? '#f8fafc' : '#0f172a',
+                                                }}
+                                                itemStyle={{ color: isDark ? '#f8fafc' : '#0f172a' }}
+                                            />
+                                            <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '6px' }} />
+                                            <Bar
+                                                dataKey="resolved"
+                                                name={isEn ? 'Resolved' : 'Selesai'}
+                                                stackId="deptStack"
+                                                fill="#10b981"
+                                                barSize={16}
+                                            />
+                                            <Bar
+                                                dataKey="active"
+                                                name={isEn ? 'Active / Backlog' : 'Sedang Berjalan'}
+                                                stackId="deptStack"
+                                                fill="#f59e0b"
+                                                radius={[0, 4, 4, 0]}
+                                                barSize={16}
+                                            />
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* CHART 4: Top Hotspot Locations (Horizontal Ranked Bar) */}
