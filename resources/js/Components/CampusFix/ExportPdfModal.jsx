@@ -18,7 +18,8 @@ import {
 import {
     Loader2, Download, FileText, Filter, RefreshCw, CheckCircle2,
     Clock, AlertTriangle, Layers, Building2, SlidersHorizontal, Check, X,
-    ExternalLink
+    ExternalLink, ZoomIn, ZoomOut, Maximize2, Minimize2, PanelLeftClose,
+    PanelLeftOpen, RotateCcw
 } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
 import { useLeanTheme } from '@/hooks/useLeanTheme';
@@ -33,6 +34,7 @@ const STATUS_OPTIONS = [
 ];
 
 const LIMIT_OPTIONS = [15, 30, 50, 100, 200, 'All'];
+const ZOOM_LEVELS = [75, 100, 125, 150, 175, 200];
 
 export function ExportPdfModal({
     open,
@@ -61,6 +63,34 @@ export function ExportPdfModal({
     const [isPreviewLoading, setIsPreviewLoading] = useState(false);
     const [isExporting, setIsExporting] = useState(false);
 
+    // Preview zoom & layout controls
+    const [previewZoom, setPreviewZoom] = useState('fit'); // 'fit' | 75 | 100 | 125 | 150 | 175 | 200
+    const [isFullscreen, setIsFullscreen] = useState(false);
+    const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+
+    const handleZoomIn = () => {
+        setPreviewZoom((prev) => {
+            if (prev === 'fit') return 125;
+            const idx = ZOOM_LEVELS.indexOf(prev);
+            if (idx === -1) return 125;
+            return ZOOM_LEVELS[Math.min(idx + 1, ZOOM_LEVELS.length - 1)];
+        });
+    };
+
+    const handleZoomOut = () => {
+        setPreviewZoom((prev) => {
+            if (prev === 'fit') return 75;
+            const idx = ZOOM_LEVELS.indexOf(prev);
+            if (idx === -1) return 100;
+            return ZOOM_LEVELS[Math.max(idx - 1, 0)];
+        });
+    };
+
+    const handleZoomReset = () => setPreviewZoom('fit');
+
+    const canZoomIn = previewZoom === 'fit' || previewZoom < ZOOM_LEVELS[ZOOM_LEVELS.length - 1];
+    const canZoomOut = previewZoom === 'fit' || previewZoom > ZOOM_LEVELS[0];
+
     // Freeze/snapshot issues dataset on modal open so background 4s polling does not trigger PDF rebuilds
     const [modalIssues, setModalIssues] = useState(issues);
     const prevOpenRef = useRef(false);
@@ -68,6 +98,9 @@ export function ExportPdfModal({
     useEffect(() => {
         if (open && !prevOpenRef.current) {
             setModalIssues(issues);
+            setIsFullscreen(false);
+            setIsSidebarOpen(true);
+            setPreviewZoom('fit');
         }
         prevOpenRef.current = open;
     }, [open, issues]);
@@ -653,17 +686,23 @@ export function ExportPdfModal({
         ? 'text-xs focus:bg-slate-800 focus:text-white'
         : 'text-xs focus:bg-emerald-50 focus:text-emerald-900';
 
+    const iframeZoomFragment = previewZoom === 'fit' ? 'view=FitH' : `zoom=${previewZoom}`;
+
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent
-                className={`max-w-6xl w-[96vw] max-h-[92vh] flex flex-col p-0 overflow-hidden border shadow-2xl rounded-3xl liquid-glass-modal ${
+                className={`${
+                    isFullscreen
+                        ? 'max-w-none w-[99vw] h-[97vh] max-h-[97vh] rounded-2xl'
+                        : 'max-w-[1520px] w-[95vw] h-[92vh] max-h-[92vh] rounded-3xl'
+                } flex flex-col p-0 overflow-hidden border shadow-2xl transition-all duration-200 liquid-glass-modal ${
                     isDark
                         ? 'liquid-glass-dark bg-slate-900 border-slate-800 text-slate-100'
                         : 'liquid-glass-light bg-white border-slate-200 text-slate-800'
                 }`}
             >
                 {/* Header */}
-                <DialogHeader className={`px-6 pr-12 py-4 border-b flex-shrink-0 ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
+                <DialogHeader className={`px-6 pr-12 py-3.5 border-b flex-shrink-0 ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
                     <div className="flex items-center justify-between gap-4">
                         <div className="flex items-center gap-3">
                             <div
@@ -701,9 +740,10 @@ export function ExportPdfModal({
 
                 {/* Body: Left Filter Controls & Right Live Preview */}
                 <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 overflow-hidden min-h-0">
-                    {/* Left Filter Sidebar */}
+                    {/* Left Filter Sidebar (Collapsible) */}
+                    {isSidebarOpen && (
                     <div
-                        className={`lg:col-span-4 p-5 space-y-4 overflow-y-auto border-b lg:border-b-0 lg:border-r ${
+                        className={`lg:col-span-4 xl:col-span-3 p-4 sm:p-5 space-y-4 overflow-y-auto border-b lg:border-b-0 lg:border-r ${
                             isDark ? 'border-slate-800 bg-slate-950/40' : 'border-slate-200 bg-slate-50/60'
                         }`}
                     >
@@ -899,43 +939,172 @@ export function ExportPdfModal({
                             </button>
                         </div>
                     </div>
+                    )}
 
                     {/* Right Live Preview Area */}
-                    <div className={`lg:col-span-8 flex flex-col h-full relative overflow-hidden min-h-[350px] ${
+                    <div className={`${isSidebarOpen ? 'lg:col-span-8 xl:col-span-9' : 'lg:col-span-12'} flex flex-col h-full relative overflow-hidden min-h-[350px] ${
                         isDark ? 'bg-slate-950' : 'bg-slate-100'
                     }`}>
-                        {/* Top bar with Paper Info and Open in New Tab action */}
+                        {/* Top bar with Sidebar Toggle, Paper Info, Zoom Controls, Fullscreen & Open in New Tab */}
                         <div
-                            className={`px-4 py-2 border-b flex items-center justify-between text-xs font-semibold ${
+                            className={`px-3 sm:px-4 py-2 border-b flex items-center justify-between gap-2 flex-wrap text-xs font-semibold ${
                                 isDark ? 'border-slate-800 bg-slate-900/90 text-slate-300' : 'border-slate-200 bg-white/90 text-slate-600'
                             }`}
                         >
-                            <div className="flex items-center gap-2">
-                                <span className="inline-block w-2 h-2 rounded-full bg-emerald-500" />
-                                <span>{isEn ? 'Preview: A4 Landscape Report' : 'Pratinjau: Laporan A4 Landscape'}</span>
+                            <div className="flex items-center gap-2 min-w-0">
+                                {/* Toggle Filter Sidebar Button */}
+                                <button
+                                    type="button"
+                                    onClick={() => setIsSidebarOpen((prev) => !prev)}
+                                    className={`hidden lg:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-colors cursor-pointer shrink-0 ${
+                                        !isSidebarOpen
+                                            ? isDark
+                                                ? 'bg-emerald-950/70 border-emerald-700 text-emerald-300'
+                                                : 'bg-emerald-50 border-emerald-300 text-emerald-700'
+                                            : isDark
+                                            ? 'bg-slate-800/80 hover:bg-slate-700 border-slate-700 text-slate-300'
+                                            : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700'
+                                    }`}
+                                    title={
+                                        isSidebarOpen
+                                            ? (isEn ? 'Hide filter panel for wider preview' : 'Sembunyikan panel filter agar pratinjau penuh')
+                                            : (isEn ? 'Show filter panel' : 'Tampilkan kembali panel filter')
+                                    }
+                                >
+                                    {isSidebarOpen ? (
+                                        <>
+                                            <PanelLeftClose className="w-3.5 h-3.5" />
+                                            <span>{isEn ? 'Hide Filters' : 'Sembunyikan Filter'}</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <PanelLeftOpen className="w-3.5 h-3.5" />
+                                            <span>{isEn ? 'Show Filters' : 'Tampilkan Filter'}</span>
+                                        </>
+                                    )}
+                                </button>
+
+                                <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                                <span className="truncate">{isEn ? 'Preview: A4 Landscape' : 'Pratinjau: A4 Landscape'}</span>
                                 {isPreviewLoading && (
-                                    <span className="inline-flex items-center gap-1.5 text-[11px] text-amber-500 font-medium ml-2 animate-pulse">
+                                    <span className="inline-flex items-center gap-1.5 text-[11px] text-amber-500 font-medium ml-1 animate-pulse shrink-0">
                                         <Loader2 className="w-3 h-3 animate-spin" />
                                         <span>{isEn ? 'Updating...' : 'Memperbarui...'}</span>
                                     </span>
                                 )}
                             </div>
 
-                            {previewUrl && (
+                            <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                                {/* Zoom Controls (- | Fit / % | + | Reset) */}
+                                {previewUrl && (
+                                    <div
+                                        className={`inline-flex items-center gap-0.5 p-0.5 rounded-lg border ${
+                                            isDark ? 'bg-slate-800/80 border-slate-700' : 'bg-slate-50 border-slate-200'
+                                        }`}
+                                        role="group"
+                                        aria-label={isEn ? 'PDF Preview Zoom Controls' : 'Kontrol Zoom Pratinjau PDF'}
+                                    >
+                                        <button
+                                            type="button"
+                                            onClick={handleZoomOut}
+                                            disabled={!canZoomOut}
+                                            className={`p-1 rounded-md transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+                                                isDark ? 'hover:bg-slate-700 text-slate-300' : 'hover:bg-slate-200/80 text-slate-700'
+                                            }`}
+                                            title={isEn ? 'Zoom Out' : 'Perkecil (-)'}
+                                        >
+                                            <ZoomOut className="w-3.5 h-3.5" />
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            onClick={handleZoomReset}
+                                            className={`px-2 py-0.5 rounded-md text-[11px] font-bold min-w-[46px] text-center transition-colors cursor-pointer ${
+                                                previewZoom === 'fit'
+                                                    ? isDark
+                                                        ? 'bg-emerald-950/70 text-emerald-300'
+                                                        : 'bg-emerald-100/80 text-emerald-800'
+                                                    : isDark
+                                                    ? 'text-slate-200 hover:bg-slate-700'
+                                                    : 'text-slate-800 hover:bg-slate-200/80'
+                                            }`}
+                                            title={isEn ? 'Click to reset zoom to Fit Width' : 'Klik untuk reset zoom ke Fit Lebar'}
+                                        >
+                                            {previewZoom === 'fit' ? 'Fit' : `${previewZoom}%`}
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            onClick={handleZoomIn}
+                                            disabled={!canZoomIn}
+                                            className={`p-1 rounded-md transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+                                                isDark ? 'hover:bg-slate-700 text-slate-300' : 'hover:bg-slate-200/80 text-slate-700'
+                                            }`}
+                                            title={isEn ? 'Zoom In' : 'Perbesar (+)'}
+                                        >
+                                            <ZoomIn className="w-3.5 h-3.5" />
+                                        </button>
+
+                                        {previewZoom !== 'fit' && (
+                                            <button
+                                                type="button"
+                                                onClick={handleZoomReset}
+                                                className={`p-1 rounded-md transition-colors cursor-pointer ${
+                                                    isDark ? 'hover:bg-slate-700 text-slate-400 hover:text-white' : 'hover:bg-slate-200/80 text-slate-500 hover:text-slate-900'
+                                                }`}
+                                                title={isEn ? 'Reset to Fit Width' : 'Reset ke Fit Lebar'}
+                                            >
+                                                <RotateCcw className="w-3 h-3" />
+                                            </button>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* Maximize / Restore Modal Button */}
                                 <button
                                     type="button"
-                                    onClick={() => window.open(previewUrl, '_blank')}
-                                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
-                                        isDark
-                                            ? 'hover:bg-slate-800 text-slate-300 hover:text-white'
-                                            : 'hover:bg-slate-100 text-slate-600 hover:text-slate-900'
+                                    onClick={() => setIsFullscreen((prev) => !prev)}
+                                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-colors cursor-pointer ${
+                                        isFullscreen
+                                            ? isDark
+                                                ? 'bg-emerald-950/70 border-emerald-700 text-emerald-300'
+                                                : 'bg-emerald-50 border-emerald-300 text-emerald-700'
+                                            : isDark
+                                            ? 'bg-slate-800/80 hover:bg-slate-700 border-slate-700 text-slate-300'
+                                            : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700'
                                     }`}
-                                    title={isEn ? 'Open full document in new tab' : 'Buka dokumen penuh di tab baru'}
+                                    title={isFullscreen ? (isEn ? 'Restore modal size' : 'Kembalikan ukuran normal') : (isEn ? 'Expand modal to fullscreen' : 'Perbesar modal ke layar penuh')}
                                 >
-                                    <ExternalLink className="w-3.5 h-3.5" />
-                                    <span>{isEn ? 'Open Fullscreen' : 'Buka Tab Baru'}</span>
+                                    {isFullscreen ? (
+                                        <>
+                                            <Minimize2 className="w-3.5 h-3.5" />
+                                            <span className="hidden sm:inline">{isEn ? 'Normal' : 'Normal'}</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Maximize2 className="w-3.5 h-3.5" />
+                                            <span className="hidden sm:inline">{isEn ? 'Expand' : 'Perbesar'}</span>
+                                        </>
+                                    )}
                                 </button>
-                            )}
+
+                                {/* Open Fullscreen in New Browser Tab */}
+                                {previewUrl && (
+                                    <button
+                                        type="button"
+                                        onClick={() => window.open(previewUrl, '_blank')}
+                                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-colors cursor-pointer ${
+                                            isDark
+                                                ? 'bg-slate-800/80 hover:bg-slate-700 border-slate-700 text-slate-300 hover:text-white'
+                                                : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700 hover:text-slate-900'
+                                        }`}
+                                        title={isEn ? 'Open full document in new tab' : 'Buka dokumen penuh di tab baru'}
+                                    >
+                                        <ExternalLink className="w-3.5 h-3.5" />
+                                        <span className="hidden sm:inline">{isEn ? 'New Tab' : 'Tab Baru'}</span>
+                                    </button>
+                                )}
+                            </div>
                         </div>
 
                         {/* Content viewport */}
@@ -953,7 +1122,8 @@ export function ExportPdfModal({
 
                             {previewUrl ? (
                                 <iframe
-                                    src={`${previewUrl}#toolbar=0&navpanes=0&scrollbar=1&view=FitH`}
+                                    key={`${previewUrl}-${previewZoom}`}
+                                    src={`${previewUrl}#toolbar=0&navpanes=0&scrollbar=1&${iframeZoomFragment}`}
                                     title="Telunas PDF Preview"
                                     className={`w-full h-full flex-1 rounded-xl bg-white shadow-md border ${
                                         isDark ? 'border-slate-800' : 'border-slate-300'
