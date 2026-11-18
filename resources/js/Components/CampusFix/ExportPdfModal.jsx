@@ -641,15 +641,29 @@ export function ExportPdfModal({
         }
     };
 
+    const selectTriggerClass = `w-full rounded-xl text-xs font-medium border shadow-2xs transition-colors ${
+        isDark
+            ? 'bg-slate-900 border-slate-700 text-slate-100 hover:bg-slate-800/90'
+            : 'bg-white border-slate-300 text-slate-900 hover:bg-slate-50'
+    }`;
+    const selectContentClass = isDark
+        ? 'bg-slate-900 border-slate-700 text-slate-100'
+        : 'bg-white border-slate-200 text-slate-900 shadow-lg';
+    const selectItemClass = isDark
+        ? 'text-xs focus:bg-slate-800 focus:text-white'
+        : 'text-xs focus:bg-emerald-50 focus:text-emerald-900';
+
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent
                 className={`max-w-6xl w-[96vw] max-h-[92vh] flex flex-col p-0 overflow-hidden border shadow-2xl rounded-3xl liquid-glass-modal ${
-                    isDark ? 'liquid-glass-dark text-slate-100' : 'liquid-glass-light text-slate-800'
+                    isDark
+                        ? 'liquid-glass-dark bg-slate-900 border-slate-800 text-slate-100'
+                        : 'liquid-glass-light bg-white border-slate-200 text-slate-800'
                 }`}
             >
                 {/* Header */}
-                <DialogHeader className={`px-6 py-4 border-b flex-shrink-0 ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
+                <DialogHeader className={`px-6 pr-12 py-4 border-b flex-shrink-0 ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
                     <div className="flex items-center justify-between gap-4">
                         <div className="flex items-center gap-3">
                             <div
@@ -734,17 +748,13 @@ export function ExportPdfModal({
                                 {isEn ? 'Target Department' : 'Cakupan Departemen'}
                             </label>
                             <Select value={selectedDept} onValueChange={setSelectedDept}>
-                                <SelectTrigger
-                                    className={`w-full rounded-xl text-xs font-medium border liquid-glass-control ${
-                                        isDark ? 'border-slate-800 text-white' : 'border-slate-300 text-slate-900'
-                                    }`}
-                                >
+                                <SelectTrigger className={selectTriggerClass}>
                                     <SelectValue placeholder={isEn ? 'All Departments' : 'Semua Departemen'} />
                                 </SelectTrigger>
-                                <SelectContent className={isDark ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-800'}>
-                                    <SelectItem value="all">{isEn ? 'All Departments (Entire Resort)' : 'Semua Departemen (Seluruh Resort)'}</SelectItem>
+                                <SelectContent className={selectContentClass}>
+                                    <SelectItem value="all" className={selectItemClass}>{isEn ? 'All Departments (Entire Resort)' : 'Semua Departemen (Seluruh Resort)'}</SelectItem>
                                     {(departments || []).map((d) => (
-                                        <SelectItem key={d} value={d}>
+                                        <SelectItem key={d} value={d} className={selectItemClass}>
                                             {d === 'Umum' && isEn ? 'General' : d}
                                         </SelectItem>
                                     ))}
@@ -758,17 +768,13 @@ export function ExportPdfModal({
                                 {isEn ? 'Location / Area' : 'Cakupan Lokasi'}
                             </label>
                             <Select value={selectedLocation} onValueChange={setSelectedLocation}>
-                                <SelectTrigger
-                                    className={`w-full rounded-xl text-xs font-medium border liquid-glass-control ${
-                                        isDark ? 'border-slate-800 text-white' : 'border-slate-300 text-slate-900'
-                                    }`}
-                                >
+                                <SelectTrigger className={selectTriggerClass}>
                                     <SelectValue placeholder={isEn ? 'All Locations' : 'Semua Lokasi'} />
                                 </SelectTrigger>
-                                <SelectContent className={isDark ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-800'}>
-                                    <SelectItem value="all">{isEn ? 'All Locations (Entire Resort)' : 'Semua Lokasi (Seluruh Area)'}</SelectItem>
+                                <SelectContent className={selectContentClass}>
+                                    <SelectItem value="all" className={selectItemClass}>{isEn ? 'All Locations (Entire Resort)' : 'Semua Lokasi (Seluruh Area)'}</SelectItem>
                                     {availableLocations.map((loc) => (
-                                        <SelectItem key={loc} value={loc}>
+                                        <SelectItem key={loc} value={loc} className={selectItemClass}>
                                             {loc}
                                         </SelectItem>
                                     ))}
@@ -782,19 +788,15 @@ export function ExportPdfModal({
                                 {isEn ? 'ETA / SLA Punctuality' : 'Ketepatan Target (SLA)'}
                             </label>
                             <Select value={selectedSlaStatus} onValueChange={setSelectedSlaStatus}>
-                                <SelectTrigger
-                                    className={`w-full rounded-xl text-xs font-medium border liquid-glass-control ${
-                                        isDark ? 'border-slate-800 text-white' : 'border-slate-300 text-slate-900'
-                                    }`}
-                                >
+                                <SelectTrigger className={selectTriggerClass}>
                                     <SelectValue placeholder={isEn ? 'All SLA Status' : 'Semua Status SLA'} />
                                 </SelectTrigger>
-                                <SelectContent className={isDark ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-800'}>
-                                    <SelectItem value="all">{isEn ? 'All Tickets (All SLA Status)' : 'Semua Tiket (Seluruh SLA)'}</SelectItem>
-                                    <SelectItem value="overdue">{isEn ? 'Overdue Only (Late)' : 'Lewat Target Saja (Terlambat)'}</SelectItem>
-                                    <SelectItem value="on_time">{isEn ? 'On Time Only (Met SLA)' : 'Tepat Waktu Saja (Sesuai SLA)'}</SelectItem>
-                                    <SelectItem value="has_eta">{isEn ? 'With Target Date (Has ETA)' : 'Memiliki Target Tanggal (Ada ETA)'}</SelectItem>
-                                    <SelectItem value="no_eta">{isEn ? 'Without Target Date (No ETA)' : 'Tanpa Target Tanggal (Belum Ada ETA)'}</SelectItem>
+                                <SelectContent className={selectContentClass}>
+                                    <SelectItem value="all" className={selectItemClass}>{isEn ? 'All Tickets (All SLA Status)' : 'Semua Tiket (Seluruh SLA)'}</SelectItem>
+                                    <SelectItem value="overdue" className={selectItemClass}>{isEn ? 'Overdue Only (Late)' : 'Lewat Target Saja (Terlambat)'}</SelectItem>
+                                    <SelectItem value="on_time" className={selectItemClass}>{isEn ? 'On Time Only (Met SLA)' : 'Tepat Waktu Saja (Sesuai SLA)'}</SelectItem>
+                                    <SelectItem value="has_eta" className={selectItemClass}>{isEn ? 'With Target Date (Has ETA)' : 'Memiliki Target Tanggal (Ada ETA)'}</SelectItem>
+                                    <SelectItem value="no_eta" className={selectItemClass}>{isEn ? 'Without Target Date (No ETA)' : 'Tanpa Target Tanggal (Belum Ada ETA)'}</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
@@ -805,18 +807,14 @@ export function ExportPdfModal({
                                 {isEn ? 'Sort Order' : 'Urutan Data'}
                             </label>
                             <Select value={sortOrder} onValueChange={setSortOrder}>
-                                <SelectTrigger
-                                    className={`w-full rounded-xl text-xs font-medium border liquid-glass-control ${
-                                        isDark ? 'border-slate-800 text-white' : 'border-slate-300 text-slate-900'
-                                    }`}
-                                >
+                                <SelectTrigger className={selectTriggerClass}>
                                     <SelectValue placeholder={isEn ? 'Newest First' : 'Terbaru Dahulu'} />
                                 </SelectTrigger>
-                                <SelectContent className={isDark ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-800'}>
-                                    <SelectItem value="newest">{isEn ? 'Newest Reported First' : 'Terbaru Dilaporkan'}</SelectItem>
-                                    <SelectItem value="oldest">{isEn ? 'Oldest Reported First' : 'Terlama Dilaporkan'}</SelectItem>
-                                    <SelectItem value="eta_closest">{isEn ? 'Closest Target ETA' : 'Target Selesai Terdekat'}</SelectItem>
-                                    <SelectItem value="duration">{isEn ? 'Longest Duration / Pending' : 'Durasi Penanganan Terlama'}</SelectItem>
+                                <SelectContent className={selectContentClass}>
+                                    <SelectItem value="newest" className={selectItemClass}>{isEn ? 'Newest Reported First' : 'Terbaru Dilaporkan'}</SelectItem>
+                                    <SelectItem value="oldest" className={selectItemClass}>{isEn ? 'Oldest Reported First' : 'Terlama Dilaporkan'}</SelectItem>
+                                    <SelectItem value="eta_closest" className={selectItemClass}>{isEn ? 'Closest Target ETA' : 'Target Selesai Terdekat'}</SelectItem>
+                                    <SelectItem value="duration" className={selectItemClass}>{isEn ? 'Longest Duration / Pending' : 'Durasi Penanganan Terlama'}</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
@@ -827,16 +825,12 @@ export function ExportPdfModal({
                                 {isEn ? 'Record Limit' : 'Batas Jumlah Baris'}
                             </label>
                             <Select value={String(limit)} onValueChange={setLimit}>
-                                <SelectTrigger
-                                    className={`w-full rounded-xl text-xs font-medium border liquid-glass-control ${
-                                        isDark ? 'border-slate-800 text-white' : 'border-slate-300 text-slate-900'
-                                    }`}
-                                >
+                                <SelectTrigger className={selectTriggerClass}>
                                     <SelectValue placeholder="All" />
                                 </SelectTrigger>
-                                <SelectContent className={isDark ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-800'}>
+                                <SelectContent className={selectContentClass}>
                                     {LIMIT_OPTIONS.map((opt) => (
-                                        <SelectItem key={String(opt)} value={String(opt)}>
+                                        <SelectItem key={String(opt)} value={String(opt)} className={selectItemClass}>
                                             {opt === 'All' ? (isEn ? 'All Filtered Records' : 'Semua Data Terfilter') : `${opt} Data Teratas`}
                                         </SelectItem>
                                     ))}
@@ -845,7 +839,7 @@ export function ExportPdfModal({
                         </div>
 
                         {/* Additional Content Checkboxes */}
-                        <div className="pt-2 border-t space-y-2.5">
+                        <div className={`pt-3 border-t space-y-2.5 ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
                             <label className={`block text-xs font-bold uppercase tracking-wider ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
                                 {isEn ? 'Report Options' : 'Opsi Konten Laporan'}
                             </label>
@@ -907,7 +901,9 @@ export function ExportPdfModal({
                     </div>
 
                     {/* Right Live Preview Area */}
-                    <div className="lg:col-span-8 flex flex-col h-full bg-slate-100 dark:bg-slate-950 relative overflow-hidden min-h-[350px]">
+                    <div className={`lg:col-span-8 flex flex-col h-full relative overflow-hidden min-h-[350px] ${
+                        isDark ? 'bg-slate-950' : 'bg-slate-100'
+                    }`}>
                         {/* Top bar with Paper Info and Open in New Tab action */}
                         <div
                             className={`px-4 py-2 border-b flex items-center justify-between text-xs font-semibold ${
@@ -945,9 +941,11 @@ export function ExportPdfModal({
                         {/* Content viewport */}
                         <div className="flex-1 relative p-2 sm:p-3 overflow-hidden flex flex-col">
                             {!previewUrl && isPreviewLoading && (
-                                <div className="absolute inset-0 z-20 bg-slate-100 dark:bg-slate-950 flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 gap-3 rounded-2xl">
+                                <div className={`absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 rounded-2xl ${
+                                    isDark ? 'bg-slate-950 text-slate-400' : 'bg-slate-100 text-slate-500'
+                                }`}>
                                     <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
-                                    <span className="text-xs font-bold text-slate-600 dark:text-slate-300">
+                                    <span className={`text-xs font-bold ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
                                         {isEn ? 'Rendering A4 Landscape Preview...' : 'Menyusun Pratinjau PDF A4 Landscape...'}
                                     </span>
                                 </div>
@@ -957,12 +955,14 @@ export function ExportPdfModal({
                                 <iframe
                                     src={`${previewUrl}#toolbar=0&navpanes=0&scrollbar=1&view=FitH`}
                                     title="Telunas PDF Preview"
-                                    className="w-full h-full flex-1 rounded-xl bg-white shadow-md border border-slate-300 dark:border-slate-800"
+                                    className={`w-full h-full flex-1 rounded-xl bg-white shadow-md border ${
+                                        isDark ? 'border-slate-800' : 'border-slate-300'
+                                    }`}
                                 />
                             ) : (
                                 <div className="flex-1 flex flex-col items-center justify-center text-slate-400 p-8 text-center">
-                                    <FileText className="w-12 h-12 text-slate-400 dark:text-slate-600 mb-3" />
-                                    <p className="text-sm font-bold text-slate-600 dark:text-slate-300">
+                                    <FileText className={`w-12 h-12 mb-3 ${isDark ? 'text-slate-600' : 'text-slate-400'}`} />
+                                    <p className={`text-sm font-bold ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
                                         {isEn ? 'Preparing PDF Preview...' : 'Pratinjau PDF Sedang Disiapkan'}
                                     </p>
                                 </div>
