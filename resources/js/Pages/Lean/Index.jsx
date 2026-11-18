@@ -2511,7 +2511,7 @@ export default function LeanIndex({
                                                                         <span>{isEn ? 'Full Details' : 'Lihat Rincian'}</span>
                                                                     </button>
 
-                                                                    {canManageIssue(issue) && (
+                                                                    {canManageIssue(issue) ? (
                                                                         <button
                                                                             type="button"
                                                                             onClick={(e) => {
@@ -2527,6 +2527,20 @@ export default function LeanIndex({
                                                                             <Trash2 className="w-3 h-3" />
                                                                             <span>{isEn ? 'Delete' : 'Hapus'}</span>
                                                                         </button>
+                                                                    ) : (
+                                                                        <span
+                                                                            className={`inline-flex items-center gap-1 text-[10px] italic cursor-help ${
+                                                                                isDark ? 'text-slate-500' : 'text-slate-400'
+                                                                            }`}
+                                                                            title={
+                                                                                isEn
+                                                                                    ? `Only Admin or the target department (${(issue.target_departments || []).map(formatDeptDisplay).join(', ') || 'Assigned Dept'}) can delete this ticket`
+                                                                                    : `Hanya Admin atau departemen tujuan (${(issue.target_departments || []).map(formatDeptDisplay).join(', ') || 'Dept Tujuan'}) yang dapat menghapus tiket ini`
+                                                                            }
+                                                                        >
+                                                                            <Lock className="w-3 h-3 shrink-0" />
+                                                                            <span>{isEn ? 'Other dept (view only)' : 'Dept lain (hanya lihat)'}</span>
+                                                                        </span>
                                                                     )}
                                                                 </div>
                                                             </td>
@@ -2759,7 +2773,19 @@ export default function LeanIndex({
                                                                         <Trash2 className="w-3 h-3" />
                                                                     </button>
                                                                 ) : (
-                                                                    <span className="text-slate-400">—</span>
+                                                                    <span
+                                                                        className={`inline-flex items-center justify-center p-1 rounded-md cursor-help ${
+                                                                            isDark ? 'text-slate-500 hover:text-slate-300' : 'text-slate-400 hover:text-slate-600'
+                                                                        }`}
+                                                                        title={
+                                                                            isEn
+                                                                                ? `Only Admin or the target department (${(issue.target_departments || []).map(formatDeptDisplay).join(', ') || 'Assigned Dept'}) can delete this ticket`
+                                                                                : `Hanya Admin atau departemen tujuan (${(issue.target_departments || []).map(formatDeptDisplay).join(', ') || 'Dept Tujuan'}) yang dapat menghapus tiket ini`
+                                                                        }
+                                                                        aria-label={isEn ? 'Delete restricted to Admin or target department' : 'Hapus dibatasi untuk Admin atau departemen tujuan'}
+                                                                    >
+                                                                        <Lock className="w-3 h-3 opacity-65" />
+                                                                    </span>
                                                                 )}
                                                             </td>
                                                         </tr>
@@ -3014,7 +3040,19 @@ export default function LeanIndex({
                                                             <Trash2 className="w-3 h-3" />
                                                         </button>
                                                     ) : (
-                                                        <span className="text-[10px] text-slate-400">—</span>
+                                                        <span
+                                                            className={`inline-flex items-center justify-center p-1 rounded-md cursor-help ${
+                                                                isDark ? 'text-slate-500 hover:text-slate-300' : 'text-slate-400 hover:text-slate-600'
+                                                            }`}
+                                                            title={
+                                                                isEn
+                                                                    ? `Only Admin or the target department (${(issue.target_departments || []).map(formatDeptDisplay).join(', ') || 'Assigned Dept'}) can delete this ticket`
+                                                                    : `Hanya Admin atau departemen tujuan (${(issue.target_departments || []).map(formatDeptDisplay).join(', ') || 'Dept Tujuan'}) yang dapat menghapus tiket ini`
+                                                            }
+                                                            aria-label={isEn ? 'Delete restricted to Admin or target department' : 'Hapus dibatasi untuk Admin atau departemen tujuan'}
+                                                        >
+                                                            <Lock className="w-3 h-3 opacity-65" />
+                                                        </span>
                                                     )}
                                                 </td>
                                             </tr>
