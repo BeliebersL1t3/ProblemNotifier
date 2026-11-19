@@ -108,17 +108,56 @@ class LeanSheetDirectService
         return $configs;
     }
 
-    public function getSpreadsheetIdForYear(?int $year = null): string
+    public function getSpreadsheetIdForYear(?int $year = null): ?string
     {
         $year = $year ?: (int) date('Y');
         $configs = $this->getYearlySpreadsheets();
-        return $configs[(string) $year]['spreadsheet_id'] ?? $this->spreadsheetId;
+        if (isset($configs[(string) $year]['spreadsheet_id'])) {
+            return $configs[(string) $year]['spreadsheet_id'];
+        }
+        if ($year === 2026) {
+            return $this->spreadsheetId;
+        }
+        return null;
     }
 
-    public function getSpreadsheetUrlForYear(?int $year = null): string
+    public function getSpreadsheetUrlForYear(?int $year = null): ?string
     {
         $id = $this->getSpreadsheetIdForYear($year);
-        return "https://docs.google.com/spreadsheets/d/{$id}/edit?usp=sharing";
+        return $id ? "https://docs.google.com/spreadsheets/d/{$id}/edit?usp=sharing" : null;
+    }
+
+    /**
+     * Check which years have issues in the database but no connected spreadsheet configured.
+     * Returns array like: ['2027' => 5]
+     */
+    public function getUnconnectedYearsWithPendingIssues(): array
+    {
+        $configs = $this->getYearlySpreadsheets();
+        $connectedYears = array_keys($configs);
+        if (!in_array('2026', $connectedYears)) {
+            $connectedYears[] = '2026';
+        }
+
+        $driver = \Illuminate\Support\Facades\DB::connection()->getDriverName();
+        $yearExpr = $driver === 'sqlite'
+            ? "strftime('%Y', created_at) as yr"
+            : "YEAR(created_at) as yr";
+
+        $yearsInDb = LeanIssue::withTrashed()
+            ->selectRaw("{$yearExpr}, count(*) as total")
+            ->groupBy('yr')
+            ->get();
+
+        $unconnected = [];
+        foreach ($yearsInDb as $row) {
+            $yr = (string) $row->yr;
+            if (!empty($yr) && !in_array($yr, $connectedYears)) {
+                $unconnected[$yr] = (int) $row->total;
+            }
+        }
+
+        return $unconnected;
     }
 
     public function connectYearlySpreadsheet(int $year, string $inputUrlOrId): array
@@ -762,6 +801,14 @@ class LeanSheetDirectService
             $monthName = self::getMonthNameForDate($issue->created_at);
             $year = $issue->created_at ? (int) $issue->created_at->format('Y') : (int) date('Y');
             $targetSpreadsheetId = $this->getSpreadsheetIdForYear($year);
+            if (!$targetSpreadsheetId) {
+                $issue->update([
+                    'needs_sheets_sync' => true,
+                    'sheets_sync_error' => "Spreadsheet untuk tahun {$year} belum terhubung di sistem.",
+                ]);
+                Log::info("Issue #{$issue->id} holding sync: Spreadsheet for year {$year} is not connected yet.");
+                return false;
+            }
 
             $oldCode = \App\Http\Controllers\LeanController::formatIssueCodeWithDept($issue, $oldDept);
             $newCode = \App\Http\Controllers\LeanController::formatIssueCodeWithDept($issue, $newDept);
@@ -894,6 +941,14 @@ class LeanSheetDirectService
             $monthName = self::getMonthNameForDate($issue->created_at);
             $year = $issue->created_at ? (int) $issue->created_at->format('Y') : (int) date('Y');
             $targetSpreadsheetId = $this->getSpreadsheetIdForYear($year);
+            if (!$targetSpreadsheetId) {
+                $issue->update([
+                    'needs_sheets_sync' => true,
+                    'sheets_sync_error' => "Spreadsheet untuk tahun {$year} belum terhubung di sistem.",
+                ]);
+                Log::info("Issue #{$issue->id} holding sync: Spreadsheet for year {$year} is not connected yet.");
+                return false;
+            }
 
             $row = $this->formatIssueRow($issue);
             $code = $row[0];
@@ -949,6 +1004,14 @@ class LeanSheetDirectService
             $monthName = self::getMonthNameForDate($issue->created_at);
             $year = $issue->created_at ? (int) $issue->created_at->format('Y') : (int) date('Y');
             $targetSpreadsheetId = $this->getSpreadsheetIdForYear($year);
+            if (!$targetSpreadsheetId) {
+                $issue->update([
+                    'needs_sheets_sync' => true,
+                    'sheets_sync_error' => "Spreadsheet untuk tahun {$year} belum terhubung di sistem.",
+                ]);
+                Log::info("Issue #{$issue->id} holding sync: Spreadsheet for year {$year} is not connected yet.");
+                return false;
+            }
             $code = \App\Services\GoogleSheetsSyncService::formatIssueCode($issue);
 
             // Search row index by ticket code in Column A

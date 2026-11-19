@@ -395,16 +395,18 @@ class LeanController extends Controller
 
         $pendingSyncCount = LeanIssue::withTrashed()->where('needs_sheets_sync', true)->count();
         $needsAutoReconcile = $pendingSyncCount > 0 || \App\Services\LeanSheetDirectService::hasPendingClear();
+        $unconnectedYearAlerts = $isAdmin ? app(\App\Services\LeanSheetDirectService::class)->getUnconnectedYearsWithPendingIssues() : [];
 
         return Inertia::render('Lean/Index', [
-            'issues'             => $issues,
-            'departments'        => self::DEPARTMENTS,
-            'locations'          => self::MAIN_LOCATIONS,
-            'currentUser'        => $currentUser,
-            'staffDirectory'     => $staffDirectory,
-            'spreadsheetUrl'     => $spreadsheetUrl,
-            'monthGids'          => $monthGids,
-            'needsAutoReconcile' => $needsAutoReconcile,
+            'issues'                => $issues,
+            'departments'           => self::DEPARTMENTS,
+            'locations'             => self::MAIN_LOCATIONS,
+            'currentUser'           => $currentUser,
+            'staffDirectory'        => $staffDirectory,
+            'spreadsheetUrl'        => $spreadsheetUrl,
+            'monthGids'             => $monthGids,
+            'needsAutoReconcile'    => $needsAutoReconcile,
+            'unconnectedYearAlerts' => $unconnectedYearAlerts,
         ]);
     }
 

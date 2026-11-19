@@ -105,6 +105,7 @@ export default function LeanIndex({
     spreadsheetUrl = 'https://docs.google.com/spreadsheets/d/1hF2X6DrcWvOv4h77T_B4pmcNklO2-Zq2CzAiAR-UYIg/edit?usp=sharing',
     monthGids = {},
     needsAutoReconcile = false,
+    unconnectedYearAlerts = {},
 }) {
     const { props: pageProps } = usePage();
     const authUser = pageProps?.auth?.user || null;
@@ -2051,6 +2052,7 @@ export default function LeanIndex({
                         focusMapRequest={focusMapRequest}
                         spreadsheetUrl={spreadsheetUrl}
                         monthGids={monthGids}
+                        unconnectedYearAlerts={unconnectedYearAlerts}
                     />
                 ) : filteredIssues.length === 0 ? (
                     <div className="py-16 text-center border rounded-2xl p-6 liquid-glass-card">

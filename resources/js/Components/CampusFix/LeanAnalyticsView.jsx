@@ -1582,6 +1582,7 @@ export function LeanAnalyticsView({
     focusMapRequest = null,
     spreadsheetUrl = null,
     monthGids = {},
+    unconnectedYearAlerts = {},
 }) {
     const { lang } = useLanguage();
     const { isAdmin } = useAuth();
@@ -1691,7 +1692,7 @@ export function LeanAnalyticsView({
     const [isSpreadsheetModalOpen, setIsSpreadsheetModalOpen] = useState(false);
     const [yearlySpreadsheets, setYearlySpreadsheets] = useState({});
     const [botEmail, setBotEmail] = useState('campusfix-bot@campusfix-504605.iam.gserviceaccount.com');
-    const [newSheetYear, setNewSheetYear] = useState('2025');
+    const [newSheetYear, setNewSheetYear] = useState('2027');
     const [newSheetUrl, setNewSheetUrl] = useState('');
     const [isConnectingSheet, setIsConnectingSheet] = useState(false);
     const [sheetConnectMessage, setSheetConnectMessage] = useState(null);
@@ -1713,6 +1714,30 @@ export function LeanAnalyticsView({
         yearSet.add(2026);
         return Array.from(yearSet).sort((a, b) => b - a);
     }, [issues, yearlySpreadsheets]);
+
+    // Dynamic wide year options for connecting new yearly spreadsheets (2023 - 2032)
+    const selectableConnectionYears = useMemo(() => {
+        const currentYr = new Date().getFullYear();
+        const startYr = 2023;
+        const endYr = Math.max(currentYr + 6, 2032);
+        const list = [];
+        for (let y = startYr; y <= endYr; y++) {
+            const strYr = String(y);
+            const isConn = Boolean(yearlySpreadsheets?.[strYr] || (y === 2026 && yearlySpreadsheets?.['2026']));
+            const isDef = strYr === '2026';
+            list.push({
+                year: strYr,
+                isConnected: isConn,
+                isDefault: isDef,
+                label: isDef
+                    ? `${strYr} (${isEn ? 'Connected • 2026 Default' : 'Terhubung • Default 2026'})`
+                    : isConn
+                        ? `${strYr} (${isEn ? 'Connected' : 'Terhubung'})`
+                        : `${strYr} (${isEn ? '+ Ready to Connect' : '+ Siap Dihubungkan'})`,
+            });
+        }
+        return list;
+    }, [yearlySpreadsheets, isEn]);
 
     // Dynamic Google Sheet URL with #gid anchor to open the exact month tab and year
     const dynamicSheetUrl = useMemo(() => {
@@ -2403,6 +2428,42 @@ export function LeanAnalyticsView({
 
     return (
         <div className="space-y-6 animate-in fade-in pb-16">
+            {/* SAFE HOLDING WARNING BANNER (ADMIN ONLY) */}
+            {isAdmin && Object.keys(unconnectedYearAlerts).length > 0 && (
+                <div className="border border-amber-500/40 rounded-2xl p-4 bg-amber-500/10 backdrop-blur-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-amber-200">
+                    <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
+                            <AlertTriangle className="w-5 h-5 text-amber-400" />
+                        </div>
+                        <div>
+                            <p className="font-bold text-sm text-amber-300">
+                                {isEn ? 'Google Spreadsheet Not Connected for New Year' : 'Spreadsheet Belum Terhubung untuk Tahun Baru'}
+                            </p>
+                            <p className="text-amber-200/80 text-xs mt-0.5">
+                                {Object.entries(unconnectedYearAlerts).map(([yr, count]) => (
+                                    isEn 
+                                        ? `Year ${yr}: ${count} ticket(s) safely held in database awaiting connection.` 
+                                        : `Tahun ${yr}: ${count} tiket aman tertahan di database menunggu spreadsheet dihubungkan.`
+                                )).join(' ')}
+                            </p>
+                        </div>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            const firstYr = Object.keys(unconnectedYearAlerts)[0];
+                            if (firstYr) setNewSheetYear(firstYr);
+                            setIsSpreadsheetModalOpen(true);
+                            setSheetConnectMessage(null);
+                        }}
+                        className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shrink-0 transition-all flex items-center gap-1.5 shadow-sm hover:scale-[1.02] active:scale-95 cursor-pointer"
+                    >
+                        <Settings className="w-4 h-4" />
+                        <span>{isEn ? 'Connect Year Sheet' : 'Hubungkan Sheet Sekarang'}</span>
+                    </button>
+                </div>
+            )}
+
             {/* ========================================================= */}
             {/* 1. TOP CONTROL BAR (TIME FILTER + QUICK ACTIONS)           */}
             {/* ========================================================= */}
@@ -3794,11 +3855,11 @@ export function LeanAnalyticsView({
                                                 isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-800'
                                             }`}
                                         >
-                                            <option value="2025">2025</option>
-                                            <option value="2024">2024</option>
-                                            <option value="2026">2026</option>
-                                            <option value="2027">2027</option>
-                                            <option value="2028">2028</option>
+                                            {selectableConnectionYears.map((item) => (
+                                                <option key={item.year} value={item.year}>
+                                                    {item.label}
+                                                </option>
+                                            ))}
                                         </select>
                                     </div>
                                     <div className="sm:col-span-3">
