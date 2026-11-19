@@ -47,6 +47,11 @@ class LeanIssue extends Model
         'progress_logs',
         'pending_reason',
         'pending_since',
+        'last_progress_at',
+        'group_escalated_at',
+        'owner_escalated_at',
+        'escalation_group_count',
+        'escalation_owner_count',
         'estimated_completion_at',
         'needs_sheets_sync',
         'sheets_synced_at',
@@ -69,6 +74,11 @@ class LeanIssue extends Model
         'resolved_at'        => 'datetime',
         'ai_processed_at'         => 'datetime',
         'pending_since'           => 'datetime',
+        'last_progress_at'        => 'datetime',
+        'group_escalated_at'      => 'datetime',
+        'owner_escalated_at'      => 'datetime',
+        'escalation_group_count'  => 'integer',
+        'escalation_owner_count'  => 'integer',
         'estimated_completion_at' => 'datetime',
         'sheets_synced_at'        => 'datetime',
     ];
@@ -76,7 +86,15 @@ class LeanIssue extends Model
     protected static function booted(): void
     {
         static::saving(function (LeanIssue $issue) {
-            $syncColumns = ['needs_sheets_sync', 'sheets_synced_at', 'sheets_sync_error'];
+            $syncColumns = [
+                'needs_sheets_sync',
+                'sheets_synced_at',
+                'sheets_sync_error',
+                'group_escalated_at',
+                'owner_escalated_at',
+                'escalation_group_count',
+                'escalation_owner_count',
+            ];
             $dirtyNonSyncKeys = array_diff(array_keys($issue->getDirty()), $syncColumns);
 
             if (!$issue->exists || !empty($dirtyNonSyncKeys)) {
@@ -171,6 +189,17 @@ class LeanIssue extends Model
     }
 
     /**
+     * Reset the automatic 1h Group / 3h Owner progress-reminder timer to the given timestamp (default now in app timezone).
+     */
+    public function resetProgressTimer(?\Illuminate\Support\Carbon $at = null): void
+    {
+        $tz = config('app.timezone', 'UTC');
+        $this->last_progress_at = ($at ?? now($tz))->copy()->setTimezone($tz);
+        $this->group_escalated_at = null;
+        $this->owner_escalated_at = null;
+    }
+
+    /**
      * Append a structured entry to the issue's activity & progress timeline.
      */
     public function addProgressLog(string $type, string $actor, ?string $actorDept = null, ?string $message = null, array $meta = []): void
@@ -178,7 +207,7 @@ class LeanIssue extends Model
         $logs = $this->progress_logs ?? [];
         $logs[] = array_merge([
             'id'         => uniqid('log_', true),
-            'type'       => $type, // claim | progress | pending | transfer | resolved
+            'type'       => $type, // claim | progress | pending | transfer | resolved | escalation_group | escalation_owner
             'actor'      => $actor,
             'actor_dept' => $actorDept,
             'message'    => $message,

@@ -104,9 +104,6 @@ class GoogleSheetsSyncService
         $resolvedWib = $issue->resolved_at
             ? Carbon::parse($issue->resolved_at)->setTimezone('Asia/Jakarta')->format('Y-m-d H:i')
             : '';
-        $estimatedCompletion = $issue->estimated_completion_at
-            ? Carbon::parse($issue->estimated_completion_at)->setTimezone('Asia/Jakarta')->format('Y-m-d H:i')
-            : '';
 
         return [
             // Standard English Keys (Matches Apps Script Code.gs)
@@ -134,7 +131,6 @@ class GoogleSheetsSyncService
             'resolved_by'             => $issue->resolved_by_name ?: '',
             'resolved_at'             => $resolvedWib,
             'resolution_note'         => $issue->resolution_note ?: '',
-            'estimated_completion_at' => $estimatedCompletion,
             'proof_image_url'         => '', // Foto ditiadakan di spreadsheet sesuai permintaan
             'ai_category'          => '',
             'ai_sub_category'      => '',
@@ -167,7 +163,6 @@ class GoogleSheetsSyncService
             'diselesaikan_oleh'    => $issue->resolved_by_name ?: '',
             'waktu_selesai'        => $resolvedWib,
             'catatan_penyelesaian' => $issue->resolution_note ?: '',
-            'perkiraan_selesai'    => $estimatedCompletion,
             'foto_selesai_url'     => '',
             'ai_kategori'          => '',
             'ai_sub_kategori'      => '',

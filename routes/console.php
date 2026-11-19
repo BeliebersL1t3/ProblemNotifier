@@ -13,6 +13,11 @@ Schedule::command('lean:reconcile-sheets')
     ->withoutOverlapping()
     ->runInBackground();
 
+Schedule::command('lean:check-escalations')
+    ->everyMinute()
+    ->withoutOverlapping()
+    ->runInBackground();
+
 // Automatically prune expired sessions and finished queue batches to keep the database slim
 Schedule::command('session:prune')
     ->daily()

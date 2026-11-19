@@ -46,6 +46,7 @@ return [
         'api_key'         => env('BOT_API_KEY'),
         'port'            => (int) env('BOT_PORT', 3000),
         'default_version' => 'v2',
+        'owner_whatsapp'  => env('OWNER_WHATSAPP_NUMBER', '08113861133'),
     ],
 
     'webpush' => [

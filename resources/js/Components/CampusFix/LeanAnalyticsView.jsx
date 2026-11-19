@@ -1535,7 +1535,10 @@ export function exportTelunasPdfReport({
                 : i.status === 'pending'
                 ? (isEn ? 'Pending' : 'Tertunda')
                 : (isEn ? 'In Progress' : 'Progress'),
-            i.estimated_completion_at ? formatEtaDisplayWib(i.estimated_completion_at, isEn, true) : '-',
+            (() => {
+                const tb = getEtaBadgeInfo(i, nowMs, isEn);
+                return tb ? tb.primaryLabel : '-';
+            })(),
             i.pending_reason || '-',
         ]);
 
@@ -1543,8 +1546,8 @@ export function exportTelunasPdfReport({
             startY: startY,
             head: [
                 isEn
-                    ? ['Code', 'Location', 'Target Dept', 'Issue Title', 'Reporter', 'Status', 'Target ETA', 'Pending Notes']
-                    : ['Kode', 'Lokasi', 'Dept Dituju', 'Judul Masalah', 'Pelapor', 'Status', 'Target ETA', 'Catatan Pending'],
+                    ? ['Code', 'Location', 'Target Dept', 'Issue Title', 'Reporter', 'Status', 'Progress Timer', 'Pending Notes']
+                    : ['Kode', 'Lokasi', 'Dept Dituju', 'Judul Masalah', 'Pelapor', 'Status', 'Timer Progres', 'Catatan Pending'],
             ],
             body: activeRows,
             theme: 'grid',
@@ -1875,27 +1878,25 @@ export function LeanAnalyticsView({
         let lateResolvedCount = 0;
 
         filteredIssues.forEach((issue) => {
-            if (!issue?.estimated_completion_at) return;
-            const etaBadge = getEtaBadgeInfo(issue, nowMs, isEn);
-            if (!etaBadge) return;
+            const timerBadge = getEtaBadgeInfo(issue, nowMs, isEn);
+            if (!timerBadge) return;
             withEtaCount += 1;
 
             if (issue.status === 'resolved') {
-                if (etaBadge.state === 'on_time') {
-                    evaluatedSlaCount += 1;
+                evaluatedSlaCount += 1;
+                if (timerBadge.state === 'resolved_clean') {
                     onTimeResolvedCount += 1;
-                } else if (etaBadge.state === 'late_resolved') {
-                    evaluatedSlaCount += 1;
+                } else {
                     lateResolvedCount += 1;
                 }
-            } else if (etaBadge.state === 'overdue') {
+            } else if (timerBadge.state === 'owner_escalated' || timerBadge.state === 'group_escalated') {
                 overdueActiveCount += 1;
             }
         });
 
         const onTimeRate = evaluatedSlaCount > 0
             ? Math.round((onTimeResolvedCount / evaluatedSlaCount) * 100)
-            : null;
+            : (resolved > 0 ? 100 : null);
 
         return {
             total,

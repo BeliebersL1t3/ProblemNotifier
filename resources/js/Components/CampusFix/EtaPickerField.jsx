@@ -134,85 +134,150 @@ export function formatDurationShort(diffMs, isEn = false) {
     return `${days}${isEn ? 'd' : 'h'} ${remHours}${isEn ? 'h' : 'j'}`;
 }
 
+export const GROUP_ESCALATION_MS = 60 * 60 * 1000; // 1 hour
+export const OWNER_ESCALATION_MS = 180 * 60 * 1000; // 3 hours
+
 /**
- * Evaluate ticket ETA / SLA visual status across Card View, ERP Table, Detail Modal, and Analytics.
+ * Evaluate automatic 1h Group / 3h Owner progress-reminder timer status for any LeanIssue.
+ * - Running when status is 'open' or 'in_progress' (measured from last_progress_at || created_at).
+ * - Paused when status is 'pending'.
+ * - Stopped permanently when status is 'resolved' (shows total created_at -> resolved_at duration).
  */
-export function getEtaBadgeInfo(issue, nowMs = Date.now(), isEn = false) {
-    if (!issue?.estimated_completion_at) return null;
+export function getAutoTimerBadgeInfo(issue, nowMs = Date.now(), isEn = false) {
+    if (!issue) return null;
 
-    const etaMs = parseEtaTimestampMs(issue.estimated_completion_at);
-    if (etaMs === null) return null;
+    const status = String(issue.status || 'open').toLowerCase();
+    const createdMs = parseEtaTimestampMs(issue.created_at);
+    const anchorMs = parseEtaTimestampMs(issue.last_progress_at || issue.created_at);
+    const groupCount = Number(issue.escalation_group_count || 0);
+    const ownerCount = Number(issue.escalation_owner_count || 0);
 
-    const etaMin = Math.floor(etaMs / 60000) * 60000;
-    const formattedTarget = formatEtaDisplayWib(etaMs, isEn, true);
-    const formattedFullTarget = formatEtaDisplayWib(etaMs, isEn, false);
-
-    if (issue.status === 'resolved') {
+    if (status === 'resolved') {
         const resolvedMs = parseEtaTimestampMs(issue.resolved_at);
-        if (resolvedMs === null) {
-            return {
-                state: 'scheduled',
-                isOverdue: false,
-                isOnTime: false,
-                formattedTarget,
-                formattedFullTarget,
-                statusLabel: formattedTarget,
-                deltaText: '',
-            };
+        const totalMs = (createdMs !== null && resolvedMs !== null)
+            ? Math.max(0, resolvedMs - createdMs)
+            : null;
+        const totalDur = totalMs !== null ? formatDurationShort(totalMs, isEn) : '-';
+
+        let state = 'resolved_clean';
+        let subLabel = isEn ? 'Total solve time' : 'Total durasi selesai';
+        if (ownerCount > 0) {
+            state = 'resolved_owner_escalated';
+            subLabel = isEn ? `Owner alert (${ownerCount}x)` : `Eskalasi Owner (${ownerCount}x)`;
+        } else if (groupCount > 0) {
+            state = 'resolved_group_escalated';
+            subLabel = isEn ? `Group alert (${groupCount}x)` : `Reminder Grup (${groupCount}x)`;
         }
 
-        const resolvedMin = Math.floor(resolvedMs / 60000) * 60000;
-        if (resolvedMin <= etaMin) {
-            return {
-                state: 'on_time',
-                isOverdue: false,
-                isOnTime: true,
-                formattedTarget,
-                formattedFullTarget,
-                statusLabel: isEn ? 'On Time' : 'Tepat Waktu',
-                deltaText: '',
-            };
-        }
-
-        const lateDur = formatDurationShort(resolvedMin - etaMin, isEn);
+        const primaryLabel = isEn ? `Solved • ${totalDur}` : `Selesai • ${totalDur}`;
         return {
-            state: 'late_resolved',
-            isOverdue: true,
-            isOnTime: false,
-            formattedTarget,
-            formattedFullTarget,
-            statusLabel: isEn ? `Late (+${lateDur})` : `Lewat (+${lateDur})`,
-            deltaText: lateDur,
+            state,
+            isOverdue: ownerCount > 0,
+            isEscalated: groupCount > 0 || ownerCount > 0,
+            isPaused: false,
+            idleMs: 0,
+            totalSolveMs: totalMs,
+            primaryLabel,
+            subLabel,
+            formattedTarget: primaryLabel,
+            formattedFullTarget: `${primaryLabel} (${subLabel})`,
+            statusLabel: subLabel,
         };
     }
 
-    const nowMin = Math.floor(nowMs / 60000) * 60000;
-    if (nowMin > etaMin) {
-        const overdueDur = formatDurationShort(nowMin - etaMin, isEn);
+    if (status === 'pending') {
+        const pendingMs = parseEtaTimestampMs(issue.pending_since || issue.last_progress_at || issue.created_at);
+        const pausedDur = pendingMs !== null ? formatDurationShort(Math.max(0, nowMs - pendingMs), isEn) : '';
+        const primaryLabel = isEn ? 'Timer Paused' : 'Timer Dijeda';
+        const subLabel = pausedDur
+            ? `Pending ${pausedDur}`
+            : (isEn ? 'Waiting to resume' : 'Menunggu dilanjutkan');
+
         return {
-            state: 'overdue',
-            isOverdue: true,
-            isOnTime: false,
-            formattedTarget,
-            formattedFullTarget,
-            statusLabel: isEn ? `Overdue (${overdueDur})` : `Lewat ETA (${overdueDur})`,
-            deltaText: overdueDur,
+            state: 'paused',
+            isOverdue: false,
+            isEscalated: false,
+            isPaused: true,
+            idleMs: 0,
+            primaryLabel,
+            subLabel,
+            formattedTarget: primaryLabel,
+            formattedFullTarget: `${primaryLabel} (${subLabel})`,
+            statusLabel: subLabel,
         };
     }
 
-    const diffMs = Math.max(0, etaMin - nowMin);
-    const remDur = diffMs === 0 ? (isEn ? 'Now' : 'Sekarang') : formatDurationShort(diffMs, isEn);
-    const isDueSoon = diffMs <= 30 * 60000;
+    if (anchorMs === null) return null;
+
+    const idleMs = Math.max(0, nowMs - anchorMs);
+
+    if (idleMs >= OWNER_ESCALATION_MS) {
+        const idleDur = formatDurationShort(idleMs, isEn);
+        const primaryLabel = isEn ? 'Owner Escalated (3h+)' : 'Eskalasi Owner (3j+)';
+        const subLabel = isEn ? `${idleDur} no update` : `${idleDur} tanpa update`;
+        return {
+            state: 'owner_escalated',
+            isOverdue: true,
+            isOnTime: false,
+            isEscalated: true,
+            isPaused: false,
+            idleMs,
+            primaryLabel,
+            subLabel,
+            formattedTarget: primaryLabel,
+            formattedFullTarget: `${primaryLabel} • ${subLabel}`,
+            statusLabel: subLabel,
+        };
+    }
+
+    if (idleMs >= GROUP_ESCALATION_MS) {
+        const remOwnerMs = Math.max(60000, OWNER_ESCALATION_MS - idleMs);
+        const remOwner = formatDurationShort(remOwnerMs, isEn);
+        const primaryLabel = isEn ? 'Group Alert (1h+)' : 'Reminder Grup (1j+)';
+        const subLabel = `${remOwner} → Owner`;
+        return {
+            state: 'group_escalated',
+            isOverdue: true,
+            isOnTime: false,
+            isEscalated: true,
+            isPaused: false,
+            idleMs,
+            primaryLabel,
+            subLabel,
+            formattedTarget: primaryLabel,
+            formattedFullTarget: `${primaryLabel} • ${subLabel}`,
+            statusLabel: subLabel,
+        };
+    }
+
+    const remGroupMs = Math.max(60000, GROUP_ESCALATION_MS - idleMs);
+    const remGroup = formatDurationShort(remGroupMs, isEn);
+    const isWarningSoon = remGroupMs <= 15 * 60000;
+    const primaryLabel = isEn ? `${remGroup} → Group` : `${remGroup} → Grup`;
+    const subLabel = status === 'open'
+        ? (isEn ? 'Waiting first update' : 'Menunggu respon')
+        : (isEn ? 'Auto progress timer' : 'Timer progres aktif');
 
     return {
-        state: isDueSoon ? 'due_soon' : 'scheduled',
+        state: isWarningSoon ? 'warning_soon' : 'running',
         isOverdue: false,
         isOnTime: false,
-        formattedTarget,
-        formattedFullTarget,
-        statusLabel: diffMs === 0 ? remDur : (isEn ? `${remDur} left` : `${remDur} lagi`),
-        deltaText: remDur,
+        isEscalated: false,
+        isPaused: false,
+        idleMs,
+        primaryLabel,
+        subLabel,
+        formattedTarget: primaryLabel,
+        formattedFullTarget: `${primaryLabel} • ${subLabel}`,
+        statusLabel: subLabel,
     };
+}
+
+/**
+ * Backward-compatible alias for getAutoTimerBadgeInfo.
+ */
+export function getEtaBadgeInfo(issue, nowMs = Date.now(), isEn = false) {
+    return getAutoTimerBadgeInfo(issue, nowMs, isEn);
 }
 
 /**

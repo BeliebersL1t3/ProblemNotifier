@@ -2,13 +2,13 @@
 
 namespace Tests\Feature;
 
-use App\Http\Controllers\LeanController;
 use App\Models\LeanIssue;
 use App\Models\User;
 use App\Services\GoogleSheetsSyncService;
 use App\Services\LeanSheetDirectService;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Http;
@@ -26,6 +26,7 @@ class LeanEstimatedCompletionTest extends TestCase
         Config::set('session.driver', 'array');
         Config::set('services.bot.api_key', 'test-bot-secret');
         Config::set('services.bot.port', 3000);
+        Config::set('services.bot.owner_whatsapp', '08113861133');
         Cache::flush();
 
         $sheetMock = $this->createMock(LeanSheetDirectService::class);
@@ -62,22 +63,9 @@ class LeanEstimatedCompletionTest extends TestCase
         ]);
     }
 
-    protected function makeEngineerIssue(array $overrides = []): LeanIssue
+    public function test_dashboard_store_defaults_to_in_progress_and_starts_auto_timer_without_manual_eta(): void
     {
-        return LeanIssue::create(array_merge([
-            'location'           => 'TBR - Villa 05',
-            'title'              => 'AC Kamar Utama Kurang Dingin',
-            'description'        => 'Perlu pengecekan freon dan filter indoor',
-            'target_departments' => ['Engineer'],
-            'reporter_name'      => 'Nadya',
-            'reporter_dept'      => 'GR',
-            'reporter_phone'     => '081234567890',
-            'status'             => 'open',
-        ], $overrides));
-    }
-
-    public function test_store_with_start_in_progress_parses_wib_eta_and_notifies_reporter_and_groups(): void
-    {
+        Carbon::setTestNow(Carbon::parse('2026-11-18 10:00:00', 'Asia/Jakarta'));
         $engUser = $this->makeUser('department', 'Engineer', 'Spv Budi');
 
         $response = $this->actingAs($engUser)
@@ -90,349 +78,224 @@ class LeanEstimatedCompletionTest extends TestCase
                 'reporter_name'           => 'Nadya',
                 'reporter_dept'           => 'GR',
                 'reporter_phone'          => '6281234567890',
-                'start_in_progress'       => true,
                 'assigned_workers'        => 'Andi, Budi',
-                'estimated_completion_at' => '2026-11-12T15:30',
+                // Legacy manual ETA input must be ignored
+                'estimated_completion_at' => '2026-11-18T15:30',
             ]);
 
         $response->assertStatus(200)
             ->assertJsonPath('success', true);
 
-        $issue = LeanIssue::first();
+        $issue = LeanIssue::latest('id')->first();
         $this->assertNotNull($issue);
         $this->assertEquals('in_progress', $issue->status);
-        $this->assertNotNull($issue->estimated_completion_at);
-        // Naive '2026-11-12T15:30' is interpreted as Asia/Jakarta (UTC+7) -> '2026-11-12 08:30:00' UTC
-        $this->assertEquals('2026-11-12 08:30:00', $issue->estimated_completion_at->copy()->setTimezone('UTC')->format('Y-m-d H:i:s'));
-        $this->assertEquals('2026-11-12 15:30', $issue->estimated_completion_at->copy()->setTimezone('Asia/Jakarta')->format('Y-m-d H:i'));
-        $this->assertArrayHasKey('estimated_completion_at', $issue->progress_logs[0]);
+        $this->assertNull($issue->estimated_completion_at);
+        $this->assertNotNull($issue->last_progress_at);
+        $this->assertNotNull($issue->claimed_at);
+        $this->assertEquals('Andi, Budi', $issue->claimed_by_name);
 
-        Http::assertSent(fn ($req) => str_ends_with($req->url(), '/notify-direct')
-            && str_contains($req['message'] ?? '', '*Perkiraan Selesai:* 12 Nov 2026, 15:30 WIB'));
-
-        Http::assertSent(fn ($req) => str_ends_with($req->url(), '/notify')
-            && str_contains($req['message'] ?? '', '*Perkiraan Selesai:* 12 Nov 2026, 15:30 WIB'));
-
+        // Inertia payload exposes automatic timer fields cleanly
         $this->actingAs($engUser)
             ->withServerVariables(['REMOTE_ADDR' => '127.0.0.1'])
             ->get('/lapangan')
-            ->assertStatus(200)
             ->assertInertia(fn (Assert $page) => $page
                 ->component('Lean/Index')
-                ->where('issues.0.estimated_completion_at', $issue->estimated_completion_at->toIso8601String())
+                ->where('issues.0.status', 'in_progress')
+                ->where('issues.0.last_progress_at', $issue->last_progress_at->toIso8601String())
+                ->where('issues.0.escalation_group_count', 0)
+                ->where('issues.0.escalation_owner_count', 0)
             );
     }
 
-    public function test_store_ignores_eta_when_open_and_rejects_invalid_date_input(): void
+    public function test_dashboard_store_still_preserves_open_status_when_start_in_progress_is_false(): void
     {
+        Carbon::setTestNow(Carbon::parse('2026-11-18 10:00:00', 'Asia/Jakarta'));
         $engUser = $this->makeUser('department', 'Engineer', 'Spv Budi');
 
-        // 1. Open report (start_in_progress = false) does not store ETA
-        $this->actingAs($engUser)
+        $response = $this->actingAs($engUser)
             ->withServerVariables(['REMOTE_ADDR' => '127.0.0.1'])
             ->postJson('/lapangan/issues', [
-                'location'                => 'TPI - Main Jetty',
-                'title'                   => 'Lampu Dermaga Mati',
-                'target_departments'      => ['Engineer'],
-                'reporter_name'           => 'Siti',
-                'start_in_progress'       => false,
-                'estimated_completion_at' => '2026-11-12T15:30',
-            ])
-            ->assertStatus(200);
+                'location'           => 'TBR - Villa 08',
+                'title'              => 'Lampu Balkon Padam',
+                'target_departments' => ['Engineer'],
+                'reporter_name'      => 'Nadya',
+                'start_in_progress'  => false,
+            ]);
 
-        $issue = LeanIssue::first();
+        $response->assertStatus(200);
+        $issue = LeanIssue::latest('id')->first();
         $this->assertEquals('open', $issue->status);
-        $this->assertNull($issue->estimated_completion_at);
-
-        // 2. Invalid date input returns 422 validation error
-        $this->actingAs($engUser)
-            ->withServerVariables(['REMOTE_ADDR' => '127.0.0.1'])
-            ->postJson('/lapangan/issues', [
-                'location'                => 'TPI - Main Jetty',
-                'title'                   => 'Lampu Bermasalah',
-                'target_departments'      => ['Engineer'],
-                'reporter_name'           => 'Siti',
-                'start_in_progress'       => true,
-                'estimated_completion_at' => 'bukan-format-tanggal',
-            ])
-            ->assertStatus(422)
-            ->assertJsonValidationErrors(['estimated_completion_at']);
+        $this->assertNull($issue->claimed_at);
+        $this->assertNotNull($issue->last_progress_at);
     }
 
-    public function test_full_unified_eta_lifecycle_claim_progress_only_eta_pending_resolve_sla_and_transfer(): void
+    public function test_auto_escalation_triggers_1h_group_and_3h_owner_without_duplicates_and_resets_on_progress(): void
     {
+        $start = Carbon::parse('2026-11-18 09:00:00', 'Asia/Jakarta')->setTimezone(config('app.timezone'));
+        Carbon::setTestNow($start);
+
         $engUser = $this->makeUser('department', 'Engineer', 'Spv Budi');
-        $issue = $this->makeEngineerIssue();
-
-        // Phase 1: Claim sets ETA ('2026-11-12T14:00:00+07:00')
-        $this->actingAs($engUser)
-            ->withServerVariables(['REMOTE_ADDR' => '127.0.0.1'])
-            ->postJson("/lapangan/issues/{$issue->id}/claim", [
-                'workers'                 => ['Andi'],
-                'note'                    => 'Berangkat membawa peralatan AC',
-                'estimated_completion_at' => '2026-11-12T14:00:00+07:00',
-            ])
-            ->assertStatus(200);
-
-        $issue->refresh();
-        $this->assertEquals('2026-11-12 07:00:00', $issue->estimated_completion_at->copy()->setTimezone('UTC')->format('Y-m-d H:i:s'));
-
-        Http::assertSent(fn ($req) => str_ends_with($req->url(), '/notify-direct')
-            && str_contains($req['message'] ?? '', '*Perkiraan Selesai:* 12 Nov 2026, 14:00 WIB'));
-
-        // Phase 2a: Submitting progress with exact same ETA + empty comment + unchanged workers still returns 422
-        $this->actingAs($engUser)
-            ->withServerVariables(['REMOTE_ADDR' => '127.0.0.1'])
-            ->postJson("/lapangan/issues/{$issue->id}/progress", [
-                'comment'                 => '',
-                'workers'                 => ['Andi'],
-                'estimated_completion_at' => '2026-11-12T14:00:00+07:00',
-            ])
-            ->assertStatus(422);
-
-        // Phase 2b: Updating ETA alone (empty comment, unchanged workers) is accepted cleanly
-        Http::swap(new \Illuminate\Http\Client\Factory());
-        Http::fake([
-            'http://127.0.0.1:3000/*' => Http::response(['success' => true], 200),
-            'http://localhost:3000/*' => Http::response(['success' => true], 200),
-            '*'                       => Http::response(['success' => true], 200),
+        $issue = LeanIssue::create([
+            'location'           => 'TPI - Jetty',
+            'title'              => 'Pompa Jetty Mati',
+            'description'        => 'Perlu pengecekan motor pompa',
+            'target_departments' => ['Engineer'],
+            'reporter_name'      => 'Taufik',
+            'reporter_dept'      => 'OE',
+            'status'             => 'in_progress',
+            'claimed_by_name'    => 'Spv Budi',
+            'claimed_by_dept'    => 'Engineer',
+            'claimed_at'         => $start,
+            'last_progress_at'   => $start,
+            'active_workers'     => ['Spv Budi'],
         ]);
 
+        // 1. At 59 minutes: no escalation yet
+        Carbon::setTestNow($start->copy()->addMinutes(59));
+        Artisan::call('lean:check-escalations');
+        Http::assertNothingSent();
+
+        // 2. At 60 minutes (1 hour): Group reminder fires once
+        Carbon::setTestNow($start->copy()->addMinutes(60));
+        Artisan::call('lean:check-escalations');
+
+        Http::assertSent(function ($request) {
+            return str_contains($request->url(), '/notify')
+                && !str_contains($request->url(), '/notify-direct')
+                && str_contains((string) ($request['message'] ?? ''), '1 JAM TANPA KABAR');
+        });
+        $issue->refresh();
+        $this->assertNotNull($issue->group_escalated_at);
+        $this->assertNull($issue->owner_escalated_at);
+        $this->assertEquals(1, $issue->escalation_group_count);
+        $this->assertEquals(0, $issue->escalation_owner_count);
+
+        // Running again at 90 minutes does NOT re-send group alert
+        Http::fake(['*' => Http::response(['success' => true], 200)]);
+        Carbon::setTestNow($start->copy()->addMinutes(90));
+        Artisan::call('lean:check-escalations');
+        Http::assertNothingSent();
+
+        // 3. At 180 minutes (3 hours): Owner escalation fires directly to 628113861133
+        Carbon::setTestNow($start->copy()->addMinutes(180));
+        Artisan::call('lean:check-escalations');
+
+        Http::assertSent(function ($request) {
+            return str_contains($request->url(), '/notify-direct')
+                && ($request['phone'] ?? '') === '628113861133'
+                && str_contains((string) ($request['message'] ?? ''), 'ESKALASI OWNER (3 JAM TANPA KABAR)');
+        });
+        $issue->refresh();
+        $this->assertNotNull($issue->owner_escalated_at);
+        $this->assertEquals(1, $issue->escalation_owner_count);
+
+        // Running again at 200 minutes does NOT duplicate owner alert
+        Http::fake(['*' => Http::response(['success' => true], 200)]);
+        Carbon::setTestNow($start->copy()->addMinutes(200));
+        Artisan::call('lean:check-escalations');
+        Http::assertNothingSent();
+
+        // 4. Supervisor posts Update Progress -> resets timer to 0, clears escalation flags, preserves historical counts
+        $updateTime = $start->copy()->addMinutes(210);
+        Carbon::setTestNow($updateTime);
         $this->actingAs($engUser)
             ->withServerVariables(['REMOTE_ADDR' => '127.0.0.1'])
             ->postJson("/lapangan/issues/{$issue->id}/progress", [
-                'comment'                 => '',
-                'workers'                 => ['Andi'],
-                'estimated_completion_at' => '2026-11-12T16:45',
+                'comment' => 'Motor pompa sedang dibongkar untuk ganti bearing',
+                'workers' => ['Spv Budi'],
             ])
             ->assertStatus(200);
 
         $issue->refresh();
-        $this->assertEquals('2026-11-12 09:45:00', $issue->estimated_completion_at->copy()->setTimezone('UTC')->format('Y-m-d H:i:s'));
-        $latestProgressLog = $issue->progress_logs[count($issue->progress_logs) - 1];
-        $this->assertTrue($latestProgressLog['eta_changed']);
-        $this->assertFalse($latestProgressLog['eta_cleared']);
-        $this->assertStringContainsString('12 Nov 2026, 16:45 WIB', $latestProgressLog['message']);
+        $this->assertNull($issue->group_escalated_at);
+        $this->assertNull($issue->owner_escalated_at);
+        $this->assertEquals(1, $issue->escalation_group_count);
+        $this->assertEquals(1, $issue->escalation_owner_count);
+        $this->assertTrue($issue->last_progress_at->equalTo($updateTime));
 
-        Http::assertSent(fn ($req) => str_ends_with($req->url(), '/notify-direct')
-            && str_contains($req['message'] ?? '', '*Perkiraan Selesai Diperbarui:* 12 Nov 2026, 16:45 WIB'));
-        Http::assertSent(fn ($req) => str_ends_with($req->url(), '/notify')
-            && str_contains($req['message'] ?? '', '*Perkiraan Selesai Diperbarui:* 12 Nov 2026, 16:45 WIB'));
+        // 5. After another 60 minutes with no further progress, a fresh 1h Group reminder fires!
+        Http::fake(['*' => Http::response(['success' => true], 200)]);
+        Carbon::setTestNow($updateTime->copy()->addMinutes(60));
+        Artisan::call('lean:check-escalations');
 
-        // Phase 2c: Clearing ETA alone via clear_eta=true
-        $this->actingAs($engUser)
-            ->withServerVariables(['REMOTE_ADDR' => '127.0.0.1'])
-            ->postJson("/lapangan/issues/{$issue->id}/progress", [
-                'comment'   => '',
-                'workers'   => ['Andi'],
-                'clear_eta' => true,
-            ])
-            ->assertStatus(200);
-
+        Http::assertSent(fn ($req) => str_contains($req->url(), '/notify') && !str_contains($req->url(), '/notify-direct'));
         $issue->refresh();
-        $this->assertNull($issue->estimated_completion_at);
-        $clearLog = $issue->progress_logs[count($issue->progress_logs) - 1];
-        $this->assertTrue($clearLog['eta_changed']);
-        $this->assertTrue($clearLog['eta_cleared']);
+        $this->assertEquals(2, $issue->escalation_group_count);
+    }
 
-        // Phase 3: Pending sets a new ETA for continuation/completion
+    public function test_pending_pauses_timer_and_resume_restarts_and_resolve_keeps_full_duration(): void
+    {
+        $start = Carbon::parse('2026-11-18 08:00:00', 'Asia/Jakarta')->setTimezone(config('app.timezone'));
+        Carbon::setTestNow($start);
+
+        $engUser = $this->makeUser('department', 'Engineer', 'Spv Budi');
+        $issue = LeanIssue::create([
+            'location'           => 'TPI - Kitchen',
+            'title'              => 'Chiller Kurang Dingin',
+            'target_departments' => ['Engineer'],
+            'reporter_name'      => 'Chef Ricky',
+            'reporter_dept'      => 'Kitchen',
+            'status'             => 'in_progress',
+            'claimed_by_name'    => 'Spv Budi',
+            'claimed_by_dept'    => 'Engineer',
+            'claimed_at'         => $start,
+            'last_progress_at'   => $start,
+            'active_workers'     => ['Spv Budi'],
+        ]);
+
+        // Mark Pending at +20m
+        Carbon::setTestNow($start->copy()->addMinutes(20));
         $this->actingAs($engUser)
             ->withServerVariables(['REMOTE_ADDR' => '127.0.0.1'])
             ->postJson("/lapangan/issues/{$issue->id}/pending", [
-                'reason'                  => 'Menunggu kapasitor pengganti tiba dari gudang besok',
-                'estimated_completion_at' => '2026-11-13T10:00',
+                'reason' => 'Menunggu kompresor dari Batam',
             ])
             ->assertStatus(200);
 
-        $issue->refresh();
-        $this->assertEquals('pending', $issue->status);
-        $this->assertEquals('2026-11-13 03:00:00', $issue->estimated_completion_at->copy()->setTimezone('UTC')->format('Y-m-d H:i:s'));
+        // Even 6 hours later while still Pending, ZERO escalations fire!
+        Http::fake(['*' => Http::response(['success' => true], 200)]);
+        Carbon::setTestNow($start->copy()->addHours(6));
+        Artisan::call('lean:check-escalations');
+        Http::assertNothingSent();
 
-        Http::assertSent(fn ($req) => str_ends_with($req->url(), '/notify-direct')
-            && str_contains($req['message'] ?? '', '*Perkiraan Selesai / Lanjut:* 13 Nov 2026, 10:00 WIB'));
-
-        // Verify Google Sheets Column V (index 21) formats ETA in Asia/Jakarta WIB
-        $realSheetService = new LeanSheetDirectService();
-        $sheetRow = $realSheetService->formatIssueRow($issue);
-        $this->assertCount(22, $sheetRow);
-        $this->assertEquals('2026-11-13 10:00', $sheetRow[21]);
-
-        // Phase 4: Resume from pending allows keeping or clearing ETA; let's keep it updated
+        // Resume from Pending via Claim at +6h -> timer restarts fresh from 0
+        $resumeTime = $start->copy()->addHours(6);
         $this->actingAs($engUser)
             ->withServerVariables(['REMOTE_ADDR' => '127.0.0.1'])
             ->postJson("/lapangan/issues/{$issue->id}/claim", [
-                'workers'                 => ['Andi', 'Budi'],
-                'estimated_completion_at' => '2026-11-13T11:30',
+                'workers' => ['Spv Budi'],
+                'note'    => 'Kompresor tiba, lanjut pemasangan',
             ])
             ->assertStatus(200);
 
         $issue->refresh();
         $this->assertEquals('in_progress', $issue->status);
-        $this->assertEquals('2026-11-13 04:30:00', $issue->estimated_completion_at->copy()->setTimezone('UTC')->format('Y-m-d H:i:s'));
+        $this->assertTrue($issue->last_progress_at->equalTo($resumeTime));
 
-        // Phase 5a: Transfer to IT resets estimated_completion_at = null & records cleared_eta in log
+        // 30 minutes after resume: still under 1h -> no escalation
+        Http::fake(['*' => Http::response(['success' => true], 200)]);
+        Carbon::setTestNow($resumeTime->copy()->addMinutes(30));
+        Artisan::call('lean:check-escalations');
+        Http::assertNothingSent();
+
+        // Resolve at +7h from original creation -> full created_at -> resolved_at duration (7h) preserved, no further escalation
+        $resolveTime = $start->copy()->addHours(7);
+        Carbon::setTestNow($resolveTime);
         $this->actingAs($engUser)
             ->withServerVariables(['REMOTE_ADDR' => '127.0.0.1'])
-            ->postJson("/lapangan/issues/{$issue->id}/transfer", [
-                'to_department' => 'IT',
-                'reason'        => 'Masalah ada pada modul controller Smart TV',
+            ->postJson("/lapangan/issues/{$issue->id}/resolve", [
+                'note'          => 'Kompresor terpasang dan suhu normal 4C',
+                'final_workers' => ['Spv Budi'],
             ])
             ->assertStatus(200);
 
         $issue->refresh();
-        $this->assertEquals('open', $issue->status);
-        $this->assertEquals(['IT'], $issue->target_departments);
-        $this->assertNull($issue->estimated_completion_at);
-        $transferLog = $issue->progress_logs[count($issue->progress_logs) - 1];
-        $this->assertTrue($transferLog['eta_cleared']);
+        $this->assertEquals('resolved', $issue->status);
+        $this->assertEquals(420, (int) $issue->created_at->diffInMinutes($issue->resolved_at));
 
-        // Former owner (Engineer) cannot mutate transferred issue anymore
-        $this->actingAs($engUser)
-            ->withServerVariables(['REMOTE_ADDR' => '127.0.0.1'])
-            ->postJson("/lapangan/issues/{$issue->id}/claim", ['workers' => ['Andi']])
-            ->assertStatus(403);
-    }
-
-    public function test_resolve_retains_eta_and_evaluates_on_time_vs_overdue_sla(): void
-    {
-        $engUser = $this->makeUser('department', 'Engineer', 'Spv Budi');
-
-        // 1. Resolved BEFORE ETA -> on_time
-        $onTimeIssue = $this->makeEngineerIssue([
-            'status'                  => 'in_progress',
-            'active_workers'          => ['Andi'],
-            'claimed_by_name'         => 'Andi',
-            'claimed_by_dept'         => 'Engineer',
-            'estimated_completion_at' => Carbon::parse('2026-11-12 15:00:00', 'Asia/Jakarta')->setTimezone('UTC'),
-        ]);
-
-        Carbon::setTestNow(Carbon::parse('2026-11-12 14:40:00', 'Asia/Jakarta'));
-
-        $this->actingAs($engUser)
-            ->withServerVariables(['REMOTE_ADDR' => '127.0.0.1'])
-            ->postJson("/lapangan/issues/{$onTimeIssue->id}/resolve", [
-                'note'          => 'Selesai 20 menit lebih cepat dari target.',
-                'final_workers' => ['Andi'],
-            ])
-            ->assertStatus(200);
-
-        $onTimeIssue->refresh();
-        $this->assertEquals('resolved', $onTimeIssue->status);
-        $this->assertNotNull($onTimeIssue->estimated_completion_at);
-        $this->assertEquals('on_time', $onTimeIssue->progress_logs[0]['sla_status']);
-
-        Http::assertSent(fn ($req) => str_ends_with($req->url(), '/notify-direct')
-            && str_contains($req['message'] ?? '', '*Target Awal:* 12 Nov 2026, 15:00 WIB (Tepat Waktu)'));
-
-        // 2. Resolved AFTER ETA -> overdue
-        Http::swap(new \Illuminate\Http\Client\Factory());
-        Http::fake([
-            'http://127.0.0.1:3000/*' => Http::response(['success' => true], 200),
-            'http://localhost:3000/*' => Http::response(['success' => true], 200),
-            '*'                       => Http::response(['success' => true], 200),
-        ]);
-
-        $overdueIssue = $this->makeEngineerIssue([
-            'title'                   => 'Pompa Jetty Mati',
-            'status'                  => 'in_progress',
-            'active_workers'          => ['Budi'],
-            'claimed_by_name'         => 'Budi',
-            'claimed_by_dept'         => 'Engineer',
-            'estimated_completion_at' => Carbon::parse('2026-11-12 15:00:00', 'Asia/Jakarta')->setTimezone('UTC'),
-        ]);
-
-        Carbon::setTestNow(Carbon::parse('2026-11-12 15:25:00', 'Asia/Jakarta'));
-
-        $this->actingAs($engUser)
-            ->withServerVariables(['REMOTE_ADDR' => '127.0.0.1'])
-            ->postJson("/lapangan/issues/{$overdueIssue->id}/resolve", [
-                'note'          => 'Pompa sudah menyala kembali.',
-                'final_workers' => ['Budi'],
-            ])
-            ->assertStatus(200);
-
-        $overdueIssue->refresh();
-        $this->assertEquals('overdue', $overdueIssue->progress_logs[0]['sla_status']);
-        $this->assertNotNull($overdueIssue->estimated_completion_at);
-
-        Http::assertSent(fn ($req) => str_ends_with($req->url(), '/notify-direct')
-            && str_contains($req['message'] ?? '', '*Target Awal:* 12 Nov 2026, 15:00 WIB (Melewati Target)'));
-    }
-
-    public function test_bot_api_endpoints_preserve_eta_when_omitted_and_reset_on_transfer(): void
-    {
-        $botHeaders = ['X-Bot-Key' => 'test-bot-secret'];
-
-        // 1. apiStore accepts optional estimated_completion_at
-        $storeRes = $this->postJson('/api/lean/issues', [
-            'title'                   => 'Mesin Kopi Resto Error',
-            'description'             => 'Muncul kode E05',
-            'location'                => 'TPI - Restoran',
-            'department'              => 'Engineer',
-            'reporter'                => 'Rina',
-            'reporter_dept'           => 'GR',
-            'reporter_phone'          => '6281377788899',
-            'estimated_completion_at' => '2026-11-12T18:00',
-        ], $botHeaders);
-
-        $storeRes->assertStatus(200)
-            ->assertJsonPath('data.status', 'open');
-        $issueCode = $storeRes->json('data.id');
-        $this->assertNotNull($storeRes->json('data.estimated_completion_at'));
-
-        // 2. apiIndex returns estimated_completion_at
-        $this->getJson('/api/lean/issues', $botHeaders)
-            ->assertStatus(200)
-            ->assertJsonPath('data.0.id', $issueCode)
-            ->assertJsonPath('data.0.estimated_completion_at', $storeRes->json('data.estimated_completion_at'));
-
-        // 3. apiClaim WITHOUT estimated_completion_at preserves existing ETA
-        $claimRes = $this->postJson("/api/lean/issues/{$issueCode}/claim", [
-            'taker'      => 'Andi Eng',
-            'department' => 'Engineer',
-        ], $botHeaders);
-
-        $claimRes->assertStatus(200)
-            ->assertJsonPath('data.estimated_completion_at', $storeRes->json('data.estimated_completion_at'));
-
-        // 4. apiPending WITH new ETA updates ETA
-        $pendingRes = $this->postJson("/api/lean/issues/{$issueCode}/pending", [
-            'reason'                  => 'Menunggu heating element cadangan',
-            'actor'                   => 'Andi Eng',
-            'estimated_completion_at' => '2026-11-13T09:00',
-        ], $botHeaders);
-
-        $pendingRes->assertStatus(200);
-        $issue = LeanController::findIssueByIdOrCode($issueCode);
-        $this->assertEquals('2026-11-13 09:00', $issue->estimated_completion_at->copy()->setTimezone('Asia/Jakarta')->format('Y-m-d H:i'));
-
-        // 5. apiResolve preserves ETA & logs SLA evaluation
-        Carbon::setTestNow(Carbon::parse('2026-11-13 08:45:00', 'Asia/Jakarta'));
-        $resolveRes = $this->postJson("/api/lean/issues/{$issueCode}/resolve", [
-            'solver'         => 'Andi Eng',
-            'fixDescription' => 'Element diganti dan dites normal',
-        ], $botHeaders);
-
-        $resolveRes->assertStatus(200)
-            ->assertJsonPath('data.estimated_completion_at', $issue->estimated_completion_at->toIso8601String());
-
-        $issue->refresh();
-        $lastLog = $issue->progress_logs[count($issue->progress_logs) - 1];
-        $this->assertEquals('on_time', $lastLog['sla_status']);
-
-        // 6. apiTransfer resets estimated_completion_at to null
-        $issue2 = $this->makeEngineerIssue([
-            'estimated_completion_at' => Carbon::parse('2026-11-14 12:00:00', 'Asia/Jakarta')->setTimezone('UTC'),
-        ]);
-        $code2 = LeanController::formatIssueCode($issue2);
-
-        $this->postJson("/api/lean/issues/{$code2}/transfer", [
-            'to_department'  => 'IT',
-            'reason'         => 'Ternyata kendala jaringan POS',
-            'transferred_by' => 'Spv Eng',
-        ], $botHeaders)->assertStatus(200);
-
-        $issue2->refresh();
-        $this->assertNull($issue2->estimated_completion_at);
+        Http::fake(['*' => Http::response(['success' => true], 200)]);
+        Carbon::setTestNow($resolveTime->copy()->addHours(5));
+        Artisan::call('lean:check-escalations');
+        Http::assertNothingSent();
     }
 }

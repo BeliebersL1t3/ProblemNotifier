@@ -80,7 +80,6 @@ export function ExportPdfModal({
     const [selectedStatuses, setSelectedStatuses] = useState(['open', 'in_progress', 'pending', 'resolved']);
     const [selectedDept, setSelectedDept] = useState('all');
     const [selectedLocation, setSelectedLocation] = useState('all');
-    const [selectedSlaStatus, setSelectedSlaStatus] = useState('all');
     const [sortOrder, setSortOrder] = useState('newest');
     const [limit, setLimit] = useState('All');
     const [includeKpiSummary, setIncludeKpiSummary] = useState(true);
@@ -253,33 +252,6 @@ export function ExportPdfModal({
                 }
             }
 
-            // SLA / ETA Status match
-            if (selectedSlaStatus !== 'all') {
-                const rawEta = issue.estimated_completion_at || issue.estimatedCompletionAt;
-                const hasEta = !!rawEta;
-                if (selectedSlaStatus === 'has_eta' && !hasEta) return false;
-                if (selectedSlaStatus === 'no_eta' && hasEta) return false;
-
-                if (selectedSlaStatus === 'overdue' || selectedSlaStatus === 'on_time') {
-                    if (!hasEta) return false;
-                    const etaMs = new Date(rawEta).getTime();
-                    const resolvedMs = (issue.resolved_at || issue.solved_at || issue.solvedAt)
-                        ? new Date(issue.resolved_at || issue.solved_at || issue.solvedAt).getTime()
-                        : null;
-
-                    const isSolved = issue.status === 'resolved' || issue.status === 'solved';
-                    let isOverdue = false;
-                    if (isSolved) {
-                        isOverdue = resolvedMs ? resolvedMs > etaMs : false;
-                    } else {
-                        isOverdue = Date.now() > etaMs;
-                    }
-
-                    if (selectedSlaStatus === 'overdue' && !isOverdue) return false;
-                    if (selectedSlaStatus === 'on_time' && isOverdue) return false;
-                }
-            }
-
             return true;
         });
 
@@ -291,13 +263,6 @@ export function ExportPdfModal({
             if (sortOrder === 'oldest') {
                 return timeA - timeB;
             }
-            if (sortOrder === 'eta_closest') {
-                const rawEtaA = a.estimated_completion_at || a.estimatedCompletionAt;
-                const rawEtaB = b.estimated_completion_at || b.estimatedCompletionAt;
-                const etaA = rawEtaA ? new Date(rawEtaA).getTime() : Infinity;
-                const etaB = rawEtaB ? new Date(rawEtaB).getTime() : Infinity;
-                return etaA - etaB;
-            }
             if (sortOrder === 'duration') {
                 const durA = (a.resolved_at ? new Date(a.resolved_at).getTime() : Date.now()) - timeA;
                 const durB = (b.resolved_at ? new Date(b.resolved_at).getTime() : Date.now()) - timeB;
@@ -306,7 +271,7 @@ export function ExportPdfModal({
             // default newest
             return timeB - timeA;
         });
-    }, [periodFilteredIssues, selectedStatuses, selectedDept, selectedLocation, selectedSlaStatus, sortOrder]);
+    }, [periodFilteredIssues, selectedStatuses, selectedDept, selectedLocation, sortOrder]);
 
     const displayIssues = useMemo(() => {
         if (limit === 'All') return filteredIssues;
@@ -489,8 +454,8 @@ export function ExportPdfModal({
             doc.setTextColor(28, 27, 14);
 
             const summaryLine = isEn
-                ? `TOTAL: ${totalCount} issues  |  SOLVED: ${resCount} (${resRate}%)  |  BACKLOG: ${unresCount} (${backlogRate}%)  |  ETA PUNCTUALITY: ${slaText}`
-                : `TOTAL: ${totalCount} tiket  |  SELESAI: ${resCount} (${resRate}%)  |  BELUM SELESAI: ${unresCount} (${backlogRate}%)  |  KETEPATAN SLA: ${slaText}`;
+                ? `TOTAL: ${totalCount} issues  |  SOLVED: ${resCount} (${resRate}%)  |  BACKLOG: ${unresCount} (${backlogRate}%)`
+                : `TOTAL: ${totalCount} tiket  |  SELESAI: ${resCount} (${resRate}%)  |  BELUM SELESAI: ${unresCount} (${backlogRate}%)`;
 
             doc.text(summaryLine, 14, summaryY + 4.5);
 
@@ -583,37 +548,6 @@ export function ExportPdfModal({
             if (statusStr === 'IN_PROGRESS') statusStr = 'PROGRESS';
             if (statusStr === 'RESOLVED') statusStr = 'SOLVED';
 
-            // ETA (Target Selesai) Cell with SLA status
-            let etaCell = '-';
-            const rawEta = i.estimated_completion_at || i.estimatedCompletionAt;
-            if (rawEta) {
-                const etaFormatted = formatDateTime(rawEta);
-                const etaTimeMs = new Date(rawEta).getTime();
-                const resolvedTimeMs = (i.resolved_at || i.solved_at || i.solvedAt)
-                    ? new Date(i.resolved_at || i.solved_at || i.solvedAt).getTime()
-                    : null;
-
-                if (i.status === 'resolved' || i.status === 'solved') {
-                    if (resolvedTimeMs && !isNaN(resolvedTimeMs) && !isNaN(etaTimeMs)) {
-                        const onTime = resolvedTimeMs <= etaTimeMs;
-                        etaCell = onTime
-                            ? `${etaFormatted}\n[${isEn ? 'On Time' : 'Tepat Waktu'}]`
-                            : `${etaFormatted}\n[${isEn ? 'Overdue' : 'Lewat Target'}]`;
-                    } else {
-                        etaCell = etaFormatted;
-                    }
-                } else {
-                    if (!isNaN(etaTimeMs)) {
-                        const isOverdue = Date.now() > etaTimeMs;
-                        etaCell = isOverdue
-                            ? `${etaFormatted}\n[${isEn ? 'Overdue' : 'Lewat Target'}]`
-                            : `${etaFormatted}\n[${isEn ? 'Target' : 'Target'}]`;
-                    } else {
-                        etaCell = etaFormatted;
-                    }
-                }
-            }
-
             tableData.push([
                 rawCode,
                 reportedTime,
@@ -625,7 +559,6 @@ export function ExportPdfModal({
                 combinedDeptTags,
                 sanitizePdfText(i.reporter_name || i.reporter || '-'),
                 statusStr,
-                etaCell,
             ]);
 
             // Sub-row: Pending Reason / Delay Timeline
@@ -634,7 +567,7 @@ export function ExportPdfModal({
                 tableData.push([
                     {
                         content: `Pending Reason: ${sanitizePdfText(reason)}`,
-                        colSpan: 11,
+                        colSpan: 10,
                         styles: {
                             fillColor: [255, 247, 237],
                             textColor: [194, 65, 12],
@@ -652,7 +585,7 @@ export function ExportPdfModal({
                     content: isEn
                         ? 'No records found matching the selected filter criteria.'
                         : 'Tidak ada laporan isu yang cocok dengan kriteria filter yang dipilih.',
-                    colSpan: 11,
+                    colSpan: 10,
                     styles: { halign: 'center', textColor: [120, 120, 120], fontStyle: 'italic', cellPadding: 8 },
                 },
             ]);
@@ -673,7 +606,6 @@ export function ExportPdfModal({
                 'Dept (ACC)',
                 'Reporter',
                 'Status',
-                'Target Selesai\n(ETA / SLA)',
             ]],
             body: tableData,
             theme: 'grid',
@@ -694,16 +626,15 @@ export function ExportPdfModal({
             },
             columnStyles: {
                 0: { cellWidth: 16, halign: 'center', fontStyle: 'bold' }, // ID
-                1: { cellWidth: 22 }, // Submitted
-                2: { cellWidth: 22 }, // Taken / Petugas
-                3: { cellWidth: 22 }, // Solved / Penyelesai
-                4: { cellWidth: 16 }, // Time Solve
-                5: { cellWidth: 56 }, // Problem (Judul & Ket - broadened)
-                6: { cellWidth: 24 }, // Location
-                7: { cellWidth: 30 }, // Dept (ACC)
-                8: { cellWidth: 20 }, // Reporter
+                1: { cellWidth: 23 }, // Submitted
+                2: { cellWidth: 23 }, // Taken / Petugas
+                3: { cellWidth: 23 }, // Solved / Penyelesai
+                4: { cellWidth: 17 }, // Time Solve
+                5: { cellWidth: 70 }, // Problem (Judul & Ket - broadened after ETA removal)
+                6: { cellWidth: 30 }, // Location
+                7: { cellWidth: 34 }, // Dept (ACC)
+                8: { cellWidth: 23 }, // Reporter
                 9: { cellWidth: 18, fontStyle: 'bold', halign: 'center' }, // Status
-                10: { cellWidth: 31, halign: 'center' }, // Target Selesai (ETA)
             },
             didParseCell: function (data) {
                 // Color code Status column (Index 9)
@@ -717,17 +648,6 @@ export function ExportPdfModal({
                         data.cell.styles.textColor = [234, 88, 12]; // Orange
                     } else if (st === 'OPEN') {
                         data.cell.styles.textColor = [220, 38, 38]; // Red
-                    }
-                }
-                // Color code Target Selesai (ETA) column (Index 10)
-                if (data.section === 'body' && data.column.index === 10) {
-                    const text = String(data.cell.raw || '');
-                    if (text.includes('[Overdue]') || text.includes('[Lewat Target]')) {
-                        data.cell.styles.textColor = [220, 38, 38]; // Red
-                        data.cell.styles.fontStyle = 'bold';
-                    } else if (text.includes('[On Time]') || text.includes('[Tepat Waktu]')) {
-                        data.cell.styles.textColor = [22, 163, 74]; // Emerald
-                        data.cell.styles.fontStyle = 'bold';
                     }
                 }
             },
@@ -1012,25 +932,6 @@ export function ExportPdfModal({
                             </Select>
                         </div>
 
-                        {/* ETA / SLA Punctuality Status */}
-                        <div>
-                            <label className={`block text-xs font-bold uppercase tracking-wider mb-1.5 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                                {isEn ? 'ETA / SLA Punctuality' : 'Ketepatan Target (SLA)'}
-                            </label>
-                            <Select value={selectedSlaStatus} onValueChange={setSelectedSlaStatus}>
-                                <SelectTrigger className={selectTriggerClass}>
-                                    <SelectValue placeholder={isEn ? 'All SLA Status' : 'Semua Status SLA'} />
-                                </SelectTrigger>
-                                <SelectContent className={selectContentClass}>
-                                    <SelectItem value="all" className={selectItemClass}>{isEn ? 'All Tickets (All SLA Status)' : 'Semua Tiket (Seluruh SLA)'}</SelectItem>
-                                    <SelectItem value="overdue" className={selectItemClass}>{isEn ? 'Overdue Only (Late)' : 'Lewat Target Saja (Terlambat)'}</SelectItem>
-                                    <SelectItem value="on_time" className={selectItemClass}>{isEn ? 'On Time Only (Met SLA)' : 'Tepat Waktu Saja (Sesuai SLA)'}</SelectItem>
-                                    <SelectItem value="has_eta" className={selectItemClass}>{isEn ? 'With Target Date (Has ETA)' : 'Memiliki Target Tanggal (Ada ETA)'}</SelectItem>
-                                    <SelectItem value="no_eta" className={selectItemClass}>{isEn ? 'Without Target Date (No ETA)' : 'Tanpa Target Tanggal (Belum Ada ETA)'}</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-
                         {/* Sort Order */}
                         <div>
                             <label className={`block text-xs font-bold uppercase tracking-wider mb-1.5 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
@@ -1043,7 +944,6 @@ export function ExportPdfModal({
                                 <SelectContent className={selectContentClass}>
                                     <SelectItem value="newest" className={selectItemClass}>{isEn ? 'Newest Reported First' : 'Terbaru Dilaporkan'}</SelectItem>
                                     <SelectItem value="oldest" className={selectItemClass}>{isEn ? 'Oldest Reported First' : 'Terlama Dilaporkan'}</SelectItem>
-                                    <SelectItem value="eta_closest" className={selectItemClass}>{isEn ? 'Closest Target ETA' : 'Target Selesai Terdekat'}</SelectItem>
                                     <SelectItem value="duration" className={selectItemClass}>{isEn ? 'Longest Duration / Pending' : 'Durasi Penanganan Terlama'}</SelectItem>
                                 </SelectContent>
                             </Select>

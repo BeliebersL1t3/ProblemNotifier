@@ -78,9 +78,8 @@ export async function addToOutbox(ticket) {
             reporter_name: ticket.reporter_name || '',
             reporter_dept: ticket.reporter_dept || '',
             reporter_phone: ticket.reporter_phone || '',
-            start_in_progress: Boolean(ticket.start_in_progress),
+            start_in_progress: ticket.start_in_progress !== undefined ? Boolean(ticket.start_in_progress) : true,
             assigned_workers: ticket.assigned_workers || null,
-            estimated_completion_at: ticket.estimated_completion_at || null,
             imageBlob: ticket.imageBlob || null,
             imageName: ticket.imageName || (ticket.imageBlob ? 'photo.jpg' : null),
             imagePreview: ticket.imagePreview || null,
@@ -227,14 +226,9 @@ export async function syncSingleTicket(ticket) {
     if (ticket.createdAt) {
         formData.append('reported_at', ticket.createdAt);
     }
-    if (ticket.start_in_progress) {
-        formData.append('start_in_progress', '1');
-    }
+    formData.append('start_in_progress', ticket.start_in_progress ? '1' : '0');
     if (ticket.assigned_workers) {
         formData.append('assigned_workers', ticket.assigned_workers);
-    }
-    if (ticket.estimated_completion_at) {
-        formData.append('estimated_completion_at', ticket.estimated_completion_at);
     }
 
     if (Array.isArray(ticket.target_departments)) {

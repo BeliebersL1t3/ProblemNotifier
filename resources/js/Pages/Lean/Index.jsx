@@ -58,6 +58,7 @@ import {
     parseEtaTimestampMs,
     formatEtaDisplayWib,
     getEtaBadgeInfo,
+    getAutoTimerBadgeInfo,
 } from '@/Components/CampusFix/EtaPickerField';
 import { LeanAnalyticsView } from '@/Components/CampusFix/LeanAnalyticsView';
 import { resolveIssueResortAndZone } from '@/constants/locations';
@@ -119,7 +120,7 @@ export default function LeanIndex({
         { id: 'reporter', label: isEn ? 'Reporter Name' : 'Nama Pelapor', icon: '👤' },
         { id: 'desc', label: isEn ? 'Detailed Description' : 'Deskripsi Detail', icon: '📄' },
         { id: 'status', label: 'Status', icon: '🏷️' },
-        { id: 'eta', label: isEn ? 'Est. Completion' : 'Target Selesai', icon: '⏰' },
+        { id: 'eta', label: isEn ? 'Progress Timer' : 'Timer Progres', icon: '⏰' },
         { id: 'time', label: isEn ? 'Reported Time' : 'Waktu Pelaporan', icon: '🕒' },
     ], [isEn]);
 
@@ -687,7 +688,7 @@ export default function LeanIndex({
     const [outboxTickets, setOutboxTickets] = useState([]);
     const [showOutboxModal, setShowOutboxModal] = useState(false);
     const [isSyncingOutbox, setIsSyncingOutbox] = useState(false);
-    const [startInProgress, setStartInProgress] = useState(false);
+    const [startInProgress, setStartInProgress] = useState(true);
     const [staffReporterName, setStaffReporterName] = useState('');
     const [staffReporterDept, setStaffReporterDept] = useState('');
     const [staffReporterPhone, setStaffReporterPhone] = useState('');
@@ -696,6 +697,13 @@ export default function LeanIndex({
     const [assignedWorkers, setAssignedWorkers] = useState([]);
     const [customWorkerInput, setCustomWorkerInput] = useState('');
     const [formEta, setFormEta] = useState('');
+
+    // Auto-select recording supervisor when Create Report modal opens in default In Progress mode
+    useEffect(() => {
+        if (showReportModal && startInProgress && assignedWorkers.length === 0 && myName) {
+            setAssignedWorkers([myName]);
+        }
+    }, [showReportModal, startInProgress, assignedWorkers.length, myName]);
 
     // Coworkers in the recording leader's department for assigning
     const myDeptTeammates = useMemo(() => {
@@ -977,7 +985,6 @@ export default function LeanIndex({
         const workersStr = startInProgress
             ? (assignedWorkers.length > 0 ? assignedWorkers.join(', ') : myName)
             : null;
-        const etaIso = startInProgress && formEta ? jakartaLocalToIso(formEta) : null;
 
         setIsSubmitting(true);
 
@@ -1004,7 +1011,6 @@ export default function LeanIndex({
                     reporter_phone: staffReporterPhone.trim(),
                     start_in_progress: startInProgress,
                     assigned_workers: workersStr,
-                    estimated_completion_at: etaIso,
                     imageBlob: compressed?.blob || formImage || null,
                     imageName: compressed?.file?.name || formImage?.name || 'offline_photo.jpg',
                     imagePreview: compressed?.dataUrl || formImagePreview,
@@ -1023,10 +1029,10 @@ export default function LeanIndex({
                 setStaffReporterDept('');
                 setStaffReporterPhone('');
                 setStaffSearchQuery('');
-                setAssignedWorkers([]);
+                setAssignedWorkers(myName ? [myName] : []);
                 setCustomWorkerInput('');
                 setFormEta('');
-                setStartInProgress(false);
+                setStartInProgress(true);
                 setShowStaffDropdown(false);
                 setIsSubmitting(false);
                 await refreshOutbox();
@@ -1046,14 +1052,9 @@ export default function LeanIndex({
             if (staffReporterPhone.trim()) {
                 data.append('reporter_phone', staffReporterPhone.trim());
             }
-            if (startInProgress) {
-                data.append('start_in_progress', '1');
-                if (workersStr) {
-                    data.append('assigned_workers', workersStr);
-                }
-                if (etaIso) {
-                    data.append('estimated_completion_at', etaIso);
-                }
+            data.append('start_in_progress', startInProgress ? '1' : '0');
+            if (startInProgress && workersStr) {
+                data.append('assigned_workers', workersStr);
             }
             if (compressed?.file) {
                 data.append('image', compressed.file);
@@ -1073,10 +1074,10 @@ export default function LeanIndex({
                     setStaffReporterDept('');
                     setStaffReporterPhone('');
                     setStaffSearchQuery('');
-                    setAssignedWorkers([]);
+                    setAssignedWorkers(myName ? [myName] : []);
                     setCustomWorkerInput('');
                     setFormEta('');
-                    setStartInProgress(false);
+                    setStartInProgress(true);
                     setShowStaffDropdown(false);
                     setIsSubmitting(false);
                 },
@@ -1094,7 +1095,6 @@ export default function LeanIndex({
                                 reporter_phone: staffReporterPhone.trim(),
                                 start_in_progress: startInProgress,
                                 assigned_workers: workersStr,
-                                estimated_completion_at: etaIso,
                                 imageBlob: compressed?.blob || formImage || null,
                                 imageName: compressed?.file?.name || formImage?.name || 'offline_photo.jpg',
                                 imagePreview: compressed?.dataUrl || formImagePreview,
@@ -1171,7 +1171,7 @@ export default function LeanIndex({
         setClaimWorkers(defaultWorkers);
         setClaimCustomWorker('');
         setClaimNote('');
-        setClaimEta(toJakartaDatetimeLocal(issue.estimated_completion_at));
+        setClaimEta('');
         setClaimNotifyReporter(true);
         setShowClaimModal(issue);
     };
@@ -1185,15 +1185,12 @@ export default function LeanIndex({
         }
         const isResuming = showClaimModal.status === 'pending';
         const notifyOnResume = claimNotifyReporter;
-        const hadPriorEta = Boolean(showClaimModal.estimated_completion_at);
         setIsSubmitting(true);
         router.post(`/lapangan/issues/${showClaimModal.id}/claim`, {
             workers: claimWorkers,
             note: claimNote.trim(),
             dept: (myDept && myDept !== 'Supervisor') ? myDept : (showClaimModal.target_departments?.[0] || ''),
             notify_reporter: isResuming ? notifyOnResume : true,
-            estimated_completion_at: claimEta ? jakartaLocalToIso(claimEta) : null,
-            clear_eta: hadPriorEta && !claimEta,
         }, {
             preserveScroll: true,
             onSuccess: () => {
@@ -1234,7 +1231,7 @@ export default function LeanIndex({
         setProgressWorkers(currentActive);
         setProgressCustomWorker('');
         setProgressComment('');
-        setProgressEta(toJakartaDatetimeLocal(issue.estimated_completion_at));
+        setProgressEta('');
         setProgressNotifyReporter(true);
         setShowProgressModal(issue);
     };
@@ -1248,14 +1245,11 @@ export default function LeanIndex({
                 : 'Minimal harus ada 1 pekerja aktif saat status In Progress.');
             return;
         }
-        const hadPriorEta = Boolean(showProgressModal.estimated_completion_at);
         setIsSubmitting(true);
         router.post(`/lapangan/issues/${showProgressModal.id}/progress`, {
             comment: progressComment.trim(),
             workers: progressWorkers,
             notify_reporter: progressNotifyReporter,
-            estimated_completion_at: progressEta ? jakartaLocalToIso(progressEta) : null,
-            clear_eta: hadPriorEta && !progressEta,
         }, {
             preserveScroll: true,
             onSuccess: () => {
@@ -1281,7 +1275,7 @@ export default function LeanIndex({
     const openPendingModal = (issue) => {
         if (!issue) return;
         setPendingReason(issue.status === 'pending' ? (issue.pending_reason || '') : '');
-        setPendingEta(toJakartaDatetimeLocal(issue.estimated_completion_at));
+        setPendingEta('');
         setShowPendingModal(issue);
     };
 
@@ -1292,12 +1286,9 @@ export default function LeanIndex({
             alert(isEn ? 'Pending reason is required.' : 'Alasan pending wajib diisi.');
             return;
         }
-        const hadPriorEta = Boolean(showPendingModal.estimated_completion_at);
         setIsSubmitting(true);
         router.post(`/lapangan/issues/${showPendingModal.id}/pending`, {
             reason: pendingReason.trim(),
-            estimated_completion_at: pendingEta ? jakartaLocalToIso(pendingEta) : null,
-            clear_eta: hadPriorEta && !pendingEta,
         }, {
             preserveScroll: true,
             onSuccess: () => {
@@ -1540,13 +1531,16 @@ export default function LeanIndex({
                     return aIsResolved ? 1 : -1;
                 }
 
-                const aEta = parseEtaTimestampMs(a.estimated_completion_at);
-                const bEta = parseEtaTimestampMs(b.estimated_completion_at);
+                // Prioritize running timers (open/in_progress) longest without update first, then pending, then resolved
+                const rankStatus = (s) => (s === 'open' || s === 'in_progress' ? 0 : s === 'pending' ? 1 : 2);
+                const rankDiff = rankStatus(a.status) - rankStatus(b.status);
+                if (rankDiff !== 0) return rankDiff;
 
-                if (aEta !== null && bEta !== null) {
-                    if (aEta !== bEta) return aEta - bEta;
-                } else if (aEta !== null || bEta !== null) {
-                    return aEta !== null ? -1 : 1;
+                // For running issues: oldest last_progress_at / created_at (longest without update) first
+                if (rankStatus(a.status) === 0) {
+                    const aAnchor = parseEtaTimestampMs(a.last_progress_at) ?? parseEtaTimestampMs(a.created_at) ?? 0;
+                    const bAnchor = parseEtaTimestampMs(b.last_progress_at) ?? parseEtaTimestampMs(b.created_at) ?? 0;
+                    if (aAnchor !== bAnchor) return aAnchor - bAnchor;
                 }
 
                 return new Date(b.created_at || 0) - new Date(a.created_at || 0);
@@ -1838,7 +1832,7 @@ export default function LeanIndex({
                                 <option value="newest">{isEn ? '🕒 Newest' : '🕒 Terbaru'}</option>
                                 <option value="oldest">{isEn ? '⏳ Oldest' : '⏳ Terlama'}</option>
                                 <option value="status">{isEn ? '📊 Progress Status' : '📊 Status Progres'}</option>
-                                <option value="eta_urgent">{isEn ? '⏰ Urgent / Overdue ETA' : '⏰ Target Selesai Terdekat'}</option>
+                                <option value="eta_urgent">{isEn ? '⏰ Longest Without Update' : '⏰ Paling Lama Tanpa Update'}</option>
                                 <option value="waiting_acc">{isEn ? '🚨 Awaiting ACC' : '🚨 Menunggu ACC'}</option>
                             </select>
                         </div>
@@ -3697,16 +3691,6 @@ export default function LeanIndex({
                                                 {isEn ? 'Assigned:' : 'Ditugaskan:'} <span className="font-bold text-white">{assignedWorkers.join(', ')}</span>
                                             </p>
                                         )}
-
-                                        <div className="pt-1">
-                                            <EtaPickerField
-                                                value={formEta}
-                                                onChange={setFormEta}
-                                                isEn={isEn}
-                                                isDark={isDark}
-                                                accent="amber"
-                                            />
-                                        </div>
                                     </div>
                                 )}
                             </div>
@@ -4045,14 +4029,6 @@ export default function LeanIndex({
                                     />
                                 </div>
 
-                                <EtaPickerField
-                                    value={claimEta}
-                                    onChange={setClaimEta}
-                                    isEn={isEn}
-                                    isDark={isDark}
-                                    accent={isResuming ? 'sky' : 'amber'}
-                                />
-
                                 {isResuming && (
                                     <label className="p-3 rounded-xl bg-emerald-950/30 border border-emerald-700/40 flex items-start gap-2.5 cursor-pointer select-none">
                                         <input
@@ -4217,14 +4193,6 @@ export default function LeanIndex({
                                     </div>
                                 </div>
 
-                                <EtaPickerField
-                                    value={progressEta}
-                                    onChange={setProgressEta}
-                                    isEn={isEn}
-                                    isDark={isDark}
-                                    accent="sky"
-                                />
-
                                 {/* WA Notify Toggle (Checked by default) */}
                                 <label className="p-3 rounded-xl bg-emerald-950/30 border border-emerald-700/40 flex items-start gap-2.5 cursor-pointer select-none">
                                     <input
@@ -4325,17 +4293,6 @@ export default function LeanIndex({
                                     className="w-full text-xs bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-orange-500"
                                 />
                             </div>
-
-                            <EtaPickerField
-                                value={pendingEta}
-                                onChange={setPendingEta}
-                                isEn={isEn}
-                                isDark={isDark}
-                                accent="orange"
-                                label={isEn
-                                    ? 'Estimated Completion / Resume Time (Optional • WIB)'
-                                    : 'Perkiraan Selesai / Ditangani Kembali (Opsional • WIB)'}
-                            />
 
                             <div className="pt-2 flex items-center gap-2">
                                 <button
@@ -5004,11 +4961,15 @@ export default function LeanIndex({
                                                     progress: 'bg-sky-500/20 text-sky-300 border-sky-500/30',
                                                     pending: 'bg-orange-500/20 text-orange-300 border-orange-500/30',
                                                     resolved: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
+                                                    escalation_group: 'bg-amber-500/25 text-amber-300 border-amber-500/40',
+                                                    escalation_owner: 'bg-rose-500/25 text-rose-300 border-rose-500/40',
                                                 }[effectiveLogType] || 'bg-slate-500/20 text-slate-300 border-slate-500/30') : ({
                                                     claim: 'bg-amber-100 text-amber-800 border-amber-300',
                                                     progress: 'bg-sky-100 text-sky-800 border-sky-300',
                                                     pending: 'bg-orange-100 text-orange-800 border-orange-300',
                                                     resolved: 'bg-emerald-100 text-emerald-800 border-emerald-300',
+                                                    escalation_group: 'bg-amber-100 text-amber-900 border-amber-400',
+                                                    escalation_owner: 'bg-rose-100 text-rose-800 border-rose-400',
                                                 }[effectiveLogType] || 'bg-slate-100 text-slate-700 border-slate-300');
 
                                                 const typeText = {
@@ -5016,6 +4977,8 @@ export default function LeanIndex({
                                                     progress: 'Progress',
                                                     pending: 'Pending',
                                                     resolved: isEn ? 'Resolved' : 'Selesai',
+                                                    escalation_group: isEn ? '1h Group Reminder' : 'Reminder Grup 1j',
+                                                    escalation_owner: isEn ? '3h Owner Escalation' : 'Eskalasi Owner 3j',
                                                 }[effectiveLogType] || effectiveLogType;
 
                                                 return (
