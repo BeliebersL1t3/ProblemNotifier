@@ -522,13 +522,25 @@ class LeanSheetDirectService
             ? Carbon::parse($issue->deleted_at)->setTimezone('Asia/Jakarta')->format('Y-m-d H:i')
             : '';
 
+        $rawTitle = $issue->title ?: '-';
+        $formattedTitle = $rawTitle;
+        $history = $issue->transfer_history;
+        if (!empty($history) && is_array($history)) {
+            $lastTransfer = end($history);
+            if (!empty($lastTransfer['from_department'])) {
+                $oldDeptCode = \App\Http\Controllers\LeanController::formatIssueCodeWithDept($issue, $lastTransfer['from_department']);
+                $cleanTitle = preg_replace('/^\[Limpahan dari [^\]]+\]\s*/i', '', $rawTitle);
+                $formattedTitle = "[Limpahan dari {$oldDeptCode}] {$cleanTitle}";
+            }
+        }
+
         return [
             $code,
             $issue->created_at ? $issue->created_at->setTimezone('Asia/Jakarta')->format('Y-m-d H:i') : '',
             $issue->reporter_name ?: '-',
             $issue->reporter_dept ?: '-',
             $issue->location ?: '-',
-            $issue->title ?: '-',
+            $formattedTitle,
             $issue->description ?: '-',
             $targetDeptsStr,
             $statusStr,
@@ -731,6 +743,138 @@ class LeanSheetDirectService
     }
 
     /**
+     * Handover sync for issue transfer (Concept 1: Multi-Row Handover):
+     * 1. Updates old department row to status 'Dialihkan (ke {newDept})' with transfer notes and timestamp.
+     * 2. Creates a new row for new department with '[Limpahan dari {oldCode}]' title tag and status 'Open'.
+     */
+    public function syncIssueTransfer(LeanIssue $issue, string $oldDept, string $newDept, string $actorName, string $reason): bool
+    {
+        try {
+            $service = $this->getSheetsService();
+            $monthName = self::getMonthNameForDate($issue->created_at);
+
+            $oldCode = \App\Http\Controllers\LeanController::formatIssueCodeWithDept($issue, $oldDept);
+            $newCode = \App\Http\Controllers\LeanController::formatIssueCodeWithDept($issue, $newDept);
+
+            $existing = $service->spreadsheets_values->get($this->spreadsheetId, "{$monthName}!A:A");
+            $values = $existing->getValues() ?: [];
+
+            // Compile transfer history string
+            $transferLines = [];
+            foreach (($issue->transfer_history ?? []) as $tr) {
+                if (!is_array($tr)) continue;
+                $ts = !empty($tr['transferred_at'])
+                    ? Carbon::parse($tr['transferred_at'])->setTimezone('Asia/Jakarta')->format('d/m H:i')
+                    : '';
+                $from = $tr['from_department'] ?? '-';
+                $to = $tr['to_department'] ?? '-';
+                $by = $tr['transferred_by'] ?? '-';
+                $r = $tr['reason'] ?? '-';
+                $transferLines[] = "[{$ts}] {$from} -> {$to} ({$by}): {$r}";
+            }
+            $transferHistoryStr = implode("\n", $transferLines);
+            $transferredWib = Carbon::now('Asia/Jakarta')->format('Y-m-d H:i');
+
+            // 1. Locate and finalize the OLD department row
+            $oldRowIndex = null;
+            foreach ($values as $idx => $r) {
+                if (!empty($r[0]) && trim($r[0]) === $oldCode) {
+                    $oldRowIndex = $idx + 1; // 1-based index
+                    break;
+                }
+            }
+
+            if ($oldRowIndex !== null) {
+                // Update columns I through R for the old row
+                $oldRowUpdate = [
+                    "Dialihkan (ke {$newDept})", // I: Status
+                    '',                           // J: Alasan Pending
+                    '',                           // K: Pekerja Awal
+                    '',                           // L: Waktu Ambil
+                    '',                           // M: Pekerja Progres
+                    "{$actorName} (Pengalihan)",  // N: Diselesaikan Oleh
+                    $transferredWib,              // O: Waktu Selesai
+                    "[Dialihkan ke {$newDept} oleh {$actorName}]: {$reason}", // P: Catatan Penyelesaian
+                    $actorName,                   // Q: Seluruh Kontributor
+                    $transferHistoryStr,          // R: Riwayat Pengalihan Dept
+                ];
+                $bodyOld = new ValueRange(['values' => [$oldRowUpdate]]);
+                $service->spreadsheets_values->update(
+                    $this->spreadsheetId,
+                    "{$monthName}!I{$oldRowIndex}:R{$oldRowIndex}",
+                    $bodyOld,
+                    ['valueInputOption' => 'USER_ENTERED']
+                );
+            }
+
+            // 2. Prepare the NEW department row
+            $cleanTitle = preg_replace('/^\[Limpahan dari [^\]]+\]\s*/i', '', $issue->title ?: '-');
+            $newTitle = "[Limpahan dari {$oldCode}] {$cleanTitle}";
+            $newDesc = ($issue->description ?: '-') . "\n[Catatan Pengalihan dari {$oldDept}]: {$reason} (oleh {$actorName})";
+
+            $newRow = [
+                $newCode,                                                                             // A: Kode Tiket
+                $issue->created_at ? $issue->created_at->setTimezone('Asia/Jakarta')->format('Y-m-d H:i') : $transferredWib, // B: Waktu Lapor
+                $issue->reporter_name ?: '-',                                                         // C: Pelapor
+                $issue->reporter_dept ?: '-',                                                         // D: Dept Pelapor
+                $issue->location ?: '-',                                                              // E: Lokasi
+                $newTitle,                                                                            // F: Judul Masalah
+                $newDesc,                                                                             // G: Deskripsi
+                $newDept,                                                                             // H: Departemen Penangan
+                'Open',                                                                               // I: Status Awal
+                '',                                                                                   // J: Alasan Pending
+                '',                                                                                   // K: Pekerja Awal
+                '',                                                                                   // L: Waktu Ambil
+                '',                                                                                   // M: Pekerja Progres
+                '',                                                                                   // N: Diselesaikan Oleh
+                '',                                                                                   // O: Waktu Selesai
+                '',                                                                                   // P: Catatan Penyelesaian
+                '',                                                                                   // Q: Seluruh Kontributor
+                $transferHistoryStr,                                                                  // R: Riwayat Pengalihan Dept
+                1,                                                                                    // S: Aktif di Dashboard
+                '',                                                                                   // T: Dihapus Oleh
+                '',                                                                                   // U: Waktu Dihapus
+            ];
+
+            // Check if $newCode already exists in sheet (avoid duplicate appends if re-syncing)
+            $newRowIndex = null;
+            foreach ($values as $idx => $r) {
+                if (!empty($r[0]) && trim($r[0]) === $newCode) {
+                    $newRowIndex = $idx + 1;
+                    break;
+                }
+            }
+
+            if ($newRowIndex !== null) {
+                // Update existing new row
+                $bodyNew = new ValueRange(['values' => [$newRow]]);
+                $service->spreadsheets_values->update(
+                    $this->spreadsheetId,
+                    "{$monthName}!A{$newRowIndex}:U{$newRowIndex}",
+                    $bodyNew,
+                    ['valueInputOption' => 'USER_ENTERED']
+                );
+            } else {
+                // Append new row
+                $bodyNew = new ValueRange(['values' => [$newRow]]);
+                $service->spreadsheets_values->append(
+                    $this->spreadsheetId,
+                    "{$monthName}!A:U",
+                    $bodyNew,
+                    ['valueInputOption' => 'USER_ENTERED']
+                );
+            }
+
+            $issue->markSheetsSynced();
+            return true;
+        } catch (\Throwable $e) {
+            $issue->markSheetsSyncFailed($e->getMessage());
+            Log::error("Failed to sync issue transfer #{$issue->id} to Lean Sheet: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
      * Sync single issue when created or updated.
      */
     public function syncSingleIssue(LeanIssue $issue): bool
@@ -796,11 +940,12 @@ class LeanSheetDirectService
             $existing = $service->spreadsheets_values->get($this->spreadsheetId, "{$monthName}!A:A");
             $values = $existing->getValues() ?: [];
 
-            $foundRowIndex = null;
+            $matchedRows = [];
             foreach ($values as $idx => $r) {
-                if (!empty($r[0]) && trim($r[0]) === $code) {
-                    $foundRowIndex = $idx + 1; // 1-based index
-                    break;
+                if (empty($r[0])) continue;
+                $val = trim($r[0]);
+                if ($val === $code || (preg_match('/-(\d+)$/', $val, $m) && (int)$m[1] === (int)$issue->id)) {
+                    $matchedRows[] = $idx + 1; // 1-based index
                 }
             }
 
@@ -808,15 +953,17 @@ class LeanSheetDirectService
                 ? Carbon::parse($issue->deleted_at)->setTimezone('Asia/Jakarta')->format('Y-m-d H:i')
                 : Carbon::now('Asia/Jakarta')->format('Y-m-d H:i');
 
-            if ($foundRowIndex !== null) {
-                // Update columns S, T, U (Aktif di Dashboard, Dihapus Oleh, Waktu Dihapus)
-                $body = new ValueRange(['values' => [[0, $deletedBy, $deletedAt]]]);
-                $service->spreadsheets_values->update(
-                    $this->spreadsheetId,
-                    "{$monthName}!S{$foundRowIndex}:U{$foundRowIndex}",
-                    $body,
-                    ['valueInputOption' => 'USER_ENTERED']
-                );
+            if (!empty($matchedRows)) {
+                // Update columns S, T, U (Aktif di Dashboard, Dihapus Oleh, Waktu Dihapus) on all related rows
+                foreach ($matchedRows as $foundRowIndex) {
+                    $body = new ValueRange(['values' => [[0, $deletedBy, $deletedAt]]]);
+                    $service->spreadsheets_values->update(
+                        $this->spreadsheetId,
+                        "{$monthName}!S{$foundRowIndex}:U{$foundRowIndex}",
+                        $body,
+                        ['valueInputOption' => 'USER_ENTERED']
+                    );
+                }
                 $issue->markSheetsSynced();
                 return true;
             }

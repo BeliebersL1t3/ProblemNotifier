@@ -1087,9 +1087,19 @@ class LeanController extends Controller
 
         $this->notifyReporterTransferred($issue, $oldDept, $toDept, $actorName, $reason);
         $this->notifyGroupsTransferred($issue, $oldDepts, $oldDept, $toDept, $actorName, $reason);
-        $this->syncIssueToSheets($issue, 'transfer');
+        $this->syncIssueTransferToSheets($issue, $oldDept, $toDept, $actorName, $reason);
 
         return $this->actionSuccessResponse($request, $issue, __('telunas.lean_transfer_success', ['dept' => $toDept]));
+    }
+
+    protected function syncIssueTransferToSheets(LeanIssue $issue, string $oldDept, string $toDept, string $actorName, string $reason): void
+    {
+        try {
+            app(\App\Services\LeanSheetDirectService::class)->syncIssueTransfer($issue, $oldDept, $toDept, $actorName, $reason);
+            app(GoogleSheetsSyncService::class)->syncIssue($issue);
+        } catch (\Throwable $e) {
+            Log::error("Sheets sync error on transfer: " . $e->getMessage());
+        }
     }
 
     protected function syncIssueToSheets(LeanIssue $issue, string $context): void
@@ -1229,14 +1239,28 @@ class LeanController extends Controller
     }
 
     /**
+     * Helper to format human-readable issue codes like ENG-221026-1 for a specific department
+     */
+    public static function formatIssueCodeWithDept($issue, ?string $dept = null)
+    {
+        $deptName = !empty($dept)
+            ? $dept
+            : (is_array($issue->target_departments) ? ($issue->target_departments[0] ?? 'GEN') : ($issue->target_departments ?? 'GEN'));
+        $clean = self::normalizeDepartment($deptName) ?: $deptName;
+        $deptCode = strtoupper(substr(trim((string)$clean), 0, 3));
+        if ($deptCode === 'HOU') {
+            $deptCode = 'HK';
+        }
+        $dateStr = $issue->created_at ? $issue->created_at->format('dmy') : date('dmy');
+        return "{$deptCode}-{$dateStr}-{$issue->id}";
+    }
+
+    /**
      * Helper to format human-readable issue codes like ENG-221026-1
      */
     public static function formatIssueCode($issue)
     {
-        $dept = is_array($issue->target_departments) ? ($issue->target_departments[0] ?? 'GEN') : ($issue->target_departments ?? 'GEN');
-        $deptCode = strtoupper(substr($dept, 0, 3));
-        $dateStr = $issue->created_at ? $issue->created_at->format('dmy') : date('dmy');
-        return "{$deptCode}-{$dateStr}-{$issue->id}";
+        return self::formatIssueCodeWithDept($issue, null);
     }
 
     /**

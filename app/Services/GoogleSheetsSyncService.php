@@ -105,6 +105,18 @@ class GoogleSheetsSyncService
             ? Carbon::parse($issue->resolved_at)->setTimezone('Asia/Jakarta')->format('Y-m-d H:i')
             : '';
 
+        $rawTitle = $issue->title ?: '-';
+        $formattedTitle = $rawTitle;
+        $history = $issue->transfer_history;
+        if (!empty($history) && is_array($history)) {
+            $lastTransfer = end($history);
+            if (!empty($lastTransfer['from_department'])) {
+                $oldDeptCode = \App\Http\Controllers\LeanController::formatIssueCodeWithDept($issue, $lastTransfer['from_department']);
+                $cleanTitle = preg_replace('/^\[Limpahan dari [^\]]+\]\s*/i', '', $rawTitle);
+                $formattedTitle = "[Limpahan dari {$oldDeptCode}] {$cleanTitle}";
+            }
+        }
+
         return [
             // Standard English Keys (Matches Apps Script Code.gs)
             'issue_code'           => $code,
@@ -115,7 +127,7 @@ class GoogleSheetsSyncService
             'reporter_name'        => $issue->reporter_name ?: '-',
             'reporter_dept'        => $issue->reporter_dept ?: '-',
             'location'             => $issue->location ?: '-',
-            'title'                => $issue->title ?: '-',
+            'title'                => $formattedTitle,
             'description'          => $issue->description ?: '-',
             'target_departments'   => $targetDeptsStr,
             'status'               => $statusStr,
@@ -147,7 +159,7 @@ class GoogleSheetsSyncService
             'pelapor'              => $issue->reporter_name ?: '-',
             'dept_pelapor'         => $issue->reporter_dept ?: '-',
             'lokasi'               => $issue->location ?: '-',
-            'judul_masalah'        => $issue->title ?: '-',
+            'judul_masalah'        => $formattedTitle,
             'deskripsi_awal'       => $issue->description ?: '-',
             'departemen_dituju'    => $targetDeptsStr,
             'status_tiket'         => $statusStr,
