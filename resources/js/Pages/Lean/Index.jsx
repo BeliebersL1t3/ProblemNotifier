@@ -116,7 +116,7 @@ export default function LeanIndex({
         { id: 'photo', label: isEn ? 'Photo Proof' : 'Foto Bukti', icon: '📷' },
         { id: 'title', label: isEn ? 'Issue Title' : 'Judul Masalah', icon: '📝' },
         { id: 'location', label: isEn ? 'Location' : 'Lokasi', icon: '📍' },
-        { id: 'dept', label: isEn ? 'Target Department' : 'Departemen Tujuan', icon: '🏢' },
+        { id: 'dept', label: isEn ? 'Assigned Department' : 'Departemen Penangan', icon: '🏢' },
         { id: 'reporter', label: isEn ? 'Reporter Name' : 'Nama Pelapor', icon: '👤' },
         { id: 'desc', label: isEn ? 'Detailed Description' : 'Deskripsi Detail', icon: '📄' },
         { id: 'status', label: 'Status', icon: '🏷️' },
@@ -677,7 +677,6 @@ export default function LeanIndex({
     const [formDetailLoc, setFormDetailLoc] = useState('');
     const [formTitle, setFormTitle] = useState('');
     const [formDescription, setFormDescription] = useState('');
-    const [formTargetDepts, setFormTargetDepts] = useState(['Engineer']);
     const [formImage, setFormImage] = useState(null);
     const [formImagePreview, setFormImagePreview] = useState(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -931,17 +930,6 @@ export default function LeanIndex({
     const [transferTargetDept, setTransferTargetDept] = useState('');
     const [transferReason, setTransferReason] = useState('');
 
-    // Toggle target department in form
-    const toggleTargetDept = (dept) => {
-        setFormTargetDepts((prev) => {
-            if (prev.includes(dept)) {
-                if (prev.length === 1) return prev; // Keep at least one
-                return prev.filter((d) => d !== dept);
-            }
-            return [...prev, dept];
-        });
-    };
-
     // Handle Report Image selection
     const handleImageChange = (e) => {
         const file = e.target.files?.[0];
@@ -977,8 +965,8 @@ export default function LeanIndex({
         const actualReporter = staffNameTrimmed || myName;
         const actualReporterDept = staffReporterDept || null;
 
-        // Responsible department: locked to the recording leader's department
-        const resolvedDept = (myDept && myDept !== 'Supervisor') ? myDept : (formTargetDepts[0] || 'Engineer');
+        // Responsible department: locked directly to the recording supervisor's department
+        const resolvedDept = (myDept && myDept !== 'Supervisor') ? myDept : 'Umum';
         const targetDepts = [resolvedDept];
 
         // Assigned workers string
@@ -2389,7 +2377,7 @@ export default function LeanIndex({
                                                                     {visibleColumns.dept && targetDepts.length > 0 && (
                                                                         <div className="col-span-2">
                                                                             <span className={`block text-[9px] uppercase font-bold mb-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                                                                                {isEn ? 'Target Department' : 'Departemen Tujuan'}
+                                                                                {isEn ? 'Assigned Department' : 'Departemen Penangan'}
                                                                             </span>
                                                                             <div className="flex flex-wrap gap-1">
                                                                                 {targetDepts.map((dept) => {
@@ -2492,8 +2480,8 @@ export default function LeanIndex({
                                                                             }`}
                                                                             title={
                                                                                 isEn
-                                                                                    ? `Only Admin or the target department (${(issue.target_departments || []).map(formatDeptDisplay).join(', ') || 'Assigned Dept'}) can delete this ticket`
-                                                                                    : `Hanya Admin atau departemen tujuan (${(issue.target_departments || []).map(formatDeptDisplay).join(', ') || 'Dept Tujuan'}) yang dapat menghapus tiket ini`
+                                                                                    ? `Only Admin or the assigned department (${(issue.target_departments || []).map(formatDeptDisplay).join(', ') || 'Assigned Dept'}) can delete this ticket`
+                                                                                    : `Hanya Admin atau departemen penangan (${(issue.target_departments || []).map(formatDeptDisplay).join(', ') || 'Dept Penangan'}) yang dapat menghapus tiket ini`
                                                                             }
                                                                         >
                                                                             <Lock className="w-3 h-3 shrink-0" />
@@ -2737,10 +2725,10 @@ export default function LeanIndex({
                                                                         }`}
                                                                         title={
                                                                             isEn
-                                                                                ? `Only Admin or the target department (${(issue.target_departments || []).map(formatDeptDisplay).join(', ') || 'Assigned Dept'}) can delete this ticket`
-                                                                                : `Hanya Admin atau departemen tujuan (${(issue.target_departments || []).map(formatDeptDisplay).join(', ') || 'Dept Tujuan'}) yang dapat menghapus tiket ini`
+                                                                                ? `Only Admin or the assigned department (${(issue.target_departments || []).map(formatDeptDisplay).join(', ') || 'Assigned Dept'}) can delete this ticket`
+                                                                                : `Hanya Admin atau departemen penangan (${(issue.target_departments || []).map(formatDeptDisplay).join(', ') || 'Dept Penangan'}) yang dapat menghapus tiket ini`
                                                                         }
-                                                                        aria-label={isEn ? 'Delete restricted to Admin or target department' : 'Hapus dibatasi untuk Admin atau departemen tujuan'}
+                                                                        aria-label={isEn ? 'Delete restricted to Admin or assigned department' : 'Hapus dibatasi untuk Admin atau departemen penangan'}
                                                                     >
                                                                         <Lock className="w-3 h-3 opacity-65" />
                                                                     </span>
@@ -3004,10 +2992,10 @@ export default function LeanIndex({
                                                             }`}
                                                             title={
                                                                 isEn
-                                                                    ? `Only Admin or the target department (${(issue.target_departments || []).map(formatDeptDisplay).join(', ') || 'Assigned Dept'}) can delete this ticket`
-                                                                    : `Hanya Admin atau departemen tujuan (${(issue.target_departments || []).map(formatDeptDisplay).join(', ') || 'Dept Tujuan'}) yang dapat menghapus tiket ini`
+                                                                    ? `Only Admin or the assigned department (${(issue.target_departments || []).map(formatDeptDisplay).join(', ') || 'Assigned Dept'}) can delete this ticket`
+                                                                    : `Hanya Admin atau departemen penangan (${(issue.target_departments || []).map(formatDeptDisplay).join(', ') || 'Dept Penangan'}) yang dapat menghapus tiket ini`
                                                             }
-                                                            aria-label={isEn ? 'Delete restricted to Admin or target department' : 'Hapus dibatasi untuk Admin atau departemen tujuan'}
+                                                            aria-label={isEn ? 'Delete restricted to Admin or assigned department' : 'Hapus dibatasi untuk Admin atau departemen penangan'}
                                                         >
                                                             <Lock className="w-3 h-3 opacity-65" />
                                                         </span>
@@ -4584,8 +4572,8 @@ export default function LeanIndex({
                                                         ? 'Please log in with the handling department account to update this issue status.'
                                                         : 'Silakan login terlebih dahulu menggunakan akun departemen penangan untuk mengubah status isu.')
                                                     : (isEn
-                                                        ? `You are logged in as ${myName} (${formatDeptDisplay(myDept)}). Only owners of the target department (${(activeDetailIssue.target_departments || []).map(formatDeptDisplay).join(', ')}) or Admin can update this issue status.`
-                                                        : `Anda masuk sebagai ${myName} (${myDept}). Hanya pemilik departemen tujuan (${(activeDetailIssue.target_departments || []).join(', ')}) atau Admin yang dapat mengubah status isu ini.`)}
+                                                        ? `You are logged in as ${myName} (${formatDeptDisplay(myDept)}). Only owners of the assigned department (${(activeDetailIssue.target_departments || []).map(formatDeptDisplay).join(', ')}) or Admin can update this issue status.`
+                                                        : `Anda masuk sebagai ${myName} (${myDept}). Hanya pemilik departemen penangan (${(activeDetailIssue.target_departments || []).join(', ')}) atau Admin yang dapat mengubah status isu ini.`)}
                                             </p>
                                         </div>
                                     </div>
@@ -4747,12 +4735,12 @@ export default function LeanIndex({
                                 })()}
                             </div>
 
-                            {/* Departemen Dituju & Penerima */}
+                            {/* Departemen Penangan & Penerima */}
                             {visibleColumns.dept && (
                                 <div className={`p-3 rounded-xl border space-y-1.5 ${
                                     isDark ? 'bg-slate-800/60 border-slate-700/80' : 'bg-slate-50 border-slate-200'
                                 }`}>
-                                    <span className={`text-[10px] font-semibold block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{isEn ? 'Target Department & Issue Assignee:' : 'Departemen Dituju & Penerima Isu:'}</span>
+                                    <span className={`text-[10px] font-semibold block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{isEn ? 'Assigned Department & Handler:' : 'Departemen Penangan & Penerima Isu:'}</span>
                                     <div className="flex flex-wrap gap-1.5 items-center">
                                         {(activeDetailIssue.target_departments || []).map((dept) => {
                                             const isThisDeptClaimed = activeDetailIssue.claimed_by_dept && (

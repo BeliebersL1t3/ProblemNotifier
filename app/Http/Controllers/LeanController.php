@@ -1941,7 +1941,7 @@ class LeanController extends Controller
                  . "• *ID Tiket:* #{$issueCode}\n"
                  . "• *Masalah:* {$issue->title}\n"
                  . "• *Lokasi:* {$issue->location}\n"
-                 . "• *Departemen Tujuan:* {$deptDisplay}\n"
+                 . "• *Departemen Penangan:* {$deptDisplay}\n"
                  . "• *Pelapor:* {$issue->reporter_name}{$reporterDeptDisplay}\n"
                  . "• *Dicatat Oleh:* {$receiverName}\n"
                  . "• *Status Awal:* {$statusText}\n"

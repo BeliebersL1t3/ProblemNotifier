@@ -81,7 +81,9 @@ export async function addToOutbox(ticket) {
             title: ticket.title || '',
             description: ticket.description || '',
             location: ticket.location || '',
-            target_departments: ticket.target_departments || [],
+            target_departments: (Array.isArray(ticket.target_departments) && ticket.target_departments.length > 0)
+                ? ticket.target_departments
+                : [ticket.reporter_dept || 'Umum'],
             reporter_name: ticket.reporter_name || '',
             reporter_dept: ticket.reporter_dept || '',
             reporter_phone: ticket.reporter_phone || '',
