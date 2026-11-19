@@ -74,6 +74,7 @@ import axios from 'axios';
 import { getEtaBadgeInfo, formatEtaDisplayWib } from '@/Components/CampusFix/EtaPickerField';
 import { TPI_MASTERPLAN_ZONES, TBR_MASTERPLAN_ZONES, resolveIssueResortAndZone } from '@/constants/locations';
 import { useLanguage } from '@/context/LanguageContext';
+import { useAuth } from '@/hooks/useAuth';
 import { ExportPdfModal } from '@/Components/CampusFix/ExportPdfModal';
 
 const DEPARTMENT_COLORS = {
@@ -1579,10 +1580,11 @@ export function LeanAnalyticsView({
     theme = 'dark',
     onSelectIssue,
     focusMapRequest = null,
-    spreadsheetUrl = 'https://docs.google.com/spreadsheets/d/1hF2X6DrcWvOv4h77T_B4pmcNklO2-Zq2CzAiAR-UYIg/edit?usp=sharing',
+    spreadsheetUrl = null,
     monthGids = {},
 }) {
     const { lang } = useLanguage();
+    const { isAdmin } = useAuth();
     const isEn = lang === 'en';
     const isDark = theme === 'dark';
 
@@ -1728,6 +1730,7 @@ export function LeanAnalyticsView({
     }, [activeMonthName, monthGids, spreadsheetUrl, yearlySpreadsheets, selectedYear]);
 
     const fetchSpreadsheets = useCallback(async () => {
+        if (!isAdmin) return;
         try {
             const res = await axios.get('/lapangan/spreadsheets');
             if (res.data?.success) {
@@ -1740,17 +1743,19 @@ export function LeanAnalyticsView({
         } catch (err) {
             console.error('Failed to fetch spreadsheets config', err);
         }
-    }, []);
+    }, [isAdmin]);
 
     useEffect(() => {
-        fetchSpreadsheets();
-    }, [fetchSpreadsheets]);
-
-    useEffect(() => {
-        if (isSpreadsheetModalOpen) {
+        if (isAdmin) {
             fetchSpreadsheets();
         }
-    }, [isSpreadsheetModalOpen, fetchSpreadsheets]);
+    }, [isAdmin, fetchSpreadsheets]);
+
+    useEffect(() => {
+        if (isAdmin && isSpreadsheetModalOpen) {
+            fetchSpreadsheets();
+        }
+    }, [isAdmin, isSpreadsheetModalOpen, fetchSpreadsheets]);
 
     const handleConnectSheet = async (e) => {
         e?.preventDefault();
@@ -2447,7 +2452,7 @@ export function LeanAnalyticsView({
                                 <option value="today">{isEn ? '⚡ Today' : '⚡ Hari Ini'}</option>
                                 <option value="7d">{isEn ? '🕒 Last 7 Days' : '🕒 7 Hari Terakhir'}</option>
                                 <option value="30d">{isEn ? '🗓️ Last 30 Days' : '🗓️ 30 Hari Terakhir'}</option>
-                                <optgroup label={isEn ? 'Monthly Spreadsheet Tabs' : 'Tab Bulanan Spreadsheet'}>
+                                <optgroup label={isEn ? 'Monthly Filter' : 'Filter Bulanan'}>
                                     <option value="month_1">{isEn ? 'Month 01 - January' : 'Bulan 01 - Januari'}</option>
                                     <option value="month_2">{isEn ? 'Month 02 - February' : 'Bulan 02 - Februari'}</option>
                                     <option value="month_3">{isEn ? 'Month 03 - March' : 'Bulan 03 - Maret'}</option>
@@ -2465,48 +2470,54 @@ export function LeanAnalyticsView({
                         </div>
                     </div>
 
-                    {/* Quick Actions Bar: Ke Sheet Utama, Kelola Sheet & Download PDF */}
+                    {/* Quick Actions Bar: Ke Sheet Utama, Kelola Sheet (Hanya Admin) & Download PDF */}
                     <div className="flex items-center gap-2 flex-wrap justify-end">
-                        {/* Tombol Ke Sheet Utama (Dinamis per Tab Bulan & Tahun) */}
-                        <a
-                            href={dynamicSheetUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white keep-white shadow-sm transition-all cursor-pointer group"
-                            title={
-                                isEn
-                                    ? `Open Google Sheet: ${activeMonthDisplayName} Tab (${selectedYear !== 'all' ? selectedYear : '2026'})`
-                                    : `Buka Google Sheet: Tab ${activeMonthName} (${selectedYear !== 'all' ? selectedYear : '2026'})`
-                            }
-                        >
-                            <FileSpreadsheet className="w-4 h-4 shrink-0 text-white" />
-                            <span className="text-white">
-                                {isEn
-                                    ? `Open Sheet (${activeMonthDisplayName}${selectedYear !== 'all' ? ` '${String(selectedYear).slice(-2)}` : ''})`
-                                    : `Ke Sheet (${activeMonthName}${selectedYear !== 'all' ? ` '${String(selectedYear).slice(-2)}` : ''})`}
-                            </span>
-                            <ExternalLink className="w-3.5 h-3.5 opacity-90 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform text-white" />
-                        </a>
+                        {isAdmin && (
+                            <>
+                                {/* Tombol Ke Sheet Utama (Dinamis per Tab Bulan & Tahun - Khusus Admin) */}
+                                {dynamicSheetUrl && (
+                                    <a
+                                        href={dynamicSheetUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white keep-white shadow-sm transition-all cursor-pointer group"
+                                        title={
+                                            isEn
+                                                ? `Open Google Sheet: ${activeMonthDisplayName} Tab (${selectedYear !== 'all' ? selectedYear : '2026'})`
+                                                : `Buka Google Sheet: Tab ${activeMonthName} (${selectedYear !== 'all' ? selectedYear : '2026'})`
+                                        }
+                                    >
+                                        <FileSpreadsheet className="w-4 h-4 shrink-0 text-white" />
+                                        <span className="text-white">
+                                            {isEn
+                                                ? `Open Sheet (${activeMonthDisplayName}${selectedYear !== 'all' ? ` '${String(selectedYear).slice(-2)}` : ''})`
+                                                : `Ke Sheet (${activeMonthName}${selectedYear !== 'all' ? ` '${String(selectedYear).slice(-2)}` : ''})`}
+                                        </span>
+                                        <ExternalLink className="w-3.5 h-3.5 opacity-90 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform text-white" />
+                                    </a>
+                                )}
 
-                        {/* Tombol Kelola Sheet Tahunan */}
-                        <button
-                            type="button"
-                            onClick={() => {
-                                setIsSpreadsheetModalOpen(true);
-                                setSheetConnectMessage(null);
-                            }}
-                            className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold border shadow-sm transition-all cursor-pointer ${
-                                isDark 
-                                    ? 'bg-slate-800 hover:bg-slate-700 text-emerald-400 border-slate-700' 
-                                    : 'bg-white hover:bg-slate-50 text-emerald-700 border-slate-300'
-                            }`}
-                            title={isEn ? 'Manage Yearly Google Spreadsheets' : 'Kelola Google Spreadsheet Tahunan'}
-                        >
-                            <Settings className="w-4 h-4 shrink-0" />
-                            <span>{isEn ? 'Manage Sheets' : 'Kelola Sheet'}</span>
-                        </button>
+                                {/* Tombol Kelola Sheet Tahunan (Khusus Admin) */}
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setIsSpreadsheetModalOpen(true);
+                                        setSheetConnectMessage(null);
+                                    }}
+                                    className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold border shadow-sm transition-all cursor-pointer ${
+                                        isDark 
+                                            ? 'bg-slate-800 hover:bg-slate-700 text-emerald-400 border-slate-700' 
+                                            : 'bg-white hover:bg-slate-50 text-emerald-700 border-slate-300'
+                                    }`}
+                                    title={isEn ? 'Manage Yearly Google Spreadsheets' : 'Kelola Google Spreadsheet Tahunan'}
+                                >
+                                    <Settings className="w-4 h-4 shrink-0" />
+                                    <span>{isEn ? 'Manage Sheets' : 'Kelola Sheet'}</span>
+                                </button>
+                            </>
+                        )}
 
-                        {/* Tombol Download PDF */}
+                        {/* Tombol Download PDF (Tersedia untuk Semua Pengguna) */}
                         <button
                             type="button"
                             onClick={handleDownloadPdf}
@@ -3639,8 +3650,8 @@ export function LeanAnalyticsView({
                 </div>
             )}
 
-            {/* YEARLY GOOGLE SPREADSHEET MANAGER MODAL */}
-            {isSpreadsheetModalOpen && (
+            {/* YEARLY GOOGLE SPREADSHEET MANAGER MODAL (KHUSUS ADMIN) */}
+            {isAdmin && isSpreadsheetModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
                     <div
                         className={`border rounded-2xl max-w-2xl w-full p-5 max-h-[90vh] flex flex-col shadow-2xl overflow-hidden ${

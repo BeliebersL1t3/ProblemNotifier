@@ -374,9 +374,10 @@ class LeanController extends Controller
             'avatar_url'  => $authUser->avatar_url,
         ] : null;
 
+        $isAdmin = $authUser ? ($authUser->role === 'admin' || !empty($authUser->is_admin)) : false;
         $spreadsheetId = config('services.google.lean_spreadsheet_id') ?: env('GOOGLE_LEAN_SPREADSHEET_ID', '1hF2X6DrcWvOv4h77T_B4pmcNklO2-Zq2CzAiAR-UYIg');
-        $spreadsheetUrl = "https://docs.google.com/spreadsheets/d/{$spreadsheetId}/edit?usp=sharing";
-        $monthGids = app(\App\Services\LeanSheetDirectService::class)->getMonthGids();
+        $spreadsheetUrl = $isAdmin ? "https://docs.google.com/spreadsheets/d/{$spreadsheetId}/edit?usp=sharing" : null;
+        $monthGids = $isAdmin ? app(\App\Services\LeanSheetDirectService::class)->getMonthGids() : [];
 
         $staffDirectory = User::activeApproved()
             ->select('id', 'name', 'staff_name', 'department', 'subdivision', 'whatsapp_number')
@@ -1204,6 +1205,11 @@ class LeanController extends Controller
      */
     public function getSpreadsheetsConfig(Request $request)
     {
+        $authUser = $request->user();
+        if (!$authUser || ($authUser->role !== 'admin' && empty($authUser->is_admin))) {
+            abort(403, 'Akses ditolak. Konfigurasi Google Spreadsheet hanya dapat diakses oleh Administrator.');
+        }
+
         $service = app(\App\Services\LeanSheetDirectService::class);
         $configs = $service->getYearlySpreadsheets();
 
@@ -1220,6 +1226,11 @@ class LeanController extends Controller
      */
     public function connectSpreadsheet(Request $request)
     {
+        $authUser = $request->user();
+        if (!$authUser || ($authUser->role !== 'admin' && empty($authUser->is_admin))) {
+            abort(403, 'Akses ditolak. Menghubungkan Google Spreadsheet hanya dapat dilakukan oleh Administrator.');
+        }
+
         $validated = $request->validate([
             'year' => 'required|integer|min:2020|max:2035',
             'url'  => 'required|string',
