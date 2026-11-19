@@ -716,7 +716,6 @@ export function ExportPdfModal({
         selectedStatuses,
         selectedDept,
         selectedLocation,
-        selectedSlaStatus,
         sortOrder,
         includeKpiSummary,
         includePendingTimeline,
