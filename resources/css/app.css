@@ -412,7 +412,7 @@ input[type="range"]::-moz-range-thumb {
   --card-foreground: #F2F3EF;
   --popover: #13161F;
   --popover-foreground: #F2F3EF;
-  --border: rgba(255, 255, 255, 0.08);
+  --border: rgba(255, 255, 255, 0.16);
   --input: #13161F;
 }
 
@@ -818,12 +818,12 @@ input[type="range"]::-moz-range-thumb {
 .lean-theme-dark .liquid-glass-header,
 .liquid-glass-header.liquid-glass-dark {
   background: linear-gradient(180deg, rgba(12, 14, 20, 0.88) 0%, rgba(12, 14, 20, 0.74) 100%) !important;
-  -webkit-backdrop-filter: blur(24px) saturate(180%) !important;
-  backdrop-filter: blur(24px) saturate(180%) !important;
-  border-bottom-color: rgba(255, 255, 255, 0.08) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(190%) !important;
+  backdrop-filter: blur(24px) saturate(190%) !important;
+  border-bottom-color: rgba(255, 255, 255, 0.16) !important;
   box-shadow:
-    inset 0 -1px 0 0 rgba(255, 255, 255, 0.05),
-    0 10px 32px -6px rgba(0, 0, 0, 0.60) !important;
+    inset 0 -1px 0 0 rgba(255, 255, 255, 0.10),
+    0 10px 32px -6px rgba(0, 0, 0, 0.65) !important;
 }
 
 /* 2. Floating Mobile Pill Dock (Tier 1: Heavy Frosted iOS 26 Capsule for Scrolled Content) */
@@ -843,13 +843,13 @@ input[type="range"]::-moz-range-thumb {
 .lean-theme-dark .liquid-glass-dock,
 .liquid-glass-dock.liquid-glass-dark {
   background: linear-gradient(135deg, rgba(19, 22, 31, 0.92) 0%, rgba(12, 14, 20, 0.84) 55%, rgba(19, 22, 31, 0.92) 100%) !important;
-  -webkit-backdrop-filter: blur(36px) saturate(180%) !important;
-  backdrop-filter: blur(36px) saturate(180%) !important;
-  border-color: rgba(255, 255, 255, 0.14) !important;
+  -webkit-backdrop-filter: blur(36px) saturate(190%) !important;
+  backdrop-filter: blur(36px) saturate(190%) !important;
+  border-color: rgba(255, 255, 255, 0.24) !important;
   box-shadow:
-    inset 0 1px 0 0 rgba(255, 255, 255, 0.18),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.06),
-    0 16px 40px -6px rgba(0, 0, 0, 0.72) !important;
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.26),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.10),
+    0 16px 40px -6px rgba(0, 0, 0, 0.75) !important;
 }
 
 /* 2b. Soft Edge Fade / Progressive Scrim Behind Floating Mobile Dock */
@@ -905,22 +905,22 @@ input[type="range"]::-moz-range-thumb {
 
 .lean-theme-dark .liquid-glass-card,
 .liquid-glass-card.liquid-glass-dark {
-  background: linear-gradient(135deg, rgba(19, 22, 31, 0.92) 0%, rgba(19, 22, 31, 0.82) 55%, rgba(16, 19, 27, 0.88) 100%) !important;
-  -webkit-backdrop-filter: blur(22px) saturate(180%) !important;
-  backdrop-filter: blur(22px) saturate(180%) !important;
-  border-top-color: rgba(255, 255, 255, 0.14) !important;
-  border-right-color: rgba(255, 255, 255, 0.08) !important;
-  border-bottom-color: rgba(255, 255, 255, 0.06) !important;
+  background: linear-gradient(135deg, rgba(19, 22, 31, 0.90) 0%, rgba(19, 22, 31, 0.76) 55%, rgba(16, 19, 27, 0.84) 100%) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(190%) !important;
+  backdrop-filter: blur(24px) saturate(190%) !important;
+  border-top-color: rgba(255, 255, 255, 0.28) !important;
+  border-right-color: rgba(255, 255, 255, 0.16) !important;
+  border-bottom-color: rgba(255, 255, 255, 0.12) !important;
   color: #F2F3EF !important;
   box-shadow:
-    inset 0 1px 0 0 rgba(255, 255, 255, 0.12),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.05),
-    0 12px 34px -6px rgba(0, 0, 0, 0.55) !important;
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.22),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 14px 38px -6px rgba(0, 0, 0, 0.65) !important;
 }
 
 .lean-theme-dark .liquid-glass-card:not([class*="border-l-"]),
 .liquid-glass-card.liquid-glass-dark:not([class*="border-l-"]) {
-  border-left-color: rgba(255, 255, 255, 0.10) !important;
+  border-left-color: rgba(255, 255, 255, 0.18) !important;
 }
 
 /* Interactive Card Hover Specular Boost */
@@ -933,11 +933,14 @@ input[type="range"]::-moz-range-thumb {
 }
 
 .lean-theme-dark .liquid-glass-card.liquid-glass-interactive:hover {
-  background: linear-gradient(135deg, rgba(27, 31, 44, 0.96) 0%, rgba(19, 22, 31, 0.88) 55%, rgba(22, 26, 37, 0.92) 100%) !important;
+  background: linear-gradient(135deg, rgba(27, 31, 44, 0.94) 0%, rgba(19, 22, 31, 0.84) 55%, rgba(22, 26, 37, 0.90) 100%) !important;
+  border-top-color: rgba(255, 255, 255, 0.40) !important;
+  border-right-color: rgba(255, 255, 255, 0.24) !important;
+  border-bottom-color: rgba(255, 255, 255, 0.18) !important;
   box-shadow:
-    inset 0 1px 0 0 rgba(255, 255, 255, 0.18),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
-    0 18px 42px -6px rgba(0, 0, 0, 0.65) !important;
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.32),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.14),
+    0 20px 48px -6px rgba(0, 0, 0, 0.75) !important;
 }
 
 /* Optional Tinted Frosted Variants (for KPI / Stat Highlights) */
@@ -986,11 +989,11 @@ input[type="range"]::-moz-range-thumb {
   background: linear-gradient(135deg, rgba(19, 22, 31, 0.70) 0%, rgba(12, 14, 20, 0.60) 100%) !important;
   -webkit-backdrop-filter: blur(18px) saturate(180%) !important;
   backdrop-filter: blur(18px) saturate(180%) !important;
-  border-color: rgba(255, 255, 255, 0.10) !important;
+  border-color: rgba(255, 255, 255, 0.18) !important;
   color: #F2F3EF !important;
   box-shadow:
-    inset 0 1px 0 0 rgba(255, 255, 255, 0.10),
-    0 6px 18px -4px rgba(0, 0, 0, 0.40) !important;
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.16),
+    0 6px 18px -4px rgba(0, 0, 0, 0.45) !important;
 }
 
 /* Frosted Glass Inputs & Selects inside Toolbars */
@@ -1011,9 +1014,9 @@ input[type="range"]::-moz-range-thumb {
   color: #F2F3EF !important;
   -webkit-backdrop-filter: blur(18px) saturate(180%) !important;
   backdrop-filter: blur(18px) saturate(180%) !important;
-  border-color: rgba(255, 255, 255, 0.12) !important;
+  border-color: rgba(255, 255, 255, 0.18) !important;
   box-shadow:
-    inset 0 1px 0 0 rgba(255, 255, 255, 0.14),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.18),
     0 6px 16px -4px rgba(0, 0, 0, 0.40) !important;
 }
 
@@ -1054,12 +1057,12 @@ input[type="range"]::-moz-range-thumb {
   background: linear-gradient(145deg, rgba(19, 22, 31, 0.92) 0%, rgba(12, 14, 20, 0.88) 55%, rgba(19, 22, 31, 0.94) 100%) !important;
   -webkit-backdrop-filter: blur(30px) saturate(190%) !important;
   backdrop-filter: blur(30px) saturate(190%) !important;
-  border-color: rgba(255, 255, 255, 0.14) !important;
+  border-color: rgba(255, 255, 255, 0.22) !important;
   color: #F2F3EF !important;
   box-shadow:
-    inset 0 1px 0 0 rgba(255, 255, 255, 0.20),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.05),
-    0 24px 64px -12px rgba(0, 0, 0, 0.78) !important;
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.28),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 24px 64px -12px rgba(0, 0, 0, 0.82) !important;
 }
 
 /* 7. Resort Map Tooltip Pill (Tier 1: iOS 26 Frosted Map Popover) */
