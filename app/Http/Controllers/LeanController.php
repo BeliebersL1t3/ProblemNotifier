@@ -503,11 +503,10 @@ class LeanController extends Controller
 
         $accs = [];
         foreach ($targetDepts as $dept) {
-            $isReceiverDept = strcasecmp(self::normalizeDepartment($dept), self::normalizeDepartment($receiverDept)) === 0;
             $accs[$dept] = [
-                'is_acc' => $isReceiverDept,
-                'acc_by' => $isReceiverDept ? $receiverName : null,
-                'acc_at' => $isReceiverDept ? Carbon::now('Asia/Jakarta')->toIso8601String() : null,
+                'is_acc' => true,
+                'acc_by' => $receiverName,
+                'acc_at' => Carbon::now('Asia/Jakarta')->toIso8601String(),
             ];
         }
 
@@ -1063,9 +1062,9 @@ class LeanController extends Controller
         $issue->resetProgressTimer();
         $issue->department_accs = [
             $toDept => [
-                'is_acc' => false,
-                'acc_by' => null,
-                'acc_at' => null,
+                'is_acc' => true,
+                'acc_by' => $actorName,
+                'acc_at' => Carbon::now('Asia/Jakarta')->toIso8601String(),
             ],
         ];
         $issue->transfer_history = $history;
@@ -1385,9 +1384,9 @@ class LeanController extends Controller
             'estimated_completion_at' => null,
             'department_accs'         => [
                 $targetDept => [
-                    'is_acc' => false,
-                    'acc_by' => null,
-                    'acc_at' => null,
+                    'is_acc' => true,
+                    'acc_by' => $validated['reporter'],
+                    'acc_at' => Carbon::now('Asia/Jakarta')->toIso8601String(),
                 ]
             ],
         ]);

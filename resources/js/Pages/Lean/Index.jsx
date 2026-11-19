@@ -1109,14 +1109,6 @@ export default function LeanIndex({
         }
     };
 
-    // Trigger ACC for a department
-    const handleAcc = (issueId, dept) => {
-        router.post(`/lapangan/issues/${issueId}/acc`, {
-            dept: dept,
-            staff_name: myName,
-        }, { preserveScroll: true });
-    };
-
     const toggleListWorker = (setter, name) => {
         const lower = String(name).toLowerCase().trim();
         setter((prev) => {
@@ -1534,26 +1526,18 @@ export default function LeanIndex({
                 return new Date(b.created_at || 0) - new Date(a.created_at || 0);
             }
 
-            if (sortBy === 'waiting_acc') {
-                // Priority: tiket yang belum ACC dari semua departemen atau belum resolved
+            if (sortBy === 'open_first' || sortBy === 'waiting_acc') {
+                // Priority: tiket yang masih Open di paling atas
+                const aIsOpen = a.status === 'open';
+                const bIsOpen = b.status === 'open';
+                if (aIsOpen !== bIsOpen) {
+                    return aIsOpen ? -1 : 1;
+                }
                 const aIsResolved = a.status === 'resolved';
                 const bIsResolved = b.status === 'resolved';
                 if (aIsResolved !== bIsResolved) {
-                    return aIsResolved ? 1 : -1; // belum selesai di atas
+                    return aIsResolved ? 1 : -1;
                 }
-
-                const aAccs = a.department_accs || {};
-                const bAccs = b.department_accs || {};
-                const aTargets = a.target_departments || [];
-                const bTargets = b.target_departments || [];
-
-                const aPendingAcc = aTargets.some((d) => !aAccs[d]?.is_acc);
-                const bPendingAcc = bTargets.some((d) => !bAccs[d]?.is_acc);
-
-                if (aPendingAcc !== bPendingAcc) {
-                    return aPendingAcc ? -1 : 1; // yang menunggu ACC di atas
-                }
-
                 // Tie-breaker: newest first
                 return new Date(b.created_at || 0) - new Date(a.created_at || 0);
             }
@@ -1821,7 +1805,7 @@ export default function LeanIndex({
                                 <option value="oldest">{isEn ? '⏳ Oldest' : '⏳ Terlama'}</option>
                                 <option value="status">{isEn ? '📊 Progress Status' : '📊 Status Progres'}</option>
                                 <option value="eta_urgent">{isEn ? '⏰ Longest Without Update' : '⏰ Paling Lama Tanpa Update'}</option>
-                                <option value="waiting_acc">{isEn ? '🚨 Awaiting ACC' : '🚨 Menunggu ACC'}</option>
+                                <option value="open_first">{isEn ? '🔥 Open (Unclaimed)' : '🔥 Belum Ditangani (Open)'}</option>
                             </select>
                         </div>
 
@@ -2176,7 +2160,6 @@ export default function LeanIndex({
                                     </thead>
                                     <tbody className={`divide-y ${isDark ? 'divide-slate-700/60' : 'divide-slate-200'}`}>
                                         {filteredIssues.map((issue) => {
-                                            const accs = issue.department_accs || {};
                                             const isExpanded = expandedMobileRowId === issue.id;
                                             const etaBadge = visibleColumns.eta ? getEtaBadgeInfo(issue, nowMs, isEn) : null;
                                             const statusStripe = {
@@ -2380,33 +2363,18 @@ export default function LeanIndex({
                                                                                 {isEn ? 'Assigned Department' : 'Departemen Penangan'}
                                                                             </span>
                                                                             <div className="flex flex-wrap gap-1">
-                                                                                {targetDepts.map((dept) => {
-                                                                                    const isThisDeptClaimed = issue.claimed_by_dept && (
-                                                                                        issue.claimed_by_dept.toLowerCase() === dept.toLowerCase()
-                                                                                    );
-                                                                                    const isThisAcc = accs[dept]?.is_acc || isThisDeptClaimed;
-                                                                                    const isWorking = issue.status === 'in_progress' && isThisDeptClaimed;
-                                                                                    return (
-                                                                                        <span
-                                                                                            key={dept}
-                                                                                            className={`px-1.5 py-0.5 rounded text-[9.5px] font-semibold border ${
-                                                                                                isWorking
-                                                                                                    ? isDark
-                                                                                                        ? 'bg-amber-950/80 border-amber-500 text-amber-200'
-                                                                                                        : 'bg-amber-100 border-amber-400 text-amber-900'
-                                                                                                    : isThisAcc
-                                                                                                    ? isDark
-                                                                                                        ? 'bg-emerald-950/80 border-emerald-600 text-emerald-300'
-                                                                                                        : 'bg-emerald-100 border-emerald-400 text-emerald-800'
-                                                                                                    : isDark
-                                                                                                    ? 'bg-slate-900 border-slate-700 text-slate-300'
-                                                                                                    : 'bg-white border-slate-300 text-slate-700'
-                                                                                            }`}
-                                                                                        >
-                                                                                            {formatDeptDisplay(dept)} {isWorking ? (isEn ? '🟡 Working' : '🟡 Dikerjakan') : isThisAcc ? '✓' : ''}
-                                                                                        </span>
-                                                                                    );
-                                                                                })}
+                                                                                {targetDepts.map((dept) => (
+                                                                                    <span
+                                                                                        key={dept}
+                                                                                        className={`px-2 py-0.5 rounded text-[9.5px] font-semibold border ${
+                                                                                            isDark
+                                                                                                ? 'bg-slate-800/80 border-slate-700/80 text-slate-200'
+                                                                                                : 'bg-slate-100 border-slate-300 text-slate-800'
+                                                                                        }`}
+                                                                                    >
+                                                                                        {formatDeptDisplay(dept)}
+                                                                                    </span>
+                                                                                ))}
                                                                             </div>
                                                                         </div>
                                                                     )}
@@ -2524,7 +2492,6 @@ export default function LeanIndex({
                                             </thead>
                                             <tbody className={`divide-y font-medium ${isDark ? 'divide-slate-700/60' : 'divide-slate-200'}`}>
                                                 {filteredIssues.map((issue) => {
-                                                    const accs = issue.department_accs || {};
                                                     const etaBadge = visibleColumns.eta ? getEtaBadgeInfo(issue, nowMs, isEn) : null;
 
                                                     return (
@@ -2611,33 +2578,18 @@ export default function LeanIndex({
                                                             {visibleColumns.dept && (
                                                                 <td className="py-2 px-2 whitespace-nowrap">
                                                                     <div className="flex flex-wrap gap-1">
-                                                                        {(issue.target_departments || []).map((dept) => {
-                                                                            const isThisDeptClaimed = issue.claimed_by_dept && (
-                                                                                issue.claimed_by_dept.toLowerCase() === dept.toLowerCase()
-                                                                            );
-                                                                            const isThisAcc = accs[dept]?.is_acc || isThisDeptClaimed;
-                                                                            const isWorking = issue.status === 'in_progress' && isThisDeptClaimed;
-                                                                            return (
-                                                                                <span
-                                                                                    key={dept}
-                                                                                    className={`px-1.5 py-0.5 rounded text-[9px] font-semibold border ${
-                                                                                        isWorking
-                                                                                            ? isDark
-                                                                                                ? 'bg-amber-950/80 border-amber-500 text-amber-200'
-                                                                                                : 'bg-amber-100 border-amber-400 text-amber-900'
-                                                                                            : isThisAcc
-                                                                                            ? isDark
-                                                                                                ? 'bg-emerald-950/80 border-emerald-600 text-emerald-300'
-                                                                                                : 'bg-emerald-100 border-emerald-400 text-emerald-800'
-                                                                                            : isDark
-                                                                                            ? 'bg-slate-900 border-slate-700 text-slate-300'
-                                                                                            : 'bg-slate-100 border-slate-300 text-slate-700'
-                                                                                    }`}
-                                                                                >
-                                                                                    {formatDeptDisplay(dept)} {isWorking ? '🟡' : isThisAcc ? '✓' : ''}
-                                                                                </span>
-                                                                            );
-                                                                        })}
+                                                                        {(issue.target_departments || []).map((dept) => (
+                                                                            <span
+                                                                                key={dept}
+                                                                                className={`px-1.5 py-0.5 rounded text-[9px] font-semibold border ${
+                                                                                    isDark
+                                                                                        ? 'bg-slate-800/80 border-slate-700/80 text-slate-200'
+                                                                                        : 'bg-slate-100 border-slate-300 text-slate-800'
+                                                                                }`}
+                                                                            >
+                                                                                {formatDeptDisplay(dept)}
+                                                                            </span>
+                                                                        ))}
                                                                     </div>
                                                                 </td>
                                                             )}
@@ -2772,8 +2724,6 @@ export default function LeanIndex({
                                     isDark ? 'divide-slate-700/60' : 'divide-slate-200'
                                 }`}>
                                     {filteredIssues.map((issue) => {
-                                        const accs = issue.department_accs || {};
-
                                         return (
                                             <tr
                                                 key={issue.id}
@@ -2845,34 +2795,18 @@ export default function LeanIndex({
                                                 {visibleColumns.dept && (
                                                     <td className="py-2 px-2 whitespace-nowrap">
                                                         <div className="flex flex-wrap gap-1">
-                                                            {(issue.target_departments || []).map((dept) => {
-                                                                const isThisDeptClaimed = issue.claimed_by_dept && (
-                                                                    issue.claimed_by_dept.toLowerCase() === dept.toLowerCase()
-                                                                );
-                                                                const isThisAcc = accs[dept]?.is_acc || isThisDeptClaimed;
-                                                                const isWorking = issue.status === 'in_progress' && isThisDeptClaimed;
-
-                                                                return (
-                                                                    <span
-                                                                        key={dept}
-                                                                        className={`px-1.5 py-0.5 rounded text-[9px] font-semibold border ${
-                                                                            isWorking
-                                                                                ? isDark
-                                                                                    ? 'bg-amber-950/80 border-amber-500 text-amber-200'
-                                                                                    : 'bg-amber-100 border-amber-400 text-amber-900'
-                                                                                : isThisAcc
-                                                                                ? isDark
-                                                                                    ? 'bg-emerald-950/80 border-emerald-600 text-emerald-300'
-                                                                                    : 'bg-emerald-100 border-emerald-400 text-emerald-800'
-                                                                                : isDark
-                                                                                ? 'bg-slate-900 border-slate-700 text-slate-300'
-                                                                                : 'bg-slate-100 border-slate-300 text-slate-700'
-                                                                        }`}
-                                                                    >
-                                                                        {formatDeptDisplay(dept)} {isWorking ? (isEn ? '🟡 Working' : '🟡 Dikerjakan') : isThisAcc ? '✓' : ''}
-                                                                    </span>
-                                                                );
-                                                            })}
+                                                            {(issue.target_departments || []).map((dept) => (
+                                                                <span
+                                                                    key={dept}
+                                                                    className={`px-2 py-0.5 rounded text-[9.5px] font-semibold border ${
+                                                                        isDark
+                                                                            ? 'bg-slate-800/80 border-slate-700/80 text-slate-200'
+                                                                            : 'bg-slate-100 border-slate-300 text-slate-800'
+                                                                    }`}
+                                                                >
+                                                                    {formatDeptDisplay(dept)}
+                                                                </span>
+                                                            ))}
                                                         </div>
                                                     </td>
                                                 )}
@@ -3012,8 +2946,6 @@ export default function LeanIndex({
                     /* --- VIEW 2: VISUAL CARD VIEW (MODERN RESPONSIVE GRID - OPTION 1 & 2) --- */
                     <div className={`grid ${CARD_GRID_CLASSES[cardGridCols] || CARD_GRID_CLASSES[3]}`}>
                         {filteredIssues.map((issue) => {
-                            const accs = issue.department_accs || {};
-
                             // Status theme for Option 1 & 2 (Top Accent Bar, Left Stripe, and Subtly Tinted Plates)
                             const statusTheme = {
                                 open: {
@@ -3247,43 +3179,18 @@ export default function LeanIndex({
                                                     <span className={`text-[10px] font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                                                         {isEn ? 'Target:' : 'Tujuan:'}
                                                     </span>
-                                                    {(issue.target_departments || []).map((dept) => {
-                                                        const isThisDeptClaimed = issue.claimed_by_dept && (
-                                                            issue.claimed_by_dept.toLowerCase() === dept.toLowerCase()
-                                                        );
-                                                        const isThisAcc = accs[dept]?.is_acc || isThisDeptClaimed;
-                                                        const isWorking = issue.status === 'in_progress' && isThisDeptClaimed;
-
-                                                        return (
-                                                            <div
-                                                                key={dept}
-                                                                className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] border transition-colors shadow-2xs ${
-                                                                    isWorking
-                                                                        ? (isDark ? 'bg-amber-950/80 border-amber-500/70 text-amber-200 font-semibold' : 'bg-amber-50 border-amber-300 text-amber-900 font-semibold')
-                                                                        : isThisAcc
-                                                                        ? (isDark ? 'bg-emerald-950/80 border-emerald-600/70 text-emerald-300 font-semibold' : 'bg-emerald-50 border-emerald-300 text-emerald-800 font-semibold')
-                                                                        : (isDark ? 'bg-slate-900 border-slate-700 text-slate-400' : 'bg-slate-100 border-slate-200 text-slate-600')
-                                                                }`}
-                                                            >
-                                                                {isWorking ? (
-                                                                    <>
-                                                                        <Clock className="w-2.5 h-2.5 text-amber-400 shrink-0" />
-                                                                        <span>{formatDeptDisplay(dept)}: {isEn ? 'Working' : 'Dikerjakan'}</span>
-                                                                    </>
-                                                                ) : isThisAcc ? (
-                                                                    <>
-                                                                        <Check className="w-2.5 h-2.5 text-emerald-400 shrink-0" />
-                                                                        <span>{formatDeptDisplay(dept)}: ACC</span>
-                                                                    </>
-                                                                ) : (
-                                                                    <>
-                                                                        <Clock className="w-2.5 h-2.5 opacity-50 shrink-0" />
-                                                                        <span>{formatDeptDisplay(dept)}</span>
-                                                                    </>
-                                                                )}
-                                                            </div>
-                                                        );
-                                                    })}
+                                                    {(issue.target_departments || []).map((dept) => (
+                                                        <div
+                                                            key={dept}
+                                                            className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold border transition-colors shadow-2xs ${
+                                                                isDark
+                                                                    ? 'bg-slate-800/80 border-slate-700/80 text-slate-200'
+                                                                    : 'bg-slate-100 border-slate-300 text-slate-800'
+                                                            }`}
+                                                        >
+                                                            <span>{formatDeptDisplay(dept)}</span>
+                                                        </div>
+                                                    ))}
                                                 </div>
                                             )}
                                         </div>
@@ -4742,48 +4649,23 @@ export default function LeanIndex({
                                 }`}>
                                     <span className={`text-[10px] font-semibold block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{isEn ? 'Assigned Department & Handler:' : 'Departemen Penangan & Penerima Isu:'}</span>
                                     <div className="flex flex-wrap gap-1.5 items-center">
-                                        {(activeDetailIssue.target_departments || []).map((dept) => {
-                                            const isThisDeptClaimed = activeDetailIssue.claimed_by_dept && (
-                                                activeDetailIssue.claimed_by_dept.toLowerCase() === dept.toLowerCase()
-                                            );
-                                            const isThisAcc = activeDetailIssue.department_accs?.[dept]?.is_acc || isThisDeptClaimed;
-                                            const accBy = activeDetailIssue.department_accs?.[dept]?.acc_by || (isThisDeptClaimed ? activeDetailIssue.claimed_by_name : null);
-                                            const isWorking = activeDetailIssue.status === 'in_progress' && isThisDeptClaimed;
-
-                                            return (
-                                                <span
-                                                    key={dept}
-                                                    className={`px-2 py-1 rounded-lg text-xs font-semibold border flex items-center gap-1.5 ${
-                                                        isWorking
-                                                            ? isDark
-                                                                ? 'bg-amber-950/80 border-amber-500 text-amber-200'
-                                                                : 'bg-amber-100 border-amber-400 text-amber-900'
-                                                            : isThisAcc
-                                                            ? isDark
-                                                                ? 'bg-emerald-950/80 border-emerald-600 text-emerald-300'
-                                                                : 'bg-emerald-100 border-emerald-400 text-emerald-800'
-                                                            : activeDetailIssue.status === 'in_progress'
-                                                            ? isDark
-                                                                ? 'bg-slate-900 border-amber-800/40 text-slate-300'
-                                                                : 'bg-white border-amber-300 text-amber-900'
-                                                            : isDark
-                                                            ? 'bg-slate-900 border-slate-700 text-slate-300'
-                                                            : 'bg-white border-slate-300 text-slate-700'
-                                                    }`}
-                                                >
-                                                    <span>{formatDeptDisplay(dept)}</span>
-                                                    {isWorking ? (
-                                                        <span className={`text-[10px] font-bold ${isDark ? 'text-amber-300' : 'text-amber-700'}`}>{isEn ? `🟡 Working (${activeDetailIssue.claimed_by_name})` : `🟡 Dikerjakan (${activeDetailIssue.claimed_by_name})`}</span>
-                                                    ) : isThisAcc ? (
-                                                        <span className={`text-[10px] font-bold ${isDark ? 'text-emerald-400' : 'text-emerald-700'}`}>{isEn ? '✓ Accepted' : '✓ Diterima'} {accBy && `(${accBy})`}</span>
-                                                    ) : activeDetailIssue.status === 'in_progress' ? (
-                                                        <span className={`text-[10px] ${isDark ? 'text-amber-400/80' : 'text-amber-700'}`}>{isEn ? `In Progress (${activeDetailIssue.claimed_by_name || 'Team'})` : `Diproses (${activeDetailIssue.claimed_by_name || 'Tim'})`}</span>
-                                                    ) : (
-                                                        <span className={`text-[10px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{isEn ? 'Waiting' : 'Menunggu'}</span>
-                                                    )}
-                                                </span>
-                                            );
-                                        })}
+                                        {(activeDetailIssue.target_departments || []).map((dept) => (
+                                            <span
+                                                key={dept}
+                                                className={`px-2.5 py-1 rounded-lg text-xs font-semibold border flex items-center gap-1.5 ${
+                                                    isDark
+                                                        ? 'bg-slate-800/90 border-slate-700 text-slate-200'
+                                                        : 'bg-white border-slate-300 text-slate-800 shadow-xs'
+                                                }`}
+                                            >
+                                                <span>{formatDeptDisplay(dept)}</span>
+                                                {activeDetailIssue.claimed_by_name && (
+                                                    <span className={`text-[10px] font-normal ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                                        • {activeDetailIssue.claimed_by_name}
+                                                    </span>
+                                                )}
+                                            </span>
+                                        ))}
                                         {/* Jika diambil oleh staf dari departemen lain (misal cross-department) */}
                                         {activeDetailIssue.claimed_by_dept && !(activeDetailIssue.target_departments || []).map(d => d.toLowerCase()).includes(activeDetailIssue.claimed_by_dept.toLowerCase()) && (
                                             <span className={`px-2 py-1 rounded-lg text-xs font-semibold border flex items-center gap-1.5 ${
