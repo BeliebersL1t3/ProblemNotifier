@@ -426,16 +426,17 @@ class LeanSheetDirectService
     /**
      * Get associative array of [monthTitle => sheetId (gid)].
      */
-    public function getMonthGids(bool $refresh = false): array
+    public function getMonthGids(?string $targetSheetId = null, bool $refresh = false): array
     {
-        $cacheKey = "lean_sheet_gids_{$this->spreadsheetId}";
+        $targetSheetId = $targetSheetId ?: $this->spreadsheetId;
+        $cacheKey = "lean_sheet_gids_{$targetSheetId}";
         if (!$refresh && Cache::has($cacheKey)) {
             return Cache::get($cacheKey);
         }
 
         try {
             $service = $this->getSheetsService();
-            $meta = $service->spreadsheets->get($this->spreadsheetId);
+            $meta = $service->spreadsheets->get($targetSheetId);
             $gids = [];
             foreach ($meta->getSheets() as $s) {
                 $p = $s->getProperties();
@@ -444,7 +445,7 @@ class LeanSheetDirectService
             Cache::put($cacheKey, $gids, 86400); // 24 hours
             return $gids;
         } catch (\Throwable $e) {
-            Log::error("Failed to fetch Lean Sheet GIDs: " . $e->getMessage());
+            Log::error("Failed to fetch Lean Sheet GIDs for {$targetSheetId}: " . $e->getMessage());
             return [];
         }
     }
@@ -672,17 +673,22 @@ class LeanSheetDirectService
     /**
      * Synchronize all issues from database into their respective month tabs.
      */
-    public function syncAllIssues(): array
+    public function syncAllIssues(?int $year = 2026): array
     {
+        $year = $year ?: (int) date('Y');
+        $targetSpreadsheetId = $this->getSpreadsheetIdForYear($year);
         $service = $this->getSheetsService();
-        $this->setupHeadersAndFormatting();
-        $gids = $this->getMonthGids();
+        $gids = $this->getMonthGids($targetSpreadsheetId);
+        $this->setupHeadersAndFormattingForTargetSheet($targetSpreadsheetId, $gids);
 
         if (empty($gids)) {
-            throw new \RuntimeException('Gagal mengambil daftar tab Google Sheets (koneksi atau kredensial bermasalah).');
+            throw new \RuntimeException("Gagal mengambil daftar tab Google Sheets untuk tahun {$year} (koneksi atau kredensial bermasalah).");
         }
 
-        $allIssues = LeanIssue::withTrashed()->orderBy('id', 'asc')->get();
+        $allIssues = LeanIssue::withTrashed()
+            ->whereYear('created_at', $year)
+            ->orderBy('id', 'asc')
+            ->get();
 
         // Group issues by month
         $byMonth = [];
@@ -707,8 +713,8 @@ class LeanSheetDirectService
 
             // Clear existing rows below header
             $service->spreadsheets_values->clear(
-                $this->spreadsheetId,
-                "{$monthName}!A2:V1000",
+                $targetSpreadsheetId,
+                "{$monthName}!A2:U1000",
                 new \Google\Service\Sheets\ClearValuesRequest()
             );
 
@@ -716,7 +722,7 @@ class LeanSheetDirectService
                 $endRow = count($rows) + 1;
                 $body = new ValueRange(['values' => $rows]);
                 $service->spreadsheets_values->update(
-                    $this->spreadsheetId,
+                    $targetSpreadsheetId,
                     "{$monthName}!A2:U{$endRow}",
                     $body,
                     ['valueInputOption' => 'USER_ENTERED']
@@ -727,11 +733,13 @@ class LeanSheetDirectService
         }
 
         $now = now();
-        LeanIssue::withTrashed()->update([
-            'needs_sheets_sync' => false,
-            'sheets_synced_at'  => $now,
-            'sheets_sync_error' => null,
-        ]);
+        LeanIssue::withTrashed()
+            ->whereYear('created_at', $year)
+            ->update([
+                'needs_sheets_sync' => false,
+                'sheets_synced_at'  => $now,
+                'sheets_sync_error' => null,
+            ]);
         Cache::forget('lean_sheets_pending_clear');
 
         return [
@@ -752,11 +760,13 @@ class LeanSheetDirectService
         try {
             $service = $this->getSheetsService();
             $monthName = self::getMonthNameForDate($issue->created_at);
+            $year = $issue->created_at ? (int) $issue->created_at->format('Y') : (int) date('Y');
+            $targetSpreadsheetId = $this->getSpreadsheetIdForYear($year);
 
             $oldCode = \App\Http\Controllers\LeanController::formatIssueCodeWithDept($issue, $oldDept);
             $newCode = \App\Http\Controllers\LeanController::formatIssueCodeWithDept($issue, $newDept);
 
-            $existing = $service->spreadsheets_values->get($this->spreadsheetId, "{$monthName}!A:A");
+            $existing = $service->spreadsheets_values->get($targetSpreadsheetId, "{$monthName}!A:A");
             $values = $existing->getValues() ?: [];
 
             // Compile transfer history string
@@ -800,7 +810,7 @@ class LeanSheetDirectService
                 ];
                 $bodyOld = new ValueRange(['values' => [$oldRowUpdate]]);
                 $service->spreadsheets_values->update(
-                    $this->spreadsheetId,
+                    $targetSpreadsheetId,
                     "{$monthName}!I{$oldRowIndex}:R{$oldRowIndex}",
                     $bodyOld,
                     ['valueInputOption' => 'USER_ENTERED']
@@ -849,7 +859,7 @@ class LeanSheetDirectService
                 // Update existing new row
                 $bodyNew = new ValueRange(['values' => [$newRow]]);
                 $service->spreadsheets_values->update(
-                    $this->spreadsheetId,
+                    $targetSpreadsheetId,
                     "{$monthName}!A{$newRowIndex}:U{$newRowIndex}",
                     $bodyNew,
                     ['valueInputOption' => 'USER_ENTERED']
@@ -858,7 +868,7 @@ class LeanSheetDirectService
                 // Append new row
                 $bodyNew = new ValueRange(['values' => [$newRow]]);
                 $service->spreadsheets_values->append(
-                    $this->spreadsheetId,
+                    $targetSpreadsheetId,
                     "{$monthName}!A:U",
                     $bodyNew,
                     ['valueInputOption' => 'USER_ENTERED']
@@ -882,11 +892,14 @@ class LeanSheetDirectService
         try {
             $service = $this->getSheetsService();
             $monthName = self::getMonthNameForDate($issue->created_at);
+            $year = $issue->created_at ? (int) $issue->created_at->format('Y') : (int) date('Y');
+            $targetSpreadsheetId = $this->getSpreadsheetIdForYear($year);
+
             $row = $this->formatIssueRow($issue);
             $code = $row[0];
 
             // Check if row already exists in month tab
-            $existing = $service->spreadsheets_values->get($this->spreadsheetId, "{$monthName}!A:A");
+            $existing = $service->spreadsheets_values->get($targetSpreadsheetId, "{$monthName}!A:A");
             $values = $existing->getValues() ?: [];
 
             $foundRowIndex = null;
@@ -901,7 +914,7 @@ class LeanSheetDirectService
                 // Update existing row
                 $body = new ValueRange(['values' => [$row]]);
                 $service->spreadsheets_values->update(
-                    $this->spreadsheetId,
+                    $targetSpreadsheetId,
                     "{$monthName}!A{$foundRowIndex}:U{$foundRowIndex}",
                     $body,
                     ['valueInputOption' => 'USER_ENTERED']
@@ -910,7 +923,7 @@ class LeanSheetDirectService
                 // Append new row
                 $body = new ValueRange(['values' => [$row]]);
                 $service->spreadsheets_values->append(
-                    $this->spreadsheetId,
+                    $targetSpreadsheetId,
                     "{$monthName}!A:U",
                     $body,
                     ['valueInputOption' => 'USER_ENTERED']
@@ -934,10 +947,12 @@ class LeanSheetDirectService
         try {
             $service = $this->getSheetsService();
             $monthName = self::getMonthNameForDate($issue->created_at);
+            $year = $issue->created_at ? (int) $issue->created_at->format('Y') : (int) date('Y');
+            $targetSpreadsheetId = $this->getSpreadsheetIdForYear($year);
             $code = \App\Services\GoogleSheetsSyncService::formatIssueCode($issue);
 
             // Search row index by ticket code in Column A
-            $existing = $service->spreadsheets_values->get($this->spreadsheetId, "{$monthName}!A:A");
+            $existing = $service->spreadsheets_values->get($targetSpreadsheetId, "{$monthName}!A:A");
             $values = $existing->getValues() ?: [];
 
             $matchedRows = [];
@@ -958,7 +973,7 @@ class LeanSheetDirectService
                 foreach ($matchedRows as $foundRowIndex) {
                     $body = new ValueRange(['values' => [[0, $deletedBy, $deletedAt]]]);
                     $service->spreadsheets_values->update(
-                        $this->spreadsheetId,
+                        $targetSpreadsheetId,
                         "{$monthName}!S{$foundRowIndex}:U{$foundRowIndex}",
                         $body,
                         ['valueInputOption' => 'USER_ENTERED']
